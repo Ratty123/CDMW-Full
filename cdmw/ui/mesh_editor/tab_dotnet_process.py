@@ -390,6 +390,12 @@ class MeshEditorDotNetProcessMixin:
     def _handle_standalone_action_progress(self, request_id: int, percent: int, message: str) -> None:
         if int(request_id) != int(self.standalone_action_request_id):
             return
+        # Progress is a queued cross-thread signal, so one emitted just before
+        # the result can be delivered just after it. Letting that through
+        # repaints the status line with "Applied Rotate." over the finished
+        # session state the completion handler had already written.
+        if int(request_id) <= int(self.standalone_action_finished_request_id):
+            return
         progress = self.standalone_action_progress
         if progress is not None:
             progress.setLabelText(str(message or "Applying Mesh Editor action..."))
@@ -398,6 +404,7 @@ class MeshEditorDotNetProcessMixin:
     def _handle_standalone_action_completed(self, request_id: int, result: object) -> None:
         if int(request_id) != int(self.standalone_action_request_id):
             return
+        self.standalone_action_finished_request_id = int(request_id)
         controller = self.standalone_action_controller or self.standalone_controller
         if controller is None:
             return
@@ -426,6 +433,7 @@ class MeshEditorDotNetProcessMixin:
     def _handle_standalone_action_cancelled(self, request_id: int, message: str) -> None:
         if int(request_id) != int(self.standalone_action_request_id):
             return
+        self.standalone_action_finished_request_id = int(request_id)
         text = str(message or "Mesh Editor action cancelled.")
         if self.standalone_action_dotnet_command:
             self._send_dotnet_command_result(
@@ -441,6 +449,7 @@ class MeshEditorDotNetProcessMixin:
     def _handle_standalone_action_error(self, request_id: int, message: str) -> None:
         if int(request_id) != int(self.standalone_action_request_id):
             return
+        self.standalone_action_finished_request_id = int(request_id)
         text = str(message or "Mesh Editor action failed.")
         if self.standalone_action_dotnet_command:
             self._send_dotnet_command_result(

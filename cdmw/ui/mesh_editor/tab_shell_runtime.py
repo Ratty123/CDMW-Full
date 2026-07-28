@@ -47,6 +47,11 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_action_worker: _tab.MeshEditCommandWorker | None = None
         self.standalone_action_progress: _tab.QProgressDialog | None = None
         self.standalone_action_request_id = 0
+        #: Highest request id that has already finished. Progress arrives on a
+        #: queued cross-thread signal, so it can be delivered after the result
+        #: it belongs to; without this the last word on the status line is a
+        #: progress message rather than the finished session state.
+        self.standalone_action_finished_request_id = 0
         self.standalone_action_text = ""
         self.standalone_action_controller: _tab.MeshEditorController | None = None
         self.standalone_action_dotnet_command = ""
