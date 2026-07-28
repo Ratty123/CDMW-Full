@@ -12,6 +12,20 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Docs
+- Tried exhaustive backtracking over candidate components with **"the blob closes exactly"** as the oracle — the one approach left that uses the file's own end rather than an external source. It does not work: over 600 prefabs it closed **5 of 228 failures (+0.8%)**, and 4 of those 5 needed only a single choice point. So the failures are not mis-picked candidates among plausible ones; either no assignment closes the blob, or the walk dies before it ever reaches a choice point.
+- That is the seventh `.prefab` hypothesis retired by measurement this session. The walk stays at an honestly measured ~60%, and the value continues to sit where it already did: offset-keyed fixed-size editing on the 95.3% of objects whose component type the file states, with a source digest, expected-old bytes, and no edits offered on inferred types.
+
+## [0.11.0-alpha.2] - 2026-07-28
+
+### Docs
+- **The repository is now `CDMW-Full`**, next to the read-only `CDMW-Lite`, and `APP_REPOSITORY_URL` follows it. README was rewritten around what the tool has actually become rather than around what it was when the file was last touched: a status header, a workspace table, an **Architecture** section with process-topology, layering, preview-session and build-path diagrams, and a **File format decoding status** section.
+- That status section carries the real numbers — 77 engine formats in the shipped build at 41.7% read and 26.0% write, 65.9%/53.8% weighted by file count — rather than a prose claim that drifts from the manifest. It is written from `schemas/archive_content_capabilities.v1.json`, the same source the Archive Browser reports from, and names what is finished, what is partly decoded and why, and which closed formats would pay off first.
+- Version is `0.11.0-alpha.2`. No release is published for it yet; the newest build on the Releases page is still `0.10.0-alpha.2`, and the README says so rather than implying otherwise.
+
+### Fixed
+- **The packaging job installed .NET 8 while every helper project targets `net10.0-windows`.** A release build on CI could not have published the Mesh Editor or the archive worker. It installs .NET 10 now.
+
+### Docs
 - Tried to read `hkReflect` type resolution out of the executable and ruled it out, for a reason that reframes `.prefab` entirely: **most of the component types in shipped prefabs do not exist in the runtime.** Of 488 distinct component type names sampled from 600 archive prefabs, only **75 (15%)** appear as strings in `CrimsonDesert.exe` — and the absent ones include `HDAComponent`, `HoudiniOutput`, `HoudiniParameterBool`, `HoudiniParameterInt`, `HoudiniParameterResourcePath`, `HoudiniSubnetInputSpline`. Those are **Houdini digital-asset authoring types the game never instantiates.** The 75 that are present are scattered rather than tabled: only 8 of 74 consecutive names sit within 80 bytes, so there is no contiguous registry to read.
 - So `.prefab` carries authoring-time reflection data, much of it with no runtime counterpart — the same pattern as `.papr` turning out to be a 3ds Max rig export left in the archives. Marker-1 component identity cannot be recovered from a runtime registry that does not contain the types. That closes the last route currently on the table, and it does so with a measurement rather than an opinion.
 
