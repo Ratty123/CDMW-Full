@@ -37,7 +37,7 @@ Engine formats only, worst first. Open formats are listed at the end for complet
 | `.levelinfo` | 14,478 | surface | none | high | placement records not parsed - level layout cannot be edited |
 | `.paac` | 520 | partial | constrained | high | chart node structure around the strings is not parsed, so only same-length retargets are allowed |
 | `.palevel` | 21,119 | surface | none | high | placement records not parsed - level layout cannot be edited |
-| `.parg` | 750 | partial | none | high | the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet. This is the particle render schema, so closing it opens VFX modding |
+| `.parg` | 750 | partial | none | high | the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet. This is the particle render schema, so closing it opens VFX modding The heap walk diverges from .prefab in the pointee trailer: where a prefab repeats the consumed length, these files carry a padding byte and then a small value of 1, 2 or 3 (measured as 256/512/768 when read one byte early across 747 of the 882 files), so it is a kind tag rather than a length. That is where a future attempt should start. |
 | `.pat` | 1,397 | partial | none | high | no builder, and LOD1+ plus unrecognised vertex layouts stay explicitly undecoded - static world geometry is view-only |
 | `.prefab` | 47,343 | partial | constrained | high | only resource paths are editable; transforms, arrays and value edits stay off, and ~7% of files decode partially |
 | `.bnk` | 3,186 | surface | none | medium | HIRC event/action tables not parsed, so sounds can be swapped but not added |
@@ -52,7 +52,7 @@ Engine formats only, worst first. Open formats are listed at the end for complet
 | `.paschedulepath` | 3,613 | surface | none | medium | schedule entries not parsed - NPC routines cannot be retimed or rerouted |
 | `.paseq` | 4,688 | surface | none | medium | track and event layout not parsed - cutscene authoring is closed |
 | `.paseqc` | 2,938 | surface | none | medium | track and event layout not parsed - cutscene authoring is closed |
-| `.pasg` | 40 | partial | none | medium | the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet |
+| `.pasg` | 40 | partial | none | medium | the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet The heap walk diverges from .prefab in the pointee trailer: where a prefab repeats the consumed length, these files carry a padding byte and then a small value of 1, 2 or 3 (measured as 256/512/768 when read one byte early across 747 of the 882 files), so it is a kind tag rather than a length. That is where a future attempt should start. |
 | `.pastage` | 3,321 | surface | none | medium | track and event layout not parsed - cutscene authoring is closed |
 | `.pathc` | 1 | partial | none | medium | no writer, and the payload beyond the parsed header is unmodelled |
 | `.pcg` | 92 | partial | none | medium | the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet. Convex collision hulls, so a writer would allow custom collision |
@@ -137,7 +137,7 @@ Every format marked `high`: closing it opens a modding category that is currentl
 - **`.levelinfo`** (read surface, write none) — placement records not parsed - level layout cannot be edited
 - **`.paac`** (read partial, write constrained) — chart node structure around the strings is not parsed, so only same-length retargets are allowed
 - **`.palevel`** (read surface, write none) — placement records not parsed - level layout cannot be edited
-- **`.parg`** (read partial, write none) — the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet. This is the particle render schema, so closing it opens VFX modding
+- **`.parg`** (read partial, write none) — the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet. This is the particle render schema, so closing it opens VFX modding The heap walk diverges from .prefab in the pointee trailer: where a prefab repeats the consumed length, these files carry a padding byte and then a small value of 1, 2 or 3 (measured as 256/512/768 when read one byte early across 747 of the 882 files), so it is a kind tag rather than a length. That is where a future attempt should start.
 - **`.pat`** (read partial, write none) — no builder, and LOD1+ plus unrecognised vertex layouts stay explicitly undecoded - static world geometry is view-only
 - **`.prefab`** (read partial, write constrained) — only resource paths are editable; transforms, arrays and value edits stay off, and ~7% of files decode partially
 

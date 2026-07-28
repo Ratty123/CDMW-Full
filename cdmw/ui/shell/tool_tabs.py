@@ -312,6 +312,19 @@ class ShellToolTabsMixin:
         tab.setObjectName("placement_studio")
         return tab
 
+    def _create_format_explorer_tab(self) -> QWidget:
+        """What every game file format can and cannot do, and which tool does it.
+
+        Reads the capability manifest, so it cannot drift from what the code actually
+        supports. Lazy like the rest; it touches no archives.
+        """
+
+        from tools.format_explorer.tab import FormatExplorerTab
+
+        tab = FormatExplorerTab()
+        tab.setObjectName("format_explorer")
+        return tab
+
     def _create_translation_studio_tab(self) -> QWidget:
         """Search and retranslate the game's string tables.
 
@@ -390,6 +403,12 @@ class ShellToolTabsMixin:
             "Placement & Animation Studio",
             "placement_studio",
             self._create_placement_studio_tab,
+        )
+        self.format_explorer_tab = self._add_lazy_shell_tool(
+            self.tools_tabs,
+            "Format Explorer",
+            "format_explorer",
+            self._create_format_explorer_tab,
         )
         self.translation_studio_tab = self._add_lazy_shell_tool(
             self.tools_tabs,
