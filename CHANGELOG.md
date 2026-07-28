@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+- **Nine 32-bit multiplications in vendored xatlas now happen in 64 bits.** `ArrayBase` and `BitImage` keep `size`, `capacity`, and `elementSize` as `uint32_t`, so `size * elementSize` was evaluated in 32 bits and only then widened to the `size_t` that `memcpy`, `memmove`, `memset`, and `XA_REALLOC_SIZE` take. One operand in each product is cast first now. Reaching the overflow needs more than 4 GB of element data in a single array, which no asset this tool opens approaches, and the allocation and the copy used the same truncated arithmetic so they would at least have agreed — the reason to fix it is that nine standing high-severity alerts train people to stop reading the security tab.
+- Recorded in `native/cdmw_mesh_core/third_party/xatlas/README.md` with the line numbers, because they are the only deviation from upstream and an update would silently drop them. `cdmw-mesh-core` rebuilds clean and the UV bake, import contract, and external-model audit suites pass against the rebuilt binary.
+
 ### Docs
 - Validated the relocation machinery that array resizing would have to reuse, by the one method available to it: **shrink a path, grow it back, demand the original bytes**. Over 700 sampled prefabs, **386 of 386 round trips are byte-exact and none differ.** The remaining 314 were skipped rather than failed — mostly partial walks, plus a handful the writer refused outright because a pointee had two possible length fields, which is the writer declining an ambiguous case rather than getting it wrong.
 - That is a real result for the resize question even though no resize writer exists yet. Moving bytes, relocating pointers by the self-relative rule, rewriting pointee length fields and correcting the data header all survive a shrink-and-regrow with no drift. Had it not, array resizing would have been off the table outright; instead the foundation is sound and what array resize still lacks is only its own count-writing step and a way to validate *that* — the shipped corpus offers no same-asset one-child-apart pairs to check it against.
