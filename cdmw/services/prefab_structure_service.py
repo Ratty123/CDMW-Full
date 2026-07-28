@@ -75,13 +75,19 @@ def rewrite_prefab_placements(*args, **kwargs):
 
 
 def recover_pointee_strings(*args: Any, **kwargs: Any) -> Any:
-    from cdmw.core.prefab_binary import recover_pointee_strings as owner
+    from cdmw.core.prefab_recovery import recover_pointee_strings as owner
 
     return owner(*args, **kwargs)
 
 
 def rewrite_prefab_paths_same_length(*args: Any, **kwargs: Any) -> Any:
     from cdmw.core.prefab_binary_edit import rewrite_prefab_paths_same_length as owner
+
+    return owner(*args, **kwargs)
+
+
+def prefab_references(*args: Any, **kwargs: Any) -> Any:
+    from cdmw.core.prefab_recovery import prefab_references as owner
 
     return owner(*args, **kwargs)
 
@@ -103,6 +109,7 @@ __all__ = [
     "prefab_source_digest",
     "pointer_sites",
     "prefab_binary_error",
+    "prefab_references",
     "recover_pointee_strings",
     "rewrite_prefab_paths",
     "rewrite_prefab_paths_same_length",

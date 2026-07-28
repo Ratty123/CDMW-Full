@@ -138,7 +138,18 @@ class PrefabRowsMixin:
         )
         self.tree.addTopLevelItem(parent)
         for item in recovered:
-            row = QTreeWidgetItem(["", f"a {asset_role(item.text).lower()} file", item.text])
+            # No member name exists for these -- the walk never reached them, so
+            # nothing says which field they belong to, and inventing one would
+            # be the sort of plausible lie the rest of this dialog avoids. The
+            # file's own name is what identifies it, and a column of bare
+            # basenames is scannable where a column of full paths is not.
+            row = QTreeWidgetItem(
+                [
+                    item.text.rsplit("/", 1)[-1],
+                    f"a {asset_role(item.text).lower()} file",
+                    item.text,
+                ]
+            )
             row.setData(2, EDIT_ROLE, item.text)
             row.setData(2, OFFSET_ROLE, int(item.offset))
             if self._can_swap_same_length():
