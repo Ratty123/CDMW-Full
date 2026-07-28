@@ -20,6 +20,7 @@ directory is supplied rather than assumed.
 from __future__ import annotations
 
 import argparse
+import random
 import collections
 import pathlib
 import re
@@ -42,12 +43,21 @@ def cause_of(note: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--corpus", required=True, type=pathlib.Path)
-    parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--limit", type=int, default=0,
+                        help="sample this many files at random rather than all of them")
+    parser.add_argument("--seed", type=int, default=0,
+                        help="seed for --limit, so a census is reproducible")
     args = parser.parse_args()
 
     files = sorted(args.corpus.glob("*.prefab"))
-    if args.limit:
-        files = files[: args.limit]
+    if args.limit and args.limit < len(files):
+        # A lexicographic prefix is not a sample. `sorted(...)[:limit]` walks the
+        # alphabetical head of the corpus, so two runs at different limits read
+        # different populations and their completion rates are not comparable --
+        # which is exactly how a 93% figure and a 57% figure came to be quoted for
+        # the same decoder. Seeded so a census stays reproducible.
+        files = random.Random(args.seed).sample(files, args.limit)
+        files.sort()
 
     counts: collections.Counter[str] = collections.Counter()
     progress: dict[str, list[float]] = collections.defaultdict(list)

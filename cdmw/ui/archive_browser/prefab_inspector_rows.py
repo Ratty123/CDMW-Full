@@ -91,7 +91,9 @@ class PrefabRowsMixin:
             self.tree.addTopLevelItem(node)
             for name, item in obj.values:
                 self._add_value_row(node, name, item.text, editable, item.offset)
-            self._add_number_rows(node, obj.numbers)
+            self._add_number_rows(
+                node, obj.numbers, stated_type=getattr(obj, "type_source", "stated") == "stated"
+            )
             self._add_fields_row(
                 node,
                 obj.member_names,
@@ -198,8 +200,22 @@ class PrefabRowsMixin:
                 )
         return frozenset()
 
-    def _add_number_rows(self, parent: QTreeWidgetItem, numbers: tuple[object, ...]) -> None:
-        """Show the numeric values: placement, opacity, flags and the like."""
+    def _add_number_rows(
+        self,
+        parent: QTreeWidgetItem,
+        numbers: tuple[object, ...],
+        *,
+        stated_type: bool = True,
+    ) -> None:
+        """Show the numeric values: placement, opacity, flags and the like.
+
+        `stated_type` is False when the walk had to infer this object's component
+        type rather than read it from the file. Such an object can be entirely wrong
+        while still looking complete -- see `PrefabObject.type_source` -- so its rows
+        are shown but never made editable. The edit would be byte-safe and land on a
+        field we cannot name with confidence, which is the worse failure: a modder
+        would have no way to tell it went to the wrong place.
+        """
         seen_placements: dict[str, str] = {}
         for number in numbers:
             rendered = describe_value(number.type_name, number.raw)
@@ -218,14 +234,14 @@ class PrefabRowsMixin:
             meaning = describe_field(number.name)
             row = QTreeWidgetItem([meaning.label, meaning.detail, rendered])
             row.setToolTip(0, f"{number.name}  ({number.type_name})")
-            if self._can_edit() and read_placement(number.raw) is not None:
+            if stated_type and self._can_edit() and read_placement(number.raw) is not None:
                 row.setData(
                     0,
                     PLACEMENT_ROLE,
                     (number.offset, number.type_name, number.raw, number.name),
                 )
                 row.setToolTip(2, "Double-click to move, rotate or rescale this.")
-            elif self._can_edit() and editable_kind(number.type_name, number.raw):
+            elif stated_type and self._can_edit() and editable_kind(number.type_name, number.raw):
                 # Only members whose declared type and byte width agree. Writing
                 # a value whose type is unconfirmed is how a readable file
                 # becomes a broken one.
