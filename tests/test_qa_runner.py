@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -122,7 +123,19 @@ exit 0
 
 
 @pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
-def test_qa_timeout_and_cleanup_are_enforced(tmp_path: Path) -> None:
+def test_qa_timeout_and_cleanup_are_enforced() -> None:
+    # Not `tmp_path`. `Remove-QAOwnedPath` refuses twice, and the first refusal is
+    # that the owned root is not under the *system* temp directory. CI runs pytest
+    # with `--basetemp=$RUNNER_TEMP/...`, which on a GitHub runner is `D:\a\_temp`
+    # and not under `%TEMP%`, so a `tmp_path` root tripped the outer guard and the
+    # test read the wrong refusal -- exit 11 rather than the QA-ownership message
+    # it means to exercise. Building the roots under the real system temp puts the
+    # outer guard's precondition back where the test assumes it.
+    with tempfile.TemporaryDirectory(prefix="cdmw-qa-runner-") as system_temp_dir:
+        _assert_qa_timeout_and_cleanup_are_enforced(Path(system_temp_dir))
+
+
+def _assert_qa_timeout_and_cleanup_are_enforced(tmp_path: Path) -> None:
     qa_root = tmp_path / "cdmw-full-qa-owned"
     qa_root.mkdir()
     outside = tmp_path / "crash_reports"

@@ -141,7 +141,7 @@ rebuild exactly, across 2,737 configuration blocks.
 
 | Format | Files | Read | Write | What is left |
 |---|---:|---|---|---|
-| `.prefab` | 47,343 | partial | constrained | 40% of archive prefabs do not walk to completion. Component identity is not stated at the failure sites, and the collection-header width rule is ambiguous at 87% of them. Value editing is scoped to objects whose type the file states. |
+| `.prefab` | 47,343 | partial | constrained | 38% of archive prefabs do not walk to completion. Component identity is not stated at the failure sites, and the collection-header width rule is ambiguous at 87% of them. Value editing is scoped to objects whose type the file states; whole objects can be duplicated or removed. |
 | `.hkx` | 58,031 | partial | constrained | Structural edits (topology, counts, references, strings, arrays) are blocked pending semantic rebuild proof. No new collision shapes or ragdoll bodies. |
 | `.paac` | 520 | partial | constrained | The chart node structure around the strings is not parsed, so only same-length animation retargets are allowed. |
 | `.wem` | 375,762 | partial | constrained | Only uncompressed PCM is re-encoded; Vorbis/Opus streams cannot be authored. |

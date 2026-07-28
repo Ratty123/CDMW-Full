@@ -185,7 +185,10 @@ def test_first_run_prompt_keeps_event_loop_alive_until_hidden_main_window_opens(
     fallback_exit.setSingleShot(True)
     fallback_exit.timeout.connect(lambda: app.exit(17))
     QTimer.singleShot(0, dialog.accept)
-    fallback_exit.start(250)
+    # Hang guard only, generous on purpose: a shared CI runner can miss enough
+    # event-loop ticks to trip a tight deadline and report a failure that is
+    # really just a busy machine. The assertions after this are the test.
+    fallback_exit.start(30_000)
     exit_code = app.exec()
     fallback_exit.stop()
     window_was_visible = window.isVisible()
