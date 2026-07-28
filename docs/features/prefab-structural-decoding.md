@@ -180,7 +180,36 @@ Roughly in order of value:
    | 99 | 2.2% | 22% | 94% | 2 | pointee length N != N |
    | 63 | 1.4% | 97% | 100% | 3 | blob read of N past end |
 
-   Three of these have been chased to a conclusion, and none is what its
+   **These are one problem, not eight.** Completion tracks a single variable --
+   how many candidate component types the file declares:
+
+   | candidates | files | complete | rate |
+   | ---: | ---: | ---: | ---: |
+   | 1 | 6,458 | 6,427 | **99.5%** |
+   | 2 | 912 | 408 | 44.7% |
+   | 3 | 399 | 38 | 9.5% |
+   | 4-6 | 1,381 | 304 | 22.0% |
+   | 7-10 | 466 | 105 | 22.5% |
+   | 11-20 | 2,099 | 127 | 6.1% |
+   | 21+ | 284 | 17 | 6.0% |
+
+   With nothing to choose between, the walk is essentially perfect. It fails as
+   soon as it has to choose, because marker=1 groups state no component type and
+   the declaration-order fallback is a guess -- one that is nearly free with a
+   single candidate and nearly hopeless with twelve. Files that fail early
+   declare 18.8 types and 12.7 candidates on average; files that complete
+   declare 5.3 and 1.6.
+
+   That is why the messages differ while the shape does not: a wrong component
+   means a wrong member layout, the cursor desynchronises, and whichever check
+   trips first supplies the wording. It is also why none of the individual
+   causes yielded to a targeted fix, and why the mask-width variants could not
+   help -- the mask is not what is wrong.
+
+   **Any real gain has to come from a discriminator for marker=1 groups**, which
+   is the known-unknowable below. Nothing downstream of the choice will do it.
+
+   Three of the symptoms were chased individually first, and none is what its
    message suggests:
 
    - **"Collection count N (kind N)" is misalignment, not an unhandled kind.**
@@ -246,11 +275,22 @@ Roughly in order of value:
    rather than scanned, which covers every resource-path pointee; where it does
    not, and an edit falls inside, the rewriter refuses. Measured on the shipped
    archives, that declines about 4% of files rather than writing them.
-7. **The pointer test is necessary, not sufficient.** `value == offset + 4` is
-   an exact identity, but arbitrary inline bytes can satisfy it by coincidence.
-   No failure in the corpus fuzz. Hardening it means validating record structure
-   rather than scanning, which is better attempted after a successful in-game
-   canary than before one.
+7. **The pointer test is necessary, not sufficient -- but it has now been
+   measured.** `value == offset + 4` is an exact identity, and arbitrary inline
+   bytes can satisfy it by coincidence, so it cannot be proved sufficient. It
+   can be checked against the walk, which knows exactly which pointers it
+   consumed. Over 1,261 complete-walk prefabs and **18,503 pointer sites**, the
+   identity test and the walk agree exactly on 99.0% of files. The 37 sites the
+   test found but the walk never traversed are not evidently coincidences: 35
+   of them open with the zero word a populated pointee begins with, which is
+   what an unvisited pointer looks like. One site went the other way, and the
+   harness can manufacture that -- it runs its own footer search before the
+   real one -- so it is not established as a genuine miss.
+
+   That replaces "could in principle be wrong" with a number. It is still not a
+   proof, and the rewriter's safety does not rest on one: pointer values are
+   recomputed from their own relocated positions, so a coincidental site would
+   have to also sit where a relocation applies.
 
 ## Dead Ends
 
