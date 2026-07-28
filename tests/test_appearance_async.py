@@ -134,7 +134,12 @@ def test_composite_plan_runs_from_frozen_snapshot(tmp_path: Path) -> None:
     assert result.plan.appearance_entry is app_entry
 
 
-def test_appearance_controller_returns_under_50_ms_and_rejects_close() -> None:
+#: Well under the 2 s the operation blocks for, and well above the thread
+#: setup a loaded runner needs. It is a delegation check, not a benchmark.
+_DELEGATION_BUDGET_MS = 500.0
+
+
+def test_appearance_controller_delegates_immediately_and_rejects_close() -> None:
     app = _app()
     owner = _UtilityOwner()
     dialog = QDialog()
@@ -163,11 +168,18 @@ def test_appearance_controller_returns_under_50_ms_and_rejects_close() -> None:
         on_complete=completed.append,
         on_error=lambda _message: None,
     )
-    assert (time.perf_counter() - before) * 1000.0 < 50.0
+    # The point is that start() hands the work to a thread instead of running it
+    # inline, and the operation blocks for 2 s, so anything far below that proves
+    # it. The old budget was 50 ms, which measured how busy the machine was: a
+    # loaded CI runner took 158 ms to create the thread and failed a test about
+    # delegation. `completed` staying empty is the assertion that actually says
+    # the work had not run.
+    assert (time.perf_counter() - before) * 1000.0 < _DELEGATION_BUDGET_MS
+    assert not completed
     assert started.wait(1.0)
     before = time.perf_counter()
     controller.request_shutdown()
-    assert (time.perf_counter() - before) * 1000.0 < 50.0
+    assert (time.perf_counter() - before) * 1000.0 < _DELEGATION_BUDGET_MS
     assert cancelled.wait(1.0)
     assert _wait_for(app, lambda: owner.worker_thread is None)
     assert completed == []
