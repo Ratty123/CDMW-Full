@@ -752,14 +752,35 @@ class PrefabInspectorDialog(PrefabEditingMixin, QDialog):
         original = item.data(2, _EDIT_ROLE)
         if not isinstance(original, str):
             return ()
-        return tuple(self._known_paths.get(asset_extension_for(original), ()))
+        candidates = tuple(self._known_paths.get(asset_extension_for(original), ()))
+        if self._can_edit():
+            return candidates
+        # Only same-length replacements can be written on a partly-read prefab.
+        # Offering the rest means the modder picks one, works through the
+        # review, and is refused at the last step for a reason they were given
+        # no chance to see.
+        width = len(original.encode("utf-8"))
+        return tuple(item for item in candidates if len(item.encode("utf-8")) == width)
 
     def _browse_for_selected_row(self) -> None:
         item = self.tree.currentItem()
         candidates = self._candidates_for(item)
         if item is None or not candidates:
             return
-        picker = AssetPickerDialog(candidates, current=item.text(2), parent=self)
+        picker = AssetPickerDialog(
+            candidates,
+            current=item.text(2),
+            note=(
+                ""
+                if self._can_edit()
+                else (
+                    "This prefab is only partly readable, so the list is limited to "
+                    "names of exactly the same length - those are the swaps that move "
+                    "nothing in the file."
+                )
+            ),
+            parent=self,
+        )
         if picker.exec() and picker.chosen:
             item.setText(2, picker.chosen)
 

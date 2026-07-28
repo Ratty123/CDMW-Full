@@ -957,3 +957,34 @@ def test_every_companion_is_listed_not_just_the_first(qt_app: QApplication) -> N
     assert lines
     # Material and physics both, since a mesh has two companions by convention.
     assert lines[0].note.count("comes from") + lines[0].note.count("will come from") >= 2
+
+
+def test_the_picker_offers_only_same_length_names_when_that_is_all_that_works(
+    qt_app: QApplication,
+) -> None:
+    """Otherwise a modder picks one, reviews it, and is refused at the last step."""
+    same = PATH[:-5] + "z" + PATH[-4:]
+    longer = PATH[:-4] + "considerably_longer.pac"
+    shorter = "a/b.pac"
+    known = {".pac": (same, longer, shorter)}
+
+    whole = PrefabInspectorDialog(_build(), known_paths=known)
+    assert whole._can_edit()
+    assert set(whole._candidates_for(_path_row(whole))) == {same, longer, shorter}
+
+    partial = PrefabInspectorDialog(_partly_read(_build()), known_paths=known)
+    assert not partial._can_edit() and partial._can_swap_same_length()
+    offered = partial._candidates_for(_path_row(partial))
+    assert set(offered) == {same}, "only the equal-length name can be written"
+    assert all(len(item.encode()) == len(PATH.encode()) for item in offered)
+
+
+def test_the_picker_says_why_the_list_is_short(qt_app: QApplication) -> None:
+    from cdmw.ui.archive_browser.prefab_inspector_widgets import AssetPickerDialog
+
+    quiet = AssetPickerDialog(("a/b.pac",))
+    assert not quiet.note.isVisibleTo(quiet)
+
+    explained = AssetPickerDialog(("a/b.pac",), note="only same length works here")
+    assert explained.note.isVisibleTo(explained)
+    assert "same length" in explained.note.text()

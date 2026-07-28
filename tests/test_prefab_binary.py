@@ -400,3 +400,28 @@ def test_the_blob_trailer_is_a_run_of_records_not_a_fixed_width() -> None:
     assert not _is_trailer_run(bytes([2]) + struct.pack("<I", 5), 0)
     assert not _is_trailer_run(one + bytes([9, 9, 9, 9, 9]), 0)
     assert not _is_trailer_run(b"", 0)
+
+
+def test_a_bad_collection_header_says_what_is_actually_there() -> None:
+    """"kind 98" invites enumerating kind bytes; there is no enumeration.
+
+    The rejected kinds are scattered and the cursor is usually looking at a
+    string, so the message reports what it found instead of describing a field
+    that is not present.
+    """
+    from cdmw.core.prefab_binary import _BlobCursor, _describe_cursor
+
+    text = b"Basic_ChildSocket"
+    blob = struct.pack("<I", len(text)) + text
+    assert "17-byte string" in _describe_cursor(_BlobCursor(blob, 0))
+    assert "Basic_ChildSocket" in _describe_cursor(_BlobCursor(blob, 0))
+
+    # A cursor a little short of the record says by how much.
+    skewed = _BlobCursor(bytes(2) + blob, 0)
+    assert "2 byte(s) further on" in _describe_cursor(skewed)
+
+    owner = _BlobCursor(b"\xff" * 8 + bytes(8), 0)
+    assert "owner field" in _describe_cursor(owner)
+
+    opaque = _BlobCursor(bytes([9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9]), 0)
+    assert _describe_cursor(opaque).startswith("bytes ")

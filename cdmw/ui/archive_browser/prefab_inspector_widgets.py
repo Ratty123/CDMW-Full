@@ -39,7 +39,14 @@ from cdmw.domain.archives.prefab_values import (
 class AssetPickerDialog(QDialog):
     """Pick an existing archive path, filtered to one kind of asset."""
 
-    def __init__(self, candidates: Sequence[str], *, current: str = "", parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        candidates: Sequence[str],
+        *,
+        current: str = "",
+        note: str = "",
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Choose an asset")
         self.resize(760, 520)
@@ -48,6 +55,10 @@ class AssetPickerDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(f"{len(self._candidates):,} file(s) of this kind exist in the archives."))
+        self.note = QLabel(note)
+        self.note.setWordWrap(True)
+        self.note.setVisible(bool(note))
+        layout.addWidget(self.note)
         self.filter_box = QLineEdit()
         self.filter_box.setPlaceholderText("Type part of a name to narrow the list...")
         self.filter_box.textChanged.connect(self._refresh)
