@@ -278,10 +278,17 @@ class _PartsHarness:
 
     _populate_parts = PlacementStudioWindow._populate_parts
     _sync_part_box = PlacementStudioWindow._sync_part_box
+    # Picking the row that matches the weapon's hand is part of populating the list, so the
+    # harness has to carry it too.
+    _default_part_name = PlacementStudioWindow._default_part_name
+    _part_suits_weapon = PlacementStudioWindow._part_suits_weapon
+    _weapon_hand = PlacementStudioWindow._weapon_hand
 
     def __init__(self, parts) -> None:
         self._session = _StubSession(parts)
         self._part_box = QComboBox()
+        self._weapon_box = QComboBox()
+        self._bindings = list(self._session.bindings())
         self._selected_part = ""
 
 
@@ -608,3 +615,76 @@ class UseAsOrientationTests(unittest.TestCase):
         harness = self._harness("Basic_ChildSocket")
         harness._use_selected_as_orientation()
         self.assertEqual(harness._edits.to_plan().tier_counts(), {"B": 1})
+
+
+class WeaponHandTests(unittest.TestCase):
+    """The part being edited must be held in the hand the chosen weapon is authored for.
+
+    Kliff's swords are all `_r`, so the default row — `CD_MainWeapon_Sword_R`, hard-coded —
+    agreed with them by luck. Damian has a left-handed set as well, and choosing one left the
+    right-hand row selected: the left-hand sword on screen while the animation drove the right
+    arm, a hand reaching for nothing. That reads as the swap being broken rather than as the
+    wrong row being edited.
+    """
+
+    def _harness(self, weapon_id: str, parts):
+        harness = _PartsHarness(parts)
+
+        class _Weapon:
+            pass
+
+        weapon = _Weapon()
+        weapon.weapon_id = weapon_id
+        harness._weapon_box.addItem(weapon_id, weapon)
+        harness._weapon_box.setCurrentIndex(harness._weapon_box.count() - 1)
+        harness._bindings = list(harness._session.bindings())
+        return harness
+
+    def test_a_left_handed_weapon_selects_the_left_hand_row(self) -> None:
+        harness = self._harness(
+            "cd_phw_01_sword_0001_l",
+            [_part(part_name="CD_MainWeapon_Sword_R", out_socket="RHand_Socket"),
+             _part(part_name="CD_MainWeapon_Sword_L", out_socket="LHand_Socket")],
+        )
+
+        self.assertEqual(harness._default_part_name(), "CD_MainWeapon_Sword_L")
+
+    def test_a_right_handed_weapon_selects_the_right_hand_row(self) -> None:
+        harness = self._harness(
+            "cd_phm_01_sword_0001_r",
+            [_part(part_name="CD_MainWeapon_Sword_R", out_socket="RHand_Socket"),
+             _part(part_name="CD_MainWeapon_Sword_L", out_socket="LHand_Socket")],
+        )
+
+        self.assertEqual(harness._default_part_name(), "CD_MainWeapon_Sword_R")
+
+    def test_the_kind_matters_as_well_as_the_hand(self) -> None:
+        """Matching on the hand alone picks the first right-handed row, which is the arrow."""
+
+        harness = self._harness(
+            "cd_phm_01_sword_0001_r",
+            [_part(part_name="CD_MainWeapon_Arw", out_socket="RHand_Socket"),
+             _part(part_name="CD_MainWeapon_Sword_R", out_socket="RHand_Socket")],
+        )
+
+        self.assertEqual(harness._default_part_name(), "CD_MainWeapon_Sword_R")
+
+    def test_a_stale_selection_gives_way_when_the_hand_changes(self) -> None:
+        """Both characters have a `CD_MainWeapon_Sword_R`, so it would otherwise survive."""
+
+        harness = self._harness(
+            "cd_phw_01_sword_0001_l",
+            [_part(part_name="CD_MainWeapon_Sword_R", out_socket="RHand_Socket"),
+             _part(part_name="CD_MainWeapon_Sword_L", out_socket="LHand_Socket")],
+        )
+
+        self.assertFalse(harness._part_suits_weapon("CD_MainWeapon_Sword_R"))
+        self.assertTrue(harness._part_suits_weapon("CD_MainWeapon_Sword_L"))
+
+    def test_a_weapon_with_no_side_keeps_whatever_was_chosen(self) -> None:
+        harness = self._harness(
+            "cd_phm_02_sword_0001",
+            [_part(part_name="CD_MainWeapon_Sword_R", out_socket="RHand_Socket")],
+        )
+
+        self.assertTrue(harness._part_suits_weapon("CD_MainWeapon_Sword_R"))

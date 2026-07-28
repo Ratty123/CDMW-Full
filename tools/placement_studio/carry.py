@@ -146,6 +146,12 @@ CLIP_FAMILIES: Dict[str, str] = {
     "swd": "1h",
     "longsword": "2h",
     "lswd": "2h",
+    # Damian's one-handed set. He shares exactly one family with Kliff — `lswd` — and none of
+    # the sword families at all: his weapon *files* are named `cd_phw_01_sword_*`, but the
+    # animations for them are `rpr`, the rapier. Without these two, every swap on Damian
+    # reported that no animation had a counterpart, which read as the tool being broken.
+    "rpr": "1h",
+    "2rpr": "1h",
 }
 
 
@@ -157,8 +163,14 @@ CLIP_FAMILIES: Dict[str, str] = {
 #: replacements that have a vanilla counterpart are exact copies; the other two were edited
 #: further by hand, and sixteen more were authored outright because no counterpart exists.
 #:
-#: Going the other way is ambiguous — `lswd` has three one-hand counterparts — so candidates
+#: Going the other way is ambiguous — `lswd` has several one-hand counterparts — so candidates
 #: are tried in order and the first that actually exists wins.
+#:
+#: Damian's pairing was established the same way, by measurement rather than by his file names:
+#: renaming the family token of his 640 `lswd` clips lands on a real clip 394 times for `rpr`
+#: (62%) and 232 for `2rpr` (36%). For comparison, the best of Kliff's pairings — the ones the
+#: shipped mods use literally — matches 15%. Both of Damian's are one-handed: a family that
+#: pairs *with* `lswd` sits on the other side of it by construction.
 FAMILY_COUNTERPARTS: Dict[str, Tuple[str, ...]] = {
     "sword": ("longsword",),
     "dualsword": ("longsword",),
@@ -166,7 +178,11 @@ FAMILY_COUNTERPARTS: Dict[str, Tuple[str, ...]] = {
     "swds": ("lswd",),
     "swd": ("lswd",),
     "longsword": ("sword", "dualsword"),
-    "lswd": ("swds", "dlsd", "swd"),
+    # Kliff's candidates first, then Damian's. The two sets are disjoint — no character has
+    # both — so a miss on one simply falls through to the other.
+    "lswd": ("swds", "dlsd", "swd", "rpr", "2rpr"),
+    "rpr": ("lswd",),
+    "2rpr": ("lswd",),
 }
 
 
@@ -577,3 +593,32 @@ def build_index(
         if on_progress is not None and done % 25 == 0:
             on_progress(done)
     return index
+
+
+#: Which clip names belong to the player themselves, per model.
+#:
+#: The motion tree is shared: an unfiltered sweep of `1_phm` rewrote 121 files including
+#: `cd_darkguide` and `cd_redwarden` — every boss's draw, for a change to the player's sword.
+#: So a swap only ever touches the player's own clips, and this is the list of what those are
+#: called. It was hard-coded to Kliff's two prefixes, which meant every swap on Damian matched
+#: nothing at all and reported that no animation had a counterpart.
+#:
+#: `cd_prh_` is Kliff mounted; Damian's mounted clips are named after him instead.
+PLAYER_CLIP_PREFIXES: Dict[str, Tuple[str, ...]] = {
+    "1_phm": ("cd_phm_", "cd_prh_"),
+    "2_phw": ("cd_phw_", "cd_damian_"),
+}
+
+
+def player_clip_prefixes(model: str) -> Tuple[str, ...]:
+    """The prefixes a swap may rewrite for this character, never another's.
+
+    An unknown model falls back to its own token alone — narrow rather than wide, because the
+    cost of being wrong here is rewriting somebody else's animations.
+    """
+
+    known = PLAYER_CLIP_PREFIXES.get(model)
+    if known:
+        return known
+    token = model.split("_", 1)[-1] if "_" in model else model
+    return (f"cd_{token}_",) if token else ()

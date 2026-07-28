@@ -307,6 +307,9 @@ class CarryPickerMixin:
             e for e in self._clip_index.entries
             if f"/{session.model}/" in e.path and "/00_mon/" not in e.path
         ]
+        prefixes = carry.player_clip_prefixes(session.model)
+        if not prefixes:
+            return []
         donors = collections.defaultdict(list)
         for entry in entries:
             signature = carry.clip_signature(entry.name)
@@ -318,7 +321,7 @@ class CarryPickerMixin:
             name = entry.name
             if carry.clip_handedness(name) != hands or "_swarm_" in name:
                 continue
-            if not (name.startswith("cd_phm_") or name.startswith("cd_prh_")):
+            if not name.startswith(prefixes):
                 continue
             if not locomotion and not carry.is_draw(name):
                 continue

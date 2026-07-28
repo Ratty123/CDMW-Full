@@ -36,9 +36,22 @@ KNOWN_MODELS = {
     "14_ptm": "PTM",
 }
 
+#: What each `weapon/` folder is, for the dropdown. Only the two hand categories were named,
+#: so a bow, a shield and a torch all read `(?)` — which says nothing and looks like a fault.
 WEAPON_CATEGORIES = {
+    "0_tools": "tool",
     "1_onehandweapon": "one-hand",
     "2_twohandweapon": "two-hand",
+    "3_shield": "shield",
+    "4_bow": "bow",
+    "5_crossbow": "crossbow",
+    "6_pistol": "pistol",
+    "7_shotgun": "shotgun",
+    "8_musket": "musket",
+    "10_thrownweapon": "thrown",
+    "11_trap": "trap",
+    "12_pike": "pike",
+    "13_fist": "fist",
 }
 
 

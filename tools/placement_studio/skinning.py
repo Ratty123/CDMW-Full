@@ -276,7 +276,7 @@ def _neighbouring(skeleton, first: np.ndarray, second: np.ndarray) -> np.ndarray
     return joined | (gap <= NEAR_BONE)
 
 
-def _bone_column(data: bytes, primary, rest_array, skeleton):
+def _bone_column(palette: tuple, primary, rest_array, skeleton):
     """Which skeleton bone drives each vertex.
 
     A `.pac` influence slot is not a bone index — it indexes the file's own palette of bone
@@ -292,10 +292,6 @@ def _bone_column(data: bytes, primary, rest_array, skeleton):
     beats no body at all.
     """
 
-    try:
-        palette = _resolved_palette(data, skeleton)
-    except Exception:  # noqa: BLE001 - an unreadable palette is a fallback, not a failure
-        palette = ()
     if palette:
         column = [palette[slot] if 0 <= slot < len(palette) else 0 for slot in primary]
         return np.asarray(column, dtype=np.int32), True
@@ -347,14 +343,19 @@ def load_skinned(data: bytes, path: str, skeleton) -> Optional[SkinnedMesh]:
     if not rest or not faces:
         return None
     rest_array = np.asarray(rest, dtype=np.float64)
-    column, exact = _bone_column(data, primary, rest_array, skeleton)
+    # Resolved once. The wide scan behind it walks the whole file, so asking twice — once for
+    # the primary bone and again for the second — doubled the cost of loading a character.
+    try:
+        palette = _resolved_palette(data, skeleton)
+    except Exception:  # noqa: BLE001 - an unreadable palette is a fallback, not a failure
+        palette = ()
+    column, exact = _bone_column(palette, primary, rest_array, skeleton)
     # The second influence indexes the same palette, so it only means anything when the palette
     # resolved. Under the proximity fallback the slot is not a bone at all and blending towards
     # it would smear the mesh, so that path stays rigid — as it always was.
     second_column = column
     share = np.zeros(len(primary), dtype=np.float64)
     if exact:
-        palette = _resolved_palette(data, skeleton)
         second_column = np.asarray(
             [palette[s] if 0 <= s < len(palette) else 0 for s in secondary], dtype=np.int32
         )

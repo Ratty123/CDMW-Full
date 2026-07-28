@@ -80,11 +80,10 @@ class AnimationTabMixin:
         # be as wide as its longest entry by default. Two of those plus a button demanded more
         # width than the row had, so Qt drew them over each other and over the labels between
         # them. They elide instead now, and the popup keeps the full text readable.
-        _let_header_shrink(
-            combos=(self._chart_socket_box, self._retarget_box),
-            labels=(),
-            buttons=(self._retarget_button,),
-        )
+        # Only the combos give way. Handing the button `Ignored` too let the two stretching
+        # combos take every pixel and squeeze it off the right-hand edge entirely — a control
+        # that is merely narrow is recoverable, one that is not on screen is not.
+        _let_header_shrink(combos=(self._chart_socket_box, self._retarget_box), labels=())
 
         self._chart_view = QPlainTextEdit()
         self._chart_view.setReadOnly(True)

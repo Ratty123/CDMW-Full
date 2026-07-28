@@ -481,9 +481,13 @@ class PlacementStudioWindow(
                 Qt.ToolTipRole,
             )
 
-        position = self._part_box.findData(previous) if previous else -1
+        # A previous choice is kept only while it still suits the weapon. Both characters have
+        # a `CD_MainWeapon_Sword_R`, so switching to Damian's left-handed sword otherwise left
+        # the right-hand row selected and the mismatch survived the very action meant to fix it.
+        keep = bool(previous) and self._part_suits_weapon(previous)
+        position = self._part_box.findData(previous) if keep else -1
         if position < 0:
-            position = self._part_box.findData("CD_MainWeapon_Sword_R")
+            position = self._part_box.findData(self._default_part_name())
         self._part_box.setCurrentIndex(max(0, position))
         self._part_box.blockSignals(False)
         fit_popup(self._part_box)
@@ -531,6 +535,8 @@ class PlacementStudioWindow(
         self._weapon_box.clear()
         self._weapon_box.addItem("(none — body sockets only)", None)
         for weapon in weapons:
+            if not self._weapon_has_mesh(weapon):
+                continue
             self._weapon_box.addItem(weapon.label, weapon)
         restored = -1
         if current_id:
@@ -688,6 +694,91 @@ class PlacementStudioWindow(
         from .armour import read_armour
 
         return read_armour(path, getattr(self, "_armour_index", None))
+
+    def _weapon_hand(self) -> str:
+        """Which hand socket the selected weapon is authored for, or "" when it does not say."""
+
+        weapon = self._weapon_box.currentData()
+        if weapon is None:
+            return ""
+        stem = getattr(weapon, "weapon_id", "")
+        while stem.endswith("_in"):
+            stem = stem[: -len("_in")]
+        if stem.endswith("_l"):
+            return "LHand_Socket"
+        if stem.endswith("_r"):
+            return "RHand_Socket"
+        return ""
+
+    def _part_suits_weapon(self, part_name: str) -> bool:
+        """Whether a part is held in the same hand the weapon is authored for."""
+
+        hand = self._weapon_hand()
+        if not hand:
+            return True
+        for binding in self._bindings:
+            if binding.part_name == part_name:
+                return binding.part.out_socket in ("", hand)
+        return True
+
+    def _default_part_name(self) -> str:
+        """The row that matches the hand the selected weapon is actually for.
+
+        This was `CD_MainWeapon_Sword_R` outright. Kliff's swords are all right-handed, so the
+        two agreed by luck; Damian has a left-handed set as well, and picking one of those left
+        the *right*-hand row selected. The result was the left-hand sword on screen while the
+        animation drove the right arm — a hand reaching for nothing, which reads as the swap
+        being broken rather than as the wrong row being edited.
+
+        Matched on the socket the item is held in rather than on the part's name, because the
+        name is not reliable: Damian's `CD_MainWeapon_Sword_R` is held in `RHand_Socket`, but
+        it is the file suffix on the weapon that says which one you chose.
+        """
+
+        fallback = "CD_MainWeapon_Sword_R"
+        weapon = self._weapon_box.currentData()
+        if weapon is None:
+            return fallback
+        hand = self._weapon_hand()
+        if not hand:
+            return fallback
+        stem = getattr(weapon, "weapon_id", "")
+        while stem.endswith("_in"):
+            stem = stem[: -len("_in")]
+        stem = stem[:-2]
+        # `cd_phw_01_sword_0001` -> `sword`. The kind has to match as well as the hand, or the
+        # first right-handed row wins and that is the arrow.
+        parts = stem.split("_")
+        kind = parts[3].lower() if len(parts) > 3 else ""
+        rows = [b for b in self._bindings if b.part.out_socket == hand]
+        for binding in rows:
+            if kind and kind in binding.part_name.lower():
+                return binding.part_name
+        return fallback
+
+    def _weapon_has_mesh(self, weapon) -> bool:
+        """Whether this weapon can actually be drawn, not merely placed.
+
+        A weapon is offered because it has a socket file, and twelve of Kliff's have one with
+        no mesh anywhere in the archives. Selecting those put a name in the header and nothing
+        on screen, which reads as the viewport being broken rather than as the file being
+        absent. They are left out instead.
+
+        Only applied once the archive index has landed. Before that nothing outside the pinned
+        baseline can be found, and filtering on that would empty the list.
+        """
+
+        from .meshes import weapon_mesh_paths
+
+        entries = getattr(self, "_weapon_mesh_entries", None)
+        if not entries:
+            return True
+        session = self._session
+        model = session.model if session is not None else ""
+        return any(
+            path in self._baseline or path in entries
+            for path in weapon_mesh_paths(weapon.weapon_id, model)
+        )
 
     def _archive_bytes(self, path: str) -> bytes:
         """Any indexed asset: the pinned baseline first, then the packages."""
