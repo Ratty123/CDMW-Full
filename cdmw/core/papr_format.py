@@ -56,35 +56,25 @@ where the length counts a trailing NUL.
 It is an independent check on a parse: bear declares 12 and its two blocks hold six
 records each; dog declares 30 and has five blocks of six.
 
-## The block, and what is still opaque
+## The block
 
-Blocks are a stream of 3-byte `(tag, type, value)` records. Type `0x03` opens, type
-`0x05` closes (`07 05 00` is the closing record), type `0x01` is a scalar, and type
-`0x04` introduces a member. What is *known* about the payloads:
+Blocks are a stream of 3-byte `(tag, type, value)` records, some of which carry a
+payload. `cdmw/core/papr_block.py` owns that grammar and its evidence; in short, a block
+holds driver lists (who this bone follows, and by how much), the limits that follow one,
+and 3ds Max expression controllers carrying the actual rule -- `amin(Local_Euler_Z*5.5+20) 8`.
 
-* `05 03 00` / `06 04 00` / `07 05 00` / `10 01 xx` carry no payload.
-* `0a 04 00` is always followed by exactly two bytes, in all 1,084 occurrences.
-* A driver list is `u8 count`, then that many `(u16 name, f32 weight)` pairs, then a
-  `0x00` sentinel. It is introduced by `03 04 00` or `04 04 00`.
-* The tag vocabulary across the corpus is `01 03 04 05 06 07 09 0a 10 11 12` against
-  types `01 03 04 05`.
+**1,857 of 2,541 blocks (73.1%) now consume exactly**, up from the 682 (26.8%) that
+matched the one canonical 27-byte shape this module used to recognise. `block_shape`
+reports `decoded` for those and `partial` for the rest, and `ConstraintEntry.decode()`
+returns what was found.
 
-**26.8% of blocks (682 of 2,541) are one canonical 27-byte shape** -- `05 03 00`, three
-`10 01 xx`, `06 04 00`, three `10 01 xx`, `07 05 00`, nine records exactly. Those are
-fully understood and `block_shape` reports them as `canonical`.
+This module still does **not** interpret block contents when writing. It finds each
+block's exact extent and carries the bytes verbatim, so an edit can never corrupt a
+construct we do not understand -- decoding is read-only.
 
-The rest are not solved. The payload of a type-04 member depends on the member id, the
-rules differ per id, and the schema that would say so is not in the file. Fitting the
-remaining shapes against the corpus produces rules that consume 73% of block bytes and
-are plainly overfitted (a `11 01` "string then ten floats then four bytes" is not a
-struct anyone wrote), so none of that guesswork is in this module.
-
-So this module does **not** interpret block contents. It finds each block's exact
-extent and carries the bytes verbatim. That is enough for everything below, and it
-means an edit can never corrupt a construct we do not understand.
-
-`record_count` at 0x20 remains the oracle for whoever attacks this next: any candidate
-grammar has to make the per-block record counts sum to it.
+`record_count` at 0x20 remains the oracle for whoever attacks the remaining 684: any
+candidate grammar has to make the per-block record counts sum to it, and it already does
+for `cd_m0001_00_bear`, whose blocks decode completely.
 
 Block extents come from locating entry *starts* rather than block ends: a start is two
 name-shaped strings followed by a tail whose third byte is 0 or 1, and the chain of
@@ -189,15 +179,28 @@ class ConstraintEntry:
 
     @property
     def block_shape(self) -> str:
-        """`none`, `canonical` for the fully understood 9-record form, else `opaque`.
+        """`none`, `decoded` when every byte is accounted for, else `partial`.
 
         The UI uses this to say which entries are completely understood rather than
-        implying the same confidence everywhere.
+        implying the same confidence everywhere. This used to recognise only the one
+        canonical 27-byte shape -- 26.8% of the corpus -- so almost everything read as
+        opaque even where the grammar in `papr_block` accounts for all of it.
         """
 
         if not self.block:
             return "none"
-        return "canonical" if is_canonical_block(self.block) else "opaque"
+        return "decoded" if self.decode().complete else "partial"
+
+    def decode(self):
+        """What is inside the block: records, drivers, limits, and any expression.
+
+        Read-only, and deliberately not cached on the frozen dataclass: callers that need
+        it per row hold the result themselves.
+        """
+
+        from cdmw.core.papr_block import decode_block
+
+        return decode_block(self.block)
 
 
 @dataclass(frozen=True)

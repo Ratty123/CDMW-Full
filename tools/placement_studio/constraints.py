@@ -98,8 +98,10 @@ class ChainMember:
     name: str
     parent: str
     weights: Tuple[WeightSite, ...]
-    #: `canonical` when every byte of this bone's config block is understood.
-    shape: str = "opaque"
+    #: `decoded` when every byte of this bone's config block is accounted for.
+    shape: str = "partial"
+    #: The driver formulas this bone runs, e.g. `amin(Local_Euler_Z*5.5+20) 8`.
+    formulas: Tuple[str, ...] = ()
 
     @property
     def strength(self) -> float:
@@ -152,10 +154,24 @@ class Chain:
         but a modder is entitled to know which is which before trusting a result.
         """
 
-        return bool(self.members) and all(m.shape == "canonical" for m in self.members)
+        return bool(self.members) and all(m.shape == "decoded" for m in self.members)
 
     def sites(self) -> Tuple[WeightSite, ...]:
         return tuple(site for member in self.members for site in member.weights)
+
+    @property
+    def formulas(self) -> Tuple[str, ...]:
+        """Every driver formula in the chain, deduplicated, in member order.
+
+        This is the chain's actual behaviour rather than a list of who it follows, and it
+        was unreadable until `papr_block` decoded the expression payload.
+        """
+
+        seen: dict[str, None] = {}
+        for member in self.members:
+            for text in member.formulas:
+                seen.setdefault(text, None)
+        return tuple(seen)
 
 
 @dataclass(frozen=True)
@@ -204,12 +220,16 @@ def build_chains(document: PaprDocument) -> Tuple[Chain, ...]:
     for index, entry in enumerate(document.entries):
         if not entry.driven:
             continue
+        # One decode per entry, reused for both the shape and the formulas: `block_shape`
+        # decodes to answer, so asking it separately would do the work twice per row.
+        decoded = entry.decode()
         member = ChainMember(
             entry_index=index,
             name=entry.name,
             parent=entry.parent,
             weights=tuple(sites_by_entry.get(index, ())),
-            shape=entry.block_shape,
+            shape="decoded" if decoded.complete else "partial",
+            formulas=tuple(e.text for e in decoded.expressions),
         )
         grouped.setdefault(anchor_of(entry), []).append(member)
 
