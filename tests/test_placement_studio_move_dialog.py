@@ -446,3 +446,71 @@ class RowMergeTests(unittest.TestCase):
         ]
 
         self.assertTrue(any("3 files" in text for text in texts))
+
+
+class BorrowedRowTests(unittest.TestCase):
+    """A row using the other character's animation says so on its face.
+
+    The clip plays — the two rigs share 403 bone names — but `.paa` keys are bind-pose deltas,
+    so on different proportions the same rotations land somewhere slightly different. Somebody
+    about to ship a mod built on one should learn that from the row, not from a commit message.
+    """
+
+    @staticmethod
+    def _entry(name: str):
+        class _E:
+            pass
+
+        entry = _E()
+        entry.name = name
+        entry.path = f"character/motion/1_pc/2_phw/{name}.paa"
+        entry.category = "draw"
+        return entry
+
+    def _dialog(self, pairs):
+        return MoveWeaponDialog(
+            parts=[("CD_MainWeapon_Sword_R", "Sword")],
+            positions=[("Pelvis_L_Socket", "Hip — left")],
+            current_part="CD_MainWeapon_Sword_R",
+            pairs_for=lambda **_k: pairs,
+            handedness="1h",
+        )
+
+    @staticmethod
+    def _rows(dialog):
+        tree = dialog._clip_list
+        out = []
+        for i in range(tree.topLevelItemCount()):
+            lane = tree.topLevelItem(i)
+            out.extend(lane.child(j) for j in range(lane.childCount()))
+        return out
+
+    def test_a_borrowed_row_is_marked(self) -> None:
+        target = self._entry("cd_phw_rpr_00_01_nor_std_weapon_out_00")
+        donor = self._entry("cd_phm_lswd_00_01_nor_std_weapon_out_00")
+        dialog = self._dialog([(target, donor, (donor,))])
+
+        rows = self._rows(dialog)
+        self.assertTrue(rows, "the dialog listed nothing")
+        self.assertIn("borrowed", rows[0].text(0).lower())
+        self.assertIn("different proportions", rows[0].toolTip(0))
+
+    def test_a_same_character_row_is_not_marked(self) -> None:
+        target = self._entry("cd_phw_rpr_00_01_nor_std_weapon_out_00")
+        donor = self._entry("cd_phw_lswd_00_01_nor_std_weapon_out_00")
+        dialog = self._dialog([(target, donor, (donor,))])
+
+        rows = self._rows(dialog)
+        self.assertTrue(rows)
+        self.assertNotIn("borrowed", rows[0].text(0).lower())
+
+    def test_the_file_names_stay_in_the_tooltip(self) -> None:
+        """The caveat is added to what was there, not swapped for it."""
+
+        target = self._entry("cd_phw_rpr_00_01_nor_std_weapon_out_00")
+        donor = self._entry("cd_phm_lswd_00_01_nor_std_weapon_out_00")
+        dialog = self._dialog([(target, donor, (donor,))])
+
+        tip = self._rows(dialog)[0].toolTip(0)
+        self.assertIn(target.name, tip)
+        self.assertIn(donor.name, tip)
