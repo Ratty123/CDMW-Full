@@ -17,7 +17,7 @@ byte length.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable, Mapping, Sequence
 
 from PySide6.QtCore import Qt
@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
 from cdmw.domain.archives.prefab_companions import companion_paths
 from cdmw.domain.archives.prefab_values import (
     Placement,
+    placement_space,
     describe_value,
     read_placement,
     write_placement,
@@ -447,7 +448,11 @@ class PrefabInspectorDialog(QDialog):
             row = QTreeWidgetItem([meaning.label, meaning.detail, rendered])
             row.setToolTip(0, f"{number.name}  ({number.type_name})")
             if self._can_edit() and read_placement(number.raw) is not None:
-                row.setData(0, _PLACEMENT_ROLE, (number.offset, number.type_name, number.raw))
+                row.setData(
+                    0,
+                    _PLACEMENT_ROLE,
+                    (number.offset, number.type_name, number.raw, number.name),
+                )
                 row.setToolTip(2, "Double-click to move, rotate or rescale this.")
             parent.addChild(row)
 
@@ -518,13 +523,15 @@ class PrefabInspectorDialog(QDialog):
         stored = item.data(0, _PLACEMENT_ROLE)
         if not stored:
             return
-        offset, type_name, original_raw = stored
+        offset, type_name, original_raw, member_name = stored
         pending = self._placement_edits.get(offset)
         current = pending[1] if pending else original_raw
         placement = read_placement(current)
         if placement is None:
             return
-        editor = PlacementEditDialog(placement, title=item.text(0), parent=self)
+        editor = PlacementEditDialog(
+            placement, title=item.text(0), space=placement_space(member_name), parent=self
+        )
         if not editor.exec() or editor.result_placement is None:
             return
         new_raw = write_placement(editor.result_placement)
@@ -536,6 +543,7 @@ class PrefabInspectorDialog(QDialog):
         item.setForeground(
             2, QBrush(_CHANGED_COLOUR) if offset in self._placement_edits else QBrush()
         )
+        self._sync_twin_placements(item, placement, editor.result_placement)
         self._refresh_pending_state()
 
     def _note_pending_edit(self, item: QTreeWidgetItem, column: int) -> None:
@@ -649,6 +657,46 @@ class PrefabInspectorDialog(QDialog):
             note += f"  {len(warnings)} {verb} wrong: " + " ".join(dict.fromkeys(warnings))
         self.status.setText(note)
 
+    def _sync_twin_placements(
+        self, edited: QTreeWidgetItem, was: Placement, now: Placement
+    ) -> None:
+        """Move the object's other transform to match, when they were identical.
+
+        Objects carry ``_worldTransform`` and ``_tiledTransform`` as a pair, and
+        in all 5,228 shipped objects that have both, the two hold the same
+        scale, rotation and position. Moving one and not the other leaves a
+        combination the game's own data never contains, and the tree collapses
+        the duplicate to "same as ...", so the second one is not even visible to
+        correct by hand.
+        """
+        parent = edited.parent()
+        if parent is None:
+            return
+        for index in range(parent.childCount()):
+            sibling = parent.child(index)
+            stored = sibling.data(0, _PLACEMENT_ROLE)
+            if sibling is edited or not stored:
+                continue
+            offset, type_name, original_raw, _name = stored
+            pending = self._placement_edits.get(offset)
+            current = read_placement(pending[1] if pending else original_raw)
+            if current is None or current != was:
+                continue
+            # Keep each copy's own tile index; only TiledTransform carries one.
+            twin = write_placement(replace(now, tile=current.tile))
+            if twin == original_raw:
+                self._placement_edits.pop(offset, None)
+            else:
+                self._placement_edits[offset] = (original_raw, twin)
+            sibling.setText(2, describe_value(type_name, twin))
+            sibling.setForeground(
+                2, QBrush(_CHANGED_COLOUR) if offset in self._placement_edits else QBrush()
+            )
+            self._log(
+                f"Moved {describe_field(_name).label.lower()} to match: the two are "
+                "identical in every shipped object that carries both."
+            )
+
     def _revert_changes(self) -> None:
         """Put every edited row back to the value the file actually holds."""
         for index in range(self.tree.topLevelItemCount()):
@@ -660,7 +708,7 @@ class PrefabInspectorDialog(QDialog):
                     child.setText(2, original)
                 stored = child.data(0, _PLACEMENT_ROLE)
                 if stored:
-                    offset, type_name, original_raw = stored
+                    offset, type_name, original_raw, member_name = stored
                     if offset in self._placement_edits:
                         child.setText(2, describe_value(type_name, original_raw))
                         child.setForeground(2, QBrush())

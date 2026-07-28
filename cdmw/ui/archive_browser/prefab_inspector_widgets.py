@@ -95,7 +95,14 @@ class PlacementEditDialog(QDialog):
     full 90 degrees.
     """
 
-    def __init__(self, placement: Placement, *, title: str, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        placement: Placement,
+        *,
+        title: str,
+        space: str = "unknown",
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Placement - {title}")
         self._tile = placement.tile
@@ -123,9 +130,21 @@ class PlacementEditDialog(QDialog):
         form.addRow("Rotation yaw, pitch, roll", self._triple(self._rotation))
         form.addRow("Scale X, Y, Z", self._triple(self._scale))
         layout.addLayout(form)
-        layout.addWidget(
-            QLabel("Rotation is in degrees. Scale and position are in world units.")
-        )
+        # Naming the wrong basis makes every nudge wrong, so this follows the
+        # member rather than asserting "world" for anything with three floats.
+        measured = {
+            "world": (
+                "Position is in world coordinates - where the object sits in the "
+                "map, not an offset from anything."
+            ),
+            "offset": (
+                "Position is an offset from the object's own origin, not a place "
+                "in the world."
+            ),
+        }.get(space, "What position is measured from is not established for this field.")
+        self.space_label = QLabel(f"Rotation is in degrees. {measured}")
+        self.space_label.setWordWrap(True)
+        layout.addWidget(self.space_label)
         self.pole_warning = QLabel(
             "This part is rotated straight up or down. At that angle yaw and roll "
             "turn about the same axis, so a rotation typed here will not read back "

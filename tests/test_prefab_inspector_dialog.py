@@ -18,7 +18,7 @@ pytest.importorskip("PySide6.QtWidgets")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from cdmw.domain.archives.prefab_glossary import asset_role, describe_field, is_asset_path  # noqa: E402
-from cdmw.domain.archives.prefab_values import Placement, write_placement
+from cdmw.domain.archives.prefab_values import Placement, read_placement, write_placement
 from cdmw.ui.archive_browser.prefab_inspector_widgets import PlacementEditDialog
 from cdmw.ui.archive_browser.prefab_inspector_dialog import PrefabInspectorDialog  # noqa: E402
 
@@ -328,7 +328,7 @@ def test_placement_rows_are_editable_and_apply_without_resizing(qt_app: QApplica
                 row = child
     assert row is not None, "expected an editable placement row"
 
-    offset, _type_name, raw = row.data(0, _PLACEMENT_ROLE)
+    offset, _type_name, raw, _member = row.data(0, _PLACEMENT_ROLE)
     placement = read_placement(raw)
     moved = Placement(
         scale=placement.scale,
@@ -411,7 +411,7 @@ def test_repeated_placement_is_summarised_not_repeated(qt_app: QApplication) -> 
     assert placements, "expected at least one placement row"
     # The underlying value is still intact even where the text is summarised.
     for row in placements:
-        _offset, _type_name, raw = row.data(0, _PLACEMENT_ROLE)
+        _offset, _type_name, raw, _member = row.data(0, _PLACEMENT_ROLE)
         assert read_placement(raw) is not None
 
 
@@ -552,3 +552,50 @@ def test_saving_says_nothing_is_on_disk_yet(qt_app: QApplication) -> None:
     dialog._apply_changes()
     assert dialog.result_payload is not None
     assert "Nothing has been written yet" in dialog.log.toPlainText()
+
+
+def test_placement_editor_names_what_position_is_measured_from(qt_app: QApplication) -> None:
+    source = Placement(scale=(1.0, 1.0, 1.0), rotation=(0.0, 0.0, 0.0, 1.0), position=(1.0, 2.0, 3.0))
+    world = PlacementEditDialog(source, title="Placement", space="world")
+    assert "world coordinates" in world.space_label.text()
+
+    offset = PlacementEditDialog(source, title="Placement", space="offset")
+    assert "offset from the object" in offset.space_label.text()
+
+    # An unrecognised member must not be described as world by default.
+    unknown = PlacementEditDialog(source, title="Placement", space="unknown")
+    assert "not established" in unknown.space_label.text()
+    assert "world coordinates" not in unknown.space_label.text()
+
+
+def test_moving_one_transform_moves_its_identical_twin(qt_app: QApplication) -> None:
+    """Objects carry _worldTransform and _tiledTransform, identical in all
+    5,228 shipped objects that have both. Moving one alone would produce a
+    combination the game's data never contains, and the tree hides the second
+    behind "same as ...", so it cannot be corrected by hand."""
+    from cdmw.ui.archive_browser.prefab_inspector_dialog import _PLACEMENT_ROLE
+
+    dialog = PrefabInspectorDialog(_transform_fixture())
+    parent = dialog.tree.topLevelItem(0)
+    rows = [
+        parent.child(i)
+        for i in range(parent.childCount())
+        if parent.child(i).data(0, _PLACEMENT_ROLE)
+    ]
+    assert rows, "fixture must contain a placement row"
+
+    first = rows[0]
+    offset, _type_name, raw, _member = first.data(0, _PLACEMENT_ROLE)
+    was = read_placement(raw)
+    now = Placement(scale=was.scale, rotation=was.rotation, position=(11.0, 12.0, 13.0), tile=was.tile)
+    dialog._placement_edits[offset] = (raw, write_placement(now))
+    dialog._sync_twin_placements(first, was, now)
+
+    for row in rows[1:]:
+        twin_offset, _t, twin_raw, _n = row.data(0, _PLACEMENT_ROLE)
+        if read_placement(twin_raw) != was:
+            continue
+        assert twin_offset in dialog._placement_edits, "an identical twin must move too"
+        expected, written = dialog._placement_edits[twin_offset]
+        assert read_placement(written).position == (11.0, 12.0, 13.0)
+        assert read_placement(written).tile == read_placement(twin_raw).tile
