@@ -333,7 +333,7 @@ def test_pointee_strings_are_recoverable_without_the_walk() -> None:
     Measured against 635 complete-walk prefabs, this recovers every resource
     the walk found, at identical offsets and identical text.
     """
-    from cdmw.core.prefab_binary import recover_pointee_strings
+    from cdmw.core.prefab_recovery import recover_pointee_strings
 
     payload = _build_with_pointer()
     document = decode_prefab_binary(payload)
@@ -344,7 +344,7 @@ def test_pointee_strings_are_recoverable_without_the_walk() -> None:
 
 
 def test_recovery_still_works_when_the_walk_cannot_finish() -> None:
-    from cdmw.core.prefab_binary import recover_pointee_strings
+    from cdmw.core.prefab_recovery import recover_pointee_strings
 
     payload = bytearray(_build_with_pointer())
     intact = decode_prefab_binary(bytes(payload))
@@ -425,3 +425,29 @@ def test_a_bad_collection_header_says_what_is_actually_there() -> None:
 
     opaque = _BlobCursor(bytes([9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9]), 0)
     assert _describe_cursor(opaque).startswith("bytes ")
+
+
+def test_prefab_references_answers_without_a_complete_walk() -> None:
+    """A modder needs to know whether one edit covers the set or is one of twenty.
+
+    The confirming read goes through the pointer records, so a prefab the walk
+    cannot finish still answers correctly.
+    """
+    from cdmw.core.prefab_recovery import prefab_references
+
+    payload = _build_with_pointer()
+    referenced = decode_prefab_binary(payload).resource_strings()[0].text
+
+    assert prefab_references(payload, referenced)
+    assert not prefab_references(payload, "character/model/nothing/here.pac")
+    assert not prefab_references(payload, "")
+
+    # A substring of a real path is not a reference to it.
+    assert not prefab_references(payload, referenced[:-4])
+
+    broken = bytearray(payload) + bytes(8)
+    document = decode_prefab_binary(payload)
+    struct.pack_into("<I", broken, document.blob_offset - 4, document.blob_length + 8)
+    struct.pack_into("<I", broken, document.blob_offset - 24, len(broken))
+    assert not decode_prefab_binary(bytes(broken)).walk_complete
+    assert prefab_references(bytes(broken), referenced)

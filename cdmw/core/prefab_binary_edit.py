@@ -28,9 +28,9 @@ from bisect import bisect_right
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 
+from cdmw.core.prefab_recovery import recover_pointee_strings
 from cdmw.core.prefab_binary import (
     PrefabBinaryError,
-    recover_pointee_strings,
     PrefabDocument,
     decode_prefab_binary,
     pointer_sites,

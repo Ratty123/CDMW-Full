@@ -139,6 +139,7 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
         parent: QWidget | None = None,
         on_save: Callable[[bytes, str], None] | None = None,
         known_paths: Mapping[str, Sequence[str]] | None = None,
+        find_users: Callable[[str], Sequence[str]] | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -146,6 +147,9 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
         self._original = bytes(data or b"")
         self._on_save = on_save
         self._known_paths: Mapping[str, Sequence[str]] = dict(known_paths or {})
+        # Supplied by the caller, which owns archive access and threading. The
+        # dialog is modal, so it must not go reading archives itself.
+        self._find_users = find_users
         # (expected_old, new) per offset, for every fixed-size value: the
         # expected bytes are what makes the staleness check able to fail.
         self._value_edits: dict[int, tuple[bytes, bytes]] = {}
@@ -429,6 +433,12 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
             change = QAction("Change this value...", menu)
             change.triggered.connect(lambda: self._edit_number(item, 2))
             menu.addAction(change)
+        original = item.data(2, _EDIT_ROLE)
+        if self._find_users is not None and isinstance(original, str) and is_asset_path(original):
+            users = QAction("Where else is this used?", menu)
+            users.setToolTip("Which other prefabs reference this same file.")
+            users.triggered.connect(lambda: self._show_other_users(original))
+            menu.addAction(users)
         if self.row_has_pending_change(item):
             undo = QAction("Undo this row", menu)
             undo.setToolTip("Put this one row back, keeping your other changes.")
@@ -570,6 +580,31 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
         )
         if picker.exec() and picker.chosen:
             item.setText(2, picker.chosen)
+
+    def _show_other_users(self, path: str) -> None:
+        """Report which other prefabs reference the same file.
+
+        Retargeting one prefab tells a modder nothing about whether the change
+        covers a set or is one of twenty, and the answer decides whether the
+        mod works.
+        """
+        if self._find_users is None:
+            return
+        try:
+            users = tuple(self._find_users(path))
+        except Exception as exc:  # noqa: BLE001 - reported, never raised at a modal
+            self._log(f"Could not check what else uses {path}: {exc}")
+            return
+        others = tuple(item for item in users if item)
+        name = path.rsplit("/", 1)[-1]
+        if not others:
+            self._log(f"No other prefab in the archives references {name}.")
+            return
+        self._log(f"{_count(len(others), 'other prefab')} also reference {name}:")
+        for item in others[:40]:
+            self._log(f"    {item}")
+        if len(others) > 40:
+            self._log(f"    ... and {len(others) - 40:,} more")
 
     def _refresh_pending_state(self) -> None:
         replacements = self.collect_replacements()

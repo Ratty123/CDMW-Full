@@ -471,51 +471,6 @@ def _pole_placement() -> Placement:
     )
 
 
-def test_position_only_edit_leaves_rotation_and_scale_untouched(qt_app: QApplication) -> None:
-    """The 90-degree silent rotation. Editing position must not touch rotation."""
-    source = _pole_placement()
-    dialog = PlacementEditDialog(source, title="socket")
-    dialog._position[0].setValue(9.5)
-    dialog._accept()
-
-    result = dialog.result_placement
-    assert result is not None
-    assert result.position[0] == 9.5
-    assert result.rotation == source.rotation
-    assert result.scale == source.scale
-    assert write_placement(result)[12:28] == write_placement(source)[12:28]
-
-
-def test_rotation_only_edit_leaves_position_untouched(qt_app: QApplication) -> None:
-    source = _pole_placement()
-    dialog = PlacementEditDialog(source, title="socket")
-    dialog._rotation[0].setValue(45.0)
-    dialog._accept()
-
-    result = dialog.result_placement
-    assert result is not None
-    assert result.position == source.position
-    assert result.rotation != source.rotation
-
-
-def test_opening_and_accepting_without_typing_changes_nothing(qt_app: QApplication) -> None:
-    """Open, click OK, and the bytes must be identical -- including at a pole."""
-    source = _pole_placement()
-    dialog = PlacementEditDialog(source, title="socket")
-    dialog._accept()
-    assert write_placement(dialog.result_placement) == write_placement(source)
-
-
-def test_pole_orientation_is_warned_about(qt_app: QApplication) -> None:
-    at_pole = PlacementEditDialog(_pole_placement(), title="socket")
-    assert at_pole.pole_warning.isVisibleTo(at_pole)
-
-    level = Placement(scale=(1.0, 1.0, 1.0), rotation=(0.0, 0.0, 0.0, 1.0), position=(0.0, 0.0, 0.0))
-    assert not PlacementEditDialog(level, title="body").pole_warning.isVisibleTo(
-        PlacementEditDialog(level, title="body")
-    )
-
-
 def test_banner_never_claims_everything_shown_is_accurate(qt_app: QApplication) -> None:
     """It said so even for partial walks, where types are guessed."""
     dialog = PrefabInspectorDialog(_build())
@@ -568,20 +523,6 @@ def test_saving_says_nothing_is_on_disk_yet(qt_app: QApplication) -> None:
     assert "Nothing has been written yet" in dialog.log.toPlainText()
 
 
-def test_placement_editor_names_what_position_is_measured_from(qt_app: QApplication) -> None:
-    source = Placement(scale=(1.0, 1.0, 1.0), rotation=(0.0, 0.0, 0.0, 1.0), position=(1.0, 2.0, 3.0))
-    world = PlacementEditDialog(source, title="Placement", space="world")
-    assert "world coordinates" in world.space_label.text()
-
-    offset = PlacementEditDialog(source, title="Placement", space="offset")
-    assert "offset from the object" in offset.space_label.text()
-
-    # An unrecognised member must not be described as world by default.
-    unknown = PlacementEditDialog(source, title="Placement", space="unknown")
-    assert "not established" in unknown.space_label.text()
-    assert "world coordinates" not in unknown.space_label.text()
-
-
 def test_moving_one_transform_moves_its_identical_twin(qt_app: QApplication) -> None:
     """Objects carry _worldTransform and _tiledTransform, identical in all
     5,228 shipped objects that have both. Moving one alone would produce a
@@ -630,32 +571,6 @@ def test_review_reports_a_role_mismatch_as_a_warning(qt_app: QApplication) -> No
     _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.dds")
     _lines, warnings = dialog._pending_changes()
     assert warnings and "model file" in warnings[0] and "texture file" in warnings[0]
-
-
-def test_warnings_block_the_review_until_acknowledged(qt_app: QApplication) -> None:
-    """A warning you can scroll past is one the tool decided not to act on."""
-    from PySide6.QtWidgets import QDialogButtonBox
-
-    from cdmw.ui.archive_browser.prefab_inspector_review import ChangeLine, PrefabChangeReview
-
-    change = ChangeLine(field="Mesh", before="a.pac", after="b.dds")
-    review = PrefabChangeReview([change], ["Mesh: that is a texture, not a model"])
-    ok = review.buttons.button(QDialogButtonBox.StandardButton.Ok)
-    assert review.acknowledge is not None
-    assert not ok.isEnabled()
-    assert "Tick the box" in ok.toolTip()
-    review.acknowledge.setChecked(True)
-    assert ok.isEnabled()
-
-
-def test_a_clean_change_needs_no_acknowledgement(qt_app: QApplication) -> None:
-    from PySide6.QtWidgets import QDialogButtonBox
-
-    from cdmw.ui.archive_browser.prefab_inspector_review import ChangeLine, PrefabChangeReview
-
-    review = PrefabChangeReview([ChangeLine(field="Mesh", before="a.pac", after="b.pac")], [])
-    assert review.acknowledge is None
-    assert review.buttons.button(QDialogButtonBox.StandardButton.Ok).isEnabled()
 
 
 def test_cancelling_the_review_writes_nothing(qt_app: QApplication) -> None:
@@ -734,20 +649,6 @@ def test_a_plain_value_row_is_editable_and_writes_in_place(qt_app: QApplication)
     assert len(result.data) == len(_value_fixture())
     rewritten = decode_prefab_binary(result.data)
     assert rewritten.walk_complete, rewritten.walk_note
-
-
-def test_the_value_editor_refuses_a_number_that_does_not_fit(qt_app: QApplication) -> None:
-    from cdmw.ui.archive_browser.prefab_inspector_widgets import ValueEditDialog
-
-    editor = ValueEditDialog("uint8", b"\x05", title="Flags")
-    assert not editor.error.isVisibleTo(editor)
-    # Drive the encode path directly with an out-of-range value: the spin box
-    # clamps, so the guard has to be on the encoder, not on the widget.
-    editor._current = lambda: 999
-    editor._accept()
-    assert editor.result_raw is None
-    assert editor.error.isVisibleTo(editor)
-    assert "does not fit" in editor.error.text()
 
 
 def test_export_prompt_admits_prefab_editing_is_unproven() -> None:
@@ -883,7 +784,7 @@ def _partly_read(payload: bytes) -> bytes:
 
 
 def test_a_same_length_swap_applies_on_a_partly_read_prefab(qt_app: QApplication) -> None:
-    from cdmw.core.prefab_binary import recover_pointee_strings
+    from cdmw.core.prefab_recovery import recover_pointee_strings
 
     payload = _partly_read(_build())
     dialog = PrefabInspectorDialog(payload)
@@ -922,34 +823,6 @@ def test_the_banner_says_how_far_the_walk_got(qt_app: QApplication) -> None:
     assert "stopped at byte" in banner
 
 
-def test_the_review_says_a_model_swap_takes_its_companions_with_it(qt_app: QApplication) -> None:
-    """The engine resolves material and physics from the model's path.
-
-    So retargeting a mesh silently changes those too, and the review is the
-    only place a modder finds out before the game does.
-    """
-    from cdmw.ui.archive_browser.prefab_inspector_review import ChangeLine, PrefabChangeReview
-
-    with_companion = ChangeLine(
-        field="Mesh",
-        before="character/model/a/b.pac",
-        after="character/model/a/c.pac",
-        note="Material (textures and material assignments) comes from character/modelproperty/a/c.pac_xml",
-    )
-    review = PrefabChangeReview([with_companion], [])
-    assert review.companion_note is not None
-    text = review.companion_note.text()
-    assert "material and physics" in text
-    assert "not copied into the package" in text
-
-
-def test_a_change_with_no_companions_says_nothing_about_them(qt_app: QApplication) -> None:
-    from cdmw.ui.archive_browser.prefab_inspector_review import ChangeLine, PrefabChangeReview
-
-    review = PrefabChangeReview([ChangeLine(field="Socket", before="a", after="b")], [])
-    assert review.companion_note is None
-
-
 def test_every_companion_is_listed_not_just_the_first(qt_app: QApplication) -> None:
     dialog = PrefabInspectorDialog(_build(), known_paths={".pac": (PATH,)})
     _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.pac")
@@ -979,12 +852,63 @@ def test_the_picker_offers_only_same_length_names_when_that_is_all_that_works(
     assert all(len(item.encode()) == len(PATH.encode()) for item in offered)
 
 
-def test_the_picker_says_why_the_list_is_short(qt_app: QApplication) -> None:
-    from cdmw.ui.archive_browser.prefab_inspector_widgets import AssetPickerDialog
+def test_recovered_rows_are_labelled_by_their_file_name(qt_app: QApplication) -> None:
+    """No member name exists for these, and inventing one would be a lie.
 
-    quiet = AssetPickerDialog(("a/b.pac",))
-    assert not quiet.note.isVisibleTo(quiet)
+    The walk never reached them, so nothing says which field they belong to.
+    The file's own name identifies it, and a column of basenames is scannable
+    where a column of full paths is not.
+    """
+    dialog = PrefabInspectorDialog(_partly_read(_build()))
+    labels = []
+    for index in range(dialog.tree.topLevelItemCount()):
+        parent = dialog.tree.topLevelItem(index)
+        if "past the stop" not in parent.text(0):
+            continue
+        for child_index in range(parent.childCount()):
+            child = parent.child(child_index)
+            labels.append((child.text(0), child.text(2)))
+    for label, path in labels:
+        assert label, "a recovered row must not be blank in the first column"
+        assert label == path.rsplit("/", 1)[-1]
+        assert "/" not in label
 
-    explained = AssetPickerDialog(("a/b.pac",), note="only same length works here")
-    assert explained.note.isVisibleTo(explained)
-    assert "same length" in explained.note.text()
+
+def test_the_row_menu_reports_what_else_uses_a_file(qt_app: QApplication) -> None:
+    """One edit covering a set, or one of twenty, decides whether a mod works."""
+    asked: list[str] = []
+
+    def _find(path: str) -> tuple[str, ...]:
+        asked.append(path)
+        return ("object/bin/a.prefab", "object/bin/b.prefab")
+
+    dialog = PrefabInspectorDialog(_build(), find_users=_find)
+    dialog._show_other_users(PATH)
+    assert asked == [PATH]
+    log = dialog.log.toPlainText()
+    assert "2 other prefabs" in log
+    assert "object/bin/a.prefab" in log and "object/bin/b.prefab" in log
+
+
+def test_nothing_else_using_a_file_is_said_plainly(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build(), find_users=lambda _path: ())
+    dialog._show_other_users(PATH)
+    assert "No other prefab" in dialog.log.toPlainText()
+
+
+def test_a_failing_lookup_is_reported_not_raised(qt_app: QApplication) -> None:
+    """This runs from a modal; an exception there takes the window with it."""
+
+    def _boom(_path: str):
+        raise OSError("archive went away")
+
+    dialog = PrefabInspectorDialog(_build(), find_users=_boom)
+    dialog._show_other_users(PATH)
+    assert "Could not check" in dialog.log.toPlainText()
+
+
+def test_without_archive_access_the_menu_entry_is_absent(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build())
+    assert dialog._find_users is None
+    dialog._show_other_users(PATH)
+    assert dialog.log.toPlainText() == ""

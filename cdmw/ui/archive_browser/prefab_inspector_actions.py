@@ -16,6 +16,7 @@ from cdmw.services.prefab_structure_service import (
     asset_extension_for,
     collect_asset_paths,
     decode_prefab_binary,
+    prefab_references,
 )
 from cdmw.ui.archive_browser.prefab_inspector_dialog import PrefabInspectorDialog
 
@@ -78,11 +79,32 @@ class ArchivePrefabInspectorActionsMixin:
         data: bytes,
         known_paths: dict[str, tuple[str, ...]],
     ) -> None:
+        def _find_users(path: str) -> tuple[str, ...]:
+            """Which other prefabs reference ``path``.
+
+            Lives here rather than in the dialog because archive access belongs
+            to the browser. A plain substring test rejects almost every entry
+            before anything is decoded, which is what makes this affordable.
+            """
+            found: list[str] = []
+            candidates = self.archive_entries_by_extension.get(".prefab", ())
+            for candidate in candidates:
+                if candidate.path == entry.path:
+                    continue
+                try:
+                    payload, _decompressed, _note = read_archive_entry_data(candidate)
+                except Exception:  # noqa: BLE001 - one unreadable entry is not fatal
+                    continue
+                if prefab_references(payload, path):
+                    found.append(candidate.path)
+            return tuple(found)
+
         dialog = PrefabInspectorDialog(
             data,
             title=f"Prefab Inspector - {entry.basename}",
             parent=self,
             known_paths=known_paths,
+            find_users=_find_users if self.archive_entries_by_extension.get(".prefab") else None,
         )
         dialog.exec()
         payload = dialog.result_payload
