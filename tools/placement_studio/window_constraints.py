@@ -50,7 +50,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QGroupBox,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -62,6 +61,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .table_columns import proportional_columns
 from .constraints import (
     CAPABILITIES,
     LOADED_BY_GAME_EVIDENCE,
@@ -138,10 +138,13 @@ class SecondaryMotionMixin:
         splitter = QSplitter(Qt.Vertical)
         splitter.addWidget(self._build_chain_list())
         splitter.addWidget(self._build_chain_detail())
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 3)
         splitter.setChildrenCollapsible(False)
-        splitter.setSizes([260, 420])
+        # The chain list gets the larger share, and a QSplitter keeps this ratio as the
+        # window grows -- stretch factors do not override it. The list holds 13 to 71 rows
+        # and is what you scroll to find anything; the detail shows one chain, 2 to 8 rows,
+        # so the old 260:420 split left blank space under the detail's last row on a tall
+        # window while the list stayed scrolled.
+        splitter.setSizes([460, 300])
         outer.addWidget(splitter, 1)
         outer.addWidget(self._build_export_row())
         return panel
@@ -162,10 +165,14 @@ class SecondaryMotionMixin:
         self._chain_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._chain_table.setWordWrap(False)
         self._chain_table.setTextElideMode(Qt.ElideMiddle)
-        header = self._chain_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.Stretch)
-        for column in (1, 2, 3, 4):
-            header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
+        # Chain names are the long value and get the largest share, but not all of it:
+        # stretching column 0 alone left it 810px wide and mostly empty while the four
+        # columns carrying the numbers were squeezed against the right edge.
+        proportional_columns(
+            self._chain_table,
+            weights=(42, 18, 10, 15, 15),
+            minimums=(116, 80, 46, 62, 66),
+        )
         self._chain_table.itemSelectionChanged.connect(self._on_chain_selected)
         # A rig has 13 to 71 chains, and this is the list you pick from. Given no floor the
         # detail pane below claims everything and leaves this one visible row.
@@ -183,7 +190,12 @@ class SecondaryMotionMixin:
         self._chain_detail.setHorizontalHeaderLabels(["Driven bone", "Follows", "Weight"])
         self._chain_detail.verticalHeader().setVisible(False)
         self._chain_detail.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._chain_detail.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        # Driven bone and Follows hold the same kind of value -- a bone name -- so they get
+        # the same share. Stretching only the first elided `P_Bip01 L Clavicle_Sub` into
+        # `P_Bip01 L ...` while 600px sat unused in the column beside it.
+        proportional_columns(
+            self._chain_detail, weights=(42, 42, 16), minimums=(126, 126, 60)
+        )
         # Four rows plus a header. Any taller a floor and this pane starves the chain list
         # above it, which is the one you have to pick from before this fills at all.
         self._chain_detail.setMinimumHeight(110)
