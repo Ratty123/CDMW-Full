@@ -119,6 +119,7 @@ class MoveWeaponDialog(QDialog):
         positions: Sequence[Tuple[str, str]] = (),
         current_part: str = "",
         current_socket: str = "",
+        part_sockets: Optional[dict] = None,
         pairs_for: Optional[Callable[..., Sequence[Tuple[object, object]]]] = None,
         handedness: str = "",
         on_preview: Optional[Callable[[object], None]] = None,
@@ -129,6 +130,11 @@ class MoveWeaponDialog(QDialog):
         self._pairs_for = pairs_for or (lambda **_kwargs: [])
         self._on_preview = on_preview
         self._positions = list(positions)
+        #: Where each row hangs today. Without it the "Hangs on now" line kept showing the
+        #: socket of whichever row happened to be selected when the dialog opened, and
+        #: `plan()` compared the destination against *that* — so choosing another item and
+        #: moving it to its own current socket silently produced no move at all.
+        self._part_sockets = dict(part_sockets or {})
 
         self._part_box = QComboBox()
         for name, label in parts:
@@ -242,9 +248,23 @@ class MoveWeaponDialog(QDialog):
         self._everything.toggled.connect(lambda _c: self._reload_clips())
         self._animations.toggled.connect(lambda _c: self._reload_clips())
         self._to_box.currentIndexChanged.connect(lambda _i: self._refresh_ok())
+        self._part_box.currentIndexChanged.connect(lambda _i: self._on_part_changed())
         self._reload_clips()
 
     # ── contents ────────────────────────────────────────────────────
+
+    def _on_part_changed(self) -> None:
+        """Follow the newly chosen row, so "from" is that row's socket and not the old one."""
+
+        if not self._part_sockets:
+            return
+        name = str(self._part_box.currentData() or "")
+        socket = self._part_sockets.get(name, "")
+        self._from_label.setText(socket or "(not carried anywhere)")
+        position = self._to_box.findData(socket)
+        if position >= 0:
+            self._to_box.setCurrentIndex(position)
+        self._refresh_ok()
 
     def _reload_clips(self) -> None:
         """Fill the file list, and reduce it to one decision per kind of animation."""

@@ -204,3 +204,49 @@ class DonorChoiceTests(unittest.TestCase):
         item.setCheckState(_Qt.Unchecked)
 
         self.assertEqual(len(dialog.plan().clips), 1)
+
+
+class ItemSwitchTests(unittest.TestCase):
+    """Changing the item must move the "from" state with it.
+
+    The dialog kept showing the socket of whichever row was selected when it opened, and
+    `plan()` compared the destination against *that*. Picking another row and choosing its
+    own current socket therefore produced no move at all, silently.
+    """
+
+    def _dialog(self) -> MoveWeaponDialog:
+        return MoveWeaponDialog(
+            parts=[("Sword", "Sword"), ("Axe", "Axe")],
+            positions=_POSITIONS,
+            current_part="Sword",
+            current_socket="Pelvis_L_Socket",
+            part_sockets={"Sword": "Pelvis_L_Socket", "Axe": "Spine2_B_MainWeapon_Socket"},
+            pairs_for=lambda locomotion=False: [],
+            handedness="1h",
+        )
+
+    def test_the_from_line_follows_the_selected_item(self) -> None:
+        dialog = self._dialog()
+        self.assertEqual(dialog._from_label.text(), "Pelvis_L_Socket")
+
+        dialog._part_box.setCurrentIndex(dialog._part_box.findData("Axe"))
+
+        self.assertEqual(dialog._from_label.text(), "Spine2_B_MainWeapon_Socket")
+
+    def test_moving_the_second_item_is_not_swallowed(self) -> None:
+        dialog = self._dialog()
+        dialog._part_box.setCurrentIndex(dialog._part_box.findData("Axe"))
+
+        dialog._to_box.setCurrentIndex(dialog._to_box.findData("Pelvis_L_Socket"))
+
+        plan = dialog.plan()
+        self.assertEqual(plan.part_name, "Axe")
+        self.assertEqual(plan.socket, "Pelvis_L_Socket")
+        self.assertTrue(plan.moves)
+
+    def test_choosing_the_item_s_own_socket_is_still_a_no_op(self) -> None:
+        dialog = self._dialog()
+
+        dialog._part_box.setCurrentIndex(dialog._part_box.findData("Axe"))
+
+        self.assertEqual(dialog.plan().socket, "", "it already hangs there")

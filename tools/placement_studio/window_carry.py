@@ -365,6 +365,7 @@ class CarryPickerMixin:
         if self._edits is None or self._swap_thread is not None or not pairs:
             return ""
         self._carry_swap.setEnabled(False)
+        self._swap_requested = len(pairs)
         chosen = getattr(self, "_chosen_preview", None)
         if chosen is not None:
             # What the dialog settled, not what happens to sort first.
@@ -418,29 +419,51 @@ class CarryPickerMixin:
             self.statusBar().showMessage(error or "No animations were swapped")
             return
         applied = 0
+        written = set()
         for path, data, donor_name in payload:
             try:
                 self._edits.replace_clip(path, data, donor_name)
                 applied += 1
+                written.add(path)
             except EditError:
                 continue
+        # A clip the worker could not read never reaches `payload`, and one that will not
+        # record is skipped above. Both used to vanish into a success message, so a partly
+        # applied swap read as a whole one.
+        missing = getattr(self, "_swap_requested", len(payload)) - applied
+        note = f" ({missing} could not be read or written)" if missing > 0 else ""
         self._after_edit()
         self.statusBar().showMessage(
-            f"{applied} animation file(s) replaced — see Pending changes, "
+            f"{applied} animation file(s) replaced{note} — see Pending changes, "
             f"or press Play to watch the new one"
         )
-        self._show_swap_result(applied)
+        self._show_swap_result(applied, written)
 
     def _stop_swap(self) -> None:
+        """Stop the reader, and only let go once it has actually stopped.
+
+        `wait()` returns whether the thread finished, and that result was being thrown
+        away — the references were cleared either way. A worker still inside `read_clip`
+        then had its parent-owned `QThread` collected underneath it, which Qt answers with
+        "QThread: Destroyed while thread is still running" and an abort. The worker checks
+        its stop flag between clips, so waiting is bounded by one clip read.
+        """
+
         if self._swap_worker is not None:
             self._swap_worker.stop()
-        if self._swap_thread is not None:
-            self._swap_thread.quit()
-            self._swap_thread.wait(3000)
-            self._swap_thread = None
-            self._swap_worker = None
+        thread = self._swap_thread
+        if thread is None:
+            return
+        thread.quit()
+        if not thread.wait(5000):
+            # Still busy. Keep the references alive so nothing is collected under it and
+            # try again on the next close; dropping them here is what crashes.
+            self.statusBar().showMessage("Still reading animations — finishing that first")
+            return
+        self._swap_thread = None
+        self._swap_worker = None
 
-    def _show_swap_result(self, applied: int) -> None:
+    def _show_swap_result(self, applied: int, written=None) -> None:
         """Play the animation the swap installed, on the rig, in its new placement.
 
         The *donor* clip is played, not the target path: the studio reads clips from the game
@@ -452,6 +475,12 @@ class CarryPickerMixin:
         if preview is None:
             return
         target, donor = preview
+        if written is not None and target.path not in written:
+            self.statusBar().showMessage(
+                f"{applied} animation file(s) replaced, but {target.name} was not among "
+                f"them — it could not be read."
+            )
+            return
         binding = self._current_binding()
         where = getattr(getattr(binding, "part", None), "in_socket", "") or "(unrouted)"
         self.statusBar().showMessage(
@@ -492,6 +521,7 @@ class CarryPickerMixin:
             positions=carry.carry_positions(session),
             current_part=self._selected_part,
             current_socket=getattr(getattr(binding, "part", None), "in_socket", "") or "",
+            part_sockets={b.part_name: (b.part.in_socket or "") for b in session.bindings()},
             pairs_for=lambda locomotion=False: self._swappable_pairs(locomotion=locomotion),
             handedness=carry.weapon_handedness(session.weapon),
             on_preview=self._preview_clip,
@@ -505,8 +535,10 @@ class CarryPickerMixin:
         if plan.part_name and plan.part_name != self._selected_part:
             self._selected_part = plan.part_name
             self._sync_part_box(plan.part_name)
-        if plan.moves:
-            self._apply_carry_move(plan.socket)
+        if plan.moves and not self._apply_carry_move(plan.socket):
+            # The placement is the point; swapping animations for a move that did not
+            # happen would produce a mod that plays a back draw from the hip.
+            return
         if plan.clips:
             self._play_after_swap = plan.play_after
             self._chosen_preview = plan.preview
@@ -573,20 +605,29 @@ class CarryPickerMixin:
         if self._playback.loaded and not self._playback.playing:
             self._on_playback_toggle()
 
-    def _apply_carry_move(self, socket: str) -> None:
-        """Re-route the selected part and bring its angle with it."""
+    def _apply_carry_move(self, socket: str) -> bool:
+        """Re-route the selected part and bring its angle with it.
+
+        Returns whether it worked. It has to: both failure paths used to return
+        silently, and the caller went on to swap the animations and report success — so
+        the mod shipped a changed draw for a weapon that had not moved.
+        """
 
         binding = self._current_binding()
         if binding is None or self._edits is None or not binding.part.source_file:
-            return
+            self.statusBar().showMessage(
+                f"{self._selected_part or 'That row'} has no descriptor entry to re-route, "
+                f"so it cannot be moved."
+            )
+            return False
         previous = binding.part.in_socket or "(none)"
         try:
             self._edits.set_route(
                 binding.part.source_file, binding.part_name, "in_socket", socket
             )
         except EditError as exc:
-            self.statusBar().showMessage(str(exc))
-            return
+            self.statusBar().showMessage(f"Could not move it: {exc}")
+            return False
         note = self._follow_child_socket(binding, socket, "stowed")
         self._after_edit()
         self._populate_parts()
@@ -595,6 +636,7 @@ class CarryPickerMixin:
         self.statusBar().showMessage(
             f"{self._selected_part} now hangs on {socket} (was {previous}){note}"
         )
+        return True
 
     def _report_carry_match(self, zone: str, previous_zone: str = "") -> None:
         """Say plainly what the move did to the animations — including what it did not do.
