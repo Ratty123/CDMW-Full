@@ -12,6 +12,14 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Fixed
+- **`posemodifierdata.xml` scanning missed one of the two comment terminators.** A tolerant parser ends a comment at `--!>` as well as `-->`, and the token pattern only knew `-->`, so a comment spelled that way would not end where the engine ends it: the scan would run straight past it and swallow the markup after it as comment text. The document would lose settings silently rather than fail, which is the worst shape for a module whose contract is that an unedited document re-emits its source byte for byte. Nothing in the shipped file uses that spelling — this is the class of bug that stays invisible until the day it is not. Found by CodeQL as `py/bad-tag-filter`.
+- The comment body now comes from its own capture group rather than a fixed `[4:-3]` slice, which would have left a stray `-` behind on the four-character terminator.
+
+### Docs
+- **Four vendored native libraries were shipping without a notice.** `meshoptimizer`, `MikkTSpace`, `ufbx`, and `xatlas` are all statically linked into `cdmw-mesh-core` and none of them appeared in `THIRD_PARTY_NOTICES.md`, which is the file the app actually bundles. They are listed now, with purpose, upstream, and licence.
+- ufbx is the one that mattered. The other three carry their upstream notice inside the vendored source, but ufbx's licence does not travel with `ufbx.h`, so the vendored copy had no notice anywhere — and MIT, which is the option this project takes, requires it to be included in copies. The upstream `LICENSE` is vendored beside the source for source distribution, and the notice is reproduced verbatim in `THIRD_PARTY_NOTICES.md` because that is what ships in the binary.
+
+### Fixed
 - Flagged and locked the ~1% of prefabs whose parse the file does not determine. Most collection headers are locally ambiguous, which is harmless — a wrong width desyncs everything after it and the blob fails to close, so completion picks the right reading. But about one file in a hundred **closes under both readings**, and there a clean-looking walk may simply be the wrong parse, with offsets belonging to the other one. `walk_is_determined` detects those by re-walking with the alternate width, and the inspector now refuses editing on them and says why in the banner rather than offering edits that could land on a plausible wrong field.
 - One trap worth recording, because the first version had it: a prefab with no ambiguous collection at all decodes identically both ways, and treating that as "two valid readings" flags nearly every file. It is one reading run twice. The check now requires that a width was actually flipped, and a test pins it — measured at 3 undetermined in 373 complete walks, matching the corpus rate.
 
