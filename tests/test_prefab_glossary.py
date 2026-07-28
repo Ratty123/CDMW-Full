@@ -117,3 +117,37 @@ def test_value_kind_hints(type_name: str, kind: str, expected: str) -> None:
 def test_known_components_are_explained() -> None:
     assert "rigged mesh" in describe_component("SkinnedMeshComponent")
     assert describe_component("SomethingUnheardOf") == ""
+
+
+def test_the_game_s_own_misspellings_are_matched_exactly() -> None:
+    """These are keys, not prose: correcting the spelling loses the entry.
+
+    ``_outterTangent``, ``_lenghtToNextPoint`` and ``_smootingMaxCount`` are
+    spelled that way in the shipped type tables.
+    """
+    from cdmw.domain.archives.prefab_glossary import describe_field
+
+    assert describe_field("_outterTangent").label == "Curve handle out"
+    assert describe_field("_lenghtToNextPoint").label == "Distance to next point"
+    assert describe_field("_smootingMaxCount").label == "Smoothing steps"
+    # And each says the spelling is the game's, so nobody 'fixes' it.
+    assert "game's spelling" in describe_field("_outterTangent").detail
+
+
+def test_houdini_fields_are_named_as_authoring_data() -> None:
+    """An .hda is a build input, not something the game loads at runtime."""
+    from cdmw.domain.archives.prefab_glossary import describe_field
+
+    meaning = describe_field("_hdaFileName")
+    assert meaning.label == "Houdini asset"
+    assert "not " in meaning.detail and "loads" in meaning.detail
+
+
+def test_uncertain_fields_carry_a_label_and_no_claim() -> None:
+    """Where the name does not support a reading, say nothing rather than guess."""
+    from cdmw.domain.archives.prefab_glossary import describe_field
+
+    for name in ("_convert", "_rotation", "_scale", "_shapeId"):
+        meaning = describe_field(name)
+        assert meaning.label, name
+        assert meaning.detail == "", f"{name} should not assert a meaning"
