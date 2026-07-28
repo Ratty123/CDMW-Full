@@ -1,6 +1,6 @@
 # Prefab Structural Decoding
 
-Last reviewed: 2026-07-27
+Last reviewed: 2026-07-28
 
 ## Purpose
 
@@ -19,8 +19,14 @@ meet, but they are different layers.
 
 - `cdmw/core/prefab_binary.py`: the decoder. Header, type table, string pool,
   data header, and the heap walk that recovers objects, references and values.
+- `cdmw/core/prefab_blob_tail.py`: what the end of the blob is, and the
+  validated rule for deciding the walk consumed everything.
+- `cdmw/core/prefab_collection_spans.py`: where each collection and its
+  elements sit, and whether a collection over-declares its count.
 - `cdmw/core/prefab_binary_edit.py`: length-changing path edits with exact
   pointer relocation, and fixed-size placement writes.
+- `cdmw/core/prefab_array_edit.py`: adding and removing whole collection
+  elements, with the relocation that a splice implies.
 - `cdmw/core/prefab_asset_catalog.py`: archive paths grouped by extension, for
   existence checks and the asset picker.
 - `cdmw/domain/archives/prefab_glossary.py`: plain-English field names, asset
@@ -28,8 +34,9 @@ meet, but they are different layers.
 - `cdmw/domain/archives/prefab_values.py`: numeric values and transforms.
 - `cdmw/domain/archives/prefab_companions.py`: files a mesh resolves by path
   convention rather than by reference.
-- `cdmw/ui/archive_browser/prefab_inspector_dialog.py` and
-  `prefab_inspector_actions.py`: the Prefab Inspector.
+- `cdmw/ui/archive_browser/prefab_inspector_dialog.py`,
+  `prefab_inspector_actions.py` and `prefab_inspector_structure.py` (add and
+  remove objects): the Prefab Inspector.
 - `cdmw/services/prefab_structure_service.py`: the facade the UI imports.
 
 ## Format
@@ -45,7 +52,8 @@ pool    := u32 count, (u32 len, string)*count        -- revision >= 14 only
 datahdr := u32 instanceCount, u32 fileSize, u32 ?, u64 ffff..,
            u32 blobOffset, u32 blobLength
 
-blob    := u16 tag(=2), u48 rootPresenceMask, group*, trailer(5..6)
+blob    := u16 tag(=2), u48 rootPresenceMask, group*, close
+close   := (u32 pointeeLength | 0x01)*      -- not a trailer; see below
 group   := elementHeader nameRecord componentMembers
 header  := u16 marker, u16 componentMask, (marker+1) tail
 pointer := u64 owner, u32 selfOffset, pointee(N), u32 N
@@ -185,8 +193,8 @@ being read. The walk knows both and now keeps them.
 The header's extra byte is what decides whether the count sits at +1 or +2.
 Reading a wide header as narrow yields the true count shifted up a byte -- still
 small enough to look plausible -- and the walk then *finishes anyway*, because
-it stops on the trailer when the elements run out. The file looks read while the
-count is fiction.
+the close rule accepts what is left when the elements run out. The file looks
+read while the count is fiction.
 
 The tell is that the misread count is a **multiple of 256**. Over 1,949
 collections in completed walks, no correct narrow count was ever a multiple of
@@ -253,7 +261,7 @@ Measured on 12,000 archive-extracted prefabs:
 | | |
 |---|---|
 | header, type table, pool, data header | 12,000 / 12,000 |
-| structural heap walk completes | 61.5% of a seeded 1,500-file sample |
+| structural heap walk completes | 62.0% of a seeded 1,500-file sample |
 | ... of files declaring one component type | 93.2% |
 | objects recovered | 128,142 |
 | numeric values recovered | 149,696 |
@@ -269,6 +277,12 @@ A partial walk is reported, never hidden: `walk_complete` is false,
   data header are all updated.
 - Placement writes are checked against the bytes currently at the offset, so a
   stale decode is refused rather than splicing over live data.
+- Adding or removing an object additionally requires `walk_is_determined`, and
+  is **applied immediately** rather than queued: it moves every byte after the
+  splice, so a pending offset-keyed edit would land on the wrong field. The
+  Inspector refuses one while the other is outstanding.
+- A collection that declares more elements than the walk read is never resized.
+  The last element's extent is unknown, so a splice could land inside it.
 - Existence checks are three-valued. `None` means no index covers that asset
   kind and must not be reported as missing.
 - Game archives are read-only inputs. Edits leave through the loose mod package
@@ -327,7 +341,7 @@ Roughly in order of value:
    matters more now that placement is editable: a wrong rotation convention
    would produce files that pass every test and sit at wrong angles in world.
    Needs a human with the game installed.
-2. **38.5% of prefabs do not walk to completion**, measured over a seeded
+2. **38.0% of prefabs do not walk to completion**, measured over a seeded
    1,500-file sample rather than the older 12,000-file run, so the shares below
    are not directly comparable with the figures that preceded them.
    `scripts/prefab_walk_failure_census.py` groups what is left by cause and by
@@ -335,12 +349,12 @@ Roughly in order of value:
 
    | files | share | median progress | p90 | objs | cause |
    | ---: | ---: | ---: | ---: | ---: | --- |
-   | 158 | 27.3% | 1% | 20% | 0 | mask exceeds every candidate component |
-   | 119 | 20.6% | 66% | 91% | 3 | walk ended N bytes short |
-   | 70 | 12.1% | 6% | 56% | 1 | no pointer record near … |
-   | 39 | 6.7% | 95% | 100% | 4 | no element header near … |
+   | 158 | 27.7% | 1% | 20% | 0 | mask exceeds every candidate component |
+   | 119 | 20.9% | 66% | 92% | 3 | walk ended N bytes short |
+   | 70 | 12.3% | 6% | 56% | 1 | no pointer record near … |
    | 35 | 6.1% | 3% | 7% | 3 | expected a collection here (… ce) |
-   | 34 | 5.9% | 97% | 99% | 2 | expected a collection here (… 2f) |
+   | 34 | 6.0% | 97% | 99% | 2 | expected a collection here (… 2f) |
+   | 31 | 5.4% | 71% | 100% | 3 | no element header near … |
    | 24 | 4.2% | 17% | 100% | 1 | blob string length N at … |
 
    Read the *progress* column before the share. The largest cause stops at 1%

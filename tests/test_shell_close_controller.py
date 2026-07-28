@@ -260,7 +260,13 @@ def test_deferred_close_quits_application_after_hidden_window_is_finalized() -> 
 
     window.show()
     QTimer.singleShot(0, window.close)
-    fallback_exit.start(600)
+    # Only a hang guard, so it is deliberately far longer than the close needs.
+    # The deferred close polls `_close_worker_wait_timer` every 100 ms, so 600 ms
+    # allowed about six ticks and a busy CI runner missed enough of them to exit
+    # 17 -- reporting "the app did not quit" when the app was merely slow. The
+    # assertions below are what this test is about; the timer only stops a real
+    # hang from blocking the suite forever.
+    fallback_exit.start(30_000)
     exit_code = app.exec()
     fallback_exit.stop()
 
