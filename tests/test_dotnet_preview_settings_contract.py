@@ -354,7 +354,10 @@ def test_dotnet_material_category_authority_reaches_native_response_fallback() -
     assert "MaterialCategoryConfidenceForSubmesh" in viewport
     assert "MaterialResponsePromotedForSubmesh" in viewport
     assert "parameters.BaseTintMetallic == true" in viewport
-    assert "bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f" in shader
+    # An authored base tint opts out of the metal damping; the category band is still
+    # bounded at both ends.
+    assert "bool earlyCategoryMetal = !authoredBaseTint" in shader
+    assert "MaterialBaseTintPolicy.y > 0.5f" in shader
     assert "MaterialBaseTintPolicy.y < 1.5f" in shader
     assert "float categoryMetalFallback = categoryMetal" in shader
     assert "metallic = max(metallic, categoryMetalFallback);" in shader

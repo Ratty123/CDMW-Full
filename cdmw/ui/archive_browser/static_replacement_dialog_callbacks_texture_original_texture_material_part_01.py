@@ -312,34 +312,47 @@ def _texture_original_texture_material_step_008(_state):
         return cloned if isinstance(cloned, _state.ModelPreviewData) else preview_model
     _state._current_archive_original_preview_model = _current_archive_original_preview_model
 
-def _texture_original_texture_material_step_009(_state):
+def _step_009_prompt_context(_state) -> dict:
+    context = getattr(_state, 'context', None)
+    return context if isinstance(context, dict) else {}
 
+
+def _step_009_resolved_original_reference_preview_model(_state) -> object | None:
+    # The bound snapshot goes stale once the texture worker publishes a
+    # resolved model, so prefer the live getter when the prompt exposes one.
+    getter = _step_009_prompt_context(_state).get('_get_original_reference_preview_model')
+    if callable(getter):
+        try:
+            resolved = getter()
+        except RuntimeError:
+            resolved = None
+        if resolved is not None:
+            return resolved
+    return _state.original_reference_preview_model
+
+
+def _step_009_context_value(_state, name: str) -> object | None:
+    context = _step_009_prompt_context(_state)
+    getter = context.get(f'_get_{name}')
+    if callable(getter):
+        try:
+            return getter()
+        except RuntimeError:
+            return None
+    return context.get(name, getattr(_state, name, None))
+
+
+def _texture_original_texture_material_step_009(_state):
+    # These three read the prompt's live context and are module level only so this
+    # factory stays inside the 150-line owner limit; they are not used elsewhere.
     def _prompt_context() -> dict:
-        context = getattr(_state, 'context', None)
-        return context if isinstance(context, dict) else {}
+        return _step_009_prompt_context(_state)
 
     def _resolved_original_reference_preview_model() -> object | None:
-        # The bound snapshot goes stale once the texture worker publishes a
-        # resolved model, so prefer the live getter when the prompt exposes one.
-        getter = _prompt_context().get('_get_original_reference_preview_model')
-        if callable(getter):
-            try:
-                resolved = getter()
-            except RuntimeError:
-                resolved = None
-            if resolved is not None:
-                return resolved
-        return _state.original_reference_preview_model
+        return _step_009_resolved_original_reference_preview_model(_state)
 
     def _context_value(name: str) -> object | None:
-        context = _prompt_context()
-        getter = context.get(f'_get_{name}')
-        if callable(getter):
-            try:
-                return getter()
-            except RuntimeError:
-                return None
-        return context.get(name, getattr(_state, name, None))
+        return _step_009_context_value(_state, name)
 
     def _settle_deferred_original_reference_texture_request(outcome: str) -> None:
         """Answer a texture request that started no worker.

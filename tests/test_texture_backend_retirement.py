@@ -34,6 +34,10 @@ EXCLUDED_PARTS = {
     "build",
     "dist",
     "obj",
+    # `docs/plans/` is in `.git/info/exclude`: implementation plans are local scratch
+    # and are never committed. Scanning them makes this guard fail on whatever notes a
+    # developer happens to have open, which says nothing about the shipped source.
+    "plans",
     "third_party",
 }
 

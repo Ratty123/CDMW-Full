@@ -14,7 +14,11 @@ def test_dotnet_material_channels_and_embedded_panel_source_contracts() -> None:
     assert "MaterialBaseTint.w > 0.5f" in hlsl_source
     assert "MaterialTint.w > 0.5f ? float4(1.0f, 1.0f, 1.0f, 1.0f)" in hlsl_source
     assert "float tintLuma = max(dot(previewTint" in hlsl_source
-    assert "bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f" in hlsl_source
+    # An authored base tint opts out of the metal damping; the category band is still
+    # bounded at both ends. Asserted as three facts rather than one exact line, which
+    # is what went stale when the `!authoredBaseTint` term was added.
+    assert "bool earlyCategoryMetal = !authoredBaseTint" in hlsl_source
+    assert "MaterialBaseTintPolicy.y > 0.5f" in hlsl_source
     assert "MaterialBaseTintPolicy.y < 1.5f" in hlsl_source
     assert "roughnessSample[(int)MaterialChannelSelectors.x]" in hlsl_source
     assert "metallicSample[(int)MaterialChannelSelectors.y]" in hlsl_source

@@ -138,7 +138,16 @@ class ArchiveStartupReadinessTests(unittest.TestCase):
 
         self.assertTrue(harness.archive_item_icon_preload_pending_after_ready)
 
-    def test_model_preview_waits_for_material_lookup_index(self) -> None:
+    def test_model_preview_starts_the_lookup_index_without_waiting_for_it(self) -> None:
+        """The preview no longer blocks on the material/texture lookup.
+
+        It used to wait, which charged the first model selection of every session for
+        the whole index build. `_flush_scheduled_archive_preview_request` now starts the
+        worker, records the entry to re-resolve, says so in the status bar, and carries
+        on: geometry decodes without the index and only the Asset Family metadata needs
+        it. This asserts the new contract, so a return to blocking would be caught.
+        """
+
         class Harness(ArchivePreviewWorkerMixin):
             scheduled_archive_preview_request = (
                 3,
@@ -150,8 +159,15 @@ class ArchiveStartupReadinessTests(unittest.TestCase):
             detail = ""
             status = ""
 
+            deferred = False
+
             def _mesh_replacement_builder_active(self) -> bool:
-                return False
+                # Stops the flush right after the lookup guard, so this test covers the
+                # guard without standing up the whole preview pipeline behind it.
+                return True
+
+            def _defer_archive_preview_refresh_for_builder(self, _entry: object) -> None:
+                self.deferred = True
 
             def _archive_basic_index_missing_for_lookup(self) -> bool:
                 return True
@@ -166,12 +182,23 @@ class ArchiveStartupReadinessTests(unittest.TestCase):
             def set_status_message(self, text: str) -> None:
                 self.status = text
 
+            def _collect_archive_preview_loose_roots(self) -> list:
+                # The flush path asks for loose override roots before it decides what
+                # to preview. This harness has no workspace, so there are none.
+                return []
+
         harness = Harness()
         harness._flush_scheduled_archive_preview_request()
 
-        self.assertTrue(harness.ensured)
-        self.assertIsNotNone(harness.scheduled_archive_preview_request)
-        self.assertIn("material and texture lookup", harness.detail)
+        self.assertTrue(harness.ensured, "the lookup index worker should be started")
+        self.assertIn("material and texture lookup", harness.status)
+        self.assertIsNotNone(
+            getattr(harness, "_archive_preview_pending_lookup_entry", None),
+            "the entry must be recorded so its metadata is re-resolved once the index lands",
+        )
+        # Carried on rather than waiting: the request is consumed, not left scheduled.
+        self.assertIsNone(harness.scheduled_archive_preview_request)
+        self.assertTrue(harness.deferred)
 
     def test_remote_item_finder_warmup_starts_after_publish_and_is_shutdown_owned(self) -> None:
         root = Path(__file__).resolve().parents[1]

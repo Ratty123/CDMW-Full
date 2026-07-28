@@ -1,7 +1,7 @@
 {
   "functions": {
     "cdmw/ui/archive_browser/action_controls.py::ArchiveBrowserActionControlsMixin._update_archive_model_action_controls": 305,
-    "cdmw/ui/archive_browser/actions.py::ArchiveBrowserActionMixin._show_archive_tree_context_menu": 209,
+    "cdmw/ui/archive_browser/actions.py::ArchiveBrowserActionMixin._show_archive_tree_context_menu": 214,
     "cdmw/ui/archive_browser/appearance_composite.py::ArchiveAppearanceCompositeMixin._prompt_appearance_composite_component_selection": 161,
     "cdmw/ui/archive_browser/asset_catalog_dialog.py::ArchiveAssetCatalogDialogMixin._show_archive_asset_catalog_dialog": 844,
     "cdmw/ui/archive_browser/asset_family_panel.py::ArchiveAssetFamilyPanelMixin._populate_archive_texture_reference_list": 179,
@@ -51,6 +51,6 @@
     "cdmw/ui/archive_browser/source_mix_actions.py::ArchiveSourceMixActionsMixin._open_archive_source_mix_package_dialog": 316,
     "cdmw/ui/archive_browser/source_mix_overlay.py::ArchiveSourceMixOverlayMixin._open_archive_loose_mod_overlay_dialog": 438,
     "cdmw/ui/archive_browser/source_picker_dialog.py::ArchiveSourcePickerDialogMixin._choose_archive_mesh_source_dialog": 469,
-    "cdmw/ui/archive_browser/workers.py::ArchivePreviewWorkerMixin._flush_scheduled_archive_preview_request": 160
+    "cdmw/ui/archive_browser/workers.py::ArchivePreviewWorkerMixin._flush_scheduled_archive_preview_request": 166
   }
 }

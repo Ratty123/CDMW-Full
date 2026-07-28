@@ -107,6 +107,9 @@ def test_first_run_prompt_is_modeless_and_main_window_stays_clickable(
 ) -> None:
     app = _app()
     monkeypatch.setenv("CDMW_DEFER_TEXTURE_PREVIEW", "test-original")
+    # The prompt gate returns False when this is set, so control it rather than
+    # inheriting whatever an earlier test in the process left behind.
+    monkeypatch.delenv("CDMW_GUI_STARTUP_SMOKE", raising=False)
     monkeypatch.setattr(StartupArchivePathDialog, "_run_initial_autodetect", lambda _self: None)
     package_root = tmp_path / "game"
     package_root.mkdir()
@@ -155,6 +158,9 @@ def test_first_run_prompt_keeps_event_loop_alive_until_hidden_main_window_opens(
     app = _app()
     previous_quit_on_last_window_closed = app.quitOnLastWindowClosed()
     app.setQuitOnLastWindowClosed(True)
+    # The prompt gate returns False when this is set, so control it rather than
+    # inheriting whatever an earlier test in the process left behind.
+    monkeypatch.delenv("CDMW_GUI_STARTUP_SMOKE", raising=False)
     monkeypatch.setattr(StartupArchivePathDialog, "_run_initial_autodetect", lambda _self: None)
     package_root = tmp_path / "game"
     package_root.mkdir()

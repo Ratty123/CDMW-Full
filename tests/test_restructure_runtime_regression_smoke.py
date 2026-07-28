@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("CDMW_GUI_STARTUP_SMOKE", "1")
 
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
@@ -43,6 +42,14 @@ def _entry(path: str, root: Path) -> ArchiveEntry:
 
 class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
     def setUp(self) -> None:
+        # Scoped to this case rather than set at import. As a module-level
+        # `os.environ.setdefault` it stayed set for the rest of the pytest process, and
+        # `_startup_archive_path_prompt_needed` returns False whenever it is "1" -- so
+        # the first-run prompt tests silently stopped exercising the prompt whenever
+        # this file was collected before them.
+        self._smoke_env = patch.dict(os.environ, {"CDMW_GUI_STARTUP_SMOKE": "1"})
+        self._smoke_env.start()
+        self.addCleanup(self._smoke_env.stop)
         _app()
         self._temp_dir = tempfile.TemporaryDirectory()
         settings = create_settings(settings_file_path=Path(self._temp_dir.name) / "cdmw-test.cfg")
