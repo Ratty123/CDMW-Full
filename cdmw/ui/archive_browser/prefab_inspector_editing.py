@@ -36,6 +36,10 @@ OFFSET_ROLE = Qt.ItemDataRole.UserRole + 4
 #: (offset, type, raw, member) for a non-transform value whose declared type
 #: and byte width agree, so an editor can be offered for it.
 VALUE_ROLE = Qt.ItemDataRole.UserRole + 5
+#: Byte offset of an object's group, on the heading row for that object. It is
+#: what turns "this row" into "this collection element" when the modder asks to
+#: duplicate or remove one; rows without it are fields, not objects.
+OBJECT_ROLE = Qt.ItemDataRole.UserRole + 6
 
 CHANGED_COLOUR = QColor("#7ec8ff")
 WARNING_COLOUR = QColor("#ffb86b")
@@ -98,6 +102,11 @@ class PrefabEditingMixin:
         lines: list[ChangeLine] = []
         warnings: list[str] = []
         counts: dict[str, int] = {}
+        # Structural changes are already in the working payload rather than
+        # pending on a row, so the tree walk below cannot find them -- but they
+        # are the largest thing the modder is about to write, so they lead.
+        for description in getattr(self, "_structural_changes", ()):
+            lines.append(ChangeLine(field="Object list", before="", after=description))
         for index in range(self.tree.topLevelItemCount()):
             parent = self.tree.topLevelItem(index)
             for child_index in range(parent.childCount()):

@@ -105,14 +105,36 @@ def prefab_binary_error() -> type[Exception]:
     return PrefabBinaryError
 
 
+def duplicate_prefab_element(*args: Any, **kwargs: Any) -> Any:
+    from cdmw.core.prefab_array_edit import duplicate_prefab_element as owner
+
+    return owner(*args, **kwargs)
+
+
+def remove_prefab_element(*args: Any, **kwargs: Any) -> Any:
+    from cdmw.core.prefab_array_edit import remove_prefab_element as owner
+
+    return owner(*args, **kwargs)
+
+
+def locate_element(*args: Any, **kwargs: Any) -> Any:
+    from cdmw.core.prefab_array_edit import locate_element as owner
+
+    return owner(*args, **kwargs)
+
+
 __all__ = [
     "asset_extension_for",
     "collect_asset_paths",
     "decode_prefab_binary",
+    "duplicate_prefab_element",
+    "locate_element",
+    "remove_prefab_element",
     "walk_is_determined",
     "path_is_known",
     "plan_prefab_path_edits",
     "PrefabPathEdit",
+    "PrefabRewriteResult",
     "prefab_source_digest",
     "pointer_sites",
     "prefab_binary_error",

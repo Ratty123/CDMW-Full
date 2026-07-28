@@ -64,6 +64,10 @@ import struct
 from dataclasses import dataclass, field
 from typing import Iterator, Mapping, Sequence
 
+# Re-exported: callers have always imported PrefabCollection from here, and the
+# split is about file size rather than about the interface.
+from cdmw.core.prefab_collection_spans import PrefabCollection, over_declared
+
 MAGIC = 0xFFFF
 SUPPORTED_VERSIONS = (3, 4)
 STRING_POOL_MIN_REVISION = 14
@@ -219,6 +223,11 @@ class PrefabObject:
     #: ``"inferred"`` when the walk had to work it out from declaration order.
     #: An inferred object can be entirely wrong while still looking complete.
     type_source: str = "stated"
+    #: Absolute file offset where this object's group starts, or ``-1`` for one
+    #: recovered without a span. It matches the ``start`` of the collection
+    #: element that holds it, which is what lets a caller point at a *row* and
+    #: have the resizer find the element behind it.
+    offset: int = -1
 
     @property
     def type_is_inferred(self) -> bool:
@@ -232,39 +241,6 @@ class PrefabPointer:
     site: int
     owner: int
     target: int
-
-
-@dataclass(frozen=True, slots=True)
-class PrefabCollection:
-    """One collection the walk read, and where each of its elements sits.
-
-    The walk already knows all of this -- it consumed the header and then read
-    ``count`` elements one after another -- but until now it threw it away. An
-    editor that wants to add or drop an element has to have it, and *has to
-    have it from the walk*: the header is only distinguishable from the bytes
-    around it by having been arrived at, and the element boundaries are wherever
-    the previous element stopped. Searching for either is guesswork.
-    """
-
-    #: The member that declares the collection, e.g. ``_childSceneObjects``.
-    member_name: str
-    #: The component type holding that member; ``""`` at the root.
-    owner_type: str
-    #: Absolute offset of the header's kind byte.
-    header_offset: int
-    #: 5 for the narrow header, 6 for the wide one. The count sits in the last
-    #: four bytes either way, so a writer never has to re-decide the width.
-    header_width: int
-    #: Elements the header declares. Equal to ``len(elements)`` except on a file
-    #: whose count outruns the data, where the walk stopped at the trailer.
-    count: int
-    #: Absolute ``(start, end)`` per element, in file order.
-    elements: tuple[tuple[int, int], ...] = ()
-
-    @property
-    def count_offset(self) -> int:
-        """Absolute offset of the u32 element count."""
-        return self.header_offset + self.header_width - 4
 
 
 @dataclass(frozen=True, slots=True)
@@ -903,6 +879,9 @@ def _walk_group(
         raise PrefabBinaryError(f"group nesting deeper than {_MAX_DEPTH}")
     if len(sink) > _MAX_GROUPS:
         raise PrefabBinaryError(f"more than {_MAX_GROUPS} groups")
+    # Before the header search moves the cursor: this is where the enclosing
+    # collection considers the element to begin.
+    started_at = cursor.base + cursor.pos
     mask, type_index = _find_element_header(cursor)
     owner_before = cursor.pos
     parent = int.from_bytes(cursor.blob[max(0, owner_before) : owner_before + 8], "little")
@@ -936,6 +915,7 @@ def _walk_group(
             numbers=tuple(collected.numbers),
             parent=parent if parent != NULL_OWNER else -1,
             type_source="stated" if type_stated else "inferred",
+            offset=started_at,
         ),
     )
 
@@ -1038,17 +1018,6 @@ def walk_is_determined(data: bytes) -> bool:
     return not (alternate and flipped)
 
 
-def _over_declared(document: PrefabDocument) -> int:
-    """Collections claiming more elements than the walk could read.
-
-    Every one of these is a decode that is wrong without saying so: the walk ran
-    out of elements and stopped on the trailer, so the file looks read while a
-    collection's count is fiction. Used to judge whether a retry is an
-    improvement, which is why it is a count and not a flag.
-    """
-    return sum(1 for item in document.collections if len(item.elements) != item.count)
-
-
 def decode_prefab_binary(data: bytes) -> PrefabDocument:
     """Decode a ``.prefab`` payload, retrying the collection width if it helps.
 
@@ -1066,7 +1035,7 @@ def decode_prefab_binary(data: bytes) -> PrefabDocument:
     reading because the retry is worse, not because the rule was weakened.
     """
     document = _decode_prefab(data, wide_on_multiples=False)
-    if not _over_declared(document):
+    if not over_declared(document):
         return document
     if not any(
         item.count and item.count % 256 == 0
@@ -1078,7 +1047,7 @@ def decode_prefab_binary(data: bytes) -> PrefabDocument:
         alternate = _decode_prefab(data, wide_on_multiples=True)
     except PrefabBinaryError:
         return document
-    if alternate.walk_complete and _over_declared(alternate) < _over_declared(document):
+    if alternate.walk_complete and over_declared(alternate) < over_declared(document):
         return alternate
     return document
 

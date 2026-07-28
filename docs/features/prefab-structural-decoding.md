@@ -163,6 +163,32 @@ So there is no ground truth to diff a resize against, and validation is internal
 Neither proves the game accepts the file. They prove it is the same kind of
 object it was, which is the strongest claim available without the engine.
 
+### In the Inspector
+
+Right-click an object heading: **Duplicate this object** / **Remove this
+object**. Object headings carry their group's byte offset (`OBJECT_ROLE`), and
+`locate_element` turns that into the collection element behind the row by exact
+offset match -- not by containment, because an object nested *inside* an element
+is not itself one and offering to delete it would delete its parent.
+
+Structural changes are applied **immediately**, unlike every other edit the
+Inspector makes. Path and value edits are pending and keyed by byte offset; a
+splice moves every byte after it, so a pending edit's offset would then point at
+the wrong field -- and at a field that still looks like a plausible target. So:
+
+- the dialog keeps `_opened` (the file as it arrived) alongside `_original` (the
+  bytes the current rows were read from), and **Undo all changes** restores the
+  first;
+- the tree is rebuilt by re-decoding, never patched, because every offset the
+  old rows held came from the old bytes;
+- a structural change is **refused while row edits are pending**, with a dialog
+  saying to save or undo them first. Migrating them across a splice is possible
+  in principle and is not worth the failure mode.
+
+Removing the last element of a collection is offered but disabled, with the
+reason on the tooltip -- refusing in the menu explains itself, refusing after
+the click does not.
+
 ## Coverage
 
 Measured on 12,000 archive-extracted prefabs:
