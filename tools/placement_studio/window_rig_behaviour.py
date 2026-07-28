@@ -37,7 +37,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QGroupBox,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -49,6 +48,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.core.posemodifier_xml import PoseModifierError
 
+from .table_columns import proportional_columns
 from .rig_behaviour import (
     GAME_PATH,
     SECTION_LABELS,
@@ -144,16 +144,15 @@ class RigBehaviourMixin:
         # Elide the tail, not the middle: each cell now leads with the leaf name, so what
         # gets trimmed is the path prefix rather than the part you scan for.
         self._behaviour_table.setTextElideMode(Qt.ElideRight)
-        # Only Section and Applies-to may size to their contents; both are short and fixed
-        # in shape. Letting Value do the same let one long string claim 350px and squeeze
-        # the stretching Setting column down to "ettin", with a scrollbar to reach the rest.
-        head = self._behaviour_table.horizontalHeader()
-        head.setStretchLastSection(False)
-        head.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        head.setSectionResizeMode(1, QHeaderView.Stretch)
-        head.setSectionResizeMode(2, QHeaderView.Interactive)
-        head.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self._behaviour_table.setColumnWidth(2, 150)
+        # Fixed shares rather than one stretching column. `ResizeToContents` on Value let a
+        # single long string claim 350px and squeeze the stretching Setting column down to
+        # "ettin"; stretching Setting alone does the reverse at a wide window, leaving Value
+        # narrow enough to elide a vector while Setting sits half empty.
+        proportional_columns(
+            self._behaviour_table,
+            weights=(14, 44, 27, 15),
+            minimums=(64, 132, 96, 74),
+        )
         self._behaviour_table.itemSelectionChanged.connect(self._on_behaviour_selected)
         outer.addWidget(self._behaviour_table, 1)
 
