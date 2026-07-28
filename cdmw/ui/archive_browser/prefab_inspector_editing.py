@@ -232,3 +232,46 @@ class PrefabEditingMixin:
             self._value_edits.pop(offset, None)
             sibling.setText(2, describe_value(type_name, original_raw))
             sibling.setForeground(2, QBrush())
+
+    def _row_is_changeable(self, item: QTreeWidgetItem) -> bool:
+        from PySide6.QtCore import Qt
+
+        return bool(
+            item.flags() & Qt.ItemFlag.ItemIsEditable
+            or item.data(0, PLACEMENT_ROLE)
+            or item.data(0, VALUE_ROLE)
+        )
+
+    def _apply_object_filter(self) -> None:
+        """Narrow the tree to matching rows, keeping their objects visible.
+
+        A row is worthless without knowing which object it belongs to, so a
+        parent stays on screen whenever any of its children match -- and a
+        parent that matches on its own name keeps all of its rows.
+        """
+        needle = self.object_filter.text().strip().lower()
+        changeable_only = self.changeable_only_box.isChecked()
+        shown = 0
+        for index in range(self.tree.topLevelItemCount()):
+            parent = self.tree.topLevelItem(index)
+            parent_matches = not needle or any(
+                needle in parent.text(column).lower() for column in range(3)
+            )
+            visible_children = 0
+            for child_index in range(parent.childCount()):
+                child = parent.child(child_index)
+                matches = parent_matches or any(
+                    needle in child.text(column).lower() for column in range(3)
+                )
+                if changeable_only and not self._row_is_changeable(child):
+                    matches = False
+                child.setHidden(not matches)
+                visible_children += int(matches)
+            parent.setHidden(visible_children == 0 and not (parent_matches and not changeable_only))
+            shown += visible_children
+        if not needle and not changeable_only:
+            self.match_count.setText("")
+            return
+        self.match_count.setText(
+            "Nothing matches." if not shown else f"Showing {shown:,} row(s)."
+        )

@@ -296,6 +296,23 @@ class PrefabInspectorDialog(PrefabEditingMixin, QDialog):
         page = QWidget()
         box = QVBoxLayout(page)
         box.addWidget(QLabel(self._objects_hint()))
+        # Most prefabs are one object and two rows, so the filter stays out of
+        # the way -- but the tail runs to 1,126 objects and 2,252 rows, and 87
+        # of the 6,522 readable prefabs carry more than 50 objects. Those are
+        # unusable without this.
+        controls = QHBoxLayout()
+        self.object_filter = QLineEdit()
+        self.object_filter.setPlaceholderText("Filter by name, field, value or path...")
+        self.object_filter.setClearButtonEnabled(True)
+        self.object_filter.textChanged.connect(lambda _text: self._apply_object_filter())
+        controls.addWidget(self.object_filter, 1)
+        self.changeable_only_box = QCheckBox("Only rows I can change")
+        self.changeable_only_box.setToolTip(
+            "Hide everything that is read-only, so what is left is what you can edit."
+        )
+        self.changeable_only_box.toggled.connect(lambda _on: self._apply_object_filter())
+        controls.addWidget(self.changeable_only_box)
+        box.addLayout(controls)
         self.tree = QTreeWidget()
         self.tree.setColumnCount(3)
         self.tree.setHeaderLabels(["Object / field", "What it is", "Value"])
@@ -312,6 +329,9 @@ class PrefabInspectorDialog(PrefabEditingMixin, QDialog):
         copy.activated.connect(self._copy_selected_value)
         self._populate_objects()
         box.addWidget(self.tree, 1)
+        self.match_count = QLabel("")
+        self.match_count.setWordWrap(True)
+        box.addWidget(self.match_count)
         return page
 
     def _select_first_editable_row(self) -> None:

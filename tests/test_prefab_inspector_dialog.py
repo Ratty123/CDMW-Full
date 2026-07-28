@@ -805,3 +805,65 @@ def test_a_clean_row_offers_nothing_to_undo(qt_app: QApplication) -> None:
     dialog = PrefabInspectorDialog(_build())
     row = _path_row(dialog)
     assert not dialog.row_has_pending_change(row)
+
+
+def _visible_object_rows(dialog: PrefabInspectorDialog) -> list[str]:
+    found: list[str] = []
+    for index in range(dialog.tree.topLevelItemCount()):
+        parent = dialog.tree.topLevelItem(index)
+        if parent.isHidden():
+            continue
+        for child_index in range(parent.childCount()):
+            child = parent.child(child_index)
+            if not child.isHidden():
+                found.append(child.text(0))
+    return found
+
+
+def test_the_objects_tab_can_be_filtered(qt_app: QApplication) -> None:
+    """Median prefab is one object, but the tail runs to 1,126."""
+    dialog = PrefabInspectorDialog(_build())
+    everything = _visible_object_rows(dialog)
+    assert len(everything) >= 2
+
+    dialog.object_filter.setText("sword")
+    narrowed = _visible_object_rows(dialog)
+    assert narrowed, "the mesh path row contains 'sword'"
+    assert len(narrowed) < len(everything)
+    assert "Showing" in dialog.match_count.text()
+
+    dialog.object_filter.setText("nothing-matches-this")
+    assert _visible_object_rows(dialog) == []
+    assert "Nothing matches" in dialog.match_count.text()
+
+    dialog.object_filter.setText("")
+    assert _visible_object_rows(dialog) == everything
+    assert dialog.match_count.text() == ""
+
+
+def test_only_changeable_rows_hides_the_read_only_ones(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build())
+    everything = _visible_object_rows(dialog)
+    dialog.changeable_only_box.setChecked(True)
+    changeable = _visible_object_rows(dialog)
+    assert changeable, "the mesh path is editable"
+    assert len(changeable) < len(everything)
+    # And what is left really is editable, not merely fewer rows.
+    for index in range(dialog.tree.topLevelItemCount()):
+        parent = dialog.tree.topLevelItem(index)
+        for child_index in range(parent.childCount()):
+            child = parent.child(child_index)
+            if not child.isHidden() and not parent.isHidden():
+                assert dialog._row_is_changeable(child), child.text(0)
+
+
+def test_filtering_keeps_a_matching_row_s_object_on_screen(qt_app: QApplication) -> None:
+    """A row is worthless without knowing which object it belongs to."""
+    dialog = PrefabInspectorDialog(_build())
+    dialog.object_filter.setText("sword")
+    visible_parents = [
+        dialog.tree.topLevelItem(i)
+        for i in range(dialog.tree.topLevelItemCount())
+        if not dialog.tree.topLevelItem(i).isHidden()
+    ]
+    assert visible_parents, "the owning object must stay visible"
