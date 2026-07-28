@@ -47,25 +47,28 @@ reading "at three times its Z rotation, offset 30.5 degrees, clamped at 8".
 
 ## How far it gets, and how that is known
 
-**2,441 of 2,541 blocks (96.1%) consume exactly**, against 682 (26.8%) for the single
+**2,482 of 2,541 blocks (97.7%) consume exactly**, against 682 (26.8%) for the single
 canonical shape this replaces. Two independent checks keep that honest:
 
 * A block must be consumed to its final byte. The grammar has no per-block free
   parameters, so landing exactly on 1,857 block boundaries is not something arbitrary
   rules do.
 * `record_count` in the header is the total record count across every block, and nothing
-  in this grammar can influence it. All four rigs that decode end to end reproduce their
-  declared total exactly: bear 12, deerila 324, golemhorse 377, horse 353. That check is
-  also what settled the bound-node question -- counted as records, the last three overshot
-  by 6, 11 and 11, which is precisely how many bound nodes they hold.
+  in this grammar can influence it. All nine rigs that decode end to end reproduce their
+  declared total exactly, including the largest: golem_imp_boss 4,317, machinetank 1,660,
+  warrobot 1,660, golemdragon 891. That check is also what settled the bound-node question
+  -- counted as records, deerila and the two horse rigs overshot by 6, 11 and 11, which is
+  precisely how many bound nodes they hold.
 
-The remaining 100 blocks stop at four constructs. `09 03` (56 blocks) is a record whose
-payload is not any shape here. The other three are all places where a byte this grammar
-expects to be zero is not: a bound node followed by `01` (37), a `01 03` frame followed by
-a count (3), and one zero-length string. Those three look like the same missing idea --
-that several of these payloads begin with a count rather than a fixed zero, and the decoded
-forms are simply the count-is-one case -- but the shapes that would confirm it have not
-been pinned down, so they fail loudly instead. `decode_block` reports where it stopped
+The remaining 59 blocks stop at two constructs: a `09 03` record (56) and a `01 03` frame
+whose lead byte is a count rather than a zero (3).
+
+`09 03` looks like an opener carrying two bytes, after which a `01 03` reads as a driver
+list with no sentinel -- count, entries, then a limit run. Read that way the corpus reaches
+98.0%, but the number of rigs agreeing with their own `record_count` falls from nine to
+seven, so the limit run cannot be the `4 + channels` one and the shape is not yet right.
+It is left refused rather than guessed: coverage that costs header agreement is a worse
+answer than a block this module admits it cannot read. `decode_block` reports where it stopped
 rather than guessing past it, and `BlockDecode.complete` is False for those.
 """
 
@@ -171,11 +174,17 @@ class BlockDecode:
         return tuple(driver for group in self.groups for driver in group.drivers)
 
 
-def _read_string(block: bytes, at: int) -> tuple[str, int]:
+def _read_string(block: bytes, at: int, *, allow_empty: bool = False) -> tuple[str, int]:
+    """A `u16` length then that many printable bytes.
+
+    `allow_empty` is for the bound node, which really does carry a zero-length name in a
+    handful of rigs -- an unbound slot rather than a corrupt record.
+    """
+
     if at + 2 > len(block):
         raise PaprBlockError("string length runs past the block", at)
     length = struct.unpack_from("<H", block, at)[0]
-    if not 1 <= length <= _MAX_STRING or at + 2 + length > len(block):
+    if not (0 if allow_empty else 1) <= length <= _MAX_STRING or at + 2 + length > len(block):
         raise PaprBlockError(f"implausible string length {length}", at)
     raw = block[at + 2 : at + 2 + length]
     if not all(byte in _PRINTABLE for byte in raw):
@@ -190,10 +199,19 @@ def _read_zero(block: bytes, at: int, what: str) -> int:
 
 
 def _read_bound_node(block: bytes, at: int, channels: int) -> tuple[str, int]:
-    """A zero byte, the node this follows, then the same limit run a driver list takes."""
+    """A flag byte, the node this follows, then the same limit run a driver list takes.
 
-    at = _read_zero(block, at, "a bound node")
-    name, at = _read_string(block, at)
+    The flag is 0 in most rigs and 1 in a few, and the name is occasionally empty. Both
+    were read as fixed zeros at first, which cost 38 blocks for no reason.
+    """
+
+    if at >= len(block):
+        raise PaprBlockError("bound-node flag runs past the block", at)
+    flag = block[at]
+    if flag not in (0, 1):
+        raise PaprBlockError(f"implausible bound-node flag {flag}", at)
+    at += 1
+    name, at = _read_string(block, at, allow_empty=True)
     span = 4 * (_BASE_LIMITS + channels)
     if at + span > len(block):
         raise PaprBlockError(f"{span} bytes of bound-node limits run past the block", at)
@@ -206,7 +224,8 @@ def _read_driver_group(
     if at >= len(block):
         raise PaprBlockError("driver count runs past the block", at)
     count = block[at]
-    if not 1 <= count <= _MAX_DRIVERS:
+    # Zero is legitimate: three corpus blocks declare a list and then no drivers.
+    if count > _MAX_DRIVERS:
         raise PaprBlockError(f"implausible driver count {count}", at)
     at += 1
     drivers = []
