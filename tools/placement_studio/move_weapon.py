@@ -349,8 +349,9 @@ class MoveWeaponDialog(QDialog):
                 text = f"{text}  ·  {worn.lower()}"
                 if name_the_donor and borrowed_family and borrowed_family != worn:
                     text = f"{text}  ←  {borrowed_family.lower()}"
-            if len(members) > 1:
-                text = f"{text}   ({len(members)} files)"
+            # No `(2 files)`. How many takes a row covers is not something anyone decides —
+            # it is a property of the game's recording — and it was on almost every row. The
+            # lane heading still counts them, and the tooltip still lists them by name.
 
             # A row whose clip comes from the other playable character says so. The two rigs
             # share most of their bones and the clip plays, but `.paa` keys are bind-pose

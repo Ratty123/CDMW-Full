@@ -11,6 +11,13 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+- **Changing character stalled for several seconds.** Two causes, both things that were cheap against the old stand-in body and are not against a real one. Clipping was measured *live* whenever no clip was loaded — 5.5 million triangle tests against a 28,316-triangle anatomy, 6.2 s, on every mesh refresh, to answer a question nobody had asked; it is measured on request now, which is what the `Check Fit/Clipping` button and its tooltip already said. And the chart index was rebuilt from all 212 charts on every call and called twice per switch, 1.4 s of it, re-deriving something that had not changed. Switching character goes from 3.9 s to 2.0 s, and the six-second stall is gone entirely.
+
+### Changed
+- `Show:` opens on `in hand (held)`. The question this tool answers is where a weapon sits while carried *and* what the hand does with it; the held pose shows both.
+- Move-dialog rows no longer count their files. How many takes a row covers is a property of the game's recording rather than anything a modder decides, and it was on almost every row. The lane heading still counts them and the tooltip still lists them by name.
+
 ### Changed
 - Move-dialog rows are much shorter. `Drawing the weapon · dual swords ← two-handed sword (2 files)` is seventy characters of which four carry the decision; it now reads `Draw · dual swords (2 files)`. The action is a word rather than a sentence, because the row already sits under a heading naming the situation; family names are short; and the family being borrowed *from* is named only when rows actually differ, since a swap runs in one direction and repeating it on every row restates the sentence at the top of the dialog.
 - Damian's rapier families had no readable names and showed as `rpr` and `2rpr`.
