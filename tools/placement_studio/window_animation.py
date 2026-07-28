@@ -25,6 +25,9 @@ from PySide6.QtWidgets import (
 )
 
 from .editing import EditError
+from .glossary import MATCH_LABEL
+from .clip_names import trimmed
+from .layout_util import let_header_shrink as _let_header_shrink
 
 
 def _fill(box, widget) -> None:
@@ -57,23 +60,31 @@ class AnimationTabMixin:
             "names of the same length, because the file stores them with their length."
         )
         row = QHBoxLayout(retarget_box)
+        row.setSpacing(8)
         row.addWidget(QLabel("Socket used by charts:"))
         self._chart_socket_box = QComboBox()
-        self._chart_socket_box.setMinimumWidth(260)
         self._chart_socket_box.currentIndexChanged.connect(self._refresh_retarget_targets)
         self._chart_socket_box.currentIndexChanged.connect(self._refresh_socket_clips)
-        row.addWidget(self._chart_socket_box)
+        row.addWidget(self._chart_socket_box, 1)
 
         row.addSpacing(12)
         row.addWidget(QLabel("Retarget to:"))
         self._retarget_box = QComboBox()
-        self._retarget_box.setMinimumWidth(260)
-        row.addWidget(self._retarget_box)
+        row.addWidget(self._retarget_box, 1)
 
         self._retarget_button = QPushButton("Apply retarget")
         self._retarget_button.clicked.connect(self._apply_retarget)
         row.addWidget(self._retarget_button)
-        row.addStretch(1)
+
+        # Socket names are long — `Spine2_B_SubWeapon_Socket (4 chart(s))` — and a combo asks to
+        # be as wide as its longest entry by default. Two of those plus a button demanded more
+        # width than the row had, so Qt drew them over each other and over the labels between
+        # them. They elide instead now, and the popup keeps the full text readable.
+        _let_header_shrink(
+            combos=(self._chart_socket_box, self._retarget_box),
+            labels=(),
+            buttons=(self._retarget_button,),
+        )
 
         self._chart_view = QPlainTextEdit()
         self._chart_view.setReadOnly(True)
@@ -91,7 +102,7 @@ class AnimationTabMixin:
 
         socket_box = QGroupBox("Animations that run through the selected attach point")
         socket_box.setToolTip(
-            "Needs Match animations. These are the clips a chart names alongside this socket."
+            f"Needs {MATCH_LABEL}. These are the clips a chart names alongside this socket."
         )
         _fill(socket_box, self._build_socket_clips_pane())
 
@@ -99,17 +110,33 @@ class AnimationTabMixin:
         chart_box.setToolTip("The raw sockets and clips named by the selected chart.")
         _fill(chart_box, self._chart_view)
 
-        split = QSplitter(Qt.Vertical)
-        for widget in (browser_box, socket_box, retarget_box, chart_box):
-            split.addWidget(widget)
-        split.setChildrenCollapsible(False)
-        split.setStretchFactor(0, 4)
-        split.setStretchFactor(1, 2)
-        split.setStretchFactor(3, 1)
-        # The retarget row is a fixed-height strip; the lists take the room.
+        # Two lanes. Four boxes in one column ran together into a single stack of lists with
+        # every one of them squeezed, and the tab is wide now — wide enough that the earlier
+        # objection to splitting it (each pane landing at ~150 px, too narrow to read a clip
+        # name) no longer holds.
+        #
+        # The split follows the two questions being asked: *what does this clip look like* on
+        # the left, and *what is attached here* on the right. Retargeting is neither, so it sits
+        # full width underneath, where its long socket names have room to be read.
+        panes = QSplitter(Qt.Horizontal)
+        panes.addWidget(browser_box)
+        right = QSplitter(Qt.Vertical)
+        right.addWidget(socket_box)
+        right.addWidget(chart_box)
+        right.setChildrenCollapsible(False)
+        right.setStretchFactor(0, 3)
+        right.setStretchFactor(1, 2)
+        right.setSizes([320, 220])
+        panes.addWidget(right)
+        panes.setChildrenCollapsible(False)
+        panes.setStretchFactor(0, 3)
+        panes.setStretchFactor(1, 2)
+        panes.setSizes([620, 460])
+
+        layout.addWidget(panes, 1)
+        # A fixed-height strip; the lists take the room.
         retarget_box.setMaximumHeight(retarget_box.sizeHint().height())
-        split.setSizes([460, 230, 70, 140])
-        layout.addWidget(split, 1)
+        layout.addWidget(retarget_box)
         return page
 
     def _build_socket_clips_pane(self) -> QWidget:
@@ -150,15 +177,18 @@ class AnimationTabMixin:
         charts = index.charts_for_socket(socket) if socket else []
         self._socket_clips_list.clear()
         for clip in clips:
-            item = QListWidgetItem(clip)
-            item.setToolTip("Double-click to play this clip on the rig")
+            item = QListWidgetItem(trimmed(clip))
+            # The real name goes in the data, not the text: playback looks the clip up by stem,
+            # so a trimmed row would otherwise stop being playable.
+            item.setData(Qt.UserRole, clip)
+            item.setToolTip(f"{clip}\n\nDouble-click to play this clip on the rig")
             self._socket_clips_list.addItem(item)
         self._socket_clips_label.setText(summarise(socket, clips, charts))
 
     def _play_socket_clip(self, item) -> None:
         """Play a clip named by the charts, resolved through the browser's index."""
 
-        stem = item.text()
+        stem = item.data(Qt.UserRole) or item.text()
         found, _total = self._clip_index.filter(text=stem, include_lod=False, limit=32)
         exact = next((entry for entry in found if entry.name == stem), None)
         if exact is None:

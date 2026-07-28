@@ -67,13 +67,14 @@ class MoveDialogTests(unittest.TestCase):
         """Unticking one radio does not tick the other, so both must be listened to."""
 
         dialog = _dialog()
-        self.assertEqual(dialog._clip_list.count(), len(_DRAWS))
+        self.assertEqual(len(dialog._rows), len(_DRAWS))
 
         dialog._everything.setChecked(True)
-        self.assertEqual(dialog._clip_list.count(), len(_ALL))
+        wider = sum(len(m) for _i, m, _c in dialog._rows)
+        self.assertEqual(wider, len(_ALL))
 
         dialog._draws_only.setChecked(True)
-        self.assertEqual(dialog._clip_list.count(), len(_DRAWS))
+        self.assertEqual(sum(len(m) for _i, m, _c in dialog._rows), len(_DRAWS))
 
     def test_the_plan_carries_exactly_what_is_ticked(self) -> None:
         dialog = _dialog()
@@ -82,7 +83,7 @@ class MoveDialogTests(unittest.TestCase):
         dialog._set_all(False)
         self.assertEqual(dialog.plan().clips, ())
 
-        dialog._clip_list.item(0).setCheckState(Qt.Checked)
+        dialog._rows[0][0].setCheckState(0, Qt.Checked)
         self.assertEqual(len(dialog.plan().clips), 1)
 
     def test_turning_the_animations_off_leaves_only_the_move(self) -> None:
@@ -139,7 +140,7 @@ class DonorChoiceTests(unittest.TestCase):
         dialog = self._with_choice()
 
         self.assertEqual(dialog._undecided(), 1, "the single-option row needs no picker")
-        self.assertEqual(dialog._clip_list.count(), 2)
+        self.assertEqual(sum(len(m) for _i, m, _c in dialog._rows), 2)
 
     def test_the_decisions_are_lifted_out_of_the_file_list(self) -> None:
         """Hunting through hundreds of rows for the few that ask something is not a UI."""
@@ -147,7 +148,9 @@ class DonorChoiceTests(unittest.TestCase):
         dialog = self._with_choice()
 
         self.assertEqual(len(dialog._choices), 1)
-        self.assertIn("(1)", dialog._choice_group.title())
+        # The picker sits on the row it belongs to, not in a second list above it.
+        row = next(i for i, _m, c in dialog._rows if c is not None)
+        self.assertIsNotNone(dialog._clip_list.itemWidget(row, 1))
 
     def test_the_choice_is_named_after_what_it_is_not_its_file(self) -> None:
         label = next(iter(self._with_choice()._choices.values())).label
@@ -164,7 +167,7 @@ class DonorChoiceTests(unittest.TestCase):
         self.assertEqual(len(set(texts)), len(texts), "two identical options is not a choice")
         self.assertTrue(all(text.startswith("Style") for text in texts))
 
-    def test_the_section_hides_when_nothing_needs_deciding(self) -> None:
+    def test_no_picker_appears_when_nothing_needs_deciding(self) -> None:
         rows = [(_Clip("cd_phm_sword_00_01_sit_std_weapon_in_00"),
                  _Clip("cd_phm_lswd_00_01_sit_std_weapon_in_00"))]
         dialog = MoveWeaponDialog(
@@ -174,7 +177,7 @@ class DonorChoiceTests(unittest.TestCase):
         )
 
         self.assertEqual(dialog._choices, {})
-        self.assertNotIn("need a choice", dialog._count_label.text())
+        self.assertIsNone(dialog._clip_list.itemWidget(dialog._rows[0][0], 1))
 
     def test_the_count_points_at_the_rows_needing_a_decision(self) -> None:
         self.assertIn("need a choice", self._with_choice()._count_label.text())
@@ -199,9 +202,9 @@ class DonorChoiceTests(unittest.TestCase):
         from PySide6.QtCore import Qt as _Qt
 
         dialog = self._with_choice()
-        item = next(i for i, _t, s in dialog._rows if isinstance(s, tuple))
+        item = next(i for i, _m, c in dialog._rows if c is not None)
 
-        item.setCheckState(_Qt.Unchecked)
+        item.setCheckState(0, _Qt.Unchecked)
 
         self.assertEqual(len(dialog.plan().clips), 1)
 
@@ -250,3 +253,196 @@ class ItemSwitchTests(unittest.TestCase):
         dialog._part_box.setCurrentIndex(dialog._part_box.findData("Axe"))
 
         self.assertEqual(dialog.plan().socket, "", "it already hangs there")
+
+
+class LaneTests(unittest.TestCase):
+    """Rows are grouped under what they have in common, and say only what differs.
+
+    Every row used to open with its own context — twelve reading "Standing — put the weapon
+    away, version 4" — so the part that distinguished them sat at the end of a sentence that
+    was identical every time.
+    """
+
+    def _dialog(self) -> MoveWeaponDialog:
+        rows = [
+            (_Clip("cd_phm_sword_00_01_normal_stand_weapon_out_000"),
+             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_000")),
+            (_Clip("cd_phm_sword_00_01_normal_stand_weapon_in_002_lod"),
+             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_in_002_lod")),
+            (_Clip("cd_phm_sword_00_01_sit_std_weapon_in_00"),
+             _Clip("cd_phm_lswd_00_01_sit_std_weapon_in_00")),
+        ]
+        return MoveWeaponDialog(
+            parts=[("p", "p")], positions=_POSITIONS, current_part="p",
+            current_socket="Pelvis_L_Socket",
+            pairs_for=lambda locomotion=False: rows, handedness="1h",
+        )
+
+    def _lanes(self, dialog):
+        tree = dialog._clip_list
+        return {tree.topLevelItem(i).text(0).split("   (")[0]: tree.topLevelItem(i)
+                for i in range(tree.topLevelItemCount())}
+
+    def test_rows_sit_under_their_context(self) -> None:
+        lanes = self._lanes(self._dialog())
+
+        self.assertIn("Standing still", lanes)
+        self.assertIn("In a low stance", lanes)
+        self.assertEqual(lanes["Standing still"].childCount(), 2)
+
+    def test_a_lane_counts_what_is_in_it(self) -> None:
+        tree = self._dialog()._clip_list
+        titles = [tree.topLevelItem(i).text(0) for i in range(tree.topLevelItemCount())]
+
+        self.assertTrue(any("(2)" in title for title in titles))
+
+    def test_a_row_never_repeats_its_lane(self) -> None:
+        lane = self._lanes(self._dialog())["Standing still"]
+
+        for i in range(lane.childCount()):
+            self.assertNotIn("Standing still", lane.child(i).text(0))
+
+    def test_what_makes_a_row_different_is_what_it_says(self) -> None:
+        lane = self._lanes(self._dialog())["Standing still"]
+        texts = [lane.child(i).text(0) for i in range(lane.childCount())]
+
+        joined = " ".join(texts)
+        self.assertIn("Drawing", joined)
+        self.assertIn("Sheathing", joined)
+
+    def test_every_row_can_be_watched_not_only_the_ambiguous_ones(self) -> None:
+        played = []
+        rows = [(_Clip("cd_phm_sword_00_01_sit_std_weapon_in_00"),
+                 _Clip("cd_phm_lswd_00_01_sit_std_weapon_in_00"))]
+        dialog = MoveWeaponDialog(
+            parts=[("p", "p")], positions=_POSITIONS, current_part="p",
+            current_socket="Pelvis_L_Socket", pairs_for=lambda locomotion=False: rows,
+            handedness="1h", on_preview=lambda entry: played.append(entry.name),
+        )
+
+        dialog._clip_list.setCurrentItem(dialog._rows[0][0])
+        dialog._watch_selected()
+
+        self.assertEqual(played, ["cd_phm_lswd_00_01_sit_std_weapon_in_00"])
+
+    def test_selecting_a_lane_heading_plays_nothing(self) -> None:
+        played = []
+        dialog = self._dialog()
+        dialog._on_preview = lambda entry: played.append(entry)
+
+        dialog._clip_list.setCurrentItem(dialog._clip_list.topLevelItem(0))
+        dialog._watch_selected()
+
+        self.assertEqual(played, [])
+
+
+class RowWatchTests(unittest.TestCase):
+    """Every row carries its own Watch, because reading the list is what it is for."""
+
+    def _dialog(self, played):
+        rows = [
+            (_Clip("cd_phm_sword_00_01_normal_stand_weapon_out_000"),
+             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_000")),
+            (_Clip("cd_phm_sword_00_01_sit_std_weapon_in_00"),
+             _Clip("cd_phm_lswd_00_01_sit_std_weapon_in_00")),
+        ]
+        return MoveWeaponDialog(
+            parts=[("p", "p")], positions=_POSITIONS, current_part="p",
+            current_socket="Pelvis_L_Socket", pairs_for=lambda locomotion=False: rows,
+            handedness="1h", on_preview=lambda entry: played.append(entry.name),
+        )
+
+    def test_each_row_has_its_own_button(self) -> None:
+        dialog = self._dialog([])
+        tree = dialog._clip_list
+
+        for item, _members, _choice in dialog._rows:
+            self.assertIsNotNone(tree.itemWidget(item, 2), "a row with nothing to press")
+
+    def test_a_lane_heading_has_no_button(self) -> None:
+        dialog = self._dialog([])
+        tree = dialog._clip_list
+
+        for i in range(tree.topLevelItemCount()):
+            self.assertIsNone(tree.itemWidget(tree.topLevelItem(i), 2))
+
+    def test_pressing_it_plays_that_row_s_stand_in(self) -> None:
+        played = []
+        dialog = self._dialog(played)
+        tree = dialog._clip_list
+
+        tree.itemWidget(dialog._rows[1][0], 2).click()
+
+        self.assertEqual(played, ["cd_phm_lswd_00_01_sit_std_weapon_in_00"])
+
+    def test_no_buttons_when_there_is_nowhere_to_play_them(self) -> None:
+        rows = [(_Clip("cd_phm_sword_00_01_sit_std_weapon_in_00"),
+                 _Clip("cd_phm_lswd_00_01_sit_std_weapon_in_00"))]
+        dialog = MoveWeaponDialog(
+            parts=[("p", "p")], positions=_POSITIONS, current_part="p",
+            current_socket="Pelvis_L_Socket", pairs_for=lambda locomotion=False: rows,
+            handedness="1h",
+        )
+
+        self.assertIsNone(dialog._clip_list.itemWidget(dialog._rows[0][0], 2))
+
+
+class RowMergeTests(unittest.TestCase):
+    """One row per thing you can decide, and no two rows in a lane reading alike.
+
+    Takes and distance copies of the same moment share a row, because the game picks between
+    those for itself. Different weapons do not, because they are different decisions — but
+    then they must say which weapon, or the list is a wall of identical lines.
+    """
+
+    def _dialog(self) -> MoveWeaponDialog:
+        rows = [
+            # Two takes plus a distance copy: one row.
+            (_Clip("cd_phm_sword_00_01_normal_stand_weapon_out_000"),
+             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_000")),
+            (_Clip("cd_phm_sword_00_01_normal_stand_weapon_out_002"),
+             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_002")),
+            (_Clip("cd_phm_sword_00_01_normal_stand_weapon_out_002_lod"),
+             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_002_lod")),
+            # A different weapon doing the same thing: its own row.
+            (_Clip("cd_phm_dualsword_00_01_nor_stand_weapon_out_00"),
+             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_000")),
+        ]
+        return MoveWeaponDialog(
+            parts=[("p", "p")], positions=_POSITIONS, current_part="p",
+            current_socket="Pelvis_L_Socket", pairs_for=lambda locomotion=False: rows,
+            handedness="1h",
+        )
+
+    def test_takes_and_distance_copies_share_a_row(self) -> None:
+        dialog = self._dialog()
+
+        self.assertEqual(len(dialog._rows), 2, "three takes are one decision, not three")
+
+    def test_no_two_rows_in_a_lane_read_alike(self) -> None:
+        tree = self._dialog()._clip_list
+
+        for i in range(tree.topLevelItemCount()):
+            lane = tree.topLevelItem(i)
+            texts = [lane.child(j).text(0) for j in range(lane.childCount())]
+            self.assertEqual(len(set(texts)), len(texts), f"repeated row under {lane.text(0)}")
+
+    def test_rows_that_would_read_alike_name_their_weapon(self) -> None:
+        tree = self._dialog()._clip_list
+        lane = tree.topLevelItem(0)
+        texts = [lane.child(j).text(0).lower() for j in range(lane.childCount())]
+
+        self.assertTrue(any("dual swords" in text for text in texts))
+
+    def test_a_merged_row_still_carries_every_file(self) -> None:
+        self.assertEqual(len(self._dialog().plan().clips), 4, "merging must not drop files")
+
+    def test_a_row_says_how_many_files_it_stands_for(self) -> None:
+        tree = self._dialog()._clip_list
+        texts = [
+            tree.topLevelItem(i).child(j).text(0)
+            for i in range(tree.topLevelItemCount())
+            for j in range(tree.topLevelItem(i).childCount())
+        ]
+
+        self.assertTrue(any("3 files" in text for text in texts))

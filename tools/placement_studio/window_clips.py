@@ -8,6 +8,9 @@ truncated result reads as "that clip is not in the game".
 
 from __future__ import annotations
 
+from .glossary import MATCH_LABEL
+from .clip_names import rig_label, trimmed
+
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QThread, Qt, Signal
@@ -75,7 +78,7 @@ class ClipBrowserMixin:
         self._clip_carry_box.setToolTip(
             "Show only the take-out and put-away animations that start from where the "
             "selected item is currently carried.\n\n"
-            "Needs Match animations to have been run once."
+            f"Needs {MATCH_LABEL} to have been run once."
         )
         self._clip_carry_box.toggled.connect(self._refresh_clip_list)
         self._carry_filter_zone = ""
@@ -102,11 +105,19 @@ class ClipBrowserMixin:
             "Same motion, less detail — usually not what you want to look at."
         )
         self._clip_lod_box.toggled.connect(self._refresh_clip_list)
-        filters.addWidget(self._clip_lod_box)
-        filters.addWidget(self._clip_carry_box)
-        filters.addWidget(self._carry_match)
         filters.addStretch(1)
         layout.addLayout(filters)
+
+        # Two rows. Six controls on one line does not fit the lane: Qt answers an impossible
+        # width by clipping labels rather than wrapping, so `Only draws for this spot` became
+        # `Only draw` and the scan button read `ich draws fi`. What each row holds is chosen so
+        # neither can be squeezed — pickers above, switches below.
+        switches = QHBoxLayout()
+        switches.addWidget(self._clip_lod_box)
+        switches.addWidget(self._clip_carry_box)
+        switches.addWidget(self._carry_match)
+        switches.addStretch(1)
+        layout.addLayout(switches)
 
         # Search gets its own row: sharing one with two combos and a checkbox left it a
         # three-character box in a side column.
@@ -198,7 +209,9 @@ class ClipBrowserMixin:
         self._clip_rig_box.clear()
         self._clip_rig_box.addItem(ANY, ANY)
         for rig in self._clip_index.rigs():
-            self._clip_rig_box.addItem(rig, rig)
+            # The code first, then whatever the install actually says about it. Nothing names
+            # the other rigs, so they stay codes rather than being guessed at.
+            self._clip_rig_box.addItem(rig_label(rig), rig)
         if session_rig:
             position = self._clip_rig_box.findData(session_rig)
             if position >= 0:
@@ -231,9 +244,13 @@ class ClipBrowserMixin:
         self._clip_list.setUpdatesEnabled(False)
         self._clip_list.clear()
         for entry in found:
-            item = QListWidgetItem(f"{entry.name}    [{entry.category}]")
+            # The trimmed name, with the file name a hover away. A row of
+            # `cd_boarmimic_basic_00_00_nor_move_walkfast_turn180l_stt_00` is mostly parts that
+            # are the same on every row; what is left after taking those out still names the
+            # file on disk, which a translation into prose would not.
+            item = QListWidgetItem(f"{trimmed(entry.name)}    [{entry.category}]")
             item.setData(Qt.UserRole, entry)
-            item.setToolTip(entry.path)
+            item.setToolTip(f"{entry.name}\n{entry.path}")
             self._clip_list.addItem(item)
         self._clip_list.setUpdatesEnabled(True)
         self._clip_status.setText(summarise(found, total, _LIST_LIMIT))

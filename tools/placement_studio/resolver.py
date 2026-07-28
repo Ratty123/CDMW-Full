@@ -100,8 +100,16 @@ class WeaponSocketFile:
 
     @property
     def label(self) -> str:
+        """What the dropdown shows: the weapon named, not its file stem.
+
+        `cd_phm_01_sword_0001_r (one-hand)` is nine tokens of which two vary between rows. The
+        variant number stays — a character carries several swords that differ only by it.
+        """
+
+        from .clip_names import weapon_label
+
         kind = WEAPON_CATEGORIES.get(self.category, self.category or "?")
-        return f"{self.weapon_id} ({kind}{', case' if self.is_case else ''})"
+        return f"{weapon_label(self.weapon_id)} ({kind}{', case' if self.is_case else ''})"
 
 
 @dataclass(frozen=True, slots=True)

@@ -36,6 +36,17 @@ SLOT_KEYS = tuple(key for key, _label in SLOTS)
 NONE_LABEL = "(none)"
 
 _ARMOUR = re.compile(r"^character/model/([^/]+)/([^/]+)/armor/([^/]+)/([^/]+)\.pac$")
+# The bare figure. `nude` is the whole anatomy — torso, arms, hands with fingers, legs, feet
+# with toes — but its head is a blank scalp, so the face comes from `head/head` separately.
+# Neither lives under `armor/`, which is why the pattern above never found them and the
+# character stood there in a coat with no hands, no feet and no face.
+_NUDE = re.compile(r"^character/model/([^/]+)/([^/]+)/nude/([^/]+)\.pac$")
+_FACE = re.compile(r"^character/model/([^/]+)/([^/]+)/head/head/([^/]+)\.pac$")
+
+#: Indexed like armour so the same cache carries them, but never offered as a slot to pick:
+#: they are the body every other choice is worn *on*.
+NUDE_SLOT = "nude"
+FACE_SLOT = "head"
 # Weapon *socket* files, which are what make a weapon placeable rather than merely drawable.
 _WEAPON_SOCKETS = re.compile(
     r"^character/descriptors/socketbonedata/([^/]+)/([^/]+)/weapon/.+\.sockets\.xml$"
@@ -88,6 +99,33 @@ class ArmourIndex:
 
         return list(self._by_path.values())
 
+    def base_body(self, model: str) -> List[str]:
+        """The bare figure to start from: the nude body, and the head that gives it a face.
+
+        Returns paths in draw order, or an empty list when this model has no anatomy indexed —
+        in which case the caller falls back to whatever the baseline pinned.
+        """
+
+        return [
+            path
+            for path in (self._plainest(model, NUDE_SLOT), self._plainest(model, FACE_SLOT))
+            if path
+        ]
+
+    def _plainest(self, model: str, slot: str) -> str:
+        """The default variant of a slot.
+
+        A model carries several bodies and heads — damage states, story variants, one named
+        after a character. They all skin to the same rig, so any of them *works*; the plain
+        `..._00_0001` is the one that looks like the character at rest, and the shortest name
+        is what distinguishes it from `..._0001_custom` and friends.
+        """
+
+        pieces = self.pieces(model, slot)
+        if not pieces:
+            return ""
+        return min(pieces, key=lambda p: (0 if "_00_0001" in p.name else 1, len(p.name), p.name)).path
+
 
 def index_armour(game_root, *, should_stop=None) -> ArmourIndex:
     index, _sockets, _meshes = index_wearables(game_root, should_stop=should_stop)
@@ -134,6 +172,15 @@ def _scan_wearables(game_root, *, should_stop=None):
                 ArmourPiece(path=path, slot=match.group(3), model=match.group(2), source=entry)
             )
             continue
+        body = _NUDE.match(path) or _FACE.match(path)
+        if body is not None:
+            pieces.append(ArmourPiece(
+                path=path,
+                slot=NUDE_SLOT if body.re is _NUDE else FACE_SLOT,
+                model=body.group(2),
+                source=entry,
+            ))
+            continue
         if _WEAPON_SOCKETS.match(path):
             sockets[path] = entry
         elif _WEAPON_MESH.match(path):
@@ -142,7 +189,8 @@ def _scan_wearables(game_root, *, should_stop=None):
 
 
 # Bump when the shape below changes, so a stale file is ignored rather than misread.
-_CACHE_VERSION = 1
+# 2: the bare body and the head joined the index, so a v1 file has no anatomy in it.
+_CACHE_VERSION = 2
 
 
 def _cache_file(game_root) -> Path:

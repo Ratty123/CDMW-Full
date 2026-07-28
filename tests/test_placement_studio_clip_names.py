@@ -16,22 +16,41 @@ class FriendlyNameTests(unittest.TestCase):
     def test_a_standing_draw_reads_as_one(self) -> None:
         text = friendly("cd_phm_sword_00_01_normal_stand_weapon_out_000")
 
-        self.assertIn("Standing", text)
-        self.assertIn("take the weapon out", text)
+        self.assertIn("Standing still", text)
+        self.assertIn("drawing the weapon", text)
 
     def test_putting_away_is_distinguished_from_taking_out(self) -> None:
-        self.assertIn("put the weapon away",
+        self.assertIn("sheathing the weapon",
                       friendly("cd_phm_sword_00_01_normal_stand_weapon_in_000"))
+
+    def test_a_mounted_clip_is_not_filed_as_standing(self) -> None:
+        """`cd_prh_` is the mounted character. Reading `nor_std` off one of those put a
+        horseback draw under "standing still"; the charts settle it — those clips are the
+        ones `ride_weapon_upper.paac` names."""
+
+        from tools.placement_studio.clip_names import lane_of
+
+        self.assertEqual(lane_of("cd_prh_swd_01_01_nor_std_weapon_out_00"), "On horseback")
+        self.assertEqual(
+            lane_of("cd_phm_sword_00_01_normal_stand_weapon_out_000"), "Standing still"
+        )
+
+    def test_sit_is_not_claimed_to_be_horseback(self) -> None:
+        """`cd_phm_swds_00_01_sit_std_*` is named by `sword_upper.paac`, an on-foot chart."""
+
+        from tools.placement_studio.clip_names import lane_of
+
+        self.assertNotIn("horseback", lane_of("cd_phm_swds_00_01_sit_std_weapon_out_00").lower())
 
     def test_the_context_is_kept(self) -> None:
         self.assertIn("running",
-                      friendly("cd_phm_longsword_00_00_normal_move_run_f_weapon_out_000"))
-        self.assertIn("Seated", friendly("cd_phm_lswd_00_01_sit_std_weapon_out_00"))
-        self.assertIn("alert", friendly("cd_phm_lswd_01_01_alert_nor_std_weapon_out_00").lower())
+                      friendly("cd_phm_longsword_00_00_normal_move_run_f_weapon_out_000").lower())
+        self.assertIn("low stance", friendly("cd_phm_lswd_00_01_sit_std_weapon_out_00"))
+        self.assertIn("fight", friendly("cd_phm_lswd_01_01_alert_nor_std_weapon_out_00").lower())
 
     def test_sprinting_is_not_mistaken_for_running(self) -> None:
         self.assertIn("sprinting",
-                      friendly("cd_phm_lswd_00_01_nor_move_runfast2_f_ing_00"))
+                      friendly("cd_phm_lswd_00_01_nor_move_runfast2_f_ing_00").lower())
 
     def test_an_unrecognised_action_keeps_its_own_words(self) -> None:
         """Losing everything but the posture would make two clips read identically."""
@@ -61,7 +80,7 @@ class DistinctLabelTests(unittest.TestCase):
         ])
 
         self.assertEqual(len(set(labels)), 2, "a choice between identical labels is no choice")
-        self.assertTrue(all("Standing" in label for label in labels))
+        self.assertTrue(all("Standing still" in label for label in labels))
 
     def test_options_that_already_differ_are_left_clean(self) -> None:
         labels = distinct_labels([

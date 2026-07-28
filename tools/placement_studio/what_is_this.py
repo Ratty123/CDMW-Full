@@ -122,7 +122,12 @@ def guide_strip(guide: Guide, parent=None):
     badge.setStyleSheet(
         f"QLabel {{ color: {foreground}; background: {background};"
         f" border: 1px solid {foreground}; border-radius: 3px;"
-        " padding: 1px 7px; font-weight: bold; }}"
+        # One brace: this piece is not an f-string, so `}}` would emit two. Copy-paste from
+        # the f-string parts above, where doubling is required. Qt tolerates the stray brace
+        # -- the badge renders correctly either way and no warning is logged -- so this is
+        # hygiene rather than a fix, and worth keeping only because the next edit to this
+        # rule might not be so lucky.
+        " padding: 1px 7px; font-weight: bold; }"
     )
     badge.setToolTip(guide.summary)
     row.addWidget(badge)
