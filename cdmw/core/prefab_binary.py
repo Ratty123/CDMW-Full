@@ -205,6 +205,13 @@ class PrefabDocument:
     walk_complete: bool
     walk_note: str
     byte_length: int
+    #: ``(pointer site, offset of that pointee's trailing length field)``, as
+    #: read by the walk rather than searched for. The field records the
+    #: pointee's byte count, and a search for "a u32 equal to its own distance
+    #: from the pointee start" can land on a nested string's length prefix
+    #: instead -- which corrupted 63 of 1,371 shipped prefabs before this
+    #: existed. The walk consumes and validates the real one, so it knows.
+    pointee_length_fields: tuple[tuple[int, int], ...] = ()
 
     @property
     def inferred_objects(self) -> tuple[PrefabObject, ...]:
@@ -389,13 +396,18 @@ def pointer_sites(data: bytes, blob_offset: int, blob_length: int) -> tuple[int,
 class _BlobCursor:
     """Cursor over the data blob, in blob-relative coordinates."""
 
-    __slots__ = ("blob", "base", "pos", "type_table", "used_types")
+    __slots__ = ("blob", "base", "pos", "type_table", "used_types", "pointee_fields")
 
     def __init__(self, blob: bytes, base: int, type_table: Sequence[PrefabType] = ()) -> None:
         self.blob = blob
         self.base = base
         self.pos = 0
         self.type_table = tuple(type_table)
+        # site -> offset of that pointee's trailing length field. The walk
+        # reads and validates that field, so its position is known exactly;
+        # an editor that has to search for it instead can land on a string's
+        # own length prefix by coincidence.
+        self.pointee_fields: dict[int, int] = {}
         # Types already claimed by a group, so an unstated one can take the
         # next declared type instead of guessing by size.
         self.used_types: set[str] = set()
@@ -455,6 +467,7 @@ def _read_pointer(cursor: _BlobCursor, into: _Collected, member_name: str = "") 
     else:
         raise PrefabBinaryError(f"no pointer record near 0x{cursor.pos:x}")
     cursor.take(8)  # owner
+    site = cursor.base + cursor.pos
     target = cursor.u32()
     if target != cursor.base + cursor.pos:
         raise PrefabBinaryError(f"pointer at 0x{cursor.pos:x} is not self-relative")
@@ -471,10 +484,12 @@ def _read_pointer(cursor: _BlobCursor, into: _Collected, member_name: str = "") 
             recovered = cursor.text()
             into.resources.append(recovered)
             into.ordered.append((member_name, recovered))
+    field_at = cursor.base + cursor.pos
     declared = cursor.u32()
     actual = cursor.pos - start - 4
     if declared != actual:
         raise PrefabBinaryError(f"pointee length {declared} != {actual}")
+    cursor.pointee_fields[site] = field_at
 
 
 def _read_collection_count(cursor: _BlobCursor) -> int:
@@ -699,7 +714,7 @@ def _walk_blob(
     root: PrefabType,
     components: Sequence[PrefabType],
     all_types: Sequence[PrefabType] = (),
-) -> tuple[tuple[str, ...], list[PrefabObject], bool, str, _Collected]:
+) -> tuple[tuple[str, ...], list[PrefabObject], bool, str, _Collected, dict[int, int]]:
     cursor = _BlobCursor(blob, base, all_types)
     objects: list[PrefabObject] = []
     cursor.take(2)
@@ -720,7 +735,7 @@ def _walk_blob(
             # let _read_member own that in one place.
             _read_member(cursor, member, collected, nested)
     except PrefabBinaryError as exc:
-        return selected, objects, False, str(exc), collected
+        return selected, objects, False, str(exc), collected, cursor.pointee_fields
     # The blob closes with the final record's footer plus a terminator; its
     # width follows the component family.
     remaining = len(blob) - cursor.pos
@@ -728,8 +743,8 @@ def _walk_blob(
         cursor.pos += remaining
         remaining = 0
     if remaining:
-        return selected, objects, False, f"walk ended {remaining} bytes short", collected
-    return selected, objects, True, "", collected
+        return selected, objects, False, f"walk ended {remaining} bytes short", collected, cursor.pointee_fields
+    return selected, objects, True, "", collected, cursor.pointee_fields
 
 
 def decode_prefab_binary(data: bytes) -> PrefabDocument:
@@ -756,7 +771,7 @@ def decode_prefab_binary(data: bytes) -> PrefabDocument:
         and not item.type_name.startswith("ResourceReferencePath")
         and not item.is_nested_prefab
     ]
-    selected, objects, complete, note, root_values = _walk_blob(
+    selected, objects, complete, note, root_values, pointee_fields = _walk_blob(
         blob, header.blob_offset, root, tuple(components), header.types
     )
     pointers = tuple(
@@ -785,4 +800,5 @@ def decode_prefab_binary(data: bytes) -> PrefabDocument:
         walk_complete=complete,
         walk_note=note,
         byte_length=len(payload),
+        pointee_length_fields=tuple(sorted(pointee_fields.items())),
     )
