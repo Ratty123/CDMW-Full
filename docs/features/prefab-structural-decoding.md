@@ -164,22 +164,43 @@ Roughly in order of value:
    matters more now that placement is editable: a wrong rotation convention
    would produce files that pass every test and sit at wrong angles in world.
    Needs a human with the game installed.
-2. **46% of prefabs do not walk to completion**, and the reason is now known:
-   **marker=1 groups do not state their component type anywhere in the header.**
-   Markers 2 and 3 put the type index at `owner-3`; for marker=1 that byte is
-   the mask's own high byte, and anchoring against 375 marker=1 groups from
-   completed walks found no byte position holding the resolved index -- the
-   best candidate scored 4.0%, i.e. noise. Those groups only decode when the
-   fallback heuristic (smallest candidate type whose member count fits the
-   mask) happens to guess right, which is why every mask-width variation
-   reshuffles which files pass without a net gain. The best discriminator found
-   outside the header is declaration order -- nested types appear in the schema
-   in the order they are first referenced, which held for 301 of 304 completed
-   walks -- and using it for unstated types is worth +4 files and +2,723
-   objects against one regression. It is a small gain because the property was
-   measured on walks that already complete, so it describes success rather than
-   predicting it. Editing is disabled for incomplete walks, so the remainder
-   costs coverage, not safety.
+2. **45.6% of prefabs do not walk to completion, and that is five problems, not
+   one.** `scripts/prefab_walk_failure_census.py` groups them by cause and by
+   how far through the data section each got, which matters more than the count:
+
+   | files | share | median progress | p90 | cause |
+   | ---: | ---: | ---: | ---: | --- |
+   | 1,417 | 25.9% | 1% | 6% | mask exceeds every candidate component |
+   | 1,036 | 18.9% | **99%** | 100% | no element header near … |
+   | 1,002 | 18.3% | 19% | 97% | collection count N (kind N) |
+   | 826 | 15.1% | **80%** | 100% | walk ended N bytes short |
+   | 772 | 14.1% | 5% | 89% | no pointer record near … |
+   | 260 | 4.7% | 12% | 75% | blob string length N at … |
+   | 99 | 1.8% | 22% | 94% | pointee length N != N |
+   | 59 | 1.1% | **97%** | 100% | blob read of N past end |
+
+   Two groups, and they want opposite work. **"No element header", "walk ended
+   short" and "read past end" together are 35% of the failures and sit at 80–99%
+   of the way through** -- 1,921 files that are nearly read, most likely stopping
+   on a terminator or trailing record the grammar does not model, not on a
+   structural gap. That is the cheap target.
+
+   **"Mask exceeds every candidate component" is the largest single cause at
+   25.9% and stops at a median 1%, with zero objects read.** It fails
+   immediately, which points at the root component selection being wrong from
+   the first group rather than at anything deep in the file.
+
+   The known-unknowable part remains: marker=1 groups do not state their
+   component type anywhere. Markers 2 and 3 put the type index at `owner-3`;
+   for marker=1 that byte is the mask's own high byte, and anchoring against 375
+   marker=1 groups from completed walks found no byte position holding the
+   resolved index -- the best candidate scored 4.0%, i.e. noise. The best
+   discriminator found outside the header is declaration order, which held for
+   301 of 304 completed walks.
+
+   Incomplete walks are no longer dead weight: their asset paths are recovered
+   from pointer records without the walk, and same-length retargets are allowed
+   because they relocate nothing.
 3. **Glossary descriptions are inferred** from field names and declared types,
    not from documentation. 87 entries cover 98.8% of set-field occurrences;
    entries whose names do not support a confident reading carry a label only.
