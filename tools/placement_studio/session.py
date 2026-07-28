@@ -90,7 +90,8 @@ class PlacementSession:
     """Everything loaded for one character model."""
 
     __slots__ = ("model", "hierarchy", "_resolver", "_body_sockets", "_placed", "_weapon",
-                 "warnings", "_bind_hierarchy", "_usage_cache", "pose_matrices")
+                 "warnings", "_bind_hierarchy", "_usage_cache", "pose_matrices",
+                 "skeleton_path")
 
     def __init__(
         self,
@@ -99,9 +100,15 @@ class PlacementSession:
         resolver: PlacementResolver,
         *,
         warnings: Sequence[str] = (),
+        skeleton_path: str = "",
     ) -> None:
         self.model = model
         self.hierarchy = hierarchy
+        #: The `.pab` this character actually loaded. Not derivable from `model`: a
+        #: customization variant such as `phw_damian_01` runs on `phw_01.pab`, and the
+        #: per-rig files that sit beside the skeleton (`.papr`, and the pose-modifier
+        #: descriptor's keys) are keyed on the rig, not on the variant.
+        self.skeleton_path = skeleton_path
         self._resolver = resolver
         self._body_sockets: Dict[str, Socket] = resolver.body_sockets(model)
         self._weapon: Optional[WeaponSocketFile] = None
@@ -141,6 +148,7 @@ class PlacementSession:
             for path in baseline.paths()
             if path.endswith(".pab") and f"/model/" in path and f"/{model}/" in path
         )
+        skeleton_path = ""
         for path in [*candidates, *fallback]:
             if path not in baseline:
                 continue
@@ -153,11 +161,12 @@ class PlacementSession:
                 warnings.append(
                     f"using shared rig {path} — no dedicated skeleton for this variant"
                 )
+            skeleton_path = path
             break
         else:
             warnings.append(f"no skeleton available for model {model} (tried {candidates})")
 
-        return cls(model, hierarchy, resolver, warnings=warnings)
+        return cls(model, hierarchy, resolver, warnings=warnings, skeleton_path=skeleton_path)
 
     @classmethod
     def available_models(cls, baseline) -> List[str]:

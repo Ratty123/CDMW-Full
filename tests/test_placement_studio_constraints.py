@@ -342,8 +342,36 @@ class CapabilityTests(unittest.TestCase):
     def test_capabilities_cover_both_sides(self) -> None:
         from tools.placement_studio.constraints import CAPABILITIES
 
-        self.assertTrue(any(allowed for allowed, _text in CAPABILITIES))
-        self.assertTrue(any(not allowed for allowed, _text in CAPABILITIES))
+        self.assertTrue(any(allowed for allowed, _text, _why in CAPABILITIES))
+        self.assertTrue(any(not allowed for allowed, _text, _why in CAPABILITIES))
+
+    def test_every_capability_label_is_short_enough_not_to_wrap(self) -> None:
+        """These render in a two-column box inside a splitter pane.
+
+        The box used to clip any bullet that wrapped, losing its second line. The layout
+        no longer clips, but keeping the labels short is what stops them wrapping at all;
+        30 characters fits the narrowest width the panel is usable at.
+        """
+
+        from tools.placement_studio.constraints import CAPABILITIES
+
+        for _allowed, text, _why in CAPABILITIES:
+            self.assertLessEqual(len(text), 30, text)
+
+    def test_every_capability_explains_itself(self) -> None:
+        from tools.placement_studio.constraints import CAPABILITIES
+
+        for _allowed, text, why in CAPABILITIES:
+            self.assertTrue(why.endswith("."), f"{text}: {why}")
+            self.assertGreater(len(why), len(text), text)
+
+    def test_the_panel_says_what_the_tab_is_for_and_where_to_go_instead(self) -> None:
+        """The warning tells a modder the format may be dead; this says what to do."""
+
+        from tools.placement_studio.constraints import WHAT_THIS_TAB_IS_FOR
+
+        self.assertIn("Rig behaviour", WHAT_THIS_TAB_IS_FOR)
+        self.assertIn("20", WHAT_THIS_TAB_IS_FOR)
 
     def test_the_things_marked_possible_have_a_function_behind_them(self) -> None:
         from cdmw.core import papr_format
@@ -361,5 +389,89 @@ class CapabilityTests(unittest.TestCase):
         from tools.placement_studio.constraints import CAPABILITIES
 
         self.assertFalse(hasattr(papr_format, "add_entry"))
-        denied = " ".join(text for allowed, text in CAPABILITIES if not allowed).lower()
+        denied = " ".join(text for allowed, text, _why in CAPABILITIES if not allowed).lower()
         self.assertIn("add a new chain", denied)
+
+
+class FollowsTheCharacterTests(unittest.TestCase):
+    """The panel takes its rig from whatever the Studio has on screen."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        pytest.importorskip("PySide6")
+        from PySide6.QtWidgets import QApplication
+
+        cls.app = QApplication.instance() or QApplication([])
+
+    def _panel(self):
+        from tools.placement_studio.window_constraints import SecondaryMotionMixin
+
+        class Panel(SecondaryMotionMixin):
+            pass
+
+        panel = Panel()
+        panel._root_widget = panel._build_secondary_motion_tab()
+        return panel
+
+    def _files(self, **constraints):
+        from tools.placement_studio.rig_files import RigFiles
+
+        return RigFiles(
+            constraint_paths=tuple(sorted(constraints)),
+            constraints=dict(constraints),
+            pose_modifier=b"",
+        )
+
+    def test_a_skeleton_loads_the_papr_beside_it(self) -> None:
+        files = self._files(**{"character/model/1_pc/1_phm/phm_01.papr": _braid()})
+        panel = self._panel()
+
+        self.assertIsNone(
+            panel.show_constraints_for(
+                files, "character/model/1_pc/1_phm/phm_01.pab", "Player (male)"
+            )
+        )
+        self.assertEqual(panel._chain_table.rowCount(), 2)
+        self.assertIn("phm_01.papr", panel._constraint_header.text())
+
+    def test_a_variant_lands_on_its_base_rig(self) -> None:
+        """`phw_damian_01` runs on `phw_01.pab`, so it gets `phw_01.papr`."""
+
+        files = self._files(**{"character/model/1_pc/2_phw/phw_01.papr": _braid()})
+        panel = self._panel()
+
+        panel.show_constraints_for(
+            files, "character/model/1_pc/2_phw/phw_01.pab", "Damian"
+        )
+        self.assertEqual(panel._chain_table.rowCount(), 2)
+
+    def test_a_character_without_a_rig_is_told_so_by_name(self) -> None:
+        """"Not loaded" reads as a broken tool. Most characters simply have no .papr."""
+
+        files = self._files(**{"character/model/1_pc/1_phm/phm_01.papr": _braid()})
+        panel = self._panel()
+
+        self.assertIsNone(
+            panel.show_constraints_for(
+                files, "character/model/2_mon/cd_x/cd_x.pab", "Some creature"
+            )
+        )
+        text = panel._constraint_header.text()
+        self.assertIn("Some creature", text)
+        self.assertIn("Rig behaviour", text)
+        self.assertEqual(panel._chain_table.rowCount(), 0)
+        self.assertFalse(panel._chain_slider.isEnabled())
+
+    def test_switching_away_from_a_loaded_rig_drops_its_pending_edits(self) -> None:
+        """A stale export payload would ship the previous character's rig."""
+
+        files = self._files(**{"character/model/1_pc/1_phm/phm_01.papr": _braid()})
+        panel = self._panel()
+        panel.show_constraints_for(files, "character/model/1_pc/1_phm/phm_01.pab", "A")
+        panel._chain_table.selectRow(0)
+        panel._on_chain_off()
+        self.assertTrue(panel.constraint_mod_files())
+
+        panel.show_constraints_for(files, "character/model/2_mon/cd_x/cd_x.pab", "B")
+        self.assertEqual(panel.constraint_mod_files(), {})
+        self.assertFalse(panel._constraint_export.isEnabled())

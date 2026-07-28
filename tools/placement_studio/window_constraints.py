@@ -21,11 +21,22 @@ the only shape `find_weight_sites` can locate again.
 
 **Say what is possible.** A "What you can do here" box lists both the things this panel
 can change and the things it cannot, from `constraints.CAPABILITIES`, so the limits are
-visible before someone spends an hour looking for a control that does not exist.
+visible before someone spends an hour looking for a control that does not exist. Above
+it, `WHAT_THIS_TAB_IS_FOR` answers the question the warning provokes — if the game may
+not read this, why is the tab here — and points at Rig behaviour for changes that stick.
 
 **No fake preview.** CDMW cannot simulate secondary motion — the viewport plays the
 clip's baked bone tracks, and jiggle is solved by the game at runtime. The panel says so
 rather than implying that what you see is what the change will look like.
+
+**Nothing may wrap or clip.** The Studio gives its tab column about 620px and the panel
+about 780px, and every element here competed for it: side-by-side tables left the chain
+list one truncated column wide, a form-per-field export box spent 200px on two text
+inputs, and the capability bullets lost their second lines to a `QSizePolicy.Maximum`
+group box. So the tables stack, the export row is one line, and anything that would need
+to wrap is either short enough not to, or a tooltip. Verify this panel by rendering it,
+not by reading the code: the failure mode is text that is present in the widget tree and
+absent from the screen.
 """
 
 from __future__ import annotations
@@ -37,14 +48,12 @@ from typing import Optional
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QPushButton,
-    QSizePolicy,
     QSlider,
     QSplitter,
     QTableWidget,
@@ -55,9 +64,12 @@ from PySide6.QtWidgets import (
 
 from .constraints import (
     CAPABILITIES,
+    LOADED_BY_GAME_EVIDENCE,
     LOADED_BY_GAME_WARNING,
+    WHAT_THIS_TAB_IS_FOR,
     RigConstraints,
     changed_files,
+    constraint_path_for_model,
     describe_changes,
     export_packages,
     freeze_chain,
@@ -66,12 +78,20 @@ from .constraints import (
 )
 
 _NO_RIG = "No constraint rig loaded for this character."
-_CANNOT_PREVIEW = (
-    "The viewport cannot show this. Secondary motion is solved by the game at runtime; "
-    "the clip only carries the bones it animates directly. Export and look in game."
+#: Shown when the panel followed the Studio's character and there is genuinely nothing
+#: there. "Not loaded" reads as a tool that failed; this says whose fault it is.
+_NO_RIG_FOR_MODEL = (
+    "{label} does not ship a .papr, so there is nothing to tune here. Only {count} of the "
+    "game's characters have one — the four playable rigs and sixteen creatures. Pick one "
+    "of those to see this tab populated, or use Rig behaviour, which covers every rig."
 )
+#: One line, not a paragraph. The reason lives in `WHAT_THIS_TAB_IS_FOR` at the top of the
+#: panel; repeating it at full length here cost 60px that the controls needed.
+_CANNOT_PREVIEW = "The viewport cannot show this — export and look in game."
 #: Softer/Stiffer step. Five points is roughly the smallest change worth exporting for.
 _NUDGE = 5
+
+
 
 
 class SecondaryMotionMixin:
@@ -92,6 +112,7 @@ class SecondaryMotionMixin:
         # panel should read the one that says their edit may not do anything.
         warning = QLabel(LOADED_BY_GAME_WARNING)
         warning.setWordWrap(True)
+        warning.setToolTip(LOADED_BY_GAME_EVIDENCE)
         warning.setStyleSheet(
             "QLabel { background: #4a3a12; color: #f3e2b3; border: 1px solid #7a5f1c;"
             " padding: 6px; border-radius: 3px; }"
@@ -99,18 +120,28 @@ class SecondaryMotionMixin:
         self._constraint_warning = warning
         outer.addWidget(warning)
 
+        # Directly under the warning, because "so what is this tab for" is the question the
+        # warning provokes, and it went unanswered when this sat at the bottom of the panel.
+        purpose = QLabel(WHAT_THIS_TAB_IS_FOR)
+        purpose.setWordWrap(True)
+        purpose.setStyleSheet("QLabel { color: #9fb4c7; }")
+        outer.addWidget(purpose)
+
         self._constraint_header = QLabel(_NO_RIG)
         self._constraint_header.setWordWrap(True)
         outer.addWidget(self._constraint_header)
 
-        splitter = QSplitter(Qt.Horizontal)
+        # Stacked, not side by side. The Studio gives its tab column about 620px, and two
+        # panes at that width left the chain list showing one truncated column -- the
+        # Bones/Strength/Decoded numbers were off the right edge, and so was half of each
+        # chain name. Full width for both tables is worth more than seeing them together.
+        splitter = QSplitter(Qt.Vertical)
         splitter.addWidget(self._build_chain_list())
         splitter.addWidget(self._build_chain_detail())
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 4)
-        # Without an explicit split the name column eats the pane and Bones/Strength/
-        # Decoded end up off the right edge, which is where the useful numbers are.
-        splitter.setSizes([560, 660])
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 3)
+        splitter.setChildrenCollapsible(False)
+        splitter.setSizes([260, 420])
         outer.addWidget(splitter, 1)
         outer.addWidget(self._build_export_row())
         return panel
@@ -136,6 +167,9 @@ class SecondaryMotionMixin:
         for column in (1, 2, 3, 4):
             header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
         self._chain_table.itemSelectionChanged.connect(self._on_chain_selected)
+        # A rig has 13 to 71 chains, and this is the list you pick from. Given no floor the
+        # detail pane below claims everything and leaves this one visible row.
+        self._chain_table.setMinimumHeight(150)
         layout.addWidget(self._chain_table)
         return box
 
@@ -150,7 +184,9 @@ class SecondaryMotionMixin:
         self._chain_detail.verticalHeader().setVisible(False)
         self._chain_detail.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._chain_detail.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self._chain_detail.setMinimumHeight(180)
+        # Four rows plus a header. Any taller a floor and this pane starves the chain list
+        # above it, which is the one you have to pick from before this fills at all.
+        self._chain_detail.setMinimumHeight(110)
         detail.addWidget(self._chain_detail, 3)
 
         intent = QHBoxLayout()
@@ -188,55 +224,82 @@ class SecondaryMotionMixin:
         detail.addLayout(controls)
 
         self._set_controls_enabled(False)
-
-        # Two columns rather than one list: as a single wrapped column this box grew to
-        # seven lines and squeezed the detail table down to four visible rows.
-        capability = QGroupBox("What you can do here")
-        columns = QHBoxLayout(capability)
-        for allowed, title in ((True, "You can"), (False, "You cannot")):
-            side = QVBoxLayout()
-            heading = QLabel(f"<b>{title}</b>")
-            side.addWidget(heading)
-            for is_allowed, text in CAPABILITIES:
-                if is_allowed != allowed:
-                    continue
-                row = QLabel("• " + text)
-                row.setWordWrap(True)
-                side.addWidget(row)
-            side.addStretch(1)
-            columns.addLayout(side, 1)
-        # Keep the box to its content height; left to expand it starves the detail table.
-        capability.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
-        detail.addWidget(capability, 0)
+        detail.addWidget(self._build_capability_box(), 0)
 
         self._constraint_note = QLabel(_CANNOT_PREVIEW)
         self._constraint_note.setWordWrap(True)
         detail.addWidget(self._constraint_note)
         return box
 
+    def _build_capability_box(self) -> QWidget:
+        """The can/cannot summary. Nothing in it is allowed to wrap.
+
+        This box used to lose text. Word-wrapped `QLabel`s report a one-line `sizeHint`,
+        the group box was pinned to that hint by `QSizePolicy.Maximum`, and every bullet
+        long enough to wrap had its tail cut off -- "follows its drivers" and "warning
+        above" both vanished mid-panel, and one whole row with them.
+
+        The fix is to remove the wrapping rather than to out-guess the height: the labels
+        are short enough for one line (`CAPABILITIES` is gated on 30 characters), wrapping
+        is off so a narrow panel elides instead of silently dropping a row, and the reason
+        for each entry is on the tooltip where it costs no height at all.
+        """
+
+        box = QGroupBox("What you can do here")
+        columns = QHBoxLayout(box)
+        columns.setContentsMargins(8, 6, 8, 6)
+        for allowed, title in ((True, "You can"), (False, "You cannot")):
+            side = QVBoxLayout()
+            side.setSpacing(2)
+            side.addWidget(QLabel(f"<b>{title}</b>"))
+            for is_allowed, text, why in CAPABILITIES:
+                if is_allowed != allowed:
+                    continue
+                mark = "✓" if allowed else "✗"
+                row = QLabel(f"{mark} {text}")
+                row.setWordWrap(False)
+                row.setToolTip(why)
+                side.addWidget(row)
+            side.addStretch(1)
+            columns.addLayout(side, 1)
+        self._constraint_capability = box
+        return box
+
     def _build_export_row(self) -> QWidget:
+        """Name, author and the button on one line.
+
+        A `QFormLayout` with its own row per field spent about 200px of a 780px panel on
+        two text boxes, which is what forced the chain list down to a single visible row.
+        Placeholders carry the labels instead.
+        """
+
         box = QGroupBox("Export as a mod")
         layout = QVBoxLayout(box)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(4)
         self._constraint_pending = QLabel("No changes.")
         self._constraint_pending.setWordWrap(True)
         layout.addWidget(self._constraint_pending)
 
-        form = QFormLayout()
-        self._constraint_mod_name = QLineEdit("Secondary motion tweak")
-        form.addRow("Mod name", self._constraint_mod_name)
-        self._constraint_mod_author = QLineEdit()
-        form.addRow("Author", self._constraint_mod_author)
-        layout.addLayout(form)
-
         row = QHBoxLayout()
-        self._constraint_export = QPushButton("Build mod packages")
+        self._constraint_mod_name = QLineEdit("Secondary motion tweak")
+        self._constraint_mod_name.setPlaceholderText("Mod name")
+        self._constraint_mod_name.setToolTip("Mod name, as the mod manager will list it.")
+        row.addWidget(self._constraint_mod_name, 3)
+        self._constraint_mod_author = QLineEdit()
+        self._constraint_mod_author.setPlaceholderText("Author")
+        self._constraint_mod_author.setToolTip("Your name, written into the package metadata.")
+        row.addWidget(self._constraint_mod_author, 2)
+        self._constraint_export = QPushButton("Build")
+        self._constraint_export.setToolTip("Write one package per supported mod manager.")
         self._constraint_export.setEnabled(False)
         self._constraint_export.clicked.connect(self._on_export_clicked)
         row.addWidget(self._constraint_export)
+        layout.addLayout(row)
+
         self._constraint_export_note = QLabel("")
         self._constraint_export_note.setWordWrap(True)
-        row.addWidget(self._constraint_export_note, 1)
-        layout.addLayout(row)
+        layout.addWidget(self._constraint_export_note)
         return box
 
     def _set_controls_enabled(self, enabled: bool) -> None:
@@ -247,6 +310,36 @@ class SecondaryMotionMixin:
             widget.setEnabled(enabled)
 
     # ------------------------------------------------------------------ loading
+
+    def show_constraints_for(self, rig_files, rig_path: str, label: str) -> Optional[str]:
+        """Point the panel at whichever `.papr` belongs to the character on screen.
+
+        `rig_path` is the character's `.pab`, not its model id: a customization variant
+        runs on the base rig's skeleton, and the `.papr` sits beside that skeleton. Returns
+        an error message, or None when a rig loaded or none exists.
+        """
+
+        self._constraint_rig_shown = rig_path
+        path = constraint_path_for_model(rig_path, rig_files.constraint_paths)
+        data = rig_files.constraints.get(path or "", b"")
+        if not path or not data:
+            self._clear_constraints(
+                _NO_RIG_FOR_MODEL.format(
+                    label=label or "This character", count=len(rig_files.constraint_paths)
+                )
+            )
+            return None
+        return self.load_constraint_rig(data, path)
+
+    def _clear_constraints(self, message: str) -> None:
+        self._rig_constraints = None
+        self._rig_constraints_original = None
+        self._rig_constraints_bytes = b""
+        self._constraint_header.setText(message)
+        self._chain_table.setRowCount(0)
+        self._chain_detail.setRowCount(0)
+        self._set_controls_enabled(False)
+        self._refresh_pending()
 
     def load_constraint_rig(self, data: bytes, game_path: str) -> Optional[str]:
         """Show a rig. Returns an error message, or None when it loaded."""
@@ -265,6 +358,11 @@ class SecondaryMotionMixin:
         self._rig_constraints_original = rig
         self._rig_constraints_bytes = bytes(data)
         self._refresh_chain_table()
+        # Land on a chain rather than on an empty detail pane and dead buttons. The list is
+        # sorted with the categories worth tuning first, so row 0 is a reasonable answer to
+        # "show me what this tab does".
+        if self._chain_table.rowCount() and not self._selected_chain_name():
+            self._chain_table.selectRow(0)
         return None
 
     def _refresh_chain_table(self) -> None:

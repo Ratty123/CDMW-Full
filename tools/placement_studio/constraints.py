@@ -338,21 +338,49 @@ def changed_files(original: bytes, rig: RigConstraints) -> Mapping[str, bytes]:
 #: modder about this format, and it is bad news, so it goes first rather than in a
 #: footnote. See the module docstring of `cdmw/core/papr_format.py` for the evidence.
 LOADED_BY_GAME_WARNING = (
-    "No evidence the game reads .papr. The extension appears nowhere in any shipped "
-    "binary (pac, pab and paseq all do), and neither does the Local_Euler / "
-    "ExposeTransform vocabulary inside these files — they look like 3ds Max rig "
-    "exports left in the archives. Edits here may well do nothing in game. The live "
+    "No evidence the game reads .papr — edits here may well do nothing. The live "
     "equivalents are plain XML: jiggledescriptor.xml and posemodifierdata.xml."
 )
 
-CAPABILITIES: Tuple[Tuple[bool, str], ...] = (
-    (True, "Change how strongly a chain follows its drivers"),
-    (True, "Switch a chain off completely"),
-    (True, "Rename a bone, or repoint its parent"),
-    (True, "Move a bone's rest transform"),
-    (False, "Expect it to take effect — see the warning above"),
-    (False, "Add a new chain — needs a config block"),
-    (False, "Edit driver expressions — inert authoring text"),
+#: The evidence behind the warning. On the warning's tooltip rather than in it: the
+#: banner has to stay two lines, because at six it pushed the panel's own controls into
+#: each other, and a modder needs the conclusion far more often than the proof.
+LOADED_BY_GAME_EVIDENCE = (
+    "The extension appears nowhere in any shipped binary, though pac, pab and paseq all "
+    "do, and neither does the Local_Euler / ExposeTransform vocabulary inside these "
+    "files. They look like 3ds Max rig exports left behind in the archives. See the "
+    "module docstring of cdmw/core/papr_format.py for the full check."
+)
+
+#: `(allowed, label, why)`. The label is deliberately short: it is rendered in a
+#: two-column box inside a panel that is itself in a splitter, so anything longer wraps
+#: to two lines and the box clips it. The reason goes in `why`, which the UI shows as a
+#: tooltip, and the one thing a modder must not miss is stated in full underneath as
+#: `WHAT_THIS_TAB_IS_FOR` rather than crammed into a bullet.
+CAPABILITIES: Tuple[Tuple[bool, str, str], ...] = (
+    (True, "Soften or stiffen a chain",
+     "Scales every follow weight in the chain, in whole percent."),
+    (True, "Switch a chain off",
+     "Zeroes the weights, so the bones stop reacting to the body at all."),
+    (True, "Rename a bone or reparent it",
+     "Same-length names are patched in place; the parent is a plain string too."),
+    (True, "Move a bone's rest position",
+     "Rewrites the chain's rest transform, the pose it settles back to."),
+    (False, "Add a new chain",
+     "A new chain needs a config block this tool cannot synthesise."),
+    (False, "Edit driver expressions",
+     "The expression text is authoring leftovers; nothing evaluates it."),
+    (False, "Count on it changing the game",
+     "See the warning at the top of this tab: .papr looks like dead content."),
+)
+
+#: The use case, in two sentences, because "what is this tab for" is the question the
+#: warning above provokes and used to leave unanswered.
+WHAT_THIS_TAB_IS_FOR = (
+    "What this tab is for: reading how the shipped rigs are put together, and "
+    "experimenting with them. Only 20 characters ship a .papr at all. For secondary-motion "
+    "changes that definitely take effect, use Rig behaviour. Nothing here previews in the "
+    "viewport either — the game solves secondary motion at runtime, so export and look."
 )
 
 
