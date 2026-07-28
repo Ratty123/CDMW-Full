@@ -52,6 +52,7 @@ from .window_clips import ClipBrowserMixin
 from .window_constraints import SecondaryMotionMixin
 from .window_playback import PlaybackMixin
 from .window_rig_behaviour import RigBehaviourMixin
+from .window_rig_tabs import RigTabsMixin
 
 class PosedMesh:
     """Deformed geometry the viewport can draw without a per-frame Vec3 rebuild.
@@ -143,7 +144,7 @@ def fit_popup(combo) -> None:
 class PlacementStudioWindow(
     EditPanelMixin, AnimationTabMixin, PlaybackMixin, ClipBrowserMixin,
     CarryPickerMixin, ArmourPickerMixin, SecondaryMotionMixin, RigBehaviourMixin,
-    QMainWindow
+    RigTabsMixin, QMainWindow
 ):
     """Read-only inspector for one character's socket placement."""
 
@@ -368,6 +369,10 @@ class PlacementStudioWindow(
         self._lower.addTab(self._build_help_tab(), "Help")
         self._lower.setTabToolTip(6, "What the words mean, and how to move a weapon.")
 
+        # Both rig tabs need a four-second archive walk, so they load when first opened
+        # rather than at startup, and re-target whenever the character changes.
+        self._init_rig_tabs()
+
         # Viewport and the edit strip stack; the tabs get their own full-height column.
         # Sharing the vertical space left the Animation tab a few rows tall, which is not
         # enough for a clip browser, a socket-clip list and a chart dump side by side.
@@ -456,6 +461,7 @@ class PlacementStudioWindow(
         self._refresh_diff()
         self._refresh_edit_panel()
         self._refresh_animation()
+        self._sync_rig_tabs()
         self._report_status()
 
     # ── part selection ──────────────────────────────────────────────

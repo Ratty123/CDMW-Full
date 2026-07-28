@@ -216,3 +216,68 @@ class PanelTests(unittest.TestCase):
         self.assertGreaterEqual(index, 0)
         panel._behaviour_rig.setCurrentIndex(index)
         self.assertTrue(all(s.section == "Vehicle" for s in panel._behaviour_rows))
+
+
+class FollowsTheCharacterTests(unittest.TestCase):
+    """The panel preselects the skeleton the Studio has on screen."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        pytest.importorskip("PySide6")
+        from PySide6.QtWidgets import QApplication
+
+        cls.app = QApplication.instance() or QApplication([])
+
+    def _panel(self):
+        from tools.placement_studio.window_rig_behaviour import RigBehaviourMixin
+
+        class Panel(RigBehaviourMixin):
+            pass
+
+        panel = Panel()
+        panel._root_widget = panel._build_rig_behaviour_tab()
+        return panel
+
+    def _files(self, pose_modifier: bytes = SAMPLE_BYTES):
+        from tools.placement_studio.rig_files import RigFiles
+
+        return RigFiles(constraint_paths=(), constraints={}, pose_modifier=pose_modifier)
+
+    def test_a_skeleton_path_preselects_its_own_block(self) -> None:
+        panel = self._panel()
+
+        self.assertIsNone(
+            panel.show_rig_behaviour_for(
+                self._files(), "character/model/1_pc/1_phm/phm_01.pab", "Player (male)"
+            )
+        )
+        self.assertEqual(panel._behaviour_rig.currentText(), "phm_01.pab")
+        self.assertGreater(panel._behaviour_table.rowCount(), 0)
+
+    def test_a_character_with_no_block_is_told_it_is_seeing_another_rig(self) -> None:
+        """Falling back silently would let a modder edit the wrong character."""
+
+        panel = self._panel()
+        panel.show_rig_behaviour_for(
+            self._files(), "character/model/2_mon/cd_x/cd_x.pab", "Some creature"
+        )
+        text = panel._behaviour_header.text()
+        self.assertIn("Some creature", text)
+        self.assertIn("no block of its own", text)
+        self.assertIn("will not change the character", text)
+
+    def test_a_matched_character_is_not_warned(self) -> None:
+        panel = self._panel()
+        panel.show_rig_behaviour_for(
+            self._files(), "character/model/1_pc/1_phm/phm_01.pab", "Player (male)"
+        )
+        self.assertNotIn("no block of its own", panel._behaviour_header.text())
+
+    def test_a_missing_descriptor_names_the_file_it_wanted(self) -> None:
+        panel = self._panel()
+
+        self.assertIsNone(
+            panel.show_rig_behaviour_for(self._files(b""), "x/y.pab", "Anyone")
+        )
+        self.assertIn(GAME_PATH, panel._behaviour_header.text())
+        self.assertEqual(panel._behaviour_table.rowCount(), 0)
