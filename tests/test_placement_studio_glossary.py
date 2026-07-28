@@ -59,7 +59,7 @@ def test_an_unknown_term_falls_back_to_the_extra_line():
     [
         glossary.MATCH_LABEL,
         "Only draws for this spot",
-        "Use as orientation",
+        glossary.AIM_LABEL,
         "Pending changes",
         "Carry",
         "Part",
@@ -85,6 +85,7 @@ def test_the_walkthrough_names_controls_that_exist(label):
         # Labels shared between a widget and the instructions are held as one constant, which
         # is a stronger guarantee than this test: they cannot disagree in the first place.
         or (label == glossary.MATCH_LABEL and "MATCH_LABEL" in sources)
+        or (label == glossary.AIM_LABEL and "AIM_LABEL" in sources)
     )
     assert named, f"the Help walkthrough names {label!r}, but no widget is labelled that"
     assert label in glossary.as_html()

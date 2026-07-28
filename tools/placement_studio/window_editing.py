@@ -26,6 +26,8 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QGridLayout,
+    QHBoxLayout,
+    QVBoxLayout,
     QInputDialog,
     QLabel,
     QMessageBox,
@@ -34,7 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from .editing import NUDGE_STEPS, EditError
-from .glossary import tip
+from .glossary import AIM_LABEL, tip
 from .report_style import inspector_html
 from .new_socket import NewSocketDialog, keyboard_hint
 from .skeleton import world_to_bone
@@ -50,10 +52,28 @@ class EditPanelMixin:
 
         panel = QFrame()
         panel.setFrameShape(QFrame.StyledPanel)
-        grid = QGridLayout(panel)
-        grid.setContentsMargins(8, 6, 8, 6)
-        grid.setHorizontalSpacing(10)
-        grid.setVerticalSpacing(4)
+        # Clusters on two rows, not one nine-column grid. A grid ties every row to the same
+        # column widths, so `Undo my changes to this point` in column 4 made column 4 that wide
+        # on every row — which is why `Step:` sat a hand's width from the nudge buttons above
+        # it and the bar spent most of itself on gaps. Each group is its own box now, so a wide
+        # button widens only its own group.
+        rows = QVBoxLayout(panel)
+        rows.setContentsMargins(8, 5, 8, 5)
+        rows.setSpacing(4)
+        top, bottom = QHBoxLayout(), QHBoxLayout()
+        for line in (top, bottom):
+            line.setSpacing(6)
+        rows.addLayout(top)
+        rows.addLayout(bottom)
+
+        def group(*widgets):
+            """One cluster of controls, spaced tightly and separated from its neighbours."""
+
+            box = QHBoxLayout()
+            box.setSpacing(4)
+            for widget in widgets:
+                box.addWidget(widget)
+            return box
 
         # Short labels, with the explanation on each row's own tooltip. The long form did not
         # fit the dropdown and Qt elided it down the middle, so "New attach point (click the
@@ -107,13 +127,11 @@ class EditPanelMixin:
         self._edit_target = QLabel("(no socket selected)")
         self._edit_target.setStyleSheet("font-weight: bold;")
 
-        grid.addWidget(QLabel("Editing:"), 0, 0)
-        grid.addWidget(self._edit_target, 0, 1, 1, 3)
-        grid.addWidget(QLabel("Step:"), 0, 4)
-        grid.addWidget(self._step_box, 0, 5)
-        grid.addWidget(QLabel("Mode:"), 0, 6)
-        grid.addWidget(self._mode_box, 0, 7)
-        grid.addWidget(self._angle_box, 0, 8)
+        top.addLayout(group(QLabel("Editing:"), self._edit_target))
+        top.addStretch(1)
+        top.addLayout(group(QLabel("Step:"), self._step_box))
+        top.addSpacing(10)
+        top.addLayout(group(QLabel("Mode:"), self._mode_box, self._angle_box))
 
         # Translation nudges along each axis.
         # Socket translation is in *parent-bone* space, so these axes follow the bone's
@@ -124,8 +142,8 @@ class EditPanelMixin:
             "The axes follow the bone this point is attached to, not the screen — so on a "
             "rotated bone, +X may not be the direction you expect. Watch the viewport."
         )
-        grid.addWidget(translate_label, 1, 0)
-        column = 1
+        nudges = group(translate_label)
+        bottom.addLayout(nudges)
         self._nudge_buttons: List[QPushButton] = []
         for axis, index in (("X", 0), ("Y", 1), ("Z", 2)):
             for sign, glyph in ((-1.0, "-"), (1.0, "+")):
@@ -137,9 +155,8 @@ class EditPanelMixin:
                 button.clicked.connect(
                     lambda _checked=False, i=index, s=sign: self._nudge_axis(i, s)
                 )
-                grid.addWidget(button, 1, column)
+                nudges.addWidget(button)
                 self._nudge_buttons.append(button)
-                column += 1
 
         # Rotation is authored in degrees; the guide forbids hand-editing quaternions.
         rotate_label = QLabel("Angle:")
@@ -147,7 +164,9 @@ class EditPanelMixin:
             "The exact angle the item sits at, in degrees. Type a value to set it precisely, "
             "or use Rotate and Tilt in the viewport to aim it by eye."
         )
-        grid.addWidget(rotate_label, 2, 0)
+        bottom.addSpacing(10)
+        angles = group(rotate_label)
+        bottom.addLayout(angles)
         self._euler: List[QDoubleSpinBox] = []
         for position, name in enumerate(("roll", "pitch", "yaw")):
             box = QDoubleSpinBox()
@@ -155,31 +174,39 @@ class EditPanelMixin:
             box.setSingleStep(1.0)
             box.setDecimals(2)
             box.setPrefix(f"{name} ")
-            box.setFixedWidth(112)
+            box.setFixedWidth(96)
             box.editingFinished.connect(self._apply_euler)
-            grid.addWidget(box, 2, 1 + position)
+            angles.addWidget(box)
             self._euler.append(box)
 
-        self._revert_button = QPushButton("Undo my changes to this point")
+        # Short labels; every one of these carries a tooltip saying the rest. Spelled out,
+        # these five buttons wanted 1,052 px between them and the bar asked for 2,262 in a
+        # 1,500 px window — so Qt clipped them and `Undo my changes to this point` became
+        # unreadable anyway. A name that fits beats a sentence that does not.
+        self._revert_button = QPushButton("Revert point")
+        self._revert_button.setToolTip(
+            "Undo every change made to the selected attach point, back to how the game ships "
+            "it. Other points are left alone."
+        )
         self._revert_button.clicked.connect(self._revert_socket)
-        grid.addWidget(self._revert_button, 2, 4)
 
-        self._new_socket_button = QPushButton("New attach point...")
+
+        self._new_socket_button = QPushButton("New point…")
         self._new_socket_button.setToolTip(tip("Attach point", keyboard_hint()))
         self._new_socket_button.clicked.connect(lambda: self._create_socket())
-        grid.addWidget(self._new_socket_button, 1, 7)
+
 
         # The step that makes a *newly created* child socket actually do something. Routing the
         # body socket moves where an item sits; the child socket is what aims it, and a socket
         # the user just invented has no vanilla pairing for the tool to infer.
-        self._use_orientation_button = QPushButton("Use as orientation")
+        self._use_orientation_button = QPushButton(AIM_LABEL)
         self._use_orientation_button.setToolTip(
             "Aim the selected item using the selected point.\n\n"
             "Use this when an item hangs at a strange angle after being moved — it means the "
             "game had no matching angle defined for its new spot."
         )
         self._use_orientation_button.clicked.connect(self._use_selected_as_orientation)
-        grid.addWidget(self._use_orientation_button, 1, 8)
+
 
         self._undo_button = QPushButton("Undo")
         self._undo_button.setShortcut("Ctrl+Z")
@@ -187,19 +214,24 @@ class EditPanelMixin:
         self._redo_button = QPushButton("Redo")
         self._redo_button.setShortcut("Ctrl+Y")
         self._redo_button.clicked.connect(self._redo)
-        self._export_button = QPushButton("Export files...")
+        self._export_button = QPushButton("Export…")
+        self._export_button.setToolTip("Write the changed files out as loose files.")
         self._export_button.clicked.connect(self._export)
-        self._package_button = QPushButton("Build packages...")
+        self._package_button = QPushButton("Packages…")
         self._package_button.setToolTip(
             "Write installable mod packages (CDUMM, DMM and JMM) from these changes."
         )
         self._package_button.clicked.connect(self._build_packages)
 
-        grid.addWidget(self._undo_button, 2, 5)
-        grid.addWidget(self._redo_button, 2, 6)
-        grid.addWidget(self._export_button, 2, 7)
-        grid.addWidget(self._package_button, 2, 8)
-        grid.setColumnStretch(9, 1)
+        # Grouped by what they are for: make a point, take a change back, write it out.
+        bottom.addStretch(1)
+        bottom.addLayout(group(self._new_socket_button, self._use_orientation_button))
+        bottom.addSpacing(10)
+        bottom.addLayout(group(self._revert_button, self._undo_button, self._redo_button))
+        # Writing the mod out is not an editing control, and the top row had the room the
+        # bottom one did not. Both rows now fit a 1,500 px window instead of one overflowing.
+        top.addSpacing(10)
+        top.addLayout(group(self._export_button, self._package_button))
 
         self._viewport.socket_dragged.connect(self._on_socket_dragged)
         self._viewport.socket_rotated.connect(self._on_socket_rotated)
@@ -734,7 +766,7 @@ class EditPanelMixin:
         return (
             f"  —  WARNING: it is still aimed by {child}, which belongs to the "
             f"{_carry.ZONE_LABELS.get(have_zone, have_zone).lower()}, so it will hang at the "
-            f"wrong angle. Select the socket you want and press Use as orientation."
+            f"wrong angle. Select the socket you want and press {AIM_LABEL}."
         )
 
     def _borrow_child_socket(self, weapon, wanted: str, current: str) -> str:
