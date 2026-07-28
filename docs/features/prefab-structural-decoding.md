@@ -95,33 +95,57 @@ because path edits move bytes and would invalidate the offsets.
 `cdmw/core/prefab_blob_tail.py`. Deciding "is there anything left to read" is
 the most consequential judgement the decoder makes, because a walk that
 recovered every object but cannot close is reported *partial*, and partial
-switches editing off. Several files had been read correctly and were refused on
-their last nine bytes.
+switches editing off.
 
-    tail := footer? trailer-record+ terminator?
+**There is no trailer grammar.** Over the 799 completed walks whose blob ends
+`<u32> 01`, **every one** of those u32s is a *pointee length field* -- the same
+field `_read_pointer` validates mid-file, where it must equal
+`field_position - pointee_start`. The walk simply stops a few bytes early. The
+residual was never mysterious; it was unread.
 
-- A **trailer record** opens `01` and is 5 or 6 bytes wide -- width follows the
-  component family, as the pointer-record footer search already does. Reading
-  only the five-byte form left 28 files stopping exactly seven bytes short on
-  `01 01 06 00 00 00 01`.
-- A **footer** of 1 to 6 bytes may precede the run. Observed widths are 1, 2 and
-  4 (zero padding, or a field such as `5c 00 00 00`). Allowing it completed 16
-  more files, every one of which had already recovered all its objects: the
-  object counts before and after are identical and only the verdict changes.
+The controls are what make that convincing:
 
-Safety rests on **exact consumption** -- from wherever the run is judged to
-start, every remaining byte must belong to a record, with at most one spare.
-That is not quite enough on its own, though. The six-byte width would otherwise
-absorb one arbitrary byte per record, and combined with the footer skip that is
-enough to close on trailing garbage: `5c 00 00 00 01 de 00 00 00 99 99` reads as
-a four-byte footer, a six-byte record and a spare byte. So the six-byte record
-is matched **exactly** against the single form the corpus contains, unlike the
-five-byte one whose u32 payload genuinely varies. A second six-byte record
-appearing later will surface as a partial walk, which is the safe direction.
+| tested value | explained |
+| --- | ---: |
+| the actual u32 | **799 / 799 (100%)** |
+| that value + 1 | 0 |
+| that value − 1 | 0 |
+| a value from a *different* file | 26 (3.3%) |
 
-Together these took completion from 878 to 922 of 1,500 (58.5% to 61.5%), and
-cascaded into editing: the resize round-trip sweep went from 687 over 371 files
-to **757 over 415, still exact on every one**.
+So `closes_blob` now **validates**: every residual byte must be either the `01`
+terminator or a u32 equal to its own distance from a real pointee start. No
+spare-byte allowance, no footer of unexplained width.
+
+### What this replaced, and why it was wrong
+
+Earlier versions grew a tolerance -- a 5-or-6 byte footer, then a *run* of
+records opening `01`, then a 6-byte record width, then a footer permitted before
+the run. Each step was corpus-measured and each bought completions.
+
+All of it was reading one repeating structure through an off-by-one frame.
+`<u32 length> 01` repeated looks exactly like `01 <u32>` repeated if you start a
+byte later, which is why `01 01 25 00 00 00 01 70 00 00 00` parsed two ways with
+nothing to choose between them. Tolerating both is what a rule does when it does
+not know what it is looking at.
+
+The tolerant version also **could not be validated**. Widening it never changed
+the decoded prefix, only the verdict, so "the same objects came back" was
+guaranteed in advance and proved nothing about whether the new bytes were
+understood. That reassurance was worthless and it was the main thing propping up
+the heuristics.
+
+### The remaining tolerance
+
+One unprincipled rule survives: a bare `5 <= remaining <= 6` allowance. On real
+files that tail *is* a length field plus terminator and validation covers it;
+the allowance earns 23 further files it cannot explain, and it is kept only
+because dropping it costs more than it buys. Validation alone scores 899,
+tolerance alone 922, **both together 930**. Anything that shrinks the tolerance
+is an improvement.
+
+Net across the session: completion 878 → **930 of 1,500 (58.5% → 62.0%)**, and
+the resize round-trip sweep 687 over 371 files → **796 over 422, still exact on
+every one**.
 
 ## Adding and removing collection elements
 

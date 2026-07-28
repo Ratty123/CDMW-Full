@@ -1,87 +1,96 @@
 """How a ``.prefab`` data blob closes.
 
-Split from :mod:`cdmw.core.prefab_binary` because deciding "is there anything
-left to read" turned into three rules, and because getting it wrong is the
-single most consequential judgement the decoder makes: a walk that recovered
-every object but cannot close is reported as *partial*, which switches editing
-off. Several of these files had already been read correctly and were being
-refused on the last nine bytes.
+Deciding "is there anything left to read" is the most consequential judgement
+the decoder makes, because a walk that recovered every object but cannot close
+is reported *partial*, and partial switches editing off.
 
-The tail is, in the general case:
+## What the tail actually is
 
-    tail := footer? trailer-record+ terminator?
+It is not padding and there is no separate trailer grammar. Measured over the
+799 completed walks whose blob ends ``<u32> 01``, **every single one** of those
+trailing u32s is a *pointee length field* -- the same field ``_read_pointer``
+consumes and validates in the middle of the file, where it must equal the
+pointee's byte count::
 
-* A **trailer record** opens with ``01`` and is 5 or 6 bytes wide. The width
-  follows the component family, the same way the pointer-record footer search
-  does. Reading only the five-byte form left 28 files in 1,500 stopping exactly
-  seven bytes short on ``01 01 06 00 00 00 01``.
-* A **footer** of 1 to 6 bytes may precede the run. Observed widths are 1, 2 and
-  4 -- zero padding, or a four-byte field such as ``5c 00 00 00`` -- and
-  allowing it completes 16 more files, every one of which had *already*
-  recovered all of its objects. The object counts before and after are
-  identical; only the verdict changes.
-* At most one spare byte is tolerated at the very end.
+    length == field_position - pointee_start        (blob-relative)
 
-The safety of all this rests on **exact consumption**: from wherever the run is
-judged to start, every remaining byte has to be part of a record. That is what
-stops a tail rule from closing a walk that is merely lost, and it is why the
-footer tolerance can be as wide as six bytes without the rule becoming a way to
-say yes to anything.
+The controls are what make that convincing: matching against ``v + 1`` or
+``v - 1`` explains 0 of 799, and taking each file's value and testing it against
+a *different* file's pointers explains 3.3%. The relationship is exact, not a
+coincidence of small numbers.
+
+So the walk systematically stops a few bytes early, leaving one or more real
+length fields plus the one-byte ``01`` terminator. The bytes were never
+mysterious; they were simply unread.
+
+## Why this file used to be four heuristics
+
+Earlier versions grew a tolerance: a 5-or-6 byte footer, then a *run* of records
+opening ``01``, then a 6-byte record width, then a footer permitted before the
+run. Each step was justified by corpus measurement and each bought completions.
+
+All of it was reading the same repeating structure through an off-by-one frame.
+``<u32 length> 01`` repeated looks exactly like ``01 <u32>`` repeated if you
+start one byte later, which is why ``01 01 25 00 00 00 01 70 00 00 00`` parsed
+two different ways with nothing to choose between them. Tolerating both is what
+a rule does when it does not know what it is looking at.
+
+The tolerant version also could not be validated. Widening it never changed the
+decoded prefix -- only the verdict -- so "the same objects came back" was
+guaranteed in advance and proved nothing about whether the newly accepted bytes
+were understood.
+
+This version explains every byte instead, and scores better for it: 926
+completions against the tolerant rule's 922, over the same 1,500 files.
 """
 
 from __future__ import annotations
 
-#: Trailer record widths, narrow first.
-TRAILER_WIDTHS = (5, 6)
-#: Footer widths tried before the run. 1, 2 and 4 are attested.
-FOOTER_WIDTHS = (1, 2, 3, 4, 5, 6)
-#: The only six-byte record the corpus contains. Matched exactly, unlike the
-#: five-byte form, whose u32 payload genuinely varies across shipped files.
-#:
-#: Accepting "``01`` then five bytes" instead would let the width absorb one
-#: arbitrary byte per record, and combined with the footer skip that is enough
-#: to close on trailing garbage -- ``5c 00 00 00 01 de 00 00 00 99 99`` reads as
-#: a four-byte footer, a six-byte record and a spare byte. A second six-byte
-#: record showing up later will surface as a partial walk, which is the safe
-#: direction to be wrong in.
-SIX_BYTE_RECORD = bytes.fromhex("01 01 06 00 00 00")
+import struct
+
+#: The one-byte terminator, and the marker separating closing length fields.
+TERMINATOR = 0x01
 
 
-def is_trailer_run_of(blob: bytes, at: int, width: int) -> bool:
-    """A run of ``width``-byte records from ``at``, consuming all but a byte."""
-    pos = at
-    seen = 0
-    while pos + width <= len(blob):
-        if width == 6:
-            if blob[pos : pos + 6] != SIX_BYTE_RECORD:
-                return False
-        elif blob[pos] != 1:
-            return False
-        pos += width
-        seen += 1
-    return seen > 0 and len(blob) - pos <= 1
+def pointee_starts(blob: bytes, base: int) -> frozenset[int]:
+    """Blob-relative offsets at which a pointee begins.
 
-
-def is_trailer_run(blob: bytes, at: int) -> bool:
-    """Is everything from ``at`` to the end a run of trailer records?"""
-    return any(is_trailer_run_of(blob, at, width) for width in TRAILER_WIDTHS)
-
-
-def closes_blob(blob: bytes, at: int) -> bool:
-    """Is everything from ``at`` to the end a closing tail rather than data?
-
-    A footer is only considered when the bytes do not already open a record --
-    otherwise this would just be the run rule with extra chances, and a genuine
-    record could be re-read as footer plus a shorter run.
+    A pointer is identified by the exact identity the rest of the decoder uses
+    -- a u32 at ``k`` holding ``base + k + 4`` -- and its pointee starts at the
+    byte just past it. Derived from the blob rather than passed in, so the close
+    rule cannot be handed a stale set.
     """
-    if is_trailer_run(blob, at):
-        return True
-    if at < len(blob) and blob[at] == 1:
+    found = set()
+    for offset in range(max(0, len(blob) - 3)):
+        if struct.unpack_from("<I", blob, offset)[0] == base + offset + 4:
+            found.add(offset + 4)
+    return frozenset(found)
+
+
+def closes_blob(blob: bytes, at: int, starts: frozenset[int]) -> bool:
+    """Is everything from ``at`` to the end an unread close, rather than data?
+
+    The residual must consist entirely of ``01`` terminator bytes and u32 length
+    fields, each of which has to equal its own distance from a real pointee
+    start. A byte that is neither fails the whole tail.
+
+    This is a validation, not a tolerance: there is no spare-byte allowance and
+    no footer of unexplained width, because every byte now has something to be.
+    """
+    if at >= len(blob):
         return False
-    return any(
-        at + skip < len(blob) and is_trailer_run(blob, at + skip)
-        for skip in FOOTER_WIDTHS
-    )
+    position = at
+    while position < len(blob):
+        if blob[position] == TERMINATOR:
+            position += 1
+            continue
+        if position + 4 > len(blob):
+            return False
+        length = struct.unpack_from("<I", blob, position)[0]
+        if position - length not in starts:
+            return False
+        position += 4
+    return True
 
 
-__all__ = ["TRAILER_WIDTHS", "FOOTER_WIDTHS", "is_trailer_run_of", "is_trailer_run", "closes_blob"]
+__all__ = ["TERMINATOR", "pointee_starts", "closes_blob"]

@@ -85,7 +85,9 @@ def _build_with_pointer() -> bytes:
     blob += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
     blob += struct.pack("<I", blob_offset + len(blob) + 4)
     pointee = bytearray(struct.pack("<I", 0) + _text("character/model/a/b.pac"))
-    blob += pointee + struct.pack("<I", len(pointee)) + b"\x00" * 5
+    # Real blobs end with the 0x01 terminator. The old fixture padded with five
+    # zero bytes, which no shipped file does -- see cdmw/core/prefab_blob_tail.
+    blob += pointee + struct.pack("<I", len(pointee)) + b"\x01"
 
     data_header = struct.pack("<III", 1, blob_offset + len(blob), 0)
     data_header += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
@@ -383,25 +385,6 @@ def test_a_stopped_walk_says_where_it_stopped() -> None:
     assert 0.0 < stopped.walk_progress <= 1.0
 
 
-def test_the_blob_trailer_is_a_run_of_records_not_a_fixed_width() -> None:
-    """A completed blob ends `.. 00 00 00 01`, and there can be several.
-
-    The trailer was accepted only at 5 or 6 bytes. Files carrying more of the
-    same five-byte record stopped with "no element header" at a median 99% of
-    the way through -- 1,036 of them, 18.9% of all incomplete walks.
-    """
-    from cdmw.core.prefab_binary import _is_trailer_run
-
-    one = bytes([1]) + struct.pack("<I", 0xAF)
-    assert _is_trailer_run(one, 0)
-    assert _is_trailer_run(one * 3, 0)
-    # One spare byte is tolerated; the records themselves must be intact.
-    assert _is_trailer_run(one * 2 + bytes(1), 0)
-    assert not _is_trailer_run(bytes([2]) + struct.pack("<I", 5), 0)
-    assert not _is_trailer_run(one + bytes([9, 9, 9, 9, 9]), 0)
-    assert not _is_trailer_run(b"", 0)
-
-
 def test_a_bad_collection_header_says_what_is_actually_there() -> None:
     """"kind 98" invites enumerating kind bytes; there is no enumeration.
 
@@ -488,11 +471,6 @@ def test_the_shipped_collection_reader_is_restored_afterwards() -> None:
 
 
 # ── Collection header width ──────────────────────────────────────────────
-#
-# The header is a kind byte, an optional extra byte, then a u32 count. Reading
-# the count four bytes early gives the true value shifted up a byte, which is
-# still small enough to look plausible -- so the misread is silent, and the walk
-# still finishes because it stops on the trailer when the elements run out.
 
 
 def test_a_wide_header_whose_extra_byte_is_zero_is_not_read_as_a_narrow_one() -> None:
@@ -557,77 +535,52 @@ def test_an_over_declared_collection_is_reported_rather_than_hidden() -> None:
     assert over_declared(inflated) == 1
 
 
-def test_the_trailer_record_comes_in_two_widths() -> None:
-    """Width follows the component family, as it does for the footer search.
-
-    Reading only the five-byte record left 28 files in 1,500 stopping exactly
-    seven bytes short -- every one of them holding `01 01 06 00 00 00 01`, which
-    is one six-byte record and the terminator, not a structure the walk had
-    failed to follow.
-    """
-    from cdmw.core.prefab_binary import _is_trailer_run
-
-    six = bytes.fromhex("01 01 06 00 00 00")
-    assert _is_trailer_run(six + bytes([1]), 0), "the shipped tail, exactly"
-    assert _is_trailer_run(six, 0)
-    assert _is_trailer_run(six * 2, 0)
-    # Still a record run, not "any leftover starting with 01": the whole
-    # remainder has to be records, which is what stops this closing a lost walk.
-    assert not _is_trailer_run(six + bytes([1, 2, 3]), 0)
-    assert not _is_trailer_run(bytes.fromhex("02 01 06 00 00 00"), 0)
+# ── How the blob closes ──────────────────────────────────────────────────
+#
+# There is no separate trailer grammar. Over the 799 completed walks ending
+# `<u32> 01`, every one of those u32s is a pointee length field -- the same
+# field _read_pointer validates mid-file. Controls: v+1 and v-1 explain 0 of
+# 799; a value taken from a different file explains 3.3%. The walk simply stops
+# a few bytes early and the residual was never mysterious, only unread.
 
 
-def test_a_six_byte_trailer_closes_the_blob() -> None:
-    """End to end: the width matters because it decides `walk_complete`."""
-
-    from tests.prefab_collection_builder import build_with_collection
-
-    data = build_with_collection(("A", "B"))
-    # Swap the five-byte trailer this builder writes for the six-byte record
-    # plus terminator that the 28 shipped files carry.
-    grown = bytearray(data)
-    document = decode_prefab_binary(data)
-    end = document.blob_offset + document.blob_length
-    grown[end - 5: end] = bytes.fromhex("01 01 06 00 00 00 01")
-    struct.pack_into("<I", grown, document.blob_offset - 4, document.blob_length + 2)
-    struct.pack_into("<I", grown, document.blob_offset - 24, len(grown))
-
-    after = decode_prefab_binary(bytes(grown))
-
-    assert after.walk_complete, after.walk_note
-    assert len(after.objects) == 2
-
-
-def test_a_footer_may_sit_before_the_trailer_run() -> None:
-    """Files stopping with "no element header" left e.g. `5c 00 00 00 01 de 00
-    00 00` -- four bytes of footer, then a five-byte record. The close rule
-    allowed a footer *or* a run, never a footer followed by one, so 16 files
-    that had already recovered every object were reported partial.
-    """
+def test_a_residual_length_field_closes_the_blob() -> None:
     from cdmw.core.prefab_blob_tail import closes_blob
 
-    assert closes_blob(bytes.fromhex("5c 00 00 00 01 de 00 00 00"), 0)
-    assert closes_blob(bytes.fromhex("00 01 01 06 00 00 00 01"), 0), "zero padding"
-    assert closes_blob(bytes.fromhex("00 00 00 00 01 01 06 00 00 00 01"), 0)
+    # A pointee starting at 8; its length field sits at 20 and must read 12.
+    starts = frozenset({8})
+    assert closes_blob(struct.pack("<I", 12) + bytes([1]), 20 - 20, starts) is False
+    blob = bytes(20) + struct.pack("<I", 12) + bytes([1])
+    assert closes_blob(blob, 20, starts)
 
 
-def test_the_footer_rule_still_demands_the_rest_be_records() -> None:
-    """Exact consumption is the whole safety argument: from wherever the run is
-    judged to start, every byte has to belong to a record."""
+def test_a_length_field_that_names_no_pointee_is_not_a_close() -> None:
+    """This is the whole difference from the tolerant rule it replaced: a u32
+    has to *be* something, not merely be four bytes long."""
     from cdmw.core.prefab_blob_tail import closes_blob
 
-    assert not closes_blob(bytes.fromhex("5c 00 00 00 01 de 00 00 00 99 99"), 0)
-    assert not closes_blob(b"character/model/a/b.pac", 0)
-    assert not closes_blob(bytes.fromhex("5c 00 00 00 02 de 00 00 00"), 0)
-    assert not closes_blob(b"", 0)
+    blob = bytes(20) + struct.pack("<I", 12) + bytes([1])
+    assert not closes_blob(blob, 20, frozenset({9}))
+    assert not closes_blob(blob, 20, frozenset())
 
 
-def test_a_footer_is_not_considered_when_the_bytes_open_a_record() -> None:
-    """Otherwise this is the run rule with extra chances, and a real record can
-    be re-read as a footer plus a shorter run."""
-    from cdmw.core.prefab_blob_tail import closes_blob, is_trailer_run
+def test_bare_terminators_close_and_stray_data_does_not() -> None:
+    from cdmw.core.prefab_blob_tail import closes_blob
 
-    record = bytes.fromhex("01 aa bb cc dd")
-    assert is_trailer_run(record, 0) and closes_blob(record, 0)
-    # Opens with 01 but is not a clean run: no footer reinterpretation rescues it.
-    assert not closes_blob(record + bytes.fromhex("99 99 99"), 0)
+    assert closes_blob(bytes([1]), 0, frozenset())
+    assert closes_blob(bytes([1, 1, 1]), 0, frozenset())
+    assert not closes_blob(b"character/model/a.pac", 0, frozenset())
+    # No spare-byte allowance any more: every byte has something to be.
+    assert not closes_blob(bytes(20) + struct.pack("<I", 12) + bytes([1, 0x99]), 20, frozenset({8}))
+    assert not closes_blob(b"", 0, frozenset())
+
+
+def test_pointee_starts_uses_the_same_identity_as_the_rest_of_the_decoder() -> None:
+    from cdmw.core.prefab_blob_tail import pointee_starts
+
+    base = 1000
+    blob = bytearray(24)
+    struct.pack_into("<I", blob, 8, base + 8 + 4)  # a pointer at blob offset 8
+
+    assert 12 in pointee_starts(bytes(blob), base)
+    assert pointee_starts(bytes(blob), base + 1) == frozenset()
