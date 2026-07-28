@@ -241,9 +241,21 @@ Roughly in order of value:
 
    The known-unknowable part remains: marker=1 groups do not state their
    component type anywhere. Markers 2 and 3 put the type index at `owner-3`;
-   for marker=1 that byte is the mask's own high byte, and anchoring against 375
-   marker=1 groups from completed walks found no byte position holding the
-   resolved index -- the best candidate scored 4.0%, i.e. noise.
+   for marker=1 that byte is the mask's own high byte. The search for a byte
+   holding the resolved index has now been re-run on **5,003 anchors** rather
+   than the original 375, the trailer fix having produced far more completed
+   walks. The best position, `owner+7`, scores 14.9% -- which looks like a jump
+   from the earlier 4.0% and is not one. Both the resolved index and that byte
+   cluster on small values (indices 2, 3 and 4; bytes 2, 0 and 1), and the
+   agreement expected from that overlap alone is **11.8%**. The 3-point excess
+   is not a discriminator, and the apparent improvement is a change in the
+   anchor set's composition, not a finding. Anyone re-running this should
+   compare against the independence baseline, not against 4.0%.
+
+   Retrying the alternative component when a group fails was also tried, on the
+   reasoning that a *binary* choice is not exponential. It is: nested groups
+   each retry in turn, so the cost multiplies down the tree, and a corpus pass
+   that normally takes about a minute did not finish in ten. Reverted.
 
    Incomplete walks are not dead weight: their asset paths are recovered from
    pointer records without the walk, and same-length retargets are allowed
