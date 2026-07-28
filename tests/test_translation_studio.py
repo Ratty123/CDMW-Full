@@ -261,6 +261,14 @@ class ModelTests(unittest.TestCase):
         # matters is that filtering does not add to it.
         self.assertEqual(tab.table.selectionModel().receivers(signal), before)
 
+        # A whole tab, so it does not get left for the collector to destroy at
+        # some later test's expense.
+        from PySide6.QtWidgets import QApplication
+
+        tab.close()
+        tab.deleteLater()
+        QApplication.processEvents()
+
     def test_an_empty_model_answers_without_a_catalogue(self) -> None:
         from tools.translation_studio.table_model import TranslationTableModel
 
@@ -856,10 +864,29 @@ class TabAiTests(unittest.TestCase):
 
         cls.app = QApplication.instance() or QApplication([])
 
+    def setUp(self) -> None:
+        self._built_tabs: list = []
+
+    def tearDown(self) -> None:
+        # Every test here builds a whole TranslationStudioTab and none of them
+        # were ever destroyed, so the widget trees accumulated across the class
+        # and the interpreter died part-way through this file at 98% of a full
+        # run -- on 3.14 only, while 3.11 finished clean. close() then one
+        # processEvents() pass, not a forced delete, which crashes a widget
+        # mid-teardown.
+        from PySide6.QtWidgets import QApplication
+
+        while self._built_tabs:
+            tab = self._built_tabs.pop()
+            tab.close()
+            tab.deleteLater()
+        QApplication.processEvents()
+
     def _tab(self):
         from tools.translation_studio.tab import TranslationStudioTab
 
         tab = TranslationStudioTab()
+        self._built_tabs.append(tab)
         cat = load_catalogue(ENGLISH, "eng")
         tab._catalogue = cat
         tab.model.set_catalogue(cat)

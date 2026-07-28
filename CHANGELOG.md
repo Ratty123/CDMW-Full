@@ -12,6 +12,8 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Fixed
+- **The Translation Studio tests built a whole tab per test and destroyed none of them**, so the widget trees accumulated across the class and the interpreter died part-way through that file at 98% of a full run, on 3.14 only, while 3.11 finished clean with 7,700 passing. The tabs are closed and their deletion processed now. This is the fourth instance of one pattern this evening, after the preview session controller, the placement studio window, and the archive backend client: a Qt object built with no parent and left for the collector, destroyed later inside an unrelated test's Qt work, aborting the process with no traceback and no summary. Widgets need `close()` then `deleteLater()` then a `processEvents()` pass; forcing the deferred delete instead destroys them mid-teardown and crashes.
+
 - **A finished Mesh Editor action could leave a progress message as the last word on the status line.** Progress arrives on a queued cross-thread signal, so one emitted just before the result can be delivered just after it, and the handler only checked that the request id was current, never that the request had already finished. The status line then read `Applied Rotate.` where the completion handler had just written the session state, revision and undo depth. Each terminal handler records the request as finished now and progress for it is ignored. Found because it failed CI on one interpreter leg and not the other, which is exactly the shape a delivery-order race takes.
 
 ### Added
