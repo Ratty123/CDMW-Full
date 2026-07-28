@@ -439,6 +439,11 @@ class CloseControllerMixin:
         self.archive_preview_loading_timer.stop()
         self.archive_selection_state_timer.stop()
         self.archive_item_icon_preload_timer.stop()
+        # Optional: the archive browser owns this, and the close path also runs
+        # against windows composed without its feature providers.
+        cancel_preview_core_prewarm = getattr(self, "_cancel_archive_preview_core_prewarm", None)
+        if callable(cancel_preview_core_prewarm):
+            cancel_preview_core_prewarm()
         self.pending_compare_preview_selection = None
         self.pending_compare_preview_request = None
         self.pending_archive_preview_request = None
@@ -505,6 +510,11 @@ class CloseControllerMixin:
         self.archive_preview_loading_timer.stop()
         self.archive_selection_state_timer.stop()
         self.archive_item_icon_preload_timer.stop()
+        # Optional: the archive browser owns this, and the close path also runs
+        # against windows composed without its feature providers.
+        cancel_preview_core_prewarm = getattr(self, "_cancel_archive_preview_core_prewarm", None)
+        if callable(cancel_preview_core_prewarm):
+            cancel_preview_core_prewarm()
         self.archive_media_preview.shutdown()
         self.pending_compare_preview_selection = None
         self.pending_compare_preview_request = None

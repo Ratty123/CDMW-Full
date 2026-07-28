@@ -725,6 +725,9 @@ internal sealed partial class ExperimentForm
                 _selectedToolRailPage = ToolRailPageForActiveTool();
                 _toolRailPageSelected = true;
             }
+            // A placement boot reaches this after embedding, so OnShown's pass
+            // could not have covered the pages just populated here.
+            RealizeControlTree(_toolDock);
             ShowToolRailPage(_selectedToolRailPage);
         }
         finally
@@ -770,12 +773,12 @@ internal sealed partial class ExperimentForm
             }
             if (_leftToolPanel is not null)
             {
-                _leftToolPanel.Visible = true;
+                RevealToolFlank(_leftToolPanel);
                 _leftToolPanel.BringToFront();
             }
             if (_rightToolPanel is not null)
             {
-                _rightToolPanel.Visible = true;
+                RevealToolFlank(_rightToolPanel);
                 _rightToolPanel.BringToFront();
             }
             // The read-only preview profile builds no tool panels at all, so
@@ -1052,7 +1055,7 @@ internal sealed partial class ExperimentForm
         }
         foreach (var pair in _toolRailPages)
         {
-            pair.Value.Visible = pair.Key == page;
+            RevealToolRailPage(pair.Value, pair.Key == page);
             if (pair.Key == page)
             {
                 pair.Value.BringToFront();
@@ -1066,6 +1069,89 @@ internal sealed partial class ExperimentForm
         {
             _toolRailPanelHeader.Text = ToolRailPageTitle(page).ToUpperInvariant();
         }
+    }
+
+    /// <summary>
+    /// Show or hide one rail page without taking the whole helper down with it.
+    /// </summary>
+    /// <remarks>
+    /// Revealing a page for the first time makes WinForms create its handle and
+    /// then re-parent every already-realised child onto it. Embedded under the
+    /// host window, that SetParent has been seen to fail with ERROR_INVALID_STATE
+    /// (5023). An exception escaping here reaches the UI guard, which exits the
+    /// process, so a rail click reads as the whole tool crashing. Report the
+    /// window state the failure needs instead and leave the rail usable.
+    /// </remarks>
+    private void RevealToolRailPage(Panel page, bool visible)
+    {
+        try
+        {
+            page.Visible = visible;
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            WriteProtocolEvent("tool_rail_page_reveal_failed", new Dictionary<string, object?>
+            {
+                ["page"] = page.Name,
+                ["requested_visible"] = visible,
+                ["native_error"] = ex.NativeErrorCode,
+                ["message"] = ex.Message,
+                ["embedded_parent_hwnd"] = _options.ParentHwnd,
+                ["page_handle_created"] = page.IsHandleCreated,
+                ["page_hwnd"] = page.IsHandleCreated ? page.Handle.ToInt64() : 0L,
+                ["page_parent_hwnd"] = ToolRailWindowParent(page),
+                ["scroll_handle_created"] = page.Parent?.IsHandleCreated ?? false,
+                ["form_handle_created"] = IsHandleCreated,
+                ["form_parent_hwnd"] = ToolRailWindowParent(this),
+                ["children"] = ToolRailChildDiagnostics(page),
+            });
+            _statusLabel.Text =
+                $"The {ToolRailPageTitle(_selectedToolRailPage)} panel could not be shown "
+                + $"(Win32 {ex.NativeErrorCode}). The rail stays on the previous tool.";
+        }
+    }
+
+    private static long ToolRailWindowParent(Control control)
+    {
+        return control.IsHandleCreated
+            ? ToolRailNative.GetParent(control.Handle).ToInt64()
+            : 0L;
+    }
+
+    /// <summary>
+    /// The per-child window state that says why the deferred re-parent failed:
+    /// which children were already realised, who owns them now, and whether that
+    /// owner is still a window.
+    /// </summary>
+    private static List<Dictionary<string, object?>> ToolRailChildDiagnostics(Control page)
+    {
+        var rows = new List<Dictionary<string, object?>>();
+        foreach (Control child in page.Controls)
+        {
+            var handle = child.IsHandleCreated ? child.Handle : IntPtr.Zero;
+            var parent = handle == IntPtr.Zero ? IntPtr.Zero : ToolRailNative.GetParent(handle);
+            rows.Add(new Dictionary<string, object?>
+            {
+                ["name"] = child.Name,
+                ["type"] = child.GetType().Name,
+                ["visible"] = child.Visible,
+                ["handle_created"] = child.IsHandleCreated,
+                ["hwnd"] = handle.ToInt64(),
+                ["current_parent_hwnd"] = parent.ToInt64(),
+                ["current_parent_is_window"] = parent != IntPtr.Zero && ToolRailNative.IsWindow(parent),
+                ["disposed"] = child.IsDisposed,
+            });
+        }
+        return rows;
+    }
+
+    private static class ToolRailNative
+    {
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        internal static extern IntPtr GetParent(IntPtr hwnd);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        internal static extern bool IsWindow(IntPtr hwnd);
     }
 
     private ToolRailPage ToolRailPageForActiveTool()

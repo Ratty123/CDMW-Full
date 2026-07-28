@@ -2,13 +2,49 @@
 
 from __future__ import annotations
 
-from typing import List
+from contextlib import contextmanager
+from typing import Iterator, List
 
 from PySide6.QtWidgets import QMenu
 
 
+ARCHIVE_TREE_COLUMNS_CUSTOMIZED_KEY = "ui/archive_tree_v5_columns_customized"
+
+
 class ArchiveBrowserHeaderMixin:
     """Archive browser tree column persistence and header menu helpers."""
+
+    @contextmanager
+    def _archive_tree_header_programmatic(self) -> Iterator[None]:
+        """Mark header changes made by the app so they do not read as manual edits."""
+
+        depth = int(getattr(self, "_archive_tree_header_programmatic_depth", 0))
+        self._archive_tree_header_programmatic_depth = depth + 1
+        try:
+            yield
+        finally:
+            self._archive_tree_header_programmatic_depth = max(
+                0, int(getattr(self, "_archive_tree_header_programmatic_depth", 1)) - 1
+            )
+
+    def _archive_tree_header_change_is_programmatic(self) -> bool:
+        return int(getattr(self, "_archive_tree_header_programmatic_depth", 0)) > 0
+
+    def _archive_tree_columns_user_customized(self) -> bool:
+        raw_value = self.settings.value(ARCHIVE_TREE_COLUMNS_CUSTOMIZED_KEY, False)
+        if isinstance(raw_value, str):
+            return raw_value.strip().lower() in {"1", "true", "yes"}
+        return bool(raw_value)
+
+    def _mark_archive_tree_columns_customized(self, customized: bool = True) -> None:
+        self.settings.setValue(ARCHIVE_TREE_COLUMNS_CUSTOMIZED_KEY, bool(customized))
+
+    def _handle_archive_tree_section_geometry_changed(self, *_args: object) -> None:
+        if self._archive_tree_header_change_is_programmatic():
+            # Restoring or autofitting the header must not overwrite the saved layout.
+            return
+        self._mark_archive_tree_columns_customized()
+        self.schedule_settings_save()
 
     def _archive_tree_column_labels(self) -> List[str]:
         header_item = self.archive_tree.headerItem()
@@ -50,22 +86,26 @@ class ArchiveBrowserHeaderMixin:
         header = self.archive_tree.header()
         if header is None:
             return
-        widths = self._parse_archive_tree_column_ints("ui/archive_tree_v5_column_widths", clamp_to_columns=False)
-        for column, width in enumerate(widths[: self.archive_tree.columnCount()]):
-            if width > 0:
-                header.resizeSection(column, max(48, width))
-        order = self._parse_archive_tree_column_ints("ui/archive_tree_v5_column_order")
-        if len(order) == self.archive_tree.columnCount() and len(set(order)) == self.archive_tree.columnCount():
-            for target_visual, logical_index in enumerate(order):
-                current_visual = header.visualIndex(logical_index)
-                if current_visual >= 0 and current_visual != target_visual:
-                    header.moveSection(current_visual, target_visual)
-        hidden_columns = set(self._parse_archive_tree_column_ints("ui/archive_tree_v5_hidden_columns"))
-        if len(hidden_columns) >= self.archive_tree.columnCount():
-            hidden_columns = set()
-        for column in range(self.archive_tree.columnCount()):
-            self.archive_tree.setColumnHidden(column, column in hidden_columns)
-        self.archive_tree.compact_hidden_columns()
+        with self._archive_tree_header_programmatic():
+            if self._archive_tree_columns_user_customized():
+                widths = self._parse_archive_tree_column_ints(
+                    "ui/archive_tree_v5_column_widths", clamp_to_columns=False
+                )
+                for column, width in enumerate(widths[: self.archive_tree.columnCount()]):
+                    if width > 0:
+                        header.resizeSection(column, max(48, width))
+            order = self._parse_archive_tree_column_ints("ui/archive_tree_v5_column_order")
+            if len(order) == self.archive_tree.columnCount() and len(set(order)) == self.archive_tree.columnCount():
+                for target_visual, logical_index in enumerate(order):
+                    current_visual = header.visualIndex(logical_index)
+                    if current_visual >= 0 and current_visual != target_visual:
+                        header.moveSection(current_visual, target_visual)
+            hidden_columns = set(self._parse_archive_tree_column_ints("ui/archive_tree_v5_hidden_columns"))
+            if len(hidden_columns) >= self.archive_tree.columnCount():
+                hidden_columns = set()
+            for column in range(self.archive_tree.columnCount()):
+                self.archive_tree.setColumnHidden(column, column in hidden_columns)
+            self.archive_tree.compact_hidden_columns()
         self._update_archive_tree_sort_indicator()
         self._schedule_archive_files_pane_fit_to_columns()
 
@@ -95,11 +135,12 @@ class ArchiveBrowserHeaderMixin:
     def _set_archive_tree_column_visible(self, column: int, visible: bool) -> None:
         if not (0 <= column < self.archive_tree.columnCount()):
             return
-        if not visible and self._archive_tree_visible_column_count() <= 1:
-            self.archive_tree.setColumnHidden(column, False)
-            return
-        self.archive_tree.setColumnHidden(column, not visible)
-        self.archive_tree.compact_hidden_columns()
+        with self._archive_tree_header_programmatic():
+            if not visible and self._archive_tree_visible_column_count() <= 1:
+                self.archive_tree.setColumnHidden(column, False)
+                return
+            self.archive_tree.setColumnHidden(column, not visible)
+            self.archive_tree.compact_hidden_columns()
         self.schedule_settings_save()
         self._schedule_archive_files_pane_fit_to_columns()
 
@@ -107,15 +148,18 @@ class ArchiveBrowserHeaderMixin:
         header = self.archive_tree.header()
         if header is None:
             return
-        for column in range(self.archive_tree.columnCount()):
-            self.archive_tree.setColumnHidden(column, False)
-        for logical_index in range(self.archive_tree.columnCount()):
-            current_visual = header.visualIndex(logical_index)
-            if current_visual >= 0 and current_visual != logical_index:
-                header.moveSection(current_visual, logical_index)
-        default_widths = [360, 220, 110, 145, 84, 130, 122, 360]
-        for column, width in enumerate(default_widths[: self.archive_tree.columnCount()]):
-            header.resizeSection(column, width)
+        with self._archive_tree_header_programmatic():
+            for column in range(self.archive_tree.columnCount()):
+                self.archive_tree.setColumnHidden(column, False)
+            for logical_index in range(self.archive_tree.columnCount()):
+                current_visual = header.visualIndex(logical_index)
+                if current_visual >= 0 and current_visual != logical_index:
+                    header.moveSection(current_visual, logical_index)
+            default_widths = [360, 220, 110, 145, 84, 130, 122, 360]
+            for column, width in enumerate(default_widths[: self.archive_tree.columnCount()]):
+                header.resizeSection(column, width)
+        self._mark_archive_tree_columns_customized(False)
+        self._archive_tree_content_autofit_done = False
         self.schedule_settings_save()
         self._schedule_column_autofit()
 
@@ -142,10 +186,11 @@ class ArchiveBrowserHeaderMixin:
         menu.exec(self.archive_tree.header().mapToGlobal(position))
 
     def _set_all_archive_tree_columns_visible(self) -> None:
-        for column in range(self.archive_tree.columnCount()):
-            self.archive_tree.setColumnHidden(column, False)
-        self.archive_tree.compact_hidden_columns()
+        with self._archive_tree_header_programmatic():
+            for column in range(self.archive_tree.columnCount()):
+                self.archive_tree.setColumnHidden(column, False)
+            self.archive_tree.compact_hidden_columns()
         self.schedule_settings_save()
 
 
-__all__ = ["ArchiveBrowserHeaderMixin"]
+__all__ = ["ARCHIVE_TREE_COLUMNS_CUSTOMIZED_KEY", "ArchiveBrowserHeaderMixin"]

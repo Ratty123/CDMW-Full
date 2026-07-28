@@ -808,6 +808,163 @@ def test_static_provenance_failure_never_constructs_process(tmp_path: Path) -> N
     assert not controller._retry_timer.isActive()  # noqa: SLF001
 
 
+def _ready_authoring_controller(
+    tmp_path: Path,
+) -> tuple[DotNetPreviewSessionController, _FakeProcess]:
+    executable = tmp_path / "helper.exe"
+    executable.write_bytes(b"test")
+    processes: list[_FakeProcess] = []
+
+    def process_factory(parent: QObject) -> _FakeProcess:
+        process = _FakeProcess(parent)
+        processes.append(process)
+        return process
+
+    controller = DotNetPreviewSessionController(
+        host_hwnd=lambda: 1,
+        profile=DotNetPreviewProfile.AUTHORING,
+        configured_executable=executable,
+        terminate_on_close=True,
+        process_factory=process_factory,
+    )
+    with (
+        patch("cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor", return_value=_resolution(executable)),
+        patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_static_provenance_blockers", return_value=()),
+    ):
+        assert controller.load_package(_package(tmp_path, "authoring-a"))
+    generation = controller.process_generation
+    with (
+        patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers", return_value=()),
+        patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_renderer_blockers", return_value=()),
+    ):
+        controller._handle_protocol_event(  # noqa: SLF001
+            {"event": "protocol_ready", "profile": "authoring", "capabilities": []},
+            generation,
+        )
+        controller._handle_protocol_event(  # noqa: SLF001
+            {"event": "ready", "profile": "authoring", "renderer": {"backend": "d3d11_vortice_shader"}},
+            generation,
+        )
+    return controller, processes[-1]
+
+
+def test_authoring_scene_frame_becomes_the_replayed_resident_scene(tmp_path: Path) -> None:
+    """The mesh editor's mesh_edit frame must own the replay slot.
+
+    Package builders all write interaction_mode "placement" into
+    dotnet_scene.json, so a replay sourced from the package drops the helper out
+    of Edit Mesh on every package reload.
+    """
+    controller, _process = _ready_authoring_controller(tmp_path)
+
+    assert controller.send_authoring_message(
+        {
+            "event": "scene_state_update",
+            "scene_generation": 7,
+            "interaction_mode": "mesh_edit",
+            "comparison_mode": "replacement_only",
+        }
+    )
+
+    event, payload = controller._resident_state["scene"]  # noqa: SLF001
+    assert event == "scene_state_update"
+    assert payload["interaction_mode"] == "mesh_edit"
+    assert payload["comparison_mode"] == "replacement_only"
+    assert "event" not in payload
+    controller.shutdown()
+
+
+def test_authoring_scene_frame_replaces_the_package_scene_on_reload(tmp_path: Path) -> None:
+    controller, process = _ready_authoring_controller(tmp_path)
+    # What DotNetPreviewHost._load_scene_state remembers off the package.
+    controller.remember_state(
+        "scene",
+        "scene_state_update",
+        {"scene_generation": 1, "interaction_mode": "placement"},
+    )
+    assert controller.send_authoring_message(
+        {
+            "event": "scene_state_update",
+            "scene_generation": 7,
+            "interaction_mode": "mesh_edit",
+        }
+    )
+
+    write_offset = len(process.writes)
+    controller._replay_resident_state()  # noqa: SLF001
+
+    replayed = [
+        payload
+        for payload in process.writes[write_offset:]
+        if payload.get("event") == "scene_state_update"
+    ]
+    assert replayed, "the reload replay has to re-assert a scene frame"
+    assert replayed[-1]["interaction_mode"] == "mesh_edit"
+    controller.shutdown()
+
+
+def test_preview_scene_frame_cannot_revert_the_authoring_interaction_mode(tmp_path: Path) -> None:
+    """A placement nudge during Edit Mesh must not send interaction_mode back.
+
+    _refresh_mesh_edit_controls calls set_alignment_preview_transform on every
+    selection change, and that re-remembers the package's own scene frame.
+    """
+    controller, process = _ready_authoring_controller(tmp_path)
+    assert controller.send_authoring_message(
+        {
+            "event": "scene_state_update",
+            "scene_generation": 7,
+            "interaction_mode": "mesh_edit",
+            "comparison_mode": "replacement_only",
+        }
+    )
+
+    write_offset = len(process.writes)
+    # DotNetPreviewHost.set_alignment_preview_transform, whose _scene_state came
+    # straight out of dotnet_scene.json.
+    controller.remember_state(
+        "scene",
+        "scene_state_update",
+        {
+            "scene_generation": 8,
+            "interaction_mode": "placement",
+            "comparison_mode": "side_by_side",
+            "placement": {"translation": [1.0, 0.0, 0.0]},
+        },
+    )
+
+    sent = [
+        payload
+        for payload in process.writes[write_offset:]
+        if payload.get("event") == "scene_state_update"
+    ]
+    assert sent, "the transform update still has to reach the helper"
+    assert sent[-1]["interaction_mode"] == "mesh_edit"
+    assert sent[-1]["comparison_mode"] == "replacement_only"
+    assert sent[-1]["placement"] == {"translation": [1.0, 0.0, 0.0]}
+
+    _event, stored = controller._resident_state["scene"]  # noqa: SLF001
+    assert stored["interaction_mode"] == "mesh_edit"
+    controller.shutdown()
+
+
+def test_preview_scene_frame_keeps_its_own_mode_without_an_authoring_frame(tmp_path: Path) -> None:
+    controller, process = _ready_authoring_controller(tmp_path)
+    write_offset = len(process.writes)
+    controller.remember_state(
+        "scene",
+        "scene_state_update",
+        {"scene_generation": 3, "interaction_mode": "placement"},
+    )
+    sent = [
+        payload
+        for payload in process.writes[write_offset:]
+        if payload.get("event") == "scene_state_update"
+    ]
+    assert sent[-1]["interaction_mode"] == "placement"
+    controller.shutdown()
+
+
 def test_crash_retry_schedule_and_hidden_pause(tmp_path: Path) -> None:
     controller, process, _package_a = _start_controller(tmp_path)
     process._state = QProcess.ProcessState.NotRunning

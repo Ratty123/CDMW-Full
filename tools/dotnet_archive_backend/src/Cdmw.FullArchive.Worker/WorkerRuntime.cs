@@ -22,6 +22,7 @@ internal sealed class WorkerRuntime : IAsyncDisposable
     private readonly CancellationTokenSource _backgroundCancellation = new();
     private readonly object _backgroundGate = new();
     private readonly HashSet<Task> _backgroundTasks = [];
+    private readonly HashSet<string> _nameWarmupSessions = new(StringComparer.Ordinal);
 
     public WorkerRuntime(string cacheRoot)
     {
@@ -148,11 +149,30 @@ internal sealed class WorkerRuntime : IAsyncDisposable
                 {
                     var payload = RequirePayload<ArchiveAssociationRequest>(request);
                     RequireSession(request, payload.SessionId);
-                    await _names.WarmAsync(payload.SessionId, cancellationToken, publishProgress).ConfigureAwait(false);
+                    // The name index only enriches display names on the candidates, and
+                    // building it against a cold archive walks every entry -- seconds
+                    // that landed on the first preview click of a freshly cached
+                    // archive. Reading back an already published index is cheap, so
+                    // only the cold build is deferred, and only for previews.
+                    var namesWarm = _names.IsWarm(payload.SessionId);
+                    if (!namesWarm)
+                    {
+                        if (payload.Purpose == ArchiveAssociationPurpose.Preview
+                            && !_names.IsPublished(payload.SessionId))
+                        {
+                            StartNameWarmup(payload.SessionId);
+                        }
+                        else
+                        {
+                            await _names.WarmAsync(payload.SessionId, cancellationToken, publishProgress).ConfigureAwait(false);
+                            namesWarm = true;
+                        }
+                    }
                     var result = await _lookups.FindAssociationCandidatesAsync(
                         payload,
                         cancellationToken,
                         publishProgress).ConfigureAwait(false);
+                    result = result with { SecondaryIndexPending = result.SecondaryIndexPending || !namesWarm };
                     foreach (var entries in result.Candidates.Chunk(StreamBatchSize))
                     {
                         await publishBatch(new ArchiveAssociationResult(
@@ -160,7 +180,8 @@ internal sealed class WorkerRuntime : IAsyncDisposable
                             result.EntryId,
                             entries,
                             result.TotalCandidates,
-                            result.Truncated)).ConfigureAwait(false);
+                            result.Truncated,
+                            result.SecondaryIndexPending)).ConfigureAwait(false);
                     }
                     return WorkerProtocol.Response(
                         request,
@@ -287,9 +308,27 @@ internal sealed class WorkerRuntime : IAsyncDisposable
         _backgroundCancellation.Dispose();
     }
 
-    private void StartLookupWarmup(string sessionId)
+    private void StartLookupWarmup(string sessionId) =>
+        TrackBackground(_lookups.WarmAsync(sessionId, _backgroundCancellation.Token));
+
+    /// <summary>
+    /// Starts the name-index build at most once per session, so a run of preview
+    /// clicks through the cold window does not queue a warmup each time.
+    /// </summary>
+    private void StartNameWarmup(string sessionId)
     {
-        var task = _lookups.WarmAsync(sessionId, _backgroundCancellation.Token);
+        lock (_backgroundGate)
+        {
+            if (!_nameWarmupSessions.Add(sessionId))
+            {
+                return;
+            }
+        }
+        TrackBackground(_names.WarmAsync(sessionId, _backgroundCancellation.Token));
+    }
+
+    private void TrackBackground(Task task)
+    {
         lock (_backgroundGate)
         {
             _backgroundTasks.Add(task);

@@ -131,6 +131,7 @@ class DotNetPreviewSessionController(QObject):
         self._capabilities: set[str] = set()
         self._session_id = uuid.uuid4().hex
         self._resident_state: OrderedDict[str, tuple[str, dict[str, object]]] = OrderedDict()
+        self._authoring_scene_modes: dict[str, str] = {}
         self._package_leases: dict[str, object] = {}
         self._pending_captures: dict[int, tuple[Path, Path]] = {}
         self._prewarm_capture_request_id = 0
@@ -206,7 +207,36 @@ class DotNetPreviewSessionController(QObject):
         message.setdefault("session_id", self._session_id)
         message.setdefault("process_generation", self._process_generation)
         message.setdefault("protocol_version", 2)
-        return self._send_json(message)
+        sent = self._send_json(message)
+        if sent:
+            self._remember_replayable_authoring_state(message)
+        return sent
+
+    _SCENE_STATE_KEY = "scene"
+    _REPLAYABLE_AUTHORING_EVENTS = {"scene_state_update": _SCENE_STATE_KEY}
+    # Only the authoring host knows the live interaction mode; the preview host
+    # echoes whatever the package declared, which is always "placement".
+    _AUTHORING_OWNED_SCENE_FIELDS = ("interaction_mode", "comparison_mode")
+
+    def _remember_replayable_authoring_state(self, message: Mapping[str, object]) -> None:
+        """Keep the replay set in step with what the authoring host actually sent.
+
+        Authoring frames go out through this class rather than
+        ``remember_state``, so they never reached the slot ``_replay_resident_state``
+        re-asserts after every package load -- and a session that had switched
+        the helper into ``mesh_edit`` was dropped back to placement by its own
+        replay, taking the Edit Mesh UI with it.
+        """
+        key = self._REPLAYABLE_AUTHORING_EVENTS.get(
+            str(message.get("event", "")).strip().lower()
+        )
+        if key is None:
+            return
+        for field in self._AUTHORING_OWNED_SCENE_FIELDS:
+            value = str(message.get(field, "") or "").strip()
+            if value:
+                self._authoring_scene_modes[field] = value
+        self._store_resident_state(key, str(message.get("event", "")), message)
 
     @property
     def desired_package_path(self) -> str:
@@ -412,10 +442,20 @@ class DotNetPreviewSessionController(QObject):
         normalized_key = str(key or event).strip().lower()
         body = dict(payload)
         body.pop("event", None)
-        self._resident_state[normalized_key] = (str(event), body)
+        if normalized_key == self._SCENE_STATE_KEY:
+            # This frame's mode fields are the package's boot defaults, not the
+            # live mode: without the overlay a placement nudge during Edit Mesh
+            # drops the helper out of it, on this send and on the reload replay.
+            body.update(self._authoring_scene_modes)
+        self._store_resident_state(normalized_key, event, body)
         if self._session_established and self._renderer_ready:
             return self.send_correlated(event, body) > 0
         return True
+
+    def _store_resident_state(self, key: str, event: str, payload: Mapping[str, object]) -> None:
+        body = dict(payload)
+        body.pop("event", None)
+        self._resident_state[str(key).strip().lower()] = (str(event), body)
 
     def forget_state(self, key: str) -> None:
         self._resident_state.pop(str(key or "").strip().lower(), None)

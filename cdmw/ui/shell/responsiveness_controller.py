@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QEvent, QObject, Qt, QTimer
+from PySide6.QtCore import QEvent, QModelIndex, QObject, Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -536,6 +536,20 @@ class ResponsivenessControllerMixin:
             return
         self._column_autofit_timer.start()
 
+    def _schedule_archive_tree_content_autofit(self) -> None:
+        """Fit the archive columns to their content once, when rows first arrive."""
+
+        if self._shutting_down:
+            return
+        if getattr(self, "_archive_tree_content_autofit_done", False):
+            return
+        if self._archive_tree_columns_user_customized():
+            return
+        if self.archive_tree.topLevelItemCount() <= 0:
+            return
+        self._archive_tree_content_autofit_done = True
+        QTimer.singleShot(0, self._autofit_archive_tree_columns)
+
     def _fit_tree_columns(
         self,
         tree: QTreeWidget,
@@ -563,17 +577,60 @@ class ResponsivenessControllerMixin:
         finally:
             tree.setUpdatesEnabled(True)
 
+    def _measure_archive_tree_content_widths(self, *, row_budget: int = 400) -> Dict[int, int]:
+        """Widest rendered text per column, sampled from the rows the model has loaded."""
+
+        tree = self.archive_tree
+        model_provider = getattr(tree, "archive_model", None)
+        model = model_provider() if callable(model_provider) else tree.model()
+        if model is None:
+            return {}
+        column_count = min(int(model.columnCount()), int(tree.columnCount()))
+        if column_count <= 0:
+            return {}
+        font_metrics = tree.fontMetrics()
+        indentation = max(0, int(tree.indentation()))
+        root_indent = indentation if tree.rootIsDecorated() else 0
+        can_recurse = model is tree.model() and not getattr(tree, "remote_flat_view_active", False)
+        widths: Dict[int, int] = {}
+        remaining = max(1, int(row_budget))
+
+        def visit(parent: QModelIndex, depth: int) -> None:
+            nonlocal remaining
+            for row in range(int(model.rowCount(parent))):
+                if remaining <= 0:
+                    return
+                remaining -= 1
+                for column in range(column_count):
+                    if tree.isColumnHidden(column):
+                        continue
+                    index = model.index(row, column, parent)
+                    if not index.isValid():
+                        continue
+                    text = model.data(index, Qt.DisplayRole)
+                    if not text:
+                        continue
+                    width = font_metrics.horizontalAdvance(str(text))
+                    if column == 0:
+                        width += root_indent + indentation * depth
+                    if width > widths.get(column, 0):
+                        widths[column] = width
+                if not can_recurse:
+                    continue
+                child_index = model.index(row, 0, parent)
+                if child_index.isValid() and tree.isExpanded(child_index):
+                    visit(child_index, depth + 1)
+
+        visit(QModelIndex(), 0)
+        return widths
+
     def _autofit_archive_tree_columns(self) -> None:
         header = self.archive_tree.header()
         if header is None:
             return
-        if self._parse_archive_tree_column_ints("ui/archive_tree_v5_column_widths", clamp_to_columns=False):
+        if self._archive_tree_columns_user_customized():
             return
-        use_fast_widths = bool(
-            hasattr(self.archive_tree, "set_archive_state")
-            or len(getattr(self, "archive_filtered_entries", ()) or ()) > 5000
-            or len(getattr(self, "archive_entries", ()) or ()) > 5000
-        )
+        content_widths = self._measure_archive_tree_content_widths()
         font_metrics = header.fontMetrics()
         min_widths = {
             0: max(180, font_metrics.horizontalAdvance("Name") + 48),
@@ -586,7 +643,7 @@ class ResponsivenessControllerMixin:
             7: max(220, font_metrics.horizontalAdvance("Path") + 48),
         }
         max_widths = {
-            0: 360,
+            0: 520,
             1: 320,
             2: 150,
             3: 160,
@@ -596,15 +653,17 @@ class ResponsivenessControllerMixin:
         }
         self.archive_tree.setUpdatesEnabled(False)
         try:
-            for column in range(self.archive_tree.columnCount()):
-                if self.archive_tree.isColumnHidden(column):
-                    continue
-                content_width = 0 if use_fast_widths else self.archive_tree.sizeHintForColumn(column) + 28
-                width = max(min_widths.get(column, 72), content_width)
-                max_width = max_widths.get(column)
-                if max_width is not None and column != 7:
-                    width = min(width, max_width)
-                header.resizeSection(column, width)
+            with self._archive_tree_header_programmatic():
+                for column in range(self.archive_tree.columnCount()):
+                    if self.archive_tree.isColumnHidden(column):
+                        continue
+                    measured_width = content_widths.get(column, 0)
+                    content_width = measured_width + 28 if measured_width > 0 else 0
+                    width = max(min_widths.get(column, 72), content_width)
+                    max_width = max_widths.get(column)
+                    if max_width is not None and column != 7:
+                        width = min(width, max_width)
+                    header.resizeSection(column, width)
         finally:
             self.archive_tree.setUpdatesEnabled(True)
 

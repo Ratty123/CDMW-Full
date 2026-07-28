@@ -220,6 +220,7 @@ internal sealed partial class ExperimentForm
         var phase = Stopwatch.StartNew();
         var previousTextures = _textureSet;
         var nextTextures = prepared.TextureSet;
+        CarryResidentInteractionModesForward(prepared.Scene);
         _viewport.ReplaceResidentPackage(
             prepared.Document,
             prepared.Materials,
@@ -234,6 +235,7 @@ internal sealed partial class ExperimentForm
         _saved = false;
         _rendererDiagnosticCache = null;
         RefreshSubmeshList();
+        ReassertInteractionModeAfterPackageSwap();
         previousTextures.Dispose();
         var loadCount = Interlocked.Increment(ref _residentPackageLoadCount);
         _statusLabel.Text = $"Resident package loaded: {_document.Submeshes.Count} part(s).";
@@ -251,6 +253,47 @@ internal sealed partial class ExperimentForm
             ["resident_scene_load_count"] = _viewport.ResidentSceneLoadCount,
             ["renderer"] = RendererCompactStatusWithLifecycle(),
         });
+    }
+
+    /// <summary>
+    /// Interaction and comparison mode are live host state, not package content.
+    /// Every package builder writes "placement" into dotnet_scene.json, so
+    /// adopting the incoming values dropped Edit Mesh whenever a rebuild landed
+    /// while the user was editing: the flanks collapsed, the role-pane selector
+    /// came back, and the host was never told. This is the same host-owned/
+    /// package-owned split ReplaceResidentPackage already applies to the grid
+    /// and gizmo toggles.
+    /// </summary>
+    private void CarryResidentInteractionModesForward(NetSceneState next)
+    {
+        if (_options.SimplePreview)
+        {
+            // The read-only preview profile pins its own modes in
+            // PrepareResidentPackage and builds no authoring surface to keep.
+            return;
+        }
+        next.SetInteractionMode(_scene.InteractionMode);
+        next.SetComparisonMode(_scene.ComparisonMode);
+    }
+
+    /// <summary>
+    /// The swap cleared the viewport's presentation contexts and selection, and
+    /// the preview profile can still pin its own mode above. Re-running the
+    /// interaction-mode controls re-asserts the rail and the editable
+    /// presentation view, and is the only thing that keeps
+    /// <c>_meshEditInteractionActive</c> from disagreeing with the new scene.
+    /// </summary>
+    private void ReassertInteractionModeAfterPackageSwap()
+    {
+        var meshEdit = string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase);
+        if (!meshEdit && meshEdit == _meshEditInteractionActive)
+        {
+            // Placement on both sides: nothing to re-assert, and running the
+            // full classic restore on every archive package swap would rebuild
+            // the tool stacks for no visible gain.
+            return;
+        }
+        ApplyInteractionModeControls();
     }
 
     private void PublishResidentPackageLoadFailure(long requestId, long generation, string message)

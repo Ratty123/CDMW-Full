@@ -26,6 +26,17 @@ public sealed class ArchiveNameIndexService(
         return index;
     }
 
+    /// <summary>True when the index is already resident for this session.</summary>
+    public bool IsWarm(string sessionId) => sessions.GetRequired(sessionId).TryGetNameIndex(out _);
+
+    /// <summary>
+    /// True when this generation's index has been published, so <see cref="WarmAsync"/>
+    /// only has to read it back. Callers that must not stall distinguish that cheap
+    /// load from the cold build, which walks every entry in the archive.
+    /// </summary>
+    public bool IsPublished(string sessionId) =>
+        File.Exists(Path.Combine(sessions.GetRequired(sessionId).GenerationPath, "names.bin"));
+
     private Task<ArchiveNameIndex> GetIndexAsync(
         ArchiveSession session,
         CancellationToken cancellationToken,

@@ -75,6 +75,10 @@ datas = []
 binaries = []
 hiddenimports = []
 hiddenimports += collect_submodules("cdmw")
+# The Placement Studio tool tab lives under tools/, which is a package but is not covered by
+# the cdmw sweep. Without this the tab imports fine from source and fails only in a frozen
+# build — the worst possible place to find out.
+hiddenimports += collect_submodules("tools.placement_studio")
 hiddenimports += [
     "cdmw.rendering.ingame_capture",
     "cdmw.rendering.preview_comparison",

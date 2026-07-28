@@ -9,6 +9,7 @@ internal static class NativeWindowHost
     private const long WsChild = 0x40000000L;
     private const long WsPopup = 0x80000000L;
     private const long WsCaption = 0x00C00000L;
+    private const long WsVisible = 0x10000000L;
     private const uint SwpNoMove = 0x0002;
     private const uint SwpNoZOrder = 0x0004;
     private const uint SwpNoActivate = 0x0010;
@@ -16,29 +17,46 @@ internal static class NativeWindowHost
     private const uint SwpShowWindow = 0x0040;
     private static readonly IntPtr HwndTop = IntPtr.Zero;
 
-    public static bool Embed(Form form, IntPtr parent)
+    /// <summary>
+    /// Puts <paramref name="form"/> inside <paramref name="parent"/>, and shows
+    /// it there only when <paramref name="reveal"/> says the form is meant to be
+    /// on screen. A form whose window was created as a child of the host is
+    /// already parented, so the reparent is skipped and this only sizes it.
+    /// </summary>
+    public static bool Embed(Form form, IntPtr parent, bool reveal = true)
     {
         if (parent == IntPtr.Zero || !IsWindow(parent))
         {
             return false;
         }
         var child = form.Handle;
-        var style = GetWindowLongPtrSafe(child, GwlStyle).ToInt64();
-        style |= WsChild;
-        style &= ~WsPopup;
-        style &= ~WsCaption;
-        SetWindowLongPtrSafe(child, GwlStyle, new IntPtr(style));
-        SetParent(child, parent);
         if (GetParent(child) != parent)
         {
-            return false;
+            var style = GetWindowLongPtrSafe(child, GwlStyle).ToInt64();
+            style |= WsChild;
+            style &= ~WsPopup;
+            style &= ~WsCaption;
+            SetWindowLongPtrSafe(child, GwlStyle, new IntPtr(style));
+            SetParent(child, parent);
+            if (GetParent(child) != parent)
+            {
+                return false;
+            }
         }
-        ResizeToParent(form, parent, forceFrameRefresh: true);
-        BringEmbeddedChildToFront(form, parent);
+        ResizeToParent(form, parent, forceFrameRefresh: true, show: reveal);
+        if (reveal)
+        {
+            BringEmbeddedChildToFront(form, parent);
+        }
         return true;
     }
 
-    public static void ResizeToParent(Form form, IntPtr parent, bool forceFrameRefresh = false)
+    /// <summary>
+    /// <paramref name="show"/> defaults to false: this also runs from the frame
+    /// timer's host maintenance, which must never put a deliberately hidden
+    /// window back on screen.
+    /// </summary>
+    public static void ResizeToParent(Form form, IntPtr parent, bool forceFrameRefresh = false, bool show = false)
     {
         if (parent == IntPtr.Zero || !IsWindow(parent) || !GetClientRect(parent, out var rect))
         {
@@ -54,12 +72,28 @@ internal static class NativeWindowHost
         {
             return;
         }
-        var flags = SwpNoActivate | SwpShowWindow;
+        var flags = SwpNoActivate;
+        if (show)
+        {
+            flags |= SwpShowWindow;
+        }
         if (forceFrameRefresh)
         {
             flags |= SwpFrameChanged;
         }
         SetWindowPos(form.Handle, HwndTop, 0, 0, width, height, flags);
+    }
+
+    /// <summary>The window's own WS_VISIBLE bit, independent of WinForms state.</summary>
+    public static bool IsWindowVisibleStyle(IntPtr window)
+    {
+        return window != IntPtr.Zero
+            && (GetWindowLongPtrSafe(window, GwlStyle).ToInt64() & WsVisible) != 0;
+    }
+
+    public static long ParentOf(IntPtr window)
+    {
+        return window == IntPtr.Zero ? 0L : GetParent(window).ToInt64();
     }
 
     public static bool TryGetClientSize(IntPtr window, out Size size)
