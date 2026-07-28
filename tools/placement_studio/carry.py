@@ -622,3 +622,34 @@ def player_clip_prefixes(model: str) -> Tuple[str, ...]:
         return known
     token = model.split("_", 1)[-1] if "_" in model else model
     return (f"cd_{token}_",) if token else ()
+
+
+def clip_motion(clip_stem: str):
+    """What a clip *does*, with the character taken out as well as the family and the takes.
+
+    `clip_signature` keeps the character, which is right when a swap stays inside one body.
+    Borrowing across bodies needs the same words to match regardless of who they were authored
+    for, so this is that signature minus its first element.
+    """
+
+    signature = clip_signature(clip_stem)
+    return None if signature is None else (signature[1], signature[2])
+
+
+#: The other playable character, for borrowing animations when a body has none of its own.
+#:
+#: Their skeletons share 403 bone names of Kliff's 434 and Damian's 448, and a Kliff sword draw
+#: resolves against Damian's rig with exactly the coverage it has on Kliff's — 89.6% either way.
+#: So the clip plays. It is not free: `.paa` keys are bind-pose deltas in bone-local axes, so
+#: the same rotations on different proportions land in a slightly different place, and contact
+#: points are where that shows. A borrowed draw may reach near the hilt rather than onto it.
+OTHER_PLAYER: Dict[str, str] = {"1_phm": "2_phw", "2_phw": "1_phm"}
+
+
+def borrowed_from_other_body(target_stem: str, donor_stem: str) -> bool:
+    """Whether this pair crosses from one playable character to the other."""
+
+    target, donor = clip_signature(target_stem), clip_signature(donor_stem)
+    if target is None or donor is None:
+        return False
+    return target[0] != donor[0]

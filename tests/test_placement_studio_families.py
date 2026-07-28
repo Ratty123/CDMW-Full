@@ -258,3 +258,47 @@ class WeaponFolderTests(unittest.TestCase):
 
         for folder in WEAPON_FOLDERS.values():
             self.assertIn(folder, WEAPON_CATEGORIES, f"{folder} would show as (?)")
+
+
+class BorrowedAnimationTests(unittest.TestCase):
+    """A body may borrow the other playable character's clips, but only as a fallback.
+
+    Their skeletons share 403 bone names of Kliff's 434 and Damian's 448, and a Kliff sword
+    draw resolves against Damian's rig with exactly the coverage it has on Kliff's. So the clip
+    plays — but `.paa` keys are bind-pose deltas in bone-local axes, so the same rotations on
+    different proportions land slightly differently, and a clip authored for this body is always
+    the better answer when one exists.
+    """
+
+    def test_the_motion_key_drops_the_character(self) -> None:
+        """That token is exactly what differs between two bodies doing the same thing."""
+
+        kliff = carry.clip_motion("cd_phm_lswd_00_01_nor_std_weapon_out_00")
+        damian = carry.clip_motion("cd_phw_lswd_00_01_nor_std_weapon_out_00")
+
+        self.assertIsNotNone(kliff)
+        self.assertEqual(kliff, damian)
+
+    def test_the_family_still_separates_two_different_motions(self) -> None:
+        """Dropping the character must not also drop what the clip does."""
+
+        self.assertNotEqual(
+            carry.clip_motion("cd_phm_lswd_00_01_nor_std_weapon_out_00"),
+            carry.clip_motion("cd_phm_lswd_00_01_nor_std_weapon_in_00"),
+        )
+
+    def test_each_character_names_the_other(self) -> None:
+        self.assertEqual(carry.OTHER_PLAYER["1_phm"], "2_phw")
+        self.assertEqual(carry.OTHER_PLAYER["2_phw"], "1_phm")
+
+    def test_a_borrowed_pair_is_recognisable(self) -> None:
+        """The UI has to be able to say a clip came from the other body."""
+
+        self.assertTrue(carry.borrowed_from_other_body(
+            "cd_phw_rpr_00_01_nor_std_weapon_out_00",
+            "cd_phm_lswd_00_01_nor_std_weapon_out_00",
+        ))
+        self.assertFalse(carry.borrowed_from_other_body(
+            "cd_phw_rpr_00_01_nor_std_weapon_out_00",
+            "cd_phw_lswd_00_01_nor_std_weapon_out_00",
+        ))
