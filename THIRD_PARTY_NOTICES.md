@@ -39,6 +39,61 @@ This file is a practical notice list for repository and release packaging. For a
 - Notes: built as a library inside the bundled `cd-texture-dx.exe` helper; no
   separate DirectXTex command-line executable is used at runtime
 
+The four libraries below are vendored into `native/cdmw_mesh_core/third_party/`
+and statically linked into the bundled `cdmw-mesh-core` helper. Each directory
+carries a `README.md` recording which files were copied and from where, and
+meshoptimizer, MikkTSpace, and xatlas keep their upstream notice inside the
+vendored source itself.
+
+### meshoptimizer
+
+- Purpose: native mesh optimization; index, overdraw, spatial-order, and
+  vertex-cache passes
+- Upstream: https://github.com/zeux/meshoptimizer
+- Licence: MIT
+
+### MikkTSpace
+
+- Purpose: reference tangent-space generation for `cdmw-mesh-core
+  generate-tangents-json`
+- Upstream: https://github.com/mmikk/MikkTSpace
+- Licence: zlib
+
+### ufbx
+
+- Purpose: FBX scene reading for import preview and the external model audit
+- Upstream: https://github.com/ufbx/ufbx
+- Licence: MIT. Upstream offers MIT or public domain and CDMW takes the MIT
+  option, which requires the notice to travel with the binary. Unlike the other
+  three, ufbx's notice is not carried inside `ufbx.h`, so the upstream `LICENSE`
+  is vendored beside it and the notice is reproduced here, because this file is
+  what ships:
+
+```text
+Copyright (c) 2020 Samuli Raivio
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### xatlas
+
+- Purpose: UV atlas generation for `cdmw-mesh-core auto-uv-json`
+- Upstream: https://github.com/jpcy/xatlas
+- Licence: MIT
+
 ## External Tools
 
 ### chaiNNer

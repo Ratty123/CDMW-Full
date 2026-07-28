@@ -38,8 +38,14 @@ from typing import Iterable, Mapping, Sequence, Tuple
 _BOM = "﻿"
 
 #: A tag, a comment, or an anonymous close. Ordered so comments win over tags.
+#: The comment accepts `--!>` as well as `-->`, because a tolerant parser ends a
+#: comment at either and a scanner that only knows `-->` runs straight past the
+#: first one, swallowing the markup after it as comment text. Nothing in the
+#: shipped file uses that spelling; the point is that mis-scanning it would be
+#: silent, and this module's whole contract is that an unedited document re-emits
+#: its source exactly.
 _TOKEN = re.compile(
-    r"(?P<comment><!--.*?-->)"
+    r"(?P<comment><!--(?P<comment_body>.*?)--!?>)"
     r"|(?P<close></\s*(?P<close_name>[A-Za-z_][\w.\-]*)?\s*>)"
     r"|(?P<open><\s*(?P<name>[A-Za-z_][\w.\-]*)(?P<attrs>[^<>]*?)(?P<selfclose>/?)>)",
     re.DOTALL,
@@ -157,7 +163,7 @@ def parse_posemodifier_xml(data: bytes | str, *, name: str = "") -> PoseModifier
 
     for match in _TOKEN.finditer(text):
         if match.group("comment"):
-            body = match.group("comment")[4:-3].strip()
+            body = match.group("comment_body").strip()
             # Several comments are commented-out markup rather than a label
             # (`<!-- <Bone>Bip01 Pelvis</Bone> -->`). Those describe nothing and showing
             # them as a description fills the column with noise.

@@ -92,6 +92,33 @@ class ParseTests(unittest.TestCase):
         wheel = next(s for s in self.doc.settings if s.label == "Wheel.Radius")
         self.assertEqual(wheel.note, "순환마차")
 
+    def test_a_comment_closed_with_the_bang_spelling_ends_there(self) -> None:
+        """`--!>` closes a comment, and a scanner that only knows `-->` runs past it.
+
+        The element after such a comment would be swallowed as comment text, so the
+        document would lose settings silently rather than fail.
+        """
+
+        source = (
+            '<PoseModifierDataList Type="LookAt">\n'
+            "\t<PoseModifierData>\n"
+            "\t\t<KeyList>\n"
+            "\t\t\t<KeyName>phm_01.pab</KeyName>\n"
+            "\t\t</KeyList>\n"
+            "\t\t<Sight>\n"
+            "\t\t\t<!-- label --!>\n"
+            "\t\t\t<YawRange>60</YawRange>\n"
+            "\t\t</Sight>\n"
+            "\t</PoseModifierData>\n"
+            "</PoseModifierDataList>\n"
+        ).encode("utf-8")
+
+        doc = parse_posemodifier_xml(source)
+        yaw = next(s for s in doc.settings if s.label == "YawRange")
+        self.assertEqual(yaw.value, "60")
+        self.assertEqual(yaw.note, "label")
+        self.assertTrue(rebuild_is_exact(source))
+
     def test_for_key_matches_case_insensitively(self) -> None:
         self.assertTrue(self.doc.for_key("PHM_01.PAB"))
 
