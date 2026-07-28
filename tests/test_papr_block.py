@@ -38,6 +38,19 @@ def _expression(node: str, variables: tuple[tuple[int, str], ...], text: str) ->
     return out + b"\x00" + _s(text)
 
 
+def _drivers_only(*pairs: tuple[str, float]) -> bytes:
+    """A `04 04` list: no limit run after the sentinel."""
+
+    out = bytes((len(pairs),))
+    for name, weight in pairs:
+        out += _s(name) + struct.pack("<f", weight)
+    return out + b"\x00"
+
+
+def _bound_node(name: str, limits: int = 4) -> bytes:
+    return b"\x00" + _s(name) + struct.pack(f"<{limits}f", *([0.0] * limits))
+
+
 OPEN = _rec(0x05, 0x03)
 CLOSE = _rec(0x07, 0x05)
 SCALAR = _rec(0x10, 0x01)
@@ -159,6 +172,69 @@ class ExpressionTests(unittest.TestCase):
         self.assertEqual(decoded.expressions, ())
 
 
+class DriverTagTests(unittest.TestCase):
+    """The two driver tags differ, and reading them alike swallowed later records."""
+
+    def test_tag_three_takes_the_limits_after_its_list(self) -> None:
+        block = OPEN + _rec(0x03, 0x04) + _drivers(("A", 50.0)) + CLOSE
+
+        decoded = decode_block(block)
+
+        self.assertTrue(decoded.complete, decoded.note)
+        self.assertEqual(len(decoded.groups[0].limits), 4)
+
+    def test_tag_four_takes_none_and_lets_records_follow(self) -> None:
+        """With limits read here, the four floats ate the records after the list."""
+
+        block = OPEN + _rec(0x04, 0x04) + _drivers_only(("A", 50.0)) + SCALAR + CLOSE
+
+        decoded = decode_block(block)
+
+        self.assertTrue(decoded.complete, decoded.note)
+        self.assertEqual(decoded.groups[0].limits, ())
+        self.assertEqual(decoded.record_count, 4)
+
+
+class BoundNodeTests(unittest.TestCase):
+    """A driver payload can carry a bound node, and it is not a record."""
+
+    def test_a_bound_node_is_read_and_not_counted_as_a_record(self) -> None:
+        block = (
+            OPEN
+            + _rec(0x04, 0x04) + _drivers_only(("A", 50.0))
+            + _rec(0x01, 0x01) + _bound_node("Bip01 L Hand")
+            + CLOSE
+        )
+
+        decoded = decode_block(block)
+
+        self.assertTrue(decoded.complete, decoded.note)
+        self.assertIn("Bip01 L Hand", decoded.names)
+        # open, drivers, close. The bound node is payload, per the header's own total.
+        self.assertEqual(decoded.record_count, 3)
+
+    def test_a_bound_node_takes_the_channel_count_too(self) -> None:
+        block = (
+            OPEN
+            + _rec(0x0A, 0x04) + b"\x00"
+            + _rec(0x04, 0x04) + _drivers_only(("A", 50.0))
+            + _rec(0x01, 0x01) + _bound_node("N", limits=5)
+            + CLOSE
+        )
+
+        self.assertTrue(decode_block(block).complete, decode_block(block).note)
+
+
+class FrameTests(unittest.TestCase):
+    def test_a_frame_record_carries_a_zero_and_three_floats(self) -> None:
+        block = OPEN + _rec(0x01, 0x03) + b"\x00" + struct.pack("<3f", 0.5, 0.25, 0.125) + CLOSE
+
+        decoded = decode_block(block)
+
+        self.assertTrue(decoded.complete, decoded.note)
+        self.assertEqual(decoded.record_count, 3)
+
+
 class RefusalTests(unittest.TestCase):
     """A block that does not fit is reported, never guessed past."""
 
@@ -270,11 +346,11 @@ class VanillaBlockTests(unittest.TestCase):
         return blocks, complete, expressions, exact_rigs
 
     def test_most_of_the_corpus_now_decodes_completely(self) -> None:
-        """A ratchet, not an equality: 73.1% at the time of writing, from 26.8%."""
+        """A ratchet, not an equality: 78.4% at the time of writing, from 26.8%."""
 
         blocks, complete, _expressions, _exact = self._decoded()
 
-        self.assertGreaterEqual(complete / blocks, 0.70, f"{complete}/{blocks}")
+        self.assertGreaterEqual(complete / blocks, 0.76, f"{complete}/{blocks}")
 
     def test_the_driver_formulas_are_recovered(self) -> None:
         _blocks, _complete, expressions, _exact = self._decoded()
@@ -286,4 +362,6 @@ class VanillaBlockTests(unittest.TestCase):
 
         _blocks, _complete, _expressions, exact = self._decoded()
 
-        self.assertGreaterEqual(exact, 1, "no rig both decoded fully and matched its header")
+        # Four rigs decode end to end and all four reproduce their declared total. That
+        # agreement is the whole reason to trust the rules the walk is built from.
+        self.assertGreaterEqual(exact, 4, "fewer rigs agree with their header than before")
