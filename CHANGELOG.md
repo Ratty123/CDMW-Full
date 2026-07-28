@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Docs
+- Located `ProjectileShotData`'s RTTI in `CrimsonDesert.exe` — TypeDescriptor at rva `0x05f6a810`, complete object locator at `0x053c168c`, class hierarchy at `0x053c0df0` — and recorded two facts the next attempt needs. The hierarchy declares a single entry, the class itself, so **`ProjectileShotData` has no base class** and its layout is flat, with no inherited prefix to account for; that fits `projectileshotinfo.paproj` being the one file with a clean fixed period. But the class is polymorphic, so the in-memory object begins with an 8-byte vptr that cannot appear in the file — **the on-disk record is a serialised form, not a `memcpy` of the class**, and any field offsets taken from a constructor will be shifted relative to the file.
+- No disassembly was done: `capstone`, `dumpbin` and `objdump` are all absent from this checkout, and adding one is a tooling decision rather than something to slip into a format commit. That is recorded in the manifest so the gap is visible rather than looking like unfinished analysis.
+
 ### Added
 - A Move-dialog row whose animation was borrowed from the other playable character now says `· borrowed`, in amber, and its tooltip explains the trade: the clip plays because the two rigs share most of their bones, but it was authored for different proportions, so reaching and contact may be a little off. Amber rather than red — it is a caveat, not a fault. The file names it already showed stay in the tooltip underneath.
 
