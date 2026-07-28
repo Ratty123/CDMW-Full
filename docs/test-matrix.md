@@ -50,14 +50,14 @@ worker signals execute on the owning QApplication thread.
 .\tools\dotnet_archive_backend\scripts\test_full_archive_backend.ps1 -Configuration Release
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_backend_contracts.py tests/test_archive_backend_client.py tests/test_archive_catalogue_service.py tests/test_archive_remote_catalogue_controller.py tests/test_archive_remote_paged_model.py tests/test_archive_remote_window_bridge.py tests/test_archive_remote_query.py tests/test_archive_remote_preview_dependencies.py tests/test_archive_remote_export.py tests/test_archive_backend_mode.py tests/test_archive_backend_failure_recovery.py
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_mutation_service.py tests/test_archive_patch_preflight.py
-.\.venv\Scripts\python.exe -m pytest tests/test_format_decode_progress.py tests/test_paloc_format.py tests/test_papr_format.py tests/test_placement_studio_constraints.py
+.\.venv\Scripts\python.exe -m pytest tests/test_format_decode_progress.py tests/test_paloc_format.py tests/test_papr_format.py tests/test_papr_block.py tests/test_placement_studio_constraints.py
 .\.venv\Scripts\python.exe -m pytest tests/test_posemodifier_xml.py tests/test_placement_studio_rig_behaviour.py
 .\.venv\Scripts\python.exe -m pytest tests/test_placement_studio_rig_files.py tests/test_placement_studio_rig_key.py tests/test_placement_studio_table_columns.py
 .\.venv\Scripts\python.exe -m pytest tests/test_translation_studio.py tests/test_format_explorer.py
 .\.venv\Scripts\python.exe -m pytest tests/test_prefab_binary.py tests/test_prefab_binary_edit.py tests/test_prefab_values.py tests/test_prefab_glossary.py tests/test_prefab_companions.py tests/test_prefab_asset_catalog.py tests/test_prefab_inspector_dialog.py
 .\.venv\Scripts\python.exe -m pytest tests/test_paa_motion_format.py tests/test_paa_motion_encode.py
 # Corpus gates need the installed game and the extracted vanilla motion tree:
-.\.venv\Scripts\python.exe -m pytest tests/test_paa_motion_encode.py tests/test_paloc_format.py tests/test_papr_format.py tests/test_posemodifier_xml.py tests/test_translation_studio.py -m real_game
+.\.venv\Scripts\python.exe -m pytest tests/test_paa_motion_encode.py tests/test_paloc_format.py tests/test_papr_format.py tests/test_papr_block.py tests/test_posemodifier_xml.py tests/test_translation_studio.py -m real_game
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_service_boundaries.py tests/test_architecture_import_boundaries.py::test_ui_does_not_import_archive_compatibility_facades
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_hkx_decomposition.py tests/test_archive_hkx_helper_decomposition.py tests/test_native_hkx_decomposition.py tests/test_hkx_editor_dialog_decomposition.py tests/test_hkx_preview.py tests/test_hkx_native_backend.py tests/test_hkx_ui_source_guards.py
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_binary_preview_decomposition.py tests/test_archive_binary_preview_helper_decomposition.py tests/test_archive_structured_asset_preview.py

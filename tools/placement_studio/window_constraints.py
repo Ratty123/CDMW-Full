@@ -94,6 +94,31 @@ _NUDGE = 5
 
 
 
+def _chain_detail_rows(chain) -> list[tuple[str, str, str, str]]:
+    """One row per weight site, plus a row for any bone that only carries a formula.
+
+    Keying rows off weight sites alone hid every expression-only bone -- a driven bone
+    with a formula and no influence weight had nothing to appear as, so the detail table
+    said the chain was empty when it was the interesting kind.
+    """
+
+    rows: list[tuple[str, str, str, str]] = []
+    for member in chain.members:
+        formulas = list(member.formulas)
+        if member.weights:
+            for index, site in enumerate(member.weights):
+                rows.append((
+                    member.name,
+                    site.bone,
+                    f"{site.value:.0f}%",
+                    formulas[index] if index < len(formulas) else "",
+                ))
+            continue
+        for formula in formulas or [""]:
+            rows.append((member.name, "—", "—", formula))
+    return rows
+
+
 class SecondaryMotionMixin:
     """The `.papr` chain editor. Mixed into `PlacementStudioWindow`."""
 
@@ -186,15 +211,20 @@ class SecondaryMotionMixin:
         detail.setContentsMargins(0, 0, 0, 0)
         detail.setSpacing(6)
 
-        self._chain_detail = QTableWidget(0, 3)
-        self._chain_detail.setHorizontalHeaderLabels(["Driven bone", "Follows", "Weight"])
+        # Formula is the point of this table now that `papr_block` decodes the expression
+        # payload: "follows Bip01 L Calf" is a fact, "at 5.5x its Z rotation, clamped at 8"
+        # is the thing a modder came to change.
+        self._chain_detail = QTableWidget(0, 4)
+        self._chain_detail.setHorizontalHeaderLabels(
+            ["Driven bone", "Follows", "Weight", "Formula"]
+        )
         self._chain_detail.verticalHeader().setVisible(False)
         self._chain_detail.setEditTriggers(QAbstractItemView.NoEditTriggers)
         # Driven bone and Follows hold the same kind of value -- a bone name -- so they get
         # the same share. Stretching only the first elided `P_Bip01 L Clavicle_Sub` into
         # `P_Bip01 L ...` while 600px sat unused in the column beside it.
         proportional_columns(
-            self._chain_detail, weights=(42, 42, 16), minimums=(126, 126, 60)
+            self._chain_detail, weights=(26, 26, 10, 38), minimums=(96, 96, 52, 120)
         )
         # Four rows plus a header. Any taller a floor and this pane starves the chain list
         # above it, which is the one you have to pick from before this fills at all.
@@ -436,12 +466,15 @@ class SecondaryMotionMixin:
         if chain is None:
             self._chain_value.setText("--")
             return
-        rows = [(m.name, site.bone, site.value) for m in chain.members for site in m.weights]
+        rows = _chain_detail_rows(chain)
         self._chain_detail.setRowCount(len(rows))
-        for row, (driven, driver, value) in enumerate(rows):
+        for row, (driven, driver, weight, formula) in enumerate(rows):
             self._chain_detail.setItem(row, 0, QTableWidgetItem(driven))
             self._chain_detail.setItem(row, 1, QTableWidgetItem(driver))
-            self._chain_detail.setItem(row, 2, QTableWidgetItem(f"{value:.0f}%"))
+            self._chain_detail.setItem(row, 2, QTableWidgetItem(weight))
+            cell = QTableWidgetItem(formula)
+            cell.setToolTip(formula or "No expression on this bone.")
+            self._chain_detail.setItem(row, 3, cell)
         self._constraint_updating = True
         self._chain_slider.setValue(int(round(chain.strength)))
         self._constraint_updating = False
