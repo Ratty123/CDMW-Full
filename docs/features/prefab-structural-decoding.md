@@ -207,6 +207,21 @@ Roughly in order of value:
 
 Recorded so they are not re-run:
 
+- **Name-record pointees cannot be excluded from length-field fixups, and the
+  walk cannot supply their field.** Only 50.5% of pointer sites have their
+  length field recorded by the walk; the rest are name records, read by
+  `_read_name_record`, which consumes a header, a count and the text but no
+  trailing length. That looked like evidence the record has none: the u32
+  immediately after it equals its own extent in just 24 of 10,137 cases, and
+  8.2% have no position satisfying the length test within 260 bytes. Excluding
+  those sites from the fixup pass on that basis broke **10,066 of 10,066**
+  length-changing vanilla pairs -- every one. So the field exists and must be
+  relocated; the record simply extends further than `_read_name_record` models,
+  and the walk resynchronises past the remainder rather than parsing it. The
+  masked scan finds the right field for these sites, which is why the oracle
+  was clean before and clean again after reverting. Modelling the rest of the
+  name record is the prerequisite for ever recording these, and nothing
+  currently needs it.
 - **The version-4 header field is not a content hash.** The decoder called those
   8 bytes a content hash on no evidence, which raised a real worry: neither
   rewriter touches them, so if the engine validated the field every edited v4
