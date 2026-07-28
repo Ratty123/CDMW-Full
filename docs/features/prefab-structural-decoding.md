@@ -97,7 +97,7 @@ Measured on 12,000 archive-extracted prefabs:
 | | |
 |---|---|
 | header, type table, pool, data header | 12,000 / 12,000 |
-| structural heap walk completes | 54.4% overall |
+| structural heap walk completes | 61.9% overall |
 | ... of files declaring one component type | 93.2% |
 | objects recovered | 128,142 |
 | numeric values recovered | 149,696 |
@@ -126,6 +126,13 @@ subsets edited at once, replacements shorter, longer and multi-byte, adjacent
 edits, and first-plus-last together. It is seeded, so failures reproduce, and
 it is mutation-tested -- breaking the shift table or the length scan is caught
 by every case group.
+
+One caveat on the oracle, worth stating because it bounds what the number
+proves: its admission filter imports `_length_field_candidates` and
+`_string_byte_mask` from the writer to decide which pairs are comparable. A
+layout those helpers mis-handle would be *excluded from the evidence* rather
+than fail it. The exact reproductions are real for every admitted layout; they
+are not an unconditional statement about every layout in the archives.
 
 **Differential validation against the game's own authoring tool**
 (`scripts/prefab_vanilla_pair_oracle.py`) is the one check that does not rest on

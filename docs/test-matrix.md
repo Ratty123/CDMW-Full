@@ -54,7 +54,7 @@ worker signals execute on the owning QApplication thread.
 .\.venv\Scripts\python.exe -m pytest tests/test_posemodifier_xml.py tests/test_placement_studio_rig_behaviour.py
 .\.venv\Scripts\python.exe -m pytest tests/test_placement_studio_rig_files.py tests/test_placement_studio_rig_key.py tests/test_placement_studio_table_columns.py tests/test_placement_studio_what_is_this.py
 .\.venv\Scripts\python.exe -m pytest tests/test_translation_studio.py tests/test_format_explorer.py
-.\.venv\Scripts\python.exe -m pytest tests/test_prefab_binary.py tests/test_prefab_binary_edit.py tests/test_prefab_values.py tests/test_prefab_glossary.py tests/test_prefab_companions.py tests/test_prefab_asset_catalog.py tests/test_prefab_inspector_dialog.py
+.\.venv\Scripts\python.exe -m pytest tests/test_prefab_binary.py tests/test_prefab_binary_edit.py tests/test_prefab_rewriter_fuzz.py tests/test_prefab_values.py tests/test_prefab_glossary.py tests/test_prefab_companions.py tests/test_prefab_asset_catalog.py tests/test_prefab_inspector_dialog.py
 .\.venv\Scripts\python.exe -m pytest tests/test_paa_motion_format.py tests/test_paa_motion_encode.py
 # Corpus gates need the installed game and the extracted vanilla motion tree:
 .\.venv\Scripts\python.exe -m pytest tests/test_paa_motion_encode.py tests/test_paloc_format.py tests/test_papr_format.py tests/test_papr_block.py tests/test_posemodifier_xml.py tests/test_translation_studio.py -m real_game
