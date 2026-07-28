@@ -8,11 +8,11 @@ Of 141 known file formats, 89 are engine formats (Pearl Abyss or licensed middle
 
 | Scope | Formats | Read coverage | Write coverage |
 |---|---|---|---|
-| **Engine formats the build ships** | 77 | **39.9%** | **24.7%** |
+| **Engine formats the build ships** | 77 | **40.4%** | **24.7%** |
 | Weighted by archive file count | 1,383,187 files | 65.9% | 53.8% |
-| Engine formats (proprietary + middleware) | 89 | 40.3% | 26.4% |
-| Pearl Abyss formats only | 82 | 40.9% | 26.8% |
-| All formats | 141 | 53.3% | 32.3% |
+| Engine formats (proprietary + middleware) | 89 | 40.8% | 26.4% |
+| Pearl Abyss formats only | 82 | 41.3% | 26.8% |
+| All formats | 141 | 53.5% | 32.3% |
 
 Coverage is a weighted mean, not a file count: decode `full` = 1.0, decode `partial` = 0.6, decode `surface` = 0.3, decode `none` = 0.0; write `full` = 1.0, write `constrained` = 0.5, write `none` = 0.0.
 
@@ -20,7 +20,7 @@ Coverage is a weighted mean, not a file count: decode `full` = 1.0, decode `part
 
 | Area | Formats | Read | Write |
 |---|---|---|---|
-| `animation_scene` | 15 | `########............` 39.3% | `#####...............` 23.3% |
+| `animation_scene` | 15 | `########............` 42.0% | `#####...............` 23.3% |
 | `audio_video` | 18 | `#########...........` 47.2% | `##..................` 8.3% |
 | `material_metadata` | 62 | `#########...........` 44.4% | `######..............` 31.5% |
 | `model_mesh_physics` | 19 | `###########.........` 54.2% | `#######.............` 36.8% |
@@ -84,7 +84,7 @@ Engine formats only, worst first. Open formats are listed at the end for complet
 | `.pampg` | 15,291 | surface | none | low | field semantics unknown |
 | `.pamt` | 33 | none | none | low | nested container copies, not content to decode |
 | `.pappt` | 1 | surface | none | low | record layout not parsed |
-| `.papr` | 20 | partial | full | low | no evidence the runtime reads this format: papr appears zero times as a standalone token across all 40+ shipped binaries where pac, pab, paseq, pamlod, meshinfo and pathc all appear, its internal Local_Euler / ExposeTransform vocabulary appears in no binary in ASCII or UTF-16, and 1,015 character descriptor and model files reference it nowhere. It reads as a 3ds Max rig export left in the archives. The live equivalents are plain XML already: character/descriptors/jiggledescriptor.xml and character/descriptors/posemodifierdata/posemodifierdata.xml. 59 of 2,541 configuration blocks still refuse to decode, on a 09-03 record and a 01-03 frame whose lead byte is a count rather than the zero the decoded forms carry |
+| `.papr` | 20 | full | full | low | no evidence the runtime reads this format: papr appears zero times as a standalone token across all 40+ shipped binaries where pac, pab, paseq, pamlod, meshinfo and pathc all appear, its internal Local_Euler / ExposeTransform vocabulary appears in no binary in ASCII or UTF-16, and 1,015 character descriptor and model files reference it nowhere. It reads as a 3ds Max rig export left in the archives. The live equivalents are plain XML already: character/descriptors/jiggledescriptor.xml and character/descriptors/posemodifierdata/posemodifierdata.xml. the 20th rig, cd_m0001_00_circusmachine_boss, finds 236 entry starts against a declared 237 and is rejected rather than guessed at; every block of the other nineteen decodes |
 | `.paproj` | 9 | none | none | low | container identified, record layout unknown |
 | `.paprojdesc` | 1 | none | none | low | container identified, record layout unknown |
 | `.pas` | 2 | full | full | low | no schema model, so edits are unchecked text edits |

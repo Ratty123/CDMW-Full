@@ -11,6 +11,11 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+- **`.papr` is fully decoded.** All 2,541 configuration blocks across the nineteen parsable rigs now consume exactly, from the 682 (26.8%) that matched a single canonical shape when this started, and every chain in every rig reports every byte accounted for. 906 3ds Max expression controllers come out as readable text — the rule each driven bone actually runs.
+- The last two constructs: `09 03` opens a scope and sets the channel count exactly as `0a 04` does, and `01 03` is a driver list that omits the sentinel and takes `3 + channels` floats rather than `4 + channels`. They had been refused for two commits because an earlier reading had the right idea and the wrong float run, which raised coverage to 98.0% while dropping header agreement from nine rigs to seven. The correct run turned up in `B_Gluteusmaximus_L_02`, a 31-byte block with no drivers at all, where the three floats sit alone between the count and the next record.
+- **All nineteen rigs now reproduce their declared `record_count` exactly**, from bear at 12 records to golem_imp_boss at 4,317. Nothing in the grammar can influence that header total, so nineteen independent agreements is the strongest statement available that these are the file's own rules. The corpus gate asserts both the full block count and the number of agreeing rigs. The manifest's `decode` grade for `.papr` moves from `partial` to `full`.
+
 ### Docs
 - Rewrote the `.papr` block section of the format guide, which still described the block as opaque and the grammar as unknowable. It now carries the record table, the driver-list and bound-node layouts, three real formulas next to what they mean, and — the part worth keeping — how any of it was checked. Coverage alone proves little, because permissive rules also consume bytes; the check that counts is the header's own `record_count`, which no decoding rule can influence, and nine rigs reproduce theirs exactly. That section also records the bound-node case, where the header settled a question the byte shapes could not, and the `09 03` reading that reaches higher coverage but costs header agreement and is therefore refused.
 

@@ -319,14 +319,57 @@ class EmptyDriverListTests(unittest.TestCase):
         self.assertEqual(len(decoded.groups[0].limits), 4)
 
 
-class FrameTests(unittest.TestCase):
-    def test_a_frame_record_carries_a_zero_and_three_floats(self) -> None:
-        block = OPEN + _rec(0x01, 0x03) + b"\x00" + struct.pack("<3f", 0.5, 0.25, 0.125) + CLOSE
+class SentinelFreeListTests(unittest.TestCase):
+    """`01 03` is a driver list without the sentinel, and with a shorter limit run."""
+
+    def _block(self, *pairs, floats: int, channels: bytes = b"") -> bytes:
+        body = bytes((len(pairs),))
+        for name, weight in pairs:
+            body += _s(name) + struct.pack("<f", weight)
+        body += struct.pack(f"<{floats}f", *([0.0] * floats))
+        head = OPEN + (_rec(0x09, 0x03) + channels if channels else b"")
+        return head + _rec(0x01, 0x03) + body + CLOSE
+
+    def test_an_empty_list_is_three_floats_and_no_sentinel(self) -> None:
+        decoded = decode_block(self._block(floats=3))
+
+        self.assertTrue(decoded.complete, decoded.note)
+        self.assertEqual(decoded.drivers, ())
+
+    def test_its_drivers_are_read_like_any_other_list(self) -> None:
+        decoded = decode_block(
+            self._block(("Bip01 Spine3", 50.0), ("Bip01 Neck", 50.0), floats=3)
+        )
+
+        self.assertTrue(decoded.complete, decoded.note)
+        self.assertEqual([d.name for d in decoded.drivers], ["Bip01 Spine3", "Bip01 Neck"])
+
+    def test_the_run_is_three_plus_channels_not_four(self) -> None:
+        """Reading it as four raised coverage and dropped header agreement to seven rigs."""
+
+        with_channel = self._block(("A", 50.0), floats=4, channels=b"\x00\x01")
+
+        self.assertTrue(decode_block(with_channel).complete, decode_block(with_channel).note)
+        self.assertEqual(len(decode_block(with_channel).groups[0].limits), 4)
+        # The same four floats with no channel declared is one too many.
+        self.assertFalse(decode_block(self._block(("A", 50.0), floats=4)).complete)
+
+
+class ScopeOpenerTests(unittest.TestCase):
+    def test_the_09_03_opener_sets_the_channel_count(self) -> None:
+        """It does the same job as `0a 04`, which is why both are read the same way."""
+
+        block = (
+            OPEN
+            + _rec(0x09, 0x03) + b"\x00\x02"
+            + _rec(0x03, 0x04) + _drivers(("A", 50.0), limits=(0.0,) * 6)
+            + CLOSE
+        )
 
         decoded = decode_block(block)
 
         self.assertTrue(decoded.complete, decoded.note)
-        self.assertEqual(decoded.record_count, 3)
+        self.assertEqual(len(decoded.groups[0].limits), 6)
 
 
 class RefusalTests(unittest.TestCase):
@@ -441,11 +484,11 @@ class VanillaBlockTests(unittest.TestCase):
         return blocks, complete, expressions, exact_rigs
 
     def test_most_of_the_corpus_now_decodes_completely(self) -> None:
-        """A ratchet, not an equality: 97.7% at the time of writing, from 26.8%."""
+        """Every block, now. An equality rather than a ratchet: nothing is unread."""
 
         blocks, complete, _expressions, _exact = self._decoded()
 
-        self.assertGreaterEqual(complete / blocks, 0.96, f"{complete}/{blocks}")
+        self.assertEqual(complete, blocks, f"{complete}/{blocks}")
 
     def test_the_driver_formulas_are_recovered(self) -> None:
         _blocks, _complete, expressions, _exact = self._decoded()
@@ -457,7 +500,7 @@ class VanillaBlockTests(unittest.TestCase):
 
         _blocks, _complete, _expressions, exact = self._decoded()
 
-        # Nine rigs decode end to end and all nine reproduce their declared total, the
-        # largest being golem_imp_boss at 4,317 records. That agreement is the whole reason
-        # to trust the rules, and a change that trades it for coverage is a regression.
-        self.assertGreaterEqual(exact, 9, "fewer rigs agree with their header than before")
+        # All nineteen rigs that parse reproduce their declared total, from bear at 12
+        # records to golem_imp_boss at 4,317. That agreement is the whole reason to trust
+        # the rules, and a change that trades it for coverage is a regression.
+        self.assertGreaterEqual(exact, 19, "fewer rigs agree with their header than before")
