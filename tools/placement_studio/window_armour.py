@@ -117,6 +117,11 @@ class ArmourPickerMixin:
         self._weapon_socket_entries = dict(sockets or {})
         self._weapon_mesh_entries = dict(meshes or {})
         self._populate_armour()
+        # The bare body lives in the packages, not in the pinned baseline, so until the index
+        # lands the figure is standing there in the fallback coat. Rebuild now that the real
+        # anatomy is reachable.
+        self._invalidate_skinned()
+        self._refresh_meshes()
         self._load_archive_weapons()
 
     def _populate_armour(self) -> None:

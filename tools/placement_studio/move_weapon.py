@@ -26,9 +26,10 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
+    QTreeWidget,
+    QTreeWidgetItem,
     QPushButton,
     QRadioButton,
     QVBoxLayout,
@@ -123,12 +124,16 @@ class MoveWeaponDialog(QDialog):
         pairs_for: Optional[Callable[..., Sequence[Tuple[object, object]]]] = None,
         handedness: str = "",
         on_preview: Optional[Callable[[object], None]] = None,
+        chart_lanes: Optional[dict] = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Move a weapon")
         self.setMinimumWidth(620)
         self._pairs_for = pairs_for or (lambda **_kwargs: [])
         self._on_preview = on_preview
+        #: clip -> the situation its action chart puts it in. Empty means every lane falls
+        #: back to the file name, which is a guess and is only used when nothing better says.
+        self._chart_lanes = dict(chart_lanes or {})
         self._positions = list(positions)
         #: Where each row hangs today. Without it the "Hangs on now" line kept showing the
         #: socket of whichever row happened to be selected when the dialog opened, and
@@ -194,22 +199,29 @@ class MoveWeaponDialog(QDialog):
         inner.addWidget(self._draws_only)
         inner.addWidget(self._everything)
 
-        self._choice_group = QGroupBox("Choose which animation to use")
-        self._choice_group.setToolTip(
-            "These are the only decisions to make. Everything else has a single obvious "
-            "stand-in and is applied without asking."
-        )
-        self._choice_form = QFormLayout(self._choice_group)
         self._choices: dict = {}
-        inner.addWidget(self._choice_group)
-
-        self._clip_list = QListWidget()
-        self._clip_list.setSelectionMode(QAbstractItemView.NoSelection)
-        self._clip_list.setUniformItemSizes(True)
-        self._clip_list.setMinimumHeight(190)
+        # A tree, not a flat list. Every row used to repeat its context — twelve rows each
+        # opening "Standing — put the weapon away" — so the words that differed were at the
+        # far end of a sentence that was the same every time. The context is the heading now
+        # and the row says only what makes it itself.
+        self._clip_list = QTreeWidget()
+        self._clip_list.setHeaderHidden(True)
+        self._clip_list.setColumnCount(3)
+        self._clip_list.setSelectionMode(QAbstractItemView.SingleSelection)
+        self._clip_list.setUniformRowHeights(True)
+        self._clip_list.setMinimumHeight(220)
+        self._clip_list.setRootIsDecorated(False)
+        self._clip_list.setIndentation(14)
+        header = self._clip_list.header()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)
+        header.setSectionResizeMode(2, QHeaderView.Fixed)
+        self._clip_list.setColumnWidth(1, 150)
+        self._clip_list.setColumnWidth(2, 76)
         self._clip_list.setToolTip(
-            "Every file that will be replaced, and what replaces it — the detail behind the "
-            "choices above. Untick any you want left alone."
+            "Every file that will be replaced. Untick any you want left alone, or select "
+            "one and press Watch to see the animation it would get."
         )
         inner.addWidget(self._clip_list, 1)
 
@@ -224,6 +236,14 @@ class MoveWeaponDialog(QDialog):
         buttons = QHBoxLayout()
         self._count_label = QLabel("")
         buttons.addWidget(self._count_label, 1)
+        watch = QPushButton("Watch selected")
+        watch.setToolTip(
+            "Play the animation this row would be given, so you can judge every replacement "
+            "and not only the ones that offered a choice."
+        )
+        watch.setEnabled(self._on_preview is not None)
+        watch.clicked.connect(self._watch_selected)
+        buttons.addWidget(watch)
         for text, checked in (("Select all", True), ("Select none", False)):
             button = QPushButton(text)
             button.clicked.connect(lambda _c=False, value=checked: self._set_all(value))
@@ -241,7 +261,7 @@ class MoveWeaponDialog(QDialog):
         layout.addWidget(self._buttons)
 
         # Ticking a row has to move the count, or "which animations" is unanswerable.
-        self._clip_list.itemChanged.connect(lambda _item: self._refresh_ok())
+        self._clip_list.itemChanged.connect(lambda _i, _c: self._refresh_ok())
         # Both radios, not just one: unchecking "Everything" does not necessarily check
         # "Draws only", so listening to a single button leaves the list showing the old scope.
         self._draws_only.toggled.connect(lambda _c: self._reload_clips())
@@ -271,7 +291,9 @@ class MoveWeaponDialog(QDialog):
 
         import collections
 
-        from .clip_names import friendly, group_key, group_label, stance_of
+        from .clip_names import (
+            family_label, friendly, group_key, lane_of, short_label, stance_of,
+        )
 
         self._clip_list.clear()
         self._rows = []
@@ -282,86 +304,136 @@ class MoveWeaponDialog(QDialog):
             return
 
         rows = list(self._pairs_for(locomotion=self._everything.isChecked()))
-        groups = collections.defaultdict(list)
+        # One row per thing you could decide about, not per file. Takes and distance copies
+        # of the same moment differ only in ways the game picks for itself, so they share a
+        # row, a tick and a style picker.
+        lanes = {}
+        merged = collections.OrderedDict()
         for row in rows:
-            groups[group_key(row[0].name)].append(row)
+            merged.setdefault(group_key(row[0].name), []).append(row)
 
-        for key, members in groups.items():
-            # The styles on offer are the distinct stances among every stand-in in the group.
+        # Two rows in a lane that would read alike get the state that separates them, so
+        # every row is distinguishable without repeating a word that is already the heading.
+        labels = collections.Counter(
+            (lane_of(v[0][0].name, self._chart_lanes), short_label(v[0][0].name))
+            for v in merged.values()
+        )
+
+        for key, members in merged.items():
+            target, donor = members[0][0], members[0][1]
+            name = lane_of(target.name, self._chart_lanes)
+            label = short_label(target.name)
+            lane = lanes.get(name)
+            if lane is None:
+                lane = QTreeWidgetItem(self._clip_list, [name])
+                lane.setFirstColumnSpanned(True)
+                lane.setExpanded(True)
+                lanes[name] = lane
+            text = label
+            if labels[(name, label)] > 1:
+                text = f"{text}  ·  {family_label(target.name).lower()}"
+            if len(members) > 1:
+                text = f"{text}   ({len(members)} files)"
+
+            item = QTreeWidgetItem(lane, [text])
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(0, Qt.Checked)
+            item.setToolTip(
+                0,
+                "\n".join(f"{t0.name}\n   ←  {d0.name}" for t0, d0, *_r in members),
+            )
+
+            # The style choice lives on the row it belongs to. It used to sit in a separate
+            # block above, so the same thing appeared twice and the list under it looked like
+            # a set of rows nobody had decided about.
             styles = {}
             for row in members:
                 for option in (row[2] if len(row) > 2 else (row[1],)):
                     styles.setdefault(stance_of(option.name), option)
+            choice = None
             if len(styles) > 1:
                 ordered = sorted(styles.items())
-                label = group_label(members[0][0].name, len(members))
-                self._choices[key] = _Choice(
-                    label,
+                choice = _Choice(
+                    text,
                     [
-                        (
-                            stance,
-                            f"Style {position + 1}",
-                            f"{friendly(example.name)}\n     {example.name}",
-                            example,
-                        )
-                        for position, (stance, example) in enumerate(ordered)
+                        (stance, f"Style {n + 1}",
+                         f"{friendly(example.name)}\n     {example.name}", example)
+                        for n, (stance, example) in enumerate(ordered)
                     ],
-                    self._on_preview,
                 )
-
-        for row in rows:
-            target, donor = row[0], row[1]
-            options = row[2] if len(row) > 2 else (donor,)
-            choice = self._choices.get(group_key(target.name))
-            item = QListWidgetItem()
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Checked)
-            self._clip_list.addItem(item)
-            if choice is not None:
-                item.setText(f"{friendly(target.name)}\n      {target.name}")
-                self._rows.append((item, target, (choice, options, donor)))
+                self._choices[key] = choice
+                self._clip_list.setItemWidget(item, 1, choice.box)
             else:
-                item.setText(
-                    f"{friendly(target.name)}\n      ← {friendly(donor.name)}"
-                )
-                self._rows.append((item, target, donor))
+                stand_in = short_label(donor.name)
+                if stand_in != label:
+                    item.setText(0, f"{text}   ←  {stand_in}")
+
+            if self._on_preview is not None:
+                watch = QPushButton("Watch")
+                watch.setFlat(True)
+                watch.setMaximumWidth(64)
+                watch.setToolTip("Play the animation this row would be given.")
+                watch.clicked.connect(lambda _c=False, i=item: self._watch_row(i))
+                self._clip_list.setItemWidget(item, 2, watch)
+            self._rows.append((item, members, choice))
+
+        for name, lane in lanes.items():
+            total = sum(
+                len(members) for item, members, _c in self._rows if item.parent() is lane
+            )
+            lane.setText(0, f"{name}   ({total})")
         self._rebuild_choice_form()
         self._refresh_ok()
 
     def _rebuild_choice_form(self) -> None:
-        """Show one row per decision, and hide the section when there is nothing to decide."""
+        """Nothing to rebuild: the style pickers live on the rows they belong to."""
 
-        while self._choice_form.rowCount():
-            self._choice_form.removeRow(0)
-        for choice in self._choices.values():
-            self._choice_form.addRow(choice.label + ":", choice.widget)
-        self._choice_group.setVisible(bool(self._choices))
-        self._choice_group.setTitle(
-            f"Choose which animation to use ({len(self._choices)})"
-        )
+        return
+
+    def _watch_selected(self) -> None:
+        """Play whatever the selected row would be replaced with."""
+
+        self._watch_row(self._clip_list.currentItem())
+
+    def _watch_row(self, item) -> None:
+        """Play the stand-in one row would be given. Lane headings play nothing."""
+
+        if self._on_preview is None or item is None:
+            return
+        found = next((r for r in self._rows if r[0] is item), None)
+        if found is None:
+            return
+        _item, members, choice = found
+        donor = choice.example() if choice is not None else members[0][1]
+        if donor is not None:
+            self._on_preview(donor)
 
     def _set_all(self, checked: bool) -> None:
         state = Qt.Checked if checked else Qt.Unchecked
-        for row in range(self._clip_list.count()):
-            self._clip_list.item(row).setCheckState(state)
+        for item, _members, _choice in self._rows:
+            item.setCheckState(0, state)
         self._refresh_ok()
 
     def _chosen_clips(self):
-        chosen = []
-        for item, target, source in getattr(self, "_rows", []):
-            if item.checkState() != Qt.Checked:
-                continue
-            if isinstance(source, tuple):
-                from .clip_names import stance_of
+        """Every (target, donor) pair a ticked row stands for."""
 
-                choice, options, fallback = source
-                wanted = choice.style()
-                donor = next(
-                    (o for o in options if stance_of(o.name) == wanted), fallback
-                )
-            else:
-                donor = source
-            chosen.append((target, donor))
+        from .clip_names import stance_of
+
+        chosen = []
+        for item, members, choice in getattr(self, "_rows", []):
+            if item.checkState(0) != Qt.Checked:
+                continue
+            for row in members:
+                target, fallback = row[0], row[1]
+                options = row[2] if len(row) > 2 else (fallback,)
+                if choice is None:
+                    donor = fallback
+                else:
+                    wanted = choice.style()
+                    donor = next(
+                        (o for o in options if stance_of(o.name) == wanted), fallback
+                    )
+                chosen.append((target, donor))
         return tuple(chosen)
 
     def _undecided(self) -> int:
@@ -371,7 +443,7 @@ class MoveWeaponDialog(QDialog):
 
     def _refresh_ok(self) -> None:
         chosen = len(self._chosen_clips())
-        total = self._clip_list.count()
+        total = sum(len(m) for _i, m, _c in getattr(self, '_rows', []))
         undecided = self._undecided()
         note = (f"  —  {undecided} need a choice; see above" if undecided else "")
         self._count_label.setText(
@@ -405,7 +477,7 @@ class MoveWeaponDialog(QDialog):
         """
 
         for choice in self._choices.values():
-            if "take the weapon out" in choice.label.lower():
+            if "drawing" in choice.label.lower():
                 return choice.example()
         for choice in self._choices.values():
             return choice.example()

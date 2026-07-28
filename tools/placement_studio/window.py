@@ -38,10 +38,13 @@ from PySide6.QtWidgets import (
 )
 
 from .corpus import Baseline
+from .layout_util import fit_popup as _fit_popup, let_header_shrink
+from .clip_names import part_label, socket_label
 from .editing import EditSession
 from .model import PlacementBinding, Vec3
 from .session import PlacementSession
 from .glossary import as_html as glossary_html, tip
+from .palette import GROUP_BOX_STYLE
 from .report_style import inspector_html
 from .viewport import SkeletonViewport
 from .window_animation import AnimationTabMixin
@@ -54,6 +57,7 @@ from .window_playback import PlaybackMixin
 from .window_rig_behaviour import RigBehaviourMixin
 from .window_rig_tabs import RigTabsMixin
 
+
 class PosedMesh:
     """Deformed geometry the viewport can draw without a per-frame Vec3 rebuild.
 
@@ -61,12 +65,16 @@ class PosedMesh:
     for the few callers — bounds, clipping — that still want objects.
     """
 
-    __slots__ = ("points", "triangles", "name", "_vertices")
+    __slots__ = ("points", "triangles", "name", "groups", "_vertices")
 
-    def __init__(self, points, triangles, name: str = "posed body") -> None:
+    def __init__(self, points, triangles, name: str = "posed body", groups=None) -> None:
         self.points = points
         self.triangles = triangles
         self.name = name
+        #: One index per triangle naming which worn piece it came from, or None when the set
+        #: was never split. The body and its armour arrive as separate meshes and are merged
+        #: for drawing, so this is the only surviving record of where a helmet ends.
+        self.groups = groups
         self._vertices = None
 
     @property
@@ -98,47 +106,9 @@ _DANGLING = QColor(235, 140, 120)
 _CHILD = QColor(190, 170, 235)
 
 
-def _let_header_shrink(*, combos, labels) -> None:
-    """Stop the header dictating a minimum window width.
-
-    By default a combo asks to be as wide as its longest entry and a label as wide as its
-    longest text, and neither will shrink below that. The part rows are long enough on their
-    own (`CD_MainWeapon_Sword_R   ->   Pelvis_L_Socket / RHand_Socket`) that between them the
-    header demanded a 4,010 px window — so on any real monitor the controls were jammed
-    against each other with no way to give any of them room.
-
-    Combos keep a readable minimum and elide the rest; the status labels give way entirely,
-    since they are commentary and the window is more useful than the sentence.
-    """
-
-    for combo in combos:
-        combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
-        combo.setMinimumContentsLength(14)
-    for label in labels:
-        label.setSizePolicy(QSizePolicy.Ignored, label.sizePolicy().verticalPolicy())
-        label.setMinimumWidth(0)
-
-
-def fit_popup(combo) -> None:
-    """Let a dropdown's list be wider than the dropdown itself.
-
-    By default the popup matches the closed control, so narrowing a combo to keep the window
-    resizable also narrows the list you pick from — and Qt elides the overflow down the
-    middle, which is the worst place: `New attach point (click the body)` came out as
-    `New attach poi...lick the body)`, unreadable at both ends.
-
-    The closed control can stay narrow and elide, because whatever is selected is also shown
-    elsewhere; the list cannot, because it is the only place the options are legible.
-    """
-
-    metrics = combo.fontMetrics()
-    widest = max(
-        (metrics.horizontalAdvance(combo.itemText(i)) for i in range(combo.count())),
-        default=0,
-    )
-    if widest:
-        # Room for the scrollbar and the frame, or the last character still clips.
-        combo.view().setMinimumWidth(widest + 40)
+#: Re-exported: `window.py` is where these were, and tests and tabs import them from here.
+_let_header_shrink = let_header_shrink
+fit_popup = _fit_popup
 
 
 class PlacementStudioWindow(
@@ -167,6 +137,9 @@ class PlacementStudioWindow(
         self._skinned_meshes: list = []
         # Triangle indices never change with the pose; only the vertices do.
         self._skinned_faces: tuple = ()
+        # One piece index per triangle, so worn pieces can be tinted apart.
+        self._skinned_groups = None
+        self._skinned_body_count = 0
         self._clipping_requested = False
         # Armour pieces chosen per slot, as archive paths.
         self._armour_choice: dict = {}
@@ -214,6 +187,7 @@ class PlacementStudioWindow(
     # ── construction ────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
+        self.setStyleSheet(GROUP_BOX_STYLE)
         self._model_box = QComboBox()
         self._model_box.setToolTip(tip("Character"))
         self._model_box.currentIndexChanged.connect(self._on_model_changed)
@@ -235,7 +209,10 @@ class PlacementStudioWindow(
             "Also show attachment points that nothing is currently hanging on — the spare "
             "places you could move something to."
         )
-        self._show_unused.setChecked(True)
+        # Off by default: they are the spare places you *could* move something to, and a
+        # couple of them (a fishing-bobber start, a docking anchor) sit metres off the body
+        # with a leader line back to it, which reads as geometry going wrong.
+        self._show_unused.setChecked(False)
         self._show_meshes = QCheckBox("Meshes")
         self._show_meshes.setToolTip("Draw the actual body and item shapes, not just bones.")
         self._show_meshes.setChecked(True)
@@ -259,7 +236,7 @@ class PlacementStudioWindow(
         self._part_box.currentIndexChanged.connect(self._on_part_box_changed)
 
         self._clipping_label = QLabel("sinks into body: not measured")
-        self._measure_clipping_button = QPushButton("Check fit")
+        self._measure_clipping_button = QPushButton("Check Fit/Clipping")
         self._measure_clipping_button.setToolTip(
             tip("Clipping", "Checks this frame only. Press it again after moving the item "
                             "or scrubbing to a different pose.")
@@ -321,6 +298,7 @@ class PlacementStudioWindow(
                 self._carry_box, self._mesh_role_box,
             ),
             labels=(self._clipping_label, carry_status),
+            buttons=(self._measure_clipping_button,),
         )
 
         self._tree = QTreeWidget()
@@ -486,10 +464,22 @@ class PlacementStudioWindow(
 
         for binding in sorted(session.bindings(), key=sort_key):
             part = binding.part
-            route = part.in_socket or "(none)"
+            # Named the way a person would say it, with the game's own identifiers on hover:
+            # `CD_MainWeapon_Sword_R -> Pelvis_L_Socket / RHand_Socket` is what the file holds,
+            # and a modder comparing against a chart still needs it.
+            route = socket_label(part.in_socket) if part.in_socket else "(nowhere)"
+            raw_route = part.in_socket or "(none)"
             if part.out_socket and part.out_socket != part.in_socket:
-                route += f" / {part.out_socket}"
-            self._part_box.addItem(f"{binding.part_name}   →   {route}", binding.part_name)
+                route += f" / {socket_label(part.out_socket)}"
+                raw_route += f" / {part.out_socket}"
+            self._part_box.addItem(
+                f"{part_label(binding.part_name)}   →   {route}", binding.part_name
+            )
+            self._part_box.setItemData(
+                self._part_box.count() - 1,
+                f"{binding.part_name}\n{raw_route}",
+                Qt.ToolTipRole,
+            )
 
         position = self._part_box.findData(previous) if previous else -1
         if position < 0:
@@ -635,16 +625,17 @@ class PlacementStudioWindow(
         if self._skinned_cache_model == session.model:
             return self._skinned_meshes
 
-        from .meshes import body_mesh_paths
-
         loaded = []
-        for path in body_mesh_paths(self._baseline, session.model):
+        for path in self._base_body_paths(session.model):
             try:
-                mesh = load_skinned(self._baseline.read(path), path, parsed)
+                mesh = load_skinned(self._archive_or_baseline(path), path, parsed)
             except Exception:  # noqa: BLE001 - a mesh that will not bind is simply skipped
                 mesh = None
             if mesh is not None:
                 loaded.append(mesh)
+        # Everything loaded so far is the character itself. What follows is worn, and the
+        # split is the only thing that lets the viewport tint a helmet apart from a head.
+        self._skinned_body_count = len(loaded)
         # Armour comes from the archives: the pinned baseline holds only the two body
         # meshes, so every helmet, glove and cloak has to be read on demand.
         for path in sorted(self._armour_choice.values()):
@@ -659,7 +650,35 @@ class PlacementStudioWindow(
         self._skinned_cache_model = session.model
         self._skinned_meshes = loaded
         self._skinned_faces = ()
+        self._skinned_groups = None
         return loaded
+
+    def _base_body_paths(self, model: str) -> List[str]:
+        """The bare figure the character starts as, before anything is worn.
+
+        The nude body plus its head: hands with fingers, feet with toes, and a face. What the
+        baseline pins instead is a coat and a pair of trousers, which left the figure with no
+        extremities at all and made a coat the thing clipping was measured against.
+
+        Falls back to the pinned meshes while the archive index is still building, and if this
+        model has no anatomy indexed at all — a dressed body beats no body.
+        """
+
+        from .meshes import body_mesh_paths
+
+        index = getattr(self, "_armour_index", None)
+        if index is not None:
+            paths = index.base_body(model)
+            if paths:
+                return paths
+        return body_mesh_paths(self._baseline, model)
+
+    def _archive_or_baseline(self, path: str) -> bytes:
+        """Read a body mesh from wherever it lives — pinned, or out in the packages."""
+
+        if path in self._baseline:
+            return self._baseline.read(path)
+        return self._armour_bytes(path)
 
     def _armour_bytes(self, path: str) -> bytes:
         """Read an armour mesh, from the baseline if pinned there, else the archives."""
@@ -686,6 +705,7 @@ class PlacementStudioWindow(
         self._skinned_cache_model = ""
         self._skinned_meshes = []
         self._skinned_faces = ()
+        self._skinned_groups = None
 
     def _posed_body(self):
         """The skinned body at the current pose, as viewport geometry."""
@@ -706,13 +726,7 @@ class PlacementStudioWindow(
         except Exception:  # noqa: BLE001 - fall back to the static proxy
             return None
 
-        if not self._skinned_faces:
-            faces = []
-            base = 0
-            for mesh in meshes:
-                faces.extend((int(a) + base, int(b) + base, int(c) + base) for a, b, c in mesh.faces)
-                base += mesh.vertex_count
-            self._skinned_faces = tuple(faces)
+        self._build_skinned_faces(meshes)
 
         import numpy as np
 
@@ -720,7 +734,54 @@ class PlacementStudioWindow(
         if not blocks:
             return None
         points = np.concatenate(blocks) if len(blocks) > 1 else blocks[0]
-        return PosedMesh(points=points, triangles=self._skinned_faces)
+        return PosedMesh(
+            points=points, triangles=self._skinned_faces, groups=self._skinned_groups
+        )
+
+    def _bind_body(self):
+        """The same body-and-armour set at its rest pose, for when no clip is loaded.
+
+        Armour was invisible until an animation was playing. `_posed_body` returns nothing
+        without a loaded clip, and the static proxy it fell back to is built from
+        `body_mesh_paths` alone — it has never known about the worn pieces. So picking a
+        helmet changed the count in the Armour tab and nothing on screen.
+        """
+
+        import numpy as np
+
+        meshes = self._skinned_body()
+        if not meshes:
+            return None
+        self._build_skinned_faces(meshes)
+        blocks = [mesh.rest[:, :3] for mesh in meshes]
+        points = np.concatenate(blocks) if len(blocks) > 1 else blocks[0]
+        return PosedMesh(
+            points=points, triangles=self._skinned_faces, groups=self._skinned_groups
+        )
+
+    def _build_skinned_faces(self, meshes) -> None:
+        """Triangle indices across the merged set, rebuilt only when the set changes."""
+
+        if self._skinned_faces:
+            return
+        import numpy as np
+
+        body_count = int(getattr(self, "_skinned_body_count", len(meshes)))
+        faces = []
+        groups = []
+        base = 0
+        for index, mesh in enumerate(meshes):
+            before = len(faces)
+            faces.extend(
+                (int(a) + base, int(b) + base, int(c) + base) for a, b, c in mesh.faces
+            )
+            # Every body mesh shares group 0 — the head and the torso are one character, and
+            # tinting them apart would read as a seam rather than as a worn piece.
+            piece = 0 if index < body_count else index - body_count + 1
+            groups.extend([piece] * (len(faces) - before))
+            base += mesh.vertex_count
+        self._skinned_faces = tuple(faces)
+        self._skinned_groups = np.asarray(groups, dtype=np.int32) if groups else None
 
     def _refresh_meshes(self) -> None:
         """Place the weapon mesh at its attachment point and measure clipping.
@@ -736,7 +797,10 @@ class PlacementStudioWindow(
             return
         # A posed body when a clip is loaded, the bind-pose proxy otherwise. The proxy is
         # still what clipping is measured against when nothing is playing.
-        body = self._posed_body() or self._body_mesh()
+        # Posed while a clip runs, at rest otherwise — but either way from the skinned set,
+        # so worn armour is on the character whether or not anything is playing. The plain
+        # proxy is only the last resort, and it is still what clipping measures against.
+        body = self._posed_body() or self._bind_body() or self._body_mesh()
         weapon_mesh = None
         clipping: List[int] = []
         self._clipping_report = None
@@ -884,7 +948,7 @@ class PlacementStudioWindow(
             return
         report = self._clipping_report
         if report is None:
-            self._clipping_label.setText("sinks into body: press Check fit")
+            self._clipping_label.setText("sinks into body: press Check Fit/Clipping")
             self._clipping_label.setStyleSheet("")
             return
         subject = self._selected_part or "CD_MainWeapon_Sword_R"

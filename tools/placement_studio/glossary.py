@@ -12,6 +12,13 @@ matters when editing — the second is usually the one that answers the real que
 
 from __future__ import annotations
 
+#: What the scan is called wherever it is named. It used to be "Match animations", which says
+#: what it operates on but not what it does or what it costs — and it reads like a command that
+#: changes something, so it invited being pressed by anyone who had not read the tooltip. It
+#: only measures and reports: every clip is played and the hands watched, which takes about half
+#: a minute. The name now says the question it answers, and the cost is on the button.
+MATCH_LABEL = "Find which draws fit"
+
 import re
 from dataclasses import dataclass
 from html import escape as html_escape
@@ -90,11 +97,11 @@ TERMS: Tuple[Term, ...] = (
         "somewhere different.",
     ),
     Term(
-        "Match animations",
+        MATCH_LABEL,
         "Works out which draws start from which carry position, by playing each one and "
         "watching where the hands go.",
         "The game files do not record this anywhere, so it has to be measured. It takes about "
-        "half a minute and is remembered afterwards.",
+        "half a minute, changes nothing, and is remembered afterwards.",
     ),
     Term(
         "Swap animations",
@@ -134,6 +141,52 @@ TERMS: Tuple[Term, ...] = (
 BY_NAME: Dict[str, Term] = {term.name: term for term in TERMS}
 
 
+
+#: What each tab is for. The walkthrough covers the one job most people came to do; this is
+#: the map for everything else, which until now the Help page did not mention at all.
+TABS: Tuple[Tuple[str, str], ...] = (
+    ("Inspector",
+     "What the selected attach point is, what hangs on it, and what else moves if you change "
+     "it. The question the manual workflow keeps asking."),
+    ("Clips &amp; animation",
+     "Find any motion clip in the game and play it on the character. Also lists which clips "
+     "run through the selected attach point, and — for advanced use — can point an action "
+     "chart at a different socket."),
+    ("Armour",
+     "Dress the character. Pick a piece per slot and it appears on the rig, so you can see "
+     "whether a moved weapon collides with what is worn."),
+    ("Driven bones",
+     "Bones that follow other bones rather than the animation — cloth, hair, scabbards. Shows "
+     "what drives what."),
+    ("Rig behaviour",
+     "The rig's own rules: pose fix-ups and jiggle settings the game applies on top of a clip."),
+    ("Pending changes",
+     "Every edit so far, as a list, with the files each one would write. Nothing reaches the "
+     "game until you export."),
+)
+
+#: The viewport controls. These are on screen with no labels beyond a checkbox, so what they
+#: do and — for the two that cost something — what they cost has to be written down somewhere.
+VIEWPORT: Tuple[Tuple[str, str], ...] = (
+    ("Orbit, pan, zoom",
+     "Drag with the left button to orbit, the middle button to pan, the wheel to zoom. The "
+     "grid is fixed to the world, so it does not change as you move."),
+    ("Meshes",
+     "Draw the character's geometry, not just its skeleton. The body is the bare figure — "
+     "hands, feet and face — and clothing appears only as you put it on in the Armour tab."),
+    ("Solid",
+     "Opaque instead of see-through. Solid is lit by the direction each surface faces, so "
+     "shapes read as round; see-through is what lets you look inside the body at a weapon "
+     "sunk into it."),
+    ("Bones, Labels, Unused sockets",
+     "Overlays. Unused sockets are attach points nothing currently hangs on — useful when "
+     "looking for somewhere to move an item to, noise otherwise."),
+    ("Check Fit/Clipping",
+     "Counts how many of the weapon's vertices are inside the body at the current pose, and "
+     "colours them red. It measures this frame only — press it again after moving the item "
+     "or scrubbing to a different pose."),
+)
+
 def tip(name: str, extra: str = "") -> str:
     """The tooltip for a term, optionally with a line specific to one control."""
 
@@ -161,7 +214,7 @@ WALKTHROUGH: Tuple[Tuple[str, str], ...] = (
         "moves. It offers to play the result so you can see it.",
     ),
     (
-        "Optional: <b>Match animations</b>",
+        "Optional: <b>" + MATCH_LABEL + "</b>",
         "Measures which draws start from which body position, so the clip list can be "
         "filtered with <b>Only draws for this spot</b>. Takes about half a minute, once. "
         "The swap does not need it.",
@@ -194,66 +247,99 @@ TROUBLESHOOTING: Tuple[Tuple[str, str], ...] = (
 
 _STYLE = """
 <style>
-  body { line-height: 150%; }
-  h2 { margin-top: 18px; margin-bottom: 2px; }
-  p { margin-top: 2px; margin-bottom: 10px; }
-  td { padding-bottom: 9px; padding-right: 14px; }
-  .lead { color: #9aa4b4; }
-  .term { color: #cfd6e4; }
-  .why { color: #99a3b3; }
+  body { line-height: 148%; color: #d3d9e6; }
+  h2 {
+    margin-top: 4px; margin-bottom: 2px;
+    color: #8fbcf0; font-size: large;
+  }
+  h3 { margin-top: 2px; margin-bottom: 2px; color: #cfd6e4; }
+  p { margin-top: 2px; margin-bottom: 8px; }
+  td { padding-bottom: 10px; padding-right: 16px; }
+  .lead { color: #b6c0d0; }
+  .term { color: #e2e7f0; }
+  .why { color: #97a1b2; }
   .step { color: #7fb2e8; }
+  .rule { color: #3a4152; }
 </style>
 """
 
+#: The page is laid out inside a table of this width rather than filling the window. A line of
+#: prose stretched across a 1,500 px pane is measurably harder to read — the eye loses the
+#: start of the next line — and this page is nearly all prose. Everything below therefore has a
+#: fixed measure and the window can be as wide as it likes.
+_MEASURE = 940
 
-def as_html() -> str:
-    """The Help panel: a walkthrough first, then the words, then what goes wrong.
 
-    Laid out as tables rather than as paragraphs. The first version ran every definition
-    together into a block of prose that nobody would read to the end of — and the one thing
-    a reader wants from a glossary is to find *one* entry and stop.
+def _section(title: str, body: str) -> str:
+    """One titled block, with a rule under the heading so the page has visible seams."""
+
+    # `<hr>` rather than a one-pixel table cell: Qt's rich text ignores `height` on a cell and
+    # renders it at a full line, which came out as a heavy grey band across the page.
+    return f"<h2>{title}</h2><hr><table width='100%'>{body}</table>"
+
+
+def _pairs(rows) -> str:
+    """Name on the left, explanation on the right — the shape of a dictionary.
+
+    The eye runs down one column to find an entry and stops. Packing both into one cell made
+    every row wrap over four lines and the column impossible to scan.
     """
 
-    rows = [
-        _STYLE,
-        "<h2>What this tool does</h2>",
-        "<p class='lead'>It moves where a character carries their equipment — a sword from "
-        "the hip to the back, say — and keeps the take-out and put-away animations in step "
-        "with the new position.</p>",
-        "<h2>Moving a weapon, start to finish</h2>",
-        "<table width='100%'>",
-    ]
-    for number, (action, effect) in enumerate(WALKTHROUGH, start=1):
-        rows.append(
+    out = []
+    for name, text in rows:
+        out.append(
             f"<tr>"
-            f"<td valign='top' width='24'><b class='step'>{number}</b></td>"
-            f"<td valign='top' width='42%'>{action}</td>"
+            f"<td valign='top' width='26%'><b class='term'>{name}</b></td>"
+            f"<td valign='top' class='why'>{text}</td>"
+            f"</tr>"
+        )
+    return "".join(out)
+
+
+def as_html() -> str:
+    """The Help panel.
+
+    Ordered by what a reader needs first: what the tool is for, the one job most people came to
+    do, then the map of everything else, then the words, then what goes wrong. Every part is a
+    two-column table rather than paragraphs, because the thing a reader wants from reference
+    text is to find *one* entry and stop reading.
+    """
+
+    steps = []
+    for number, (action, effect) in enumerate(WALKTHROUGH, start=1):
+        steps.append(
+            f"<tr>"
+            f"<td valign='top' width='26'><b class='step'>{number}</b></td>"
+            f"<td valign='top' width='38%'>{action}</td>"
             f"<td valign='top' class='why'>{effect}</td>"
             f"</tr>"
         )
-    rows.append("</table>")
 
-    # Name on the left, definition on the right — the shape of a dictionary, so the eye can
-    # run down one column to find an entry. Packing the name and its definition into the same
-    # cell made every term wrap over four lines and the column impossible to scan.
-    rows.append("<h2>Words this tool uses</h2><table width='100%'>")
+    words = []
     for term in TERMS:
-        rows.append(
+        words.append(
             f"<tr>"
-            f"<td valign='top' width='22%'><b class='term'>{term.name}</b></td>"
+            f"<td valign='top' width='26%'><b class='term'>{term.name}</b></td>"
             f"<td valign='top'>{_rich(term.what)}"
             f"<br><span class='why'>{_rich(term.why)}</span></td>"
             f"</tr>"
         )
-    rows.append("</table>")
 
-    rows.append("<h2>If something looks wrong</h2><table width='100%'>")
-    for symptom, cure in TROUBLESHOOTING:
-        rows.append(
-            f"<tr>"
-            f"<td valign='top' width='38%'><b class='term'>{symptom}</b></td>"
-            f"<td valign='top' class='why'>{cure}</td>"
-            f"</tr>"
-        )
-    rows.append("</table>")
-    return "".join(rows)
+    body = [
+        _STYLE,
+        "<h2>What this tool does</h2>",
+        "<p class='lead'>It moves where a character carries their equipment — a sword from "
+        "the hip to the back, say — and keeps the take-out and put-away animations in step "
+        "with the new position. Nothing you do here touches the game until you export.</p>",
+        _section("Moving a weapon, start to finish", "".join(steps)),
+        _section("The tabs", _pairs(TABS)),
+        _section("The 3D view", _pairs(VIEWPORT)),
+        _section("Words this tool uses", "".join(words)),
+        _section("If something looks wrong", _pairs(TROUBLESHOOTING)),
+    ]
+    # Held to a fixed measure; see `_MEASURE`.
+    return (
+        f"<table width='{_MEASURE}' cellspacing='0' cellpadding='0'><tr><td>"
+        + "".join(body)
+        + "</td></tr></table>"
+    )

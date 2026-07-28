@@ -57,7 +57,7 @@ def test_an_unknown_term_falls_back_to_the_extra_line():
 @pytest.mark.parametrize(
     "label",
     [
-        "Match animations",
+        glossary.MATCH_LABEL,
         "Only draws for this spot",
         "Use as orientation",
         "Pending changes",
@@ -79,9 +79,14 @@ def test_the_walkthrough_names_controls_that_exist(label):
         path.read_text(encoding="utf-8")
         for path in root.glob("window*.py")
     )
-    assert f'"{label}' in sources or f"'{label}" in sources, (
-        f"the Help walkthrough names {label!r}, but no widget is labelled that"
+    named = (
+        f'"{label}' in sources
+        or f"'{label}" in sources
+        # Labels shared between a widget and the instructions are held as one constant, which
+        # is a stronger guarantee than this test: they cannot disagree in the first place.
+        or (label == glossary.MATCH_LABEL and "MATCH_LABEL" in sources)
     )
+    assert named, f"the Help walkthrough names {label!r}, but no widget is labelled that"
     assert label in glossary.as_html()
 
 
@@ -106,3 +111,38 @@ def test_every_symptom_comes_with_a_cure():
     for symptom, cure in glossary.TROUBLESHOOTING:
         assert symptom and cure
         assert cure != symptom
+
+
+def test_the_help_page_covers_every_tab():
+    """Help described one job and left the rest of the window unmentioned.
+
+    A reader who opens a tab and cannot tell what it is for has nowhere else to look — there is
+    no manual outside this panel.
+    """
+
+    page = glossary.as_html()
+    for tab in ("Inspector", "Armour", "Driven bones", "Rig behaviour", "Pending changes"):
+        assert tab in page, f"the Help page never mentions the {tab} tab"
+
+
+def test_the_help_page_explains_the_viewport_controls():
+    """`Meshes` and `Solid` are checkboxes with no explanation anywhere else on screen."""
+
+    page = glossary.as_html()
+    for control in ("Meshes", "Solid", "Check Fit/Clipping", "Unused sockets"):
+        assert control in page, f"{control} is on screen unexplained"
+
+
+def test_the_page_is_held_to_a_readable_measure():
+    """Prose stretched across a 1,500 px pane loses the reader at every line break."""
+
+    assert f"width='{glossary._MEASURE}'" in glossary.as_html()
+    assert glossary._MEASURE <= 1100
+
+
+def test_every_section_is_headed_and_ruled():
+    page = glossary.as_html()
+
+    assert page.count("<h2>") == page.count("<hr>") + 1, (
+        "each section wants a heading and a rule; the lead paragraph has no rule"
+    )

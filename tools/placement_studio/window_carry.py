@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 
 from . import carry
 from .editing import EditError
-from .glossary import tip
+from .glossary import MATCH_LABEL, tip
 
 #: Bumped when a threshold in `carry` changes, so a cache built under the old scoring is
 #: rebuilt rather than quietly kept.
@@ -141,11 +141,12 @@ class CarryPickerMixin:
         )
         self._history_button.clicked.connect(self._show_history)
 
-        self._carry_match = QPushButton("Match animations")
+        self._carry_match = QPushButton(f"{MATCH_LABEL} (~30s)")
         self._carry_match.setToolTip(
-            tip("Match animations",
-                "This finds and shows clips. It does not change the mod — see the report it "
-                "prints when it finishes.")
+            tip(MATCH_LABEL,
+                "Safe to press: it only looks. Every draw is played and the hands watched, to "
+                "work out which carry position each one starts from — about half a minute, "
+                "remembered afterwards. Nothing about the mod changes; it prints a report.")
         )
         self._carry_match.clicked.connect(lambda: self._start_carry_index(explicit=True))
 
@@ -207,7 +208,7 @@ class CarryPickerMixin:
 
     def _refresh_carry_status(self) -> None:
         if self._carry_index is None:
-            self._carry_status.setText("press Match animations to link clips to positions")
+            self._carry_status.setText(f"press {MATCH_LABEL} to link clips to positions")
             return
         counts = self._carry_index.counts()
         parts = [
@@ -259,7 +260,7 @@ class CarryPickerMixin:
         if self._carry_index is None:
             self.statusBar().showMessage(
                 self.statusBar().currentMessage()
-                + "  —  press Match animations to find the draws for it"
+                + f"  —  press {MATCH_LABEL} to find the draws for it"
             )
             return
         clips = self._carry_index.clips_for_zone(zone)
@@ -399,7 +400,7 @@ class CarryPickerMixin:
         def rank(pair):
             name = pair[0].name
             return (
-                0 if action_of(name) == "take the weapon out" else 1,
+                0 if action_of(name) == "drawing the weapon" else 1,
                 0 if context_of(name) == "standing" else 1,
                 0 if not name.endswith("_lod") else 1,
                 name,
@@ -525,6 +526,7 @@ class CarryPickerMixin:
             pairs_for=lambda locomotion=False: self._swappable_pairs(locomotion=locomotion),
             handedness=carry.weapon_handedness(session.weapon),
             on_preview=self._preview_clip,
+            chart_lanes=self._chart_lane_index(),
         )
         # `QDialog.Accepted` is a class constant, not an instance attribute: reading it off
         # the instance raised, so nothing was applied and — under pythonw, with no console —
@@ -594,6 +596,22 @@ class CarryPickerMixin:
         layout.addWidget(listing, 1)
         layout.addWidget(buttons)
         dialog.exec()
+
+    def _chart_lane_index(self) -> dict:
+        """Where each clip is used, from the charts. Built once, then cached on disk."""
+
+        cached = getattr(self, "_chart_lanes_cache", None)
+        if cached is not None:
+            return cached
+        from .chart_lanes import load
+        from .corpus import game_root
+
+        try:
+            cached = load(game_root(), self._session.model if self._session else "")
+        except Exception:  # noqa: BLE001 - without it the lanes fall back to file names
+            cached = {}
+        self._chart_lanes_cache = cached
+        return cached
 
     def _preview_clip(self, entry) -> None:
         """Play one clip from inside the move dialog, so a style can be judged by watching."""

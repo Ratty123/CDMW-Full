@@ -295,9 +295,16 @@ class PartDropdownTests(unittest.TestCase):
         harness = _PartsHarness([_part()])
         harness._populate_parts()
         label = harness._part_box.itemText(0)
-        self.assertIn("CD_MainWeapon_Sword_R", label)
-        self.assertIn("Pelvis_L_Socket", label)
-        self.assertIn("RHand_Socket", label)
+        # Rows are named the way a person would say them; the game's own identifiers are one
+        # hover away, because a modder comparing against a chart still needs them verbatim.
+        self.assertIn("Sword", label)
+        self.assertIn("Left hip", label)
+        self.assertIn("Right hand", label)
+        from PySide6.QtCore import Qt as _Qt
+
+        hover = harness._part_box.itemData(0, _Qt.ToolTipRole) or ""
+        self.assertIn("CD_MainWeapon_Sword_R", hover)
+        self.assertIn("RHand_Socket", hover)
 
     def test_weapon_rows_sort_ahead_of_uncategorised_rows(self) -> None:
         harness = _PartsHarness(
@@ -312,12 +319,12 @@ class PartDropdownTests(unittest.TestCase):
 
         harness = _PartsHarness([_part(in_socket="RHand_Socket", out_socket="RHand_Socket")])
         harness._populate_parts()
-        self.assertEqual(harness._part_box.itemText(0).count("RHand_Socket"), 1)
+        self.assertEqual(harness._part_box.itemText(0).count("Right hand"), 1)
 
     def test_an_unrouted_row_reads_as_none_rather_than_blank(self) -> None:
         harness = _PartsHarness([_part(in_socket="", out_socket="")])
         harness._populate_parts()
-        self.assertIn("(none)", harness._part_box.itemText(0))
+        self.assertIn("(nowhere)", harness._part_box.itemText(0))
 
     def test_the_selection_survives_a_repopulate(self) -> None:
         parts = [_part(), _part(part_name="CD_MainWeapon_Axe_R")]
