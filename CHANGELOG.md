@@ -12,6 +12,9 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Docs
+- Rewrote the `.papr` block section of the format guide, which still described the block as opaque and the grammar as unknowable. It now carries the record table, the driver-list and bound-node layouts, three real formulas next to what they mean, and — the part worth keeping — how any of it was checked. Coverage alone proves little, because permissive rules also consume bytes; the check that counts is the header's own `record_count`, which no decoding rule can influence, and nine rigs reproduce theirs exactly. That section also records the bound-node case, where the header settled a question the byte shapes could not, and the `09 03` reading that reaches higher coverage but costs header agreement and is therefore refused.
+
+### Docs
 - Brought the `.papr` row of the capability manifest up to date with what the decoder actually does now. Its evidence still said "682 of 2,541 config blocks are one fully decoded 9-record shape" and its remaining column still said "block contents also stay opaque", both of which stopped being true several commits ago. It now records 97.7% of blocks consuming exactly, the 894 recovered expression controllers, and the header-`record_count` agreement across nine rigs that is the reason to believe any of it — plus the 59 blocks that genuinely still refuse. The `decode` grade stays `partial` on purpose: the rubric reserves `full` for "no unexplained spans in the supported path", and 59 blocks is not none.
 
 ### Added

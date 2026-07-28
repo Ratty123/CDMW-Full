@@ -63,7 +63,7 @@ payload. `cdmw/core/papr_block.py` owns that grammar and its evidence; in short,
 holds driver lists (who this bone follows, and by how much), the limits that follow one,
 and 3ds Max expression controllers carrying the actual rule -- `amin(Local_Euler_Z*5.5+20) 8`.
 
-**1,857 of 2,541 blocks (73.1%) now consume exactly**, up from the 682 (26.8%) that
+**2,482 of 2,541 blocks (97.7%) now consume exactly**, up from the 682 (26.8%) that
 matched the one canonical 27-byte shape this module used to recognise. `block_shape`
 reports `decoded` for those and `partial` for the rest, and `ConstraintEntry.decode()`
 returns what was found.
