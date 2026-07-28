@@ -30,8 +30,45 @@ env:
   PIP_VERSION: "25.3"
 
 jobs:
+  # The suite is not a pure-Python suite. Several hundred tests drive the native
+  # helpers for real -- mesh edit, DDS encode, UV unwrap -- and those paths fail
+  # closed by design rather than falling back to Python, so without the binaries
+  # they do not degrade, they fail. Build them once here and hand the same three
+  # exes to both interpreter legs.
+  native:
+    name: Build native helpers
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # The script builds the four C++ helpers, then requires `dotnet` for the
+      # Mesh Editor renderer and throws without it, and finally builds cd-hkx if
+      # cargo is on PATH. Runners ship Rust, so that one comes along for free.
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build native helpers
+        shell: pwsh
+        run: .\build_native_windows.ps1 -Configuration Release
+
+      - name: Upload native helpers
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-helpers
+          path: |
+            native/*/build/Release/**
+            native/cd_hkx/target/release/cd-hkx.exe
+          if-no-files-found: error
+          retention-days: 1
+
   qa:
     name: Headless QA / Python ${{ matrix.python-version }}
+    needs: native
     runs-on: windows-latest
     timeout-minutes: 120
     strategy:
@@ -42,6 +79,29 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      # Restores native/<helper>/build/Release/, which is where
+      # cdmw/core/texture_native.py and cdmw/modding/mesh_native_core.py look.
+      - name: Download native helpers
+        uses: actions/download-artifact@v4
+        with:
+          name: native-helpers
+          path: native
+
+      - name: Confirm the helpers the suite needs are present
+        shell: pwsh
+        run: |
+          $expected = @(
+            "native/cd_texture_dx/build/Release/cd-texture-dx.exe",
+            "native/cdmw_mesh_core/build/Release/cdmw-mesh-core.exe",
+            "native/cdmw_preview_core/build/Release/cdmw-preview-core.exe"
+          )
+          $missing = @($expected | Where-Object { -not (Test-Path -LiteralPath $_) })
+          if ($missing.Count -gt 0) {
+            Get-ChildItem native -Recurse -Filter *.exe | ForEach-Object { $_.FullName }
+            throw "Native helpers did not survive the artifact round trip: $($missing -join ', ')"
+          }
+          $expected | ForEach-Object { "ok $_" }
 
       - name: Set up Python
         uses: actions/setup-python@v5
