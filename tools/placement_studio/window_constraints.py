@@ -62,11 +62,8 @@ from PySide6.QtWidgets import (
 )
 
 from .table_columns import proportional_columns
+from .what_is_this import guide_strip
 from .constraints import (
-    CAPABILITIES,
-    LOADED_BY_GAME_EVIDENCE,
-    LOADED_BY_GAME_WARNING,
-    WHAT_THIS_TAB_IS_FOR,
     RigConstraints,
     changed_files,
     constraint_path_for_model,
@@ -76,6 +73,7 @@ from .constraints import (
     load_constraints,
     set_chain_strength,
 )
+from .constraints import guide as constraints_guide
 
 _NO_RIG = "No constraint rig loaded for this character."
 #: Shown when the panel followed the Studio's character and there is genuinely nothing
@@ -85,9 +83,6 @@ _NO_RIG_FOR_MODEL = (
     "game's characters have one — the four playable rigs and sixteen creatures. Pick one "
     "of those to see this tab populated, or use Rig behaviour, which covers every rig."
 )
-#: One line, not a paragraph. The reason lives in `WHAT_THIS_TAB_IS_FOR` at the top of the
-#: panel; repeating it at full length here cost 60px that the controls needed.
-_CANNOT_PREVIEW = "The viewport cannot show this — export and look in game."
 #: Softer/Stiffer step. Five points is roughly the smallest change worth exporting for.
 _NUDGE = 5
 
@@ -133,24 +128,14 @@ class SecondaryMotionMixin:
         outer.setContentsMargins(8, 8, 8, 8)
         outer.setSpacing(6)
 
-        # The warning goes above everything. Somebody who reads only one line of this
-        # panel should read the one that says their edit may not do anything.
-        warning = QLabel(LOADED_BY_GAME_WARNING)
-        warning.setWordWrap(True)
-        warning.setToolTip(LOADED_BY_GAME_EVIDENCE)
-        warning.setStyleSheet(
-            "QLabel { background: #4a3a12; color: #f3e2b3; border: 1px solid #7a5f1c;"
-            " padding: 6px; border-radius: 3px; }"
-        )
-        self._constraint_warning = warning
-        outer.addWidget(warning)
-
-        # Directly under the warning, because "so what is this tab for" is the question the
-        # warning provokes, and it went unanswered when this sat at the bottom of the panel.
-        purpose = QLabel(WHAT_THIS_TAB_IS_FOR)
-        purpose.setWordWrap(True)
-        purpose.setStyleSheet("QLabel { color: #9fb4c7; }")
-        outer.addWidget(purpose)
+        # One line instead of four paragraphs. The badge carries the single fact that
+        # matters -- this format may never reach the game -- and the button carries the
+        # rest, which is reference material read once and in the way afterwards.
+        self._guide = constraints_guide()
+        strip, badge, button = guide_strip(self._guide, panel)
+        self._constraint_badge = badge
+        self._constraint_guide_button = button
+        outer.addWidget(strip)
 
         self._constraint_header = QLabel(_NO_RIG)
         self._constraint_header.setWordWrap(True)
@@ -266,45 +251,6 @@ class SecondaryMotionMixin:
         detail.addLayout(controls)
 
         self._set_controls_enabled(False)
-        detail.addWidget(self._build_capability_box(), 0)
-
-        self._constraint_note = QLabel(_CANNOT_PREVIEW)
-        self._constraint_note.setWordWrap(True)
-        detail.addWidget(self._constraint_note)
-        return box
-
-    def _build_capability_box(self) -> QWidget:
-        """The can/cannot summary. Nothing in it is allowed to wrap.
-
-        This box used to lose text. Word-wrapped `QLabel`s report a one-line `sizeHint`,
-        the group box was pinned to that hint by `QSizePolicy.Maximum`, and every bullet
-        long enough to wrap had its tail cut off -- "follows its drivers" and "warning
-        above" both vanished mid-panel, and one whole row with them.
-
-        The fix is to remove the wrapping rather than to out-guess the height: the labels
-        are short enough for one line (`CAPABILITIES` is gated on 30 characters), wrapping
-        is off so a narrow panel elides instead of silently dropping a row, and the reason
-        for each entry is on the tooltip where it costs no height at all.
-        """
-
-        box = QGroupBox("What you can do here")
-        columns = QHBoxLayout(box)
-        columns.setContentsMargins(8, 6, 8, 6)
-        for allowed, title in ((True, "You can"), (False, "You cannot")):
-            side = QVBoxLayout()
-            side.setSpacing(2)
-            side.addWidget(QLabel(f"<b>{title}</b>"))
-            for is_allowed, text, why in CAPABILITIES:
-                if is_allowed != allowed:
-                    continue
-                mark = "✓" if allowed else "✗"
-                row = QLabel(f"{mark} {text}")
-                row.setWordWrap(False)
-                row.setToolTip(why)
-                side.addWidget(row)
-            side.addStretch(1)
-            columns.addLayout(side, 1)
-        self._constraint_capability = box
         return box
 
     def _build_export_row(self) -> QWidget:

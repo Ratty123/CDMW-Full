@@ -391,7 +391,7 @@ CAPABILITIES: Tuple[Tuple[bool, str, str], ...] = (
     (False, "Edit driver expressions",
      "The expression text is authoring leftovers; nothing evaluates it."),
     (False, "Count on it changing the game",
-     "See the warning at the top of this tab: .papr looks like dead content."),
+     "See 'Why it says EXPERIMENTAL' below: .papr looks like dead content."),
 )
 
 #: The use case, in two sentences, because "what is this tab for" is the question the
@@ -402,6 +402,64 @@ WHAT_THIS_TAB_IS_FOR = (
     "changes that definitely take effect, use Rig behaviour. Nothing here previews in the "
     "viewport either — the game solves secondary motion at runtime, so export and look."
 )
+
+
+def guide():
+    """What the Driven bones tab is for, as the dialog shows it.
+
+    Built here rather than in the UI so `CAPABILITIES` is the single source for both the
+    promises and the code behind them, and so the text can be tested without Qt.
+    """
+
+    from .what_is_this import Guide, Section, capability_sections
+
+    return Guide(
+        title="Driven bones — what is this for?",
+        badge="EXPERIMENTAL",
+        badge_kind="experimental",
+        summary="Nothing in the game appears to read .papr, so treat this as a way to read "
+                "and experiment with the shipped rigs.",
+        sections=(
+            Section(
+                heading="What a driven bone is",
+                body="A bone moved by another bone rather than by an animation clip. On a "
+                     "player rig that is mostly corrective deformation — how a muscle "
+                     "bulges and a knee creases — not hair: across the twenty shipped "
+                     "rigs 259 chains are deformation and only 5 are jiggle.",
+            ),
+            Section(
+                heading="Worked examples from the shipped rigs",
+                body="The Formula column shows the rule each bone runs.",
+                examples=(
+                    ("Local_Euler_Y*1.5-1.7",
+                     "follow 1.5x the driver's Y rotation, offset -1.7"),
+                    ("-Local_Euler_Z*3+30.5",
+                     "follow 3x its Z rotation, inverted, offset 30.5"),
+                    ("amin(Local_Euler_Z*5.5+20) 8",
+                     "the same, clamped so it never exceeds 8"),
+                ),
+            ),
+            *capability_sections(CAPABILITIES),
+            Section(
+                heading="Why it says EXPERIMENTAL",
+                bullets=(
+                    "The extension appears nowhere in any shipped binary, though pac, pab "
+                    "and paseq all do.",
+                    "Neither does the Local_Euler / ExposeTransform vocabulary inside these "
+                    "files — those are 3ds Max constructs.",
+                    "Twenty files ship, one per rig, against 316,059 .paa and 12,962 .pac.",
+                    "The reading that fits is that .papr is a rig export left in the "
+                    "archives that no runtime code loads.",
+                ),
+            ),
+            Section(
+                heading="Where to go instead",
+                body="For secondary-motion changes that definitely take effect, use the Rig "
+                     "behaviour tab. The viewport cannot preview either: the game solves "
+                     "secondary motion at runtime, so export and look in game.",
+            ),
+        ),
+    )
 
 
 def export_packages(

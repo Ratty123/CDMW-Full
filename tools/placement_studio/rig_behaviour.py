@@ -111,6 +111,67 @@ class RigBehaviour:
         return changed_files(self.original, self.document, GAME_PATH)
 
 
+def guide():
+    """What the Rig behaviour tab is for, as the dialog shows it.
+
+    The counterpart to `constraints.guide`, and deliberately the opposite badge: the
+    engine's own `pa::engineScript::PoseModifier*` classes are named after this file's
+    sections, so an edit here is expected to change the game.
+    """
+
+    from .what_is_this import Guide, Section
+
+    return Guide(
+        title="Rig behaviour — what is this for?",
+        badge="TAKES EFFECT",
+        badge_kind="live",
+        summary="The game reads this file, so edits here do change behaviour.",
+        sections=(
+            Section(
+                heading="What it controls",
+                body="Runtime pose modifiers, keyed by .pab skeleton. The panel shows only "
+                     "the settings that apply to the character on screen — 223 of "
+                     "2,779 for the player.",
+                examples=(
+                    ("LookAt", SECTION_LABELS["LookAt"]),
+                    ("SpineTrain", SECTION_LABELS["SpineTrain"]),
+                    ("LimbIK", SECTION_LABELS["LimbIK"]),
+                    ("RootBoneIK", SECTION_LABELS["RootBoneIK"]),
+                    ("Vehicle", SECTION_LABELS["Vehicle"]),
+                ),
+            ),
+            Section(
+                heading="Editing a value",
+                body="Values are text, and the shape is kept. Pick a row, change the value "
+                     "box, press Apply; the multiply buttons scale every number in a value "
+                     "at once.",
+                examples=(
+                    ("-70 70", "a range: two numbers"),
+                    ("8 8 30", "a vector: three numbers"),
+                    ("×2 on -70 70", "becomes -140 140, still a range"),
+                ),
+            ),
+            Section(
+                heading="Two things that will surprise you",
+                bullets=(
+                    "One block often serves several characters. Changing the player's "
+                    "LookAt also changes it for phw_01, ptm_01 and pdem_01 — the "
+                    "Applies-to column names every skeleton sharing the block.",
+                    "A section can be switched off for a skeleton by the file's "
+                    "DisabledKeyList. Editing it then does nothing and says nothing, so the "
+                    "panel puts a banner up when that applies to the character you picked.",
+                ),
+            ),
+            Section(
+                heading="How it ships",
+                body="Export writes the whole descriptor back with only the spans you "
+                     "changed rewritten, so the file keeps its hand-authored formatting, "
+                     "comments and byte layout.",
+            ),
+        ),
+    )
+
+
 def load_rig_behaviour(data: bytes, pab: str = "") -> RigBehaviour:
     return RigBehaviour(
         document=parse_posemodifier_xml(data, name=GAME_PATH),

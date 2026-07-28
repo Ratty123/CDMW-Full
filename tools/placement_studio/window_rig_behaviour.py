@@ -49,6 +49,7 @@ from PySide6.QtWidgets import (
 from cdmw.core.posemodifier_xml import PoseModifierError
 
 from .table_columns import proportional_columns
+from .what_is_this import guide_strip
 from .rig_behaviour import (
     GAME_PATH,
     SECTION_LABELS,
@@ -60,18 +61,10 @@ from .rig_behaviour import (
     load_rig_behaviour,
     pab_for_model,
 )
+from .rig_behaviour import guide as behaviour_guide
 
 _ALL = "All sections"
 _NOT_LOADED = "Pose-modifier descriptor not loaded."
-#: Why a modder would open this tab at all, and what the values here actually do. The
-#: engine's `pa::engineScript::PoseModifier*` classes are named after these sections, so
-#: unlike Driven bones an edit made here is expected to change the game.
-WHAT_THIS_TAB_IS_FOR = (
-    "What this tab is for: how far the head turns to look at something, how much the spine "
-    "lags when the character turns, how far arms and legs reach, how a cart's suspension "
-    "travels. The game reads this file, so edits here do take effect — but one block often "
-    "serves several characters, and the Applies-to column says which."
-)
 #: The descriptor is one file for the whole game, so "not in the archives" is the only
 #: way this panel can be empty -- and it means the install is not what we expect.
 _NO_DESCRIPTOR = (
@@ -93,12 +86,13 @@ class RigBehaviourMixin:
         outer.setContentsMargins(8, 8, 8, 8)
         outer.setSpacing(6)
 
-        # The counterpart to the Driven bones warning: this file the engine demonstrably
-        # reads, and that is the single most useful thing to know before editing it.
-        purpose = QLabel(WHAT_THIS_TAB_IS_FOR)
-        purpose.setWordWrap(True)
-        purpose.setStyleSheet("QLabel { color: #9fb4c7; }")
-        outer.addWidget(purpose)
+        # The counterpart to Driven bones' strip, and deliberately the other badge:
+        # this file the engine demonstrably reads.
+        self._guide = behaviour_guide()
+        strip, badge, button = guide_strip(self._guide, panel)
+        self._behaviour_badge = badge
+        self._behaviour_guide_button = button
+        outer.addWidget(strip)
 
         self._behaviour_header = QLabel(_NOT_LOADED)
         self._behaviour_header.setWordWrap(True)
