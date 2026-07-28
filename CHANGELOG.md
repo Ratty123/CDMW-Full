@@ -12,6 +12,10 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Docs
+- Tested my own claim that local collection ambiguity makes a completed `.prefab` walk untrustworthy, and **it does not hold** — the result rehabilitates the decoder rather than undermining it. Over 1,500 prefabs the shipped narrow-first reader completes 916 files, and **913 of those contain at least one locally ambiguous collection site**. Forcing the wide reading at exactly those sites leaves only **11** completing. A wrong width desynchronises everything after it and the blob then fails to close, so completion is **globally determined even where individual sites are not**.
+- That matters for what already ships: a complete walk is strong evidence of a correct parse, so the existing path-rewrite and placement-edit capability is better founded than I described it an hour ago. The 11 files that complete under both readings are genuinely undetermined and are now the only known population where a complete walk might still be wrong.
+
+### Docs
 - Tried exhaustive backtracking over candidate components with **"the blob closes exactly"** as the oracle — the one approach left that uses the file's own end rather than an external source. It does not work: over 600 prefabs it closed **5 of 228 failures (+0.8%)**, and 4 of those 5 needed only a single choice point. So the failures are not mis-picked candidates among plausible ones; either no assignment closes the blob, or the walk dies before it ever reaches a choice point.
 - That is the seventh `.prefab` hypothesis retired by measurement this session. The walk stays at an honestly measured ~60%, and the value continues to sit where it already did: offset-keyed fixed-size editing on the 95.3% of objects whose component type the file states, with a source digest, expected-old bytes, and no edits offered on inferred types.
 
