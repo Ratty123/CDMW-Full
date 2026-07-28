@@ -47,9 +47,8 @@ reading "at three times its Z rotation, offset 30.5 degrees, clamped at 8".
 
 ## How far it gets, and how that is known
 
-**1,992 of 2,541 blocks (78.4%) consume exactly**, against 682 (26.8%) for the single
-canonical shape this replaces, and 85.6% of chains now report every byte accounted for.
-Two independent checks keep that honest:
+**2,441 of 2,541 blocks (96.1%) consume exactly**, against 682 (26.8%) for the single
+canonical shape this replaces. Two independent checks keep that honest:
 
 * A block must be consumed to its final byte. The grammar has no per-block free
   parameters, so landing exactly on 1,857 block boundaries is not something arbitrary
@@ -60,12 +59,13 @@ Two independent checks keep that honest:
   also what settled the bound-node question -- counted as records, the last three overshot
   by 6, 11 and 11, which is precisely how many bound nodes they hold.
 
-The remaining 549 blocks stop at a handful of distinct constructs. The two worth attacking
-next are `02 01` (236 blocks) and `02 02` (216), which look like the bound-node shape with
-a different leading byte -- `02 02 01` is followed by a zero and a name exactly as
-`01 01 01` is, but `02 01 00` is followed by `01` where a zero is expected, so the byte
-after the header is probably a count rather than a fixed zero. After those come a `09 03`
-record (56) and the piston chains in the machine rigs. `decode_block` reports where it stopped
+The remaining 100 blocks stop at four constructs. `09 03` (56 blocks) is a record whose
+payload is not any shape here. The other three are all places where a byte this grammar
+expects to be zero is not: a bound node followed by `01` (37), a `01 03` frame followed by
+a count (3), and one zero-length string. Those three look like the same missing idea --
+that several of these payloads begin with a count rather than a fixed zero, and the decoded
+forms are simply the count-is-one case -- but the shapes that would confirm it have not
+been pinned down, so they fail loudly instead. `decode_block` reports where it stopped
 rather than guessing past it, and `BlockDecode.complete` is False for those.
 """
 
@@ -93,7 +93,14 @@ _DRIVERS_ONLY = (0x04, 0x04)
 #: the header's `record_count` is what settles that. Counted as records, deerila overshoots
 #: its declared total by 6 and the two horse rigs by 11, which is exactly how many of these
 #: they hold; not counted, all three land exactly.
-_BOUND_NODES = frozenset({(0x01, 0x01), (0x04, 0x01)})
+#:
+#: The split is by tag, not by shape: tags 1 to 5 with type 1 or 2 are bound nodes, while
+#: 0x10, 0x11 and 0x12 at the same types are real records (a scalar, an expression and a
+#: name). Reading only the two forms first observed left 452 blocks short for want of
+#: `02 01` and `02 02`, which carry the identical zero-name-limits payload.
+_BOUND_NODES = frozenset(
+    (tag, typ) for tag in range(0x01, 0x06) for typ in (0x01, 0x02)
+)
 #: A bare frame: one zero byte then three floats.
 _FRAME = (0x01, 0x03)
 _FRAME_FLOATS = 3
