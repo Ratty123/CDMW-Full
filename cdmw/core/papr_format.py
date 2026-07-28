@@ -43,9 +43,9 @@ pistons, and the `B_Jiggle_*` chains. Twenty ship with the game, one per rig.
 
     entry:
         u16 len; name          the bone this entry configures
-        u16 len; parent        the bone it hangs from
+        u16 len; parent        the bone it hangs from; length 0 means unparented
         u8 a  u8 b  u8 has_transform
-        if has_transform: 10 x f32             scale[3], rotation[4], translation[3]
+        if has_transform or unparented: 10 x f32   scale[3], rotation[4], translation[3]
         u8 kind                                0 = nothing follows, otherwise a block
         block                                  tag-record stream, see below
 
@@ -63,7 +63,7 @@ payload. `cdmw/core/papr_block.py` owns that grammar and its evidence; in short,
 holds driver lists (who this bone follows, and by how much), the limits that follow one,
 and 3ds Max expression controllers carrying the actual rule -- `amin(Local_Euler_Z*5.5+20) 8`.
 
-**2,482 of 2,541 blocks (97.7%) now consume exactly**, up from the 682 (26.8%) that
+**2,482 of 2,737 blocks (97.7%) now consume exactly**, up from the 682 (26.8%) that
 matched the one canonical 27-byte shape this module used to recognise. `block_shape`
 reports `decoded` for those and `partial` for the rest, and `ConstraintEntry.decode()`
 returns what was found.
@@ -83,8 +83,19 @@ the closing `07 05 00` instead does not work, because those three bytes also occ
 inside float payloads and inside the expression strings some rigs carry
 (`ExposeTransform_Bip01 R Forearm:5`, `-Local_Euler...`).
 
-Nineteen of the twenty shipped rigs tile exactly. `cd_m0001_00_circusmachine_boss`
-finds 236 starts against a declared 237 and is rejected rather than guessed at.
+**All twenty shipped rigs tile exactly.** `cd_m0001_00_circusmachine_boss` used to find
+236 starts against a declared 237: the entry it missed is *unparented*, and a zero-length
+parent was being read as a malformed name. Such an entry also carries its transform frame
+with the flag byte left at zero, so the frame's presence follows from the empty parent
+rather than from the flag, and the writer reproduces that rather than deriving it.
+
+A zero-length parent alone is far too weak a signal -- a name followed by two zero bytes
+occurs inside configuration blocks constantly, and accepting those split real blocks apart
+in ten of the twenty rigs. What makes it safe is checking the frame: `_is_frame` requires
+the rotation to be a unit quaternion and the scale to be positive and finite, which float
+noise essentially never satisfies. With that, all twenty rigs agree with both of the
+file's own totals -- `entry_count` and `record_count` -- and all twenty rebuild byte for
+byte.
 
 ## What can be edited
 
@@ -257,6 +268,21 @@ def _read_name(data: bytes, pos: int) -> tuple[str, int] | None:
     return raw.decode("ascii"), pos + 2 + length
 
 
+def _is_frame(values: Sequence[float]) -> bool:
+    """Does this read as a real transform frame rather than as float noise?
+
+    The rotation is a quaternion, so its norm is 1, and a scale is positive and finite.
+    Arbitrary bytes inside a configuration block essentially never satisfy both, which is
+    what makes this safe to use as a discriminator rather than merely a sanity check.
+    """
+
+    scale, rotation = values[:3], values[3:7]
+    if not all(0.0 < axis < 1000.0 and math.isfinite(axis) for axis in scale):
+        return False
+    norm = math.sqrt(sum(component * component for component in rotation))
+    return 0.999 <= norm <= 1.001
+
+
 def _entry_header_at(data: bytes, pos: int):
     """Parse an entry header at `pos`, or None if this is not one."""
 
@@ -264,21 +290,42 @@ def _entry_header_at(data: bytes, pos: int):
     if first is None:
         return None
     name, after_name = first
-    second = _read_name(data, after_name)
-    if second is None:
-        return None
-    parent, after_parent = second
+    # A zero-length parent is legal and means the entry is unparented. It also changes the
+    # shape of what follows: the three tail bytes are all zero and a transform frame is
+    # present regardless, where a named parent gates the frame on the third byte. One entry
+    # in the corpus is like this, and missing it is what made
+    # `cd_m0001_00_circusmachine_boss` find 236 starts against a declared 237.
+    unparented = (
+        after_name + 2 <= len(data)
+        and struct.unpack_from("<H", data, after_name)[0] == 0
+    )
+    if unparented:
+        parent, after_parent = "", after_name + 2
+    else:
+        second = _read_name(data, after_name)
+        if second is None:
+            return None
+        parent, after_parent = second
     if after_parent + 3 > len(data):
         return None
     a, b, has_transform = data[after_parent: after_parent + 3]
-    if has_transform not in (0, 1) or a > _MAX_TAIL_COUNTER or b > _MAX_TAIL_COUNTER:
+    if a > _MAX_TAIL_COUNTER or b > _MAX_TAIL_COUNTER:
+        return None
+    if unparented:
+        if (a, b, has_transform) != (0, 0, 0):
+            return None
+    elif has_transform not in (0, 1):
         return None
     pos = after_parent + 3
     transform = None
-    if has_transform:
+    if has_transform or unparented:
         if pos + 40 > len(data):
             return None
         transform = struct.unpack_from("<10f", data, pos)
+        # Without this an unparented candidate matches wherever a block happens to hold a
+        # name followed by two zero bytes, which splits real blocks apart.
+        if unparented and not _is_frame(transform):
+            return None
         pos += 40
     if pos >= len(data):
         return None
@@ -391,9 +438,12 @@ def encode_papr(document: PaprDocument) -> bytes:
                 raise PaprFormatError(
                     f"entry {index} {what} {text!r} is not ASCII: {exc}"
                 ) from exc
-            if not _MIN_NAME <= len(raw) <= _MAX_NAME:
+            # An empty parent is legal and means unparented; an empty name is not.
+            lowest = 0 if what == "parent" else _MIN_NAME
+            if not lowest <= len(raw) <= _MAX_NAME:
                 raise PaprFormatError(
-                    f"entry {index} {what} must be 1..{_MAX_NAME} bytes, got {len(raw)}"
+                    f"entry {index} {what} must be {lowest}..{_MAX_NAME} bytes,"
+                    f" got {len(raw)}"
                 )
             if any(byte not in _NAME_BYTES for byte in raw):
                 raise PaprFormatError(f"entry {index} {what} {text!r} has unsupported characters")
@@ -402,7 +452,12 @@ def encode_papr(document: PaprDocument) -> bytes:
         for value, what in ((a, "counter a"), (b, "counter b")):
             if not 0 <= value <= _MAX_TAIL_COUNTER:
                 raise PaprFormatError(f"entry {index} {what} {value} is out of range")
-        body += bytes((a, b, 1 if entry.transform is not None else 0))
+        # An unparented entry writes a zero flag and its frame anyway, which is how the
+        # bytes read; deriving the flag from `transform is not None` would break the
+        # round trip for exactly that entry.
+        unparented = not entry.parent
+        flag = 0 if unparented else (1 if entry.transform is not None else 0)
+        body += bytes((a, b, flag))
         if entry.transform is not None:
             if len(entry.transform) != 10:
                 raise PaprFormatError(
