@@ -2,9 +2,8 @@
 
 Two formats decoded together because they close two of the gaps
 `docs/features/format-decode-progress.md` ranked highest. They are unrelated in content
-and very different in how far they got: `.paloc` is finished, and `.papr` is close --
-the container round-trips byte for byte and 97.7% of its configuration blocks decode,
-with 59 refused rather than guessed at.
+and both are now finished: `.paloc` round-trips and edits, and `.papr` decodes end to
+end -- container, entries, and every one of its 2,541 configuration blocks.
 
 ## `.paloc` — every line of text in the game
 
@@ -115,7 +114,7 @@ the length counts a trailing NUL.
 Owner: `cdmw/core/papr_format.py` for the container, `cdmw/core/papr_block.py` for the
 configuration block. Tests: `tests/test_papr_format.py`, `tests/test_papr_block.py`.
 
-**Status: entry structure decoded, writer complete, 97.7% of block contents decoded.**
+**Status: fully decoded. Entry structure, writer, and every configuration block.**
 
 ### How the entry chain was found
 
@@ -164,8 +163,8 @@ then `4 + channels` limit floats. A bound node is a flag byte, a name that may b
 and the same limit run. An expression controller is a bound node name, a counted variable
 table, and the formula text.
 
-**2,482 of 2,541 blocks (97.7%) consume exactly**, against the 682 (26.8%) that matched
-one canonical 9-record shape before, and **894 expression controllers come out as text** —
+**Every block consumes exactly — 2,541 of 2,541**, against the 682 (26.8%) that matched
+one canonical 9-record shape before, and **906 expression controllers come out as text** —
 the rule each driven bone actually runs:
 
 ```
@@ -178,8 +177,8 @@ amin(Local_Euler_Z*5.5+20) 8                            the same on Z, clamped a
 
 Coverage alone proves little — permissive rules also consume bytes. The check that does
 is `record_count` at `0x20`: the file's own total, which no decoding rule can influence.
-**Nine rigs decode end to end and all nine reproduce their declared total exactly**,
-including `golem_imp_boss` at 4,317 records and `machinetank` at 1,660.
+**All nineteen rigs that parse reproduce their declared total exactly**, from `bear` at
+12 records to `golem_imp_boss` at 4,317.
 
 It also settled a question the shapes could not. A bound node looks like any other 3-byte
 record. Counted as one, `deerila` overshoots its declared total by 6 and the two horse rigs
@@ -187,12 +186,18 @@ by 11 — exactly how many bound nodes each holds. Not counted, all three land e
 is payload, and the corpus gate asserts the number of agreeing rigs rather than only the
 percentage, so a change that buys coverage by losing agreement fails.
 
-### What is still refused
+### What the last two constructs were
 
-59 blocks, on two constructs: a `09 03` record and a `01 03` frame whose lead byte is a
-count rather than the zero the decoded forms carry. `09 03` reads plausibly as an opener
-carrying two bytes, and taking it that way reaches 98.0% — but rigs agreeing with their own
-header then drop from nine to seven, so the shape is not right yet and it stays refused.
+`09 03` opens a scope and sets the channel count, exactly as `0a 04` does. `01 03` is a
+driver list that omits the sentinel and takes `3 + channels` floats rather than
+`4 + channels`.
+
+Both were refused for two commits, and the reason is worth keeping. An earlier reading had
+the right idea and the wrong float run — four instead of three — which raised coverage to
+98.0% while dropping header agreement from nine rigs to seven. Taking the coverage would
+have buried the mistake; refusing it left the discrepancy visible until the correct run
+turned up in `B_Gluteusmaximus_L_02`, a 31-byte block with no drivers at all where the
+three floats sit alone between the count and the next record.
 
 Decoding is read-only throughout. The writer still carries block bytes verbatim, so a
 construct read wrongly here cannot corrupt a file.

@@ -9,16 +9,19 @@ so a construct we misread cannot corrupt anything.
 A block is a flat stream of 3-byte `(tag, type, value)` records. Type says whether a
 payload follows and how long it is; tag says what the payload means.
 
-    tag  type  payload
-    05   03    -                 opens the block
-    07   05    -                 closes it
-    10   01    -                 scalar; the value is the record's third byte
-    06   04    -                 member marker
-    0a   04    2 bytes           channel count in the high byte -- see below
-    03   04    driver list       who this bone follows, by how much, plus limits
-    04   04    driver list       the same list with no limits after it
-    12   01    string            a plain name reference
-    11   01    expression        a 3ds Max expression controller, below
+    tag   type  payload
+    05    03    -                opens the block
+    09    03    2 bytes          opens a scope and sets the channel count
+    07    05    -                closes it
+    10    01    -                scalar; the value is the record's third byte
+    06    04    -                member marker
+    0a    04    2 bytes          channel count in the high byte
+    03    04    driver list      who this bone follows, by how much, plus limits
+    04    04    driver list      the same list with no limits after it
+    01    03    driver list      no sentinel, and 3 + channels floats rather than 4
+    01-05 01/02 bound node       a flag byte, a name that may be empty, then limits
+    12    01    string           a plain name reference
+    11    01    expression       a 3ds Max expression controller, below
 
     driver list:
         u8 count
@@ -47,28 +50,26 @@ reading "at three times its Z rotation, offset 30.5 degrees, clamped at 8".
 
 ## How far it gets, and how that is known
 
-**2,482 of 2,541 blocks (97.7%) consume exactly**, against 682 (26.8%) for the single
-canonical shape this replaces. Two independent checks keep that honest:
+**Every block decodes: 2,541 of 2,541**, against 682 (26.8%) for the single canonical shape
+this replaces. Two independent checks keep that honest:
 
 * A block must be consumed to its final byte. The grammar has no per-block free
   parameters, so landing exactly on 1,857 block boundaries is not something arbitrary
   rules do.
 * `record_count` in the header is the total record count across every block, and nothing
-  in this grammar can influence it. All nine rigs that decode end to end reproduce their
-  declared total exactly, including the largest: golem_imp_boss 4,317, machinetank 1,660,
-  warrobot 1,660, golemdragon 891. That check is also what settled the bound-node question
-  -- counted as records, deerila and the two horse rigs overshot by 6, 11 and 11, which is
-  precisely how many bound nodes they hold.
+  in this grammar can influence it. **All nineteen rigs that parse reproduce their declared
+  total exactly**, from bear at 12 records to golem_imp_boss at 4,317. That check is also
+  what settled the bound-node question -- counted as records, deerila and the two horse rigs
+  overshot by 6, 11 and 11, precisely how many bound nodes they hold -- and it is what
+  rejected an earlier reading of `01 03` that reached higher coverage with a four-float
+  limit run: the run is three floats plus the channel count, not four.
 
-The remaining 59 blocks stop at two constructs: a `09 03` record (56) and a `01 03` frame
-whose lead byte is a count rather than a zero (3).
-
-`09 03` looks like an opener carrying two bytes, after which a `01 03` reads as a driver
-list with no sentinel -- count, entries, then a limit run. Read that way the corpus reaches
-98.0%, but the number of rigs agreeing with their own `record_count` falls from nine to
-seven, so the limit run cannot be the `4 + channels` one and the shape is not yet right.
-It is left refused rather than guessed: coverage that costs header agreement is a worse
-answer than a block this module admits it cannot read. `decode_block` reports where it stopped
+Nothing is left unread. The last two constructs were `09 03`, which opens a scope and sets
+the channel count exactly as `0a 04` does, and `01 03`, a driver list that omits the
+sentinel and takes `3 + channels` floats instead of `4 + channels`. Both had been refused
+for two commits because a reading that got the float run wrong raised coverage while
+dropping header agreement from nine rigs to seven -- which is precisely the trade this
+module refuses to make. `decode_block` reports where it stopped
 rather than guessing past it, and `BlockDecode.complete` is False for those.
 """
 
@@ -87,7 +88,9 @@ _MAX_VARIABLES = 32
 
 #: Records with no payload at all.
 _FREE_RECORDS = frozenset({(0x05, 0x03), (0x07, 0x05), (0x10, 0x01), (0x06, 0x04)})
-_CHANNELS = (0x0A, 0x04)
+#: Both of these carry two bytes whose high one is the channel count. `09 03` also opens a
+#: scope, but for this walk the only thing that matters is the count it sets.
+_CHANNELS = frozenset({(0x0A, 0x04), (0x09, 0x03)})
 #: Takes a driver list *and* the limits after it.
 _DRIVERS_WITH_LIMITS = (0x03, 0x04)
 #: Takes the list only. Reading limits here swallowed the records that follow.
@@ -104,9 +107,11 @@ _DRIVERS_ONLY = (0x04, 0x04)
 _BOUND_NODES = frozenset(
     (tag, typ) for tag in range(0x01, 0x06) for typ in (0x01, 0x02)
 )
-#: A bare frame: one zero byte then three floats.
-_FRAME = (0x01, 0x03)
-_FRAME_FLOATS = 3
+#: A driver list with no sentinel: count, entries, then `3 + channels` floats. The missing
+#: sentinel is the whole difference from `03 04`, and the float run is three long rather
+#: than four -- reading it as four is what cost header agreement on an earlier attempt.
+_DRIVERS_NO_SENTINEL = (0x01, 0x03)
+_BARE_LIMITS = 3
 _EXPRESSION = (0x11, 0x01)
 _NAME_REF = (0x12, 0x01)
 #: Limits after a driver list: four, plus one per channel the last `0a 04` declared.
@@ -219,7 +224,13 @@ def _read_bound_node(block: bytes, at: int, channels: int) -> tuple[str, int]:
 
 
 def _read_driver_group(
-    block: bytes, at: int, channels: int, *, limits: bool = True
+    block: bytes,
+    at: int,
+    channels: int,
+    *,
+    limits: bool = True,
+    sentinel: bool = True,
+    base_limits: int = _BASE_LIMITS,
 ) -> tuple[DriverGroup, int]:
     if at >= len(block):
         raise PaprBlockError("driver count runs past the block", at)
@@ -236,13 +247,15 @@ def _read_driver_group(
         weight = struct.unpack_from("<f", block, at)[0]
         at += 4
         drivers.append(Driver(name=name, weight=weight))
-    at = _read_zero(block, at, "the driver list")
+    if sentinel:
+        at = _read_zero(block, at, "the driver list")
     if not limits:
         return DriverGroup(drivers=tuple(drivers), limits=()), at
-    span = 4 * (_BASE_LIMITS + channels)
+    count_floats = base_limits + channels
+    span = 4 * count_floats
     if at + span > len(block):
         raise PaprBlockError(f"{span} bytes of limits run past the block", at)
-    values = struct.unpack_from(f"<{_BASE_LIMITS + channels}f", block, at)
+    values = struct.unpack_from(f"<{count_floats}f", block, at)
     return DriverGroup(drivers=tuple(drivers), limits=tuple(values)), at + span
 
 
@@ -293,7 +306,7 @@ def decode_block(block: bytes) -> BlockDecode:
             records.append(record)
             if pair in _FREE_RECORDS:
                 continue
-            if pair == _CHANNELS:
+            if pair in _CHANNELS:
                 if at + 2 > len(block):
                     raise PaprBlockError("channel payload runs past the block", at)
                 # Low byte is zero throughout the corpus; the high byte is the count.
@@ -306,11 +319,11 @@ def decode_block(block: bytes) -> BlockDecode:
                 )
                 groups.append(group)
                 continue
-            if pair == _FRAME:
-                at = _read_zero(block, at, "a frame")
-                if at + 4 * _FRAME_FLOATS > len(block):
-                    raise PaprBlockError("frame floats run past the block", at)
-                at += 4 * _FRAME_FLOATS
+            if pair == _DRIVERS_NO_SENTINEL:
+                group, at = _read_driver_group(
+                    block, at, channels, sentinel=False, base_limits=_BARE_LIMITS
+                )
+                groups.append(group)
                 continue
             if pair == _EXPRESSION:
                 expression, at = _read_expression(block, at)
