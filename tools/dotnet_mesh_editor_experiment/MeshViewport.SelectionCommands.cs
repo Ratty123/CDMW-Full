@@ -8,6 +8,16 @@ internal sealed partial class MeshViewport
         return normalized == "source" ? "part" : normalized;
     }
 
+    /// <summary>
+    /// How many leading submeshes these commands are allowed to touch. The
+    /// document holds the editable submeshes first and the reference copies
+    /// after them, and only the editable ones can be edited: every payload the
+    /// viewport sends the host is clamped the same way. Selecting into the
+    /// reference range would offer the reader geometry no edit can reach.
+    /// </summary>
+    private int EditableSelectionLimit() =>
+        Math.Clamp(_scene.EditableSubmeshCount, 0, _document.Submeshes.Count);
+
     private int SelectionCountForTarget(string targetMode)
     {
         return NormalizeSelectionTarget(targetMode) switch
@@ -45,16 +55,17 @@ internal sealed partial class MeshViewport
     private void SelectAllForTarget(string targetMode)
     {
         ClearSelectionForTarget(targetMode);
+        var editableCount = EditableSelectionLimit();
         if (targetMode == "vertex")
         {
-            for (var index = 0; index < _document.Submeshes.Count; index++)
+            for (var index = 0; index < editableCount; index++)
             {
                 _selectedVertices[index] = Enumerable.Range(0, _document.Submeshes[index].Vertices.Count).ToHashSet();
             }
         }
         else if (targetMode == "face")
         {
-            for (var index = 0; index < _document.Submeshes.Count; index++)
+            for (var index = 0; index < editableCount; index++)
             {
                 _selectedFaces[index] = Enumerable.Range(0, _document.Submeshes[index].Faces.Count).ToHashSet();
             }
@@ -63,12 +74,15 @@ internal sealed partial class MeshViewport
         {
             foreach (var edge in _edgeTopology.Edges)
             {
-                _selectedEdges.Add(edge.Id);
+                if (edge.SubmeshIndex < editableCount)
+                {
+                    _selectedEdges.Add(edge.Id);
+                }
             }
         }
         else if (targetMode == "part")
         {
-            for (var index = 0; index < _document.Submeshes.Count; index++)
+            for (var index = 0; index < editableCount; index++)
             {
                 _selectedSources.Add(index);
             }
@@ -78,9 +92,10 @@ internal sealed partial class MeshViewport
 
     private void InvertSelectionForTarget(string targetMode)
     {
+        var editableCount = EditableSelectionLimit();
         if (targetMode == "vertex")
         {
-            for (var index = 0; index < _document.Submeshes.Count; index++)
+            for (var index = 0; index < editableCount; index++)
             {
                 var selected = _selectedVertices.TryGetValue(index, out var current) ? current : new HashSet<int>();
                 var inverted = Enumerable.Range(0, _document.Submeshes[index].Vertices.Count).Where(item => !selected.Contains(item)).ToHashSet();
@@ -96,7 +111,7 @@ internal sealed partial class MeshViewport
         }
         else if (targetMode == "face")
         {
-            for (var index = 0; index < _document.Submeshes.Count; index++)
+            for (var index = 0; index < editableCount; index++)
             {
                 var selected = _selectedFaces.TryGetValue(index, out var current) ? current : new HashSet<int>();
                 var inverted = Enumerable.Range(0, _document.Submeshes[index].Faces.Count).Where(item => !selected.Contains(item)).ToHashSet();
@@ -116,7 +131,7 @@ internal sealed partial class MeshViewport
             _selectedEdges.Clear();
             foreach (var edge in _edgeTopology.Edges)
             {
-                if (!selected.Contains(edge.Id))
+                if (edge.SubmeshIndex < editableCount && !selected.Contains(edge.Id))
                 {
                     _selectedEdges.Add(edge.Id);
                 }
@@ -126,7 +141,7 @@ internal sealed partial class MeshViewport
         {
             var selected = _selectedSources.ToHashSet();
             _selectedSources.Clear();
-            for (var index = 0; index < _document.Submeshes.Count; index++)
+            for (var index = 0; index < editableCount; index++)
             {
                 if (!selected.Contains(index))
                 {
@@ -139,12 +154,14 @@ internal sealed partial class MeshViewport
 
     private void GrowSelectionForTarget(string targetMode)
     {
+        var editableCount = EditableSelectionLimit();
         if (targetMode == "vertex")
         {
             var grown = CopySelectionMap(_selectedVertices);
             foreach (var edge in _edgeTopology.Edges)
             {
-                if (!_selectedVertices.TryGetValue(edge.SubmeshIndex, out var selected))
+                if (edge.SubmeshIndex >= editableCount
+                    || !_selectedVertices.TryGetValue(edge.SubmeshIndex, out var selected))
                 {
                     continue;
                 }
@@ -163,7 +180,9 @@ internal sealed partial class MeshViewport
             var grown = CopySelectionMap(_selectedFaces);
             foreach (var edge in _edgeTopology.Edges)
             {
-                if (!_selectedFaces.TryGetValue(edge.SubmeshIndex, out var selected) || !edge.AdjacentFaces.Any(selected.Contains))
+                if (edge.SubmeshIndex >= editableCount
+                    || !_selectedFaces.TryGetValue(edge.SubmeshIndex, out var selected)
+                    || !edge.AdjacentFaces.Any(selected.Contains))
                 {
                     continue;
                 }
@@ -181,16 +200,21 @@ internal sealed partial class MeshViewport
         }
         else if (targetMode == "edge")
         {
+            // One pass to index the edges by endpoint, then one pass over the
+            // selection. Scanning the whole edge list per candidate edge instead
+            // is quadratic, and a shipped mesh carries enough edges for that to
+            // stall the UI thread outright.
+            var edgesByEndpoint = BuildEdgesByEndpointIndex();
             var selected = _selectedEdges.ToHashSet();
-            foreach (var edge in _edgeTopology.Edges)
+            foreach (var edgeId in selected)
             {
-                if (selected.Contains(edge.Id))
+                foreach (var neighbor in EdgeNeighbors(edgeId, edgesByEndpoint))
                 {
-                    continue;
-                }
-                if (_edgeTopology.Edges.Any(other => selected.Contains(other.Id) && other.SubmeshIndex == edge.SubmeshIndex && (other.VertexA == edge.VertexA || other.VertexA == edge.VertexB || other.VertexB == edge.VertexA || other.VertexB == edge.VertexB)))
-                {
-                    _selectedEdges.Add(edge.Id);
+                    var edge = _edgeTopology.EdgeById(neighbor);
+                    if (edge is not null && edge.SubmeshIndex < editableCount)
+                    {
+                        _selectedEdges.Add(neighbor);
+                    }
                 }
             }
         }
@@ -199,12 +223,15 @@ internal sealed partial class MeshViewport
             var selected = _selectedSources.ToHashSet();
             foreach (var part in selected)
             {
-                if (part >= 0 && part < _document.Submeshes.Count)
+                if (part >= 0 && part < editableCount)
                 {
                     _selectedSources.Add(part);
                     foreach (var neighbor in PartNeighbors(part))
                     {
-                        _selectedSources.Add(neighbor);
+                        if (neighbor < editableCount)
+                        {
+                            _selectedSources.Add(neighbor);
+                        }
                     }
                 }
             }
@@ -216,14 +243,15 @@ internal sealed partial class MeshViewport
     {
         if (targetMode == "vertex")
         {
+            var neighborsByVertex = BuildVertexNeighborIndex();
             var shrunk = new Dictionary<int, HashSet<int>>();
             foreach (var pair in _selectedVertices)
             {
                 var keep = new HashSet<int>();
                 foreach (var vertex in pair.Value)
                 {
-                    var neighbors = VertexNeighbors(pair.Key, vertex).ToArray();
-                    if (neighbors.Length > 0 && neighbors.All(pair.Value.Contains))
+                    var neighbors = VertexNeighbors(pair.Key, vertex, neighborsByVertex);
+                    if (neighbors.Count > 0 && neighbors.All(pair.Value.Contains))
                     {
                         keep.Add(vertex);
                     }
@@ -237,14 +265,15 @@ internal sealed partial class MeshViewport
         }
         else if (targetMode == "face")
         {
+            var neighborsByFace = BuildFaceNeighborIndex();
             var shrunk = new Dictionary<int, HashSet<int>>();
             foreach (var pair in _selectedFaces)
             {
                 var keep = new HashSet<int>();
                 foreach (var face in pair.Value)
                 {
-                    var neighbors = FaceNeighbors(pair.Key, face).ToArray();
-                    if (neighbors.Length > 0 && neighbors.All(pair.Value.Contains))
+                    var neighbors = FaceNeighbors(pair.Key, face, neighborsByFace);
+                    if (neighbors.Count > 0 && neighbors.All(pair.Value.Contains))
                     {
                         keep.Add(face);
                     }
@@ -258,11 +287,12 @@ internal sealed partial class MeshViewport
         }
         else if (targetMode == "edge")
         {
+            var edgesByEndpoint = BuildEdgesByEndpointIndex();
             var keep = new HashSet<int>();
             foreach (var edgeId in _selectedEdges)
             {
-                var neighbors = EdgeNeighbors(edgeId).ToArray();
-                if (neighbors.Length > 0 && neighbors.All(_selectedEdges.Contains))
+                var neighbors = EdgeNeighbors(edgeId, edgesByEndpoint);
+                if (neighbors.Count > 0 && neighbors.All(_selectedEdges.Contains))
                 {
                     keep.Add(edgeId);
                 }
@@ -293,54 +323,123 @@ internal sealed partial class MeshViewport
         }
     }
 
-    private IEnumerable<int> VertexNeighbors(int submeshIndex, int vertexIndex)
+    /// <summary>
+    /// Vertex adjacency for every submesh, built in a single pass over the edge
+    /// list so a whole grow or shrink costs one walk rather than one per
+    /// selected element.
+    /// </summary>
+    private Dictionary<(int SubmeshIndex, int VertexIndex), HashSet<int>> BuildVertexNeighborIndex()
     {
+        var index = new Dictionary<(int SubmeshIndex, int VertexIndex), HashSet<int>>();
         foreach (var edge in _edgeTopology.Edges)
         {
-            if (edge.SubmeshIndex != submeshIndex)
+            Link(edge.SubmeshIndex, edge.VertexA, edge.VertexB);
+            Link(edge.SubmeshIndex, edge.VertexB, edge.VertexA);
+        }
+        return index;
+
+        void Link(int submeshIndex, int from, int to)
+        {
+            var key = (submeshIndex, from);
+            if (!index.TryGetValue(key, out var neighbors))
             {
-                continue;
+                neighbors = new HashSet<int>();
+                index[key] = neighbors;
             }
-            if (edge.VertexA == vertexIndex)
-            {
-                yield return edge.VertexB;
-            }
-            else if (edge.VertexB == vertexIndex)
-            {
-                yield return edge.VertexA;
-            }
+            neighbors.Add(to);
         }
     }
 
-    private IEnumerable<int> FaceNeighbors(int submeshIndex, int faceIndex)
+    private Dictionary<(int SubmeshIndex, int FaceIndex), HashSet<int>> BuildFaceNeighborIndex()
     {
+        var index = new Dictionary<(int SubmeshIndex, int FaceIndex), HashSet<int>>();
         foreach (var edge in _edgeTopology.Edges)
         {
-            if (edge.SubmeshIndex == submeshIndex && edge.AdjacentFaces.Contains(faceIndex))
+            foreach (var face in edge.AdjacentFaces)
             {
-                foreach (var neighbor in edge.AdjacentFaces)
+                var key = (edge.SubmeshIndex, face);
+                if (!index.TryGetValue(key, out var neighbors))
                 {
-                    if (neighbor != faceIndex)
+                    neighbors = new HashSet<int>();
+                    index[key] = neighbors;
+                }
+                foreach (var other in edge.AdjacentFaces)
+                {
+                    if (other != face)
                     {
-                        yield return neighbor;
+                        neighbors.Add(other);
                     }
                 }
             }
         }
+        return index;
     }
 
-    private IEnumerable<int> EdgeNeighbors(int edgeId)
+    private Dictionary<(int SubmeshIndex, int VertexIndex), List<int>> BuildEdgesByEndpointIndex()
+    {
+        var index = new Dictionary<(int SubmeshIndex, int VertexIndex), List<int>>();
+        foreach (var edge in _edgeTopology.Edges)
+        {
+            Link(edge.SubmeshIndex, edge.VertexA, edge.Id);
+            Link(edge.SubmeshIndex, edge.VertexB, edge.Id);
+        }
+        return index;
+
+        void Link(int submeshIndex, int vertexIndex, int edgeId)
+        {
+            var key = (submeshIndex, vertexIndex);
+            if (!index.TryGetValue(key, out var edgeIds))
+            {
+                edgeIds = new List<int>();
+                index[key] = edgeIds;
+            }
+            edgeIds.Add(edgeId);
+        }
+    }
+
+    private static IReadOnlyCollection<int> VertexNeighbors(
+        int submeshIndex,
+        int vertexIndex,
+        Dictionary<(int SubmeshIndex, int VertexIndex), HashSet<int>> index)
+    {
+        return index.TryGetValue((submeshIndex, vertexIndex), out var neighbors)
+            ? neighbors
+            : Array.Empty<int>();
+    }
+
+    private static IReadOnlyCollection<int> FaceNeighbors(
+        int submeshIndex,
+        int faceIndex,
+        Dictionary<(int SubmeshIndex, int FaceIndex), HashSet<int>> index)
+    {
+        return index.TryGetValue((submeshIndex, faceIndex), out var neighbors)
+            ? neighbors
+            : Array.Empty<int>();
+    }
+
+    private IReadOnlyCollection<int> EdgeNeighbors(
+        int edgeId,
+        Dictionary<(int SubmeshIndex, int VertexIndex), List<int>> edgesByEndpoint)
     {
         var edge = _edgeTopology.EdgeById(edgeId);
         if (edge is null)
         {
-            yield break;
+            return Array.Empty<int>();
         }
-        foreach (var other in _edgeTopology.Edges)
+        var neighbors = new HashSet<int>();
+        Collect(edge.SubmeshIndex, edge.VertexA);
+        Collect(edge.SubmeshIndex, edge.VertexB);
+        neighbors.Remove(edge.Id);
+        return neighbors;
+
+        void Collect(int submeshIndex, int vertexIndex)
         {
-            if (other.Id != edge.Id && other.SubmeshIndex == edge.SubmeshIndex && (other.VertexA == edge.VertexA || other.VertexA == edge.VertexB || other.VertexB == edge.VertexA || other.VertexB == edge.VertexB))
+            if (edgesByEndpoint.TryGetValue((submeshIndex, vertexIndex), out var edgeIds))
             {
-                yield return other.Id;
+                foreach (var candidate in edgeIds)
+                {
+                    neighbors.Add(candidate);
+                }
             }
         }
     }

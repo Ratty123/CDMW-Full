@@ -474,6 +474,21 @@ class MeshEditorInteractionMixin:
             params["selection_depth_mode"] = str(payload.get("selection_depth_mode") or "visible")
         if "strength" in payload:
             params["strength"] = self._standalone_native_payload_float(payload.get("strength"), 0.5)
+        if normalized_phase == "end" and tool in {"smooth", "inflate", "pinch"}:
+            # The terminal phase exists to close the stroke, not to sculpt again.
+            # These three tools are sample-driven rather than drag-driven --
+            # smooth relaxes by weight alone, and inflate/pinch derive their
+            # amount from screen_radius -- so a stroke_end carrying the usual
+            # brush payload lands a second dab on top of the last stroke_update,
+            # and a click that never moved gets sculpted twice. Grab is left
+            # alone: its delta comes from screen_drag, so its terminal phase is
+            # already inert when the pointer has not moved and still applies the
+            # residual travel when it has. Zero strength is the one lever every
+            # tool honours -- smooth blends by weight*strength, and grab,
+            # inflate and pinch all scale their displacement by it -- so the
+            # native core reports no changed vertices and still closes the
+            # stroke. Must be set unconditionally: the native default is 1.0.
+            params["strength"] = 0.0
         if "amount" in payload:
             params["amount"] = self._standalone_native_payload_float(payload.get("amount"), 0.0)
         if "falloff" in payload:
