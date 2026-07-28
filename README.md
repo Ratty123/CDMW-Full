@@ -379,7 +379,7 @@ a fresh clone will not have them. The PowerShell release path above needs
 neither.
 
 **Bazel** is not vendored. Install [bazelisk](https://github.com/bazelbuild/bazelisk)
-and either put it on `PATH` or drop it at `.tools\bazel\bazel.exe` — the build UI
+and either put it on `PATH` or drop it at `.tools\bazel\bazel.exe`. The build UI
 prefers the repo-local copy and falls back to `PATH`, so the version in
 `.bazelversion` is what gets used either way. `BAZEL_VC` must point at the VC
 directory if Bazel cannot detect MSVC on its own.
@@ -419,7 +419,7 @@ docs/                    guides, runbooks, and reverse-engineering notes
 ```
 
 Note the two similarly named directories. **`tools/`** is source and is in the
-repository. **`.tools/`** — with the dot — is gitignored and holds downloaded or
+repository. **`.tools/`**, with the dot, is gitignored and holds downloaded or
 locally built binaries: bazelisk, the published build UI, RenderDoc, vgmstream,
 the Havok CLIs. Nothing in it is tracked, and nothing in the release build needs
 it.
