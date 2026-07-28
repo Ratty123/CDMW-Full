@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Docs
+- Walked `ProjectileShotData`'s serialiser to the end. Its vftable holds a matching **read/write pair at slots 2 and 3** (rva `0x01ea11e0` and `0x01ea1260`), and both serialise the same four fields: `+0x10` u32, `+0x14` u32, `+0x18` u8, `+0x19` u8 — ten bytes of payload in an object whose first `0x10` bytes are the vptr and base data that never reach the file. Slots 7/8 and 12/13 are the same read/write pattern for neighbouring classes with 7 and 5 fields, and slots 4, 9 and 14 point into `.rdata` rather than code, which is what marks where this vftable ends and the next begins.
+- The consequence is the useful part: **ten serialised bytes cannot be the top-level record** of `projectileshotinfo.paproj`, whose measured period is 156 bytes. So `ProjectileShotData` is a component inside a larger record, not the record itself, and the earlier reading of that 156-byte period as "one struct per repeat" was wrong. The remaining work is to find the class that owns it and walk that class's serialiser the same way — the method now being proven end to end on a real class.
+
 ### Fixed
 - **Two naming shapes the convention turned out not to be consistent about, both of which hid real draws.** A run of mounted clips spells the action `weaponout`/`weaponin` rather than `weapon_out`/`weapon_in`, and reading only the usual spelling classified every one of them as ordinary locomotion. And the family is the third token only when the context is folded into the character slot — Kliff's `cd_prh_swd_...` — where Damian keeps her name and adds the context after it, `cd_damian_rd_prh_lswd_...`, which put `rd` in the family slot and made all of her mounted clips unplaceable. Damian's one-handed draws go from 6 to 28, and her swappable draw pairs from 8 to 10; Kliff's go from 54 to 56.
 
