@@ -118,9 +118,13 @@ class PrefabEditingMixin:
                         # The edit is addressed by offset, so the copies stay
                         # put. Say so; the opposite is what a modder expects.
                         note = f"{_count(others, 'other row')} still points at the old file"
+                    # Every companion, not just the first. Retargeting a mesh
+                    # does not carry its material and physics along -- the new
+                    # mesh's own apply -- so what the modder is really choosing
+                    # is a set of three files, and only one of them is on screen.
                     companions = self._companion_notes(current)
                     if companions:
-                        note = (note + "; " if note else "") + companions[0]
+                        note = (note + "; " if note else "") + "; ".join(companions)
                     lines.append(
                         ChangeLine(field=child.text(0), before=original, after=current, note=note)
                     )
