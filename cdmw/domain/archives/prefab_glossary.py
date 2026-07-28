@@ -36,6 +36,64 @@ class FieldMeaning:
 # Fields worth understanding, keyed by their declared name.
 _FIELDS: dict[str, FieldMeaning] = {
     "_skinnedMeshFile": FieldMeaning("Mesh", "The model this object draws."),
+    # Spline points. These are declared on almost every world prefab (386 of
+    # 2,500 sampled files carry the whole set), and until now the schema tab
+    # showed them as de-camel-cased names with nothing said about them.
+    "_innerTangent": FieldMeaning(
+        "Curve handle in", "Controls how the curve arrives at this point."
+    ),
+    "_outterTangent": FieldMeaning(
+        "Curve handle out",
+        "Controls how the curve leaves this point. The doubled t is the game's spelling.",
+    ),
+    "_lenghtToNextPoint": FieldMeaning(
+        "Distance to next point",
+        "Spacing along the curve. The missing h is the game's spelling.",
+    ),
+    "_tangentType": FieldMeaning("Handle style", "How the curve bends through this point."),
+    "_defaultCurveType": FieldMeaning(
+        "Curve style", "How the path is drawn between points by default."
+    ),
+    "_smootingMaxCount": FieldMeaning(
+        "Smoothing steps",
+        "How many times the curve is smoothed. The missing h is the game's spelling.",
+    ),
+    "_pointData": FieldMeaning("Point"),
+    "_pointDataList": FieldMeaning("Points", "The points this path is built from."),
+    "_splineData": FieldMeaning("Path", "The curve itself."),
+    "_linkPosition": FieldMeaning("Link point", "Where this joins what it connects to."),
+    # Houdini authoring data. Worth naming precisely: an .hda is a Houdini
+    # Digital Asset, an authoring-time construct, so a modder can recognise
+    # these as build inputs rather than something the game reads at runtime.
+    "_hdaFileName": FieldMeaning(
+        "Houdini asset",
+        "The Houdini file this object was generated from. Authoring data, not "
+        "something the game loads.",
+    ),
+    "_hdaEditContext": FieldMeaning("Houdini settings", "How the Houdini asset was generated."),
+    "_inputs": FieldMeaning("Inputs"),
+    "_outputs": FieldMeaning("Outputs"),
+    "_parameters": FieldMeaning("Settings"),
+    "_attributes": FieldMeaning("Attributes"),
+    "_attributesLayouts": FieldMeaning("Attribute layout"),
+    "_layoutName": FieldMeaning("Layout name"),
+    "_meshGroupInfo": FieldMeaning("Mesh groups", "Which parts of the model are grouped together."),
+    "_ignoreRenderNodeMasks": FieldMeaning(
+        "Skip render groups", "Render groups this object is left out of."
+    ),
+    "_shapeId": FieldMeaning("Shape"),
+    "_useVertexNormal": FieldMeaning(
+        "Use mesh normals", "Take surface direction from the model rather than computing it."
+    ),
+    "_useDistanceCull": FieldMeaning(
+        "Hide at distance", "Stop drawing this once the camera is far enough away."
+    ),
+    "_decalMode": FieldMeaning("Decal blending", "How this decal is blended onto what is under it."),
+    "_wrapTileScale": FieldMeaning("Tile scale", "How often the texture repeats across the surface."),
+    "_convert": FieldMeaning("Convert"),
+    "_rotation": FieldMeaning("Rotation"),
+    "_scale": FieldMeaning("Scale"),
+    "_normal": FieldMeaning("Facing", "Which way this surface points."),
     "_staticMeshInstanceFileName": FieldMeaning(
         "Mesh instance", "Names the model and the materials drawn on it."
     ),
