@@ -6,6 +6,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+import shiboken6
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QProcess, Signal
 from PySide6.QtWidgets import QApplication
 
@@ -20,6 +22,38 @@ from cdmw.ui.preview.profile import DotNetPreviewProfile
 
 
 _APP = QApplication.instance() or QApplication([])
+
+#: Controllers built without a parent, so nothing outside this module owns them.
+_UNPARENTED: list[DotNetPreviewSessionController] = []
+
+
+def _own(controller: DotNetPreviewSessionController) -> DotNetPreviewSessionController:
+    """Register a parentless controller so this module destroys it, not the collector.
+
+    Production always gives the controller a parent and it dies with the window.
+    Here there is no parent, so the C++ object is destroyed whenever the Python
+    reference count happens to reach zero -- which, in a full-suite run, is
+    partway through the *next* file's Qt construction. That destruction lands
+    inside another Qt operation and aborts the interpreter with
+    `QWaitCondition: Destroyed while threads are still waiting`, exit code 3, no
+    traceback and no pytest summary. It killed every CI run at roughly 24%.
+    """
+
+    _UNPARENTED.append(controller)
+    return controller
+
+
+@pytest.fixture(autouse=True)
+def _destroy_unparented_controllers():
+    """Keep each controller's destruction inside the test that created it."""
+
+    yield
+    while _UNPARENTED:
+        controller = _UNPARENTED.pop()
+        if not shiboken6.isValid(controller):
+            continue
+        controller.shutdown()
+        shiboken6.delete(controller)
 
 
 class _FakeProcess(QObject):
@@ -154,13 +188,13 @@ def _start_controller(tmp_path: Path) -> tuple[DotNetPreviewSessionController, _
         processes.append(process)
         return process
 
-    controller = DotNetPreviewSessionController(
+    controller = _own(DotNetPreviewSessionController(
         host_hwnd=lambda: 1,
         profile=DotNetPreviewProfile.PREVIEW,
         configured_executable=executable,
         terminate_on_close=True,
         process_factory=process_factory,
-    )
+    ))
     package = _package(tmp_path, "package-a")
     with (
         patch("cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor", return_value=_resolution(executable)),
@@ -273,13 +307,13 @@ def test_prewarm_uses_no_package_generation_and_real_request_supersedes_it(tmp_p
         processes.append(process)
         return process
 
-    controller = DotNetPreviewSessionController(
+    controller = _own(DotNetPreviewSessionController(
         host_hwnd=lambda: 1,
         profile=DotNetPreviewProfile.PREVIEW,
         configured_executable=executable,
         terminate_on_close=True,
         process_factory=process_factory,
-    )
+    ))
     warmup = _package(tmp_path, "prewarm")
     released: list[bool] = []
     lease = SimpleNamespace(release=lambda: released.append(True))
@@ -369,13 +403,13 @@ def test_authoring_prewarm_binds_the_real_edit_session_before_package_switch(
         processes.append(process)
         return process
 
-    controller = DotNetPreviewSessionController(
+    controller = _own(DotNetPreviewSessionController(
         host_hwnd=lambda: 1,
         profile=DotNetPreviewProfile.AUTHORING,
         configured_executable=executable,
         terminate_on_close=True,
         process_factory=process_factory,
-    )
+    ))
     assert controller.set_authoritative_session_id("edit-session-a")
     warmup = _package(tmp_path, "authoring-prewarm")
     with (
@@ -505,12 +539,12 @@ def test_protocol_request_error_keeps_resident_process_without_retry(tmp_path: P
 
 
 def test_authoring_host_normalizes_legacy_selection_tool() -> None:
-    controller = DotNetPreviewSessionController(
+    controller = _own(DotNetPreviewSessionController(
         host_hwnd=lambda: 1,
         profile=DotNetPreviewProfile.AUTHORING,
         terminate_on_close=True,
         process_factory=lambda parent: _FakeProcess(parent),
-    )
+    ))
     host = DotNetPreviewHostFrame(
         profile=DotNetPreviewProfile.AUTHORING,
         controller=controller,
@@ -788,11 +822,11 @@ def test_static_provenance_failure_never_constructs_process(tmp_path: Path) -> N
         process_count += 1
         return _FakeProcess(parent)
 
-    controller = DotNetPreviewSessionController(
+    controller = _own(DotNetPreviewSessionController(
         host_hwnd=lambda: 1,
         configured_executable=executable,
         process_factory=process_factory,
-    )
+    ))
     with (
         patch("cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor", return_value=_resolution(executable)),
         patch(
@@ -820,13 +854,13 @@ def _ready_authoring_controller(
         processes.append(process)
         return process
 
-    controller = DotNetPreviewSessionController(
+    controller = _own(DotNetPreviewSessionController(
         host_hwnd=lambda: 1,
         profile=DotNetPreviewProfile.AUTHORING,
         configured_executable=executable,
         terminate_on_close=True,
         process_factory=process_factory,
-    )
+    ))
     with (
         patch("cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor", return_value=_resolution(executable)),
         patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_static_provenance_blockers", return_value=()),
