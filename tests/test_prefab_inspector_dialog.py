@@ -98,6 +98,7 @@ def test_applying_a_longer_path_produces_a_valid_prefab(qt_app: QApplication) ->
             if child.text(2) == PATH:
                 child.setText(2, replacement)
     assert dialog.collect_replacements() == {PATH: replacement}
+    dialog._confirm_changes = lambda: True
     dialog._apply_changes()
     assert dialog.result_payload is not None
     document = decode_prefab_binary(dialog.result_payload.data)
@@ -289,6 +290,7 @@ def test_mesh_with_companions_passes(qt_app: QApplication) -> None:
 def test_applying_reports_where_material_and_physics_come_from(qt_app: QApplication) -> None:
     dialog = PrefabInspectorDialog(_build(), known_paths=_WITH_COMPANIONS)
     _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.pac")
+    dialog._confirm_changes = lambda: True
     dialog._apply_changes()
     logged = dialog.log.toPlainText()
     assert "modelproperty/1_pc/weapon/other.pac_xml" in logged
@@ -341,6 +343,7 @@ def test_placement_rows_are_editable_and_apply_without_resizing(qt_app: QApplica
     assert "1 placement" in dialog.status.text()
     assert dialog.apply_button.isEnabled()
 
+    dialog._confirm_changes = lambda: True
     dialog._apply_changes()
     assert dialog.result_payload is not None
     assert len(dialog.result_payload.data) == len(payload)
@@ -549,6 +552,7 @@ def test_saving_says_nothing_is_on_disk_yet(qt_app: QApplication) -> None:
     assert "after" in dialog.apply_button.toolTip()
 
     _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.pac")
+    dialog._confirm_changes = lambda: True
     dialog._apply_changes()
     assert dialog.result_payload is not None
     assert "Nothing has been written yet" in dialog.log.toPlainText()
@@ -599,3 +603,55 @@ def test_moving_one_transform_moves_its_identical_twin(qt_app: QApplication) -> 
         expected, written = dialog._placement_edits[twin_offset]
         assert read_placement(written).position == (11.0, 12.0, 13.0)
         assert read_placement(written).tile == read_placement(twin_raw).tile
+
+
+def test_review_lists_every_pending_change_with_its_label(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build())
+    _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.pac")
+    lines, warnings = dialog._pending_changes()
+    assert [line.after for line in lines] == ["character/model/1_pc/weapon/other.pac"]
+    assert lines[0].before == PATH
+    assert lines[0].field, "a change must be labelled the way the modder saw it"
+    assert warnings == []
+
+
+def test_review_reports_a_role_mismatch_as_a_warning(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build())
+    _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.dds")
+    _lines, warnings = dialog._pending_changes()
+    assert warnings and "model file" in warnings[0] and "texture file" in warnings[0]
+
+
+def test_warnings_block_the_review_until_acknowledged(qt_app: QApplication) -> None:
+    """A warning you can scroll past is one the tool decided not to act on."""
+    from PySide6.QtWidgets import QDialogButtonBox
+
+    from cdmw.ui.archive_browser.prefab_inspector_review import ChangeLine, PrefabChangeReview
+
+    change = ChangeLine(field="Mesh", before="a.pac", after="b.dds")
+    review = PrefabChangeReview([change], ["Mesh: that is a texture, not a model"])
+    ok = review.buttons.button(QDialogButtonBox.StandardButton.Ok)
+    assert review.acknowledge is not None
+    assert not ok.isEnabled()
+    assert "Tick the box" in ok.toolTip()
+    review.acknowledge.setChecked(True)
+    assert ok.isEnabled()
+
+
+def test_a_clean_change_needs_no_acknowledgement(qt_app: QApplication) -> None:
+    from PySide6.QtWidgets import QDialogButtonBox
+
+    from cdmw.ui.archive_browser.prefab_inspector_review import ChangeLine, PrefabChangeReview
+
+    review = PrefabChangeReview([ChangeLine(field="Mesh", before="a.pac", after="b.pac")], [])
+    assert review.acknowledge is None
+    assert review.buttons.button(QDialogButtonBox.StandardButton.Ok).isEnabled()
+
+
+def test_cancelling_the_review_writes_nothing(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build())
+    _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.pac")
+    dialog._confirm_changes = lambda: False
+    dialog._apply_changes()
+    assert dialog.result_payload is None
+    assert "you cancelled" in dialog.log.toPlainText()
