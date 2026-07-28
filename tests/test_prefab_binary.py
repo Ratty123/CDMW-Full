@@ -485,3 +485,73 @@ def test_the_shipped_collection_reader_is_restored_afterwards() -> None:
     before = module._read_collection_count
     module.walk_is_determined(_build())
     assert module._read_collection_count is before
+
+
+# ── Collection header width ──────────────────────────────────────────────
+#
+# The header is a kind byte, an optional extra byte, then a u32 count. Reading
+# the count four bytes early gives the true value shifted up a byte, which is
+# still small enough to look plausible -- so the misread is silent, and the walk
+# still finishes because it stops on the trailer when the elements run out.
+
+
+def test_a_wide_header_whose_extra_byte_is_zero_is_not_read_as_a_narrow_one() -> None:
+    """Over 1,949 collections in completed walks, no correct narrow count was
+    ever a multiple of 256. So where that signal appears it is the wide form."""
+
+    from tests.prefab_collection_builder import build_with_collection
+
+    document = decode_prefab_binary(build_with_collection(("A", "B"), wide=True))
+
+    (collection,) = document.collections
+    assert collection.count == 2, "512 is the narrow misread of a wide 2"
+    assert collection.header_width == 6
+    assert len(collection.elements) == 2
+
+
+def test_a_narrow_header_is_left_alone() -> None:
+    from tests.prefab_collection_builder import build_with_collection
+
+    (collection,) = decode_prefab_binary(build_with_collection(("A", "B"))).collections
+
+    assert collection.header_width == 5
+    assert collection.count == 2
+
+
+def test_the_wide_retry_is_dropped_when_it_reads_less_of_the_file() -> None:
+    """The signal is necessary, not sufficient. One shipped file carries it at a
+    header where neither reading matches the elements that follow, and forcing
+    the wide form there costs 5,234 bytes of walk. Judging the retry on the
+    whole file rather than on the header is what leaves that file alone.
+
+    Here: three elements under a count of 512. The narrow reading over-declares
+    but consumes everything; the wide reading takes 2 and leaves an element
+    behind, so it is rejected and the narrow one stands.
+    """
+
+    from tests.prefab_collection_builder import build_with_collection
+
+    data = build_with_collection(("A", "B", "C"), wide=True, declared=512)
+
+    document = decode_prefab_binary(data)
+
+    assert document.walk_complete
+    (collection,) = document.collections
+    assert collection.count == 512, "the worse reading was not adopted"
+    assert len(collection.elements) == 3
+
+
+def test_an_over_declared_collection_is_reported_rather_than_hidden() -> None:
+    """A count the walk could not satisfy is a decode that is wrong without
+    saying so. Callers that edit have to be able to see it."""
+
+    from cdmw.core.prefab_binary import _over_declared
+    from tests.prefab_collection_builder import build_with_collection
+
+    honest = decode_prefab_binary(build_with_collection(("A", "B")))
+    inflated = decode_prefab_binary(
+        build_with_collection(("A", "B", "C"), wide=True, declared=512)
+    )
+
+    assert _over_declared(honest) == 0
+    assert _over_declared(inflated) == 1

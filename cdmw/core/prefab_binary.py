@@ -235,6 +235,39 @@ class PrefabPointer:
 
 
 @dataclass(frozen=True, slots=True)
+class PrefabCollection:
+    """One collection the walk read, and where each of its elements sits.
+
+    The walk already knows all of this -- it consumed the header and then read
+    ``count`` elements one after another -- but until now it threw it away. An
+    editor that wants to add or drop an element has to have it, and *has to
+    have it from the walk*: the header is only distinguishable from the bytes
+    around it by having been arrived at, and the element boundaries are wherever
+    the previous element stopped. Searching for either is guesswork.
+    """
+
+    #: The member that declares the collection, e.g. ``_childSceneObjects``.
+    member_name: str
+    #: The component type holding that member; ``""`` at the root.
+    owner_type: str
+    #: Absolute offset of the header's kind byte.
+    header_offset: int
+    #: 5 for the narrow header, 6 for the wide one. The count sits in the last
+    #: four bytes either way, so a writer never has to re-decide the width.
+    header_width: int
+    #: Elements the header declares. Equal to ``len(elements)`` except on a file
+    #: whose count outruns the data, where the walk stopped at the trailer.
+    count: int
+    #: Absolute ``(start, end)`` per element, in file order.
+    elements: tuple[tuple[int, int], ...] = ()
+
+    @property
+    def count_offset(self) -> int:
+        """Absolute offset of the u32 element count."""
+        return self.header_offset + self.header_width - 4
+
+
+@dataclass(frozen=True, slots=True)
 class PrefabDocument:
     """A decoded prefab."""
 
@@ -266,6 +299,9 @@ class PrefabDocument:
     #: "Cannot follow this structure" is not a report anyone can act on; where
     #: it happened, and how far in, is.
     walk_stop_offset: int = -1
+    #: Every collection the walk read, outermost first. Empty on a walk that
+    #: failed before reaching one.
+    collections: tuple[PrefabCollection, ...] = ()
 
     @property
     def walk_progress(self) -> float:
@@ -459,10 +495,22 @@ def pointer_sites(data: bytes, blob_offset: int, blob_length: int) -> tuple[int,
 class _BlobCursor:
     """Cursor over the data blob, in blob-relative coordinates."""
 
-    __slots__ = ("blob", "base", "pos", "type_table", "used_types", "pointee_fields", "stopped_at")
+    __slots__ = (
+        "blob", "base", "pos", "type_table", "used_types", "pointee_fields",
+        "stopped_at", "collections", "wide_on_multiples",
+    )
 
-    def __init__(self, blob: bytes, base: int, type_table: Sequence[PrefabType] = ()) -> None:
+    def __init__(
+        self,
+        blob: bytes,
+        base: int,
+        type_table: Sequence[PrefabType] = (),
+        wide_on_multiples: bool = False,
+    ) -> None:
         self.blob = blob
+        # See _read_collection_count: read a count that is a multiple of 256 as
+        # the wide form. Set by the retry in decode_prefab_binary, never here.
+        self.wide_on_multiples = wide_on_multiples
         self.base = base
         self.pos = 0
         self.type_table = tuple(type_table)
@@ -472,6 +520,8 @@ class _BlobCursor:
         # own length prefix by coincidence.
         self.pointee_fields: dict[int, int] = {}
         self.stopped_at = -1
+        # Collections in the order they were read, with their element spans.
+        self.collections: list[PrefabCollection] = []
         # Types already claimed by a group, so an unstated one can take the
         # next declared type instead of guessing by size.
         self.used_types: set[str] = set()
@@ -614,11 +664,32 @@ def _read_collection_count(cursor: _BlobCursor) -> int:
     collections (``_childSceneObjects`` and friends) carry an extra byte
     between the two. The count is small, so an implausible read means the
     wider form.
+
+    That test misses the wide headers whose extra byte is zero: reading four
+    bytes one early then yields the true count shifted up a byte, which is still
+    under the plausibility ceiling and is taken. The tell is that it is a
+    *multiple of 256*, and over 1,949 collections in completed walks no correct
+    narrow count was ever a multiple of 256 -- so the signal is unambiguous
+    where it appears. It is not sufficient on its own, though: one file carries
+    the signal at a header where neither reading matches the elements that
+    follow, and forcing the wide form there costs the whole walk. So this only
+    obeys ``wide_on_multiples`` when the caller asks, and
+    :func:`decode_prefab_binary` asks only as a retry it keeps if it comes out
+    better.
     """
     kind = cursor.take(1)[0]
     if cursor.pos + 4 > len(cursor.blob):
         raise PrefabBinaryError("truncated collection header")
     count = struct.unpack_from("<I", cursor.blob, cursor.pos)[0]
+    if (
+        cursor.wide_on_multiples
+        and count
+        and count % 256 == 0
+        and cursor.pos + 5 <= len(cursor.blob)
+        and struct.unpack_from("<I", cursor.blob, cursor.pos + 1)[0] == count >> 8
+    ):
+        cursor.take(5)
+        return count >> 8
     if count > _MAX_COUNT and cursor.pos + 5 <= len(cursor.blob):
         wider = struct.unpack_from("<I", cursor.blob, cursor.pos + 1)[0]
         if wider <= _MAX_COUNT:
@@ -635,7 +706,13 @@ def _read_collection_count(cursor: _BlobCursor) -> int:
     return count
 
 
-def _read_member(cursor: _BlobCursor, member: PrefabMember, into: _Collected, group_reader) -> None:
+def _read_member(
+    cursor: _BlobCursor,
+    member: PrefabMember,
+    into: _Collected,
+    group_reader,
+    owner_type: str = "",
+) -> None:
     flags = member.flags
     if flags in INLINE_KINDS:
         start = cursor.pos
@@ -659,7 +736,23 @@ def _read_member(cursor: _BlobCursor, member: PrefabMember, into: _Collected, gr
         _read_pointer(cursor, into, member.name)
         return
     if flags == KIND_COLLECTION:
+        header_at = cursor.pos
         count = _read_collection_count(cursor)
+        header_width = cursor.pos - header_at
+        # Reserve the slot before reading the elements, so nested collections
+        # land after their parent rather than before it. Ordering matters to a
+        # caller resolving "which collection contains this offset".
+        slot = len(cursor.collections)
+        cursor.collections.append(
+            PrefabCollection(
+                member_name=member.name,
+                owner_type=owner_type,
+                header_offset=cursor.base + header_at,
+                header_width=header_width,
+                count=count,
+            )
+        )
+        spans: list[tuple[int, int]] = []
         for _ in range(count):
             mark = cursor.pos
             try:
@@ -672,6 +765,15 @@ def _read_member(cursor: _BlobCursor, member: PrefabMember, into: _Collected, gr
                     cursor.pos = mark
                     break
                 raise
+            spans.append((cursor.base + mark, cursor.base + cursor.pos))
+        cursor.collections[slot] = PrefabCollection(
+            member_name=member.name,
+            owner_type=owner_type,
+            header_offset=cursor.base + header_at,
+            header_width=header_width,
+            count=count,
+            elements=tuple(spans),
+        )
         return
     raise PrefabBinaryError(f"unsupported member kind 0x{flags:04x} on {member.name}")
 
@@ -820,7 +922,7 @@ def _walk_group(
         if not (mask >> index) & 1:
             continue
         selected.append(member.name)
-        _read_member(cursor, member, collected, nested)
+        _read_member(cursor, member, collected, nested, component.type_name)
     sink.insert(
         depth_index,
         PrefabObject(
@@ -844,8 +946,12 @@ def _walk_blob(
     root: PrefabType,
     components: Sequence[PrefabType],
     all_types: Sequence[PrefabType] = (),
-) -> tuple[tuple[str, ...], list[PrefabObject], bool, str, _Collected, dict[int, int], int]:
-    cursor = _BlobCursor(blob, base, all_types)
+    wide_on_multiples: bool = False,
+) -> tuple[tuple[str, ...], list[PrefabObject], bool, str, _Collected, "_BlobCursor"]:
+    """Walk the heap. The cursor comes back too: it carries the pointee length
+    fields, the stop offset and the collection spans, and returning it beats
+    growing the tuple a field at a time."""
+    cursor = _BlobCursor(blob, base, all_types, wide_on_multiples)
     objects: list[PrefabObject] = []
     cursor.take(2)
     mask = int.from_bytes(cursor.take(6), "little")
@@ -863,10 +969,10 @@ def _walk_blob(
                 continue
             # Collections at the root read exactly as they do anywhere else, so
             # let _read_member own that in one place.
-            _read_member(cursor, member, collected, nested)
+            _read_member(cursor, member, collected, nested, root.type_name)
     except PrefabBinaryError as exc:
         cursor.stopped_at = cursor.base + cursor.pos
-        return selected, objects, False, str(exc), collected, cursor.pointee_fields, cursor.stopped_at
+        return selected, objects, False, str(exc), collected, cursor
     # The blob closes with the final record's footer plus a terminator; its
     # width follows the component family.
     remaining = len(blob) - cursor.pos
@@ -875,8 +981,8 @@ def _walk_blob(
         remaining = 0
     if remaining:
         cursor.stopped_at = cursor.base + cursor.pos
-        return selected, objects, False, f"walk ended {remaining} bytes short", collected, cursor.pointee_fields, cursor.stopped_at
-    return selected, objects, True, "", collected, cursor.pointee_fields, cursor.stopped_at
+        return selected, objects, False, f"walk ended {remaining} bytes short", collected, cursor
+    return selected, objects, True, "", collected, cursor
 
 
 def walk_is_determined(data: bytes) -> bool:
@@ -932,8 +1038,53 @@ def walk_is_determined(data: bytes) -> bool:
     return not (alternate and flipped)
 
 
+def _over_declared(document: PrefabDocument) -> int:
+    """Collections claiming more elements than the walk could read.
+
+    Every one of these is a decode that is wrong without saying so: the walk ran
+    out of elements and stopped on the trailer, so the file looks read while a
+    collection's count is fiction. Used to judge whether a retry is an
+    improvement, which is why it is a count and not a flag.
+    """
+    return sum(1 for item in document.collections if len(item.elements) != item.count)
+
+
 def decode_prefab_binary(data: bytes) -> PrefabDocument:
-    """Decode a ``.prefab`` payload.
+    """Decode a ``.prefab`` payload, retrying the collection width if it helps.
+
+    The first read takes every collection header as narrow unless the count is
+    implausible. When that leaves a collection over-declaring its elements
+    *and* the count is a multiple of 256 -- the tell for a wide header whose
+    extra byte is zero -- the file is read again with those headers taken wide,
+    and the second reading is kept only if it both completes and leaves fewer
+    collections over-declared.
+
+    Judging the retry on the result rather than on the header is what makes it
+    safe. Per header the two readings are indistinguishable; measured over the
+    whole file they are not, and one file in 1,500 carries the signal at a
+    header where the wide form costs 5,234 bytes of walk. It keeps its narrow
+    reading because the retry is worse, not because the rule was weakened.
+    """
+    document = _decode_prefab(data, wide_on_multiples=False)
+    if not _over_declared(document):
+        return document
+    if not any(
+        item.count and item.count % 256 == 0
+        for item in document.collections
+        if len(item.elements) != item.count
+    ):
+        return document
+    try:
+        alternate = _decode_prefab(data, wide_on_multiples=True)
+    except PrefabBinaryError:
+        return document
+    if alternate.walk_complete and _over_declared(alternate) < _over_declared(document):
+        return alternate
+    return document
+
+
+def _decode_prefab(data: bytes, *, wide_on_multiples: bool = False) -> PrefabDocument:
+    """One reading of a payload, at a fixed collection-header width policy.
 
     The type table, string pool and data header are always parsed; a failure
     there raises :class:`PrefabBinaryError`. The heap walk is best-effort:
@@ -956,8 +1107,8 @@ def decode_prefab_binary(data: bytes) -> PrefabDocument:
         and not item.type_name.startswith("ResourceReferencePath")
         and not item.is_nested_prefab
     ]
-    selected, objects, complete, note, root_values, pointee_fields, stopped_at = _walk_blob(
-        blob, header.blob_offset, root, tuple(components), header.types
+    selected, objects, complete, note, root_values, cursor = _walk_blob(
+        blob, header.blob_offset, root, tuple(components), header.types, wide_on_multiples
     )
     pointers = tuple(
         PrefabPointer(
@@ -985,6 +1136,7 @@ def decode_prefab_binary(data: bytes) -> PrefabDocument:
         walk_complete=complete,
         walk_note=note,
         byte_length=len(payload),
-        pointee_length_fields=tuple(sorted(pointee_fields.items())),
-        walk_stop_offset=stopped_at,
+        pointee_length_fields=tuple(sorted(cursor.pointee_fields.items())),
+        walk_stop_offset=cursor.stopped_at,
+        collections=tuple(cursor.collections),
     )
