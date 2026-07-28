@@ -8,11 +8,11 @@ Of 141 known file formats, 89 are engine formats (Pearl Abyss or licensed middle
 
 | Scope | Formats | Read coverage | Write coverage |
 |---|---|---|---|
-| **Engine formats the build ships** | 77 | **40.4%** | **24.7%** |
+| **Engine formats the build ships** | 77 | **41.7%** | **26.0%** |
 | Weighted by archive file count | 1,383,187 files | 65.9% | 53.8% |
-| Engine formats (proprietary + middleware) | 89 | 40.8% | 26.4% |
-| Pearl Abyss formats only | 82 | 41.3% | 26.8% |
-| All formats | 141 | 53.5% | 32.3% |
+| Engine formats (proprietary + middleware) | 89 | 41.9% | 27.5% |
+| Pearl Abyss formats only | 82 | 42.6% | 28.0% |
+| All formats | 141 | 54.3% | 33.0% |
 
 Coverage is a weighted mean, not a file count: decode `full` = 1.0, decode `partial` = 0.6, decode `surface` = 0.3, decode `none` = 0.0; write `full` = 1.0, write `constrained` = 0.5, write `none` = 0.0.
 
@@ -22,7 +22,7 @@ Coverage is a weighted mean, not a file count: decode `full` = 1.0, decode `part
 |---|---|---|---|
 | `animation_scene` | 15 | `########............` 42.0% | `#####...............` 23.3% |
 | `audio_video` | 18 | `#########...........` 47.2% | `##..................` 8.3% |
-| `material_metadata` | 62 | `#########...........` 44.4% | `######..............` 31.5% |
+| `material_metadata` | 62 | `#########...........` 46.0% | `#######.............` 33.1% |
 | `model_mesh_physics` | 19 | `###########.........` 54.2% | `#######.............` 36.8% |
 | `texture_image` | 12 | `################....` 80.0% | `###.................` 16.7% |
 | `user_interface_text` | 15 | `##################..` 88.7% | `################....` 80.0% |
@@ -84,9 +84,9 @@ Engine formats only, worst first. Open formats are listed at the end for complet
 | `.pampg` | 15,291 | surface | none | low | field semantics unknown |
 | `.pamt` | 33 | none | none | low | nested container copies, not content to decode |
 | `.pappt` | 1 | surface | none | low | record layout not parsed |
-| `.papr` | 20 | full | full | low | no evidence the runtime reads this format: papr appears zero times as a standalone token across all 40+ shipped binaries where pac, pab, paseq, pamlod, meshinfo and pathc all appear, its internal Local_Euler / ExposeTransform vocabulary appears in no binary in ASCII or UTF-16, and 1,015 character descriptor and model files reference it nowhere. It reads as a 3ds Max rig export left in the archives. The live equivalents are plain XML already: character/descriptors/jiggledescriptor.xml and character/descriptors/posemodifierdata/posemodifierdata.xml. the 20th rig, cd_m0001_00_circusmachine_boss, finds 236 entry starts against a declared 237 and is rejected rather than guessed at; every block of the other nineteen decodes |
-| `.paproj` | 9 | none | none | low | container identified, record layout unknown |
-| `.paprojdesc` | 1 | none | none | low | container identified, record layout unknown |
+| `.papr` | 20 | full | full | low | no evidence the runtime reads this format: papr appears zero times as a standalone token across all 40+ shipped binaries where pac, pab, paseq, pamlod, meshinfo and pathc all appear, its internal Local_Euler / ExposeTransform vocabulary appears in no binary in ASCII or UTF-16, and 1,015 character descriptor and model files reference it nowhere. It reads as a 3ds Max rig export left in the archives. The live equivalents are plain XML already: character/descriptors/jiggledescriptor.xml and character/descriptors/posemodifierdata/posemodifierdata.xml. nothing: all 20 rigs parse, tile to their declared entry_count, rebuild byte for byte, and decode every configuration block. cd_m0001_00_circusmachine_boss was the last holdout at 236 starts against a declared 237; the entry it missed is unparented, which the scan had read as a malformed name |
+| `.paproj` | 9 | none | none | low | record layout unknown. The leading u32 differs per file and does not track file size, and no header/record-size pair in 8..128 bytes divides any file evenly at the count it declares, so the records are not fixed width or the header is longer than 12 bytes |
+| `.paprojdesc` | 1 | full | full | low | nothing: the single shipped file is fully accounted for and cross-checked against its XML |
 | `.pas` | 2 | full | full | low | no schema model, so edits are unchecked text edits |
 | `.paschedulectx` | 1 | none | none | low | container identified, record layout unknown |
 | `.paseqh` | 1 | none | none | low | these entries are encrypted with a key CDMW does not have; nothing can be decoded until that is solved |
