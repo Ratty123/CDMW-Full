@@ -7,6 +7,7 @@ import threading
 from PIL import Image
 import pytest
 
+from cdmw.core.texture_native import find_directxtex_texture_binary
 from cdmw.domain.textures.material_authority_state import (
     MATERIAL_AUTHORITY_AUTOMATIC_KEYS,
     MATERIAL_AUTHORITY_EXPERT_KEYS,
@@ -100,6 +101,11 @@ def _resource_signature(
     profile: object,
     output_root: Path,
 ) -> dict[str, tuple[object, ...]]:
+    # These assertions are about what the real DirectXTex encoder writes into each
+    # canonical channel, so there is nothing to check without it. The texture
+    # backend has no Python fallback by design.
+    if find_directxtex_texture_binary() is None:
+        pytest.skip("cd-texture-dx is not built")
     bindings = generate_material_authority_resource_bindings(
         (("Blade", texture_set),),
         profile,

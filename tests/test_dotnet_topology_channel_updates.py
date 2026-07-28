@@ -1,6 +1,9 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
+from cdmw.modding.mesh_native_core import find_native_mesh_core_binary
 from cdmw.ui.mesh_editor.native_topology_updates import _material_source_index
 from cdmw.ui.mesh_editor.static_replacement_adapter import StaticReplacementMeshEditSession
 from tools.mesh_editor_dev_harness import _build_two_part_synthetic_mesh
@@ -87,6 +90,10 @@ def test_ordinary_topology_update_rebuilds_only_affected_d3d_batch() -> None:
 
 
 def test_whole_part_delete_sends_affected_only_shrink() -> None:
+    # `delete` is a native mesh-edit command and the Python fallback is disabled
+    # by design, so without the core built there is no topology update to assert.
+    if find_native_mesh_core_binary() is None:
+        pytest.skip("cdmw_mesh_core is not built")
     session = StaticReplacementMeshEditSession(session_id="dotnet-partial-delete")
     session.open(_build_two_part_synthetic_mesh())
     try:

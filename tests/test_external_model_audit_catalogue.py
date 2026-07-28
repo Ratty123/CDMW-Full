@@ -20,6 +20,7 @@ from cdmw.core.external_model_audit import (
 )
 from cdmw.core.external_model_audit_check import check_external_model_audit_report
 from cdmw.core.model_catalogue import scan_local_model_files, zip_importable_member_refs
+from cdmw.modding.mesh_native_core import find_native_mesh_core_binary
 from tools.audit_external_model_catalogue import main as audit_catalogue_main
 from tools.check_external_model_audit import main as check_external_model_audit_main
 
@@ -254,7 +255,20 @@ def _write_spec_gloss_gltf(path: Path) -> None:
 
 
 class ExternalModelAuditCatalogueTests(unittest.TestCase):
+    def _require_native_mesh_core(self) -> None:
+        """Skip when `cdmw_mesh_core` is not built.
+
+        Auditing an importable model bakes its UVs and generates MikkTSpace
+        tangents, which is a native operation with no Python fallback. Without
+        the core every model comes back `failed` with a tangent warning, so the
+        catalogue under assertion is empty rather than wrong.
+        """
+
+        if find_native_mesh_core_binary() is None:
+            self.skipTest("cdmw_mesh_core is not built")
+
     def test_catalogue_reports_material_inventory_missing_refs_and_unsupported_fbx(self) -> None:
+        self._require_native_mesh_core()
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             _write_triangle_gltf(root / "gold_sword.gltf", missing_normal=True)
@@ -415,6 +429,7 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         self.assertNotIn("source_texture_route_mismatch", check["review_risk_flags"])
 
     def test_catalogue_treats_pbr_scalars_as_roughness_metalness_evidence(self) -> None:
+        self._require_native_mesh_core()
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             path = root / "scalar_blade.gltf"
@@ -468,6 +483,7 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         self.assertNotIn("missing_pbr_workflow", check["risk_flags"])
 
     def test_catalogue_treats_alpha_warning_as_alpha_diagnostic_evidence(self) -> None:
+        self._require_native_mesh_core()
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             path = root / "transparent_blade.gltf"
@@ -485,6 +501,7 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         self.assertEqual(0, report["summary"]["materials_missing_alpha_diagnostics"])
 
     def test_catalogue_records_glass_class_alpha_intent_without_opacity_evidence(self) -> None:
+        self._require_native_mesh_core()
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             path = root / "translucent_glass_panel.gltf"
@@ -630,6 +647,7 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         self.assertEqual(0, report["summary"]["materials_missing_roughness_metalness_diagnostics"])
 
     def test_catalogue_treats_base_texture_alpha_as_opacity_evidence(self) -> None:
+        self._require_native_mesh_core()
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             _write_triangle_gltf(root / "transparent_base.gltf")
@@ -647,6 +665,7 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         self.assertNotIn("missing_alpha_diagnostics", check["risk_flags"])
 
     def test_catalogue_treats_roughness_alpha_as_technical_channel_not_transparency(self) -> None:
+        self._require_native_mesh_core()
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             _write_triangle_gltf(root / "packed_roughness.gltf")
@@ -664,6 +683,7 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         self.assertNotIn("missing_alpha_diagnostics", check["risk_flags"])
 
     def test_catalogue_report_can_be_written_as_json(self) -> None:
+        self._require_native_mesh_core()
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             _write_triangle_gltf(root / "gold_sword.gltf")
@@ -676,6 +696,7 @@ class ExternalModelAuditCatalogueTests(unittest.TestCase):
         self.assertEqual(1, payload["summary"]["audited_models"])
 
     def test_cli_writes_audit_json_for_explicit_root(self) -> None:
+        self._require_native_mesh_core()
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             _write_triangle_gltf(root / "gold_sword.gltf")
@@ -1134,6 +1155,7 @@ Connections:  {
         self.assertTrue(any("temporary extraction" in warning for warning in row["warnings"]))
 
     def test_catalogue_can_audit_zip_contents_from_temp_extraction(self) -> None:
+        self._require_native_mesh_core()
         with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as stage_dir:
             root = Path(temp_dir)
             stage = Path(stage_dir)
@@ -1162,6 +1184,7 @@ Connections:  {
         self.assertIn("packed_sword.zip::scene/gold_normal.png", slots["normal"]["texture_path"].replace("\\", "/"))
 
     def test_catalogue_can_audit_nested_zip_contents_from_temp_extraction(self) -> None:
+        self._require_native_mesh_core()
         with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as stage_dir:
             root = Path(temp_dir)
             stage = Path(stage_dir)
@@ -1271,6 +1294,7 @@ Connections:  {
         self.assertTrue(any("unresolved texture candidate" in warning for warning in row["warnings"]))
 
     def test_catalogue_caps_zip_content_audits_with_skip_evidence(self) -> None:
+        self._require_native_mesh_core()
         with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as stage_dir:
             root = Path(temp_dir)
             stage = Path(stage_dir)
@@ -1299,6 +1323,7 @@ Connections:  {
         self.assertTrue(any("content audit skipped" in warning for warning in skipped[0]["warnings"]))
 
     def test_external_model_audit_checker_passes_strong_material_inventory(self) -> None:
+        self._require_native_mesh_core()
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             _write_triangle_gltf(root / "gold_sword.gltf")
@@ -1495,6 +1520,7 @@ Connections:  {
         self.assertEqual(0, result["counts"]["audited_model_without_material_inventory"])
 
     def test_external_model_audit_checker_cli_writes_result_json(self) -> None:
+        self._require_native_mesh_core()
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             _write_triangle_gltf(root / "gold_sword.gltf")
@@ -1515,6 +1541,7 @@ Connections:  {
         self.assertEqual(1, payload["counts"]["material_inventory_rows"])
 
     def test_external_model_audit_checker_cli_runs_by_script_path_outside_repo(self) -> None:
+        self._require_native_mesh_core()
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as cwd_dir:
             root = Path(temp_dir)

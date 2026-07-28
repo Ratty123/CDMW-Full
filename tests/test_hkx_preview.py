@@ -36,6 +36,7 @@ from cdmw.core.archive_modding import (
     _hkx_xml_add_value_layout,
     parse_hkx_tagfile_summary,
 )
+from cdmw.core.hkx_native import find_cd_hkx_binary
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, ModelPreviewData, ModelPreviewMesh, RunCancelled
 from cdmw.modding.mesh_parser import ParsedMesh
 
@@ -50,6 +51,19 @@ def _tna1_payload(type_name_count: int) -> bytes:
 
 
 class HkxPreviewTests(unittest.TestCase):
+    def _require_native_hkx(self) -> None:
+        """Skip when `cd_hkx` is not built.
+
+        The native decoder has no Python equivalent: without it the reader falls
+        back to the converter report, which names a different source, decodes no
+        semantic objects, and reports no model graph. Asserting native output
+        against that is comparing two different decoders, not catching a
+        regression in one.
+        """
+
+        if find_cd_hkx_binary() is None:
+            self.skipTest("cd_hkx is not built")
+
     def _archive_entries(self, payloads):
         tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(tempdir.cleanup)
@@ -821,6 +835,7 @@ class HkxPreviewTests(unittest.TestCase):
         )
 
     def test_havok_xml_view_recovers_root_object_when_not_first_record(self) -> None:
+        self._require_native_hkx()
         type_names = b"hknpShape\0hkRootLevelContainer\0hkRootLevelContainer::NamedVariant\0char\0hknpPhysicsSystemData\0\xff"
         records = b"".join(
             (
@@ -938,6 +953,7 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertEqual([], result.changed_fields)
 
     def test_hkx_tagfile_fixups_decode_nested_item_and_ptch_tables(self) -> None:
+        self._require_native_hkx()
         type_names = b"hkArray\0hkRefPtr\0hknpShape\0\xff"
         records = b"".join(
             (
@@ -3321,6 +3337,7 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertEqual([0.0, 3.0, 0.0], xml_reparsed["shapes"][0]["capsule_endpoints"][1])
 
     def test_modern_tagfile_summary_decodes_mesh_shape_hint(self) -> None:
+        self._require_native_hkx()
         data = self._mesh_shape_hkx_bytes()
 
         summary = parse_hkx_tagfile_summary(data)
@@ -3678,6 +3695,7 @@ class HkxPreviewTests(unittest.TestCase):
         self.assertNotIn("hkxVertexBuffer", unknown_types)
 
     def test_hkx_decode_gap_summary_and_priority_partials_export_to_xml(self) -> None:
+        self._require_native_hkx()
         type_names = b"hknpTriangleShape\0hknpBallAndSocketConstraintData\0\xff"
         records = b"".join(
             (

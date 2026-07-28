@@ -8,12 +8,15 @@ import os
 from pathlib import Path
 import struct
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QLineEdit, QPushButton, QTabWidget, QTreeWidget, QWidget
 
 from cdmw.core.archive_hkx import build_hkx_editable_geometry_xml
+from cdmw.core.hkx_native import find_cd_hkx_binary
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser import hkx_editor_dialog
 from cdmw.ui.archive_browser.hkx_editor_dialog_owners import DIALOG_STEPS
@@ -107,6 +110,13 @@ def test_hkx_editor_owners_obey_phase6_caps() -> None:
 
 
 def test_hkx_editor_box_document_build_matches_presplit_golden(monkeypatch, tmp_path: Path) -> None:
+    # The golden fingerprint was recorded against the native decoder. Without
+    # `cd_hkx` built the dialog reports `python_converter_report` instead of
+    # `native_rust_cd_hkx`, decodes no semantic objects, and drops the whole
+    # semantic writer gate section, so the hash is comparing two different
+    # dialogs rather than catching a regression in one.
+    if find_cd_hkx_binary() is None:
+        pytest.skip("cd_hkx is not built")
     app = QApplication.instance() or QApplication([])
     fingerprints: list[str] = []
     visible_states: list[bool] = []
