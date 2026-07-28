@@ -185,14 +185,31 @@ internal sealed partial class ExperimentForm
     private static bool IsProvisionalSelectionRequest(string eventName) =>
         eventName is "select_request" or "selection_request";
 
+    /// <summary>
+    /// Whether the host may answer this request with a correlated
+    /// <c>selection_update</c>, which is what keeps the pending entry alive past
+    /// the command result so the update can still be matched to it.
+    /// </summary>
+    /// <remarks>
+    /// Only <c>command_request</c> carries a <c>command</c> field
+    /// (see <c>WriteCommandRequest</c>). Selection requests and strokes are
+    /// built from the pointer payload, which has none, so qualifying them by
+    /// command name made every one of them answer false: an ordinary click's
+    /// authoritative selection was rejected as uncorrelated and only landed on
+    /// the next uncorrelated <c>session_state</c> broadcast.
+    ///
+    /// Strokes stay excluded on purpose. The host sets its refresh flag on any
+    /// stroke result that carries vertex groups while a selection exists, so
+    /// nearly every stroke event would answer true — and since a brush or
+    /// transform never edits the selection, that update only ever echoes back
+    /// what the viewport already has. Holding a pending entry open for each one
+    /// would fill the request table at pointer-move rate and start evicting
+    /// live selection requests, which are the entries that still need to roll
+    /// back.
+    /// </remarks>
     private static bool MutationMayReturnSelection(PendingMutationRequest pending) => pending.EventName switch
     {
-        "select_request" or
-        "selection_request" or
-        "stroke_begin" or
-        "stroke_update" or
-        "stroke_end" or
-        "stroke_cancel" or
+        "select_request" or "selection_request" => true,
         "command_request" => pending.Command is
             "clear_selection" or "select_all" or "grow" or "shrink" or "invert" or
             "undo" or "redo" or "delete" or "duplicate" or "subdivide" or "refine_smooth",
