@@ -164,42 +164,54 @@ Roughly in order of value:
    matters more now that placement is editable: a wrong rotation convention
    would produce files that pass every test and sit at wrong angles in world.
    Needs a human with the game installed.
-2. **45.6% of prefabs do not walk to completion, and that is five problems, not
-   one.** `scripts/prefab_walk_failure_census.py` groups them by cause and by
-   how far through the data section each got, which matters more than the count:
+2. **38.1% of prefabs do not walk to completion**, down from 45.6% once the
+   trailer was understood as a run of records rather than one.
+   `scripts/prefab_walk_failure_census.py` groups what is left by cause and by
+   how far through the data section each got:
 
-   | files | share | median progress | p90 | cause |
-   | ---: | ---: | ---: | ---: | --- |
-   | 1,417 | 25.9% | 1% | 6% | mask exceeds every candidate component |
-   | 1,036 | 18.9% | **99%** | 100% | no element header near … |
-   | 1,002 | 18.3% | 19% | 97% | collection count N (kind N) |
-   | 826 | 15.1% | **80%** | 100% | walk ended N bytes short |
-   | 772 | 14.1% | 5% | 89% | no pointer record near … |
-   | 260 | 4.7% | 12% | 75% | blob string length N at … |
-   | 99 | 1.8% | 22% | 94% | pointee length N != N |
-   | 59 | 1.1% | **97%** | 100% | blob read of N past end |
+   | files | share | median progress | p90 | objs | cause |
+   | ---: | ---: | ---: | ---: | ---: | --- |
+   | 1,417 | 31.0% | 1% | 6% | 0 | mask exceeds every candidate component |
+   | 1,002 | 21.9% | 19% | 97% | 3 | collection count N (kind N) |
+   | 772 | 16.9% | 5% | 89% | 1 | no pointer record near … |
+   | 729 | 15.9% | 73% | 97% | 3 | walk ended N bytes short |
+   | 260 | 5.7% | 12% | 75% | 1 | blob string length N at … |
+   | 225 | 4.9% | 98% | 100% | 4 | no element header near … |
+   | 99 | 2.2% | 22% | 94% | 2 | pointee length N != N |
+   | 63 | 1.4% | 97% | 100% | 3 | blob read of N past end |
 
-   Two groups, and they want opposite work. **"No element header", "walk ended
-   short" and "read past end" together are 35% of the failures and sit at 80–99%
-   of the way through** -- 1,921 files that are nearly read, most likely stopping
-   on a terminator or trailing record the grammar does not model, not on a
-   structural gap. That is the cheap target.
+   Three of these have been chased to a conclusion, and none is what its
+   message suggests:
 
-   **"Mask exceeds every candidate component" is the largest single cause at
-   25.9% and stops at a median 1%, with zero objects read.** It fails
-   immediately, which points at the root component selection being wrong from
-   the first group rather than at anything deep in the file.
+   - **"Collection count N (kind N)" is misalignment, not an unhandled kind.**
+     The rejected kind bytes are scattered (0x30, 0x04, 0x62, 0x0c, 0x02, …)
+     with counts like 1,867,710,464, and the bytes at the cursor are
+     length-prefixed strings -- `09 00 00 00 "Socket_01"`, `11 00 00 00
+     "Basic_Chil…"`. The walk is reading a string as a collection header. The
+     message names a kind, which invites an enumeration that does not exist.
+   - **"Walk ended N bytes short" is real unconsumed structure**, not padding:
+     the leftovers hold owner fields and object names. But only 37 of 729 parse
+     as further groups when the walk is allowed to resume from the stop, so
+     resume-parsing is not the answer and was not kept.
+   - **"Mask exceeds every candidate" fails on the first *child* group.** The
+     root mask parses correctly every time (2 bits set, 2 members selected).
+     The child's mask needs more members than any candidate type has -- but the
+     root type usually does fit, since a child scene object is itself a
+     `SceneObject`. Offering the root as a peer candidate is *worse*
+     (61.9% → 59.4%): it has enough members to fit most masks and displaces the
+     right component. Offering it only when nothing else fits gains 6 files and
+     merely relocates the failure to "blob string length" at the same 1%
+     progress. Both point at the mask's *width* being misread rather than at the
+     candidate list, which rejoins the mask-width dead end below.
 
    The known-unknowable part remains: marker=1 groups do not state their
    component type anywhere. Markers 2 and 3 put the type index at `owner-3`;
    for marker=1 that byte is the mask's own high byte, and anchoring against 375
    marker=1 groups from completed walks found no byte position holding the
-   resolved index -- the best candidate scored 4.0%, i.e. noise. The best
-   discriminator found outside the header is declaration order, which held for
-   301 of 304 completed walks.
+   resolved index -- the best candidate scored 4.0%, i.e. noise.
 
-   Incomplete walks are no longer dead weight: their asset paths are recovered
-   from pointer records without the walk, and same-length retargets are allowed
+   Incomplete walks are not dead weight: their asset paths are recovered from
+   pointer records without the walk, and same-length retargets are allowed
    because they relocate nothing.
 3. **Glossary descriptions are inferred** from field names and declared types,
    not from documentation. 87 entries cover 98.8% of set-field occurrences;
