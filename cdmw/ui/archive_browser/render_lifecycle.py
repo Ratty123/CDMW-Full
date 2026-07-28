@@ -536,6 +536,11 @@ class ArchiveRenderLifecycleMixin:
                 self._start_archive_sidecar_index_worker()
                 self._schedule_archive_post_ready_background_work(900)
                 return
+        # Last rung: every index the preview itself reads is published by now, so
+        # the warm-up job measures the real cold cost instead of racing them.
+        if self._start_archive_preview_core_prewarm():
+            self._schedule_archive_post_ready_background_work(900)
+            return
         if self.archive_item_icon_preload_pending_after_ready:
             self.archive_item_icon_preload_pending_after_ready = False
             self.append_archive_log("Archive Browser activation timing | cause=icon_warmup | start=deferred", verbose=True)

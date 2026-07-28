@@ -1059,6 +1059,11 @@ internal static class FullArchiveTestRunner
                 new OpenArchiveRequest(fixture.Root),
                 CancellationToken.None).ConfigureAwait(false);
             var service = new ArchiveNameIndexService(sessions, cache, native);
+            // A cold archive reports neither, which is what lets a preview lookup skip
+            // the multi-second build instead of blocking the first click on it.
+            Require(
+                !service.IsWarm(handle.SessionId) && !service.IsPublished(handle.SessionId),
+                "a cold archive reported a name index that has not been built");
             var index = await service.WarmAsync(handle.SessionId, CancellationToken.None).ConfigureAwait(false);
             Require(index.IsAvailable && index.HasNames, $"synthetic archive name index is unavailable: {index.UnavailableReason}");
             Require(
@@ -1092,6 +1097,9 @@ internal static class FullArchiveTestRunner
 
             var persistedPath = Path.Combine(session.GenerationPath, "names.bin");
             Require(File.Exists(persistedPath), "available archive name index was not persisted");
+            Require(
+                service.IsWarm(handle.SessionId) && service.IsPublished(handle.SessionId),
+                "a built name index did not report itself warm and published");
             var reloadedService = new ArchiveNameIndexService(sessions, cache, native);
             var reloaded = await reloadedService.WarmAsync(handle.SessionId, CancellationToken.None).ConfigureAwait(false);
             Require(

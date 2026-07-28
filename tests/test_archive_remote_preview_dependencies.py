@@ -356,3 +356,135 @@ def test_v2_preview_flush_waits_for_remote_dependencies_without_starting_worker(
     assert len(harness.archive_remote_bridge.requested) == 1
     assert harness.archive_remote_bridge.requested[0][0] == 5
     assert harness.detail == "Resolving bounded archive preview dependencies..."
+
+
+def test_preview_flush_drops_an_in_flight_preview_core_prewarm() -> None:
+    snapshot = ArchivePreviewDependencySet.from_dtos(
+        _dto(7, "character/sword.pac"),
+        (),
+        total_candidates=0,
+        truncated=False,
+        prepared={7: _prepared(_dto(7, "character/sword.pac"))},
+    )
+    harness = _PreviewHarness(snapshot)
+    cancelled: list[bool] = []
+    harness._cancel_archive_preview_core_prewarm = lambda: cancelled.append(True)
+
+    harness._flush_scheduled_archive_preview_request()
+
+    # The service runs one job at a time, so the warm-up must yield before the
+    # click's job is dispatched rather than queueing in front of it.
+    assert cancelled == [True]
+    assert harness.started is not None
+
+
+def test_association_result_defaults_secondary_index_pending_off_the_wire() -> None:
+    payload = {
+        "session_id": "session-a",
+        "entry_id": 7,
+        "candidates": [],
+        "total_candidates": 0,
+        "truncated": False,
+    }
+
+    # A worker that predates the flag must still parse.
+    assert ArchiveAssociationResult.from_wire(payload).secondary_index_pending is False
+    assert ArchiveAssociationResult.from_wire(
+        {**payload, "secondary_index_pending": True}
+    ).secondary_index_pending is True
+
+
+def test_pending_secondary_index_propagates_from_batches_into_the_snapshot() -> None:
+    service = _CatalogueService()
+    provider = ArchiveRemotePreviewDependencyProvider(service)
+    ready: list[ArchivePreviewDependencySet] = []
+    provider.ready.connect(lambda _request_id, payload: ready.append(payload))
+    selected = _dto(7, "character/sword.pac")
+    candidate = _dto(8, "character/sword.pac_xml")
+
+    assert provider.request(selected, ui_request_id=41)
+    service.batch_ready.emit(
+        "association-1",
+        "find_association_candidates",
+        ArchiveAssociationResult("session-a", 7, (candidate,), 1, False, True),
+    )
+    service.result_ready.emit(
+        "association-1",
+        "find_association_candidates",
+        ArchiveAssociationResult("session-a", 7, (), 1, False, True),
+    )
+    service.result_ready.emit(
+        "prepare-2",
+        "prepare_entry",
+        PrepareEntriesResult(
+            "session-a",
+            (_prepared(selected), _prepared(candidate)),
+            2,
+            2,
+            80,
+        ),
+    )
+
+    assert len(ready) == 1
+    assert ready[0].secondary_index_pending is True
+
+
+class _SecondaryIndexRetryHarness(_PreviewHarness):
+    def __init__(self, snapshot: ArchivePreviewDependencySet) -> None:
+        super().__init__(snapshot)
+        self._shutting_down = False
+        self.scheduled_delays: list[int] = []
+        self.rendered: list[object] = []
+        self._entry_override = snapshot.selected_entry
+
+    def _current_archive_entry(self) -> object:
+        return self._entry_override
+
+    def _render_archive_preview(self, entry: object, **_kwargs: object) -> None:
+        self.rendered.append(entry)
+
+    def _single_shot(self, delay_ms: int, callback: object) -> None:
+        self.scheduled_delays.append(int(delay_ms))
+        callback()
+
+
+def _pending_snapshot(pending: bool) -> ArchivePreviewDependencySet:
+    selected = _dto(7, "character/sword.pac")
+    return ArchivePreviewDependencySet.from_dtos(
+        selected,
+        (),
+        total_candidates=0,
+        truncated=False,
+        prepared={7: _prepared(selected)},
+        secondary_index_pending=pending,
+    )
+
+
+def test_settled_dependencies_do_not_schedule_a_secondary_index_retry() -> None:
+    harness = _SecondaryIndexRetryHarness(_pending_snapshot(False))
+    harness._archive_preview_secondary_index_retries = 2
+
+    harness._schedule_archive_preview_secondary_index_retry(harness.archive_remote_bridge.snapshot)
+
+    assert harness.scheduled_delays == []
+    assert harness._archive_preview_secondary_index_retries == 0
+
+
+def test_pending_secondary_index_retries_with_a_bounded_backoff() -> None:
+    from cdmw.ui.archive_browser import workers as workers_module
+
+    snapshot = _pending_snapshot(True)
+    harness = _SecondaryIndexRetryHarness(snapshot)
+    original_timer = workers_module.QTimer
+    workers_module.QTimer = SimpleNamespace(singleShot=harness._single_shot)
+    try:
+        for _ in range(workers_module.ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_LIMIT + 2):
+            harness._schedule_archive_preview_secondary_index_retry(snapshot)
+    finally:
+        workers_module.QTimer = original_timer
+
+    limit = workers_module.ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_LIMIT
+    step = workers_module.ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_MS
+    assert harness.scheduled_delays == [step * attempt for attempt in range(1, limit + 1)]
+    assert len(harness.rendered) == limit
+    assert all(entry is snapshot.selected_entry for entry in harness.rendered)

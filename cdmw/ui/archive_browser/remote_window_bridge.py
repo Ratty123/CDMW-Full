@@ -649,6 +649,7 @@ class ArchiveRemoteWindowBridge(QObject):
         window.archive_tree.use_remote_model(self._model)
         window.archive_tree.setRootIsDecorated(self._model.view_mode.value != "flat")
         window.archive_tree.setEnabled(True)
+        window._schedule_archive_tree_content_autofit()
         window._update_archive_filter_button_state()
         completion = f"Archive catalogue ready. Showing {handle.total_matches:,} entries."
         if current_session is not None:

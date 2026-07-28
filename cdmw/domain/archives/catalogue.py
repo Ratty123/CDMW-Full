@@ -420,6 +420,10 @@ class ArchiveAssociationResult:
     candidates: tuple[ArchiveEntryDto, ...]
     total_candidates: int
     truncated: bool
+    # The worker answered a preview lookup while its name index was still building,
+    # so the candidates are complete but not name-enriched and the answer is worth
+    # repeating once the build lands. Older workers omit the field.
+    secondary_index_pending: bool = False
 
     @classmethod
     def from_wire(cls, value: object) -> "ArchiveAssociationResult":
@@ -431,6 +435,7 @@ class ArchiveAssociationResult:
             candidates=tuple(ArchiveEntryDto.from_wire(entry) for entry in candidates),
             total_candidates=read_int(payload, "total_candidates"),
             truncated=read_bool(payload, "truncated"),
+            secondary_index_pending=read_bool(payload, "secondary_index_pending", default=False),
         )
 
 

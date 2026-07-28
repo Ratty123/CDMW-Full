@@ -587,6 +587,7 @@ class ArchiveBrowserTreeControllerMixin:
             defer_default_selection=defer_default_selection,
         )
         self._log_archive_browser_render_stage("finalize", finalize_started_at)
+        self._schedule_archive_tree_content_autofit()
         self._set_archive_warmup_overlay(False)
         self._mark_archive_browser_render_ready(reason="model_reset", on_complete=on_complete)
 

@@ -881,7 +881,14 @@ def test_dotnet_embedded_ready_requires_a_verified_native_parent() -> None:
     assert "SwpNoZOrder" not in embedded_resize
     assert "SwpNoMove | SwpNoZOrder | SwpNoActivate" in host_source
     assert host_source.index("SetWindowLongPtrSafe(child") < host_source.index("SetParent(child, parent)")
-    assert host_source.index("SetParent(child, parent)") < host_source.index("GetParent(child) != parent")
+    # An embedded window is created as a child of the host, so the reparent is
+    # conditional on a first GetParent check. What matters is that the child
+    # style is applied before the SetParent, and that the SetParent is followed
+    # by its own verification before Embed reports success -- not that the file
+    # mentions GetParent only once.
+    reparent_source = host_source.split("SetWindowLongPtrSafe(child", maxsplit=1)[1]
+    assert reparent_source.index("SetParent(child, parent)") < reparent_source.index("GetParent(child) != parent")
+    assert reparent_source.index("GetParent(child) != parent") < reparent_source.index("return false;")
     assert 'WriteProtocolEvent("ready"' not in constructor_source
     assert constructor_source.index("_ = Handle;") < constructor_source.index("StartProtocolReader();")
     assert constructor_source.index("StartProtocolReader();") < constructor_source.index("_viewport = new MeshViewport")

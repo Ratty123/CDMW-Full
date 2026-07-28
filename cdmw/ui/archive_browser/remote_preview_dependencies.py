@@ -40,6 +40,9 @@ class ArchivePreviewDependencySet:
     entries_by_basename: Mapping[str, tuple[ArchiveEntry, ...]]
     total_candidates: int
     truncated: bool
+    # True while the worker's name index was still building. The candidates are
+    # complete; asking again once the build lands picks up their display names.
+    secondary_index_pending: bool = False
 
     @property
     def selected_entry(self) -> ArchiveEntry:
@@ -56,6 +59,7 @@ class ArchivePreviewDependencySet:
         total_candidates: int,
         truncated: bool,
         prepared: Mapping[int, PrepareEntryResult],
+        secondary_index_pending: bool = False,
     ) -> "ArchivePreviewDependencySet":
         ordered_dtos = (selected, *candidates)
         seen_ids: set[int] = set()
@@ -99,6 +103,7 @@ class ArchivePreviewDependencySet:
             entries_by_basename={key: tuple(value) for key, value in basenames.items()},
             total_candidates=max(0, int(total_candidates)),
             truncated=bool(truncated),
+            secondary_index_pending=bool(secondary_index_pending),
         )
 
 
@@ -112,6 +117,7 @@ class _PendingPreviewDependencies:
     prepared: dict[int, PrepareEntryResult] = field(default_factory=dict)
     total_candidates: int = 0
     truncated: bool = False
+    secondary_index_pending: bool = False
 
 
 class ArchiveRemotePreviewDependencyProvider(QObject):
@@ -240,6 +246,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             total_candidates=pending.total_candidates,
             truncated=pending.truncated,
             prepared=pending.prepared,
+            secondary_index_pending=pending.secondary_index_pending,
         )
         self._snapshot = snapshot
         self._snapshot_ui_request_id = pending.ui_request_id
@@ -293,6 +300,9 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             pending.candidates.setdefault(candidate.entry_id, candidate)
         pending.total_candidates = max(pending.total_candidates, int(payload.total_candidates))
         pending.truncated = pending.truncated or bool(payload.truncated)
+        pending.secondary_index_pending = (
+            pending.secondary_index_pending or bool(payload.secondary_index_pending)
+        )
         return True
 
     @staticmethod

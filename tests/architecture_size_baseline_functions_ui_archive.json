@@ -11,7 +11,7 @@
     "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py::ArchiveAttachmentDonorPickerDialogMixin._open_archive_attachment_donor_picker_dialog._make_placement_source_preview_controller": 185,
     "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py::ArchiveAttachmentDonorPickerDialogMixin._open_archive_attachment_donor_picker_dialog._open_item_finder_donor_picker": 562,
     "cdmw/ui/archive_browser/attachment_package.py::ArchiveAttachmentPackageMixin._attachment_package_target_support_entries": 160,
-    "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py::ArchiveAttachmentPlacementDiffDialogMixin._open_archive_attachment_placement_diff_dialog": 2799,
+    "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py::ArchiveAttachmentPlacementDiffDialogMixin._open_archive_attachment_placement_diff_dialog": 2803,
     "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py::ArchiveAttachmentPlacementDiffDialogMixin._open_archive_attachment_placement_diff_dialog._build_donor_placement_package": 266,
     "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py::ArchiveAttachmentPlacementDiffDialogMixin._open_archive_attachment_placement_diff_dialog._build_universal_twohand_sword_package": 229,
     "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py::ArchiveAttachmentPlacementDiffDialogMixin._open_archive_attachment_placement_diff_dialog._refresh_package_plan": 166,

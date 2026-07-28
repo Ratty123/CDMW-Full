@@ -220,4 +220,9 @@ public sealed record ArchiveAssociationResult(
     long EntryId,
     IReadOnlyList<ArchiveEntryDto> Candidates,
     long TotalCandidates,
-    bool Truncated);
+    bool Truncated,
+    // Set when a preview lookup answered while the name index was still building,
+    // so the candidates are resolved but not name-enriched. Answering without it
+    // is what keeps a cold archive's first preview off a multi-second stall; the
+    // caller can ask again once the build lands to pick the enrichment up.
+    bool SecondaryIndexPending = false);

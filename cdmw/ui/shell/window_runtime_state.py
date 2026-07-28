@@ -84,6 +84,8 @@ class ShellWindowRuntimeStateMixin:
         self._column_autofit_timer.setSingleShot(True)
         self._column_autofit_timer.setInterval(90)
         self._column_autofit_timer.timeout.connect(self._apply_column_autofit)
+        self._archive_tree_header_programmatic_depth = 0
+        self._archive_tree_content_autofit_done = False
         self._responsive_resize_timer = QTimer(self)
         self._responsive_resize_timer.setSingleShot(True)
         self._responsive_resize_timer.setInterval(180)
@@ -173,6 +175,14 @@ class ShellWindowRuntimeStateMixin:
         # Set when a model preview renders before the archive path lookup is
         # ready, so its Asset Family metadata can be completed once it lands.
         self._archive_preview_pending_lookup_entry = None
+        # Counts the re-resolves spent waiting for a worker secondary index that
+        # was still building when the preview's dependencies were answered.
+        self._archive_preview_secondary_index_retries = 0
+        # One-shot warm-up that pays a package's PAMT index build off the UI
+        # thread, before the first preview click has to.
+        self.archive_preview_core_prewarm_done = False
+        self.archive_preview_core_prewarm_task = None
+        self.archive_preview_core_prewarm_stop_event = None
         self._initialize_archive_renderer_runtime_state()
         self.archive_memory_audit_timer = QTimer(self)
         self.archive_memory_audit_timer.setInterval(30000)

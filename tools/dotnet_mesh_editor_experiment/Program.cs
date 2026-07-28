@@ -368,11 +368,36 @@ internal sealed partial class ExperimentForm : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
+        if (_startupRealizationQueued)
+        {
+            // An embedded window runs its startup while still hidden; this
+            // OnShown is that startup's own reveal, not a second entry.
+            return;
+        }
+        RunStartupRealization();
+    }
+
+    /// <summary>
+    /// Everything between a built form and a window the user should be looking
+    /// at. Embedded, this runs hidden (see <see cref="SetVisibleCore"/>) and
+    /// ends by revealing the window; standalone, it runs from OnShown as before.
+    /// </summary>
+    private void RunStartupRealization()
+    {
+        _startupRealizationQueued = true;
+        // Must precede the reveal: no layout switch may be the first
+        // realisation of its subtree, and none of that realisation should be
+        // something the user watches happen.
+        RealizeClassicToolFlanks();
         if (_options.Embedded && !TryEmbedOrFail("startup"))
         {
             return;
         }
         ApplySavedToolPanelLayout();
+        if (EmbedsAtBirth)
+        {
+            RevealEmbeddedWindow();
+        }
         StartTextureLoad();
     }
 
@@ -426,11 +451,17 @@ internal sealed partial class ExperimentForm : Form
 
     private bool TryEmbedOrFail(string phase)
     {
-        if (NativeWindowHost.Embed(this, new IntPtr(_options.ParentHwnd)))
+        // Before the first reveal this only verifies and sizes the window the
+        // constructor already created inside the host; forcing it on screen
+        // here is what RevealEmbeddedWindow is for.
+        if (NativeWindowHost.Embed(this, new IntPtr(_options.ParentHwnd), reveal: _embeddedWindowRevealed))
         {
             _statusLabel.Text = "Embedded .NET mesh editor ready.";
-            Focus();
-            _viewport.Focus();
+            if (_embeddedWindowRevealed)
+            {
+                Focus();
+                _viewport.Focus();
+            }
             return true;
         }
         _embeddedViewportActive = false;

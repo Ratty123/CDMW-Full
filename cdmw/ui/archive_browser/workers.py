@@ -16,6 +16,12 @@ from cdmw.workers.archive_preview_native import NATIVE_PREVIEW_CORE_MODEL_EXTENS
 from cdmw.workers.archive_preview_workers import ArchivePreviewWorker, _ArchivePreviewWorkerPayload
 
 
+# A cold archive's name index takes a few seconds to build, so the first retry
+# waits that long and the backoff covers a slow disk without polling.
+ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_MS = 2500
+ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_LIMIT = 3
+
+
 def _archive_preview_debounce_ms(entry: Optional[ArchiveEntry]) -> int:
     # The dwell only has to swallow key-repeat while a user arrow-keys through
     # the row list (roughly one row every 30 ms). Model previews used to wait
@@ -177,6 +183,12 @@ class ArchivePreviewWorkerMixin:
     def _flush_scheduled_archive_preview_request(self) -> None:
         if self.scheduled_archive_preview_request is None:
             return
+        # The preview-core service runs one job at a time, so a warm-up still in
+        # flight would put its remaining seconds in front of this request -- worse
+        # than never warming at all. Drop it and let this preview have the service.
+        cancel_prewarm = getattr(self, "_cancel_archive_preview_core_prewarm", None)
+        if callable(cancel_prewarm):
+            cancel_prewarm()
         request_id, entry, include_loose_preview_assets, force = self.scheduled_archive_preview_request
         remote_dependencies: ArchivePreviewDependencySet | None = None
         remote_bridge = getattr(self, "archive_remote_bridge", None)
@@ -363,12 +375,52 @@ class ArchivePreviewWorkerMixin:
             entry_id=payload.entry_id,
             candidate_count=max(0, len(payload.entries) - 1),
             total_candidates=payload.total_candidates,
+            secondary_index_pending=bool(payload.secondary_index_pending),
         )
         update_controls = getattr(self, "_update_archive_model_action_controls", None)
         controls_target = getattr(self, "_archive_model_preview_controls_target", None)
         if callable(update_controls) and callable(controls_target):
             update_controls(controls_target())
         self._flush_scheduled_archive_preview_request()
+        self._schedule_archive_preview_secondary_index_retry(payload)
+
+    def _schedule_archive_preview_secondary_index_retry(
+        self,
+        payload: ArchivePreviewDependencySet,
+    ) -> None:
+        """Re-resolve once a cold archive's name index has landed.
+
+        The worker answers a preview lookup without waiting for that build, which
+        is what keeps the first .pac of a freshly cached archive off a multi-second
+        stall. The candidates it returns are already complete; only their display
+        names are missing, so this fills the metadata in afterwards.
+        """
+
+        if not bool(payload.secondary_index_pending) or self._shutting_down:
+            self._archive_preview_secondary_index_retries = 0
+            return
+        attempt = int(getattr(self, "_archive_preview_secondary_index_retries", 0) or 0) + 1
+        if attempt > ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_LIMIT:
+            return
+        self._archive_preview_secondary_index_retries = attempt
+        entry = payload.selected_entry
+        QTimer.singleShot(
+            ARCHIVE_PREVIEW_SECONDARY_INDEX_RETRY_MS * attempt,
+            lambda: self._retry_archive_preview_for_secondary_index(entry),
+        )
+
+    def _retry_archive_preview_for_secondary_index(self, entry: ArchiveEntry) -> None:
+        if self._shutting_down:
+            return
+        current = getattr(self, "_current_archive_entry", lambda: None)()
+        if current is None or getattr(current, "identity", None) != getattr(entry, "identity", None):
+            self._archive_preview_secondary_index_retries = 0
+            return
+        # The cached result carries the incomplete dependency set, so drop it
+        # before asking for the same preview again.
+        for cache_key in tuple(self.archive_preview_cache_keys.values()):
+            self.archive_preview_cache.pop(cache_key, None)
+        self._render_archive_preview(current, force=True)
 
     def _handle_archive_remote_preview_dependencies_failed(
         self,
