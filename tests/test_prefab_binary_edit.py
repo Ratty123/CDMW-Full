@@ -325,3 +325,19 @@ def test_a_changed_source_file_rejects_the_whole_batch() -> None:
             {number.offset: (number.raw, bytes(len(number.raw)))},
             source_digest=stale,
         )
+
+
+def test_the_version_4_header_identifier_survives_an_edit() -> None:
+    """Those 8 bytes are an identifier, not a checksum, so they must not move.
+
+    Measured across the corpus: six byte-identical bodies carry *different*
+    values there, which rules out any function of the content; no byte-range
+    or string hash reproduces either of its two u32 halves; and no prefab body
+    references another's value. Preserving it verbatim is therefore correct,
+    and a future "recompute the hash" change would be a regression.
+    """
+    payload = _build()
+    before = payload[6:14]
+    result = rewrite_prefab_paths(payload, {PATH: PATH + "_but_rather_longer.pac"})
+    assert result.byte_delta != 0, "the edit has to actually move bytes"
+    assert result.data[6:14] == before
