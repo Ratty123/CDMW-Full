@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Docs
+- Disassembled into `.paproj`'s loader and found the mechanism that defines the on-disk layout. Following the complete object locator to `ProjectileShotData`'s vftable (rva `0x04f22848`) and disassembling the code that installs it shows **a field-by-field deserialiser, not a `memcpy`**: `lea rdx, [rdi + offset]; mov r8d, size; call qword ptr [rax + 8]; test al, al; je fail`, repeated once per field, where `rdi` is the object, the stream's vtable slot `+8` is `Read(dest, size)`, and the function returns `bool`. Four fields are legible in the tail reached so far — `+0x10` as 4 bytes, `+0x14` as 4, `+0x18` as 1, `+0x19` as 1.
+- That is the method settled rather than the format decoded. Field sizes turn out to be explicit in the code rather than something to infer from value shapes, which is what makes this tractable at all. The complete field list is not extracted: a follow-up scan windowed onto a neighbouring serialiser instead of this one, so the offsets above are a sample and not the struct. `capstone` was installed into the venv for this and is not recorded in any requirements file.
+
 ### Fixed
 - **Damian was shown Kliff's action charts.** The pinned baseline holds one character's four, so the raw chart text on screen belonged to somebody else, and the socket list built from it filtered them out by model and came up empty — which read as "this character has no animations routed anywhere". His own five are in the packages. Charts are indexed alongside armour now, and the character's own are loaded when they are selected: Damian goes from 0 sockets listed to 4. Only the selected character's are read, because Kliff has 101 and paying for both bodies to show one of them would be a launch-time cost for nothing.
 
