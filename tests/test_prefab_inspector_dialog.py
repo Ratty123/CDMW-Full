@@ -533,3 +533,6 @@ def test_banner_counts_guessed_objects(qt_app: QApplication) -> None:
     banner = dialog._banner_text()
     assert "best guess" in banner
     assert "may belong to something else" in banner
+    # One object is "it", not "they": _count pluralises the noun but the
+    # sentence around it has to agree.
+    assert "what it is" in banner and "its fields" in banner
