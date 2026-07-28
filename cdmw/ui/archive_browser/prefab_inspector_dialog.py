@@ -547,6 +547,11 @@ class PrefabInspectorDialog(PrefabEditingMixin, QDialog):
             change = QAction("Change this value...", menu)
             change.triggered.connect(lambda: self._edit_number(item, 2))
             menu.addAction(change)
+        if self.row_has_pending_change(item):
+            undo = QAction("Undo this row", menu)
+            undo.setToolTip("Put this one row back, keeping your other changes.")
+            undo.triggered.connect(lambda: self._revert_row(item))
+            menu.addAction(undo)
         menu.exec(self.tree.viewport().mapToGlobal(position))
 
     def _edit_placement(self, item: QTreeWidgetItem, _column: int) -> None:
