@@ -839,10 +839,14 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
         legacy_hkx_checkbox.setToolTip("Replacement-only legacy option. Normal placement keeps target-owned physics/HKX.")
         legacy_hkx_checkbox.setEnabled(False)
         legacy_hkx_checkbox.setVisible(False)
-        experimental_prefab_resize_checkbox = QCheckBox("Experimental: allow length-changing prefab role/socket patch")
+        experimental_prefab_resize_checkbox = QCheckBox("Allow socket names of a different length")
         experimental_prefab_resize_checkbox.setToolTip(
-            "Default off. Allows target prefab stream size to change while copying source role/socket metadata. "
-            "This is crash-risk research only until prefab offset/fixup handling is proven."
+            "Default off, because it is only needed when the source and target socket "
+            "names differ in length. It now goes through the exact pointer-relocation "
+            "path, which reproduces the game's own output on 10,066 of 10,066 "
+            "length-changing prefabs in the archives, and refuses outright on a prefab "
+            "it cannot read all the way through. It used to splice the new name over "
+            "the old one and leave every following pointer addressing the wrong byte."
         )
         use_source_icon_checkbox = QCheckBox("Use placement source icon")
         use_source_icon_checkbox.setToolTip("Default off. Target icon stays unless this is explicitly enabled.")

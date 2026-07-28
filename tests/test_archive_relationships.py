@@ -283,25 +283,31 @@ class ArchiveRelationshipTests(unittest.TestCase):
         )
         source_fields = {field.field_name: field.value for field in inspect_prefab_attachment_profile_fields(source)}
 
-        result = build_prefab_attachment_profile_patch(
-            target,
-            attached_socket_name=source_fields["_attachedSocketName"],
-            pivot_socket_name=source_fields["_pivotSocketName"],
-            part_name=source_fields["_partName"],
-            socket_file_path=source_fields["_socketFileName"],
-            allow_length_changes=True,
-        )
+        # Length-changing socket edits now go through the exact pointer
+        # relocation path instead of splicing records in place, so they need a
+        # prefab that decodes all the way through. This fixture is a
+        # hand-assembled byte string with no real type table, so the patch is
+        # refused -- which is the point: the old path would have spliced it and
+        # left every absolute pointer in the file addressing the wrong byte.
+        with self.assertRaises(ValueError) as caught:
+            build_prefab_attachment_profile_patch(
+                target,
+                attached_socket_name=source_fields["_attachedSocketName"],
+                pivot_socket_name=source_fields["_pivotSocketName"],
+                part_name=source_fields["_partName"],
+                socket_file_path=source_fields["_socketFileName"],
+                allow_length_changes=True,
+            )
+        self.assertIn("read all the way through", str(caught.exception))
+        self.assertIn("Same-length replacements still work", str(caught.exception))
 
-        self.assertIn(b"Pelvis_L_Socket", result.data)
-        self.assertIn(b"Pelvis_L_ChildSocket", result.data)
-        self.assertIn(b"CD_MainWeapon_Sword_R", result.data)
-        self.assertIn(b"1_onehandweapon/cd_phm_01_sword_0001_r.sockets.xml", result.data)
-        self.assertIn(b"2_twohandweapon/cd_phm_02_sword_0015.pac", result.data)
-        self.assertNotIn(b"1_onehandweapon/cd_phm_01_sword_0278.pac", result.data)
-        self.assertNotEqual(len(target), len(result.data))
-        proof = "\n".join(result.proof_lines)
-        self.assertIn("Target model path is preserved", proof)
-        self.assertIn("Experimental length-changing prefab rewrite enabled", proof)
+        # And the same-length path is unaffected: it moves no bytes at all.
+        same_length = build_prefab_attachment_profile_patch(
+            target,
+            attached_socket_name="Spine2_B_Socketx"[: len(source_fields["_attachedSocketName"])],
+            allow_length_changes=False,
+        )
+        self.assertEqual(len(same_length.data), len(target))
 
     def test_model_sidecar_resolves_exact_dds_paths(self):
         entries = self._entries(

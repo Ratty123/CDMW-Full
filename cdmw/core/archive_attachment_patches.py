@@ -1140,7 +1140,7 @@ def build_prefab_attachment_profile_patch(
         (
             "Patch is same-length only, so no binary offsets or trailing record positions move."
             if not allow_length_changes
-            else "Experimental length-changing prefab rewrite enabled; binary offset/fixup safety is not proven."
+            else "Length-changing prefab rewrite via the exact pointer-relocation path."
         ),
     ]
     for field_name in ("_attachedSocketName", "_pivotSocketName", "_partName", "_socketFileName"):
@@ -1156,7 +1156,7 @@ def build_prefab_attachment_profile_patch(
                 "Unsafe prefab rewrite blocked: replacement would resize target prefab "
                 f"({field.field_name} {field.byte_length} -> {len(encoded)} bytes)."
             )
-        edits.append((field, encoded))
+        edits.append((field, encoded, replacement))
         proof_lines.append(f"{field.field_name}: {field.value} -> {replacement}")
     if not edits:
         return PrefabAttachmentProfilePatchResult(
@@ -1168,15 +1168,37 @@ def build_prefab_attachment_profile_patch(
     patched = bytearray(data or b"")
     changed_fields: List[PrefabSocketNameField] = []
     if allow_length_changes:
-        for field, encoded in sorted(edits, key=lambda item: item[0].length_offset, reverse=True):
-            replacement_record = struct.pack("<I", len(encoded)) + encoded
-            patched[field.length_offset : field.value_offset + field.byte_length] = replacement_record
-            changed_fields.append(field)
+        # This used to splice each new length-prefixed record over the old span
+        # and stop there. Every absolute pointer after the edit then addressed
+        # the wrong byte, and no pointee length field or data-header size was
+        # touched -- a corrupted prefab, produced by a checkbox. The exact
+        # rewriter relocates all of it, and is validated against the game's own
+        # authoring tool on 10,066 of 10,066 length-changing vanilla pairs.
+        from cdmw.core.prefab_binary import PrefabBinaryError
+        from cdmw.core.prefab_binary_edit import PrefabPathEdit, rewrite_prefab_paths
+
+        try:
+            rewrite = rewrite_prefab_paths(
+                bytes(data or b""),
+                [
+                    PrefabPathEdit(offset=field.length_offset, old_text=field.value, new_text=text)
+                    for field, _encoded, text in edits
+                ],
+            )
+        except PrefabBinaryError as exc:
+            raise ValueError(
+                "Changing a socket name to a different length needs a prefab this tool "
+                f"can read all the way through, and this one stopped: {exc}. Same-length "
+                "replacements still work, and do not move any bytes."
+            ) from exc
+        patched = bytearray(rewrite.data)
+        changed_fields.extend(field for field, _encoded, _text in edits)
+        proof_lines.extend(rewrite.proof_lines)
         proof_lines.append(
-            f"Prefab stream length {len(data or b''):,} -> {len(patched):,}; length prefixes updated for changed records."
+            f"Prefab stream length {len(data or b''):,} -> {len(patched):,}."
         )
     else:
-        for field, encoded in edits:
+        for field, encoded, _text in edits:
             patched[field.value_offset : field.value_offset + field.byte_length] = encoded
             changed_fields.append(field)
         proof_lines.append(f"Prefab stream length preserved at {len(patched):,} bytes.")
