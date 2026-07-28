@@ -38,22 +38,13 @@ from cdmw.core.paloc_format import (
     parse_paloc,
 )
 
-#: `gamedata/stringtable/binary__/localizationstring_<language>.paloc`
-PALOC_DIR = "gamedata/stringtable/binary__"
-PALOC_PREFIX = "localizationstring_"
-
-
-def language_of(game_path: str) -> str:
-    """`.../localizationstring_eng.paloc` -> `eng`."""
-
-    name = game_path.rsplit("/", 1)[-1]
-    if not name.startswith(PALOC_PREFIX) or not name.endswith(".paloc"):
-        return ""
-    return name[len(PALOC_PREFIX):-len(".paloc")]
-
-
-def game_path_for(language: str) -> str:
-    return f"{PALOC_DIR}/{PALOC_PREFIX}{language}.paloc"
+from .language_index import (
+    PALOC_DIR,
+    PALOC_PREFIX,
+    game_path_for,
+    language_index,
+    language_of,
+)
 
 
 @dataclass(frozen=True)
@@ -231,29 +222,52 @@ def attach_reference(
     return catalogue
 
 
-def available_languages(game_root: Optional[Path] = None) -> Tuple[str, ...]:
-    """Every language the archives ship, read from the tables without extracting."""
-
+def default_game_root() -> Path:
     from tools.placement_studio import corpus
 
-    root = game_root if game_root is not None else corpus.game_root()
-    found = set()
-    for _package, entry in corpus._iter_archive_entries(root):
-        path = corpus.normalize_game_path(entry.path)
-        language = language_of(path)
-        if language:
-            found.add(language)
-    return tuple(sorted(found))
+    return corpus.game_root()
+
+
+def available_languages(
+    game_root: Optional[Path] = None, *, on_progress=None
+) -> Tuple[str, ...]:
+    """Every language the archives ship, read from the tables without extracting.
+
+    Cached against the package files themselves, because the sweep that answers this
+    costs seconds and the answer only changes when the game is patched. See
+    `language_index.py` for why the cheap-looking version was the expensive one.
+    """
+
+    root = game_root if game_root is not None else default_game_root()
+    return language_index(root, on_progress=on_progress).languages
 
 
 def read_language(language: str, game_root: Optional[Path] = None) -> bytes:
-    """Pull one language table out of the archives."""
+    """Pull one language table out of the archives.
+
+    Goes straight to the package the index says holds it -- one table with a single entry
+    in it -- and only falls back to sweeping all 33 when that package no longer has it,
+    which is what a patch or a mod would look like.
+    """
 
     from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.archive_format import parse_archive_pamt
     from tools.placement_studio import corpus
 
-    root = game_root if game_root is not None else corpus.game_root()
+    root = game_root if game_root is not None else default_game_root()
     wanted = game_path_for(language)
+
+    source = language_index(root).source_for(language)
+    if source is not None and source.is_file():
+        try:
+            entries = parse_archive_pamt(source)
+        except Exception:  # noqa: BLE001 - fall through to the full sweep
+            entries = []
+        for entry in entries:
+            if corpus.normalize_game_path(entry.path) == wanted:
+                data, _decompressed, _note = read_archive_entry_data(entry)
+                return data
+
     for _package, entry in corpus._iter_archive_entries(root):
         if corpus.normalize_game_path(entry.path) == wanted:
             data, _decompressed, _note = read_archive_entry_data(entry)
@@ -290,3 +304,22 @@ def export_packages(
         build_all(Plan(name=name), files, metadata, out_root=Path(out_root),
                   managers=tuple(managers))
     )
+
+
+#: `language_of`, `game_path_for` and the path constants live in `language_index.py` now
+#: -- the module that has to know them to find a table -- and are re-exported here because
+#: this is the domain module callers already import.
+__all__ = [
+    "PALOC_DIR",
+    "PALOC_PREFIX",
+    "Row",
+    "TranslationCatalogue",
+    "attach_reference",
+    "available_languages",
+    "default_game_root",
+    "export_packages",
+    "game_path_for",
+    "language_of",
+    "load_catalogue",
+    "read_language",
+]

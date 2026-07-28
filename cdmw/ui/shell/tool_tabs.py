@@ -331,16 +331,17 @@ class ShellToolTabsMixin:
         return tab
 
     def _create_translation_studio_tab(self) -> QWidget:
-        """Search and retranslate the game's string tables.
+        """Search, retranslate and machine-translate the game's string tables.
 
         Lazy like the rest, and for the same reason as Placement Studio: opening it
         lists the languages in the archives, and a language table is 16-25 MB. Neither
-        belongs in startup.
+        belongs in startup. It takes the window so it can read the configured archive
+        root off the Settings widget rather than assuming the default install path.
         """
 
         from tools.translation_studio.tab import TranslationStudioTab
 
-        tab = TranslationStudioTab()
+        tab = TranslationStudioTab(settings=self.settings, window=self)
         tab.setObjectName("translation_studio")
         return tab
 

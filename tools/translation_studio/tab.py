@@ -19,14 +19,22 @@ editable table.
 rows are highlighted, "Edited only" isolates them, and both a single-row revert and a
 whole-pass reset are one click. The shipped text stays in the tooltip.
 
+**Translations can be produced, not only edited.** The panel could always rewrite a line
+by hand, which is the wrong tool for 187,521 of them. "Translate with AI" sends the lines
+you have filtered to a model on your own API key, checks the markup in every reply, and
+writes the ones that came back intact into the same edit map as a hand edit -- so the
+result is reviewable, revertable and exported by the same button.
+
 Loading reads straight from the archives on a worker, because a language table is 16-25
-MB and the UI thread must not stall on it.
+MB and the UI thread must not stall on it. Listing the languages runs there too: the
+sweep behind it is seconds long the first time on a given install (see
+`language_index.py`), and it used to run inside this constructor.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Mapping, Optional
 
 from PySide6.QtCore import QObject, QThread, Qt, Signal
 from PySide6.QtWidgets import (
@@ -50,6 +58,7 @@ from .catalogue import (
     TranslationCatalogue,
     attach_reference,
     available_languages,
+    default_game_root,
     export_packages,
     load_catalogue,
     read_language,
@@ -61,19 +70,63 @@ _NONE = "(none)"
 #: costs more than the search itself.
 _MAX_HITS = 5000
 
+#: Worker threads outlive the widget that started them, deliberately. A `QThread` parented
+#: to the tab is destroyed with it, and destroying a running one is an access violation --
+#: which is exactly what closing or reloading the tab mid-scan would do. Holding them here
+#: until they finish lets Qt sever the signal to the dead receiver and end the thread
+#: cleanly instead.
+_LIVE_THREADS: set = set()
+
+
+def _run_detached(thread: QThread, worker: QObject, *, on_done) -> None:
+    worker.moveToThread(thread)
+    thread.started.connect(worker.run)
+    worker.done.connect(on_done)
+    worker.done.connect(thread.quit)
+    thread.finished.connect(worker.deleteLater)
+    thread.finished.connect(lambda: _LIVE_THREADS.discard(thread))
+    thread.finished.connect(thread.deleteLater)
+    _LIVE_THREADS.add(thread)
+    thread.start()
+
+
+class _LanguageWorker(QObject):
+    """Lists the archives' languages off the UI thread.
+
+    Cold, this walks all 33 package tables and takes seconds; warm, it is a `stat` each.
+    It ran in the tab's constructor before, which is what made opening the tab lag.
+    """
+
+    done = Signal(object, str)
+
+    def __init__(self, game_root: Optional[str]) -> None:
+        super().__init__()
+        self._game_root = game_root
+
+    def run(self) -> None:
+        try:
+            root = Path(self._game_root) if self._game_root else None
+            languages = available_languages(root)
+        except Exception as error:  # noqa: BLE001 - report, never take the window down
+            self.done.emit(None, str(error))
+            return
+        self.done.emit(tuple(languages), "")
+
 
 class _LoadWorker(QObject):
     done = Signal(object, object, str)
 
-    def __init__(self, language: str, reference: str) -> None:
+    def __init__(self, language: str, reference: str, game_root: Optional[str] = None) -> None:
         super().__init__()
         self._language = language
         self._reference = reference
+        self._game_root = game_root
 
     def run(self) -> None:
+        root = Path(self._game_root) if self._game_root else None
         try:
-            data = read_language(self._language)
-            reference = read_language(self._reference) if self._reference else None
+            data = read_language(self._language, root)
+            reference = read_language(self._reference, root) if self._reference else None
         except Exception as error:  # noqa: BLE001 - report, never take the window down
             self.done.emit(None, None, str(error))
             return
@@ -83,11 +136,21 @@ class _LoadWorker(QObject):
 class TranslationStudioTab(QWidget):
     """Search, retranslate and export the game's string tables."""
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(
+        self,
+        parent: Optional[QWidget] = None,
+        *,
+        settings=None,
+        window=None,
+    ) -> None:
         super().__init__(parent)
         self._catalogue: Optional[TranslationCatalogue] = None
         self._thread: Optional[QThread] = None
         self._worker: Optional[_LoadWorker] = None
+        self._language_thread: Optional[QThread] = None
+        self._language_worker: Optional[_LanguageWorker] = None
+        self._settings = settings
+        self._window = window
         self._build_ui()
         self._populate_languages()
 
@@ -166,6 +229,17 @@ class TranslationStudioTab(QWidget):
         self.reset_button.clicked.connect(self._on_reset)
         self.reset_button.setEnabled(False)
         actions.addWidget(self.reset_button)
+        self.ai_button = QPushButton("Translate with AI...")
+        self.ai_button.setToolTip(
+            "Send the lines you have filtered to a translation model on your own API key."
+        )
+        self.ai_button.clicked.connect(self._on_ai_translate)
+        self.ai_button.setEnabled(False)
+        actions.addWidget(self.ai_button)
+        self.ai_settings_button = QPushButton("AI settings...")
+        self.ai_settings_button.setToolTip("Choose a provider and paste an API key.")
+        self.ai_settings_button.clicked.connect(self._on_ai_settings)
+        actions.addWidget(self.ai_settings_button)
         actions.addStretch(1)
         self.hint_label = QLabel(
             "Double-click a line in Text to retranslate it. Nothing in this format is "
@@ -202,21 +276,76 @@ class TranslationStudioTab(QWidget):
 
     # ------------------------------------------------------------------ loading
 
+    def _game_root(self) -> str:
+        """The archive root the user configured, read the way the app itself reads it.
+
+        `MainWindow.settings` is a `QSettings`, not the `AppConfig` dataclass, so the
+        live value lives on the Settings widget -- the same trap `PlacementStudioTab`
+        documents. Empty means "wherever the corpus defaults to", which is what this
+        panel used unconditionally before.
+        """
+
+        edit = getattr(self._window, "archive_package_root_edit", None)
+        if edit is not None:
+            try:
+                text = str(edit.text() or "").strip()
+            except Exception:  # noqa: BLE001 - a widget torn down mid-teardown
+                text = ""
+            if text:
+                return text
+        settings = self._settings
+        getter = getattr(settings, "value", None) if settings is not None else None
+        if callable(getter):
+            for key in ("archive_package_root", "paths/archive_package_root"):
+                text = str(getter(key, "") or "").strip()
+                if text:
+                    return text
+        return ""
+
     def _populate_languages(self) -> None:
+        """List the languages, on a worker unless the answer is already cached.
+
+        Warm, this is one `stat` per package and worth no thread at all; cold it is a
+        sweep of all 33 package tables, which is what used to run right here and made
+        opening the tab lag. See `language_index.py`.
+        """
+
+        from .language_index import is_warm
+
+        root = self._game_root() or None
         try:
-            languages = available_languages()
-        except Exception as error:  # noqa: BLE001
+            warm = is_warm(Path(root) if root else default_game_root())
+        except Exception:  # noqa: BLE001 - an unreadable root is the worker's news to break
+            warm = False
+        if warm:
+            worker = _LanguageWorker(root)
+            worker.done.connect(self._on_languages)
+            worker.run()
+            return
+
+        self.load_button.setEnabled(False)
+        self.status_label.setText("Listing the languages in the archives (first time only)...")
+        self._language_thread = QThread()
+        self._language_worker = _LanguageWorker(root)
+        _run_detached(self._language_thread, self._language_worker, on_done=self._on_languages)
+
+    def _on_languages(self, languages, error: str) -> None:
+        if error or languages is None:
             self.status_label.setText(f"Could not list languages: {error}")
             return
+        languages = tuple(languages)
         if not languages:
-            self.status_label.setText("No string tables found in the archives.")
-            self.load_button.setEnabled(False)
+            self.status_label.setText(
+                "No string tables found in the archives. Check the game path under "
+                "Settings -> Archive Locations."
+            )
             return
         self.language_box.addItems(list(languages))
         self.reference_box.addItem(_NONE)
         self.reference_box.addItems(list(languages))
         if "eng" in languages:
             self.language_box.setCurrentIndex(languages.index("eng"))
+        self.load_button.setEnabled(True)
         self.status_label.setText(f"{len(languages)} languages available.")
 
     def _on_load(self) -> None:
@@ -227,14 +356,9 @@ class TranslationStudioTab(QWidget):
             return
         self.load_button.setEnabled(False)
         self.status_label.setText(f"Reading {language} from the archives...")
-        self._thread = QThread(self)
-        self._worker = _LoadWorker(language, reference)
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
-        self._worker.done.connect(self._on_loaded)
-        self._worker.done.connect(self._thread.quit)
-        self._thread.finished.connect(self._worker.deleteLater)
-        self._thread.start()
+        self._thread = QThread()
+        self._worker = _LoadWorker(language, reference, self._game_root() or None)
+        _run_detached(self._thread, self._worker, on_done=self._on_loaded)
 
     def _on_loaded(self, data, reference, error: str) -> None:
         self.load_button.setEnabled(True)
@@ -259,7 +383,13 @@ class TranslationStudioTab(QWidget):
             self.category_box.addItem(f"{label} ({code})", code)
         self.category_box.blockSignals(False)
 
-        for widget in (self.search_box, self.category_box, self.edited_only, self.reset_button):
+        for widget in (
+            self.search_box,
+            self.category_box,
+            self.edited_only,
+            self.reset_button,
+            self.ai_button,
+        ):
             widget.setEnabled(True)
         reference_note = (
             f", showing {catalogue.reference_language} alongside"
@@ -310,6 +440,103 @@ class TranslationStudioTab(QWidget):
         self._catalogue.reset()
         self.model.refresh()
         self._refresh_pending()
+
+    # ---------------------------------------------------------------------- AI
+
+    def _lines_for(self, indexes) -> list:
+        """Entry indexes as the lines a model gets, with their group as context.
+
+        The group label is worth the two extra words: "Item name" and "Quest dialogue"
+        are translated differently, and the model cannot tell them apart from the text.
+        """
+
+        from .ai_translate import Line
+
+        catalogue = self._catalogue
+        if catalogue is None:
+            return []
+        categories = catalogue.categories()
+        out = []
+        for index in indexes:
+            row = catalogue.row(index)
+            if not row.text.strip():
+                continue  # an empty line has nothing to translate
+            out.append(
+                Line(index=index, text=row.text, context=str(categories.get(row.category, "")))
+            )
+        return out
+
+    def ai_scopes(self) -> list:
+        """The choices the translate dialog offers, largest last and never preselected."""
+
+        catalogue = self._catalogue
+        if catalogue is None:
+            return []
+        scopes = []
+        selected = self._selected_row()
+        if selected >= 0:
+            entry = self.model.entry_index(selected)
+            if entry is not None:
+                scopes.append(("The selected line", self._lines_for([entry])))
+
+        shown = tuple(self.model.entry_index(row) for row in range(self.model.rowCount()))
+        shown = tuple(index for index in shown if index is not None)
+        scopes.append(("The lines shown below", self._lines_for(shown)))
+
+        category = self.category_box.currentData()
+        needle = self.search_box.text()
+        if needle.strip() or category is not None:
+            matching = catalogue.find(needle, category=category,
+                                      edited_only=self.edited_only.isChecked())
+            if len(matching) > len(shown):
+                scopes.append(("Every line matching this search", self._lines_for(matching)))
+        else:
+            scopes.append(
+                (f"Every line in {catalogue.language}", self._lines_for(range(len(catalogue))))
+            )
+        return scopes
+
+    def apply_ai_translations(self, translations: Mapping[int, str]) -> int:
+        """Fold a batch into the same edit map a hand edit uses. Returns lines changed."""
+
+        catalogue = self._catalogue
+        if catalogue is None:
+            return 0
+        applied = 0
+        for index, text in translations.items():
+            try:
+                if catalogue.set_text(int(index), str(text)):
+                    applied += 1
+            except Exception:  # noqa: BLE001 - one bad index must not lose the batch
+                continue
+        if applied:
+            self.model.refresh()
+            self._refresh_pending()
+        return applied
+
+    def _on_ai_settings(self) -> None:
+        from .ai_panel import ProviderSettingsDialog
+
+        ProviderSettingsDialog(self).exec()
+
+    def _on_ai_translate(self) -> None:
+        from .ai_panel import TranslateDialog
+
+        catalogue = self._catalogue
+        if catalogue is None:
+            return
+        scopes = [(label, lines) for label, lines in self.ai_scopes() if lines]
+        if not scopes:
+            self.status_label.setText("Nothing to translate: no lines are in view.")
+            return
+        dialog = TranslateDialog(
+            scopes=scopes,
+            working_language=catalogue.language,
+            apply_translations=self.apply_ai_translations,
+            parent=self,
+        )
+        dialog.exec()
+        self._refresh_view()
 
     def _refresh_pending(self) -> None:
         catalogue = self._catalogue
