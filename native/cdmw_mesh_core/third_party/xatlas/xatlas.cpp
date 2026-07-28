@@ -972,7 +972,7 @@ struct ArrayBase
 		XA_DEBUG_ASSERT(length > 0);
 		resize(length, true);
 		if (buffer && data && length > 0)
-			memcpy(buffer, data, length * elementSize);
+			memcpy(buffer, data, (size_t)length * elementSize);
 	}
 
 	void copyTo(ArrayBase &other) const
@@ -981,7 +981,7 @@ struct ArrayBase
 		XA_DEBUG_ASSERT(size > 0);
 		other.resize(size, true);
 		if (other.buffer && buffer && size > 0)
-			memcpy(other.buffer, buffer, size * elementSize);
+			memcpy(other.buffer, buffer, (size_t)size * elementSize);
 	}
 
 	void destroy()
@@ -1001,7 +1001,7 @@ struct ArrayBase
 		resize(size + 1, false);
 		XA_DEBUG_ASSERT(buffer);
 		if (buffer && index < size - 1)
-			memmove(buffer + elementSize * (index + 1), buffer + elementSize * index, elementSize * (size - 1 - index));
+			memmove(buffer + (size_t)elementSize * (index + 1), buffer + (size_t)elementSize * index, (size_t)elementSize * (size - 1 - index));
 		if (buffer && value)
 			memcpy(&buffer[index * elementSize], value, elementSize);
 	}
@@ -1045,7 +1045,7 @@ struct ArrayBase
 			resize(size + other.size, false);
 			XA_DEBUG_ASSERT(buffer);
 			if (buffer)
-				memcpy(buffer + oldSize * elementSize, other.buffer, other.size * other.elementSize);
+				memcpy(buffer + (size_t)oldSize * elementSize, other.buffer, (size_t)other.size * other.elementSize);
 		}
 	}
 
@@ -1056,7 +1056,7 @@ struct ArrayBase
 		XA_DEBUG_ASSERT(buffer);
 		if (buffer) {
 			if (size > 1)
-				memmove(buffer + elementSize * index, buffer + elementSize * (index + 1), elementSize * (size - 1 - index));
+				memmove(buffer + (size_t)elementSize * index, buffer + (size_t)elementSize * (index + 1), (size_t)elementSize * (size - 1 - index));
 			if (size > 0)
 				size--;
 		}
@@ -1109,7 +1109,7 @@ struct ArrayBase
 #if XA_DEBUG_HEAP
 			buffer = XA_REALLOC_SIZE(memTag, buffer, newCapacity * elementSize);
 #else
-			buffer = XA_REALLOC_SIZE(MemTag::Default, buffer, newCapacity * elementSize);
+			buffer = XA_REALLOC_SIZE(MemTag::Default, buffer, (size_t)newCapacity * elementSize);
 #endif
 		}
 		capacity = newCapacity;
@@ -1210,7 +1210,7 @@ public:
 	void fillBytes(uint8_t value)
 	{
 		if (m_base.buffer && m_base.size > 0)
-			memset(m_base.buffer, (int)value, m_base.size * m_base.elementSize);
+			memset(m_base.buffer, (int)value, (size_t)m_base.size * m_base.elementSize);
 	}
 
 #if XA_DEBUG_HEAP
@@ -1222,7 +1222,7 @@ public:
 	XA_INLINE void zeroOutMemory()
 	{
 		if (m_base.buffer && m_base.size > 0)
-			memset(m_base.buffer, 0, m_base.elementSize * m_base.size);
+			memset(m_base.buffer, 0, (size_t)m_base.elementSize * m_base.size);
 	}
 
 private:
@@ -1367,7 +1367,7 @@ public:
 			memset(tmp.data(), 0, tmp.size() * sizeof(uint64_t));
 			// If only height has changed, can copy all rows at once.
 			if (rowStride == m_rowStride) {
-				memcpy(tmp.data(), m_data.data(), m_rowStride * min(m_height, h) * sizeof(uint64_t));
+				memcpy(tmp.data(), m_data.data(), (size_t)m_rowStride * min(m_height, h) * sizeof(uint64_t));
 			} else if (m_width > 0 && m_height > 0) {
 				const uint32_t height = min(m_height, h);
 				for (uint32_t i = 0; i < height; i++)
