@@ -2,7 +2,9 @@
 
 Two formats decoded together because they close two of the gaps
 `docs/features/format-decode-progress.md` ranked highest. They are unrelated in content
-and very different in how far they got: `.paloc` is finished, `.papr` is not.
+and very different in how far they got: `.paloc` is finished, and `.papr` is close --
+the container round-trips byte for byte and 97.7% of its configuration blocks decode,
+with 59 refused rather than guessed at.
 
 ## `.paloc` — every line of text in the game
 
@@ -110,9 +112,10 @@ of this document generalised from those five jiggle chains and got it wrong.
 Strings are `u16 length` then that many bytes with no terminator — unlike `.paac`, where
 the length counts a trailing NUL.
 
-Owner: `cdmw/core/papr_format.py`. Tests: `tests/test_papr_format.py`.
+Owner: `cdmw/core/papr_format.py` for the container, `cdmw/core/papr_block.py` for the
+configuration block. Tests: `tests/test_papr_format.py`, `tests/test_papr_block.py`.
 
-**Status: entry structure decoded, writer complete, block contents still opaque.**
+**Status: entry structure decoded, writer complete, 97.7% of block contents decoded.**
 
 ### How the entry chain was found
 
@@ -134,19 +137,65 @@ Two other pieces fell out of this:
   corpus, previously unread.
 - `u32` at `0x20` is the **total tag-record count** across all blocks. Bear declares 12
   and has two blocks of six records; dog declares 30 and has five. It is an independent
-  check on any future attempt at the block grammar.
+  check on the block grammar, and it is what the grammar below was built against.
 
 `cd_m0001_00_circusmachine_boss` finds 236 starts against a declared 237 and is
 **rejected rather than guessed at**.
 
-### What is still opaque
+### The block grammar
 
-Blocks are a stream of 3-byte `(tag, type, value)` records. Type `0x03` opens, `0x05`
-closes, `0x01` is a scalar, and `0x04` introduces a member whose payload depends on the
-member id — some carry nothing, some two bytes, some a `u8 count` and that many
-`(u16 name, f32 weight)` driver pairs. Those rules are schema-driven and the schema is
-not in the file, so this module does not interpret block contents. It carries them
-verbatim, which means an edit can never corrupt a construct we do not understand.
+Blocks are a stream of 3-byte `(tag, type, value)` records, some carrying a payload:
+
+| tag | type | payload |
+| --- | --- | --- |
+| `05` | `03` | — opens the block |
+| `07` | `05` | — closes it |
+| `10` | `01` | — a scalar; the value is the record's third byte |
+| `06` | `04` | — a member marker |
+| `0a` | `04` | two bytes; the high one is a **channel count** |
+| `03` | `04` | a driver list **and** the limits after it |
+| `04` | `04` | the same list with **no** limits |
+| `11` | `01` | a 3ds Max **expression controller** |
+| `12` | `01` | a plain name reference |
+| `01`–`05` | `01`/`02` | a **bound node**, and *not* a record — see below |
+
+A driver list is `u8 count`, that many `(u16 name, f32 weight)` pairs, a `0x00` sentinel,
+then `4 + channels` limit floats. A bound node is a flag byte, a name that may be empty,
+and the same limit run. An expression controller is a bound node name, a counted variable
+table, and the formula text.
+
+**2,482 of 2,541 blocks (97.7%) consume exactly**, against the 682 (26.8%) that matched
+one canonical 9-record shape before, and **894 expression controllers come out as text** —
+the rule each driven bone actually runs:
+
+```
+Local_Euler_Y*1.5-1.7                                   1.5x the driver's Y rotation, offset -1.7
+amin(Local_Euler_Z*5.5+20) 8                            the same on Z, clamped at 8
+(Local_Euler_Y-(degToRad 63.748))/2+(degToRad 63.748)   half the excess over 63.748 degrees
+```
+
+### How that was checked
+
+Coverage alone proves little — permissive rules also consume bytes. The check that does
+is `record_count` at `0x20`: the file's own total, which no decoding rule can influence.
+**Nine rigs decode end to end and all nine reproduce their declared total exactly**,
+including `golem_imp_boss` at 4,317 records and `machinetank` at 1,660.
+
+It also settled a question the shapes could not. A bound node looks like any other 3-byte
+record. Counted as one, `deerila` overshoots its declared total by 6 and the two horse rigs
+by 11 — exactly how many bound nodes each holds. Not counted, all three land exactly. So it
+is payload, and the corpus gate asserts the number of agreeing rigs rather than only the
+percentage, so a change that buys coverage by losing agreement fails.
+
+### What is still refused
+
+59 blocks, on two constructs: a `09 03` record and a `01 03` frame whose lead byte is a
+count rather than the zero the decoded forms carry. `09 03` reads plausibly as an opener
+carrying two bytes, and taking it that way reaches 98.0% — but rigs agreeing with their own
+header then drop from nine to seven, so the shape is not right yet and it stays refused.
+
+Decoding is read-only throughout. The writer still carries block bytes verbatim, so a
+construct read wrongly here cannot corrupt a file.
 
 ### What can be edited
 
