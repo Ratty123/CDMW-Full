@@ -596,3 +596,38 @@ def test_a_six_byte_trailer_closes_the_blob() -> None:
 
     assert after.walk_complete, after.walk_note
     assert len(after.objects) == 2
+
+
+def test_a_footer_may_sit_before_the_trailer_run() -> None:
+    """Files stopping with "no element header" left e.g. `5c 00 00 00 01 de 00
+    00 00` -- four bytes of footer, then a five-byte record. The close rule
+    allowed a footer *or* a run, never a footer followed by one, so 16 files
+    that had already recovered every object were reported partial.
+    """
+    from cdmw.core.prefab_blob_tail import closes_blob
+
+    assert closes_blob(bytes.fromhex("5c 00 00 00 01 de 00 00 00"), 0)
+    assert closes_blob(bytes.fromhex("00 01 01 06 00 00 00 01"), 0), "zero padding"
+    assert closes_blob(bytes.fromhex("00 00 00 00 01 01 06 00 00 00 01"), 0)
+
+
+def test_the_footer_rule_still_demands_the_rest_be_records() -> None:
+    """Exact consumption is the whole safety argument: from wherever the run is
+    judged to start, every byte has to belong to a record."""
+    from cdmw.core.prefab_blob_tail import closes_blob
+
+    assert not closes_blob(bytes.fromhex("5c 00 00 00 01 de 00 00 00 99 99"), 0)
+    assert not closes_blob(b"character/model/a/b.pac", 0)
+    assert not closes_blob(bytes.fromhex("5c 00 00 00 02 de 00 00 00"), 0)
+    assert not closes_blob(b"", 0)
+
+
+def test_a_footer_is_not_considered_when_the_bytes_open_a_record() -> None:
+    """Otherwise this is the run rule with extra chances, and a real record can
+    be re-read as a footer plus a shorter run."""
+    from cdmw.core.prefab_blob_tail import closes_blob, is_trailer_run
+
+    record = bytes.fromhex("01 aa bb cc dd")
+    assert is_trailer_run(record, 0) and closes_blob(record, 0)
+    # Opens with 01 but is not a clean run: no footer reinterpretation rescues it.
+    assert not closes_blob(record + bytes.fromhex("99 99 99"), 0)

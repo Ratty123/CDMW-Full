@@ -90,6 +90,39 @@ Placement writes are simpler still: transforms are fixed size, so nothing moves
 and no pointer needs relocating. Placements are applied **before** path edits,
 because path edits move bytes and would invalidate the offsets.
 
+## How the blob closes
+
+`cdmw/core/prefab_blob_tail.py`. Deciding "is there anything left to read" is
+the most consequential judgement the decoder makes, because a walk that
+recovered every object but cannot close is reported *partial*, and partial
+switches editing off. Several files had been read correctly and were refused on
+their last nine bytes.
+
+    tail := footer? trailer-record+ terminator?
+
+- A **trailer record** opens `01` and is 5 or 6 bytes wide -- width follows the
+  component family, as the pointer-record footer search already does. Reading
+  only the five-byte form left 28 files stopping exactly seven bytes short on
+  `01 01 06 00 00 00 01`.
+- A **footer** of 1 to 6 bytes may precede the run. Observed widths are 1, 2 and
+  4 (zero padding, or a field such as `5c 00 00 00`). Allowing it completed 16
+  more files, every one of which had already recovered all its objects: the
+  object counts before and after are identical and only the verdict changes.
+
+Safety rests on **exact consumption** -- from wherever the run is judged to
+start, every remaining byte must belong to a record, with at most one spare.
+That is not quite enough on its own, though. The six-byte width would otherwise
+absorb one arbitrary byte per record, and combined with the footer skip that is
+enough to close on trailing garbage: `5c 00 00 00 01 de 00 00 00 99 99` reads as
+a four-byte footer, a six-byte record and a spare byte. So the six-byte record
+is matched **exactly** against the single form the corpus contains, unlike the
+five-byte one whose u32 payload genuinely varies. A second six-byte record
+appearing later will surface as a partial walk, which is the safe direction.
+
+Together these took completion from 878 to 922 of 1,500 (58.5% to 61.5%), and
+cascaded into editing: the resize round-trip sweep went from 687 over 371 files
+to **757 over 415, still exact on every one**.
+
 ## Adding and removing collection elements
 
 `cdmw/core/prefab_array_edit.py` changes how much of a file there is, rather
@@ -196,7 +229,7 @@ Measured on 12,000 archive-extracted prefabs:
 | | |
 |---|---|
 | header, type table, pool, data header | 12,000 / 12,000 |
-| structural heap walk completes | 60.4% of a seeded 1,500-file sample |
+| structural heap walk completes | 61.5% of a seeded 1,500-file sample |
 | ... of files declaring one component type | 93.2% |
 | objects recovered | 128,142 |
 | numeric values recovered | 149,696 |
@@ -270,7 +303,7 @@ Roughly in order of value:
    matters more now that placement is editable: a wrong rotation convention
    would produce files that pass every test and sit at wrong angles in world.
    Needs a human with the game installed.
-2. **39.6% of prefabs do not walk to completion**, measured over a seeded
+2. **38.5% of prefabs do not walk to completion**, measured over a seeded
    1,500-file sample rather than the older 12,000-file run, so the shares below
    are not directly comparable with the figures that preceded them.
    `scripts/prefab_walk_failure_census.py` groups what is left by cause and by
@@ -278,13 +311,13 @@ Roughly in order of value:
 
    | files | share | median progress | p90 | objs | cause |
    | ---: | ---: | ---: | ---: | ---: | --- |
-   | 158 | 26.6% | 1% | 20% | 0 | mask exceeds every candidate component |
-   | 120 | 20.2% | 66% | 92% | 3 | walk ended N bytes short |
-   | 70 | 11.8% | 6% | 56% | 1 | no pointer record near … |
-   | 54 | 9.1% | 98% | 100% | 4 | no element header near … |
-   | 35 | 5.9% | 3% | 7% | 3 | expected a collection here (… ce) |
-   | 34 | 5.7% | 97% | 99% | 2 | expected a collection here (… 2f) |
-   | 24 | 4.0% | 17% | 100% | 1 | blob string length N at … |
+   | 158 | 27.3% | 1% | 20% | 0 | mask exceeds every candidate component |
+   | 119 | 20.6% | 66% | 91% | 3 | walk ended N bytes short |
+   | 70 | 12.1% | 6% | 56% | 1 | no pointer record near … |
+   | 39 | 6.7% | 95% | 100% | 4 | no element header near … |
+   | 35 | 6.1% | 3% | 7% | 3 | expected a collection here (… ce) |
+   | 34 | 5.9% | 97% | 99% | 2 | expected a collection here (… 2f) |
+   | 24 | 4.2% | 17% | 100% | 1 | blob string length N at … |
 
    Read the *progress* column before the share. The largest cause stops at 1%
    with nothing recovered and has already resisted the obvious fix (see Dead
