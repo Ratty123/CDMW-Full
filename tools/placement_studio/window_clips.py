@@ -116,9 +116,17 @@ class ClipBrowserMixin:
         switches = QHBoxLayout()
         switches.addWidget(self._clip_lod_box)
         switches.addWidget(self._clip_carry_box)
-        switches.addWidget(self._carry_match)
         switches.addStretch(1)
         layout.addLayout(switches)
+
+        # The scan gets a row to itself. Sharing one with the two checkboxes fitted the pane at
+        # full width and not in the lane it actually lives in — `Only draws for this spot` lost
+        # its last word and the button read `ind which draws fit (~30s`. Qt answers a row it
+        # cannot fit by clipping, so the only reliable fix is to stop asking it to.
+        scan = QHBoxLayout()
+        scan.addWidget(self._carry_match)
+        scan.addStretch(1)
+        layout.addLayout(scan)
 
         # Search gets its own row: sharing one with two combos and a checkbox left it a
         # three-character box in a side column.

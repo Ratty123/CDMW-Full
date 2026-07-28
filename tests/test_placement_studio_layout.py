@@ -82,3 +82,45 @@ class WindowWidthTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_the_clip_filter_rows_fit_the_lane_they_live_in():
+    """Qt answers a row it cannot fit by clipping, so no row may ask for more than the lane.
+
+    Three controls shared one row: `Distant versions`, `Only draws for this spot` and the scan
+    button need 216, 312 and 338 px at this DPI — 890 with spacing, in a lane that opens at
+    620. The checkbox lost its last word and the button read `ind which draws fit (~30s`.
+    """
+
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+
+    from tools.placement_studio.corpus import Baseline
+    from tools.placement_studio.window import PlacementStudioWindow
+
+    _app = QApplication.instance() or QApplication([])
+    try:
+        baseline = Baseline.load()
+    except Exception as error:  # noqa: BLE001 - needs a pinned baseline to build at all
+        import pytest
+
+        pytest.skip(f"no baseline available: {error}")
+
+    window = PlacementStudioWindow(baseline)
+    try:
+        checkboxes = (
+            window._clip_lod_box.sizeHint().width()
+            + window._clip_carry_box.sizeHint().width()
+        )
+        button = window._carry_match.sizeHint().width()
+
+        # The lane the clip browser opens at; see `_build_animation_tab`.
+        assert checkboxes <= 620, f"the checkbox row wants {checkboxes}px"
+        assert button <= 620, f"the scan button wants {button}px"
+        assert checkboxes + button > 620, (
+            "these fit on one row now, so splitting them is no longer what keeps them legible"
+        )
+    finally:
+        window.deleteLater()
