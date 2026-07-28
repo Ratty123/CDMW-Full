@@ -263,6 +263,62 @@ class BoundNodeTagTests(unittest.TestCase):
         self.assertEqual(decoded.record_count, 3)
 
 
+class BoundNodeShapeTests(unittest.TestCase):
+    """The parts of a bound node that are not the fixed zeros they first looked like."""
+
+    def _block(self, lead: bytes, name: str) -> bytes:
+        return (
+            OPEN
+            + _rec(0x04, 0x04) + _drivers_only(("A", 50.0))
+            + _rec(0x01, 0x01) + lead + _s(name) + struct.pack("<4f", 0, 0, 0, 1)
+            + CLOSE
+        )
+
+    def test_the_lead_byte_may_be_one_as_well_as_zero(self) -> None:
+        for lead in (b"\x00", b""):
+            decoded = decode_block(self._block(lead, "N"))
+            self.assertTrue(decoded.complete, f"lead {lead!r}: {decoded.note}")
+
+    def test_any_other_lead_byte_is_refused(self) -> None:
+        decoded = decode_block(self._block(b"", "N"))
+
+        self.assertFalse(decoded.complete)
+        self.assertIn("bound-node flag 7", decoded.note)
+
+    def test_the_name_may_be_empty(self) -> None:
+        """An unbound slot, not a corrupt record: a handful of rigs ship one."""
+
+        block = (
+            OPEN
+            + _rec(0x04, 0x04) + _drivers_only(("A", 50.0))
+            + _rec(0x01, 0x01) + b"\x00" + struct.pack("<H", 0)
+            + struct.pack("<4f", 0, 0, 0, 1)
+            + CLOSE
+        )
+
+        decoded = decode_block(block)
+
+        self.assertTrue(decoded.complete, decoded.note)
+        self.assertEqual(decoded.names, ("",))
+
+    def test_an_empty_name_is_still_refused_outside_a_bound_node(self) -> None:
+        decoded = decode_block(OPEN + _rec(0x12, 0x01) + struct.pack("<H", 0) + CLOSE)
+
+        self.assertFalse(decoded.complete)
+        self.assertIn("string length 0", decoded.note)
+
+
+class EmptyDriverListTests(unittest.TestCase):
+    def test_a_list_may_declare_no_drivers(self) -> None:
+        block = OPEN + _rec(0x03, 0x04) + b"\x00\x00" + struct.pack("<4f", 0, 0, 0, 1) + CLOSE
+
+        decoded = decode_block(block)
+
+        self.assertTrue(decoded.complete, decoded.note)
+        self.assertEqual(decoded.drivers, ())
+        self.assertEqual(len(decoded.groups[0].limits), 4)
+
+
 class FrameTests(unittest.TestCase):
     def test_a_frame_record_carries_a_zero_and_three_floats(self) -> None:
         block = OPEN + _rec(0x01, 0x03) + b"\x00" + struct.pack("<3f", 0.5, 0.25, 0.125) + CLOSE
@@ -385,11 +441,11 @@ class VanillaBlockTests(unittest.TestCase):
         return blocks, complete, expressions, exact_rigs
 
     def test_most_of_the_corpus_now_decodes_completely(self) -> None:
-        """A ratchet, not an equality: 96.1% at the time of writing, from 26.8%."""
+        """A ratchet, not an equality: 97.7% at the time of writing, from 26.8%."""
 
         blocks, complete, _expressions, _exact = self._decoded()
 
-        self.assertGreaterEqual(complete / blocks, 0.94, f"{complete}/{blocks}")
+        self.assertGreaterEqual(complete / blocks, 0.96, f"{complete}/{blocks}")
 
     def test_the_driver_formulas_are_recovered(self) -> None:
         _blocks, _complete, expressions, _exact = self._decoded()
@@ -401,6 +457,7 @@ class VanillaBlockTests(unittest.TestCase):
 
         _blocks, _complete, _expressions, exact = self._decoded()
 
-        # Four rigs decode end to end and all four reproduce their declared total. That
-        # agreement is the whole reason to trust the rules the walk is built from.
-        self.assertGreaterEqual(exact, 4, "fewer rigs agree with their header than before")
+        # Nine rigs decode end to end and all nine reproduce their declared total, the
+        # largest being golem_imp_boss at 4,317 records. That agreement is the whole reason
+        # to trust the rules, and a change that trades it for coverage is a regression.
+        self.assertGreaterEqual(exact, 9, "fewer rigs agree with their header than before")
