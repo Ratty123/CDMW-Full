@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Docs
+- Located the `.paproj` loader, which reframes the format. `CrimsonDesert.exe` carries `paproj` twice, `paprojdesc` once, `ProjectileInfo` 44 times, and **79 MSVC RTTI class names** matching `.?AV*Projectile*@pa@@`. Those names map one-to-one onto the file names — `CommonProjectile` to `commonprojectile.paproj`, `CommonProjectile_AttachToActor` to `projectileinfo_attachtoactor.paproj`, `_Repeat` and `_Wave` likewise, and `ProjectileShotData` to `projectileshotinfo.paproj`.
+- That answers why the earlier analysis kept failing: **each file is a table of one projectile subclass, not one shared record type.** No single record size could fit the set, and only `projectileshotinfo` showed a clean period (156 bytes) because it is the only file holding a single simple struct. The manifest now records the mapping, the four ruled-out readings, and that the remaining work is per-file — recovering each struct's field offsets from the constructors the RTTI names point at.
+
 ### Added
 - A weapon swap can borrow the other playable character's animations where the body has no counterpart of its own. The two rigs share 403 bone names of Kliff's 434 and Damian's 448, and a Kliff sword draw resolves against Damian's skeleton with exactly the coverage it has on Kliff's — 89.6% either way — so the clip plays. It is a fallback and never displaces a clip authored for the body being edited: `.paa` keys are bind-pose deltas in bone-local axes, so the same rotations on different proportions land slightly differently, and contact points are where that shows.
 - What it is worth is worth stating plainly. It gains Kliff two draws and Damian none — not for want of donors, since 1,002 of Kliff's clips qualify, but because a swap rewrites files the game already asks for and Damian *has* only 8 one-handed draws against Kliff's 60. The ceiling on Damian is targets, not donors, and no amount of borrowing raises it.
