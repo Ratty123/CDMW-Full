@@ -71,6 +71,22 @@ class PrefabChangeReview(QDialog):
             self.tree.resizeColumnToContents(column)
         layout.addWidget(self.tree, 1)
 
+        # Retargeting a mesh silently changes its material and physics too,
+        # because the engine resolves those from the mesh path rather than from
+        # anything the prefab says. Naming them here is the only place a modder
+        # finds out before the game does. They are deliberately not copied into
+        # the package: they are the game's own files, already installed, and
+        # shipping them would add conflicts for no gain.
+        self.companion_note: QLabel | None = None
+        if any("comes from" in change.note or "will come from" in change.note for change in changes):
+            self.companion_note = QLabel(
+                "Swapping a model also swaps the material and physics that go with it. "
+                "The game finds those by the model's path, so they come from your game "
+                "files and are not copied into the package."
+            )
+            self.companion_note.setWordWrap(True)
+            layout.addWidget(self.companion_note)
+
         self.acknowledge: QCheckBox | None = None
         if self._warnings:
             problems = QLabel(

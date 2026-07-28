@@ -121,6 +121,12 @@ class ArchivePrefabInspectorActionsMixin:
         export_root, package_info, create_no_encrypt_file, _include_related, export_options = export_target
 
         def _task(log: Callable[[str], None]) -> ArchiveLooseExportResult:
+            # Only the prefab goes in. A retargeted mesh's material and physics
+            # are resolved by the engine from the mesh path, so the new mesh's
+            # own companions apply and they already ship with the game --
+            # bundling copies of them would add mod conflicts and change
+            # nothing. A companion that does not exist is a blocking warning at
+            # the review step instead.
             log(f"Source prefab: {entry.path}")
             log(summary)
             return export_archive_payloads_to_mod_ready_loose(

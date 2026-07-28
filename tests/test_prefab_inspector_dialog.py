@@ -920,3 +920,40 @@ def test_the_banner_says_how_far_the_walk_got(qt_app: QApplication) -> None:
     banner = dialog.banner.text()
     assert "of the way through" in banner
     assert "stopped at byte" in banner
+
+
+def test_the_review_says_a_model_swap_takes_its_companions_with_it(qt_app: QApplication) -> None:
+    """The engine resolves material and physics from the model's path.
+
+    So retargeting a mesh silently changes those too, and the review is the
+    only place a modder finds out before the game does.
+    """
+    from cdmw.ui.archive_browser.prefab_inspector_review import ChangeLine, PrefabChangeReview
+
+    with_companion = ChangeLine(
+        field="Mesh",
+        before="character/model/a/b.pac",
+        after="character/model/a/c.pac",
+        note="Material (textures and material assignments) comes from character/modelproperty/a/c.pac_xml",
+    )
+    review = PrefabChangeReview([with_companion], [])
+    assert review.companion_note is not None
+    text = review.companion_note.text()
+    assert "material and physics" in text
+    assert "not copied into the package" in text
+
+
+def test_a_change_with_no_companions_says_nothing_about_them(qt_app: QApplication) -> None:
+    from cdmw.ui.archive_browser.prefab_inspector_review import ChangeLine, PrefabChangeReview
+
+    review = PrefabChangeReview([ChangeLine(field="Socket", before="a", after="b")], [])
+    assert review.companion_note is None
+
+
+def test_every_companion_is_listed_not_just_the_first(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build(), known_paths={".pac": (PATH,)})
+    _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.pac")
+    lines, _warnings = dialog._pending_changes()
+    assert lines
+    # Material and physics both, since a mesh has two companions by convention.
+    assert lines[0].note.count("comes from") + lines[0].note.count("will come from") >= 2
