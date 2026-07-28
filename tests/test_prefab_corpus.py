@@ -1557,116 +1557,53 @@ def test_prefab_corpus_report_probes_same_length_placement_edits(tmp_path: Path)
     assert row["experimental_length_change_resource_rebuild_probe"]["edited_reference_count"] == 2
     assert row["experimental_length_change_resource_rebuild_probe"]["used_opt_in_import_path"] is True
     assert row["experimental_length_change_resource_rebuild_probe"]["replacement_reference_found"] is True
-    assert row["experimental_length_change_placement_rebuild_probe"]["status"] == "passed"
-    assert row["experimental_length_change_placement_rebuild_probe"]["edited_field_count"] == 1
-    assert row["experimental_length_change_placement_rebuild_probe"]["byte_delta"] > 0
-    assert row["experimental_length_change_placement_rebuild_probe"]["offset_candidates_remapped_after_edit"] is True
-    assert (
-        row["experimental_length_change_placement_rebuild_probe"][
-            "offset_candidates_effectively_remapped_after_edit"
-        ]
-        is True
-    )
-    assert (
-        row["experimental_length_change_placement_rebuild_probe"][
-            "offset_candidate_report_only_effective_remap_status"
-        ]
-        == "strict_remap_passed"
-    )
-    assert row["experimental_length_change_placement_rebuild_probe"]["resized_rebuild_changed_only_expected_bytes"] is True
-    assert (
-        row["experimental_length_change_placement_rebuild_probe"][
-            "resized_rebuild_changed_only_effective_expected_bytes"
-        ]
-        is True
-    )
-    assert row["experimental_length_change_placement_rebuild_probe"]["offset_candidate_remap_missing_count"] == 0
-    assert (
-        row["experimental_length_change_placement_rebuild_probe"][
-            "offset_candidate_remap_missing_metadata_target_count"
-        ]
-        == 0
-    )
-    assert (
-        row["experimental_length_change_placement_rebuild_probe"][
-            "offset_candidate_remap_missing_non_metadata_target_count"
-        ]
-        == 0
-    )
-    assert (
-        row["experimental_length_change_placement_rebuild_probe"][
-            "offset_candidate_remap_missing_owner_kind_target_role_kind_counts"
-        ]
-        == {}
-    )
-    assert (
-        row["experimental_length_change_placement_rebuild_probe"][
-            "offset_candidate_remap_missing_shifted_offset_match_count"
-        ]
-        == 0
-    )
-    assert (
-        row["experimental_length_change_placement_rebuild_probe"][
-            "offset_candidate_remap_missing_shifted_value_match_count"
-        ]
-        == 0
-    )
-    assert (
-        row["experimental_length_change_placement_rebuild_probe"][
-            "offset_candidate_remap_missing_same_target_match_count"
-        ]
-        == 0
-    )
-    assert row["experimental_length_change_placement_rebuild_probe"]["offset_candidate_remap_stale_unshifted_count"] == 0
-    assert row["experimental_length_change_placement_rebuild_probe"]["selected_resize_offset_candidate_count"] == 0
-    assert row["experimental_length_change_placement_rebuild_probe"]["selected_resize_offset_candidate_non_overlapping_count"] == 0
-    assert row["experimental_length_change_placement_rebuild_probe"]["selected_resize_offset_candidate_overlapping_count"] == 0
-    assert row["experimental_length_change_placement_rebuild_probe"]["selected_resize_offset_candidate_target_role_kind_counts"] == {}
-    assert row["experimental_length_change_placement_rebuild_probe"]["selected_resize_offset_candidate_owner_kind_target_counts"] == {}
-    assert row["experimental_length_change_placement_rebuild_probe"]["layout_fully_accounted_after_edit"] is True
-    assert row["experimental_length_change_placement_rebuild_probe"]["json_layout_rebuild_after_edit"] is True
-    assert row["experimental_length_change_placement_rebuild_probe"]["used_low_level_profile_patch"] is True
-    assert row["experimental_length_change_placement_rebuild_probe"]["replacement_field_found"] is True
+    # The length-changing placement rebuild is refused on this fixture, and the
+    # refusal is the correct outcome rather than a regression. Since a7d92987 a
+    # length-changing socket edit goes through exact pointer relocation instead
+    # of splicing the new name over the old span, and relocation needs a prefab
+    # that decodes all the way through. `_prefab_profile_payload` is a
+    # hand-assembled byte string with no real type table, so the walk stops on an
+    # implausible type count and the rebuild declines. That commit updated the
+    # equivalent expectation in test_archive_relationships.py and missed this
+    # one; the old path would have spliced the bytes and left every absolute
+    # pointer after the edit addressing the wrong byte.
+    placement_rebuild = row["experimental_length_change_placement_rebuild_probe"]
+    assert placement_rebuild["status"] == "failed"
+    assert placement_rebuild["byte_delta"] == 0
+    assert placement_rebuild["replacement_field_found"] is False
+    assert placement_rebuild["layout_fully_accounted_after_edit"] is False
+    assert placement_rebuild["offset_candidates_remapped_after_edit"] is False
+    assert "read all the way through" in placement_rebuild["error"]
+    assert "Same-length replacements still work" in placement_rebuild["error"]
+
+    # Same-length editing is untouched by the gate, and it is the capability that
+    # actually ships: it moves no bytes, so no pointer can go stale.
     assert report["summary"]["same_length_placement_edit_probe_passed"] == 1
     assert report["summary"]["same_length_placement_edit_probe_failed"] == 0
     assert report["summary"]["same_length_placement_edit_probe_rows_patched"] == 1
     assert report["summary"]["experimental_length_change_resource_rebuild_probe_rows_patched"] == 2
-    assert report["summary"]["experimental_length_change_placement_rebuild_probe_passed"] == 1
-    assert report["summary"]["experimental_length_change_placement_rebuild_probe_failed"] == 0
-    assert report["summary"]["experimental_length_change_placement_rebuild_probe_rows_patched"] == 1
-    assert report["summary"]["experimental_length_change_placement_rebuild_probe_effective_offset_remap_passed"] == 1
-    assert report["summary"]["experimental_length_change_placement_rebuild_probe_changed_only_expected_passed"] == 1
-    assert (
-        report["summary"][
-            "experimental_length_change_placement_rebuild_probe_changed_only_effective_expected_passed"
-        ]
-        == 1
-    )
-    assert report["summary"]["experimental_length_change_placement_rebuild_probe_selected_offset_candidate_count"] == 0
-    assert report["summary"]["experimental_length_change_placement_rebuild_probe_selected_non_overlapping_count"] == 0
-    assert report["summary"]["experimental_length_change_placement_rebuild_probe_selected_overlapping_count"] == 0
-    assert report["summary"]["experimental_length_change_placement_rebuild_probe_selected_target_role_kind_counts"] == {}
-    assert report["summary"]["experimental_length_change_placement_rebuild_probe_selected_owner_kind_target_counts"] == {}
-    assert (
-        report["summary"][
-            "experimental_length_change_placement_rebuild_probe_missing_after_effective_offset_remap_exclusion"
-        ]
-        == 0
-    )
+    assert report["summary"]["experimental_length_change_placement_rebuild_probe_passed"] == 0
+    assert report["summary"]["experimental_length_change_placement_rebuild_probe_failed"] == 1
+    assert report["summary"]["experimental_length_change_placement_rebuild_probe_rows_patched"] == 0
+
     assert report["gate"]["same_length_placement_edit_probe_ready"] is True
-    assert report["gate"]["experimental_placement_length_change_rebuild_probe_ready"] is True
     assert report["gate"]["same_length_import_ready"] is True
-    assert report["gate"]["length_changing_import_ready"] is False
     assert report["gate"]["resource_resize_offset_gate_ready"] is True
-    assert report["gate"]["placement_resize_offset_gate_ready"] is True
-    assert report["gate"]["resize_offset_validator_ready"] is True
     assert report["gate"]["resource_effective_resize_offset_model_ready"] is True
-    assert report["gate"]["placement_effective_resize_offset_model_ready"] is True
-    assert report["gate"]["effective_resize_offset_model_ready"] is True
+    assert report["gate"]["experimental_placement_length_change_rebuild_probe_ready"] is False
+    assert report["gate"]["placement_resize_offset_gate_ready"] is False
+    assert report["gate"]["placement_effective_resize_offset_model_ready"] is False
+    assert report["gate"]["effective_resize_offset_model_ready"] is False
+    assert report["gate"]["resize_offset_validator_ready"] is False
+    assert report["gate"]["length_changing_import_ready"] is False
     assert report["gate"]["descriptor_value_editing_ready"] is False
     assert report["gate"]["unknown_reference_preservation_ready"] is False
     assert "offset/count rebuild is not proven" in report["gate"]["length_changing_blockers"]
     assert "unknown/reference descriptor edit semantics are not proven" in report["gate"]["length_changing_blockers"]
+    assert (
+        "placement length-changing probe failed rows still block resize-offset readiness"
+        in report["gate"]["length_changing_blockers"]
+    )
 
 
 def test_prefab_corpus_report_probes_array_count_hint_direct_mutation(tmp_path: Path) -> None:
