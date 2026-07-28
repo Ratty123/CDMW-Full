@@ -11,6 +11,12 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Docs
+- **The docs still described a renderer that was deleted.** The resident Vortice migration removed the Python D3D11 preview host, `cdmw/ui/mesh_editor/native_preview_runtime.py`, and the `cdmw_d3d11_preview` native helper, but three docs still routed the reader through them — including `mesh_editor_net_authoritative_renderer_audit.md`, whose whole point is naming which renderer holds authority. It now says there is no second renderer. `cdmw/ui/mesh_editor/README.md` also claimed `start_standalone_native_preview()` rejects launch requests; it is the live entry point into the .NET editor, called from six places.
+- Corrected the sparse-update description in `mesh-editing-pipeline.md`: delivery is paced by `cdmw/ui/mesh_editor/dotnet_update_queue.py`, not "one sender thread per Python D3D11 host", and revision support is negotiated as a named capability rather than assumed until an older host is identified.
+- **Eight docs existed that the index never mentioned**, so nothing pointed at them — `format-decode-progress`, `format-explorer`, `localization-and-constraint-formats`, `mesh-editor-visual-material-parity-audit`, `paa-motion-format`, `pose-modifier-data`, `translation-studio`, and `bazel-migration`. Added them to `docs/README.md` and put the feature list in alphabetical order so the next insertion has an obvious home.
+- Two guards now keep this from recurring. `_documentation_files()` only walked `cdmw/`, which is how a broken `docs/` link sat in `native/cdmw_mesh_core/README.md`; it covers `native/`, `tools/`, `tests/`, and the root docs too, 69 files rather than 50. A new guard fails when a doc is absent from the index.
+
 ### Fixed
 - **The Prefab Inspector's hint line was setting the dialog's minimum width.** An unwrapped `QLabel` demands its whole line, and adding the row-menu sentence pushed that past 1,000px — so the window silently refused to shrink below roughly 1,050px, which is most of a laptop screen. Found by launching the dialog on a real shipped prefab and trying to resize it, not by reading the code. It wraps now, with an explicit two-line minimum height because a wrapped label reports a one-line size hint.
 - **Duplicating an object left the cursor at the top of the tree**, so the copy — which reads identically to its original, by design — was unfindable. The selection now lands on the copy and scrolls it into view, which is also the row about to be retargeted.

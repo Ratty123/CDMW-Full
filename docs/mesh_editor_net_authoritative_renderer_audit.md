@@ -81,15 +81,17 @@ Last updated: 2026-07-14
   G as roughness, and B as metalness. `_mg` detail/grime remains a layer input
   and is never promoted to primary albedo or a packed PBR mask without evidence.
 
-## Native/host preview rendering outside Edit Mesh
+## Preview rendering outside Edit Mesh
 
-- Host D3D11 preview is launched through `mesh_editor_native_preview_command` in `cdmw/ui/mesh_editor/native_preview_runtime.py`.
-- Preview packages are prepared by `mesh_editor_write_native_preview_package` / `mesh_editor_write_prepared_native_preview_package`.
-- The native D3D11 preview owns normal archive/material preview outside the
-  embedded .NET Edit Mesh viewport. It is not the canonical Edit Mesh renderer.
+- There is no second renderer. The resident Vortice migration removed the Python
+  D3D11 preview host and its native `cdmw_d3d11_preview` helper, so archive and
+  material preview outside the embedded Edit Mesh viewport is served by the same
+  .NET/Vortice child process.
+- Mesh Editor preview payloads are packed by
+  `cdmw/ui/mesh_editor/native_preview_payloads.py`; the tab-side launch, package
+  load, and state sync live in `cdmw/ui/mesh_editor/tab_native_preview.py`.
 - Python/C++ retain package, material, texture-resolution, session, and archive
-  authority while the production .NET/Vortice child owns Edit Mesh presentation
-  and input.
+  authority while the production .NET/Vortice child owns presentation and input.
 
 ## Current .NET mesh rendering path
 

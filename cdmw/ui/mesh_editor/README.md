@@ -34,17 +34,14 @@ session path for scripted callers. UI callers should use
 service session creation in `MeshFileSessionLoadWorker`, then attaches the
 controller and already-loaded mesh on the UI thread.
 The standalone and embedded Mesh Editor viewport is .NET/Vortice-only.
-`start_standalone_native_preview()` and its async counterpart are retained as
-compatibility seams but reject launch requests; their former D3D11 button is
-hidden and disabled. Native package/runtime helpers remain for explicit legacy
-harness coverage and are not a production Mesh Editor fallback.
+`start_standalone_native_preview()` and its async counterpart are the live entry
+point into that renderer: they push session and scene state to a running .NET
+editor process, or start one when none is running. The Python D3D11 preview host
+was removed with the resident Vortice migration, so there is no D3D11 fallback
+and no host-command construction left to own.
 
-`native_preview_payloads.py` owns Mesh Editor payloads for the native D3D11
-preview bridge; callers should not duplicate mesh-to-preview JSON/blob packing.
-
-`native_preview_runtime.py` owns standalone Mesh Editor native preview package
-and host-command construction for tab/harness callers that run without the full
-Archive Browser builder.
+`native_preview_payloads.py` owns Mesh Editor payloads for the .NET preview
+bridge; callers should not duplicate mesh-to-preview JSON/blob packing.
 
 `controller.py` owns the feature-side edit-session bridge over `MeshService` and
 converts edit results into native preview update payloads.

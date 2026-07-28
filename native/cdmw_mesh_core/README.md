@@ -124,4 +124,4 @@ triangle, cache, overdraw, fetch, and error metrics plus optimized faces; Python
 keeps this report preflight-only until an undoable apply path is explicitly
 wired.
 
-Related docs: `docs/asset-authoring-integrations.md`.
+Related docs: `docs/features/asset-authoring-integrations.md`.
