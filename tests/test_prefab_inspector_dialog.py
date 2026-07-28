@@ -338,9 +338,9 @@ def test_placement_rows_are_editable_and_apply_without_resizing(qt_app: QApplica
         position=(7.0, 8.0, 9.0),
         tile=placement.tile,
     )
-    dialog._placement_edits[offset] = write_placement(moved)
+    dialog._value_edits[offset] = write_placement(moved)
     dialog._refresh_pending_state()
-    assert "1 placement" in dialog.status.text()
+    assert "1 value changed in place" in dialog.status.text()
     assert dialog.apply_button.isEnabled()
 
     dialog._confirm_changes = lambda: True
@@ -363,11 +363,11 @@ def test_undo_clears_pending_placements(qt_app: QApplication) -> None:
             child = parent.child(child_index)
             stored = child.data(0, _PLACEMENT_ROLE)
             if stored:
-                dialog._placement_edits[stored[0]] = b"\x00" * len(stored[2])
+                dialog._value_edits[stored[0]] = b"\x00" * len(stored[2])
     dialog._refresh_pending_state()
     assert dialog.apply_button.isEnabled()
     dialog._revert_changes()
-    assert dialog._placement_edits == {}
+    assert dialog._value_edits == {}
     assert not dialog.apply_button.isEnabled()
 
 
@@ -592,15 +592,15 @@ def test_moving_one_transform_moves_its_identical_twin(qt_app: QApplication) -> 
     offset, _type_name, raw, _member = first.data(0, _PLACEMENT_ROLE)
     was = read_placement(raw)
     now = Placement(scale=was.scale, rotation=was.rotation, position=(11.0, 12.0, 13.0), tile=was.tile)
-    dialog._placement_edits[offset] = (raw, write_placement(now))
+    dialog._value_edits[offset] = (raw, write_placement(now))
     dialog._sync_twin_placements(first, was, now)
 
     for row in rows[1:]:
         twin_offset, _t, twin_raw, _n = row.data(0, _PLACEMENT_ROLE)
         if read_placement(twin_raw) != was:
             continue
-        assert twin_offset in dialog._placement_edits, "an identical twin must move too"
-        expected, written = dialog._placement_edits[twin_offset]
+        assert twin_offset in dialog._value_edits, "an identical twin must move too"
+        expected, written = dialog._value_edits[twin_offset]
         assert read_placement(written).position == (11.0, 12.0, 13.0)
         assert read_placement(written).tile == read_placement(twin_raw).tile
 
@@ -655,3 +655,86 @@ def test_cancelling_the_review_writes_nothing(qt_app: QApplication) -> None:
     dialog._apply_changes()
     assert dialog.result_payload is None
     assert "you cancelled" in dialog.log.toPlainText()
+
+
+def _value_fixture() -> bytes:
+    """A prefab with a plain float member set, alongside its mesh pointer.
+
+    72.9% of complete-walk prefabs in the archives carry one of these -- 980
+    floats and 171 uint8s across the sample -- so this is the common case, not
+    an edge one.
+    """
+    types = bytearray()
+    types += _text("SceneObject") + struct.pack("<H", 3)
+    types += _member("_socketName", "IndexedStringA", KIND_STRING, 1)
+    types += _member("_shrinkMaskDistance", "float", 0x0000, 4)
+    types += _member("_meshFile", "ReflectObjectPtr", KIND_POINTER, 8)
+    types += _text("ResourceReferencePath_SkinnedMesh") + struct.pack("<H", 0)
+
+    header = bytearray()
+    header += struct.pack("<HHH", 0xFFFF, 4, 0) + bytes(8)
+    header += struct.pack("<I", 15) + struct.pack("<H", 2) + types
+    pool = struct.pack("<I", 0)
+    blob_offset = len(header) + len(pool) + 28
+
+    blob = bytearray()
+    blob += struct.pack("<H", 2) + (0b111).to_bytes(6, "little")
+    blob += _text("Pelvis_R_Socket")
+    blob += struct.pack("<f", 0.2)
+    blob += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
+    blob += struct.pack("<I", blob_offset + len(blob) + 4)
+    pointee = bytearray(struct.pack("<I", 0) + _text(PATH))
+    blob += pointee + struct.pack("<I", len(pointee)) + bytes(5)
+
+    data_header = struct.pack("<III", 1, blob_offset + len(blob), 0)
+    data_header += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
+    data_header += struct.pack("<II", blob_offset, len(blob))
+    return bytes(header + pool + data_header + blob)
+
+
+def test_a_plain_value_row_is_editable_and_writes_in_place(qt_app: QApplication) -> None:
+    """Flags and numbers were decoded and shown, but read-only."""
+    from cdmw.domain.archives.prefab_values import decode_value
+    from cdmw.ui.archive_browser.prefab_inspector_dialog import _VALUE_ROLE
+    from cdmw.ui.archive_browser.prefab_inspector_widgets import ValueEditDialog
+
+    dialog = PrefabInspectorDialog(_value_fixture())
+    rows = []
+    for index in range(dialog.tree.topLevelItemCount()):
+        parent = dialog.tree.topLevelItem(index)
+        for child_index in range(parent.childCount()):
+            child = parent.child(child_index)
+            if child.data(0, _VALUE_ROLE):
+                rows.append(child)
+    assert rows, "a set float member must be offered as editable"
+
+    offset, type_name, raw, _member = rows[0].data(0, _VALUE_ROLE)
+    assert decode_value(type_name, raw) == pytest.approx(0.2)
+    editor = ValueEditDialog(type_name, raw, title="Shrink distance")
+    editor._current = lambda: 1.25
+    editor._accept()
+    assert editor.result_raw is not None
+    assert len(editor.result_raw) == len(raw), "an in-place write must not resize"
+    assert decode_value(type_name, editor.result_raw) == pytest.approx(1.25)
+
+    # And the whole file must still read, at the same size.
+    from cdmw.core.prefab_binary_edit import rewrite_prefab_placements
+
+    result = rewrite_prefab_placements(_value_fixture(), {offset: (raw, editor.result_raw)})
+    assert len(result.data) == len(_value_fixture())
+    rewritten = decode_prefab_binary(result.data)
+    assert rewritten.walk_complete, rewritten.walk_note
+
+
+def test_the_value_editor_refuses_a_number_that_does_not_fit(qt_app: QApplication) -> None:
+    from cdmw.ui.archive_browser.prefab_inspector_widgets import ValueEditDialog
+
+    editor = ValueEditDialog("uint8", b"\x05", title="Flags")
+    assert not editor.error.isVisibleTo(editor)
+    # Drive the encode path directly with an out-of-range value: the spin box
+    # clamps, so the guard has to be on the encoder, not on the widget.
+    editor._current = lambda: 999
+    editor._accept()
+    assert editor.result_raw is None
+    assert editor.error.isVisibleTo(editor)
+    assert "does not fit" in editor.error.text()

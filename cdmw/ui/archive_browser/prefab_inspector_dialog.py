@@ -17,7 +17,7 @@ byte length.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Callable, Mapping, Sequence
 
 from PySide6.QtCore import Qt
@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
 from cdmw.domain.archives.prefab_companions import companion_paths
 from cdmw.domain.archives.prefab_values import (
     Placement,
+    editable_kind,
     placement_space,
     describe_value,
     read_placement,
@@ -56,10 +57,21 @@ from cdmw.domain.archives.prefab_glossary import (
     is_asset_path,
     value_kind_hint,
 )
-from cdmw.ui.archive_browser.prefab_inspector_review import ChangeLine, PrefabChangeReview
+from cdmw.ui.archive_browser.prefab_inspector_editing import (
+    CHANGED_COLOUR,
+    EDIT_ROLE,
+    OFFSET_ROLE,
+    PLACEMENT_ROLE,
+    PrefabEditingMixin,
+    USED_ROLE,
+    VALUE_ROLE,
+    WARNING_COLOUR,
+)
+from cdmw.ui.archive_browser.prefab_inspector_review import PrefabChangeReview
 from cdmw.ui.archive_browser.prefab_inspector_widgets import (
     AssetPickerDialog,
     PlacementEditDialog,
+    ValueEditDialog,
 )
 from cdmw.services.prefab_structure_service import (
     asset_extension_for,
@@ -71,15 +83,14 @@ from cdmw.services.prefab_structure_service import (
     rewrite_prefab_placements,
 )
 
-_EDIT_ROLE = Qt.ItemDataRole.UserRole + 1
-_USED_ROLE = Qt.ItemDataRole.UserRole + 2
-_PLACEMENT_ROLE = Qt.ItemDataRole.UserRole + 3
-#: Byte offset of the string a row shows, so an edit names one occurrence
-#: rather than every copy of the same path in the file.
-_OFFSET_ROLE = Qt.ItemDataRole.UserRole + 4
-
-_CHANGED_COLOUR = QColor("#7ec8ff")
-_WARNING_COLOUR = QColor("#ffb86b")
+# Owned by the editing mixin; aliased so call sites and tests keep one spelling.
+_EDIT_ROLE = EDIT_ROLE
+_USED_ROLE = USED_ROLE
+_PLACEMENT_ROLE = PLACEMENT_ROLE
+_OFFSET_ROLE = OFFSET_ROLE
+_VALUE_ROLE = VALUE_ROLE
+_CHANGED_COLOUR = CHANGED_COLOUR
+_WARNING_COLOUR = WARNING_COLOUR
 
 
 def _count(number: int, noun: str, plural: str = "") -> str:
@@ -114,7 +125,7 @@ class PrefabInspectorResult:
     summary: str
 
 
-class PrefabInspectorDialog(QDialog):
+class PrefabInspectorDialog(PrefabEditingMixin, QDialog):
     """Structure browser and path editor for a single prefab payload."""
 
     def __init__(
@@ -132,9 +143,9 @@ class PrefabInspectorDialog(QDialog):
         self._original = bytes(data or b"")
         self._on_save = on_save
         self._known_paths: Mapping[str, Sequence[str]] = dict(known_paths or {})
-        # (expected_old, new) per offset: the expected bytes are what makes
-        # the staleness check in rewrite_prefab_placements able to fail.
-        self._placement_edits: dict[int, tuple[bytes, bytes]] = {}
+        # (expected_old, new) per offset, for every fixed-size value: the
+        # expected bytes are what makes the staleness check able to fail.
+        self._value_edits: dict[int, tuple[bytes, bytes]] = {}
         self.result_payload: PrefabInspectorResult | None = None
         self._document: object | None = None
         self._error = ""
@@ -294,7 +305,7 @@ class PrefabInspectorDialog(QDialog):
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.tree.itemChanged.connect(self._note_pending_edit)
         self.tree.itemSelectionChanged.connect(self._refresh_browse_state)
-        self.tree.itemDoubleClicked.connect(self._edit_placement)
+        self.tree.itemDoubleClicked.connect(self._edit_value_row)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._show_row_menu)
         copy = QShortcut(QKeySequence.StandardKey.Copy, self.tree)
@@ -331,6 +342,11 @@ class PrefabInspectorDialog(QDialog):
             actions.append("a file to swap it for another")
         if any(read_placement(number.raw) is not None for number in self._all_numbers()):
             actions.append("a placement to move or resize it")
+        if any(
+            read_placement(number.raw) is None and editable_kind(number.type_name, number.raw)
+            for number in self._all_numbers()
+        ):
+            actions.append("a setting to change it")
         how = f"Double-click {' or '.join(actions)}. " if actions else ""
         return f"Each row is one piece of this prefab. {how}Ctrl+C copies the selected value."
 
@@ -455,6 +471,16 @@ class PrefabInspectorDialog(QDialog):
                     (number.offset, number.type_name, number.raw, number.name),
                 )
                 row.setToolTip(2, "Double-click to move, rotate or rescale this.")
+            elif self._can_edit() and editable_kind(number.type_name, number.raw):
+                # Only members whose declared type and byte width agree. Writing
+                # a value whose type is unconfirmed is how a readable file
+                # becomes a broken one.
+                row.setData(
+                    0,
+                    _VALUE_ROLE,
+                    (number.offset, number.type_name, number.raw, number.name),
+                )
+                row.setToolTip(2, "Double-click to change this value.")
             parent.addChild(row)
 
     def _add_fields_row(
@@ -517,6 +543,10 @@ class PrefabInspectorDialog(QDialog):
             move = QAction("Move, rotate or rescale...", menu)
             move.triggered.connect(lambda: self._edit_placement(item, 2))
             menu.addAction(move)
+        if item.data(0, _VALUE_ROLE):
+            change = QAction("Change this value...", menu)
+            change.triggered.connect(lambda: self._edit_number(item, 2))
+            menu.addAction(change)
         menu.exec(self.tree.viewport().mapToGlobal(position))
 
     def _edit_placement(self, item: QTreeWidgetItem, _column: int) -> None:
@@ -525,7 +555,7 @@ class PrefabInspectorDialog(QDialog):
         if not stored:
             return
         offset, type_name, original_raw, member_name = stored
-        pending = self._placement_edits.get(offset)
+        pending = self._value_edits.get(offset)
         current = pending[1] if pending else original_raw
         placement = read_placement(current)
         if placement is None:
@@ -537,12 +567,12 @@ class PrefabInspectorDialog(QDialog):
             return
         new_raw = write_placement(editor.result_placement)
         if new_raw == original_raw:
-            self._placement_edits.pop(offset, None)
+            self._value_edits.pop(offset, None)
         else:
-            self._placement_edits[offset] = (original_raw, new_raw)
+            self._value_edits[offset] = (original_raw, new_raw)
         item.setText(2, describe_value(type_name, new_raw))
         item.setForeground(
-            2, QBrush(_CHANGED_COLOUR) if offset in self._placement_edits else QBrush()
+            2, QBrush(_CHANGED_COLOUR) if offset in self._value_edits else QBrush()
         )
         self._sync_twin_placements(item, placement, editor.result_placement)
         self._refresh_pending_state()
@@ -640,7 +670,7 @@ class PrefabInspectorDialog(QDialog):
             for old, new in replacements.items()
             if self._warning_for(old, new)
         ]
-        pending = len(replacements) + len(self._placement_edits)
+        pending = len(replacements) + len(self._value_edits)
         self.apply_button.setEnabled(self._can_edit() and bool(pending))
         self.revert_button.setEnabled(bool(pending))
         if not pending:
@@ -649,54 +679,14 @@ class PrefabInspectorDialog(QDialog):
         parts = []
         if replacements:
             parts.append(f"{len(replacements)} path change{'' if len(replacements) == 1 else 's'}")
-        if self._placement_edits:
-            moved = len(self._placement_edits)
-            parts.append(f"{moved} placement{'' if moved == 1 else 's'}")
+        if self._value_edits:
+            moved = len(self._value_edits)
+            parts.append(f"{moved} value{'' if moved == 1 else 's'} changed in place")
         note = " and ".join(parts) + " ready to apply."
         if warnings:
             verb = "looks" if len(warnings) == 1 else "look"
             note += f"  {len(warnings)} {verb} wrong: " + " ".join(dict.fromkeys(warnings))
         self.status.setText(note)
-
-    def _sync_twin_placements(
-        self, edited: QTreeWidgetItem, was: Placement, now: Placement
-    ) -> None:
-        """Move the object's other transform to match, when they were identical.
-
-        Objects carry ``_worldTransform`` and ``_tiledTransform`` as a pair, and
-        in all 5,228 shipped objects that have both, the two hold the same
-        scale, rotation and position. Moving one and not the other leaves a
-        combination the game's own data never contains, and the tree collapses
-        the duplicate to "same as ...", so the second one is not even visible to
-        correct by hand.
-        """
-        parent = edited.parent()
-        if parent is None:
-            return
-        for index in range(parent.childCount()):
-            sibling = parent.child(index)
-            stored = sibling.data(0, _PLACEMENT_ROLE)
-            if sibling is edited or not stored:
-                continue
-            offset, type_name, original_raw, _name = stored
-            pending = self._placement_edits.get(offset)
-            current = read_placement(pending[1] if pending else original_raw)
-            if current is None or current != was:
-                continue
-            # Keep each copy's own tile index; only TiledTransform carries one.
-            twin = write_placement(replace(now, tile=current.tile))
-            if twin == original_raw:
-                self._placement_edits.pop(offset, None)
-            else:
-                self._placement_edits[offset] = (original_raw, twin)
-            sibling.setText(2, describe_value(type_name, twin))
-            sibling.setForeground(
-                2, QBrush(_CHANGED_COLOUR) if offset in self._placement_edits else QBrush()
-            )
-            self._log(
-                f"Moved {describe_field(_name).label.lower()} to match: the two are "
-                "identical in every shipped object that carries both."
-            )
 
     def _revert_changes(self) -> None:
         """Put every edited row back to the value the file actually holds."""
@@ -707,13 +697,13 @@ class PrefabInspectorDialog(QDialog):
                 original = child.data(2, _EDIT_ROLE)
                 if isinstance(original, str) and child.text(2) != original:
                     child.setText(2, original)
-                stored = child.data(0, _PLACEMENT_ROLE)
+                stored = child.data(0, _PLACEMENT_ROLE) or child.data(0, _VALUE_ROLE)
                 if stored:
                     offset, type_name, original_raw, member_name = stored
-                    if offset in self._placement_edits:
+                    if offset in self._value_edits:
                         child.setText(2, describe_value(type_name, original_raw))
                         child.setForeground(2, QBrush())
-        self._placement_edits.clear()
+        self._value_edits.clear()
         self._log("Reverted to the values stored in the file.")
         self._refresh_pending_state()
 
@@ -835,58 +825,6 @@ class PrefabInspectorDialog(QDialog):
         """The same pending changes as ``{original: replacement}``, for display."""
         return {edit.old_text: edit.new_text for edit in self.collect_path_edits()}
 
-    def _pending_changes(self) -> tuple[list[ChangeLine], list[str]]:
-        """Everything the modder is about to write, with anything that looks wrong.
-
-        Built by walking the tree so each line carries the label the modder saw,
-        not the declared member name.
-        """
-        lines: list[ChangeLine] = []
-        warnings: list[str] = []
-        counts: dict[str, int] = {}
-        for index in range(self.tree.topLevelItemCount()):
-            parent = self.tree.topLevelItem(index)
-            for child_index in range(parent.childCount()):
-                child = parent.child(child_index)
-                original = child.data(2, _EDIT_ROLE)
-                if isinstance(original, str):
-                    counts[original] = counts.get(original, 0) + 1
-        for index in range(self.tree.topLevelItemCount()):
-            parent = self.tree.topLevelItem(index)
-            for child_index in range(parent.childCount()):
-                child = parent.child(child_index)
-                original = child.data(2, _EDIT_ROLE)
-                current = child.text(2).strip()
-                if isinstance(original, str) and current and current != original:
-                    note = ""
-                    others = counts.get(original, 1) - 1
-                    if others:
-                        # The edit is addressed by offset, so the copies stay
-                        # put. Say so; the opposite is what a modder expects.
-                        note = f"{_count(others, 'other row')} still points at the old file"
-                    companions = self._companion_notes(current)
-                    if companions:
-                        note = (note + "; " if note else "") + companions[0]
-                    lines.append(
-                        ChangeLine(field=child.text(0), before=original, after=current, note=note)
-                    )
-                    problem = self._warning_for(original, current)
-                    if problem:
-                        warnings.append(f"{child.text(0)}: {problem}")
-                stored = child.data(0, _PLACEMENT_ROLE)
-                if stored:
-                    offset, type_name, original_raw, _member = stored
-                    pending = self._placement_edits.get(offset)
-                    if pending:
-                        lines.append(
-                            ChangeLine(
-                                field=child.text(0),
-                                before=describe_value(type_name, pending[0]),
-                                after=describe_value(type_name, pending[1]),
-                            )
-                        )
-        return lines, warnings
-
     def _confirm_changes(self) -> bool:
         """Show the review and report whether the modder went ahead.
 
@@ -901,7 +839,7 @@ class PrefabInspectorDialog(QDialog):
         if not self._can_edit():
             return
         replacements = self.collect_path_edits()
-        if not replacements and not self._placement_edits:
+        if not replacements and not self._value_edits:
             self._log("Nothing to apply: nothing was changed.")
             return
         if not self._confirm_changes():
@@ -911,10 +849,10 @@ class PrefabInspectorDialog(QDialog):
             # Placements first: they are fixed-size, so their byte offsets are
             # still valid. Path edits move bytes and would invalidate them.
             payload = self._original
-            if self._placement_edits:
+            if self._value_edits:
                 moved = rewrite_prefab_placements(
                     payload,
-                    self._placement_edits,
+                    self._value_edits,
                     source_digest=prefab_source_digest(self._original),
                 )
                 payload = moved.data
@@ -928,7 +866,7 @@ class PrefabInspectorDialog(QDialog):
         movement = "grew" if delta > 0 else "shrank" if delta < 0 else "stayed the same"
         summary = (
             f"Applied {len(result.edits)} path change(s) and "
-            f"{len(self._placement_edits)} placement(s); file {movement}"
+            f"{len(self._value_edits)} in-place value(s); file {movement}"
             f"{f' by {abs(delta)} byte(s)' if delta else ''}, "
             f"{result.relocated_pointers} internal reference(s) rewritten to match."
         )

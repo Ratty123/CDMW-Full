@@ -169,3 +169,43 @@ def test_placement_space_is_named_per_member_not_assumed() -> None:
     assert placement_space("_offsetTransform") == "offset"
     assert placement_space("_somethingElse") == "unknown"
     assert placement_space("") == "unknown"
+
+
+def test_editable_kind_only_accepts_types_that_match_their_width() -> None:
+    """Writing a value whose type is unconfirmed breaks a readable file."""
+    from cdmw.domain.archives.prefab_values import editable_kind
+
+    assert editable_kind("bool", b"\x01") == "bool"
+    assert editable_kind("float", b"\x00" * 4) == "float"
+    assert editable_kind("uint8", b"\x05") == "int"
+    assert editable_kind("float3", b"\x00" * 12) == "float3"
+    # Transforms have their own editor, and a width mismatch is not editable.
+    assert editable_kind("Transform", b"\x00" * 40) == ""
+    assert editable_kind("float", b"\x00" * 8) == ""
+    assert editable_kind("SomethingUnknown", b"\x00" * 4) == ""
+
+
+def test_values_round_trip_through_encode_and_decode() -> None:
+    from cdmw.domain.archives.prefab_values import decode_value, encode_value
+
+    for type_name, raw, value in (
+        ("bool", b"\x00", True),
+        ("uint8", b"\x00", 200),
+        ("int16", b"\x00\x00", -1234),
+        ("float", struct.pack("<f", 0.0), 2.5),
+        ("float3", struct.pack("<3f", 0, 0, 0), (1.5, -2.0, 3.25)),
+    ):
+        encoded = encode_value(type_name, raw, value)
+        assert len(encoded) == len(raw), "an in-place write must not change width"
+        assert decode_value(type_name, encoded) == value
+
+
+def test_a_value_that_does_not_fit_is_refused_not_truncated() -> None:
+    from cdmw.domain.archives.prefab_values import encode_value
+
+    with pytest.raises(ValueError, match="does not fit"):
+        encode_value("uint8", b"\x00", 999)
+    with pytest.raises(ValueError, match="does not fit"):
+        encode_value("int8", b"\x00", -200)
+    with pytest.raises(ValueError, match="not editable"):
+        encode_value("Transform", b"\x00" * 40, 1)
