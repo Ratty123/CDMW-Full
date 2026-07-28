@@ -7,6 +7,8 @@ import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import shiboken6
+import pytest
 from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtWidgets import QApplication
 
@@ -24,6 +26,43 @@ from cdmw.ui.shell.archive_backend_client import (
 
 
 _STUB = Path(__file__).parent / "helpers" / "archive_backend_worker_stub.py"
+
+#: Clients built without a parent, so only this module owns them.
+_UNPARENTED_CLIENTS: list[ArchiveBackendClient] = []
+
+
+def _own_client(client: ArchiveBackendClient) -> ArchiveBackendClient:
+    """Destroy the client inside the test that made it.
+
+    These clients own a real `QProcess` and are built with no parent, so the C++
+    object outlives the test and is destroyed at whatever later moment the Python
+    reference count happens to drop. Landing that inside another test's Qt work
+    aborts the interpreter: exit 3, no traceback, no pytest summary. It is the
+    same defect that killed the suite from `test_dotnet_preview_shared_host`, and
+    it took out the 3.14 leg at
+    `test_catalogue_service_retries_session_scoped_structure_children_after_crash`
+    while 3.11 passed the whole suite.
+
+    Calling `shutdown()` is not enough on its own; the QObject has to go.
+    """
+
+    _UNPARENTED_CLIENTS.append(client)
+    return client
+
+
+@pytest.fixture(autouse=True)
+def _destroy_unparented_clients():
+    yield
+    while _UNPARENTED_CLIENTS:
+        client = _UNPARENTED_CLIENTS.pop()
+        if not shiboken6.isValid(client):
+            continue
+        try:
+            client.shutdown()
+        except RuntimeError:
+            pass
+        shiboken6.delete(client)
+
 _APPLICATION: QApplication | None = None
 
 
@@ -54,11 +93,11 @@ def _wait_until(predicate, *, timeout_ms: int = 5_000) -> bool:
 
 def _client(tmp_path: Path) -> ArchiveBackendClient:
     _app()
-    return ArchiveBackendClient(
+    return _own_client(ArchiveBackendClient(
         cache_root=tmp_path,
         worker_program=sys.executable,
         worker_arguments=("-u", str(_STUB)),
-    )
+    ))
 
 
 def _shutdown(client: ArchiveBackendClient) -> None:
@@ -75,7 +114,7 @@ def test_cache_root_preserves_an_absolute_junction_alias(tmp_path: Path, monkeyp
         raise AssertionError("cache-root aliases must not be resolved")
 
     monkeypatch.setattr(Path, "resolve", fail_resolve)
-    client = ArchiveBackendClient(cache_root=alias)
+    client = _own_client(ArchiveBackendClient(cache_root=alias))
 
     assert client._cache_root == expected
 
