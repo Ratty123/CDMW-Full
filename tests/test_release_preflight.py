@@ -7,7 +7,7 @@ def test_release_preflight_blocks_generated_and_unclassified_source() -> None:
     inventory = classify_git_status(
         [
             "?? tools/dotnet_mesh_editor_experiment/bin/Release/app.dll",
-            "?? .agents/skills/cdmw-validate-change/SKILL.md",
+            "?? docs/features/new-feature.md",
             "?? cdmw/new_feature.py",
             "?? scratch/new_feature.py",
             "?? tests/test_new_feature.py",
@@ -19,9 +19,9 @@ def test_release_preflight_blocks_generated_and_unclassified_source() -> None:
     assert inventory["generated_output"] == ["tools/dotnet_mesh_editor_experiment/bin/Release/app.dll"]
     assert inventory["unclassified_untracked_source"] == ["scratch/new_feature.py"]
     assert inventory["required_source_or_docs"] == [
-        ".agents/skills/cdmw-validate-change/SKILL.md",
         "cdmw/new_feature.py",
         "cdmw/services/mesh_service.py",
+        "docs/features/new-feature.md",
         "tests/test_new_feature.py",
     ]
     assert release_blockers(inventory) == ["generated_output_present", "unclassified_untracked_source_present"]

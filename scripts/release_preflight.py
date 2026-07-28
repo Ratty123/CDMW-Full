@@ -33,7 +33,9 @@ SOURCE_SUFFIXES = {
     ".xml",
 }
 UNTRACKED_PROJECT_SOURCE_PREFIXES = (
-    ".agents/",
+    # `.agents/` and `.codex/` are deliberately absent: agent tooling config is a
+    # developer-environment concern, is gitignored, and so never reaches this
+    # classification at all.
     "cdmw/",
     "docs/",
     "native/",

@@ -1,6 +1,10 @@
 .venv/
-.codex/*
-!.codex/config.toml
+
+# Agent tooling configuration. These are developer-environment files rather than
+# anything the app builds from, so they stay local.
+.agents/
+.codex/
+
 .pytest_cache/
 .pytest-tmp/
 .pytest-tmp*/
