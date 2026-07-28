@@ -23,6 +23,7 @@ from cdmw.domain.archives.prefab_values import describe_value, editable_kind, re
 from cdmw.services.prefab_structure_service import recover_pointee_strings
 from cdmw.ui.archive_browser.prefab_inspector_editing import (
     EDIT_ROLE,
+    OBJECT_ROLE,
     OFFSET_ROLE,
     PLACEMENT_ROLE,
     USED_ROLE,
@@ -77,6 +78,10 @@ class PrefabRowsMixin:
                 # of eight objects is the guess.
                 detail = f"{detail} - best guess, the file does not say what this is"
             node = QTreeWidgetItem([label, detail, ""])
+            # Where this object's group starts, so "duplicate this one" can find
+            # the collection element behind the row. -1 on a walk that recovered
+            # the object without a span, and the menu checks for that.
+            node.setData(0, OBJECT_ROLE, getattr(obj, "offset", -1))
             if obj.type_is_inferred:
                 node.setToolTip(
                     1,

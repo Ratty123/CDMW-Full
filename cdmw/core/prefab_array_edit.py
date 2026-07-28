@@ -97,6 +97,41 @@ def describe_collections(document: PrefabDocument) -> tuple[str, ...]:
     return tuple(lines)
 
 
+@dataclass(frozen=True, slots=True)
+class PrefabElementSite:
+    """Where an object sits in the collection that holds it."""
+
+    collection_index: int
+    element_index: int
+    member_name: str
+    owner_type: str
+    #: Elements the collection currently holds.
+    sibling_count: int
+
+
+def locate_element(document: PrefabDocument, object_offset: int) -> PrefabElementSite | None:
+    """Which collection element is this object, if it is one.
+
+    An object's ``offset`` is the position the enclosing collection considers
+    the element to start at, so this is an equality match rather than a range
+    search: a nested object sits *inside* an element without being one, and
+    matching by containment would offer to delete its parent instead.
+    """
+    if object_offset < 0:
+        return None
+    for index, collection in enumerate(document.collections):
+        for position, (start, _end) in enumerate(collection.elements):
+            if start == object_offset:
+                return PrefabElementSite(
+                    collection_index=index,
+                    element_index=position,
+                    member_name=collection.member_name,
+                    owner_type=collection.owner_type,
+                    sibling_count=len(collection.elements),
+                )
+    return None
+
+
 def _resizable_collection(
     document: PrefabDocument, collection_index: int
 ) -> PrefabCollection:
@@ -347,6 +382,8 @@ def resize_round_trips(data: bytes, collection_index: int, element_index: int) -
 
 __all__ = [
     "PrefabArrayResult",
+    "PrefabElementSite",
+    "locate_element",
     "describe_collections",
     "duplicate_prefab_element",
     "remove_prefab_element",

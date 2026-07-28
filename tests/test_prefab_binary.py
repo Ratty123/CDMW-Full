@@ -545,7 +545,7 @@ def test_an_over_declared_collection_is_reported_rather_than_hidden() -> None:
     """A count the walk could not satisfy is a decode that is wrong without
     saying so. Callers that edit have to be able to see it."""
 
-    from cdmw.core.prefab_binary import _over_declared
+    from cdmw.core.prefab_collection_spans import over_declared
     from tests.prefab_collection_builder import build_with_collection
 
     honest = decode_prefab_binary(build_with_collection(("A", "B")))
@@ -553,5 +553,5 @@ def test_an_over_declared_collection_is_reported_rather_than_hidden() -> None:
         build_with_collection(("A", "B", "C"), wide=True, declared=512)
     )
 
-    assert _over_declared(honest) == 0
-    assert _over_declared(inflated) == 1
+    assert over_declared(honest) == 0
+    assert over_declared(inflated) == 1

@@ -69,6 +69,7 @@ from cdmw.ui.archive_browser.prefab_inspector_editing import (
 )
 from cdmw.ui.archive_browser.prefab_inspector_review import PrefabChangeReview
 from cdmw.ui.archive_browser.prefab_inspector_rows import PrefabRowsMixin
+from cdmw.ui.archive_browser.prefab_inspector_structure import PrefabStructureMixin
 from cdmw.ui.archive_browser.prefab_inspector_widgets import (
     AssetPickerDialog,
     PlacementEditDialog,
@@ -80,6 +81,7 @@ from cdmw.services.prefab_structure_service import (
     walk_is_determined,
     path_is_known,
     PrefabPathEdit,
+    PrefabRewriteResult,
     recover_pointee_strings,
     prefab_source_digest,
     rewrite_prefab_paths,
@@ -129,7 +131,7 @@ class PrefabInspectorResult:
     summary: str
 
 
-class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
+class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructureMixin, QDialog):
     """Structure browser and path editor for a single prefab payload."""
 
     def __init__(
@@ -145,7 +147,13 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.resize(980, 660)
-        self._original = bytes(data or b"")
+        # `_opened` is the file as it arrived and never changes; `_original` is
+        # the bytes the current rows were read from. They differ once an object
+        # has been added or removed, because that is applied immediately rather
+        # than held as a pending edit -- see prefab_inspector_structure.
+        self._opened = bytes(data or b"")
+        self._original = self._opened
+        self._structural_changes: list[str] = []
         self._on_save = on_save
         self._known_paths: Mapping[str, Sequence[str]] = dict(known_paths or {})
         # Supplied by the caller, which owns archive access and threading. The
@@ -419,7 +427,27 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
         ):
             actions.append("a setting to change it")
         how = f"Double-click {' or '.join(actions)}. " if actions else ""
-        return f"Each row is one piece of this prefab. {how}Ctrl+C copies the selected value."
+        # Adding an object is only reachable from the row menu, and a feature
+        # nobody right-clicks to find is a feature nobody has.
+        add = (
+            "Right-click an object heading to duplicate or remove it. "
+            if self._has_resizable_objects()
+            else ""
+        )
+        return (
+            f"Each row is one piece of this prefab. {how}{add}"
+            "Ctrl+C copies the selected value."
+        )
+
+    def _has_resizable_objects(self) -> bool:
+        """Is any object here a collection element the resizer can act on?"""
+        document = self._document
+        if document is None or not self._can_edit():
+            return False
+        return any(
+            len(item.elements) == item.count and item.elements
+            for item in getattr(document, "collections", ())
+        )
 
     def _log(self, text: str) -> None:
         """Append to the activity log, revealing it on first use."""
@@ -469,6 +497,8 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
             undo.setToolTip("Put this one row back, keeping your other changes.")
             undo.triggered.connect(lambda: self._revert_row(item))
             menu.addAction(undo)
+        if self._can_edit():
+            self.add_structure_actions(menu, item)
         menu.exec(self.tree.viewport().mapToGlobal(position))
 
     def _edit_placement(self, item: QTreeWidgetItem, _column: int) -> None:
@@ -639,12 +669,20 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
             if self._warning_for(old, new)
         ]
         pending = len(replacements) + len(self._value_edits)
-        self.apply_button.setEnabled(self._can_swap_same_length() and bool(pending))
-        self.revert_button.setEnabled(bool(pending))
-        if not pending:
+        # A structural change is already in the working payload, so it counts as
+        # something to save even with no row edited -- otherwise adding an object
+        # and pressing Save would report "nothing was changed".
+        structural = len(self._structural_changes)
+        self.apply_button.setEnabled(
+            self._can_swap_same_length() and bool(pending or structural)
+        )
+        self.revert_button.setEnabled(bool(pending or structural))
+        if not pending and not structural:
             self.status.setText("")
             return
         parts = []
+        if structural:
+            parts.append(f"{structural} object change{'' if structural == 1 else 's'}")
         if replacements:
             parts.append(f"{len(replacements)} path change{'' if len(replacements) == 1 else 's'}")
         if self._value_edits:
@@ -673,6 +711,9 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
                         child.setForeground(2, QBrush())
         self._value_edits.clear()
         self._log("Reverted to the values stored in the file.")
+        # Last: it rebuilds the tree, so the row work above has to be done with
+        # the rows that are currently there.
+        self.revert_structural_changes()
         self._refresh_pending_state()
 
     # -- schema tab ------------------------------------------------------
@@ -807,11 +848,25 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
         if not self._can_swap_same_length():
             return
         replacements = self.collect_path_edits()
-        if not replacements and not self._value_edits:
+        if not replacements and not self._value_edits and not self._structural_changes:
             self._log("Nothing to apply: nothing was changed.")
             return
         if not self._confirm_changes():
             self._log("Nothing written: you cancelled at the review step.")
+            return
+        if not replacements and not self._value_edits:
+            # Structural changes only. They are already in the working payload,
+            # applied when the modder made them, so there is nothing left to
+            # rewrite -- handing the payload straight over is the whole job.
+            self._finish_apply(
+                PrefabRewriteResult(
+                    data=self._original,
+                    edits=(),
+                    byte_delta=len(self._original) - len(self._opened),
+                    relocated_pointers=0,
+                    proof_lines=(),
+                )
+            )
             return
         try:
             # Placements first: they are fixed-size, so their byte offsets are
@@ -840,14 +895,21 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
 
     def _finish_apply(self, result) -> None:
         """Report what was written and hand the payload back."""
-        delta = result.byte_delta
+        delta = len(result.data) - len(self._opened)
         movement = "grew" if delta > 0 else "shrank" if delta < 0 else "stayed the same"
+        structural = (
+            f"{len(self._structural_changes)} object change(s), "
+            if self._structural_changes
+            else ""
+        )
         summary = (
-            f"Applied {len(result.edits)} path change(s) and "
+            f"Applied {structural}{len(result.edits)} path change(s) and "
             f"{len(self._value_edits)} in-place value(s); file {movement}"
             f"{f' by {abs(delta)} byte(s)' if delta else ''}, "
             f"{result.relocated_pointers} internal reference(s) rewritten to match."
         )
+        for description in self._structural_changes:
+            self._log(description)
         for edit in result.edits:
             self._log(f"{edit.old_text} -> {edit.new_text}")
             for note in self._companion_notes(edit.new_text):
