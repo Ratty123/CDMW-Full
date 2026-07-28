@@ -12,6 +12,10 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Docs
+- Attacked `.prefab` component selection and rejected a hypothesis that fit the arithmetic exactly. At **every one of 247 sampled failures the file states no type index** — 100% out-of-range — so the walk is guessing the component by declaration order, and the mask error is the symptom rather than the cause. The masks do look explicable: strip the top set bit and all of them fit the members available (`0x0110` needs 5 against 5, `0x091a` needs 9 against 11, `0x0100` needs 0 against 8), which is a clean enough signature to be convincing.
+- It was implemented and measured anyway, and **rejected**: completion moved 59.6% → 59.8%, eight files out of 4,000. The old mask errors were simply replaced by new ones and by blob-string-length desyncs further along, meaning the walk gets past that point and then goes wrong elsewhere. A rule that fits every observed number without improving decoding is not the rule. Recorded so the next attempt does not re-derive it; what is actually needed is an external source for marker-1 component identity, because the file does not carry it at these sites.
+
+### Docs
 - Ran collection-header telemetry over 7,121 sites in 2,500 random prefabs, and it **kills both standing hypotheses**. Width is not determined by the element type in the type table — circular, since kind 7 declares the generic `ReflectObjectPtr` — and it is not determined by member metadata either: every collection member carries `flags=7`, and 4 of the 12 distinct `(member name, flags)` tuples require both the narrow and the wide form.
 - The finding that matters is neither of those. **6,183 of 7,121 sites are ambiguous** — both widths yield a plausible count — so the shipped plausibility heuristic is choosing arbitrarily at 87% of sites, and is unsound even where a walk completes. Walk-completion percentage was never measuring what it appeared to. If a discriminator exists it is upstream in component selection, where mask-exceeds-candidate is now the largest failure class. Recorded rather than guessed at, and value editing is scoped so it does not depend on the answer.
 
