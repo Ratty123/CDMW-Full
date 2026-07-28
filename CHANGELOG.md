@@ -22,6 +22,11 @@ The format is intentionally simple:
 - Two guards now keep this from recurring. `_documentation_files()` only walked `cdmw/`, which is how a broken `docs/` link sat in `native/cdmw_mesh_core/README.md`; it covers `native/`, `tools/`, `tests/`, and the root docs too, 69 files rather than 50. A new guard fails when a doc is absent from the index.
 
 ### Fixed
+- **The blob trailer comes in two record widths, and only one was read.** 28 prefabs in a 1,500-file sample stopped exactly seven bytes short of finishing, and every one of them held the same unconsumed tail: `01 01 06 00 00 00 01` — one six-byte trailer record and the terminator. `_is_trailer_run` stepped five bytes per record, so it saw a structure it could not follow where there was nothing left but the close.
+- Width following the component family is the same rule the footer search already lives by, so the fix is a second stride rather than a special case. It is still a *run* consuming the whole remainder with at most one byte spare, which is what stops it closing a walk that is merely lost: checked, the widened rule accepted exactly those 28 files and exactly seven bytes in each, and nothing regressed.
+- **Completion goes 878 to 906 of 1,500 (58.5% → 60.4%)**, and it cascades into editing: the collection resize sweep rises from 687 round trips over 371 files to **743 over 399, still 743 of 743 byte-exact**. Only single six-byte records are attested in the corpus; the run is a generalisation, made because the five-byte rule needed exactly the same one.
+
+### Fixed
 - **The Prefab Inspector's hint line was setting the dialog's minimum width.** An unwrapped `QLabel` demands its whole line, and adding the row-menu sentence pushed that past 1,000px — so the window silently refused to shrink below roughly 1,050px, which is most of a laptop screen. Found by launching the dialog on a real shipped prefab and trying to resize it, not by reading the code. It wraps now, with an explicit two-line minimum height because a wrapped label reports a one-line size hint.
 - **Duplicating an object left the cursor at the top of the tree**, so the copy — which reads identically to its original, by design — was unfindable. The selection now lands on the copy and scrolls it into view, which is also the row about to be retargeted.
 
