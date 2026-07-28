@@ -21,7 +21,12 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 from cdmw.domain.archives.prefab_glossary import asset_role, describe_field, is_asset_path  # noqa: E402
 from cdmw.domain.archives.prefab_values import Placement, read_placement, write_placement
 from cdmw.ui.archive_browser.prefab_inspector_widgets import PlacementEditDialog
-from cdmw.ui.archive_browser.prefab_inspector_dialog import PrefabInspectorDialog  # noqa: E402
+from cdmw.ui.archive_browser.prefab_inspector_dialog import (  # noqa: E402
+    PrefabInspectorDialog,
+    _EDIT_ROLE,
+    _PLACEMENT_ROLE,
+    _VALUE_ROLE,
+)
 
 PATH = "character/model/1_pc/weapon/sword.pac"
 
@@ -746,3 +751,57 @@ def test_export_prompt_admits_prefab_editing_is_unproven() -> None:
     source = Path("cdmw/ui/archive_browser/prefab_inspector_actions.py").read_text(encoding="utf-8")
     assert "not yet been confirmed to load in game" in source
     assert "disable the mod in your manager and delete that" in source
+
+
+def test_one_row_can_be_undone_without_losing_the_others(qt_app: QApplication) -> None:
+    """Undo-all was the only way back, so one typo cost the whole session."""
+    dialog = PrefabInspectorDialog(_build())
+    rows = []
+    for index in range(dialog.tree.topLevelItemCount()):
+        parent = dialog.tree.topLevelItem(index)
+        for child_index in range(parent.childCount()):
+            child = parent.child(child_index)
+            if isinstance(child.data(2, _EDIT_ROLE), str):
+                rows.append(child)
+    assert len(rows) >= 2, "fixture needs two editable rows"
+
+    first_original = rows[0].text(2)
+    second_original = rows[1].text(2)
+    rows[0].setText(2, "character/model/1_pc/weapon/keep_me.pac")
+    rows[1].setText(2, "character/model/1_pc/weapon/oops.pac")
+    assert dialog.row_has_pending_change(rows[1])
+
+    dialog._revert_row(rows[1])
+    assert rows[1].text(2) == second_original
+    assert not dialog.row_has_pending_change(rows[1])
+    # The other edit survives, which is the whole point.
+    assert rows[0].text(2) == "character/model/1_pc/weapon/keep_me.pac"
+    assert dialog.row_has_pending_change(rows[0])
+    assert first_original != rows[0].text(2)
+
+
+def test_undoing_a_transform_undoes_its_twin(qt_app: QApplication) -> None:
+    """Leaving one of the pair edited recreates the mismatch pairing prevents."""
+    dialog = PrefabInspectorDialog(_transform_fixture())
+    parent = dialog.tree.topLevelItem(0)
+    rows = [
+        parent.child(i)
+        for i in range(parent.childCount())
+        if parent.child(i).data(0, _PLACEMENT_ROLE)
+    ]
+    assert rows
+
+    offset, _type_name, raw, _member = rows[0].data(0, _PLACEMENT_ROLE)
+    was = read_placement(raw)
+    now = Placement(scale=was.scale, rotation=was.rotation, position=(4.0, 5.0, 6.0), tile=was.tile)
+    dialog._value_edits[offset] = (raw, write_placement(now))
+    dialog._sync_twin_placements(rows[0], was, now)
+
+    dialog._revert_row(rows[0])
+    assert dialog._value_edits == {}, "the twin must come back with it"
+
+
+def test_a_clean_row_offers_nothing_to_undo(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build())
+    row = _path_row(dialog)
+    assert not dialog.row_has_pending_change(row)

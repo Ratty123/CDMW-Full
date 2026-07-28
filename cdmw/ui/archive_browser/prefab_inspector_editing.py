@@ -179,3 +179,56 @@ class PrefabEditingMixin:
             2, QBrush(CHANGED_COLOUR) if offset in self._value_edits else QBrush()
         )
         self._refresh_pending_state()
+
+    def row_has_pending_change(self, item: QTreeWidgetItem) -> bool:
+        """Is there something on this row to undo?"""
+        original = item.data(2, EDIT_ROLE)
+        if isinstance(original, str) and item.text(2).strip() != original:
+            return True
+        stored = item.data(0, PLACEMENT_ROLE) or item.data(0, VALUE_ROLE)
+        return bool(stored) and stored[0] in self._value_edits
+
+    def _revert_row(self, item: QTreeWidgetItem) -> None:
+        """Put one row back, leaving every other edit alone.
+
+        "Undo all changes" was the only way back, so one mistyped path cost the
+        whole session's work -- which pushes people towards keeping a bad edit
+        rather than losing eight good ones.
+        """
+        reverted = False
+        original = item.data(2, EDIT_ROLE)
+        if isinstance(original, str) and item.text(2).strip() != original:
+            item.setText(2, original)
+            reverted = True
+
+        stored = item.data(0, PLACEMENT_ROLE) or item.data(0, VALUE_ROLE)
+        if stored and stored[0] in self._value_edits:
+            offset, type_name, original_raw, _member = stored
+            self._value_edits.pop(offset, None)
+            item.setText(2, describe_value(type_name, original_raw))
+            item.setForeground(2, QBrush())
+            reverted = True
+            # A transform and its twin were moved together, so they come back
+            # together; leaving one edited would recreate exactly the mismatch
+            # the pairing exists to prevent.
+            if item.data(0, PLACEMENT_ROLE):
+                self._revert_twin_of(item, read_placement(original_raw))
+        if reverted:
+            self._log(f"Put {item.text(0)} back to the value in the file.")
+            self._refresh_pending_state()
+
+    def _revert_twin_of(self, edited: QTreeWidgetItem, was: Placement | None) -> None:
+        parent = edited.parent()
+        if parent is None or was is None:
+            return
+        for index in range(parent.childCount()):
+            sibling = parent.child(index)
+            stored = sibling.data(0, PLACEMENT_ROLE)
+            if sibling is edited or not stored or stored[0] not in self._value_edits:
+                continue
+            offset, type_name, original_raw, _name = stored
+            if read_placement(original_raw) != was:
+                continue
+            self._value_edits.pop(offset, None)
+            sibling.setText(2, describe_value(type_name, original_raw))
+            sibling.setForeground(2, QBrush())
