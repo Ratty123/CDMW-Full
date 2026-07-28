@@ -621,14 +621,11 @@ class SkeletonViewport(GizmoMixin, QWidget):
                 pgx, pgy = gx[index], gy[index]
                 if is_weapon:
                     self._weapon_screen.append((pax, pay, pbx, pby, pgx, pgy))
-                faces.append(
-                    (
-                        mid[index],
-                        QPolygonF([QPointF(pax, pay), QPointF(pbx, pby), QPointF(pgx, pgy)]),
-                        colour,
-                        cull,
-                    )
-                )
+                # Plain floats, not a QPolygonF. Constructing one polygon and three QPointF
+                # per triangle measured 3.05 ms against 1.18 ms for writing the same
+                # coordinates straight into a reused path — 2.6x the cost of the fill it
+                # feeds. The path is built once per shade run below.
+                faces.append((mid[index], pax, pay, pbx, pby, pgx, pgy, colour, cull))
 
         faces.sort(key=lambda item: -item[0])
         if not faces:
@@ -650,15 +647,21 @@ class SkeletonViewport(GizmoMixin, QWidget):
                 shades[key] = brush
             return brush
 
+        # The outline exists only to hide an antialiasing artefact: with NoPen, AA leaves a
+        # sub-pixel gap along every shared edge and the background bleeds through as a
+        # stipple. Antialiasing is already off while anything moves, so there is nothing to
+        # hide then — and stroking every triangle edge costs 0.62 ms of the 1.48 ms paint.
+        outline = not (self._moving or self._dragging_view)
+
         def flush(path: Optional[QPainterPath], brush: Optional[QColor]) -> None:
             if path is None or brush is None:
                 return
-            painter.setBrush(brush)
-            # Outline in the fill colour. With NoPen, antialiasing leaves a sub-pixel gap
-            # along every shared edge, and across thousands of small triangles that
-            # background bleed reads as a stippled shell rather than a body.
-            painter.setPen(pens.setdefault(brush.rgba(), QPen(brush, 1.0)))
-            painter.drawPath(path)
+            if outline:
+                painter.setBrush(brush)
+                painter.setPen(pens.setdefault(brush.rgba(), QPen(brush, 1.0)))
+                painter.drawPath(path)
+            else:
+                painter.fillPath(path, brush)
 
         # Batch runs of same-shade triangles into one path. Depth-sorted order means the
         # shade level barely changes from one triangle to the next, so the runs are long:
@@ -668,16 +671,19 @@ class SkeletonViewport(GizmoMixin, QWidget):
         run_path: Optional[QPainterPath] = None
         run_brush: Optional[QColor] = None
         run_key: Optional[tuple] = None
-        for depth, polygon, colour, batchable in faces:
+        for depth, pax, pay, pbx, pby, pgx, pgy, colour, batchable in faces:
             # 0 = farthest, _SHADE_LEVELS-1 = nearest.
             level = int((far - depth) / spread * (_SHADE_LEVELS - 1))
             brush = brush_for(colour, level)
             if not batchable:
                 flush(run_path, run_brush)
                 run_path, run_brush, run_key = None, None, None
-                painter.setBrush(brush)
-                painter.setPen(pens.setdefault(brush.rgba(), QPen(brush, 1.0)))
-                painter.drawPolygon(polygon)
+                lone = QPainterPath()
+                lone.moveTo(pax, pay)
+                lone.lineTo(pbx, pby)
+                lone.lineTo(pgx, pgy)
+                lone.closeSubpath()
+                flush(lone, brush)
                 continue
             key = (colour.rgba(), level)
             if key != run_key:
@@ -685,7 +691,10 @@ class SkeletonViewport(GizmoMixin, QWidget):
                 run_path = QPainterPath()
                 run_path.setFillRule(Qt.WindingFill)
                 run_brush, run_key = brush, key
-            run_path.addPolygon(polygon)
+            run_path.moveTo(pax, pay)
+            run_path.lineTo(pbx, pby)
+            run_path.lineTo(pgx, pgy)
+            run_path.closeSubpath()
         flush(run_path, run_brush)
 
     def _draw_bones(self, painter: QPainter) -> None:

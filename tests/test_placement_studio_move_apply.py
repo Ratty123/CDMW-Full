@@ -93,8 +93,12 @@ class _Harness(window_carry.CarryPickerMixin):
     def _current_binding(self):
         return _Binding()
 
-    def _apply_carry_move(self, socket: str) -> None:
+    #: Set to False to stand in for a route that could not be applied.
+    move_succeeds = True
+
+    def _apply_carry_move(self, socket: str) -> bool:
         self.routed_to = socket
+        return self.move_succeeds
 
     def _start_clip_swap(self, pairs) -> str:
         self.swapped = tuple(pairs)
@@ -104,8 +108,9 @@ class _Harness(window_carry.CarryPickerMixin):
         pass
 
 
-def _run(plan: MovePlan, *, accepted: bool = True) -> _Harness:
+def _run(plan: MovePlan, *, accepted: bool = True, move_succeeds: bool = True) -> _Harness:
     harness = _Harness(plan)
+    harness.move_succeeds = move_succeeds
 
     class _Dialog:
         Accepted = QDialog.Accepted
@@ -156,6 +161,20 @@ class MoveAppliesTests(unittest.TestCase):
         self.assertEqual(harness.routed_to, "Spine2_B_MainWeapon_Socket")
         self.assertEqual(harness.swapped, ())
         self.assertIn("Animations left alone", harness._status.message)
+
+    def test_a_failed_move_does_not_swap_the_animations(self) -> None:
+        """Otherwise the mod ships a back draw for a weapon still on the hip.
+
+        Both failure paths in `_apply_carry_move` used to return silently, and the caller
+        went straight on to the swap and reported success.
+        """
+
+        harness = _run(
+            MovePlan("CD_MainWeapon_Sword_R", "Spine2_B_MainWeapon_Socket", _PAIRS),
+            move_succeeds=False,
+        )
+
+        self.assertEqual(harness.swapped, (), "animations swapped for a move that failed")
 
     def test_animations_alone_swap_without_routing(self) -> None:
         """Restyling in place is a legitimate edit; it must not require a move."""
