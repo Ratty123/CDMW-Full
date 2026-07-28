@@ -514,3 +514,58 @@ class BorrowedRowTests(unittest.TestCase):
         tip = self._rows(dialog)[0].toolTip(0)
         self.assertIn(target.name, tip)
         self.assertIn(donor.name, tip)
+
+
+class RowNamesBothFamiliesTests(unittest.TestCase):
+    """A row names the clip it replaces *and* the one replacing it.
+
+    `Drawing the weapon · dual swords` named the clip being overwritten, while the Watch button
+    beside it plays the clip that would replace it — a two-handed draw from the back. Reading
+    the row as a description of what you are about to watch is the obvious reading, and it was
+    wrong.
+    """
+
+    @staticmethod
+    def _entry(name: str):
+        class _E:
+            pass
+
+        entry = _E()
+        entry.name = name
+        entry.path = f"character/motion/1_pc/1_phm/{name}.paa"
+        entry.category = "draw"
+        return entry
+
+    def _rows(self, pairs):
+        dialog = MoveWeaponDialog(
+            parts=[("CD_MainWeapon_Sword_R", "Sword")],
+            positions=[("Pelvis_L_Socket", "Hip — left")],
+            current_part="CD_MainWeapon_Sword_R",
+            pairs_for=lambda **_k: pairs,
+            handedness="1h",
+        )
+        tree = dialog._clip_list
+        out = []
+        for i in range(tree.topLevelItemCount()):
+            lane = tree.topLevelItem(i)
+            out.extend(lane.child(j).text(0) for j in range(lane.childCount()))
+        return out
+
+    def test_both_families_appear_when_they_differ(self) -> None:
+        target = self._entry("cd_phm_dualsword_00_01_nor_std_weapon_out_00")
+        donor = self._entry("cd_phm_longsword_00_01_nor_std_weapon_out_00")
+
+        row = self._rows([(target, donor, (donor,))])[0].lower()
+
+        self.assertIn("dual", row)
+        self.assertIn("←", row)
+
+    def test_one_family_is_not_repeated_when_they_match(self) -> None:
+        """Nothing is being restyled there, so naming it twice is noise."""
+
+        target = self._entry("cd_phm_sword_00_01_nor_std_weapon_out_00")
+        donor = self._entry("cd_phm_sword_00_01_nor_std_weapon_out_02")
+
+        row = self._rows([(target, donor, (donor,))])[0]
+
+        self.assertNotIn("←", row)

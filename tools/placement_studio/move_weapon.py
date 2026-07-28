@@ -333,8 +333,16 @@ class MoveWeaponDialog(QDialog):
                 lane.setExpanded(True)
                 lanes[name] = lane
             text = label
-            if labels[(name, label)] > 1:
-                text = f"{text}  ·  {family_label(target.name).lower()}"
+            # Both families, not just the one being replaced. `Drawing the weapon · dual
+            # swords` named the clip this row *overwrites*, while Watch beside it plays the
+            # clip that would replace it — a two-handed draw from the back. Reading the row as
+            # a description of what you are about to see is the obvious reading, and it was
+            # wrong. The arrow is the same one the tooltip has always used for target ← donor.
+            worn, borrowed_family = family_label(target.name), family_label(donor.name)
+            if labels[(name, label)] > 1 or worn != borrowed_family:
+                text = f"{text}  ·  {worn.lower()}"
+                if borrowed_family and borrowed_family != worn:
+                    text = f"{text}  ←  {borrowed_family.lower()}"
             if len(members) > 1:
                 text = f"{text}   ({len(members)} files)"
 
