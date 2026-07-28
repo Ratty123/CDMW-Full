@@ -129,5 +129,111 @@ class DefaultsTests(unittest.TestCase):
         self.assertFalse(files.available)
 
 
+
+class SlicedScanTests(OnePassTests):
+    """The scan yields progress so the UI can paint between slices."""
+
+    def test_the_scan_yields_a_result_only_on_its_last_step(self) -> None:
+        from tools.placement_studio.rig_files import scan_rig_files
+
+        self._install("a/b/rig.papr", POSE_MODIFIER_PATH)
+
+        steps = list(scan_rig_files())
+
+        self.assertTrue(steps)
+        self.assertIsNone(steps[0][2] if len(steps) > 1 else None)
+        self.assertIsNotNone(steps[-1][2])
+        self.assertEqual(steps[-1][2].constraint_paths, ("a/b/rig.papr",))
+
+    def test_a_warm_process_cache_still_yields_a_result(self) -> None:
+        """The UI drives the generator either way; it must not come back empty-handed."""
+
+        from tools.placement_studio.rig_files import read_rig_files, scan_rig_files
+
+        self._install("a/b/rig.papr")
+        read_rig_files()
+
+        steps = list(scan_rig_files())
+
+        self.assertEqual(len(steps), 1)
+        self.assertIsNotNone(steps[0][2])
+
+
+class DiskCacheTests(unittest.TestCase):
+    """The scan is written out, so only the first session of all pays for it."""
+
+    def setUp(self) -> None:
+        from tools.placement_studio.rig_files import reset_cache
+
+        reset_cache()
+        self.addCleanup(reset_cache)
+
+    def test_a_round_trip_through_the_cache_preserves_the_payloads(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from tools.placement_studio import rig_files
+
+        files = rig_files.RigFiles(
+            constraint_paths=("a/b/rig.papr",),
+            constraints={"a/b/rig.papr": b"PAR payload"},
+            pose_modifier=b"<PoseModifierData/>",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original_work = rig_files.corpus.work_root
+            original_stamp = rig_files._stamp
+            rig_files.corpus.work_root = lambda: root / "work"
+            rig_files._stamp = lambda _root: {"version": 1, "packages": []}
+            try:
+                rig_files._save_to_disk(root, files)
+                loaded = rig_files._load_from_disk(root)
+            finally:
+                rig_files.corpus.work_root = original_work
+                rig_files._stamp = original_stamp
+
+        self.assertIsNotNone(loaded)
+        self.assertEqual(loaded.constraints, files.constraints)
+        self.assertEqual(loaded.pose_modifier, files.pose_modifier)
+
+    def test_a_changed_archive_stamp_invalidates_the_cache(self) -> None:
+        """A game update must not leave the panels showing the previous install."""
+
+        import tempfile
+        from pathlib import Path
+
+        from tools.placement_studio import rig_files
+
+        files = rig_files.RigFiles(constraint_paths=(), constraints={}, pose_modifier=b"x")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original_work = rig_files.corpus.work_root
+            original_stamp = rig_files._stamp
+            rig_files.corpus.work_root = lambda: root / "work"
+            rig_files._stamp = lambda _root: {"version": 1, "packages": [["a", 1, 1]]}
+            try:
+                rig_files._save_to_disk(root, files)
+                rig_files._stamp = lambda _root: {"version": 1, "packages": [["a", 2, 9]]}
+                loaded = rig_files._load_from_disk(root)
+            finally:
+                rig_files.corpus.work_root = original_work
+                rig_files._stamp = original_stamp
+
+        self.assertIsNone(loaded)
+
+    def test_an_absent_cache_is_a_miss_not_an_error(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from tools.placement_studio import rig_files
+
+        with tempfile.TemporaryDirectory() as tmp:
+            original = rig_files.corpus.work_root
+            rig_files.corpus.work_root = lambda: Path(tmp) / "nothing-here"
+            try:
+                self.assertIsNone(rig_files._load_from_disk(Path(tmp)))
+            finally:
+                rig_files.corpus.work_root = original
+
 if __name__ == "__main__":
     unittest.main()
