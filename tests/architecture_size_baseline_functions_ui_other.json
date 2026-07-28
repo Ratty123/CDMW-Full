@@ -2,7 +2,6 @@
   "functions": {
     "cdmw/ui/mesh_editor/controller.py::MeshEditorController.native_update_for_result": 154,
     "cdmw/ui/mesh_editor/native_preview_payloads.py::_mesh_to_native_preview_native": 181,
-    "cdmw/ui/mesh_editor/tab_shell_runtime.py::MeshEditorTabShellRuntimeMixin._initialize_runtime_state": 153,
     "cdmw/ui/model_library/panels.py::build_controls_panel": 240,
     "cdmw/ui/model_library/panels.py::build_results_panel": 164,
     "cdmw/ui/model_library/preview.py::ModelLibraryInlinePreviewMixin._load_inline_model_preview": 160,
