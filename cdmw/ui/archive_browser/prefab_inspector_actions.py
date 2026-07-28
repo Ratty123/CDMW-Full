@@ -88,10 +88,19 @@ class ArchivePrefabInspectorActionsMixin:
         payload = dialog.result_payload
         if payload is None or payload.data == data:
             return
+        # Say the unproven part before they install it, not after it fails.
+        # Prefab editing has never been confirmed to load in game, and a modder
+        # deserves to know which of their mods is the experimental one.
         if QMessageBox.question(
             self,
             "Export Edited Prefab",
-            f"{payload.summary}\n\nWrite the edited prefab into a loose mod package?",
+            f"{payload.summary}\n\n"
+            "Write the edited prefab into a loose mod package?\n\n"
+            "Prefab editing is new and has not yet been confirmed to load in game. "
+            "The package is a separate folder and your game files are untouched, so "
+            "if anything misbehaves, disable the mod in your manager and delete that "
+            "folder - that is the whole of the fix. The readme in the package repeats "
+            "these steps.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes,
         ) != QMessageBox.Yes:

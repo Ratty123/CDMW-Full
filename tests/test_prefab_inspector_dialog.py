@@ -8,6 +8,7 @@ prefab we only partly understand -- fails here.
 from __future__ import annotations
 
 import struct
+from pathlib import Path
 
 import pytest
 
@@ -738,3 +739,10 @@ def test_the_value_editor_refuses_a_number_that_does_not_fit(qt_app: QApplicatio
     assert editor.result_raw is None
     assert editor.error.isVisibleTo(editor)
     assert "does not fit" in editor.error.text()
+
+
+def test_export_prompt_admits_prefab_editing_is_unproven() -> None:
+    """A modder deserves to know which of their mods is the experimental one."""
+    source = Path("cdmw/ui/archive_browser/prefab_inspector_actions.py").read_text(encoding="utf-8")
+    assert "not yet been confirmed to load in game" in source
+    assert "disable the mod in your manager and delete that" in source
