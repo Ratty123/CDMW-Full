@@ -79,7 +79,18 @@ def _method_arity(descriptor: object) -> int | None:
 
 
 def _file_digest(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    """Digest the source, not its line endings.
+
+    `.gitattributes` sets `text=auto`, so these files are LF in the repository
+    and CRLF in a Windows checkout -- and a working tree can hold either, since
+    git only rewrites a file when it next touches it. A raw byte digest then
+    reports a perfectly current manifest as stale: generated from LF working
+    copies it passed here and failed on the runner's CRLF checkout, which is a
+    property of the checkout rather than of the providers it is meant to track.
+    """
+
+    normalized = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 def _payload_bytes(payload: Mapping[str, object]) -> bytes:
