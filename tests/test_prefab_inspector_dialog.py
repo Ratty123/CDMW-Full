@@ -913,3 +913,10 @@ def test_a_resizing_swap_is_refused_on_a_partly_read_prefab(qt_app: QApplication
     assert dialog.result_payload is None
     log = dialog.log.toPlainText()
     assert "same length" in log and "Refused" in log
+
+
+def test_the_banner_says_how_far_the_walk_got(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_partly_read(_build()))
+    banner = dialog.banner.text()
+    assert "of the way through" in banner
+    assert "stopped at byte" in banner
