@@ -53,7 +53,7 @@ def test_mesh_import_flow_status_text_preserves_copy() -> None:
     )
     assert pending_in_game_mesh_swap_target_status("target.pac") == (
         "In-game mesh swap target set: target.pac. "
-        "Select the source mesh in Archive Browser, then click Use as Swap Source."
+        "Select the source mesh in Archive Browser, then choose Use This as Swap Source."
     )
     assert pending_in_game_mesh_swap_cancelled_status() == "Cancelled the pending in-game mesh swap target."
     assert mesh_import_preview_unexpected_payload_status() == (

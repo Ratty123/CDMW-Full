@@ -6,11 +6,17 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
+    QHBoxLayout,
     QHeaderView,
     QLabel,
     QProgressBar,
+    QPushButton,
     QSizePolicy,
     QVBoxLayout,
+)
+
+from cdmw.ui.archive_browser.mesh_import_setup_state import (
+    in_game_mesh_swap_banner_cancel_text,
 )
 
 from cdmw.ui.archive_browser.model import ArchiveBrowserTreeView
@@ -43,6 +49,35 @@ class ArchiveFilesPanelMixin:
         archive_warmup_layout.addWidget(self.archive_warmup_progress_bar)
         self.archive_warmup_overlay.setVisible(False)
         archive_tab_layout.addWidget(self.archive_splitter, stretch=1)
+
+    def _build_archive_in_game_swap_banner(self, archive_files_layout) -> None:
+        """Build the always-visible armed-state banner for in-game mesh swaps.
+
+        The swap target survives filtering, so this banner is deliberately separate
+        from the asset-scope banner, which filter changes clear.
+        """
+
+        self.archive_swap_banner = QFrame()
+        self.archive_swap_banner.setObjectName("ArchiveSwapBanner")
+        self.archive_swap_banner.setStyleSheet(
+            "#ArchiveSwapBanner { background-color: rgba(253, 214, 99, 28);"
+            " border: 1px solid #fdd663; border-radius: 4px; }"
+            " #ArchiveSwapBannerLabel { color: #fdd663; }"
+        )
+        swap_banner_layout = QHBoxLayout(self.archive_swap_banner)
+        swap_banner_layout.setContentsMargins(10, 6, 10, 6)
+        swap_banner_layout.setSpacing(8)
+        self.archive_swap_banner_label = QLabel("")
+        self.archive_swap_banner_label.setObjectName("ArchiveSwapBannerLabel")
+        self.archive_swap_banner_label.setWordWrap(True)
+        self.archive_swap_banner_cancel_button = QPushButton(in_game_mesh_swap_banner_cancel_text())
+        self.archive_swap_banner_cancel_button.clicked.connect(
+            lambda _checked=False: self._cancel_archive_in_game_mesh_swap_target()
+        )
+        swap_banner_layout.addWidget(self.archive_swap_banner_label, stretch=1)
+        swap_banner_layout.addWidget(self.archive_swap_banner_cancel_button)
+        self.archive_swap_banner.setVisible(False)
+        archive_files_layout.addWidget(self.archive_swap_banner)
 
     def _build_archive_files_panel(self) -> None:
         archive_files_group = FlatSectionPanel("Files")
@@ -95,6 +130,7 @@ class ArchiveFilesPanelMixin:
         self.archive_tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.archive_tree.setProperty("cdmw_disable_auto_column_fill", True)
         self.archive_tree.uiActivity.connect(self._note_archive_ui_activity)
+        self._build_archive_in_game_swap_banner(archive_files_layout)
         self.archive_scope_banner_label = QLabel("")
         self.archive_scope_banner_label.setObjectName("HintLabel")
         self.archive_scope_banner_label.setWordWrap(True)

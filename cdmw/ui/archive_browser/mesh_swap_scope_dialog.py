@@ -1,9 +1,9 @@
 """Archive in-game mesh swap scope dialog."""
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import PurePosixPath
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
@@ -27,6 +27,114 @@ from cdmw.domain.archives.relationships import (
 from cdmw.domain.mesh.session import InGameMeshSwapScopeSelection
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.mesh_swap_scope_preflight import ArchiveMeshSwapScopePreflightResult
+
+
+SWAP_SCOPE_INTRO_TEXT = (
+    "Choose what to include with this swap. "
+    "Checked rows are written as loose replacement payloads at the target path shown. "
+    "For weapon/item swaps, source family files can be retargeted to the target family paths. "
+    "Skeleton and animation files remain manual because replacing .pab/.hkx can break assets that do not share the same rig or physics contract."
+)
+
+SWAP_SCOPE_COMPLETE_WARNING_TEXT = (
+    "Complete swap auto-selects source DDS textures and all source HKX/HKT physics rows, and regenerates "
+    "the target material sidecar from the alignment mapping. "
+    "Because the sidecar is regenerated, a donor's cloth/PBD and physics-file bindings are not carried over; "
+    "use Select Item Family for those. "
+    "Physics overrides can crash when source and target do not share the same runtime contract; skeleton rows remain manual."
+)
+
+SWAP_SCOPE_FOOTER_TEXT = (
+    "For weapon/item swaps, source material sidecar + source DDS is the safest default donor contract. "
+    "Complete In-Game Swap auto-selects source DDS and all source HKX/HKT physics rows, with a visible warning because cross-family physics can crash in game. "
+    "The direct source model option preserves that contract best, but it skips alignment transforms. "
+    "Appearance descriptors are separate from material sidecars: for character body swaps they can redirect the target character to source prefabs, "
+    "customization metadata, scale values, skeleton variations, sockets, and prefabdata references. "
+    ".pab/.pabc skeleton and .hkx/.hkt physics rows are not merged or transformed: if checked, the mod overrides that target archive file while enabled. "
+    "For full character swaps this may be required, but it should be tested in game."
+)
+
+SWAP_SCOPE_HELP_TEXT = (
+    "Recommended character/body swap defaults:\n"
+    "- Keep generated/retargeted material sidecar enabled.\n"
+    "- Leave direct source material sidecar replacement off.\n"
+    "- Leave full source .app_xml replacement off.\n"
+    "- Use Character Swap Plan when swapping character body/head assets.\n\n"
+    "Recommended weapon/item swap defaults:\n"
+    "- Use Select Item Family when the source has its own material sidecar and textures.\n"
+    "- Use Select Physics only when the source and target physics contract is intentionally being replaced.\n"
+    "- Use direct source model payload when preserving donor physics/material wrappers matters more than alignment transforms.\n"
+    "- Keep prefab/socket rows manual unless you intentionally want to change held/sheath placement metadata.\n\n"
+    "Generated/retargeted material sidecar means the later alignment step patches the target .pac_xml/.pami from the reviewed mapping and texture plan. "
+    "This is usually safer than copying the source .pac_xml because source and target submesh wrappers can differ. "
+    "It is not safe when the source carries its own cloth/PBD contract, because regenerating the target sidecar drops those bindings.\n\n"
+    "Replace target material sidecar copies selected source sidecar bytes onto the target sidecar path. "
+    "This is the option that carries a donor's cloth/PBD and physics references across.\n\n"
+    "Replace target appearance descriptor copies the full source .app_xml. This can redirect hair, armor, customization, scale, sockets, prefab data, and other character graph links.\n\n"
+    "Character Swap Plan creates a surgical target .app_xml patch for body/head references while preserving target hair, armor, skeleton, and physics by default.\n\n"
+    "Checked table rows are written as loose replacement payloads. Rows marked as detected references are shown for context and manual selection; they are not automatically required just because they were found.\n\n"
+    "Select Graph Textures selects only safe DDS texture rows from the character graph. Sidecars, skeleton, physics, and full appearance descriptors remain explicit manual choices."
+)
+
+
+def collect_checked_scope_entries(
+    companion_tree: QTreeWidget,
+    entry_for_item: Callable[[Optional[QTreeWidgetItem]], Optional[ArchiveEntry]],
+) -> List[ArchiveEntry]:
+    checked: List[ArchiveEntry] = []
+    for index in range(companion_tree.topLevelItemCount()):
+        item = companion_tree.topLevelItem(index)
+        if item is None or item.checkState(0) != Qt.Checked:
+            continue
+        entry = entry_for_item(item)
+        if entry is not None:
+            checked.append(entry)
+    return checked
+
+
+def unreferenced_swap_target_paths(
+    resolve_target: Callable[[ArchiveEntry, ArchiveEntry, ArchiveEntry], Tuple[str, Optional[ArchiveEntry]]],
+    target_entry: ArchiveEntry,
+    source_entry: ArchiveEntry,
+    checked_entries: Sequence[ArchiveEntry],
+) -> Tuple[str, ...]:
+    """Target paths for checked rows that match no entry in the loaded archives.
+
+    A payload written to such a path is not referenced by anything the game loads, so
+    it silently does nothing. The common case is physics when the target asset has
+    none of its own. DDS rows are excluded because source textures deliberately stay
+    at source paths, where the source sidecar already references them.
+    """
+
+    unreferenced: List[str] = []
+    for entry in checked_entries:
+        if str(entry.extension or "").strip().lower() == ".dds":
+            continue
+        target_path, resolved = resolve_target(target_entry, source_entry, entry)
+        if resolved is None and target_path:
+            unreferenced.append(target_path)
+    return tuple(unreferenced)
+
+
+def confirm_unreferenced_swap_targets(parent: QDialog, unreferenced: Sequence[str]) -> bool:
+    preview = "\n".join(f"  {path}" for path in unreferenced[:8])
+    extra = f"\n  ... and {len(unreferenced) - 8} more" if len(unreferenced) > 8 else ""
+    answer = QMessageBox.warning(
+        parent,
+        "Swap Rows Have No Target File",
+        (
+            f"{len(unreferenced)} checked row(s) resolve to a target path that does not "
+            "exist in the loaded archives:\n\n"
+            f"{preview}{extra}\n\n"
+            "Nothing in the target asset references those paths, so the game will not load "
+            "them. For physics this usually means the target has none of its own, and the "
+            "donor's material sidecar must be copied too so that it names the physics file."
+            "\n\nContinue anyway?"
+        ),
+        QMessageBox.Yes | QMessageBox.No,
+        QMessageBox.No,
+    )
+    return answer == QMessageBox.Yes
 
 
 class ArchiveMeshSwapScopeDialogMixin:
@@ -66,18 +174,16 @@ class ArchiveMeshSwapScopeDialogMixin:
         source_has_pbd_contract = prepared_scope.source_has_pbd_contract
         source_has_larger_material_contract = prepared_scope.source_has_larger_material_contract
         preserve_source_contract_default = prepared_scope.preserve_source_contract_default
-        complete_swap_scope_default = True
+        # A donor that carries its own cloth/PBD or a wider material contract must keep
+        # that contract, and Complete In-Game Swap regenerates the target sidecar instead
+        # of copying the source one. Default to the donor-contract mode in that case.
+        complete_swap_scope_default = not preserve_source_contract_default
 
         dialog = QDialog(self)
         dialog.setWindowTitle("In-Game Mesh Swap Scope")
         dialog.setMinimumSize(980, 620)
         layout = QVBoxLayout(dialog)
-        intro = QLabel(
-            "Choose what to include with this swap. "
-            "Checked rows are written as loose replacement payloads at the target path shown. "
-            "For weapon/item swaps, source family files can be retargeted to the target family paths. "
-            "Skeleton and animation files remain manual because replacing .pab/.hkx can break assets that do not share the same rig or physics contract."
-        )
+        intro = QLabel(SWAP_SCOPE_INTRO_TEXT)
         intro.setWordWrap(True)
         intro.setObjectName("HintLabel")
         layout.addWidget(intro)
@@ -92,11 +198,12 @@ class ArchiveMeshSwapScopeDialogMixin:
                 contract_reason_parts.append(
                     f"source has {source_wrapper_count} material wrapper(s), target has {target_wrapper_count}"
                 )
-                contract_warning = QLabel(
-                    "Donor material contract warning: "
-                    + "; ".join(contract_reason_parts)
-                + ". Defaulting to Complete In-Game Swap through the placement workflow. "
-                "This keeps transform/removal review, routes source-owned materials, and auto-selects source physics with a crash-risk warning."
+            contract_warning = QLabel(
+                "Donor material contract detected: "
+                + "; ".join(contract_reason_parts)
+                + ". Defaulting to Select Item Family instead of Complete In-Game Swap, because the "
+                "complete path regenerates the target material sidecar and would drop the donor's "
+                "cloth/PBD and physics bindings. Source sidecar, textures, and physics are preselected."
             )
             contract_warning.setWordWrap(True)
             contract_warning.setStyleSheet("color: #fdd663;")
@@ -109,7 +216,7 @@ class ArchiveMeshSwapScopeDialogMixin:
             "then enables complete source-owned material routing and includes source DDS plus HKX/HKT physics rows."
         )
         generated_sidecar_checkbox = QCheckBox("Default to generated/retargeted material sidecar in Mesh Replacement Alignment")
-        generated_sidecar_checkbox.setChecked(True)
+        generated_sidecar_checkbox.setChecked(not preserve_source_contract_default)
         generated_sidecar_checkbox.setToolTip(
             "This preselects the alignment option that patches the target material sidecar from the mapping/texture plan."
         )
@@ -126,7 +233,7 @@ class ArchiveMeshSwapScopeDialogMixin:
             "Source DDS textures stay at source texture paths because source sidecars reference them there."
         )
         replace_source_sidecar_checkbox = QCheckBox("Replace target material sidecar with selected source sidecar payload")
-        replace_source_sidecar_checkbox.setChecked(False)
+        replace_source_sidecar_checkbox.setChecked(bool(preserve_source_contract_default))
         replace_source_sidecar_checkbox.setToolTip(
             "Copies selected source .pac_xml/.pami/.xml bytes into the target material sidecar path. Review carefully."
         )
@@ -151,10 +258,7 @@ class ArchiveMeshSwapScopeDialogMixin:
         if not item_family_scope:
             retarget_source_family_checkbox.setEnabled(False)
             retarget_source_family_checkbox.setToolTip("Available for weapon/item model swaps.")
-        complete_swap_warning = QLabel(
-            "Complete swap auto-selects source DDS textures and all source HKX/HKT physics rows. "
-            "Physics overrides can crash when source and target do not share the same runtime contract; skeleton rows remain manual."
-        )
+        complete_swap_warning = QLabel(SWAP_SCOPE_COMPLETE_WARNING_TEXT)
         complete_swap_warning.setWordWrap(True)
         complete_swap_warning.setStyleSheet("color: #fdd663;")
         complete_swap_warning.setVisible(bool(complete_swap_checkbox.isChecked()))
@@ -190,11 +294,17 @@ class ArchiveMeshSwapScopeDialogMixin:
         companion_tree.header().resizeSection(3, 360)
         layout.addWidget(companion_tree, 1)
 
-        entries_by_key: Dict[str, ArchiveEntry] = {}
+        entries_by_key: Dict[object, ArchiveEntry] = {}
 
-        def _entry_key(entry: ArchiveEntry) -> str:
-            normalized_path = entry.path.replace("\\", "/")
-            return f"{entry.pamt_path.resolve()}::{normalized_path}"
+        def _entry_key(entry: ArchiveEntry) -> object:
+            # Must match the key the preflight uses for relationship_edges, or every
+            # edge lookup below silently misses.
+            return self._archive_entry_identity_key(entry)
+
+        def _entry_for_item(item: Optional[QTreeWidgetItem]) -> Optional[ArchiveEntry]:
+            if item is None:
+                return None
+            return entries_by_key.get(item.data(0, Qt.UserRole))
 
         def _behavior_text(entry: ArchiveEntry) -> str:
             edge = relationship_edges_by_key.get(_entry_key(entry))
@@ -277,6 +387,9 @@ class ArchiveMeshSwapScopeDialogMixin:
                         and related_entry.path in source_sidecar_paths
                         and self._archive_entry_is_material_sidecar(related_entry)
                     )
+                    # The donor sidecar we are copying names these physics files, so
+                    # carrying the sidecar without them leaves dangling cloth bindings.
+                    or (source_has_pbd_contract and _is_source_physics_companion(related_entry))
                 )
             elif related_entry.path in source_sidecar_paths and self._archive_entry_is_material_sidecar(related_entry):
                 default_checked = False
@@ -308,15 +421,7 @@ class ArchiveMeshSwapScopeDialogMixin:
             empty_item.setFlags(empty_item.flags() & ~Qt.ItemIsEnabled)
             companion_tree.addTopLevelItem(empty_item)
 
-        helper = QLabel(
-            "For weapon/item swaps, source material sidecar + source DDS is the safest default donor contract. "
-            "Complete In-Game Swap auto-selects source DDS and all source HKX/HKT physics rows, with a visible warning because cross-family physics can crash in game. "
-            "The direct source model option preserves that contract best, but it skips alignment transforms. "
-            "Appearance descriptors are separate from material sidecars: for character body swaps they can redirect the target character to source prefabs, "
-            "customization metadata, scale values, skeleton variations, sockets, and prefabdata references. "
-            ".pab/.pabc skeleton and .hkx/.hkt physics rows are not merged or transformed: if checked, the mod overrides that target archive file while enabled. "
-            "For full character swaps this may be required, but it should be tested in game."
-        )
+        helper = QLabel(SWAP_SCOPE_FOOTER_TEXT)
         helper.setWordWrap(True)
         helper.setObjectName("HintLabel")
         layout.addWidget(helper)
@@ -357,7 +462,7 @@ class ArchiveMeshSwapScopeDialogMixin:
                 item = companion_tree.topLevelItem(index)
                 if item is None or not (item.flags() & Qt.ItemIsUserCheckable):
                     continue
-                entry = entries_by_key.get(str(item.data(0, Qt.UserRole) or ""))
+                entry = _entry_for_item(item)
                 if entry is not None and predicate(entry):
                     item.setCheckState(0, Qt.Checked if checked else Qt.Unchecked)
 
@@ -366,7 +471,7 @@ class ArchiveMeshSwapScopeDialogMixin:
                 item = companion_tree.topLevelItem(index)
                 if item is None:
                     continue
-                entry = entries_by_key.get(str(item.data(0, Qt.UserRole) or ""))
+                entry = _entry_for_item(item)
                 item.setText(4, _target_path_for_scope_row(entry) if entry is not None else "")
 
         def _select_complete_swap_entries() -> None:
@@ -379,7 +484,7 @@ class ArchiveMeshSwapScopeDialogMixin:
                 item = companion_tree.topLevelItem(index)
                 if item is None or not (item.flags() & Qt.ItemIsUserCheckable):
                     continue
-                entry = entries_by_key.get(str(item.data(0, Qt.UserRole) or ""))
+                entry = _entry_for_item(item)
                 if entry is None:
                     continue
                 should_select = bool(
@@ -414,7 +519,7 @@ class ArchiveMeshSwapScopeDialogMixin:
                 item = companion_tree.topLevelItem(index)
                 if item is None or not (item.flags() & Qt.ItemIsUserCheckable):
                     continue
-                entry = entries_by_key.get(str(item.data(0, Qt.UserRole) or ""))
+                entry = _entry_for_item(item)
                 if entry is None:
                     continue
                 extension = str(entry.extension or "").strip().lower()
@@ -422,6 +527,9 @@ class ArchiveMeshSwapScopeDialogMixin:
                     extension == ".dds"
                     or self._archive_entry_is_material_sidecar(entry)
                     or (_is_source_item_meshphysics(entry) and same_weapon_folder)
+                    # A cloth/PBD donor sidecar is meaningless without its physics,
+                    # even when source and target sit in different weapon folders.
+                    or (source_has_pbd_contract and _is_source_physics_companion(entry))
                 )
                 if should_select:
                     item.setCheckState(0, Qt.Checked)
@@ -435,7 +543,7 @@ class ArchiveMeshSwapScopeDialogMixin:
                 item = companion_tree.topLevelItem(index)
                 if item is None or not (item.flags() & Qt.ItemIsUserCheckable):
                     continue
-                entry = entries_by_key.get(str(item.data(0, Qt.UserRole) or ""))
+                entry = _entry_for_item(item)
                 if entry is None:
                     continue
                 entry_key = self._archive_entry_identity_key(entry)
@@ -484,35 +592,31 @@ class ArchiveMeshSwapScopeDialogMixin:
         select_appearance_button.clicked.connect(_select_character_graph_entries)
         select_appearance_button.setEnabled(bool(allow_character_scope))
         clear_button.clicked.connect(lambda: _set_checked_by_predicate(lambda _entry: True, False))
-        cancel_button.clicked.connect(dialog.reject)
-        continue_button.clicked.connect(dialog.accept)
+        def _checked_entries() -> List[ArchiveEntry]:
+            return collect_checked_scope_entries(companion_tree, _entry_for_item)
 
-        def _show_swap_scope_help() -> None:
-            QMessageBox.information(
-                dialog,
-                "In-Game Swap Scope Help",
-                (
-                    "Recommended character/body swap defaults:\n"
-                    "- Keep generated/retargeted material sidecar enabled.\n"
-                    "- Leave direct source material sidecar replacement off.\n"
-                    "- Leave full source .app_xml replacement off.\n"
-                    "- Use Character Swap Plan when swapping character body/head assets.\n\n"
-                    "Recommended weapon/item swap defaults:\n"
-                    "- Use Select Item Family when the source has its own material sidecar and textures.\n"
-                    "- Use Select Physics only when the source and target physics contract is intentionally being replaced.\n"
-                    "- Use direct source model payload when preserving donor physics/material wrappers matters more than alignment transforms.\n"
-                    "- Keep prefab/socket rows manual unless you intentionally want to change held/sheath placement metadata.\n\n"
-                    "Generated/retargeted material sidecar means the later alignment step patches the target .pac_xml/.pami from the reviewed mapping and texture plan. "
-                    "This is usually safer than copying the source .pac_xml because source and target submesh wrappers can differ.\n\n"
-                    "Replace target material sidecar copies selected source sidecar bytes onto the target sidecar path. Use this only for manual experiments.\n\n"
-                    "Replace target appearance descriptor copies the full source .app_xml. This can redirect hair, armor, customization, scale, sockets, prefab data, and other character graph links.\n\n"
-                    "Character Swap Plan creates a surgical target .app_xml patch for body/head references while preserving target hair, armor, skeleton, and physics by default.\n\n"
-                    "Checked table rows are written as loose replacement payloads. Rows marked as detected references are shown for context and manual selection; they are not automatically required just because they were found.\n\n"
-                    "Select Graph Textures selects only safe DDS texture rows from the character graph. Sidecars, skeleton, physics, and full appearance descriptors remain explicit manual choices."
-                ),
+        def _confirm_and_accept() -> None:
+            unreferenced = (
+                unreferenced_swap_target_paths(
+                    self._target_family_path_for_source_companion,
+                    target_entry,
+                    source_entry,
+                    _checked_entries(),
+                )
+                if retarget_source_family_checkbox.isChecked()
+                else ()
             )
+            if unreferenced and not confirm_unreferenced_swap_targets(dialog, unreferenced):
+                return
+            dialog.accept()
 
-        scope_help_button.clicked.connect(_show_swap_scope_help)
+        cancel_button.clicked.connect(dialog.reject)
+        continue_button.clicked.connect(_confirm_and_accept)
+        scope_help_button.clicked.connect(
+            lambda _checked=False: QMessageBox.information(
+                dialog, "In-Game Swap Scope Help", SWAP_SCOPE_HELP_TEXT
+            )
+        )
 
         def _character_swap_plan_toggled(checked: bool) -> None:
             if not checked:
@@ -525,14 +629,7 @@ class ArchiveMeshSwapScopeDialogMixin:
         if dialog.exec() != QDialog.Accepted:
             return None
 
-        selected_entries: List[ArchiveEntry] = []
-        for index in range(companion_tree.topLevelItemCount()):
-            item = companion_tree.topLevelItem(index)
-            if item is None or item.checkState(0) != Qt.Checked:
-                continue
-            entry = entries_by_key.get(str(item.data(0, Qt.UserRole) or ""))
-            if entry is not None:
-                selected_entries.append(entry)
+        selected_entries: List[ArchiveEntry] = _checked_entries()
         if character_swap_plan_checkbox.isChecked():
             selected_keys = {self._archive_entry_identity_key(entry) for entry in selected_entries}
             for edge in tuple(getattr(character_relationship_plan, "edges", ()) or ()):
