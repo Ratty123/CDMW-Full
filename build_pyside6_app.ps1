@@ -79,6 +79,16 @@ function Move-PathWithRetries {
         throw "Source path does not exist: $SourcePath"
     }
 
+    # A destination whose parent is missing fails with "Could not find a part of
+    # the path", and the retry loop then spends eight attempts on something that
+    # cannot start working. `.tools` is the case that bit: it is gitignored, so a
+    # developer machine always has it and a fresh clone never does, which is why
+    # the pinned vgmstream fetch only failed on CI.
+    $destinationParent = Split-Path -Parent $DestinationPath
+    if ($destinationParent -and -not (Test-Path -LiteralPath $destinationParent)) {
+        New-Item -ItemType Directory -Path $destinationParent -Force | Out-Null
+    }
+
     for ($attempt = 1; $attempt -le $RetryCount; $attempt++) {
         try {
             Move-Item -LiteralPath $SourcePath -Destination $DestinationPath -Force -ErrorAction Stop
