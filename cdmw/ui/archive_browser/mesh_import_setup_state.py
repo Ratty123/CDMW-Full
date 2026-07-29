@@ -34,12 +34,27 @@ def direct_source_model_swap_task_status(target_basename: object) -> str:
 def pending_in_game_mesh_swap_target_status(entry_basename: object) -> str:
     return (
         f"In-game mesh swap target set: {entry_basename}. "
-        "Select the source mesh in Archive Browser, then click Use as Swap Source."
+        "Select the source mesh in Archive Browser, then choose Use This as Swap Source."
     )
 
 
 def pending_in_game_mesh_swap_cancelled_status() -> str:
     return "Cancelled the pending in-game mesh swap target."
+
+
+def in_game_mesh_swap_banner_text(target_path: object) -> str:
+    return (
+        f"In-game mesh swap armed. Target: {target_path}. "
+        "Right-click the mesh you want to swap in and choose Use This as Swap Source."
+    )
+
+
+def in_game_mesh_swap_banner_cancel_text() -> str:
+    return "Cancel Swap"
+
+
+def in_game_mesh_swap_banner_cancel_tooltip(target_path: object) -> str:
+    return f"Forget the pending in-game mesh swap target: {target_path}"
 
 
 def mesh_import_preview_unexpected_payload_status() -> str:
@@ -121,6 +136,9 @@ __all__ = [
     "direct_source_model_swap_task_status",
     "direct_source_model_swap_unexpected_payload_status",
     "direct_source_model_swap_written_status",
+    "in_game_mesh_swap_banner_cancel_text",
+    "in_game_mesh_swap_banner_cancel_tooltip",
+    "in_game_mesh_swap_banner_text",
     "in_game_mesh_swap_progress_text",
     "in_game_mesh_swap_same_source_status",
     "mesh_import_compatibility_control_text",

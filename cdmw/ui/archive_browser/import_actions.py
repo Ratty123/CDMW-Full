@@ -86,5 +86,7 @@ class ArchiveImportActionsMixin:
         if current_entry is None:
             self.set_status_message("Select a supported archive mesh before swapping with an in-game mesh.", error=True)
             return
-        self._open_mesh_editor_for_entry(current_entry, mode="in_game_swap", activate=True)
+        # Arming a swap target must not leave Archive Browser: the next step is
+        # picking the source here. _start_archive_in_game_mesh_swap opens the
+        # Mesh Editor once both sides are known.
         self._handle_archive_in_game_mesh_swap_entry(current_entry)
