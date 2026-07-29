@@ -147,13 +147,8 @@ def dotnet_preview_overlays_from_preview_core_package(
     particles: list[list[float]] = []
     pins: list[float] = []
     constraints: list[list[int]] = []
-    # Particle index within a batch is the submesh's own vertex index, because
-    # the preview core seeds one particle per mesh position in order. Carrying
-    # the ranges is what lets the renderer write solved positions back into the
-    # right submesh instead of only drawing lines over a static mesh.
-    batch_ranges: list[dict[str, int]] = []
     cloth_settings: Mapping[str, object] | None = None
-    for batch_index, batch in enumerate(raw_batches):
+    for batch in raw_batches:
         _check_cancelled(cancelled)
         if not isinstance(batch, Mapping) or not bool(batch.get("cloth_enabled", False)):
             continue
@@ -186,13 +181,6 @@ def dotnet_preview_overlays_from_preview_core_package(
         if len(constraint_rows) != constraint_count:
             raise ValueError("Preview-core cloth constraint resources are incomplete or corrupt.")
         offset = len(particles)
-        batch_ranges.append(
-            {
-                "submesh_index": _safe_int(batch.get("index"), batch_index),
-                "offset": offset,
-                "count": particle_count,
-            }
-        )
         for row in particle_rows:
             particles.append(
                 [
@@ -236,7 +224,6 @@ def dotnet_preview_overlays_from_preview_core_package(
             "pin_weights": pins,
             "constraints": constraints,
             "colliders": colliders,
-            "batch_ranges": batch_ranges,
         }
     return result
 
