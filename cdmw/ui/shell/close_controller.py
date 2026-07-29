@@ -532,6 +532,10 @@ class CloseControllerMixin:
         self.replace_assistant_tab.shutdown()
         self.texture_editor_tab.shutdown()
         self.item_icons_tab.shutdown()
+        ui_localizer = getattr(self, "ui_localizer", None)
+        shutdown_localizer = getattr(ui_localizer, "shutdown", None)
+        if callable(shutdown_localizer):
+            shutdown_localizer()
         tray_icon = getattr(self, "app_tray_icon", None)
         if tray_icon is not None:
             try:

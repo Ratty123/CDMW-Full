@@ -347,10 +347,18 @@ chaiNNer analysis, source-file reads, and transactional ZIP publication. The
 shell captures only current UI text/config state before dispatching this work to
 its cancellable utility worker.
 
-`cdmw/services/localization_file_service.py` owns bounded language JSON
-validation and atomic publication. The shell snapshots bundled and instantiated
+`cdmw/domain/localization.py` owns canonical locale identity and plural rules.
+Packaged interface catalogs are UTF-8 resources under
+`cdmw/resources/localization/`; `cdmw/services/localization_file_service.py`
+owns bounded version-1/version-2 language JSON validation and atomic
+publication. The process-scoped `cdmw/ui/localization.py` owns live PySide
+translation and locale formatting, while
+`cdmw/services/startup_localization_service.py` owns the bounded pre-Qt splash
+subset. The resident .NET helper receives only its advertised key subset over
+the correlated preview protocol. The shell snapshots bundled and instantiated
 widget strings, then dispatches import/export through frozen worker requests;
-services never import UI localization modules.
+services never import UI localization modules. User-facing pack details and
+validation commands live in `docs/features/interface-localization.md`.
 
 `cdmw/services/workspace_layout.py` owns app-managed local workspace paths.
 Portable installs keep the config beside the executable, while generated local

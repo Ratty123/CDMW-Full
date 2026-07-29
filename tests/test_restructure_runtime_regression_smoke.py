@@ -81,6 +81,15 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             visible_main_tabs,
         )
         self.assertFalse(self.window.main_tabs.isTabVisible(self.window.main_tabs.indexOf(self.window.settings_tab)))
+        window_actions = [
+            action.text().replace("&", "")
+            for action in self.window.window_menu.actions()
+            if not action.isSeparator()
+        ]
+        self.assertEqual(
+            ["Detach Current Tool", "Reattach Current Tool", "Reattach All Tools"],
+            window_actions[:3],
+        )
 
         expected_tools = {
             "texture_workflow",
@@ -98,21 +107,25 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             "settings",
         }
         self.assertTrue(expected_tools.issubset(self.window._tool_widgets_by_key))
+        self.window._handle_language_changed("de")
+        self.assertEqual("de", self.window.ui_localizer.language_code)
+        self.assertEqual(
+            self.window.ui_localizer.translate("Assets"),
+            self.window.main_tabs.tabText(
+                self.window.main_tabs.indexOf(self.window.assets_tabs)
+            ),
+        )
+        self.assertEqual(
+            self.window.ui_localizer.translate("Export Language File..."),
+            self.window.settings_tab.export_language_button.text(),
+        )
 
         for key in sorted(expected_tools):
             widget = self.window._tool_widgets_by_key[key]
             self.window._activate_tool_widget(widget)
             self.assertIs(self.window._current_navigation_widget(), widget, key)
-
-        window_actions = [
-            action.text().replace("&", "")
-            for action in self.window.window_menu.actions()
-            if not action.isSeparator()
-        ]
-        self.assertEqual(
-            ["Detach Current Tool", "Reattach Current Tool", "Reattach All Tools"],
-            window_actions[:3],
-        )
+            created = getattr(widget, "widget_if_created", lambda: widget)()
+            self.assertIsNotNone(created, key)
 
     def test_new_user_opens_archive_browser_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

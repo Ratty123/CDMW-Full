@@ -33,6 +33,8 @@ Use this file to choose the right doc before opening everything.
     `schemas/archive_content_capabilities.v1.json`; never edit it by hand.
   - `format-explorer.md`: the in-app tool that surfaces that same capability
     manifest as "what can I mod, and where".
+  - `interface-localization.md`: CDMW Full's 14 built-in interface languages,
+    custom-pack schema, live PySide/.NET ownership, and enforcement gates.
   - `localization-and-constraint-formats.md`: the `.paloc` string tables and the
     `.papr` constraint rigs, decoded together.
   - `mesh-editing-pipeline.md`: mesh parser/rebuilder/editor map, metadata loss

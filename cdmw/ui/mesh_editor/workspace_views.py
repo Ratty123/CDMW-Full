@@ -29,6 +29,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.ui.localization import translate_active_ui_text
+
 from cdmw.domain.mesh import (
     MeshCompareSummary,
     MeshEditSessionView,
@@ -198,7 +200,7 @@ class MeshUvCanvas(QFrame):
         summary = self._summary
         if summary is None or not summary.islands:
             painter.setPen(QPen(text, 1))
-            painter.drawText(tile, Qt.AlignmentFlag.AlignCenter, "No UV islands")
+            painter.drawText(tile, Qt.AlignmentFlag.AlignCenter, translate_active_ui_text("No UV islands"))
             painter.end()
             return
         for island in summary.islands:
@@ -217,7 +219,7 @@ class MeshUvCanvas(QFrame):
                 current = self._position_from_uv(tile, point)
                 painter.drawLine(previous, current)
                 previous = current
-        texture_names = str(self.property("uvTextureNames") or "missing texture")
+        texture_names = str(self.property("uvTextureNames") or translate_active_ui_text("missing texture"))
         painter.setPen(QPen(text, 1))
         painter.drawText(self.rect().adjusted(8, 4, -8, -4), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, texture_names)
         painter.end()

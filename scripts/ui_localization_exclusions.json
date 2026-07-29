@@ -1,0 +1,146 @@
+[
+  {
+    "path": "cdmw/ui/archive_browser/mesh_builder_startup_smoke.py",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Nonvisual Import Mesh and Modify Original construction harness; excluded developer output."
+  },
+  {
+    "path": "cdmw/ui/mesh_editor/startup_smoke.py",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Nonvisual Mesh Editor construction harness; excluded developer output."
+  },
+  {
+    "path": "cdmw/ui/shell/about_documentation_de.py",
+    "symbol": "language_specific_help_source",
+    "source": "*",
+    "reason": "Legacy authored German help source; the canonical 14-language catalog is generated from the English help document."
+  },
+  {
+    "path": "cdmw/ui/shell/about_documentation_es.py",
+    "symbol": "language_specific_help_source",
+    "source": "*",
+    "reason": "Legacy authored Spanish help source; the canonical 14-language catalog is generated from the English help document."
+  },
+  {
+    "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
+    "symbol": "chainner_override_edit",
+    "source": "{\n  \"inputs\": {\n    \"your_override_id\": \"${png_root}\"\n  }\n}",
+    "reason": "chaiNNer override JSON sample shown as placeholder text. It is a machine-readable document the user copies and edits, so its keys and ${path} tokens must stay invariant; the surrounding label and tooltip are translated."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/D3D11MaterialLayerOrientationProof.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Hidden synthetic proof surface; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.Headless.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Hidden headless renderer surface; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/D3D11TexturedMetalReadabilityProof.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Hidden synthetic proof surface; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/D3D11UntexturedReadabilityProof.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Hidden synthetic proof surface; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/EditMeshLayoutSmoke.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Hidden layout smoke surface; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/HeadlessGpuFramePacingSoak.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Headless GPU soak surface; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/HeadlessGpuFramePacingSoakOptions.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Headless GPU soak options; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/HeadlessGpuSparseSoak.SceneProofs.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Headless GPU scene proof; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/HeadlessGpuSparseSoak.ViewModes.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Headless GPU view-mode proof; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/HeadlessGpuSparseSoak.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Headless GPU soak surface; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/HeadlessGpuSparseSoakOptions.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Headless GPU soak options; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/MaterialAuthorityParityReport.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Synthetic Material Authority report; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/PreviewPerformanceReport.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Headless performance report; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/VisualAuditBatch.SubmeshIsolation.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Hidden visual-audit harness; excluded developer harness."
+  },
+  {
+    "path": "tools/dotnet_mesh_editor_experiment/VisualAuditBatch.cs",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Hidden visual-audit harness; excluded developer harness."
+  },
+  {
+    "path": "tools/placement_studio/cli.py",
+    "symbol": "cli_output",
+    "source": "*",
+    "reason": "Placement Studio command-line interface; CLI output is outside the production GUI contract."
+  },
+  {
+    "path": "tools/placement_studio/cli_support.py",
+    "symbol": "cli_output",
+    "source": "*",
+    "reason": "Placement Studio command-line support; CLI output is outside the production GUI contract."
+  },
+  {
+    "path": "tools/placement_studio/gates.py",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Placement Studio validation-gate output; excluded developer harness."
+  },
+  {
+    "path": "tools/placement_studio/gates_clipping.py",
+    "symbol": "developer_harness",
+    "source": "*",
+    "reason": "Placement Studio clipping-gate output; excluded developer harness."
+  }
+]

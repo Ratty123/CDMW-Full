@@ -65,17 +65,20 @@ internal sealed partial class ExperimentForm
         };
     }
 
-    private static string RendererMetricsText(RenderMetrics metrics, string backend, bool compact)
+    internal static string RendererMetricsText(RenderMetrics metrics, string backend, bool compact)
     {
         if (!metrics.HasRenderedFrame)
         {
             return compact
                 ? "FPS -- | Frame -- ms"
-                : $"Renderer ready, waiting for first frame | Backend: {backend}";
+                : FormattableString.Invariant(
+                    $"Renderer ready, waiting for first frame | Backend: {backend}");
         }
         return compact
-            ? $"FPS {metrics.AverageFps:0.0} | Interval {metrics.AverageFrameIntervalMs:0.00} ms | P95 {metrics.FrameIntervalP95Ms:0.00} ms"
-            : $"FPS: {metrics.AverageFps:0.0} | Interval: {metrics.AverageFrameIntervalMs:0.00} ms | P95: {metrics.FrameIntervalP95Ms:0.00} ms | Render: {metrics.AverageRenderMs:0.00} ms | Present: {metrics.AveragePresentMs:0.00} ms | Backend: {backend}";
+            ? FormattableString.Invariant(
+                $"FPS {metrics.AverageFps:0.0} | Interval {metrics.AverageFrameIntervalMs:0.00} ms | P95 {metrics.FrameIntervalP95Ms:0.00} ms")
+            : FormattableString.Invariant(
+                $"FPS: {metrics.AverageFps:0.0} | Interval: {metrics.AverageFrameIntervalMs:0.00} ms | P95: {metrics.FrameIntervalP95Ms:0.00} ms | Render: {metrics.AverageRenderMs:0.00} ms | Present: {metrics.AveragePresentMs:0.00} ms | Backend: {backend}");
     }
 
     private void StartProtocolReader()
@@ -97,6 +100,8 @@ internal sealed partial class ExperimentForm
                     ["capabilities"] = protocolCapabilities,
                     ["provenance"] = HelperBuildProvenance.Payload(protocolCapabilities),
                     ["profile"] = _options.Profile,
+                    ["localization_keys"] = UiLocalizationOwner.LocalizationKeys,
+                    ["localization_key_manifest_hash"] = UiLocalizationOwner.LocalizationKeyManifestHash,
                 });
                 string? line;
                 while ((line = reader.ReadLine()) is not null)
@@ -511,6 +516,9 @@ internal sealed partial class ExperimentForm
                     break;
                 case "renderer_status_request":
                     HandleRendererStatusRequest(root);
+                    break;
+                case "ui_localization_state":
+                    HandleUiLocalizationState(root);
                     break;
                 case "package_load_request":
                     HandleResidentPackageLoadRequest(root);

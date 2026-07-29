@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,13 +10,14 @@ from unittest.mock import patch
 import pytest
 import shiboken6
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QProcess, Signal
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QWidget
 
 from cdmw.services.mesh_dotnet_experiment import (
     MeshDotNetExecutableResolution,
     MeshDotNetExperimentPackage,
     mesh_dotnet_experiment_command,
 )
+from cdmw.ui.localization import UiLocalizer
 from cdmw.ui.preview.dotnet_host import DotNetPreviewHostFrame
 from cdmw.ui.preview.dotnet_session import DotNetPreviewSessionController
 from cdmw.ui.preview.profile import DotNetPreviewProfile
@@ -228,6 +230,71 @@ def _make_ready(controller: DotNetPreviewSessionController) -> None:
         )
 
 
+def _helper_localization_contract() -> tuple[tuple[str, ...], str]:
+    manifest_path = (
+        Path(__file__).resolve().parents[1]
+        / "cdmw"
+        / "resources"
+        / "localization"
+        / "source_manifest.json"
+    )
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    keys = tuple(
+        sorted(
+            {
+                str(entry["key"])
+                for entry in payload["entries"]
+                if any(
+                    str(origin.get("path", "")).startswith(
+                        "tools/dotnet_mesh_editor_experiment/"
+                    )
+                    for origin in entry.get("origins", ())
+                )
+            }
+        )
+    )
+    digest = hashlib.sha256("\n".join(keys).encode("utf-8")).hexdigest()
+    return keys, digest
+
+
+def _localization_protocol_ready(
+    *,
+    profile: str = "preview",
+) -> dict[str, object]:
+    keys, digest = _helper_localization_contract()
+    return {
+        "event": "protocol_ready",
+        "profile": profile,
+        "capabilities": ["ui_localization_v1"],
+        "localization_keys": list(keys),
+        "localization_key_manifest_hash": digest,
+    }
+
+
+def _localization_ack(
+    request: dict[str, object],
+    *,
+    status: str = "applied",
+) -> dict[str, object]:
+    return {
+        "event": "ui_localization_state_ack",
+        "status": status,
+        **{
+            key: request[key]
+            for key in (
+                "language_code",
+                "plural_rule",
+                "catalog_hash",
+                "key_manifest_hash",
+                "session_id",
+                "process_generation",
+                "request_id",
+                "localization_revision",
+            )
+        },
+    }
+
+
 def test_helper_command_selects_explicit_profiles(tmp_path: Path) -> None:
     package = _package(tmp_path, "command")
     _program, preview = mesh_dotnet_experiment_command(tmp_path / "helper.exe", package, profile="preview")
@@ -240,6 +307,7 @@ def test_renderer_ready_keeps_process_for_nonfatal_material_audit_gaps(tmp_path:
     controller, process, _package_a = _start_controller(tmp_path)
     ready_payloads: list[object] = []
     controller.renderer_ready.connect(ready_payloads.append)
+    controller._localization_initial_established = True  # noqa: SLF001
 
     controller._handle_renderer_ready(  # noqa: SLF001 - focused readiness contract test
         {
@@ -263,6 +331,199 @@ def test_renderer_ready_keeps_process_for_nonfatal_material_audit_gaps(tmp_path:
     assert not controller._retry_timer.isActive()  # noqa: SLF001
     assert len(ready_payloads) == 1
     controller.shutdown()
+
+
+def test_localization_ack_gates_initial_ready_and_live_switch_is_resident(
+    tmp_path: Path,
+) -> None:
+    controller, process, package = _start_controller(tmp_path)
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="ja")
+    controller.set_ui_localizer(localizer)
+    ready_payloads: list[object] = []
+    applied_locales: list[tuple[str, int]] = []
+    controller.renderer_ready.connect(ready_payloads.append)
+    controller.localization_applied.connect(
+        lambda code, revision: applied_locales.append((code, revision))
+    )
+    generation = controller.process_generation
+
+    with (
+        patch(
+            "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers",
+            return_value=(),
+        ),
+        patch(
+            "cdmw.ui.preview.dotnet_session.mesh_dotnet_renderer_blockers",
+            return_value=(),
+        ),
+    ):
+        controller._handle_protocol_event(  # noqa: SLF001
+            _localization_protocol_ready(),
+            generation,
+        )
+        initial_request = next(
+            payload
+            for payload in process.writes
+            if payload.get("event") == "ui_localization_state"
+        )
+        assert initial_request["language_code"] == "ja"
+        assert initial_request["plural_rule"] == "other"
+        assert set(initial_request["translations"]) == set(
+            _helper_localization_contract()[0]
+        )
+        assert any(
+            any(ord(character) > 127 for character in str(value))
+            for value in initial_request["translations"].values()
+        )
+        encoded = (
+            json.dumps(initial_request, ensure_ascii=False, separators=(",", ":"))
+            + "\n"
+        ).encode("utf-8")
+        assert len(encoded) < 256 * 1024
+
+        controller._handle_protocol_event(  # noqa: SLF001
+            {
+                "event": "ready",
+                "profile": "preview",
+                "renderer": {"backend": "d3d11_vortice_shader"},
+            },
+            generation,
+        )
+        controller._handle_protocol_event(  # noqa: SLF001
+            {
+                "event": "preview_session_state_ack",
+                "status": "applied",
+                "process_generation": generation,
+            },
+            generation,
+        )
+        assert ready_payloads == []
+        assert controller.applied_package_path == ""
+
+        stale_ack = _localization_ack(initial_request)
+        stale_ack["catalog_hash"] = "stale"
+        controller._handle_protocol_event(stale_ack, generation)  # noqa: SLF001
+        assert ready_payloads == []
+
+        controller._handle_protocol_event(  # noqa: SLF001
+            _localization_ack(initial_request),
+            generation,
+        )
+
+    assert len(ready_payloads) == 1
+    assert controller.applied_package_path == str(package.package_dir)
+    assert applied_locales == [("ja", localizer.revision)]
+    original_process_id = controller.process_id
+    original_package_generation = controller.package_generation
+
+    localizer.load_language("de")
+    german_request = process.writes[-1]
+    assert german_request["event"] == "ui_localization_state"
+    localizer.load_language("fr")
+    french_request = process.writes[-1]
+    assert french_request["event"] == "ui_localization_state"
+    assert french_request["language_code"] == "fr"
+
+    controller._handle_protocol_event(  # noqa: SLF001
+        _localization_ack(german_request),
+        generation,
+    )
+    assert applied_locales == [("ja", initial_request["localization_revision"])]
+    controller._handle_protocol_event(  # noqa: SLF001
+        _localization_ack(french_request),
+        generation,
+    )
+    assert applied_locales[-1] == ("fr", french_request["localization_revision"])
+    assert controller.process_id == original_process_id
+    assert controller.package_generation == original_package_generation
+    assert controller.applied_package_path == str(package.package_dir)
+    controller.shutdown()
+
+
+def test_localization_manifest_mismatch_is_rejected_and_latest_locale_replays(
+    tmp_path: Path,
+) -> None:
+    controller, process, _package = _start_controller(tmp_path)
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="de")
+    controller.set_ui_localizer(localizer)
+    generation = controller.process_generation
+    ready_payload = _localization_protocol_ready()
+
+    with patch(
+        "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers",
+        return_value=(),
+    ):
+        mismatched = dict(ready_payload)
+        mismatched["localization_key_manifest_hash"] = "bad"
+        controller._handle_protocol_event(mismatched, generation)  # noqa: SLF001
+    assert controller.process is None
+    assert process.state() == QProcess.ProcessState.NotRunning
+
+    replay_root = tmp_path / "replay"
+    replay_root.mkdir()
+    controller, process, _package = _start_controller(replay_root)
+    localizer = UiLocalizer(
+        language_dir=tmp_path / "replay-languages",
+        language_code="zh-Hant",
+    )
+    controller.set_ui_localizer(localizer)
+    generation = controller.process_generation
+    with patch(
+        "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers",
+        return_value=(),
+    ):
+        controller._handle_protocol_event(  # noqa: SLF001
+            _localization_protocol_ready(),
+            generation,
+        )
+        first_request = next(
+            payload
+            for payload in reversed(process.writes)
+            if payload.get("event") == "ui_localization_state"
+        )
+        assert first_request["language_code"] == "zh-Hant"
+
+        localizer.load_language("ko")
+        controller._reset_localization_handshake()  # noqa: SLF001
+        controller._protocol_ready = False  # noqa: SLF001
+        controller._process_generation += 1  # noqa: SLF001
+        reconnected_generation = controller.process_generation
+        controller._handle_protocol_event(  # noqa: SLF001
+            _localization_protocol_ready(),
+            reconnected_generation,
+        )
+
+    replay_request = next(
+        payload
+        for payload in reversed(process.writes)
+        if payload.get("event") == "ui_localization_state"
+    )
+    assert replay_request["language_code"] == "ko"
+    assert replay_request["process_generation"] == reconnected_generation
+    assert replay_request["localization_revision"] == localizer.revision
+    controller.shutdown()
+
+
+def test_preview_host_inherits_the_shell_localizer(tmp_path: Path) -> None:
+    shell = QWidget()
+    shell.ui_localizer = UiLocalizer(  # type: ignore[attr-defined]
+        language_dir=tmp_path / "languages",
+        language_code="es-419",
+        parent=shell,
+    )
+    controller = _own(
+        DotNetPreviewSessionController(
+            host_hwnd=lambda: 1,
+            profile=DotNetPreviewProfile.PREVIEW,
+            terminate_on_close=True,
+            process_factory=lambda parent: _FakeProcess(parent),
+        )
+    )
+    host = DotNetPreviewHostFrame(parent=shell, controller=controller)
+
+    assert controller._ui_localizer is shell.ui_localizer  # type: ignore[attr-defined]  # noqa: SLF001
+    host.deleteLater()
+    shell.deleteLater()
 
 
 def test_latest_package_generation_rejects_stale_apply(tmp_path: Path) -> None:

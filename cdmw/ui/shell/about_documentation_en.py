@@ -130,7 +130,7 @@ class AboutDocumentationEnglishMixin:
                   <li><b>Starter Height / Displacement</b>: preserve-first baseline for scalar height/displacement maps.</li>
                   <li><b>Starter Specular</b>: preserve-first baseline for specular-like scalar masks.</li>
                 </ul>
-                <p>The starters are meant to be sane defaults, not universal â€œbestâ€ answers. If a file family really should be pushed through rebuild or direct NCNN, duplicate the starter and make a more aggressive variant.</p>
+                <p>The starters are meant to be sane defaults, not universal “best” answers. If a file family really should be pushed through rebuild or direct NCNN, duplicate the starter and make a more aggressive variant.</p>
                 """,
             },
             {
@@ -178,7 +178,7 @@ class AboutDocumentationEnglishMixin:
                   <li><code>premultiplied_alpha_review_required</code>: premultiplied-alpha content that should be reviewed manually.</li>
                   <li><code>float_or_vector_preserve_only</code>: float, vector, or other precision-sensitive technical data that should stay preserve-only.</li>
                 </ul>
-                <p>In practice, use workflow profiles for the user-facing batch behavior and use planner profiles only when you specifically need to change the plannerâ€™s technical assumptions for a matched file or file family.</p>
+                <p>In practice, use workflow profiles for the user-facing batch behavior and use planner profiles only when you specifically need to change the planner’s technical assumptions for a matched file or file family.</p>
                 """,
             },
             {
