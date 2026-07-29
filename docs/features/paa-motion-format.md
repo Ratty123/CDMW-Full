@@ -269,10 +269,22 @@ with no parent bone).
 ### The clip browser
 
 `clips.py` indexes every `.paa` in the install — all 316,059 — and the browser sits beside
-the chart view in the Animation tab. Reading the package tables takes about 4 seconds and
-decompresses nothing, so the index is built once on a worker thread and held in memory;
-there is no on-disk cache to go stale against a game patch. Without a game install it falls
-back to the pinned baseline rather than showing an empty list.
+the chart view in the Animation tab. Reading the package tables takes about 5 seconds and
+decompresses nothing. It is stepped from the event loop rather than run on a worker thread,
+because the walk is pure Python and a thread would hold the GIL for its whole duration and
+starve the UI just as badly; and it is built when the tab is first opened rather than at
+startup, so it never competes with the viewport's first frames.
+
+The result is cached on disk (`workspace/placement_studio/clip-index.bin`, ~4.4 MiB), which
+takes a later launch from ~5s to ~0.9s. The key is a signature over every `.pamt` table
+**and** every `.paz` archive — name, size and nanosecond mtime — because a stored row is an
+offset into a `.paz`, so a payload rewritten without its table changing is exactly the
+update that would otherwise be read back as a valid offset into different bytes. The
+signature is taken before the walk and re-checked after it, so a patch applied mid-scan
+cannot label old data with the new install's key, and a walk that skipped an unreadable
+package is not stored at all. A cache that fails any check is ignored and the archives are
+read again. Without a game install the browser falls back to the pinned baseline rather than
+showing an empty list.
 
 Filters are rig, kind, and a space-separated name search where every term has to match. The
 rig filter defaults to the rig the session actually loaded, since that is what will play.

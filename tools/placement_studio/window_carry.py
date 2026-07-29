@@ -541,6 +541,11 @@ class CarryPickerMixin:
         session = self._session
         if session is None or self._edits is None or self._swap_thread is not None:
             return
+        # Donor clips come out of the clip index, which is not built until its tab is opened
+        # and this button is in the header, reachable without ever going there. The dialog
+        # builds its row list inside its constructor, so the index has to be *there*, not
+        # merely started — otherwise it opens saying no animation has a counterpart.
+        self._ensure_clip_index(wait=True)
         binding = self._current_binding()
         parts = [
             (b.part_name, f"{b.part_name}   —   {b.part.in_socket or '(nowhere)'}")
@@ -809,6 +814,11 @@ class CarryPickerMixin:
                     self._offer_carry_clips(socket)
             return
 
+        # The index is built when the clip tab is first opened, and this button can be
+        # pressed without ever going there. Read in the same turn, so it has to be built
+        # rather than merely started, or the first press always reports nothing to measure.
+        self._ensure_clip_index(wait=True)
+
         model = self._session.model
         entries = [
             entry
@@ -816,9 +826,7 @@ class CarryPickerMixin:
             if carry.is_draw(entry.name) and model in entry.path and not entry.is_lod
         ]
         if not entries:
-            self.statusBar().showMessage(
-                "No draw clips indexed yet — wait for the clip index, then try again"
-            )
+            self.statusBar().showMessage("No draw clips found for this character")
             return
 
         self._carry_match.setEnabled(False)

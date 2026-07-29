@@ -184,6 +184,11 @@ class ArmourPickerMixin:
     #: Files read between yields. One read is a few milliseconds, so this is a frame's worth.
     _ARCHIVE_LOAD_SLICE = 4
 
+    #: The same, for payloads already in hand: no seek, no inflate, just a parse. Kept well
+    #: under the ~39 socket files a character has, so the cached read still yields several
+    #: times rather than running to completion inside a single event-loop turn.
+    _CACHED_LOAD_SLICE = 12
+
     def _start_archive_content_load(self, *, weapons: bool = True) -> None:
         from PySide6.QtCore import QTimer
 
@@ -233,24 +238,55 @@ class ArmourPickerMixin:
         which is the opposite of what this tool is for.
         """
 
+        from .armour import cached_content, store_content
+        from .corpus import game_root, package_signature
+
         session = self._session
         if session is None or not self._weapon_socket_entries:
             return
+        root = game_root()
         model = session.model
         added = 0
         since_yield = 0
+
+        cached = cached_content(model, "sockets", root)
+        if cached is not None:
+            for path, data in cached.items():
+                try:
+                    session.add_socket_file(path, data)
+                    added += 1
+                except Exception:  # noqa: BLE001 - as below, a bad file is skipped
+                    continue
+                since_yield += 1
+                if since_yield >= self._CACHED_LOAD_SLICE:
+                    since_yield = 0
+                    yield
+            if added:
+                self._populate_weapons()
+            return
+
+        signature = package_signature(root)
+        extracted: dict = {}
+        failed = False
         for path, entry in self._weapon_socket_entries.items():
             if f"/{model}/" not in path or path in self._baseline:
                 continue
             try:
-                session.add_socket_file(path, read_entry(entry))
+                data = read_entry(entry)
+                session.add_socket_file(path, data)
+                extracted[path] = data
                 added += 1
             except Exception:  # noqa: BLE001 - a file that will not parse is simply skipped
+                failed = True
                 continue
             since_yield += 1
             if since_yield >= self._ARCHIVE_LOAD_SLICE:
                 since_yield = 0
                 yield
+        # A read that lost files is fine to show and wrong to keep: cached, the gap would
+        # be served on every later launch with nothing left to retry it.
+        if extracted and not failed and package_signature(root) == signature:
+            store_content(model, "sockets", extracted, root, signature=signature)
         if added:
             # Repopulating mid-read would reset the weapon box under the user's cursor on
             # every slice, so the list is rebuilt once, when all of them are in.
@@ -270,25 +306,54 @@ class ArmourPickerMixin:
         bodies to show one of them would be paid on every launch.
         """
 
-        from .armour import CHART_SLOT, read_armour
+        from .armour import CHART_SLOT, cached_content, read_armour, store_content
+        from .corpus import game_root, package_signature
 
         session = self._session
         index = getattr(self, "_armour_index", None)
         if session is None or self._edits is None or index is None:
             return
+        root = game_root()
+
+        # 33 MB inflated out of 101 separate archive entries, or one 3.6 MiB blob.
+        #
+        # What gets read is decided by the pinned baseline alone, never by what the edit
+        # session already holds. Both were skip conditions before, and `_edits.paths` grows
+        # as the session runs — so a character switch made after an edit would have read a
+        # subset and stored that subset as if it were the character's whole chart set.
+        # `add_base_files` ignores paths it already has, so handing it everything is both
+        # cheaper to reason about and idempotent.
+        cached = cached_content(session.model, "charts", root)
+        if cached is not None:
+            # Three separate turns on purpose. Inflating the blob is ~0.14s and the animation
+            # refresh that follows is ~0.5s; run back to back after the socket files they add
+            # up to a single ~0.9s block, which is a visible hitch in the viewport however
+            # little archive work is left behind it.
+            yield
+            added = self._edits.add_base_files(cached) if cached else 0
+            if added:
+                yield
+                self._refresh_animation()
+            return
+
+        signature = package_signature(root)
         wanted = {}
+        failed = False
         since_yield = 0
         for piece in index.pieces(session.model, CHART_SLOT):
-            if piece.path in self._baseline or piece.path in self._edits.paths:
+            if piece.path in self._baseline:
                 continue
             try:
                 wanted[piece.path] = read_armour(piece, index)
             except Exception:  # noqa: BLE001 - a chart that will not read is simply skipped
+                failed = True
                 continue
             since_yield += 1
             if since_yield >= self._ARCHIVE_LOAD_SLICE:
                 since_yield = 0
                 yield
+        if wanted and not failed and package_signature(root) == signature:
+            store_content(session.model, "charts", wanted, root, signature=signature)
         if wanted and self._edits.add_base_files(wanted):
             self._refresh_animation()
 

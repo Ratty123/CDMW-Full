@@ -353,6 +353,8 @@ class PlacementStudioWindow(
         # Both rig tabs need a four-second archive walk, so they load when first opened
         # rather than at startup, and re-target whenever the character changes.
         self._init_rig_tabs()
+        # The clip index is deferred the same way, and for the same reason.
+        self._init_clip_tab()
 
         # Viewport and the edit strip stack; the tabs get their own full-height column.
         # Sharing the vertical space left the Animation tab a few rows tall, which is not

@@ -44,6 +44,7 @@ class ClipBrowserMixin:
         self._clip_index = ClipIndex()
         self._clip_scan = None
         self._clip_scan_timer = None
+        self._clip_index_started = False
 
         panel = QWidget()
         layout = QVBoxLayout(panel)
@@ -141,10 +142,75 @@ class ClipBrowserMixin:
         footer.addWidget(self._clip_load_button)
         layout.addLayout(footer)
 
-        self._start_clip_index()
         return panel
 
     # ── indexing ────────────────────────────────────────────────────
+
+    def _init_clip_tab(self) -> None:
+        """Index when the tab is first opened, not while the studio is still coming up.
+
+        Built at startup, this scan ran on the UI thread alongside the viewport's first
+        frames and the archive content read, and the viewport dropped frames for the whole
+        five seconds it took — which is what "low FPS at the start, fine afterwards" was.
+        Nothing outside this tab draws clips, so nothing outside it has to wait for them.
+        """
+
+        self._lower.currentChanged.connect(self._on_tab_changed_for_clips)
+
+    def _on_tab_changed_for_clips(self, index: int) -> None:
+        # Matched by widget rather than by tab number: the index is a constant that has to be
+        # re-checked every time a tab is inserted, and `RIG_TAB_INDEX` already carries two of
+        # those.
+        if self._lower.widget(index) is getattr(self, "_animation_page", None):
+            self._ensure_clip_index()
+
+    def _ensure_clip_index(self, *, wait: bool = False) -> None:
+        """Make the index available. Safe to call from anywhere that needs clips.
+
+        The clip browser is not the only reader — `Swap animations…` sits in the header and
+        looks for donor clips — so a feature reachable without opening the tab asks for the
+        index rather than finding it silently empty.
+
+        `wait` is the difference between asking and needing. Starting the scan only creates
+        a generator; nothing has run when this returns. A caller that then reads
+        `self._clip_index` in the same turn — `MoveWeaponDialog` builds its whole row list
+        inside its constructor — reads an empty one and tells the user *no animation has a
+        counterpart for this weapon*, which is a wrong answer rather than a slow one. Those
+        callers block. It costs about a second warm, against an explicit click, with the
+        wait cursor up.
+        """
+
+        if not self._clip_index_started:
+            self._clip_index_started = True
+            self._start_clip_index()
+        if wait:
+            self._drain_clip_index()
+
+    def _drain_clip_index(self) -> None:
+        """Run the pending scan to completion now, with a wait cursor."""
+
+        if self._clip_scan is None:
+            return
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QCursor
+        from PySide6.QtWidgets import QApplication
+
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        self.statusBar().showMessage("Indexing the animation clips…")
+        try:
+            # Stepping the same generator the timer drives keeps one code path; the timer is
+            # stopped by `_stop_clip_index` on the last step, so the two cannot race.
+            while self._clip_scan is not None:
+                self._step_clip_index()
+        finally:
+            QApplication.restoreOverrideCursor()
+            self.statusBar().clearMessage()
+
+    @property
+    def clip_index_ready(self) -> bool:
+        """Whether the index has finished. Callers use it to say so rather than show nothing."""
+
+        return self._clip_index_started and self._clip_scan is None
 
     def _start_clip_index(self) -> None:
         from .corpus import game_root
