@@ -22,6 +22,7 @@ from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.rendering.dotnet_preview_package_cache import (
     create_dotnet_preview_package_staging_dir,
     dotnet_preview_package_cache_build_lock,
+    dotnet_preview_package_derived_cache_root,
     lookup_dotnet_preview_package_cache,
     release_dotnet_preview_package_staging_dir,
     store_dotnet_preview_package_cache,
@@ -146,8 +147,13 @@ def dotnet_preview_overlays_from_preview_core_package(
     particles: list[list[float]] = []
     pins: list[float] = []
     constraints: list[list[int]] = []
+    # Particle index within a batch is the submesh's own vertex index, because
+    # the preview core seeds one particle per mesh position in order. Carrying
+    # the ranges is what lets the renderer write solved positions back into the
+    # right submesh instead of only drawing lines over a static mesh.
+    batch_ranges: list[dict[str, int]] = []
     cloth_settings: Mapping[str, object] | None = None
-    for batch in raw_batches:
+    for batch_index, batch in enumerate(raw_batches):
         _check_cancelled(cancelled)
         if not isinstance(batch, Mapping) or not bool(batch.get("cloth_enabled", False)):
             continue
@@ -180,6 +186,13 @@ def dotnet_preview_overlays_from_preview_core_package(
         if len(constraint_rows) != constraint_count:
             raise ValueError("Preview-core cloth constraint resources are incomplete or corrupt.")
         offset = len(particles)
+        batch_ranges.append(
+            {
+                "submesh_index": _safe_int(batch.get("index"), batch_index),
+                "offset": offset,
+                "count": particle_count,
+            }
+        )
         for row in particle_rows:
             particles.append(
                 [
@@ -223,6 +236,7 @@ def dotnet_preview_overlays_from_preview_core_package(
             "pin_weights": pins,
             "constraints": constraints,
             "colliders": colliders,
+            "batch_ranges": batch_ranges,
         }
     return result
 
@@ -557,7 +571,7 @@ def _build_or_lookup_legacy_dotnet_preview_package(
         sidecar_generation=sidecar_generation,
         source_manifest=source_manifest,
     )
-    derived_cache_root = Path(cache_root) / "dotnet_vortice"
+    derived_cache_root = dotnet_preview_package_derived_cache_root(cache_root)
     durable = str(cache_mode or "off").strip().lower() in {"balanced", "aggressive"} and max_bytes > 0
     if durable:
         build_lock = dotnet_preview_package_cache_build_lock(derived_cache_root, cache_key)
@@ -648,7 +662,7 @@ def build_or_lookup_dotnet_preview_package_from_model(
         sidecar_generation=sidecar_generation,
         source_manifest=source_manifest,
     )
-    derived_cache_root = Path(cache_root) / "dotnet_vortice"
+    derived_cache_root = dotnet_preview_package_derived_cache_root(cache_root)
     durable = str(cache_mode or "off").strip().lower() in {"balanced", "aggressive"} and max_bytes > 0
     if durable:
         with dotnet_preview_package_cache_build_lock(derived_cache_root, cache_key):
