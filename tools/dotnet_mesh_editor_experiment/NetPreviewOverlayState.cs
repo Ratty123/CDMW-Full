@@ -18,6 +18,14 @@ internal sealed record NetClothOverlayCollider(
     Vector3 B,
     float Radius);
 
+/// <summary>
+/// Which submesh a run of cloth particles belongs to. The preview core seeds one
+/// particle per mesh position in order, so particle <c>Offset + i</c> is that
+/// submesh's vertex <c>i</c> -- the mapping the solver needs to move the real
+/// mesh rather than only draw lines over it.
+/// </summary>
+internal sealed record NetClothOverlayBatchRange(int SubmeshIndex, int Offset, int Count);
+
 internal sealed class NetPreviewOverlayState
 {
     public bool SkeletonVisible { get; private set; }
@@ -35,6 +43,7 @@ internal sealed class NetPreviewOverlayState
     public List<float> ClothPinWeights { get; } = new();
     public List<NetClothOverlayConstraint> ClothConstraints { get; } = new();
     public List<NetClothOverlayCollider> ClothColliders { get; } = new();
+    public List<NetClothOverlayBatchRange> ClothBatchRanges { get; } = new();
 
     public void ApplySceneMetadata(JsonElement root)
     {
@@ -92,6 +101,7 @@ internal sealed class NetPreviewOverlayState
         ClothPinWeights.Clear();
         ClothConstraints.Clear();
         ClothColliders.Clear();
+        ClothBatchRanges.Clear();
         ClothEnabled = Bool(clothRoot, "enabled", false);
         ClothPaused = Bool(clothRoot, "paused", false);
         ClothShowPins = Bool(clothRoot, "show_pins", false);
@@ -145,6 +155,22 @@ internal sealed class NetPreviewOverlayState
                 {
                     ClothColliders.Add(collider);
                 }
+            }
+        }
+        if (clothRoot.TryGetProperty("batch_ranges", out var ranges) && ranges.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in ranges.EnumerateArray().Take(4096))
+            {
+                var submeshIndex = Int(item, "submesh_index", -1);
+                var offset = Int(item, "offset", -1);
+                var count = Int(item, "count", 0);
+                // A range that does not sit inside the particle list would write
+                // past the end of a submesh, so drop it rather than clamp it.
+                if (submeshIndex < 0 || offset < 0 || count <= 0 || offset + count > ClothParticles.Count)
+                {
+                    continue;
+                }
+                ClothBatchRanges.Add(new NetClothOverlayBatchRange(submeshIndex, offset, count));
             }
         }
         ClothEnabled &= ClothParticles.Count > 0;
@@ -228,6 +254,7 @@ internal sealed class NetPreviewOverlayState
         clone.ClothPinWeights.AddRange(ClothPinWeights);
         clone.ClothConstraints.AddRange(ClothConstraints);
         clone.ClothColliders.AddRange(ClothColliders);
+        clone.ClothBatchRanges.AddRange(ClothBatchRanges);
         return clone;
     }
 
