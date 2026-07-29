@@ -807,9 +807,39 @@ class ProviderConfigTests(unittest.TestCase):
         saved = save_config(ProviderConfig(model="m", api_key="sk-ant-secret-value"))
         written = config_path().read_text(encoding="utf-8")
         self.assertNotIn("sk-ant-secret-value", written)
+        # Base64 is encoding, not encryption, so the old `plain:` fallback was a
+        # readable credential on disk however loudly the panel warned about it.
+        self.assertNotIn("plain:", written)
+        import base64
+
+        self.assertNotIn(
+            base64.b64encode(b"sk-ant-secret-value").decode("ascii"), written
+        )
         if sys.platform == "win32":
             self.assertTrue(saved.key_is_encrypted)
             self.assertIn("dpapi:", written)
+
+    def test_a_key_that_cannot_be_protected_is_not_written_at_all(self) -> None:
+        """The rest of the config still saves; only the credential is withheld."""
+
+        from unittest import mock
+
+        from tools.translation_studio.ai_provider import (
+            ProviderConfig,
+            config_path,
+            save_config,
+        )
+
+        with mock.patch("tools.translation_studio.ai_provider._dpapi", return_value=None):
+            saved = save_config(
+                ProviderConfig(model="gpt-x", api_key="sk-ant-secret-value")
+            )
+
+        written = config_path().read_text(encoding="utf-8")
+        self.assertFalse(saved.key_is_encrypted)
+        self.assertNotIn("sk-ant-secret-value", written)
+        self.assertNotIn("plain:", written)
+        self.assertIn("gpt-x", written)
 
     def test_a_saved_config_loads_back(self) -> None:
         from tools.translation_studio.ai_provider import (

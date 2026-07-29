@@ -111,6 +111,7 @@
     "tests/test_static_replacement_source_parts_state.py": 2451,
     "tests/test_static_texture_replacement.py": 8119,
     "tests/test_texture_editor_ui_helpers.py": 3925,
+    "tests/test_translation_studio.py": 1020,
     "tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.cs": 1024,
     "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs": 1289,
     "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs": 1306,
