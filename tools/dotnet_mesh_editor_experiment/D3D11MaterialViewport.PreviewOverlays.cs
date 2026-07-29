@@ -7,23 +7,7 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class D3D11MaterialViewport
 {
-    // Chosen so a deflected vertex returns over a few tenths of a second: stiff
-    // enough that the garment holds its authored silhouette, soft enough that
-    // gravity and wind still visibly move it.
-    private const float ClothRestStiffness = 34.0f;
-    private const float ClothVelocityDamping = 0.90f;
-
-    // The simulation runs on a fixed step so behaviour does not change with frame
-    // rate. Per-frame damping and a per-frame constraint count meant 0.9^30 of
-    // velocity surviving a second at 30fps against 0.9^240 at 240fps, and 90
-    // solver iterations per second against 720.
-    private const float ClothFixedStepSeconds = 1.0f / 60.0f;
-    private const int ClothMaxStepsPerFrame = 4;
-
     private readonly List<Vector3> _clothOverlayPositions = new();
-    private readonly HashSet<int> _clothDeformedSubmeshes = new();
-    private Vec3[] _clothAuthoritativeVertices = [];
-    private float _clothStepAccumulator;
     private readonly List<Vector3> _clothOverlayVelocities = new();
     private readonly List<Vector3> _clothOverlayRestPositions = new();
     private readonly List<float> _clothOverlayRestLengths = new();
@@ -52,10 +36,6 @@ internal sealed partial class D3D11MaterialViewport
         {
             DrawClothPreviewOverlay(overlays);
         }
-        else
-        {
-            RestoreClothDeformedSubmeshes();
-        }
     }
 
     private void DrawSkeletonPreviewOverlay(NetPreviewOverlayState overlays)
@@ -79,117 +59,10 @@ internal sealed partial class D3D11MaterialViewport
         DrawOverlayPrimitive(PrimitiveTopology.LineList, selected, OverlayColor(255, 210, 76, 255), matrix);
     }
 
-    /// <summary>
-    /// Push the solved particle positions into the submeshes they came from, so
-    /// the textured mesh is what moves. Without this the solver only fed a line
-    /// overlay and the model stayed rigid underneath it.
-    /// </summary>
-    /// <remarks>
-    /// <see cref="ObjSubmesh.Vertices"/> is the authoring surface: the sculpt and
-    /// vertex tools mutate it, undo snapshots read it, and <c>SaveOutput</c>
-    /// serialises it straight to disk. Leaving simulated positions in it would
-    /// export a transient pose and let an overlay frame overwrite a real edit, so
-    /// the simulated values live in it only for the duration of the upload call
-    /// and the authoritative values are put back before anything else can run.
-    /// The restore is in a finally block because a throwing upload would
-    /// otherwise leave the document holding a simulation frame permanently.
-    /// </remarks>
-    private void ApplyClothSimulationToMesh(NetPreviewOverlayState overlays)
-    {
-        if (_document is null || overlays.ClothBatchRanges.Count == 0)
-        {
-            return;
-        }
-        foreach (var range in overlays.ClothBatchRanges)
-        {
-            if (range.SubmeshIndex < 0 || range.SubmeshIndex >= _document.Submeshes.Count)
-            {
-                continue;
-            }
-            var submesh = _document.Submeshes[range.SubmeshIndex];
-            // A topology edit between package load and now would make the range
-            // describe a mesh that no longer exists; leave that frame alone.
-            if (submesh.Vertices.Count != range.Count)
-            {
-                continue;
-            }
-            var batch = _batches.FirstOrDefault(candidate => candidate.SubmeshIndex == range.SubmeshIndex);
-            if (batch is null
-                || batch.TopologyGeneration != _topologyGeneration
-                || batch.SourceVertexToRenderCorners.SourceVertexCount != submesh.Vertices.Count)
-            {
-                continue;
-            }
-            if (_clothAuthoritativeVertices.Length < range.Count)
-            {
-                _clothAuthoritativeVertices = new Vec3[range.Count];
-            }
-            for (var index = 0; index < range.Count; index++)
-            {
-                _clothAuthoritativeVertices[index] = submesh.Vertices[index];
-                var position = _clothOverlayPositions[range.Offset + index];
-                submesh.Vertices[index] = new Vec3(position.X, position.Y, position.Z);
-            }
-            try
-            {
-                // Every vertex moved, so range coalescing would rebuild the whole
-                // batch anyway; upload it in one call and let WriteFaceVertices
-                // recompute the normals and tangent frames from the new positions.
-                UploadFaceRange(batch, submesh, 0, batch.RenderFaces.Length - 1);
-                _clothDeformedSubmeshes.Add(range.SubmeshIndex);
-            }
-            finally
-            {
-                for (var index = 0; index < range.Count; index++)
-                {
-                    submesh.Vertices[index] = _clothAuthoritativeVertices[index];
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Put the authoritative geometry back on the GPU once cloth stops driving it.
-    /// Disabling the simulation only stops the write, so without this the mesh
-    /// stayed frozen in whatever pose the last simulated frame left on screen.
-    /// </summary>
-    private void RestoreClothDeformedSubmeshes()
-    {
-        if (_clothDeformedSubmeshes.Count == 0)
-        {
-            return;
-        }
-        foreach (var submeshIndex in _clothDeformedSubmeshes)
-        {
-            if (_document is null || submeshIndex < 0 || submeshIndex >= _document.Submeshes.Count)
-            {
-                continue;
-            }
-            var submesh = _document.Submeshes[submeshIndex];
-            var batch = _batches.FirstOrDefault(candidate => candidate.SubmeshIndex == submeshIndex);
-            if (batch is null
-                || batch.TopologyGeneration != _topologyGeneration
-                || batch.SourceVertexToRenderCorners.SourceVertexCount != submesh.Vertices.Count)
-            {
-                continue;
-            }
-            UploadFaceRange(batch, submesh, 0, batch.RenderFaces.Length - 1);
-        }
-        _clothDeformedSubmeshes.Clear();
-    }
-
     private void DrawClothPreviewOverlay(NetPreviewOverlayState overlays)
     {
         EnsureClothOverlaySimulation(overlays);
         StepClothOverlaySimulation(overlays);
-        ApplyClothSimulationToMesh(overlays);
-        // The constraint lines were the only way to see the simulation when it
-        // could not move the mesh. Now that it can, they are debug output and
-        // ride with the other debug overlays rather than being the whole show.
-        if (!overlays.ClothShowPins && !overlays.ClothShowColliders)
-        {
-            return;
-        }
         var constraints = ResetScratchA();
         foreach (var constraint in overlays.ClothConstraints)
         {
@@ -276,36 +149,17 @@ internal sealed partial class D3D11MaterialViewport
     private void StepClothOverlaySimulation(NetPreviewOverlayState overlays)
     {
         var now = Stopwatch.GetTimestamp();
-        var elapsed = _clothOverlayLastTimestamp <= 0
-            ? ClothFixedStepSeconds
-            : (float)Math.Clamp((now - _clothOverlayLastTimestamp) / (double)Stopwatch.Frequency, 0.0, 0.25);
+        var deltaSeconds = _clothOverlayLastTimestamp <= 0
+            ? 1.0f / 60.0f
+            : (float)Math.Clamp(
+                (now - _clothOverlayLastTimestamp) / (double)Stopwatch.Frequency,
+                1.0 / 240.0,
+                1.0 / 30.0);
         _clothOverlayLastTimestamp = now;
         if (overlays.ClothPaused)
         {
-            // Hold the accumulator so unpausing does not immediately spend the
-            // whole paused duration as catch-up steps.
-            _clothStepAccumulator = 0.0f;
             return;
         }
-        _clothStepAccumulator += elapsed;
-        var steps = 0;
-        while (_clothStepAccumulator >= ClothFixedStepSeconds && steps < ClothMaxStepsPerFrame)
-        {
-            _clothStepAccumulator -= ClothFixedStepSeconds;
-            steps++;
-            StepClothOverlayFixed(overlays);
-        }
-        if (steps >= ClothMaxStepsPerFrame)
-        {
-            // Dropping the backlog keeps a stall from turning into a burst of
-            // catch-up that looks like an explosion.
-            _clothStepAccumulator = 0.0f;
-        }
-    }
-
-    private void StepClothOverlayFixed(NetPreviewOverlayState overlays)
-    {
-        const float deltaSeconds = ClothFixedStepSeconds;
         var windRadians = overlays.ClothWindDirectionDegrees * MathF.PI / 180.0f;
         var acceleration = new Vector3(
             MathF.Cos(windRadians) * overlays.ClothWindStrength * 0.8f,
@@ -320,16 +174,7 @@ internal sealed partial class D3D11MaterialViewport
                 _clothOverlayVelocities[index] = Vector3.Zero;
                 continue;
             }
-            // The authored shape is the equilibrium, not the floor. Distance
-            // constraints alone do not oppose a constant pull, so a garment with
-            // few pins sagged until it collapsed into a heap -- correct for a
-            // flag, wrong for trousers already hanging where they belong. A
-            // spring back to the rest pose makes gravity a deflection the cloth
-            // recovers from rather than a direction it keeps travelling in.
-            var toRest = _clothOverlayRestPositions[index] - _clothOverlayPositions[index];
-            var restoring = toRest * ClothRestStiffness;
-            var velocity = (_clothOverlayVelocities[index] + (acceleration + restoring) * deltaSeconds)
-                * ClothVelocityDamping;
+            var velocity = (_clothOverlayVelocities[index] + acceleration * deltaSeconds) * 0.992f;
             _clothOverlayVelocities[index] = velocity;
             _clothOverlayPositions[index] += velocity * deltaSeconds * (1.0f - pinWeight);
         }

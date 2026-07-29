@@ -354,12 +354,6 @@ class ArchivePreviewDotNetLifecycleMixin:
                 checkbox.setToolTip(
                     "Check to resolve and display textures after geometry is usable. This choice is kept after restart."
                 )
-        # Every path that lands a package refreshes this one, and the cloth
-        # control's availability comes from that same package. Moving the
-        # availability into the cloth sync was not enough on its own -- nothing
-        # called it from here, so the toggle still only appeared once something
-        # else ran the full toolbar pass.
-        self._sync_archive_cloth_physics_action_state()
 
     def _sync_archive_model_toolbar_toggles(
         self,
@@ -367,21 +361,13 @@ class ArchivePreviewDotNetLifecycleMixin:
         resident_available: bool,
         controls_enabled: bool,
     ) -> None:
-        """Refresh the Load textures and Cloth physics toolbar checkboxes."""
+        """Refresh the Load textures toolbar checkbox."""
 
-        # Remembered so the texture-request completion path, which refreshes only
-        # the texture checkbox, can bring the cloth control with it. Without that
-        # the cloth toggle stayed hidden for as long as textures were loaded and
-        # appeared only once "Load textures" was unticked.
-        self._archive_toolbar_resident_available = bool(resident_available)
-        self._archive_toolbar_controls_enabled = bool(controls_enabled)
         sync_texture_action = getattr(self, "_sync_archive_texture_action_state", None)
         if callable(sync_texture_action):
-            # This already refreshes the cloth control from the flags above.
             sync_texture_action()
         else:
             self.archive_isolated_renderer_button.setText("Load textures")
-            self._sync_archive_cloth_physics_action_state()
         self.archive_isolated_renderer_button.setVisible(bool(resident_available))
         if not bool(getattr(self, "_archive_texture_request_loading", False)):
             self.archive_isolated_renderer_button.setEnabled(bool(resident_available and controls_enabled))
@@ -410,60 +396,6 @@ class ArchivePreviewDotNetLifecycleMixin:
         self._set_archive_isolated_renderer_debug(
             f".NET/Vortice Preview: presentation update rejected: {reason}"
         )
-
-    def _toggle_archive_cloth_physics_preview(self) -> None:
-        """Apply the toolbar cloth checkbox through the shared preview settings."""
-
-        checkbox = getattr(self, "archive_cloth_physics_button", None)
-        if checkbox is None or not hasattr(checkbox, "isChecked"):
-            return
-        settings = self._current_model_preview_render_settings()
-        enabled = bool(checkbox.isChecked())
-        if bool(settings.enable_tool_pbd_cloth_preview) == enabled:
-            return
-        self._handle_model_preview_settings_changed(
-            replace(settings, enable_tool_pbd_cloth_preview=enabled)
-        )
-        self.set_status_message(
-            "Cloth physics preview enabled; batches that declare PBD physics are simulated."
-            if enabled
-            else "Cloth physics preview disabled."
-        )
-
-    def _sync_archive_cloth_physics_action_state(self) -> None:
-        checkbox = getattr(self, "archive_cloth_physics_button", None)
-        if checkbox is None:
-            return
-        preference_enabled = bool(
-            self._current_model_preview_render_settings().enable_tool_pbd_cloth_preview
-        )
-        previous_blocked = checkbox.blockSignals(True)
-        try:
-            checkbox.setChecked(preference_enabled)
-        finally:
-            checkbox.blockSignals(previous_blocked)
-        # Only assets whose package declares PBD batches can simulate anything, so
-        # the control stays hidden rather than offering a toggle that does nothing.
-        available = bool(
-            getattr(self, "_archive_toolbar_resident_available", False)
-            and self._archive_active_package_has_cloth_batches()
-        )
-        checkbox.setVisible(available)
-        checkbox.setEnabled(
-            bool(available and getattr(self, "_archive_toolbar_controls_enabled", False))
-        )
-
-    def _archive_active_package_has_cloth_batches(self) -> bool:
-        package_dir = getattr(self, "archive_isolated_renderer_active_package", None)
-        if package_dir is None:
-            return False
-        try:
-            payload = json.loads((Path(package_dir) / "manifest.json").read_text(encoding="utf-8-sig"))
-        except (OSError, TypeError, ValueError):
-            return False
-        if not isinstance(payload, Mapping):
-            return False
-        return int(payload.get("cloth_batch_count", 0) or 0) > 0
 
     def _start_archive_native_preview_prefetch(self) -> None:
         """Compatibility no-op; canonical packages are cached by preview preparation."""
