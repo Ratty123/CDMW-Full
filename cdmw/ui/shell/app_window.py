@@ -556,7 +556,11 @@ def run_gui() -> int:
         globals()["_cdmw_tree_column_width_filter_ref"] = application_startup.tree_column_width_filter
 
         _write_heartbeat("startup_splash")
-        startup_splash = create_startup_splash(app, startup_theme)
+        startup_splash = create_startup_splash(
+            app,
+            startup_theme,
+            settings=application_startup.settings,
+        )
 
         _write_heartbeat("main_window")
         window = MainWindow(

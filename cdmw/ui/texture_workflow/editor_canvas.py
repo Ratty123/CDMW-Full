@@ -11,6 +11,7 @@ from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPainterPath, Q
 from PySide6.QtWidgets import QScrollArea, QSizePolicy, QWidget
 
 from cdmw.models import TextureEditorSelection
+from cdmw.ui.localization import translate_active_ui_text
 from cdmw.ui.texture_workflow.editor_images import _rgba_array_to_qimage
 
 
@@ -385,7 +386,11 @@ class TextureEditorCanvas(QWidget):
         painter.restore()
 
     def _draw_brush_hud(self, painter: QPainter, center_x: float, center_y: float) -> None:
-        tip_label = "Stamp" if (self._brush_tip or "").strip().lower() == "image_stamp" else self._brush_tip.title()
+        tip_label = (
+            translate_active_ui_text("Stamp")
+            if (self._brush_tip or "").strip().lower() == "image_stamp"
+            else self._brush_tip.title()
+        )
         hud_text = f"{max(0.25, self._brush_size):.2f}px  H{self._brush_hardness}%  {tip_label}  R{self._brush_roundness}%  A{self._brush_angle}°"
         metrics = painter.fontMetrics()
         text_width = metrics.horizontalAdvance(hud_text) + 12
@@ -723,7 +728,11 @@ class TextureEditorCanvas(QWidget):
         painter.fillRect(self.rect(), QColor("#222733"))
         if self._image is None or self._display_image is None:
             painter.setPen(QColor("#9CA6B8"))
-            painter.drawText(self.rect(), Qt.AlignCenter, "Open a texture to start editing.")
+            painter.drawText(
+                self.rect(),
+                Qt.AlignCenter,
+                translate_active_ui_text("Open a texture to start editing."),
+            )
             return
         target_rect = self._display_target_rect()
         if target_rect.isEmpty():

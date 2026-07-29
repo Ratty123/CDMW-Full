@@ -20,6 +20,10 @@ from cdmw.core.startup_splash_protocol import (
     startup_splash_artifact_paths,
     write_startup_splash_payload,
 )
+from cdmw.services.startup_localization_service import (
+    StartupLocalizer,
+    load_startup_localizer,
+)
 
 
 DEFAULT_STARTUP_THEME = "graphite"
@@ -29,6 +33,7 @@ _startup_splash_process: Optional[subprocess.Popen[object]] = None
 _startup_splash_exit_event: Optional[threading.Event] = None
 _startup_splash_monitor_thread: Optional[threading.Thread] = None
 _startup_splash_watchdog_thread: Optional[threading.Thread] = None
+_startup_localizer: Optional[StartupLocalizer] = None
 
 _SPLASH_COMMAND_RE = re.compile(r"^splash_(\d+)_\d+\.json$")
 _STALE_SPLASH_MAX_AGE_SECONDS = 24 * 60 * 60
@@ -41,7 +46,8 @@ def update_pyinstaller_boot_splash(text: str) -> None:
         import pyi_splash  # type: ignore[import-not-found]
 
         if pyi_splash.is_alive():
-            pyi_splash.update_text(str(text))
+            localizer = _startup_localizer or load_startup_localizer()
+            pyi_splash.update_text(localizer.resolve_message(str(text)).rendered)
     except Exception:
         pass
 
@@ -66,14 +72,21 @@ def write_startup_splash_command(
     total: int = 0,
     closed: bool = False,
     theme_key: str = "",
+    startup_localizer: StartupLocalizer | None = None,
 ) -> None:
+    localizer = startup_localizer or _startup_localizer or load_startup_localizer()
+    message = localizer.resolve_message(detail)
     write_startup_splash_payload(
         path,
-        detail=detail,
+        detail=message.rendered,
         current=current,
         total=total,
         closed=closed,
         theme_key=str(theme_key or read_startup_theme_key()),
+        language_code=localizer.language_code,
+        startup_translations=localizer.protocol_translations(),
+        message_key=message.key,
+        message_args=message.arguments,
     )
 
 
@@ -135,7 +148,7 @@ def _monitor_startup_splash_process(
     command_file: Path,
     exited: threading.Event,
 ) -> None:
-    global _startup_splash_command_file, _startup_splash_exit_event
+    global _startup_localizer, _startup_splash_command_file, _startup_splash_exit_event
     global _startup_splash_monitor_thread, _startup_splash_process
     try:
         process.wait()
@@ -149,6 +162,7 @@ def _monitor_startup_splash_process(
             _startup_splash_process = None
             _startup_splash_exit_event = None
             _startup_splash_monitor_thread = None
+            _startup_localizer = None
             if os.environ.get(STARTUP_SPLASH_COMMAND_FILE_ENV) == str(command_file):
                 os.environ.pop(STARTUP_SPLASH_COMMAND_FILE_ENV, None)
 
@@ -228,7 +242,7 @@ def startup_splash_host_command(command_file: Path) -> list[str]:
 
 def start_external_startup_splash() -> Optional[Path]:
     global _startup_splash_command_file, _startup_splash_exit_event
-    global _startup_splash_monitor_thread, _startup_splash_process
+    global _startup_localizer, _startup_splash_monitor_thread, _startup_splash_process
     if os.environ.get("CDMW_GUI_STARTUP_SMOKE") == "1":
         close_external_startup_splash()
         return None
@@ -240,7 +254,13 @@ def start_external_startup_splash() -> Optional[Path]:
         splash_dir.mkdir(parents=True, exist_ok=True)
         command_file = splash_dir / f"splash_{os.getpid()}_{int(time.time() * 1000)}.json"
         startup_theme_key = read_startup_theme_key()
-        write_startup_splash_command(command_file, detail="Starting application...", theme_key=startup_theme_key)
+        _startup_localizer = load_startup_localizer()
+        write_startup_splash_command(
+            command_file,
+            detail="Starting application...",
+            theme_key=startup_theme_key,
+            startup_localizer=_startup_localizer,
+        )
         creationflags = 0
         startupinfo = None
         if os.name == "nt":
@@ -275,6 +295,7 @@ def start_external_startup_splash() -> Optional[Path]:
             _startup_splash_exit_event = None
             _startup_splash_monitor_thread = None
         os.environ.pop(STARTUP_SPLASH_COMMAND_FILE_ENV, None)
+        _startup_localizer = None
         if command_file is not None:
             cleanup_startup_splash_artifacts(command_file)
         if process is not None and command_file is not None:
@@ -285,7 +306,8 @@ def start_external_startup_splash() -> Optional[Path]:
 
 def close_external_startup_splash() -> None:
     global _startup_splash_command_file, _startup_splash_exit_event
-    global _startup_splash_monitor_thread, _startup_splash_process, _startup_splash_watchdog_thread
+    global _startup_localizer, _startup_splash_monitor_thread
+    global _startup_splash_process, _startup_splash_watchdog_thread
     command_file = _startup_splash_command_file
     process = _startup_splash_process
     exited = _startup_splash_exit_event
@@ -294,9 +316,16 @@ def close_external_startup_splash() -> None:
     _startup_splash_exit_event = None
     _startup_splash_monitor_thread = None
     if command_file is None:
+        _startup_localizer = None
         os.environ.pop(STARTUP_SPLASH_COMMAND_FILE_ENV, None)
         return
-    write_startup_splash_command(command_file, detail="Opening workspace...", closed=True)
+    write_startup_splash_command(
+        command_file,
+        detail="Opening workspace...",
+        closed=True,
+        startup_localizer=_startup_localizer,
+    )
+    _startup_localizer = None
     cleanup_startup_splash_artifacts(command_file)
     if os.environ.get(STARTUP_SPLASH_COMMAND_FILE_ENV) == str(command_file):
         os.environ.pop(STARTUP_SPLASH_COMMAND_FILE_ENV, None)

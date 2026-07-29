@@ -9,6 +9,8 @@ from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QSizePolicy, QToolButton, QVBoxLayout, QWidget
 
+from cdmw.ui.localization import translate_active_ui_text
+
 class CollapsibleSection(QWidget):
     toggled = Signal(bool)
 
@@ -97,7 +99,7 @@ class TextureEditorNavigator(QWidget):
         target = self._target_rect()
         if target.isEmpty():
             painter.setPen(QColor("#8B97AA"))
-            painter.drawText(self.rect(), Qt.AlignCenter, "Navigator")
+            painter.drawText(self.rect(), Qt.AlignCenter, translate_active_ui_text("Navigator"))
             return
         painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
         painter.setPen(QPen(QColor(255, 255, 255, 18), 1))
@@ -107,7 +109,7 @@ class TextureEditorNavigator(QWidget):
             painter.drawImage(target, self._image)
         else:
             painter.setPen(QColor("#8B97AA"))
-            painter.drawText(target.toRect(), Qt.AlignCenter, "No preview")
+            painter.drawText(target.toRect(), Qt.AlignCenter, translate_active_ui_text("No preview"))
         if self._viewport_rect is not None and self._image_width > 0 and self._image_height > 0:
             vx, vy, vw, vh = self._viewport_rect
             view = QRectF(

@@ -38,6 +38,10 @@ internal static class Program
                 ApplicationConfiguration.Initialize();
                 return EditMeshLayoutSmoke.Run(args);
             }
+            if (UiLocalizationContractSmoke.IsRequested(args))
+            {
+                return UiLocalizationContractSmoke.Run(args);
+            }
             if (HeadlessGpuFramePacingSoak.IsRequested(args))
             {
                 ApplicationConfiguration.Initialize();
@@ -98,6 +102,7 @@ internal static class Program
             var suppressDialog = IsEmbedded(args) || Array.Exists(args, arg =>
                 string.Equals(arg, "--headless-smoke", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-edit-mesh-layout-smoke", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(arg, "--headless-ui-localization-contract", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-frame-pacing-soak", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-sparse-soak", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-material-authority-parity", StringComparison.OrdinalIgnoreCase)

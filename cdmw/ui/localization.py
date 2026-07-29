@@ -1,34 +1,75 @@
 from __future__ import annotations
 
 import html
+import json
 import re
+import string
+import weakref
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import Callable, Dict, Iterable, Mapping, Optional, Set, Tuple
 
+from PySide6.QtCore import (
+    QAbstractItemModel,
+    QDate,
+    QDateTime,
+    QEvent,
+    QLocale,
+    QModelIndex,
+    QObject,
+    Qt,
+    QTime,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QAbstractItemView,
+    QApplication,
+    QColorDialog,
     QComboBox,
+    QCommandLinkButton,
+    QDialogButtonBox,
+    QFileDialog,
+    QFontDialog,
     QGroupBox,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
+    QMessageBox,
     QPlainTextEdit,
     QMainWindow,
     QMenu,
+    QProgressDialog,
+    QStatusBar,
+    QTabBar,
     QTabWidget,
     QTableWidget,
     QTextBrowser,
     QTextEdit,
     QTreeWidget,
+    QWizardPage,
     QWidget,
 )
+from shiboken6 import isValid as qt_object_is_valid
 
-from cdmw.ui.localization_catalogs import (
+from cdmw.domain.localization import (
+    BUILTIN_LANGUAGE_CODES,
+    FrozenTranslationEntry,
+    TranslationEntry,
+    canonical_language_code,
+    freeze_translation_entry,
+    language_name_for_code as _builtin_language_name_for_code,
+    plural_category,
+    plural_rule_for_code,
+    thaw_translation_entry,
+)
+from cdmw.ui.localization_catalogs_v2 import (
     BUILTIN_LANGUAGES,
     SOURCE_STRING_CATALOGUE,
-    _FALLBACK_EXACT_TRANSLATIONS,
-    _FALLBACK_WORD_TRANSLATIONS,
+    translation_catalog_hash,
 )
 from cdmw.services.localization_file_service import (
     LANGUAGE_WARNING,
@@ -43,6 +84,420 @@ _HTML_TAG_RE = re.compile(r"(<[^>]+>)")
 _HTML_NON_TEXT_BLOCK_RE = re.compile(r"<(script|style)\b[^>]*>.*?</\1>", re.IGNORECASE | re.DOTALL)
 _WHITESPACE_RE = re.compile(r"\s+")
 _TRANSLATABLE_WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9'&/()\-+.,:;!? ]*")
+_TEMPLATE_VALUE_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)[^{}]*\}")
+_MODEL_SOURCE_ROLE = int(Qt.ItemDataRole.UserRole) + 1000
+_MODEL_RENDERED_ROLE = _MODEL_SOURCE_ROLE + 1
+_MODEL_MAX_ITEMS = 2_000
+_MODEL_PRESENTATION_ROLES = (
+    Qt.ItemDataRole.DisplayRole,
+    Qt.ItemDataRole.ToolTipRole,
+    Qt.ItemDataRole.StatusTipRole,
+    Qt.ItemDataRole.WhatsThisRole,
+    Qt.ItemDataRole.AccessibleTextRole,
+    Qt.ItemDataRole.AccessibleDescriptionRole,
+)
+_MODEL_PRESENTATION_ROLE_INDEX = {
+    int(role): index
+    for index, role in enumerate(_MODEL_PRESENTATION_ROLES)
+}
+_FILE_FILTER_SEGMENT_RE = re.compile(
+    r"^(?P<label>.*?)(?P<patterns>\s*\([^()]*\)\s*)$"
+)
+_PRESENTATION_NUMBER_RE = re.compile(
+    r"^(?P<number>[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)"
+    r"(?P<suffix>\s*(?:B|KiB|MiB|GiB|TiB|KB|MB|GB|ms|s|min|%|px|Hz|FPS))?$"
+)
+_TECHNICAL_PRESENTATION_CONTEXT_RE = re.compile(
+    r"\b(?:id|uid|pid|port|protocol|revision|index|offset|address|"
+    r"hash|crc|sha|dxgi|lod|version)\b",
+    re.IGNORECASE,
+)
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_ISO_DATETIME_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?$"
+)
+_ISO_TIME_RE = re.compile(r"^\d{2}:\d{2}(?::\d{2})?$")
+_NUMERIC_PAIR_TEMPLATE_RE = re.compile(
+    r"^\s*\{[A-Za-z_][A-Za-z0-9_]*(?:![^}:]+)?(?::[^}]+)?\}"
+    r"\s*/\s*"
+    r"\{[A-Za-z_][A-Za-z0-9_]*(?:![^}:]+)?(?::[^}]+)?\}\s*$"
+)
+_FILE_DIALOG_METHODS = (
+    "getOpenFileName",
+    "getOpenFileNames",
+    "getSaveFileName",
+    "getExistingDirectory",
+)
+_FILE_DIALOG_ORIGINALS: Dict[str, Callable[..., object]] = {}
+_STATIC_DIALOG_ORIGINALS: Dict[Tuple[str, str], Callable[..., object]] = {}
+_STATUS_BAR_ORIGINALS: Dict[str, Callable[..., object]] = {}
+_PLAIN_TEXT_EDIT_ORIGINALS: Dict[str, Callable[..., object]] = {}
+_PYTHON_MODEL_ORIGINALS: Dict[Tuple[type, str], Callable[..., object]] = {}
+_LOG_PREFIX_RE = re.compile(r"^(?P<prefix>\s*(?:\[\d{2}:\d{2}:\d{2}\]\s*|[-*]\s+))(?P<body>.*)$")
+_DIALOG_BUTTON_SOURCES = (
+    (QDialogButtonBox.StandardButton.Ok, "OK"),
+    (QDialogButtonBox.StandardButton.Save, "Save"),
+    (QDialogButtonBox.StandardButton.SaveAll, "Save All"),
+    (QDialogButtonBox.StandardButton.Open, "Open"),
+    (QDialogButtonBox.StandardButton.Yes, "Yes"),
+    (QDialogButtonBox.StandardButton.YesToAll, "Yes to All"),
+    (QDialogButtonBox.StandardButton.No, "No"),
+    (QDialogButtonBox.StandardButton.NoToAll, "No to All"),
+    (QDialogButtonBox.StandardButton.Abort, "Abort"),
+    (QDialogButtonBox.StandardButton.Retry, "Retry"),
+    (QDialogButtonBox.StandardButton.Ignore, "Ignore"),
+    (QDialogButtonBox.StandardButton.Close, "Close"),
+    (QDialogButtonBox.StandardButton.Cancel, "Cancel"),
+    (QDialogButtonBox.StandardButton.Discard, "Discard"),
+    (QDialogButtonBox.StandardButton.Help, "Help"),
+    (QDialogButtonBox.StandardButton.Apply, "Apply"),
+    (QDialogButtonBox.StandardButton.Reset, "Reset"),
+    (QDialogButtonBox.StandardButton.RestoreDefaults, "Restore Defaults"),
+)
+
+
+def _active_ui_localizer() -> object | None:
+    app = QApplication.instance()
+    if app is None or not qt_object_is_valid(app):
+        return None
+    localizer = app.property("_cdmw_ui_localizer")
+    if isinstance(localizer, QObject) and not qt_object_is_valid(localizer):
+        return None
+    return localizer
+
+
+def _translate_active_text(value: object) -> object:
+    localizer = _active_ui_localizer()
+    translate_rendered = getattr(localizer, "translate_rendered", None)
+    if not callable(translate_rendered) or not isinstance(value, str):
+        return value
+    return translate_rendered(value)
+
+
+def translate_active_ui_text(value: str) -> str:
+    """Translate one already-rendered GUI value through the process owner."""
+    return str(_translate_active_text(str(value or "")))
+
+
+def _replace_dialog_argument(
+    positional: list[object],
+    kwargs: dict[str, object],
+    index: int,
+    keyword_names: Iterable[str],
+) -> None:
+    if index < len(positional) and isinstance(positional[index], str):
+        positional[index] = _translate_active_text(positional[index])
+        return
+    for keyword_name in keyword_names:
+        if isinstance(kwargs.get(keyword_name), str):
+            kwargs[keyword_name] = _translate_active_text(kwargs[keyword_name])
+            return
+
+
+def _localized_static_dialog_call(
+    owner_name: str,
+    method_name: str,
+    *args: object,
+    **kwargs: object,
+) -> object:
+    original = _STATIC_DIALOG_ORIGINALS[(owner_name, method_name)]
+    if _active_ui_localizer() is None:
+        return original(*args, **kwargs)
+    positional = list(args)
+    reverse_items: dict[str, str] = {}
+    if owner_name == "QMessageBox":
+        _replace_dialog_argument(positional, kwargs, 1, ("title", "caption"))
+        _replace_dialog_argument(positional, kwargs, 2, ("text",))
+    elif owner_name == "QInputDialog":
+        _replace_dialog_argument(positional, kwargs, 1, ("title",))
+        _replace_dialog_argument(positional, kwargs, 2, ("label",))
+        if method_name == "getItem":
+            items: object | None = (
+                positional[3]
+                if len(positional) > 3
+                else kwargs.get("items")
+            )
+            if isinstance(items, (list, tuple)):
+                localized_items = [
+                    str(_translate_active_text(str(item)))
+                    for item in items
+                ]
+                reverse_items = {
+                    localized: str(source)
+                    for source, localized in zip(items, localized_items)
+                }
+                if len(positional) > 3:
+                    positional[3] = localized_items
+                else:
+                    kwargs["items"] = localized_items
+    elif owner_name in {"QColorDialog", "QFontDialog"}:
+        _replace_dialog_argument(positional, kwargs, 2, ("title",))
+
+    result = original(*positional, **kwargs)
+    if (
+        owner_name == "QInputDialog"
+        and method_name == "getItem"
+        and isinstance(result, tuple)
+        and len(result) == 2
+        and isinstance(result[0], str)
+    ):
+        return (reverse_items.get(result[0], result[0]), result[1])
+    return result
+
+
+def _install_static_dialog_wrappers() -> None:
+    if _STATIC_DIALOG_ORIGINALS:
+        return
+    owners: tuple[tuple[str, object, tuple[str, ...]], ...] = (
+        (
+            "QMessageBox",
+            QMessageBox,
+            ("about", "critical", "information", "question", "warning"),
+        ),
+        (
+            "QInputDialog",
+            QInputDialog,
+            ("getDouble", "getInt", "getItem", "getMultiLineText", "getText"),
+        ),
+        ("QColorDialog", QColorDialog, ("getColor",)),
+        ("QFontDialog", QFontDialog, ("getFont",)),
+    )
+    for owner_name, owner, method_names in owners:
+        for method_name in method_names:
+            original = getattr(owner, method_name)
+            _STATIC_DIALOG_ORIGINALS[(owner_name, method_name)] = original
+
+            def wrapper(
+                *args: object,
+                _owner_name: str = owner_name,
+                _method_name: str = method_name,
+                **kwargs: object,
+            ) -> object:
+                return _localized_static_dialog_call(
+                    _owner_name,
+                    _method_name,
+                    *args,
+                    **kwargs,
+                )
+
+            setattr(owner, method_name, staticmethod(wrapper))
+
+
+def _localized_status_bar_show(
+    status_bar: QStatusBar,
+    message: str,
+    timeout: int = 0,
+) -> None:
+    original = _STATUS_BAR_ORIGINALS["showMessage"]
+    source = str(message or "")
+    rendered = str(_translate_active_text(source))
+    status_bar.setProperty("_i18n_source_status_message", source)
+    status_bar.setProperty("_i18n_rendered_status_message", rendered)
+    status_bar.setProperty("_i18n_status_message_timeout", int(timeout))
+    original(status_bar, rendered, int(timeout))
+
+
+def _localized_status_bar_clear(status_bar: QStatusBar) -> None:
+    status_bar.setProperty("_i18n_source_status_message", "")
+    status_bar.setProperty("_i18n_rendered_status_message", "")
+    status_bar.setProperty("_i18n_status_message_timeout", 0)
+    _STATUS_BAR_ORIGINALS["clearMessage"](status_bar)
+
+
+def _install_status_bar_wrappers() -> None:
+    if _STATUS_BAR_ORIGINALS:
+        return
+    _STATUS_BAR_ORIGINALS["showMessage"] = QStatusBar.showMessage
+    _STATUS_BAR_ORIGINALS["clearMessage"] = QStatusBar.clearMessage
+    QStatusBar.showMessage = _localized_status_bar_show
+    QStatusBar.clearMessage = _localized_status_bar_clear
+
+
+def _localized_append_plain_text(
+    editor: QPlainTextEdit,
+    text: str,
+) -> None:
+    original = _PLAIN_TEXT_EDIT_ORIGINALS["appendPlainText"]
+    if not editor.isReadOnly() or _active_ui_localizer() is None:
+        original(editor, text)
+        return
+    current = editor.toPlainText()
+    source = editor.property("_i18n_source_plain_text")
+    rendered = editor.property("_i18n_rendered_plain_text")
+    if not isinstance(source, str) or (
+        isinstance(rendered, str)
+        and current not in {source, rendered}
+    ):
+        source = current
+    appended_source = source + ("\n" if source else "") + str(text)
+    translated = str(_translate_active_text(str(text)))
+    original(editor, translated)
+    editor.setProperty("_i18n_source_plain_text", appended_source)
+    editor.setProperty(
+        "_i18n_rendered_plain_text",
+        editor.toPlainText(),
+    )
+
+
+def _install_plain_text_edit_wrappers() -> None:
+    if _PLAIN_TEXT_EDIT_ORIGINALS:
+        return
+    _PLAIN_TEXT_EDIT_ORIGINALS[
+        "appendPlainText"
+    ] = QPlainTextEdit.appendPlainText
+    QPlainTextEdit.appendPlainText = _localized_append_plain_text
+
+
+def _model_tracking_roles(role: int | Qt.ItemDataRole) -> tuple[int, int] | None:
+    index = _MODEL_PRESENTATION_ROLE_INDEX.get(int(role))
+    if index is None:
+        return None
+    return (
+        _MODEL_SOURCE_ROLE + (index * 2),
+        _MODEL_RENDERED_ROLE + (index * 2),
+    )
+
+
+def _install_python_model_localization(model: QAbstractItemModel) -> bool:
+    model_type = type(model)
+    if model_type.__module__.startswith(("PySide6.", "shiboken6.")):
+        return False
+    installed = False
+    for method_name in ("data", "headerData"):
+        original = model_type.__dict__.get(method_name)
+        if not callable(original):
+            continue
+        key = (model_type, method_name)
+        if key in _PYTHON_MODEL_ORIGINALS:
+            installed = True
+            continue
+        _PYTHON_MODEL_ORIGINALS[key] = original
+
+        def localized_method(
+            instance: QAbstractItemModel,
+            *args: object,
+            _method_name: str = method_name,
+            _model_type: type = model_type,
+            **kwargs: object,
+        ) -> object:
+            source_method = _PYTHON_MODEL_ORIGINALS[
+                (_model_type, _method_name)
+            ]
+            value = source_method(instance, *args, **kwargs)
+            role = (
+                kwargs.get("role")
+                if "role" in kwargs
+                else (
+                    args[1]
+                    if _method_name == "data" and len(args) > 1
+                    else (
+                        args[2]
+                        if _method_name == "headerData" and len(args) > 2
+                        else Qt.ItemDataRole.DisplayRole
+                    )
+                )
+            )
+            if (
+                isinstance(value, str)
+                and int(role) in _MODEL_PRESENTATION_ROLE_INDEX
+            ):
+                return _translate_active_text(value)
+            return value
+
+        setattr(model_type, method_name, localized_method)
+        installed = True
+    if installed:
+        model.setProperty("_i18n_python_model_localized", True)
+    return installed
+
+
+def _raw_model_call(
+    model: QAbstractItemModel,
+    method_name: str,
+    *args: object,
+) -> object:
+    original = _PYTHON_MODEL_ORIGINALS.get((type(model), method_name))
+    if callable(original):
+        return original(model, *args)
+    return getattr(model, method_name)(*args)
+
+
+def _localized_file_dialog_call(
+    method_name: str,
+    *args: object,
+    **kwargs: object,
+) -> object:
+    original = _FILE_DIALOG_ORIGINALS[method_name]
+    localizer = _active_ui_localizer()
+    translate_rendered = getattr(localizer, "translate_rendered", None)
+    translate_filter = getattr(localizer, "translate_file_filter", None)
+    if not callable(translate_rendered):
+        return original(*args, **kwargs)
+
+    positional = list(args)
+    if len(positional) > 1 and isinstance(positional[1], str):
+        positional[1] = translate_rendered(positional[1])
+    elif isinstance(kwargs.get("caption"), str):
+        kwargs["caption"] = translate_rendered(kwargs["caption"])
+
+    reverse_filters: dict[str, str] = {}
+    forward_filters: dict[str, str] = {}
+    if method_name != "getExistingDirectory" and callable(translate_filter):
+        raw_filter: str | None = None
+        if len(positional) > 3 and isinstance(positional[3], str):
+            raw_filter = positional[3]
+        elif isinstance(kwargs.get("filter"), str):
+            raw_filter = str(kwargs["filter"])
+        if raw_filter is not None:
+            localized_filter, forward_filters, reverse_filters = translate_filter(
+                raw_filter
+            )
+            if len(positional) > 3:
+                positional[3] = localized_filter
+            else:
+                kwargs["filter"] = localized_filter
+        if len(positional) > 4 and isinstance(positional[4], str):
+            positional[4] = forward_filters.get(
+                positional[4],
+                positional[4],
+            )
+        elif isinstance(kwargs.get("selectedFilter"), str):
+            selected_filter = str(kwargs["selectedFilter"])
+            kwargs["selectedFilter"] = forward_filters.get(
+                selected_filter,
+                selected_filter,
+            )
+
+    result = original(*positional, **kwargs)
+    if (
+        method_name != "getExistingDirectory"
+        and isinstance(result, tuple)
+        and len(result) == 2
+        and isinstance(result[1], str)
+    ):
+        return (result[0], reverse_filters.get(result[1], result[1]))
+    return result
+
+
+def _install_file_dialog_wrappers() -> None:
+    if _FILE_DIALOG_ORIGINALS:
+        return
+    for method_name in _FILE_DIALOG_METHODS:
+        original = getattr(QFileDialog, method_name)
+        _FILE_DIALOG_ORIGINALS[method_name] = original
+
+        def wrapper(
+            *args: object,
+            _method_name: str = method_name,
+            **kwargs: object,
+        ) -> object:
+            return _localized_file_dialog_call(
+                _method_name,
+                *args,
+                **kwargs,
+            )
+
+        setattr(QFileDialog, method_name, staticmethod(wrapper))
 
 
 def _looks_like_translatable_text(value: str) -> bool:
@@ -61,6 +516,10 @@ def _looks_like_translatable_text(value: str) -> bool:
         return False
     if "\\" in text:
         return False
+    if "/" in text and " " not in text and "{" not in text:
+        return False
+    if re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)+", text):
+        return False
     if re.search(r"#[0-9a-fA-F]{3,8}\b", text):
         return False
     if re.search(r"\b(?:rgba?|hsla?)\s*\(", text, re.IGNORECASE):
@@ -75,6 +534,11 @@ def _looks_like_translatable_text(value: str) -> bool:
     if re.fullmatch(r"[A-Z0-9_./\\:-]+", text) and " " not in text:
         return False
     if re.fullmatch(r"[{}()[\].,;:+\\/<>=_*|#%$@!?\-0-9 ]+", text):
+        return False
+    if re.fullmatch(
+        r"(?:\{[A-Za-z_][A-Za-z0-9_]*(?:![^}:]+)?(?::[^}]+)?\}\s*)+",
+        text,
+    ):
         return False
     return True
 
@@ -113,72 +577,65 @@ def _translate_html_text(value: str, translate: Callable[[str], str]) -> str:
     text = str(value or "")
     if "<" not in text or ">" not in text:
         return translate(text)
-    text = _HTML_NON_TEXT_BLOCK_RE.sub("", text)
-    parts: list[str] = []
-    for segment in _HTML_TAG_RE.split(text):
-        if not segment or segment.startswith("<"):
-            parts.append(segment)
-            continue
-        leading_len = len(segment) - len(segment.lstrip())
-        trailing_len = len(segment) - len(segment.rstrip())
-        leading = segment[:leading_len]
-        trailing = segment[len(segment) - trailing_len :] if trailing_len else ""
-        body = segment[leading_len : len(segment) - trailing_len if trailing_len else len(segment)]
-        key = _normalize_translation_key(body)
-        translated = translate(key)
-        parts.append(leading + html.escape(translated, quote=False) + trailing)
-    return "".join(parts)
+
+    def translate_fragment(fragment: str) -> str:
+        parts: list[str] = []
+        for segment in _HTML_TAG_RE.split(fragment):
+            if not segment or segment.startswith("<"):
+                parts.append(segment)
+                continue
+            leading_len = len(segment) - len(segment.lstrip())
+            trailing_len = len(segment) - len(segment.rstrip())
+            leading = segment[:leading_len]
+            trailing = (
+                segment[len(segment) - trailing_len :]
+                if trailing_len
+                else ""
+            )
+            body = segment[
+                leading_len : len(segment) - trailing_len
+                if trailing_len
+                else len(segment)
+            ]
+            key = _normalize_translation_key(body)
+            translated = translate(key)
+            parts.append(
+                leading
+                + html.escape(translated, quote=False)
+                + trailing
+            )
+        return "".join(parts)
+
+    output: list[str] = []
+    cursor = 0
+    for match in _HTML_NON_TEXT_BLOCK_RE.finditer(text):
+        output.append(translate_fragment(text[cursor : match.start()]))
+        output.append(match.group(0))
+        cursor = match.end()
+    output.append(translate_fragment(text[cursor:]))
+    return "".join(output)
 
 
 def _fallback_builtin_translation(language_code: str, text: str) -> str:
-    code = str(language_code or "").strip().lower()
-    value = str(text or "")
-    if code not in _FALLBACK_WORD_TRANSLATIONS or not _looks_like_translatable_text(value):
-        return value
-    if re.search(r"[{}\\]", value):
-        return value
-    exact = _FALLBACK_EXACT_TRANSLATIONS.get(code, {}).get(value)
-    if exact:
-        return exact
-    if len(value) > 120:
-        return value
-    words = _FALLBACK_WORD_TRANSLATIONS.get(code, {})
-
-    def replace_word(match: re.Match[str]) -> str:
-        word = match.group(0)
-        return words.get(word, word)
-
-    translated = re.sub(r"\b[A-Za-z][A-Za-z-]*\b", replace_word, value)
-    return translated if translated != value else value
+    del language_code
+    return str(text or "")
 
 
 def language_name_for_code(code: str) -> str:
-    payload = BUILTIN_LANGUAGES.get(str(code or "").strip())
+    normalized = canonical_language_code(code)
+    payload = BUILTIN_LANGUAGES.get(normalized)
     if isinstance(payload, dict):
         return str(payload.get("language_name", code) or code)
-    return str(code or "Custom")
+    return _builtin_language_name_for_code(normalized)
 
 
-def _canonical_source_text(value: str) -> str:
-    """Return the English source key when a widget currently contains a built-in translation."""
-    text = str(value or "")
-    if not text:
-        return text
-    for payload in BUILTIN_LANGUAGES.values():
-        translations = payload.get("translations") if isinstance(payload, dict) else None
-        if not isinstance(translations, dict):
-            continue
-        for source, translated in translations.items():
-            if text == translated:
-                return str(source)
-    return text
-
-
-def _coerce_translation_payload(payload: object) -> Tuple[str, str, Dict[str, str]]:
+def _coerce_translation_payload(
+    payload: object,
+) -> Tuple[str, str, Dict[str, TranslationEntry]]:
     return _coerce_language_payload(payload)
 
 
-def load_language_file(path: Path) -> Tuple[str, str, Dict[str, str]]:
+def load_language_file(path: Path) -> Tuple[str, str, Dict[str, TranslationEntry]]:
     return _load_language_file(path)
 
 
@@ -187,7 +644,7 @@ def write_language_file(
     *,
     language_code: str,
     language_name: str,
-    translations: Mapping[str, str],
+    translations: Mapping[str, TranslationEntry],
 ) -> None:
     _write_language_file(
         path,
@@ -197,20 +654,47 @@ def write_language_file(
     )
 
 
-class UiLocalizer:
-    def __init__(self, *, language_dir: Path, language_code: str = "en") -> None:
+class UiLocalizer(QObject):
+    language_changed = Signal(str, int)
+
+    def __init__(
+        self,
+        *,
+        language_dir: Path,
+        language_code: str = "en",
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
         self.language_dir = language_dir
-        self.language_code = language_code or "en"
+        self.language_code = canonical_language_code(language_code)
         self.language_name = language_name_for_code(self.language_code)
-        self.translations: Dict[str, str] = {}
-        self._custom_languages: Dict[str, Tuple[str, Dict[str, str], Path]] = {}
+        self.translations: Dict[str, TranslationEntry] = {}
+        self.revision = 0
+        self.language_warnings: list[str] = []
+        self._custom_languages: Dict[
+            str,
+            Tuple[str, Dict[str, TranslationEntry], Path, int],
+        ] = {}
+        self._registered_roots: list[weakref.ReferenceType[QWidget]] = []
+        self._pending_objects: dict[int, weakref.ReferenceType[QWidget]] = {}
+        self._application: QApplication | None = None
+        self._runtime_tracking_active = False
+        self._event_filter_busy = False
+        self._rendered_translation_cache: dict[str, str] = {}
+        self._template_patterns = self._build_template_patterns(SOURCE_STRING_CATALOGUE)
         self._scan_custom_languages_once()
         self.load_language(self.language_code)
 
     def available_languages(self) -> Tuple[Tuple[str, str], ...]:
-        languages = [(code, language_name_for_code(code)) for code in ("en", "es", "de")]
-        for code, (name, _translations, _path) in sorted(self._custom_languages.items()):
-            if code not in {item[0] for item in languages}:
+        languages = [
+            (code, language_name_for_code(code))
+            for code in BUILTIN_LANGUAGE_CODES
+        ]
+        builtin_codes = set(BUILTIN_LANGUAGE_CODES)
+        for code, (name, _translations, _path, _rank) in sorted(
+            self._custom_languages.items()
+        ):
+            if code not in builtin_codes:
                 languages.append((code, name))
         return tuple(languages)
 
@@ -220,37 +704,105 @@ class UiLocalizer:
                 code, name, translations = load_language_file(language_file)
             except Exception:
                 continue
-            self._custom_languages[safe_language_code(code)] = (name, translations, language_file)
+            normalized = safe_language_code(code)
+            declared = str(code or "").strip().replace("_", "-")
+            canonical_rank = int(declared.casefold() == normalized.casefold())
+            existing = self._custom_languages.get(normalized)
+            if existing is not None and existing[3] >= canonical_rank:
+                self.language_warnings.append(
+                    f"Ignored duplicate language pack {language_file.name}; "
+                    f"{existing[2].name} owns {normalized}."
+                )
+                continue
+            if existing is not None:
+                self.language_warnings.append(
+                    f"Ignored duplicate language pack {existing[2].name}; "
+                    f"{language_file.name} owns {normalized}."
+                )
+            self._custom_languages[normalized] = (
+                str(name or normalized),
+                {
+                    str(source): (
+                        str(entry)
+                        if isinstance(entry, str)
+                        else {str(category): str(value) for category, value in entry.items()}
+                    )
+                    for source, entry in translations.items()
+                },
+                language_file,
+                canonical_rank,
+            )
 
     def load_language(self, code: str) -> None:
-        normalized_code = str(code or "en").strip() or "en"
+        normalized_code = canonical_language_code(code)
+        builtin = BUILTIN_LANGUAGES.get(normalized_code)
+        custom = self._custom_languages.get(normalized_code)
+        if not isinstance(builtin, dict) and custom is None:
+            normalized_code = "en"
+            builtin = BUILTIN_LANGUAGES.get("en")
+        fallback_builtin = (
+            builtin
+            if isinstance(builtin, dict)
+            else BUILTIN_LANGUAGES.get("en")
+        )
         self.language_code = normalized_code
         self.language_name = language_name_for_code(normalized_code)
         self.translations = {}
-        builtin = BUILTIN_LANGUAGES.get(normalized_code)
-        if isinstance(builtin, dict):
-            self.language_name = str(builtin.get("language_name", self.language_name) or self.language_name)
-            raw_translations = builtin.get("translations", {})
+        self._rendered_translation_cache.clear()
+        if isinstance(fallback_builtin, dict):
+            if isinstance(builtin, dict):
+                self.language_name = str(
+                    builtin.get("language_name", self.language_name)
+                    or self.language_name
+                )
+            raw_translations = fallback_builtin.get("translations", {})
             if isinstance(raw_translations, dict):
-                self.translations.update({str(k): str(v) for k, v in raw_translations.items()})
-        custom = self._custom_languages.get(normalized_code)
+                self.translations.update(
+                    {
+                        str(source): (
+                            str(entry)
+                            if isinstance(entry, str)
+                            else {
+                                str(category): str(value)
+                                for category, value in entry.items()
+                            }
+                        )
+                        for source, entry in raw_translations.items()
+                    }
+                )
         if custom is not None:
-            name, translations, _language_file = custom
-            self.language_name = name
-            self.translations.update(translations)
+            name, translations, _language_file, _rank = custom
+            if normalized_code not in BUILTIN_LANGUAGES:
+                self.language_name = name
+            for source, entry in translations.items():
+                existing = self.translations.get(source)
+                if isinstance(existing, dict) and isinstance(entry, dict):
+                    merged = dict(existing)
+                    merged.update(entry)
+                    self.translations[source] = merged
+                else:
+                    self.translations[source] = (
+                        str(entry) if isinstance(entry, str) else dict(entry)
+                    )
+        self.revision += 1
+        self.language_changed.emit(self.language_code, self.revision)
 
     def install_imported_language(
         self,
         code: str,
         name: str,
-        translations: Mapping[str, str],
+        translations: Mapping[str, TranslationEntry | FrozenTranslationEntry],
         target_path: Path,
     ) -> None:
         normalized_code = safe_language_code(code)
         self._custom_languages[normalized_code] = (
             str(name or normalized_code),
-            {str(key): str(value) for key, value in translations.items()},
+            {
+                str(key): thaw_translation_entry(value)
+                for key, value in translations.items()
+            },
             Path(target_path),
+            1,
         )
         self.load_language(normalized_code)
 
@@ -269,17 +821,566 @@ class UiLocalizer:
 
     def translate(self, text: str) -> str:
         value = str(text or "")
+        if not value:
+            return value
+        entry = self.translations.get(value)
+        if isinstance(entry, str):
+            return entry
+        if isinstance(entry, dict):
+            return str(entry.get("other") or next(iter(entry.values()), value))
+        return _fallback_builtin_translation(self.language_code, value)
+
+    def format(self, source: str, /, **values: object) -> str:
+        template = self.translate(source)
+        localized_values = {
+            key: self._format_template_value(
+                value,
+                context=f"{source} {key}",
+            )
+            for key, value in values.items()
+        }
+        try:
+            return template.format(**localized_values)
+        except (KeyError, ValueError, IndexError):
+            try:
+                return str(source).format(**localized_values)
+            except (KeyError, ValueError, IndexError):
+                return template
+
+    def translate_file_filter(
+        self,
+        source_filter: str,
+    ) -> tuple[str, dict[str, str], dict[str, str]]:
+        localized_segments: list[str] = []
+        forward: dict[str, str] = {}
+        reverse: dict[str, str] = {}
+        for source_segment in str(source_filter or "").split(";;"):
+            match = _FILE_FILTER_SEGMENT_RE.fullmatch(source_segment)
+            if match is None:
+                localized_segment = source_segment
+            else:
+                patterns = match.group("patterns").strip()
+                exact_segment = self.translate(source_segment)
+                exact_match = _FILE_FILTER_SEGMENT_RE.fullmatch(exact_segment)
+                if (
+                    exact_segment != source_segment
+                    and exact_match is not None
+                    and exact_match.group("patterns").strip() == patterns
+                ):
+                    localized_segment = exact_segment
+                else:
+                    label = match.group("label").strip()
+                    translated_label = self.translate_rendered(label)
+                    localized_segment = (
+                        f"{translated_label} {patterns}"
+                        if translated_label
+                        else patterns
+                    )
+            localized_segments.append(localized_segment)
+            forward[source_segment] = localized_segment
+            reverse[localized_segment] = source_segment
+        return ";;".join(localized_segments), forward, reverse
+
+    def format_plural(
+        self,
+        source: str,
+        count: int | float,
+        /,
+        **values: object,
+    ) -> str:
+        entry = self.translations.get(str(source))
+        template: str
+        if isinstance(entry, dict):
+            category = plural_category(self.language_code, count)
+            template = str(entry.get(category) or entry.get("other") or source)
+        elif isinstance(entry, str):
+            template = entry
+        else:
+            template = str(source)
+        payload = dict(values)
+        payload.setdefault("count", count)
+        localized_payload = {
+            key: self._format_template_value(
+                value,
+                context=f"{source} {key}",
+            )
+            for key, value in payload.items()
+        }
+        try:
+            return template.format(**localized_payload)
+        except (KeyError, ValueError, IndexError):
+            return str(source).format(**localized_payload)
+
+    def locale(self) -> QLocale:
+        payload = BUILTIN_LANGUAGES.get(self.language_code)
+        locale_name = (
+            str(payload.get("qt_locale", "") or "")
+            if isinstance(payload, dict)
+            else ""
+        )
+        return QLocale(locale_name or self.language_code.replace("-", "_"))
+
+    def format_number(
+        self,
+        value: int | float,
+        *,
+        decimal_places: int | None = None,
+    ) -> str:
+        locale = self.locale()
+        if isinstance(value, int) and not isinstance(value, bool):
+            return locale.toString(value)
+        if decimal_places is None:
+            return locale.toString(float(value), "g", 15)
+        return locale.toString(float(value), "f", max(0, int(decimal_places)))
+
+    def set_number_text(
+        self,
+        widget: QLabel,
+        value: int | float,
+        *,
+        decimal_places: int | None = None,
+    ) -> None:
+        widget.setProperty("_i18n_human_number_value", value)
+        widget.setProperty(
+            "_i18n_human_number_decimals",
+            -1 if decimal_places is None else max(0, int(decimal_places)),
+        )
+        widget.setText(
+            self.format_number(
+                value,
+                decimal_places=decimal_places,
+            )
+        )
+
+    def format_date(self, value: date | QDate) -> str:
+        qt_value = (
+            value
+            if isinstance(value, QDate)
+            else QDate(int(value.year), int(value.month), int(value.day))
+        )
+        return self.locale().toString(qt_value, QLocale.FormatType.ShortFormat)
+
+    def format_time(self, value: time | QTime) -> str:
+        qt_value = (
+            value
+            if isinstance(value, QTime)
+            else QTime(
+                int(value.hour),
+                int(value.minute),
+                int(value.second),
+                int(value.microsecond // 1000),
+            )
+        )
+        return self.locale().toString(qt_value, QLocale.FormatType.ShortFormat)
+
+    def format_datetime(self, value: datetime | QDateTime) -> str:
+        qt_value = (
+            value
+            if isinstance(value, QDateTime)
+            else QDateTime(
+                QDate(int(value.year), int(value.month), int(value.day)),
+                QTime(
+                    int(value.hour),
+                    int(value.minute),
+                    int(value.second),
+                    int(value.microsecond // 1000),
+                ),
+            )
+        )
+        return self.locale().toString(qt_value, QLocale.FormatType.ShortFormat)
+
+    def format_file_size(self, byte_count: int) -> str:
+        size = max(0, int(byte_count))
+        units = ("B", "KiB", "MiB", "GiB", "TiB")
+        value = float(size)
+        unit_index = 0
+        while value >= 1024.0 and unit_index < len(units) - 1:
+            value /= 1024.0
+            unit_index += 1
+        decimals = 0 if unit_index == 0 or value >= 100 else 1
+        return f"{self.format_number(value, decimal_places=decimals)} {units[unit_index]}"
+
+    def format_duration(self, seconds: int | float) -> str:
+        value = max(0.0, float(seconds))
+        if value < 1.0:
+            return f"{self.format_number(value * 1000.0, decimal_places=0)} ms"
+        if value < 60.0:
+            return f"{self.format_number(value, decimal_places=1)} s"
+        minutes = int(value // 60.0)
+        remaining = int(value % 60.0)
+        return (
+            f"{self.format_number(minutes)} min "
+            f"{self.format_number(remaining)} s"
+        )
+
+    def _format_template_value(
+        self,
+        value: object,
+        *,
+        context: str = "",
+    ) -> str:
+        if isinstance(value, datetime):
+            return self.format_datetime(value)
+        if isinstance(value, date):
+            return self.format_date(value)
+        if isinstance(value, time):
+            return self.format_time(value)
+        if isinstance(value, int) and not isinstance(value, bool):
+            if (
+                _TECHNICAL_PRESENTATION_CONTEXT_RE.search(context)
+                and "count" not in context.casefold()
+            ):
+                return str(value)
+            return self.format_number(value)
+        if isinstance(value, float):
+            if _TECHNICAL_PRESENTATION_CONTEXT_RE.search(context):
+                return format(value, "g")
+            return self.format_number(value)
+        return str(value)
+
+    def _localize_rendered_argument(
+        self,
+        value: str,
+        *,
+        context: str = "",
+    ) -> str:
+        source = str(value or "")
+        if _ISO_DATETIME_RE.fullmatch(source):
+            try:
+                return self.format_datetime(datetime.fromisoformat(source))
+            except ValueError:
+                pass
+        if _ISO_DATE_RE.fullmatch(source):
+            try:
+                return self.format_date(date.fromisoformat(source))
+            except ValueError:
+                pass
+        if _ISO_TIME_RE.fullmatch(source):
+            try:
+                return self.format_time(time.fromisoformat(source))
+            except ValueError:
+                pass
+        match = _PRESENTATION_NUMBER_RE.fullmatch(source)
+        if match is None:
+            return source
+        raw_number = match.group("number")
+        suffix = match.group("suffix") or ""
+        if "," not in raw_number and "." not in raw_number and not suffix:
+            if _TECHNICAL_PRESENTATION_CONTEXT_RE.search(context):
+                return source
+            try:
+                return self.format_number(int(raw_number))
+            except ValueError:
+                return source
+        normalized = raw_number.replace(",", "")
+        try:
+            if "." in normalized:
+                decimals = len(normalized.rsplit(".", 1)[1])
+                rendered = self.format_number(
+                    float(normalized),
+                    decimal_places=decimals,
+                )
+            else:
+                rendered = self.format_number(int(normalized))
+        except ValueError:
+            return source
+        return f"{rendered}{suffix}"
+
+    def translation_snapshot(
+        self,
+        keys: Iterable[str],
+        *,
+        max_keys: int = 10_000,
+        max_bytes: int = 240 * 1024,
+    ) -> Dict[str, TranslationEntry]:
+        selected = tuple(dict.fromkeys(str(key) for key in keys))
+        if len(selected) > max_keys:
+            raise ValueError(f"Translation snapshot exceeds {max_keys:,} keys.")
+        snapshot: Dict[str, TranslationEntry] = {}
+        for source in selected:
+            entry = self.translations.get(source, source)
+            snapshot[source] = (
+                str(entry)
+                if isinstance(entry, str)
+                else {str(category): str(value) for category, value in entry.items()}
+            )
+        encoded = json.dumps(
+            snapshot,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        if len(encoded) > max_bytes:
+            raise ValueError(
+                f"Translation snapshot is {len(encoded):,} bytes; limit is {max_bytes:,}."
+            )
+        return snapshot
+
+    def snapshot_hash(self, keys: Iterable[str]) -> str:
+        selected = tuple(dict.fromkeys(str(key) for key in keys))
+        return translation_catalog_hash(
+            self.language_code,
+            self.translation_snapshot(selected),
+            keys=selected,
+        )
+
+    @staticmethod
+    def _build_template_patterns(
+        sources: Iterable[str],
+    ) -> Tuple[Tuple[re.Pattern[str], str, Tuple[Tuple[str, str], ...]], ...]:
+        patterns: list[
+            Tuple[int, re.Pattern[str], str, Tuple[Tuple[str, str], ...]]
+        ] = []
+        for source in sources:
+            source_text = str(source)
+            numeric_pair = bool(
+                _NUMERIC_PAIR_TEMPLATE_RE.fullmatch(source_text)
+            )
+            try:
+                parsed = tuple(string.Formatter().parse(source_text))
+            except ValueError:
+                continue
+            if not any(field is not None for _literal, field, _spec, _conversion in parsed):
+                continue
+            expression: list[str] = ["^"]
+            fields: list[Tuple[str, str]] = []
+            seen: dict[str, str] = {}
+            literal_chars = 0
+            for literal, field, _format_spec, _conversion in parsed:
+                expression.append(re.escape(literal))
+                literal_chars += len(literal)
+                if field is None:
+                    continue
+                field_name = re.split(r"[.[]", str(field), maxsplit=1)[0]
+                if not field_name or field_name.isdigit():
+                    expression = []
+                    break
+                group_name = seen.get(field_name)
+                if group_name is not None:
+                    expression.append(f"(?P={group_name})")
+                    continue
+                group_name = f"g{len(fields)}"
+                seen[field_name] = group_name
+                fields.append((group_name, field_name))
+                if numeric_pair:
+                    expression.append(
+                        f"(?P<{group_name}>"
+                        r"[-+]?(?:\d{1,3}(?:,\d{3})+|\d+)"
+                        r"(?:\.\d+)?)"
+                    )
+                else:
+                    expression.append(f"(?P<{group_name}>.+?)")
+            if not expression or (literal_chars < 2 and not numeric_pair):
+                continue
+            expression.append("$")
+            try:
+                pattern = re.compile("".join(expression), re.DOTALL)
+            except re.error:
+                continue
+            patterns.append(
+                (literal_chars, pattern, source_text, tuple(fields))
+            )
+        patterns.sort(key=lambda item: (-item[0], item[2]))
+        return tuple((pattern, source, fields) for _weight, pattern, source, fields in patterns)
+
+    def _translate_rendered_single(self, value: str) -> str:
+        if value in self.translations:
+            return self.translate(value)
+        for pattern, source, fields in self._template_patterns:
+            match = pattern.fullmatch(value)
+            if match is None:
+                continue
+            arguments = {
+                field_name: self._localize_rendered_argument(
+                    match.group(group_name),
+                    context=f"{source} {field_name}",
+                )
+                for group_name, field_name in fields
+            }
+            translated = self.format(source, **arguments)
+            if translated != source:
+                return translated
+        return value
+
+    def translate_rendered(self, text: str) -> str:
+        value = str(text or "")
         if not value or self.language_code == "en":
             return value
-        return self.translations.get(value, _fallback_builtin_translation(self.language_code, value))
+        cached = self._rendered_translation_cache.get(value)
+        if cached is not None:
+            return cached
+        prefix_match = _LOG_PREFIX_RE.fullmatch(value)
+        translated = value
+        if prefix_match is not None and prefix_match.group("body"):
+            body = prefix_match.group("body")
+            localized_body = self._translate_rendered_single(body)
+            if localized_body != body:
+                translated = prefix_match.group("prefix") + localized_body
+        if translated == value:
+            translated = self._translate_rendered_single(value)
+        if translated != value:
+            if len(self._rendered_translation_cache) >= 4_096:
+                self._rendered_translation_cache.clear()
+            self._rendered_translation_cache[value] = translated
+            return translated
+        if "\n" in value:
+            translated = "\n".join(
+                self.translate_rendered(line)
+                for line in value.split("\n")
+            )
+        if len(self._rendered_translation_cache) >= 4_096:
+            self._rendered_translation_cache.clear()
+        self._rendered_translation_cache[value] = translated
+        return translated
 
-    def collect_source_strings(self, root: QWidget) -> Dict[str, str]:
-        strings: Dict[str, str] = {}
+    def activate_runtime_tracking(
+        self,
+        root: QWidget,
+        *,
+        application: QApplication | None = None,
+    ) -> None:
+        app = application or QApplication.instance()
+        if (
+            app is not None
+            and qt_object_is_valid(app)
+            and app is not self._application
+        ):
+            if self._application is not None:
+                try:
+                    self._application.removeEventFilter(self)
+                except RuntimeError:
+                    pass
+            self._application = app
+            app.installEventFilter(self)
+            app.setProperty("_cdmw_ui_localizer", self)
+            _install_file_dialog_wrappers()
+            _install_static_dialog_wrappers()
+            _install_status_bar_wrappers()
+            _install_plain_text_edit_wrappers()
+        self._runtime_tracking_active = True
+        self.register_root(root)
+
+    def register_root(self, root: QWidget) -> None:
+        if not isinstance(root, QWidget):
+            return
+        for reference in tuple(self._registered_roots):
+            existing = reference()
+            if existing is None:
+                self._registered_roots.remove(reference)
+            elif existing is root:
+                return
+        self._registered_roots.append(weakref.ref(root))
+
+    def shutdown(self) -> None:
+        self._runtime_tracking_active = False
+        self._pending_objects.clear()
+        self._registered_roots.clear()
+        if self._application is not None:
+            try:
+                if qt_object_is_valid(self._application):
+                    if self._application.property("_cdmw_ui_localizer") is self:
+                        self._application.setProperty("_cdmw_ui_localizer", None)
+                    self._application.removeEventFilter(self)
+            except RuntimeError:
+                pass
+        self._application = None
+
+    def apply_registered_roots(self) -> None:
+        for reference in tuple(self._registered_roots):
+            root = reference()
+            if root is None:
+                self._registered_roots.remove(reference)
+                continue
+            try:
+                self.apply(root)
+            except RuntimeError:
+                self._registered_roots.remove(reference)
+
+    def mark_source_tree_current(self, root: QWidget) -> None:
+        """Mark an untranslated English tree so first-show events do not rescan it."""
+        self.register_root(root)
+        for widget in (root, *root.findChildren(QWidget)):
+            widget.setProperty("_i18n_applied_revision", self.revision)
+            self._pending_objects.pop(id(widget), None)
+
+    def _schedule_widget_apply(self, widget: QWidget) -> None:
+        if not self._runtime_tracking_active or self._event_filter_busy:
+            return
+        object_id = id(widget)
+        if object_id in self._pending_objects:
+            return
+        reference = weakref.ref(widget)
+        self._pending_objects[object_id] = reference
+
+        def apply_pending() -> None:
+            stored = self._pending_objects.pop(object_id, None)
+            target = stored() if stored is not None else None
+            if target is None:
+                return
+            try:
+                self.apply(target)
+            except RuntimeError:
+                return
+
+        QTimer.singleShot(0, apply_pending)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
+        if not self._runtime_tracking_active or self._event_filter_busy:
+            return super().eventFilter(watched, event)
+        event_type = event.type()
+        if event_type == QEvent.Type.ChildAdded:
+            child_getter = getattr(event, "child", None)
+            child = child_getter() if callable(child_getter) else None
+            target = child if isinstance(child, QWidget) else watched
+            if (
+                isinstance(target, QWidget)
+                and (
+                    self.language_code != "en"
+                    or target.property("_i18n_applied_revision") != self.revision
+                )
+            ):
+                self._schedule_widget_apply(target)
+        elif event_type in {
+            QEvent.Type.Show,
+            QEvent.Type.Polish,
+            QEvent.Type.LayoutRequest,
+        }:
+            if (
+                isinstance(watched, QWidget)
+                and watched.property("_i18n_applied_revision") != self.revision
+            ):
+                self._schedule_widget_apply(watched)
+        elif event_type in {
+            QEvent.Type.ToolTipChange,
+            QEvent.Type.WindowTitleChange,
+        }:
+            if (
+                isinstance(watched, QWidget)
+                and not (
+                    self.language_code == "en"
+                    and watched.property("_i18n_applied_revision")
+                    == self.revision
+                )
+            ):
+                self._schedule_widget_apply(watched)
+        elif event_type == QEvent.Type.ActionChanged and isinstance(watched, QAction):
+            self._event_filter_busy = True
+            try:
+                self._apply_action(watched)
+            finally:
+                self._event_filter_busy = False
+        return super().eventFilter(watched, event)
+
+    def collect_source_strings(self, root: QWidget) -> Dict[str, TranslationEntry]:
+        strings: Dict[str, TranslationEntry] = {}
 
         def add(value: str) -> None:
             for text in _extract_html_text_segments(str(value or "")):
                 if _looks_like_translatable_text(text):
-                    strings.setdefault(text, self.translations.get(text, ""))
+                    entry = self.translations.get(text, "")
+                    strings.setdefault(
+                        text,
+                        str(entry) if isinstance(entry, str) else dict(entry),
+                    )
 
         def source_or_current(obj: object, property_name: str, current_value: str) -> str:
             key = f"_i18n_source_{property_name}"
@@ -306,7 +1407,32 @@ class UiLocalizer:
                 for index in range(widget.count()):
                     source = widget.property(f"_i18n_tab_source_{index}")
                     add(source if isinstance(source, str) else widget.tabText(index))
-                    add(widget.tabToolTip(index))
+                    tooltip_source = widget.property(
+                        f"_i18n_tab_tooltip_source_{index}"
+                    )
+                    add(
+                        tooltip_source
+                        if isinstance(tooltip_source, str)
+                        else widget.tabToolTip(index)
+                    )
+            elif isinstance(widget, QTabBar):
+                for index in range(widget.count()):
+                    source = widget.property(
+                        f"_i18n_tab_bar_source_{index}"
+                    )
+                    add(
+                        source
+                        if isinstance(source, str)
+                        else widget.tabText(index)
+                    )
+                    tooltip_source = widget.property(
+                        f"_i18n_tab_bar_tooltip_source_{index}"
+                    )
+                    add(
+                        tooltip_source
+                        if isinstance(tooltip_source, str)
+                        else widget.tabToolTip(index)
+                    )
             if isinstance(widget, QTreeWidget):
                 header = widget.headerItem()
                 if header is not None:
@@ -342,25 +1468,48 @@ class UiLocalizer:
                 for index in range(widget.count()):
                     source = widget.property(f"_i18n_combo_source_{index}")
                     add(source if isinstance(source, str) else widget.itemText(index))
+            if isinstance(widget, QAbstractItemView) and not isinstance(
+                widget,
+                (QComboBox, QListWidget),
+            ):
+                for source in self._iter_model_sources(widget.model()):
+                    add(source)
 
         action_sources = self._iter_window_actions(root) if isinstance(root, QMainWindow) else root.findChildren(QAction)
         menu_sources = self._iter_window_menus(root) if isinstance(root, QMainWindow) else root.findChildren(QMenu)
         for action in action_sources:
             add(source_or_current(action, "text", action.text()))
             add(source_or_current(action, "tooltip", action.toolTip()))
+            add(source_or_current(action, "status_tip", action.statusTip()))
+            add(source_or_current(action, "whats_this", action.whatsThis()))
         for menu in menu_sources:
             add(source_or_current(menu, "title", menu.title()))
 
         return strings
 
     def apply(self, root: QWidget) -> None:
-        self._apply_widget_tree(root)
-        action_sources = self._iter_window_actions(root) if isinstance(root, QMainWindow) else root.findChildren(QAction)
-        menu_sources = self._iter_window_menus(root) if isinstance(root, QMainWindow) else root.findChildren(QMenu)
-        for action in action_sources:
-            self._apply_action(action)
-        for menu in menu_sources:
-            self._apply_menu(menu)
+        self.register_root(root)
+        if self._event_filter_busy:
+            return
+        self._event_filter_busy = True
+        try:
+            self._apply_widget_tree(root)
+            action_sources = (
+                self._iter_window_actions(root)
+                if isinstance(root, QMainWindow)
+                else root.findChildren(QAction)
+            )
+            menu_sources = (
+                self._iter_window_menus(root)
+                if isinstance(root, QMainWindow)
+                else root.findChildren(QMenu)
+            )
+            for action in action_sources:
+                self._apply_action(action)
+            for menu in menu_sources:
+                self._apply_menu(menu)
+        finally:
+            self._event_filter_busy = False
 
     def _iter_window_actions(self, window: QMainWindow) -> Iterable[QAction]:
         seen: Set[int] = set()
@@ -412,13 +1561,17 @@ class UiLocalizer:
 
     def _source_property(self, obj: object, property_name: str, current_value: str) -> str:
         key = f"_i18n_source_{property_name}"
+        rendered_key = f"_i18n_rendered_{property_name}"
         existing = obj.property(key) if hasattr(obj, "property") else None
         if isinstance(existing, str):
-            source = _canonical_source_text(existing)
-            if source != existing and hasattr(obj, "setProperty"):
-                obj.setProperty(key, source)
-            return source
-        value = _canonical_source_text(str(current_value or ""))
+            rendered = obj.property(rendered_key) if hasattr(obj, "property") else None
+            current = str(current_value or "")
+            if isinstance(rendered, str) and current not in {existing, rendered}:
+                if hasattr(obj, "setProperty"):
+                    obj.setProperty(key, current)
+                return current
+            return existing
+        value = str(current_value or "")
         if hasattr(obj, "setProperty"):
             obj.setProperty(key, value)
         return value
@@ -430,22 +1583,245 @@ class UiLocalizer:
             return
         try:
             source = self._source_property(obj, property_name, getter())
-            setter(self.translate(source))
+            translated = self.translate_rendered(source)
+            setter(translated)
+            if hasattr(obj, "setProperty"):
+                obj.setProperty(f"_i18n_rendered_{property_name}", translated)
         except Exception:
             return
 
+    def _indexed_source(
+        self,
+        owner: object,
+        source_key: str,
+        rendered_key: str,
+        current_value: str,
+    ) -> str:
+        source = owner.property(source_key) if hasattr(owner, "property") else None
+        current = str(current_value or "")
+        if isinstance(source, str):
+            rendered = owner.property(rendered_key) if hasattr(owner, "property") else None
+            if isinstance(rendered, str) and current not in {source, rendered}:
+                if hasattr(owner, "setProperty"):
+                    owner.setProperty(source_key, current)
+                return current
+            return source
+        if hasattr(owner, "setProperty"):
+            owner.setProperty(source_key, current)
+        return current
+
+    def _apply_dialog_button_box(
+        self,
+        button_box: QDialogButtonBox,
+    ) -> None:
+        for standard_button, source in _DIALOG_BUTTON_SOURCES:
+            button = button_box.button(standard_button)
+            if button is None:
+                continue
+            stored_source = button.property("_i18n_source_text")
+            stored_rendered = button.property("_i18n_rendered_text")
+            current = button.text()
+            if isinstance(stored_source, str):
+                if (
+                    isinstance(stored_rendered, str)
+                    and current not in {stored_source, stored_rendered}
+                ):
+                    effective_source = current
+                else:
+                    effective_source = stored_source
+            elif (
+                current != source
+                and current in self.translations
+            ):
+                effective_source = current
+            else:
+                effective_source = source
+            translated = self.translate_rendered(effective_source)
+            button.setProperty(
+                "_i18n_source_text",
+                effective_source,
+            )
+            button.setText(translated)
+            button.setProperty("_i18n_rendered_text", translated)
+
+    def _apply_status_bar(self, status_bar: QStatusBar) -> None:
+        source = self._indexed_source(
+            status_bar,
+            "_i18n_source_status_message",
+            "_i18n_rendered_status_message",
+            status_bar.currentMessage(),
+        )
+        translated = self.translate_rendered(source)
+        timeout = int(
+            status_bar.property("_i18n_status_message_timeout") or 0
+        )
+        original = _STATUS_BAR_ORIGINALS.get("showMessage")
+        if callable(original):
+            original(status_bar, translated, timeout)
+        else:
+            status_bar.showMessage(translated, timeout)
+        status_bar.setProperty(
+            "_i18n_rendered_status_message",
+            translated,
+        )
+
+    def _apply_empty_state(self, widget: QWidget) -> None:
+        if not (
+            hasattr(widget, "empty_title")
+            and hasattr(widget, "empty_detail")
+        ):
+            return
+        changed = False
+        for attribute_name in ("empty_title", "empty_detail"):
+            current = getattr(widget, attribute_name, None)
+            if not isinstance(current, str):
+                continue
+            source = self._indexed_source(
+                widget,
+                f"_i18n_source_{attribute_name}",
+                f"_i18n_rendered_{attribute_name}",
+                current,
+            )
+            translated = self.translate_rendered(source)
+            setattr(widget, attribute_name, translated)
+            widget.setProperty(
+                f"_i18n_rendered_{attribute_name}",
+                translated,
+            )
+            changed = changed or translated != current
+        if changed:
+            viewport = getattr(widget, "viewport", None)
+            target = viewport() if callable(viewport) else widget
+            update = getattr(target, "update", None)
+            if callable(update):
+                update()
+
     def _apply_widget_tree(self, root: QWidget) -> None:
         for widget in [root, *root.findChildren(QWidget)]:
-            if isinstance(widget, (QLabel, QAbstractButton)):
-                self._apply_setter(widget, "text", "text", "setText")
+            if (
+                isinstance(widget, QLabel)
+                and widget.property("_i18n_human_number_value") is not None
+            ):
+                value = widget.property("_i18n_human_number_value")
+                decimals = int(
+                    widget.property("_i18n_human_number_decimals") or -1
+                )
+                widget.setText(
+                    self.format_number(
+                        value,
+                        decimal_places=None if decimals < 0 else decimals,
+                    )
+                )
+            elif isinstance(widget, (QLabel, QAbstractButton)):
+                parent = widget.parentWidget()
+                if not isinstance(parent, QDialogButtonBox):
+                    self._apply_setter(
+                        widget,
+                        "text",
+                        "text",
+                        "setText",
+                    )
             if isinstance(widget, QGroupBox):
                 self._apply_setter(widget, "title", "title", "setTitle")
-            if isinstance(widget, QLineEdit):
-                self._apply_setter(widget, "placeholder", "placeholderText", "setPlaceholderText")
+            if isinstance(widget, QWizardPage):
+                self._apply_setter(widget, "title", "title", "setTitle")
+                self._apply_setter(
+                    widget,
+                    "subtitle",
+                    "subTitle",
+                    "setSubTitle",
+                )
+            if isinstance(widget, QCommandLinkButton):
+                self._apply_setter(
+                    widget,
+                    "description",
+                    "description",
+                    "setDescription",
+                )
+            self._apply_setter(
+                widget,
+                "placeholder",
+                "placeholderText",
+                "setPlaceholderText",
+            )
             self._apply_setter(widget, "tooltip", "toolTip", "setToolTip")
+            self._apply_setter(
+                widget,
+                "status_tip",
+                "statusTip",
+                "setStatusTip",
+            )
+            self._apply_setter(
+                widget,
+                "whats_this",
+                "whatsThis",
+                "setWhatsThis",
+            )
+            self._apply_setter(
+                widget,
+                "format",
+                "format",
+                "setFormat",
+            )
             self._apply_setter(widget, "window_title", "windowTitle", "setWindowTitle")
+            self._apply_setter(
+                widget,
+                "accessible_name",
+                "accessibleName",
+                "setAccessibleName",
+            )
+            self._apply_setter(
+                widget,
+                "accessible_description",
+                "accessibleDescription",
+                "setAccessibleDescription",
+            )
+            for property_name, getter_name, setter_name in (
+                ("prefix", "prefix", "setPrefix"),
+                ("suffix", "suffix", "setSuffix"),
+            ):
+                self._apply_setter(
+                    widget,
+                    property_name,
+                    getter_name,
+                    setter_name,
+                )
+            if isinstance(widget, QMessageBox):
+                for property_name, getter_name, setter_name in (
+                    ("message_text", "text", "setText"),
+                    (
+                        "informative_text",
+                        "informativeText",
+                        "setInformativeText",
+                    ),
+                    (
+                        "detailed_text",
+                        "detailedText",
+                        "setDetailedText",
+                    ),
+                ):
+                    self._apply_setter(
+                        widget,
+                        property_name,
+                        getter_name,
+                        setter_name,
+                    )
+            if isinstance(widget, QProgressDialog):
+                self._apply_setter(
+                    widget,
+                    "label_text",
+                    "labelText",
+                    "setLabelText",
+                )
+            if isinstance(widget, QDialogButtonBox):
+                self._apply_dialog_button_box(widget)
+            if isinstance(widget, QStatusBar):
+                self._apply_status_bar(widget)
+            self._apply_empty_state(widget)
             if isinstance(widget, QTabWidget):
                 self._apply_tab_widget(widget)
+            elif isinstance(widget, QTabBar):
+                self._apply_tab_bar(widget)
             if isinstance(widget, QComboBox):
                 self._apply_combo(widget)
             if isinstance(widget, QTreeWidget):
@@ -458,32 +1834,90 @@ class UiLocalizer:
                 self._apply_text_browser(widget)
             elif isinstance(widget, QTextEdit) and widget.isReadOnly():
                 self._apply_readonly_text_edit(widget)
+            elif isinstance(widget, QPlainTextEdit) and widget.isReadOnly():
+                self._apply_readonly_text_edit(widget)
+            if isinstance(widget, QAbstractItemView):
+                self._apply_model_view(widget)
+            if widget.property("_i18n_applied_revision") != self.revision:
+                widget.setProperty("_i18n_applied_revision", self.revision)
+                widget.updateGeometry()
+                widget.update()
 
     def _apply_tab_widget(self, widget: QTabWidget) -> None:
         for index in range(widget.count()):
             source_key = f"_i18n_tab_source_{index}"
-            source = widget.property(source_key)
-            if not isinstance(source, str):
-                source = _canonical_source_text(widget.tabText(index))
-                widget.setProperty(source_key, source)
-            else:
-                source = _canonical_source_text(source)
-                widget.setProperty(source_key, source)
-            widget.setTabText(index, self.translate(source))
+            rendered_key = f"_i18n_tab_rendered_{index}"
+            source = self._indexed_source(
+                widget,
+                source_key,
+                rendered_key,
+                widget.tabText(index),
+            )
+            translated = self.translate_rendered(source)
+            widget.setTabText(index, translated)
+            widget.setProperty(rendered_key, translated)
+            tooltip_source_key = f"_i18n_tab_tooltip_source_{index}"
+            tooltip_rendered_key = f"_i18n_tab_tooltip_rendered_{index}"
+            tooltip_source = self._indexed_source(
+                widget,
+                tooltip_source_key,
+                tooltip_rendered_key,
+                widget.tabToolTip(index),
+            )
+            translated_tooltip = self.translate_rendered(tooltip_source)
+            widget.setTabToolTip(index, translated_tooltip)
+            widget.setProperty(
+                tooltip_rendered_key,
+                translated_tooltip,
+            )
+
+    def _apply_tab_bar(self, widget: QTabBar) -> None:
+        for index in range(widget.count()):
+            source_key = f"_i18n_tab_bar_source_{index}"
+            rendered_key = f"_i18n_tab_bar_rendered_{index}"
+            source = self._indexed_source(
+                widget,
+                source_key,
+                rendered_key,
+                widget.tabText(index),
+            )
+            translated = self.translate_rendered(source)
+            widget.setTabText(index, translated)
+            widget.setProperty(rendered_key, translated)
+            tooltip_source_key = (
+                f"_i18n_tab_bar_tooltip_source_{index}"
+            )
+            tooltip_rendered_key = (
+                f"_i18n_tab_bar_tooltip_rendered_{index}"
+            )
+            tooltip_source = self._indexed_source(
+                widget,
+                tooltip_source_key,
+                tooltip_rendered_key,
+                widget.tabToolTip(index),
+            )
+            translated_tooltip = self.translate_rendered(tooltip_source)
+            widget.setTabToolTip(index, translated_tooltip)
+            widget.setProperty(
+                tooltip_rendered_key,
+                translated_tooltip,
+            )
 
     def _apply_combo(self, widget: QComboBox) -> None:
         if not self._should_translate_combo(widget):
             return
         for index in range(widget.count()):
             source_key = f"_i18n_combo_source_{index}"
-            source = widget.property(source_key)
-            if not isinstance(source, str):
-                source = _canonical_source_text(widget.itemText(index))
-                widget.setProperty(source_key, source)
-            else:
-                source = _canonical_source_text(source)
-                widget.setProperty(source_key, source)
-            widget.setItemText(index, self.translate(source))
+            rendered_key = f"_i18n_combo_rendered_{index}"
+            source = self._indexed_source(
+                widget,
+                source_key,
+                rendered_key,
+                widget.itemText(index),
+            )
+            translated = self.translate_rendered(source)
+            widget.setItemText(index, translated)
+            widget.setProperty(rendered_key, translated)
 
     def _should_translate_combo(self, widget: QComboBox) -> bool:
         if widget.property("_i18n_skip_combo_items"):
@@ -503,14 +1937,16 @@ class UiLocalizer:
             return
         for column in range(widget.columnCount()):
             source_key = f"_i18n_tree_header_source_{column}"
-            source = widget.property(source_key)
-            if not isinstance(source, str):
-                source = _canonical_source_text(header.text(column))
-                widget.setProperty(source_key, source)
-            else:
-                source = _canonical_source_text(source)
-                widget.setProperty(source_key, source)
-            header.setText(column, self.translate(source))
+            rendered_key = f"_i18n_tree_header_rendered_{column}"
+            source = self._indexed_source(
+                widget,
+                source_key,
+                rendered_key,
+                header.text(column),
+            )
+            translated = self.translate_rendered(source)
+            header.setText(column, translated)
+            widget.setProperty(rendered_key, translated)
 
     def _apply_table_headers(self, widget: QTableWidget) -> None:
         for column in range(widget.columnCount()):
@@ -518,27 +1954,31 @@ class UiLocalizer:
             if item is None:
                 continue
             source_key = f"_i18n_table_horizontal_header_source_{column}"
-            source = widget.property(source_key)
-            if not isinstance(source, str):
-                source = _canonical_source_text(item.text())
-                widget.setProperty(source_key, source)
-            else:
-                source = _canonical_source_text(source)
-                widget.setProperty(source_key, source)
-            item.setText(self.translate(source))
+            rendered_key = f"_i18n_table_horizontal_header_rendered_{column}"
+            source = self._indexed_source(
+                widget,
+                source_key,
+                rendered_key,
+                item.text(),
+            )
+            translated = self.translate_rendered(source)
+            item.setText(translated)
+            widget.setProperty(rendered_key, translated)
         for row in range(widget.rowCount()):
             item = widget.verticalHeaderItem(row)
             if item is None:
                 continue
             source_key = f"_i18n_table_vertical_header_source_{row}"
-            source = widget.property(source_key)
-            if not isinstance(source, str):
-                source = _canonical_source_text(item.text())
-                widget.setProperty(source_key, source)
-            else:
-                source = _canonical_source_text(source)
-                widget.setProperty(source_key, source)
-            item.setText(self.translate(source))
+            rendered_key = f"_i18n_table_vertical_header_rendered_{row}"
+            source = self._indexed_source(
+                widget,
+                source_key,
+                rendered_key,
+                item.text(),
+            )
+            translated = self.translate_rendered(source)
+            item.setText(translated)
+            widget.setProperty(rendered_key, translated)
 
     def _apply_list_items(self, widget: QListWidget) -> None:
         source_role = 0x0100 + 1000
@@ -548,37 +1988,301 @@ class UiLocalizer:
                 continue
             source = item.data(source_role)
             if not isinstance(source, str):
-                source = _canonical_source_text(item.text())
+                source = item.text()
                 item.setData(source_role, source)
-            else:
-                source = _canonical_source_text(source)
-                item.setData(source_role, source)
-            item.setText(self.translate(source))
+            item.setText(self.translate_rendered(source))
+
+    def _iter_model_indexes(
+        self,
+        model: QAbstractItemModel | None,
+    ) -> Iterable[QModelIndex]:
+        if model is None:
+            return
+        pending = [QModelIndex()]
+        emitted = 0
+        while pending and emitted < _MODEL_MAX_ITEMS:
+            parent = pending.pop()
+            try:
+                rows = max(0, int(model.rowCount(parent)))
+                columns = max(0, int(model.columnCount(parent)))
+            except (RuntimeError, TypeError, ValueError):
+                continue
+            if rows * max(columns, 1) > _MODEL_MAX_ITEMS:
+                continue
+            for row in range(rows):
+                first_child: QModelIndex | None = None
+                for column in range(columns):
+                    index = model.index(row, column, parent)
+                    if not index.isValid():
+                        continue
+                    if first_child is None:
+                        first_child = index
+                    yield index
+                    emitted += 1
+                    if emitted >= _MODEL_MAX_ITEMS:
+                        return
+                if first_child is not None:
+                    try:
+                        has_children = bool(model.hasChildren(first_child))
+                    except (RuntimeError, TypeError):
+                        try:
+                            has_children = int(model.rowCount(first_child)) > 0
+                        except (RuntimeError, TypeError, ValueError):
+                            has_children = False
+                    if has_children:
+                        pending.append(first_child)
+
+    def _iter_model_sources(
+        self,
+        model: QAbstractItemModel | None,
+    ) -> Iterable[str]:
+        if model is None:
+            return
+        _install_python_model_localization(model)
+        for index in self._iter_model_indexes(model):
+            for presentation_role in _MODEL_PRESENTATION_ROLES:
+                tracking_roles = _model_tracking_roles(presentation_role)
+                if tracking_roles is None:
+                    continue
+                source_role, _rendered_role = tracking_roles
+                source = _raw_model_call(model, "data", index, source_role)
+                if not isinstance(source, str):
+                    source = _raw_model_call(
+                        model,
+                        "data",
+                        index,
+                        presentation_role,
+                    )
+                if isinstance(source, str):
+                    yield source
+        for orientation, section_count in (
+            (Qt.Orientation.Horizontal, model.columnCount),
+            (Qt.Orientation.Vertical, model.rowCount),
+        ):
+            try:
+                sections = min(max(0, int(section_count())), _MODEL_MAX_ITEMS)
+            except (RuntimeError, TypeError, ValueError):
+                sections = 0
+            for section in range(sections):
+                for presentation_role in _MODEL_PRESENTATION_ROLES:
+                    tracking_roles = _model_tracking_roles(
+                        presentation_role
+                    )
+                    if tracking_roles is None:
+                        continue
+                    source_role, _rendered_role = tracking_roles
+                    source = _raw_model_call(
+                        model,
+                        "headerData",
+                        section,
+                        orientation,
+                        source_role,
+                    )
+                    if not isinstance(source, str):
+                        source = _raw_model_call(
+                            model,
+                            "headerData",
+                            section,
+                            orientation,
+                            presentation_role,
+                        )
+                    if isinstance(source, str):
+                        yield source
+
+    def _apply_model_view(self, view: QAbstractItemView) -> None:
+        model = view.model()
+        if model is None:
+            return
+        python_model_localized = _install_python_model_localization(model)
+        if not view.property("_i18n_model_tracking_connected"):
+            reference = weakref.ref(view)
+
+            def schedule_model_apply(*_args: object) -> None:
+                target = reference()
+                if target is not None:
+                    self._schedule_widget_apply(target)
+
+            for signal_name in (
+                "dataChanged",
+                "headerDataChanged",
+                "modelReset",
+                "rowsInserted",
+            ):
+                signal = getattr(model, signal_name, None)
+                if signal is None:
+                    continue
+                try:
+                    signal.connect(schedule_model_apply)
+                except (RuntimeError, TypeError):
+                    pass
+            view.setProperty("_i18n_model_tracking_connected", True)
+
+        if python_model_localized:
+            viewport = view.viewport()
+            viewport.update()
+            header = getattr(view, "header", None)
+            header_widget = header() if callable(header) else None
+            if header_widget is not None:
+                header_widget.update()
+            return
+
+        for index in self._iter_model_indexes(model):
+            for presentation_role in _MODEL_PRESENTATION_ROLES:
+                tracking_roles = _model_tracking_roles(presentation_role)
+                if tracking_roles is None:
+                    continue
+                source_role, rendered_role = tracking_roles
+                try:
+                    source = model.data(index, source_role)
+                    current = model.data(index, presentation_role)
+                except RuntimeError:
+                    continue
+                if not isinstance(current, str):
+                    continue
+                rendered = model.data(index, rendered_role)
+                if isinstance(source, str):
+                    if (
+                        isinstance(rendered, str)
+                        and current not in {source, rendered}
+                    ):
+                        source = current
+                        model.setData(index, source, source_role)
+                else:
+                    source = current
+                    model.setData(index, source, source_role)
+                translated = self.translate_rendered(source)
+                if translated != current:
+                    model.setData(index, translated, presentation_role)
+                model.setData(index, translated, rendered_role)
+
+        for orientation, section_count in (
+            (Qt.Orientation.Horizontal, model.columnCount),
+            (Qt.Orientation.Vertical, model.rowCount),
+        ):
+            try:
+                sections = min(max(0, int(section_count())), _MODEL_MAX_ITEMS)
+            except (RuntimeError, TypeError, ValueError):
+                continue
+            for section in range(sections):
+                for presentation_role in _MODEL_PRESENTATION_ROLES:
+                    tracking_roles = _model_tracking_roles(
+                        presentation_role
+                    )
+                    if tracking_roles is None:
+                        continue
+                    source_role, rendered_role = tracking_roles
+                    source = model.headerData(
+                        section,
+                        orientation,
+                        source_role,
+                    )
+                    current = model.headerData(
+                        section,
+                        orientation,
+                        presentation_role,
+                    )
+                    if not isinstance(current, str):
+                        continue
+                    rendered = model.headerData(
+                        section,
+                        orientation,
+                        rendered_role,
+                    )
+                    if isinstance(source, str):
+                        if (
+                            isinstance(rendered, str)
+                            and current not in {source, rendered}
+                        ):
+                            source = current
+                            model.setHeaderData(
+                                section,
+                                orientation,
+                                source,
+                                source_role,
+                            )
+                    else:
+                        source = current
+                        model.setHeaderData(
+                            section,
+                            orientation,
+                            source,
+                            source_role,
+                        )
+                    translated = self.translate_rendered(source)
+                    if translated != current:
+                        model.setHeaderData(
+                            section,
+                            orientation,
+                            translated,
+                            presentation_role,
+                        )
+                    model.setHeaderData(
+                        section,
+                        orientation,
+                        translated,
+                        rendered_role,
+                    )
 
     def _apply_text_browser(self, widget: QTextBrowser) -> None:
         localized_html = widget.property(f"_i18n_html_{self.language_code}")
+        if self.language_code == "es-ES" and not isinstance(localized_html, str):
+            localized_html = widget.property("_i18n_html_es")
         if isinstance(localized_html, str) and localized_html.strip():
             widget.setHtml(localized_html)
+            widget.setProperty("_i18n_rendered_html", widget.toHtml())
             return
         source = widget.property("_i18n_source_html")
-        if not isinstance(source, str):
-            return
-        widget.setHtml(_translate_html_text(source, self.translate))
+        rendered = widget.property("_i18n_rendered_html")
+        current = widget.toHtml()
+        if isinstance(source, str):
+            if (
+                isinstance(rendered, str)
+                and current not in {source, rendered}
+            ):
+                source = current
+                widget.setProperty("_i18n_source_html", source)
+        else:
+            source = current
+            widget.setProperty("_i18n_source_html", source)
+        widget.setHtml(_translate_html_text(source, self.translate_rendered))
+        widget.setProperty("_i18n_rendered_html", widget.toHtml())
 
-    def _apply_readonly_text_edit(self, widget: QTextEdit) -> None:
-        if isinstance(widget, QPlainTextEdit):
-            return
-        source = widget.property("_i18n_source_plain_text")
-        if not isinstance(source, str):
-            source = widget.toPlainText()
-            widget.setProperty("_i18n_source_plain_text", source)
-        translated = self.translate(source)
-        if translated != source:
+    def _apply_readonly_text_edit(
+        self,
+        widget: QTextEdit | QPlainTextEdit,
+    ) -> None:
+        source = self._indexed_source(
+            widget,
+            "_i18n_source_plain_text",
+            "_i18n_rendered_plain_text",
+            widget.toPlainText(),
+        )
+        translated = self.translate_rendered(source)
+        if widget.toPlainText() != translated:
+            cursor = widget.textCursor()
+            vertical_scroll = widget.verticalScrollBar().value()
+            horizontal_scroll = widget.horizontalScrollBar().value()
             widget.setPlainText(translated)
+            widget.setTextCursor(cursor)
+            widget.verticalScrollBar().setValue(vertical_scroll)
+            widget.horizontalScrollBar().setValue(horizontal_scroll)
+        widget.setProperty("_i18n_rendered_plain_text", translated)
 
     def _apply_action(self, action: QAction) -> None:
         self._apply_setter(action, "text", "text", "setText")
         self._apply_setter(action, "tooltip", "toolTip", "setToolTip")
+        self._apply_setter(
+            action,
+            "status_tip",
+            "statusTip",
+            "setStatusTip",
+        )
+        self._apply_setter(
+            action,
+            "whats_this",
+            "whatsThis",
+            "setWhatsThis",
+        )
 
     def _apply_menu(self, menu: QMenu) -> None:
         self._apply_setter(menu, "title", "title", "setTitle")

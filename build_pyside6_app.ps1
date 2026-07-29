@@ -27,6 +27,8 @@ $specPath = Join-Path $scriptDir "CrimsonDesertModWorkbench.spec"
 $releaseConstraintsPath = Join-Path $scriptDir "constraints-release.txt"
 $releaseDependencyVerifier = Join-Path $scriptDir "scripts\verify_release_dependencies.py"
 $providerMetadataGenerator = Join-Path $scriptDir "scripts\generate_window_feature_provider_members.py"
+$localizationManifestGenerator = Join-Path $scriptDir "scripts\generate_ui_localization_manifest.py"
+$localizationCatalogValidator = Join-Path $scriptDir "scripts\validate_ui_localization_catalogs.py"
 $packagedStartupVerifier = Join-Path $scriptDir "scripts\verify_packaged_startup.ps1"
 $fullArchiveBackendProbe = Join-Path $scriptDir "tools\dotnet_archive_backend\probe_full_archive_backend.py"
 $vgmstreamRuntimeDir = Join-Path $scriptDir ".tools\vgmstream"
@@ -996,6 +998,16 @@ Write-BuildProgress -Percent 3 -Stage "Verifying generated feature metadata"
 & $pythonExe $providerMetadataGenerator --check
 if ($LASTEXITCODE -ne 0) {
     throw "Generated MainWindow feature metadata failed verification after regeneration."
+}
+
+Write-BuildProgress -Percent 3 -Stage "Verifying interface localization catalogs"
+& $pythonExe $localizationManifestGenerator --check
+if ($LASTEXITCODE -ne 0) {
+    throw "The interface localization source manifest is stale. Regenerate and review the catalogs before packaging."
+}
+& $pythonExe $localizationCatalogValidator
+if ($LASTEXITCODE -ne 0) {
+    throw "Interface localization catalog validation failed. Packaging requires exact parity for all built-in languages."
 }
 
 # The published helper is compared against this contract, but only after every

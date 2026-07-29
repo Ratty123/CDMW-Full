@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Mapping
 from pathlib import Path
 
 
@@ -35,6 +36,10 @@ def write_startup_splash_payload(
     total: int = 0,
     closed: bool = False,
     theme_key: str,
+    language_code: str = "en",
+    startup_translations: Mapping[str, str] | None = None,
+    message_key: str = "",
+    message_args: Mapping[str, object] | None = None,
 ) -> None:
     temp_path = path.with_suffix(path.suffix + ".tmp")
     try:
@@ -44,6 +49,17 @@ def write_startup_splash_payload(
             "total": max(0, int(total or 0)),
             "closed": bool(closed),
             "theme_key": str(theme_key),
+            "language_code": str(language_code or "en"),
+            "startup_translations": {
+                str(key): str(value)
+                for key, value in (startup_translations or {}).items()
+            },
+            "message_key": str(message_key or detail or "Starting application..."),
+            "message_args": {
+                str(key): value
+                for key, value in (message_args or {}).items()
+                if isinstance(value, (str, int, float, bool)) or value is None
+            },
             "updated_at": time.time(),
         }
         temp_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")

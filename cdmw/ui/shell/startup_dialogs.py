@@ -26,6 +26,10 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.constants import DEFAULT_UI_THEME
+from cdmw.services.startup_localization_service import (
+    StartupLocalizer,
+    load_startup_localizer,
+)
 from cdmw.ui.shell.startup_splash import format_startup_splash_detail as _format_startup_splash_detail
 from cdmw.ui.shell.startup_path_task_controller import (
     StartupPathTaskControllerMixin,
@@ -374,9 +378,15 @@ class StartupProgressCard(QFrame):
             painter.drawRoundedRect(sweep.intersected(rail), 1.5, 1.5)
 
 class StartupSplashDialog(QDialog):
-    def __init__(self, *, theme_key: str = DEFAULT_UI_THEME):
+    def __init__(
+        self,
+        *,
+        theme_key: str = DEFAULT_UI_THEME,
+        startup_localizer: StartupLocalizer | None = None,
+    ):
         super().__init__(None)
         self._theme_key = _splash_resolved_theme_key(theme_key)
+        self._startup_localizer = startup_localizer or load_startup_localizer()
         self.setWindowTitle("CDMW")
         self.setWindowFlags(
             Qt.Window
@@ -409,7 +419,9 @@ class StartupSplashDialog(QDialog):
         self.title_label.setAlignment(Qt.AlignCenter)
         card_layout.addWidget(self.title_label)
 
-        self.detail_label = QLabel("Starting application...")
+        self.detail_label = QLabel(
+            self._startup_localizer.translate("Starting application...")
+        )
         self.detail_label.setObjectName("StartupSplashDetail")
         self.detail_label.setAlignment(Qt.AlignCenter)
         self.detail_label.setWordWrap(True)
@@ -461,10 +473,11 @@ class StartupSplashDialog(QDialog):
         self.move(frame.topLeft())
 
     def set_detail(self, detail: str, current: int = 0, total: int = 0) -> None:
-        text = _format_startup_splash_detail(detail)
+        message = self._startup_localizer.resolve_message(detail)
+        text = _format_startup_splash_detail(message.rendered)
         self.detail_label.setText(text)
         self.progress_card.set_progress(current, total)
-        if self._is_completion_detail(text, current, total):
+        if self._is_completion_detail(message.key, current, total):
             self.progress_card.finish_progress()
         self.pump_animation_frame()
 

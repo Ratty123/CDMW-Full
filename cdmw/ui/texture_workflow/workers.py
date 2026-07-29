@@ -446,7 +446,8 @@ class TextureWorkflowWorkerMixin:
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
 
     def _handle_scan_result(self, total: int) -> None:
-        self.total_files_value.setText(str(total))
+        self._texture_workflow_total_files = int(total)
+        self.ui_localizer.set_number_text(self.total_files_value, total)
         self.progress_bar.setRange(0, max(total, 1))
         self.progress_bar.setValue(0)
         self.current_file_value.setText("Ready to start")
@@ -454,7 +455,8 @@ class TextureWorkflowWorkerMixin:
         self.set_status_message(f"Scan complete. Found {total} DDS files.")
 
     def _handle_total_found(self, total: int) -> None:
-        self.total_files_value.setText(str(total))
+        self._texture_workflow_total_files = int(total)
+        self.ui_localizer.set_number_text(self.total_files_value, total)
         self._set_phase_progress(0, total, "0 / {total} DDS files".format(total=total), "DDS files")
         self.set_status_message(f"Found {total} DDS files. Processing...")
 
@@ -465,7 +467,10 @@ class TextureWorkflowWorkerMixin:
             self.progress_bar.setRange(0, 0)
             self.progress_bar.setFormat("Working...")
         else:
-            total = max(int(self.total_files_value.text() or "0"), 1)
+            total = max(
+                int(getattr(self, "_texture_workflow_total_files", 0) or 0),
+                1,
+            )
             self.progress_bar.setRange(0, total)
             self.progress_bar.setFormat("%v / %m")
         self.set_status_message(detail)
@@ -485,10 +490,11 @@ class TextureWorkflowWorkerMixin:
         self.current_file_value.setText(current_file)
 
     def _handle_progress(self, processed: int, total: int, converted: int, skipped: int, failed: int) -> None:
+        self._texture_workflow_total_files = int(total)
         self._set_phase_progress(processed, total, f"{processed} / {total} DDS files", "DDS files")
-        self.converted_value.setText(str(converted))
-        self.skipped_value.setText(str(skipped))
-        self.failed_value.setText(str(failed))
+        self.ui_localizer.set_number_text(self.converted_value, converted)
+        self.ui_localizer.set_number_text(self.skipped_value, skipped)
+        self.ui_localizer.set_number_text(self.failed_value, failed)
 
     def _set_phase_progress(self, current: int, total: int, detail: str, units: str) -> None:
         self.phase_progress_value.setText(detail)

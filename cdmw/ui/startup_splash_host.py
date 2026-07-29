@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from cdmw.domain.localization import language_for_code
+from cdmw.services.startup_localization_service import render_startup_message
 from cdmw.services.startup_splash_service import cleanup_startup_splash_artifacts
 
 
@@ -69,7 +71,16 @@ def _apply_windows_app_user_model_id() -> None:
 def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
     try:
         from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
-        from PySide6.QtGui import QColor, QFont, QIcon, QLinearGradient, QPainter, QPen, QPolygonF
+        from PySide6.QtGui import (
+            QColor,
+            QFont,
+            QFontDatabase,
+            QIcon,
+            QLinearGradient,
+            QPainter,
+            QPen,
+            QPolygonF,
+        )
         from PySide6.QtWidgets import QApplication, QDialog, QLabel, QSizePolicy, QVBoxLayout
     except ImportError:
         cleanup_startup_splash_artifacts(command_file)
@@ -121,6 +132,21 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
         result.setAlpha(max(0, min(255, int(alpha))))
         return result
 
+    def _register_startup_cjk_fonts(language_code: str) -> None:
+        if os.name != "nt":
+            return
+        filenames = {
+            "ja": ("YuGothR.ttc",),
+            "ko": ("malgun.ttf",),
+            "zh-Hans": ("msyh.ttc",),
+            "zh-Hant": ("msjh.ttc",),
+        }.get(str(language_code), ())
+        fonts_dir = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
+        for filename in filenames:
+            path = fonts_dir / filename
+            if path.is_file():
+                QFontDatabase.addApplicationFont(str(path))
+
     def _accent_block_colors(theme_key: str, alpha: int) -> tuple[QColor, QColor, QColor, QColor, QColor, QColor]:
         accent = _theme_color(theme_key, "accent", "#c56d43")
         colors = (
@@ -136,6 +162,7 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
     class StartupSplashHost(QDialog):
         def __init__(self) -> None:
             super().__init__(None)
+            initial_payload = _command_payload()
             self.setWindowTitle("CDMW")
             self.setWindowFlags(
                 Qt.Window
@@ -149,10 +176,32 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
             self.setFixedSize(420, 210)
             self._started_at = time.monotonic()
             self._phase = 0.0
-            self._detail = "Starting application..."
+            self._message_key = str(
+                initial_payload.get("message_key", "Starting application...")
+                or "Starting application..."
+            )
+            self._detail = render_startup_message(
+                message_key=self._message_key,
+                message_args=initial_payload.get("message_args"),
+                translations=initial_payload.get("startup_translations"),
+                fallback=initial_payload.get("detail", "Starting application..."),
+            )
             self._current = 0
             self._total = 0
-            self._theme_key = _resolved_theme_key(_command_payload().get("theme_key", DEFAULT_UI_THEME))
+            self._theme_key = _resolved_theme_key(
+                initial_payload.get("theme_key", DEFAULT_UI_THEME)
+            )
+            language = language_for_code(initial_payload.get("language_code", "en"))
+            if language is not None and language.font_families:
+                _register_startup_cjk_fonts(language.code)
+                installed = {family.casefold(): family for family in QFontDatabase.families()}
+                for family in language.font_families:
+                    resolved = installed.get(family.casefold())
+                    if resolved:
+                        font = QFont(self.font())
+                        font.setFamily(resolved)
+                        self.setFont(font)
+                        break
             self._display_progress = 0.0
             self._target_progress = 0.0
             self._has_determinate_progress = False
@@ -277,7 +326,7 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
                 return 0
 
         def _is_completion_detail(self) -> bool:
-            detail = self._detail.replace("\n", " ").strip().lower()
+            detail = self._message_key.replace("\n", " ").strip().lower()
             return (
                 detail.startswith("loaded ")
                 or detail.startswith("archive scan complete")
@@ -296,7 +345,19 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
                 return
             if isinstance(payload, dict):
                 self._set_theme(payload.get("theme_key", self._theme_key))
-                self._set_detail(str(payload.get("detail", "") or "Starting application..."))
+                self._message_key = str(
+                    payload.get("message_key", "")
+                    or payload.get("detail", "")
+                    or "Starting application..."
+                )
+                self._set_detail(
+                    render_startup_message(
+                        message_key=self._message_key,
+                        message_args=payload.get("message_args"),
+                        translations=payload.get("startup_translations"),
+                        fallback=payload.get("detail", "Starting application..."),
+                    )
+                )
                 self._set_progress(
                     self._payload_int(payload, "current"),
                     self._payload_int(payload, "total"),

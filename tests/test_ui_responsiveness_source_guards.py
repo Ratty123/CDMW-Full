@@ -545,7 +545,17 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
     def test_startup_splash_progress_uses_single_text_source(self) -> None:
         source = _read("cdmw/ui/startup_splash_host.py")
         self.assertIn("self.detail_label.setMaximumHeight(34)", source)
-        self.assertIn('self._theme_key = _resolved_theme_key(_command_payload().get("theme_key", DEFAULT_UI_THEME))', source)
+        self.assertIn("initial_payload = _command_payload()", source)
+        self.assertIn(
+            'initial_payload.get("theme_key", DEFAULT_UI_THEME)',
+            source,
+        )
+        self.assertIn(
+            'initial_payload.get("language_code", "en")',
+            source,
+        )
+        self.assertIn("_register_startup_cjk_fonts(language.code)", source)
+        self.assertIn("QFontDatabase.addApplicationFont(str(path))", source)
         self.assertIn('_theme_value(self._theme_key, "text_strong"', source)
         self.assertIn("_theme_color(self._theme_key, \"surface\"", source)
         self.assertIn("_theme_color(self._theme_key, \"accent\"", source)

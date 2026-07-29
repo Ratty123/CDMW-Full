@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Callable, Dict, Optional
 
 from PySide6.QtCore import QSettings, Qt, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QFontDatabase, QFontMetrics
 from PySide6.QtWidgets import QApplication, QAbstractItemView, QHeaderView, QWidget
 
 from cdmw.constants import (
@@ -26,6 +28,7 @@ from cdmw.constants import (
     UI_LOG_TEXT_STYLE_OPTIONS,
     UI_TEXT_COLOR_SCHEME_OPTIONS,
 )
+from cdmw.domain.localization import language_for_code
 from cdmw.ui.shell.responsiveness_controller import (
     responsive_control_scale_for_resolution as _responsive_control_scale_for_resolution,
 )
@@ -38,6 +41,28 @@ from cdmw.ui.shell.settings_bridge import (
 from cdmw.ui.app_icon import load_app_icon
 from cdmw.ui.themes import UI_THEME_SCHEMES, build_app_palette, build_app_stylesheet
 from cdmw.ui.layout_utils import available_layout_size_for, available_screen_size_for
+
+
+_WINDOWS_CJK_FONT_FILES = {
+    "ja": ("YuGothR.ttc",),
+    "ko": ("malgun.ttf",),
+    "zh-Hans": ("msyh.ttc",),
+    "zh-Hant": ("msjh.ttc",),
+}
+_REGISTERED_CJK_FONT_PATHS: set[str] = set()
+
+
+def _register_windows_cjk_fonts(language_code: str) -> None:
+    if os.name != "nt":
+        return
+    windows_dir = Path(os.environ.get("WINDIR", r"C:\Windows"))
+    for filename in _WINDOWS_CJK_FONT_FILES.get(str(language_code), ()):
+        path = windows_dir / "Fonts" / filename
+        path_key = str(path).casefold()
+        if path_key in _REGISTERED_CJK_FONT_PATHS or not path.is_file():
+            continue
+        if QFontDatabase.addApplicationFont(str(path)) >= 0:
+            _REGISTERED_CJK_FONT_PATHS.add(path_key)
 
 
 def _same_font(left: QFont, right: QFont) -> bool:
@@ -101,6 +126,27 @@ def _resolved_app_fonts(
     screen_height: Optional[int] = None,
 ) -> tuple[QFont, QFont, str, float]:
     ui_font_family = str(settings.value("appearance/ui_font_family", DEFAULT_UI_FONT_FAMILY) or DEFAULT_UI_FONT_FAMILY)
+    language = language_for_code(settings.value("appearance/language", "en"))
+    if language is not None and language.font_families:
+        _register_windows_cjk_fonts(language.code)
+        representative = {
+            "ja": "日",
+            "ko": "한",
+            "zh-Hans": "汉",
+            "zh-Hant": "繁",
+        }.get(language.code, "")
+        configured_font = QFont(ui_font_family)
+        configured_covers_language = bool(
+            representative
+            and QFontMetrics(configured_font).inFontUcs4(ord(representative))
+        )
+        if not configured_covers_language:
+            installed = {family.casefold(): family for family in QFontDatabase.families()}
+            for candidate in language.font_families:
+                resolved = installed.get(candidate.casefold())
+                if resolved:
+                    ui_font_family = resolved
+                    break
     configured_base_font_size = max(
         UI_FONT_SIZE_MIN,
         min(UI_FONT_SIZE_MAX, _read_int_setting(settings, "appearance/ui_font_size", DEFAULT_UI_FONT_SIZE)),

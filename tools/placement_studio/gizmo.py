@@ -18,6 +18,8 @@ from typing import List, Optional, Tuple
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QPainter, QPen, QPolygonF
 
+from cdmw.ui.localization import translate_active_ui_text
+
 from .model import Vec3
 from .palette import _AXIS_X, _AXIS_Y, _AXIS_Z, _EDGE_ON_LIMIT, _RING_AXES, _RING_BASIS, _SOCKET_SELECTED
 
@@ -93,7 +95,10 @@ class GizmoMixin:
             # Front arcs are contiguous in parameter order, so a polyline is correct here.
             painter.drawPolyline(QPolygonF(points))
             if active:
-                painter.drawText(points[len(points) // 2] + QPointF(6, -4), f"{axis} axis")
+                painter.drawText(
+                    points[len(points) // 2] + QPointF(6, -4),
+                    f"{axis} {translate_active_ui_text('axis')}",
+                )
 
     def _gizmo_centre(self) -> Optional[Vec3]:
         placed = next((p for p in self._sockets if p.name == self._selected), None)
@@ -188,7 +193,7 @@ class GizmoMixin:
         painter.setPen(QPen(_SOCKET_SELECTED, 2.0, Qt.DashLine))
         painter.drawLine(start, end)
         painter.setPen(QPen(_SOCKET_SELECTED))
-        painter.drawText(end + QPointF(6, -4), "roll axis")
+        painter.drawText(end + QPointF(6, -4), translate_active_ui_text("roll axis"))
 
     def _ring_at(self, position: QPoint) -> str:
         """Which ring the cursor is on: 3D validates, screen distance decides.

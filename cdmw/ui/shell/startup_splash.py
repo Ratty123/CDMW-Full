@@ -15,6 +15,10 @@ from cdmw.services.startup_splash_service import (
     cleanup_startup_splash_artifacts,
     write_startup_splash_payload,
 )
+from cdmw.services.startup_localization_service import (
+    StartupLocalizer,
+    load_startup_localizer,
+)
 from cdmw.ui.themes import UI_THEME_SCHEMES
 
 
@@ -57,18 +61,37 @@ def make_startup_splash_pump(startup_splash: Optional[object]) -> Callable[[str]
     return pump_startup_splash
 
 
-def create_startup_splash(app: QApplication, startup_theme: str) -> object:
+def create_startup_splash(
+    app: QApplication,
+    startup_theme: str,
+    *,
+    settings: object | None = None,
+) -> object:
     from cdmw.ui.shell.startup_dialogs import StartupSplashDialog
 
+    settings_file_name = getattr(settings, "fileName", None)
+    settings_path = (
+        Path(settings_file_name())
+        if callable(settings_file_name) and settings_file_name()
+        else None
+    )
+    startup_localizer = load_startup_localizer(settings_path=settings_path)
     external_splash_path = os.environ.get("CDMW_STARTUP_SPLASH_COMMAND_FILE", "").strip()
     external_splash_file = Path(external_splash_path) if external_splash_path else None
     if external_splash_file is not None and external_splash_file.is_file():
-        startup_splash = ExternalStartupSplashAdapter(external_splash_file, theme_key=startup_theme)
+        startup_splash = ExternalStartupSplashAdapter(
+            external_splash_file,
+            theme_key=startup_theme,
+            startup_localizer=startup_localizer,
+        )
         startup_splash.set_detail("Preparing application...")
         close_pyinstaller_boot_splash()
         return startup_splash
 
-    startup_splash = StartupSplashDialog(theme_key=startup_theme)
+    startup_splash = StartupSplashDialog(
+        theme_key=startup_theme,
+        startup_localizer=startup_localizer,
+    )
     if not app.windowIcon().isNull():
         startup_splash.setWindowIcon(app.windowIcon())
     startup_splash.center_on_screen()
@@ -84,15 +107,23 @@ def _splash_resolved_theme_key(theme_key: object) -> str:
 
 
 class ExternalStartupSplashAdapter:
-    def __init__(self, command_file: Path, *, theme_key: str = DEFAULT_UI_THEME) -> None:
+    def __init__(
+        self,
+        command_file: Path,
+        *,
+        theme_key: str = DEFAULT_UI_THEME,
+        startup_localizer: StartupLocalizer | None = None,
+    ) -> None:
         self.command_file = Path(command_file)
         self.theme_key = _splash_resolved_theme_key(theme_key)
+        self.startup_localizer = startup_localizer or load_startup_localizer()
         self._closed = False
 
     def set_detail(self, detail: str, current: int = 0, total: int = 0) -> None:
         if self._closed:
             return
-        text = format_startup_splash_detail(detail)
+        message = self.startup_localizer.resolve_message(detail)
+        text = format_startup_splash_detail(message.rendered)
         write_startup_splash_payload(
             self.command_file,
             detail=text,
@@ -100,6 +131,10 @@ class ExternalStartupSplashAdapter:
             total=total,
             closed=False,
             theme_key=self.theme_key,
+            language_code=self.startup_localizer.language_code,
+            startup_translations=self.startup_localizer.protocol_translations(),
+            message_key=message.key,
+            message_args=message.arguments,
         )
 
     def pump_animation_frame(self) -> None:
@@ -112,13 +147,18 @@ class ExternalStartupSplashAdapter:
         if self._closed:
             return
         self._closed = True
+        message = self.startup_localizer.resolve_message("Opening workspace...")
         write_startup_splash_payload(
             self.command_file,
-            detail="Opening workspace...",
+            detail=message.rendered,
             current=1,
             total=1,
             closed=True,
             theme_key=self.theme_key,
+            language_code=self.startup_localizer.language_code,
+            startup_translations=self.startup_localizer.protocol_translations(),
+            message_key=message.key,
+            message_args=message.arguments,
         )
         cleanup_startup_splash_artifacts(self.command_file)
         if os.environ.get(STARTUP_SPLASH_COMMAND_FILE_ENV) == str(self.command_file):

@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 
 from PySide6.QtCore import QRect, Qt, Signal
 from PySide6.QtGui import QFont, QPainter, QPalette
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QToolButton, QTreeWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QSizePolicy, QToolButton, QTreeWidget, QVBoxLayout, QWidget
 
 from cdmw.ui.layout_utils import scaled_px
 
@@ -73,7 +73,20 @@ class EmptyStatePanel(QWidget):
     def set_text(self, title: str, detail: str = "") -> None:
         self.title_label.setText(title)
         self.detail_label.setText(detail)
+        self.title_label.setProperty("_i18n_source_text", title)
+        self.title_label.setProperty("_i18n_rendered_text", None)
+        self.detail_label.setProperty("_i18n_source_text", detail)
+        self.detail_label.setProperty("_i18n_rendered_text", None)
         self.detail_label.setVisible(bool(detail))
+        app = QApplication.instance()
+        localizer = (
+            app.property("_cdmw_ui_localizer")
+            if app is not None
+            else None
+        )
+        apply = getattr(localizer, "apply", None)
+        if callable(apply):
+            apply(self)
 
 class EmptyStateTreeWidget(QTreeWidget):
     """QTreeWidget with quiet placeholder copy when the model has no rows."""
@@ -82,10 +95,25 @@ class EmptyStateTreeWidget(QTreeWidget):
         super().__init__(parent)
         self.empty_title = title
         self.empty_detail = detail
+        self.setProperty("_i18n_source_empty_title", title)
+        self.setProperty("_i18n_source_empty_detail", detail)
 
     def set_empty_state(self, title: str, detail: str = "") -> None:
         self.empty_title = title
         self.empty_detail = detail
+        self.setProperty("_i18n_source_empty_title", title)
+        self.setProperty("_i18n_source_empty_detail", detail)
+        self.setProperty("_i18n_rendered_empty_title", None)
+        self.setProperty("_i18n_rendered_empty_detail", None)
+        app = QApplication.instance()
+        localizer = (
+            app.property("_cdmw_ui_localizer")
+            if app is not None
+            else None
+        )
+        apply = getattr(localizer, "apply", None)
+        if callable(apply):
+            apply(self)
         self.viewport().update()
 
     def paintEvent(self, event) -> None:  # type: ignore[override]

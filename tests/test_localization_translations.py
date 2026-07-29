@@ -151,7 +151,7 @@ def test_language_export_handler_stays_fast_and_includes_live_widget_strings(tmp
 
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     assert elapsed < 0.05
-    assert payload["language_code"] == "es"
+    assert payload["language_code"] == "es-ES"
     assert payload["translations"]["Apply Suggested Overrides..."]
     assert payload["translations"]["Live instantiated widget string"] == "Cadena de widget activa"
     warning.assert_not_called()

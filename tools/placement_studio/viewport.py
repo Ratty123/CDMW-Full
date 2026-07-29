@@ -22,6 +22,8 @@ from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QWidget
 
+from cdmw.ui.localization import translate_active_ui_text
+
 from .gizmo import GizmoMixin
 from .model import Vec3
 from .palette import (
@@ -442,7 +444,7 @@ class SkeletonViewport(GizmoMixin, QWidget):
 
         if self._hierarchy is None or not len(self._hierarchy):
             painter.setPen(QPen(_TEXT))
-            painter.drawText(self.rect(), Qt.AlignCenter, "No skeleton loaded")
+            painter.drawText(self.rect(), Qt.AlignCenter, translate_active_ui_text("No skeleton loaded"))
             return
 
         self._draw_ground(painter)
@@ -973,13 +975,13 @@ class SkeletonViewport(GizmoMixin, QWidget):
 
     def _draw_legend(self, painter: QPainter) -> None:
         rows = [
-            (_SOCKET_USED, "socket in use"),
-            (_SOCKET_UNUSED, "socket unused"),
-            (_SOCKET_SELECTED, "selected"),
-            (_ATTACH_STOWED, "stowed attach"),
-            (_ATTACH_HELD, "held attach"),
-            (_WEAPON_FILL, "weapon mesh"),
-            (_CLIP_FILL, "inside the body"),
+            (_SOCKET_USED, translate_active_ui_text("socket in use")),
+            (_SOCKET_UNUSED, translate_active_ui_text("socket unused")),
+            (_SOCKET_SELECTED, translate_active_ui_text("selected")),
+            (_ATTACH_STOWED, translate_active_ui_text("stowed attach")),
+            (_ATTACH_HELD, translate_active_ui_text("held attach")),
+            (_WEAPON_FILL, translate_active_ui_text("weapon mesh")),
+            (_CLIP_FILL, translate_active_ui_text("inside the body")),
         ]
         painter.setPen(QPen(_TEXT))
         y = 18
@@ -992,25 +994,27 @@ class SkeletonViewport(GizmoMixin, QWidget):
             y += 15
         if self._edit_mode != "off":
             snap = (
-                f"snap {self._snap:.3f}"
+                f"{translate_active_ui_text('snap')} {self._snap:.3f}"
                 if self._edit_mode == "move"
-                else f"snap {self._angle_snap:.0f}°"
+                else f"{translate_active_ui_text('snap')} {self._angle_snap:.0f}°"
             )
             if self._edit_mode == "tilt" and self._blade_axis is None:
-                snap += "   [no item axis - select a weapon]"
+                snap += f"   [{translate_active_ui_text('no item axis - select a weapon')}]"
             painter.setPen(QPen(_SOCKET_SELECTED))
             painter.drawText(
                 QPointF(14, self.height() - 26),
-                f"{self._edit_mode.upper()} MODE — drag edits "
-                f"{self._selected or '(select a socket)'}   {snap}"
-                + (f"   [{self._grabbed_axis or self._hovered_axis} axis]"
+                f"{self._edit_mode.upper()} {translate_active_ui_text('MODE')} — "
+                f"{translate_active_ui_text('drag edits')} "
+                f"{self._selected or translate_active_ui_text('(select a socket)')}   {snap}"
+                + (f"   [{self._grabbed_axis or self._hovered_axis} "
+                   f"{translate_active_ui_text('axis')}]"
                    if (self._grabbed_axis or self._hovered_axis) else ""),
             )
         painter.setPen(QPen(_TEXT))
         painter.drawText(
             QPointF(14, self.height() - 10),
-            ("middle-drag: pan   wheel: zoom   " if self._edit_mode != "off"
-             else "drag: orbit   middle-drag: pan   wheel: zoom   ")
+            (translate_active_ui_text("middle-drag: pan   wheel: zoom   ") if self._edit_mode != "off"
+             else translate_active_ui_text("drag: orbit   middle-drag: pan   wheel: zoom   "))
             + f"yaw {self._camera.yaw:.0f}  pitch {self._camera.pitch:.0f}",
         )
 

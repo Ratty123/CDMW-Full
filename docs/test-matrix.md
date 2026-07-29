@@ -1,6 +1,6 @@
 # Test Matrix
 
-Last reviewed: 2026-07-12
+Last reviewed: 2026-07-29
 
 Use the project virtualenv:
 
@@ -40,9 +40,19 @@ worker signals execute on the owning QApplication thread.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_ui_responsiveness_source_guards.py tests/test_mesh_edit_responsiveness_source_guards.py tests/test_texture_workflow_ui_source_guards.py
-.\.venv\Scripts\python.exe -m pytest tests/test_attachment_async_io.py tests/test_appearance_async.py tests/test_localization_async_io.py tests/test_localization_translations.py
+.\.venv\Scripts\python.exe -m pytest tests/test_attachment_async_io.py tests/test_appearance_async.py tests/test_localization_async_io.py tests/test_localization_translations.py tests/test_localization_catalog_contracts.py
+.\.venv\Scripts\python.exe scripts/generate_ui_localization_manifest.py --check
+.\.venv\Scripts\python.exe scripts/validate_ui_localization_catalogs.py
 .\scripts\codex_check.ps1 -Area responsiveness
 ```
+
+The interface-localization contract covers all 14 built-ins, v1/v2 partial
+custom packs, locale aliases and plural boundaries, offscreen live/late-widget
+translation, native file-dialog filter round trips, a real main-window cold
+start from a saved non-English locale, pre-Qt startup fallback, and exact
+source/catalog parity. The production shell smoke also constructs every lazy
+tool after a live non-English switch. The inventory's reviewed exclusions are in
+`scripts/ui_localization_exclusions.json`.
 
 ## Archive Browser And Archive Services
 
@@ -120,6 +130,16 @@ exercises the hidden zero-size splitter construction phase before applying the
 real viewport/deck dimensions. It starts no renderer or visible window and
 reads no licensed asset. The `mesh-unit` gate runs this smoke after its focused
 source and behavior tests.
+
+Resident Python/WinForms interface-localization negotiation, exact manifest and
+acknowledgement correlation, Unicode payload bounds, stale rejection,
+reconnect replay, and live switching without process or package replacement:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_dotnet_helper_manifest_contract.py tests/test_dotnet_ui_localization_protocol_source.py tests/test_dotnet_preview_shared_host.py
+dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release
+dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-ui-localization-contract --localization-report "$env:TEMP\cdmw-ui-localization.json"
+```
 
 Archive mesh-import setup responsiveness, cancellation, stale-result rejection,
 and in-game swap-scope preflight:

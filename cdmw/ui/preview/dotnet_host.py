@@ -11,7 +11,16 @@ from typing import Optional
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Qt, Signal
 from PySide6.QtGui import QImage, QResizeEvent
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+from shiboken6 import isValid as qt_object_is_valid
 
 from cdmw.domain.camera_bindings import resolve_camera_bindings
 from cdmw.services.mesh_dotnet_experiment import (
@@ -143,6 +152,7 @@ class DotNetPreviewHostFrame(QFrame):
         terminate_on_close: bool = False,
         configured_executable: Path | str | None = None,
         controller: DotNetPreviewSessionController | None = None,
+        ui_localizer: object | None = None,
     ) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
@@ -245,6 +255,9 @@ class DotNetPreviewHostFrame(QFrame):
             terminate_on_close=terminate_on_close,
             parent=self,
         )
+        self.controller.set_ui_localizer(
+            ui_localizer or self._find_ui_localizer(parent)
+        )
         self._terminate_on_close = bool(terminate_on_close)
         self.controller.state_changed.connect(self._handle_controller_state)
         self.controller.protocol_event.connect(self._handle_protocol_event)
@@ -255,6 +268,22 @@ class DotNetPreviewHostFrame(QFrame):
         self._resident_retry_button.clicked.connect(self.controller.retry_now)
         self.destroyed.connect(self.controller.shutdown)
         self.controller.set_visible(False)
+
+    @staticmethod
+    def _find_ui_localizer(parent: QWidget | None) -> object | None:
+        candidate: QObject | None = parent
+        while candidate is not None:
+            localizer = getattr(candidate, "ui_localizer", None)
+            if localizer is not None:
+                return localizer
+            candidate = candidate.parent()
+        application = QApplication.instance()
+        if application is None or not qt_object_is_valid(application):
+            return None
+        localizer = application.property("_cdmw_ui_localizer")
+        if isinstance(localizer, QObject) and not qt_object_is_valid(localizer):
+            return None
+        return localizer
 
     @property
     def profile(self) -> DotNetPreviewProfile:

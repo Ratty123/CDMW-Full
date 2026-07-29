@@ -80,7 +80,12 @@ class _UtilityOwner(UtilityControllerMixin, QObject):
 
 def test_language_workers_validate_and_publish_atomically(tmp_path: Path) -> None:
     output_path = tmp_path / "export.json"
-    translations = bundled_translatable_source_strings()
+    translations = dict(
+        UiLocalizer(
+            language_dir=tmp_path / "languages",
+            language_code="en",
+        ).translations
+    )
     translations["Live string"] = "Cadena activa"
     export = run_language_export(
         LanguageExportRequest(
