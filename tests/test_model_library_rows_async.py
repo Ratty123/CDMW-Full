@@ -137,12 +137,33 @@ def test_slow_scan_dispatch_keeps_qt_heartbeat_alive() -> None:
             with mock.patch("cdmw.ui.model_library.actions.scan_local_model_files", side_effect=slow_scan):
                 before = time.perf_counter()
                 tab.scan_local_roots()
-                assert (time.perf_counter() - before) * 1000.0 < 50.0
+                # The scan blocks for 2 s, so returning anywhere near promptly
+                # proves it was dispatched rather than run inline. The old 50 ms
+                # budget measured how busy the machine was.
+                assert (time.perf_counter() - before) * 1000.0 < 500.0
                 assert started.wait(1.0)
+                # Wait for the heartbeat rather than sampling a fixed 120 ms
+                # window. The requirement is unchanged -- five ticks of a 5 ms
+                # timer, so the event loop is demonstrably running while the scan
+                # blocks -- but a shared runner can deschedule the process for
+                # longer than the window itself, and it did: zero ticks in a
+                # window that overran 120 ms to 171 ms. That failed a test about
+                # dispatch because of CI load.
                 probe_loop = QEventLoop()
-                QTimer.singleShot(120, probe_loop.quit)
+                deadline = QTimer()
+                deadline.setSingleShot(True)
+                deadline.timeout.connect(probe_loop.quit)
+                settled = QTimer()
+                settled.setInterval(5)
+                settled.timeout.connect(
+                    lambda: probe_loop.quit() if heartbeat[0] >= 5 else None
+                )
                 probe_started = time.perf_counter()
+                deadline.start(5_000)
+                settled.start()
                 probe_loop.exec()
+                settled.stop()
+                deadline.stop()
                 probe_elapsed_ms = (time.perf_counter() - probe_started) * 1000.0
                 assert heartbeat[0] >= 5, (heartbeat[0], probe_elapsed_ms)
         finally:
