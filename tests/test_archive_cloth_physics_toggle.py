@@ -22,6 +22,8 @@ class _Checkbox:
     def __init__(self, checked: bool = False) -> None:
         self.checked = bool(checked)
         self.signals_blocked = False
+        self.visible = False
+        self.enabled = False
 
     def blockSignals(self, blocked: bool) -> bool:
         previous = self.signals_blocked
@@ -33,6 +35,12 @@ class _Checkbox:
 
     def isChecked(self) -> bool:
         return self.checked
+
+    def setVisible(self, visible: bool) -> None:
+        self.visible = bool(visible)
+
+    def setEnabled(self, enabled: bool) -> None:
+        self.enabled = bool(enabled)
 
 
 class _Harness(ArchivePreviewDotNetLifecycleMixin):
@@ -111,6 +119,34 @@ def test_cloth_availability_reads_the_package_manifest(tmp_path: Path) -> None:
 
     with_cloth = _Harness(_write_manifest(tmp_path / "cloak", 2))
     assert with_cloth._archive_active_package_has_cloth_batches() is True
+
+
+def test_cloth_control_appears_while_textures_are_loaded(tmp_path: Path) -> None:
+    """The texture-request completion path must bring the cloth control with it.
+
+    It refreshes only the texture checkbox, so the cloth toggle stayed hidden for
+    as long as textures were loaded and appeared only once Load textures was
+    unticked -- which read as the control depending on textures.
+    """
+
+    harness = _Harness(_write_manifest(tmp_path / "cloak", 2))
+    harness._archive_toolbar_resident_available = True
+    harness._archive_toolbar_controls_enabled = True
+
+    harness._sync_archive_cloth_physics_action_state()
+
+    assert harness.archive_cloth_physics_button.visible is True
+    assert harness.archive_cloth_physics_button.enabled is True
+
+
+def test_cloth_control_stays_hidden_without_declared_cloth_batches(tmp_path: Path) -> None:
+    harness = _Harness(_write_manifest(tmp_path / "plain", 0))
+    harness._archive_toolbar_resident_available = True
+    harness._archive_toolbar_controls_enabled = True
+
+    harness._sync_archive_cloth_physics_action_state()
+
+    assert harness.archive_cloth_physics_button.visible is False
 
 
 def test_unreadable_manifest_reports_no_cloth_rather_than_raising(tmp_path: Path) -> None:

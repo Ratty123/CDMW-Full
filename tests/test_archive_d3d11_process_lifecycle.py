@@ -365,3 +365,32 @@ def test_material_debug_reads_canonical_net_materials(tmp_path: Path) -> None:
     detail = harness._archive_material_channel_debug_from_package(package)
 
     assert detail == "Material Authority: part 0 Armor: base_color"
+
+
+def test_untick_hides_textures_even_when_the_mirror_says_they_are_hidden(tmp_path: Path) -> None:
+    """Loading a package records "hidden" while the renderer settles on textured.
+
+    `_archive_textures_visible` mirrors the renderer, and a package load asks for
+    untextured_wire and records False even though the renderer lands on textured
+    because the package carries texture resources. Gating the send on that mirror
+    made unticking Load textures a no-op against a visibly textured model.
+    """
+
+    package = tmp_path / "textured-package"
+    package.mkdir()
+    (package / "net_materials.json").write_text(
+        json.dumps({"resources": [{"resource_id": "texture:base", "path": "base.dds"}]}),
+        encoding="utf-8",
+    )
+    checkbox = _FakeCheckbox()
+    checkbox.checked = False
+    harness = _LifecycleHarness()
+    harness.archive_isolated_renderer_button = checkbox
+    harness.archive_isolated_renderer_active_package = package
+    harness.settings = ModelPreviewRenderSettings(use_textures_by_default=False)
+    harness._archive_textures_visible = False
+
+    harness._open_archive_isolated_d3d11_preview()
+
+    assert harness.archive_d3d11_preview_host.viewport_modes == ["untextured_wire"]
+    assert harness.archive_d3d11_preview_host.loads == []

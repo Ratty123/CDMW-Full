@@ -131,24 +131,29 @@ class ArchivePreviewDotNetLifecycleMixin:
         if bool(getattr(self, "_archive_texture_request_loading", False)):
             self._sync_archive_texture_action_state()
             return
+        # `_archive_textures_visible` mirrors what the renderer is showing, and the
+        # two drift apart: loading a package asks for untextured_wire and records
+        # False, while the renderer settles on textured because the package
+        # carries texture resources. Gating the send on the mirror then made
+        # unticking "Load textures" a no-op against a visibly textured model. The
+        # display mode is idempotent, so state it every time rather than trusting
+        # a local belief about what the viewport already shows.
+        showing = bool(getattr(self, "_archive_textures_visible", False))
         if enabled:
             if package_dir is None or not self._archive_active_package_has_textures():
                 self._request_archive_preview_textures(
                     automatic=bool(checkbox is not None and hasattr(checkbox, "isChecked"))
                 )
                 return
-            if not bool(getattr(self, "_archive_textures_visible", False)):
-                host.set_viewport_display_mode("textured")
-                self._archive_textures_visible = True
+            host.set_viewport_display_mode("textured")
+            self._archive_textures_visible = True
+            if not showing:
                 self.set_status_message("Textures shown.")
-        elif (
-            package_dir is not None
-            and self._archive_active_package_has_textures()
-            and bool(getattr(self, "_archive_textures_visible", False))
-        ):
+        elif package_dir is not None and self._archive_active_package_has_textures():
             host.set_viewport_display_mode("untextured_wire")
             self._archive_textures_visible = False
-            self.set_status_message("Textures hidden; geometry remains resident.")
+            if showing:
+                self.set_status_message("Textures hidden; geometry remains resident.")
         self._sync_archive_texture_action_state()
 
     def _archive_preview_effective_render_settings(self, request_id: int | None = None):
@@ -358,6 +363,12 @@ class ArchivePreviewDotNetLifecycleMixin:
     ) -> None:
         """Refresh the Load textures and Cloth physics toolbar checkboxes."""
 
+        # Remembered so the texture-request completion path, which refreshes only
+        # the texture checkbox, can bring the cloth control with it. Without that
+        # the cloth toggle stayed hidden for as long as textures were loaded and
+        # appeared only once "Load textures" was unticked.
+        self._archive_toolbar_resident_available = bool(resident_available)
+        self._archive_toolbar_controls_enabled = bool(controls_enabled)
         sync_texture_action = getattr(self, "_sync_archive_texture_action_state", None)
         if callable(sync_texture_action):
             sync_texture_action()
@@ -367,11 +378,6 @@ class ArchivePreviewDotNetLifecycleMixin:
         if not bool(getattr(self, "_archive_texture_request_loading", False)):
             self.archive_isolated_renderer_button.setEnabled(bool(resident_available and controls_enabled))
         self._sync_archive_cloth_physics_action_state()
-        # Only assets whose package declares PBD batches can simulate anything, so
-        # the control stays hidden rather than offering a toggle that does nothing.
-        cloth_available = bool(resident_available and self._archive_active_package_has_cloth_batches())
-        self.archive_cloth_physics_button.setVisible(cloth_available)
-        self.archive_cloth_physics_button.setEnabled(bool(cloth_available and controls_enabled))
 
     def _handle_archive_renderer_protocol_event(self, payload: object) -> None:
         """Surface a refused presentation update instead of dropping it silently.
@@ -429,6 +435,16 @@ class ArchivePreviewDotNetLifecycleMixin:
             checkbox.setChecked(preference_enabled)
         finally:
             checkbox.blockSignals(previous_blocked)
+        # Only assets whose package declares PBD batches can simulate anything, so
+        # the control stays hidden rather than offering a toggle that does nothing.
+        available = bool(
+            getattr(self, "_archive_toolbar_resident_available", False)
+            and self._archive_active_package_has_cloth_batches()
+        )
+        checkbox.setVisible(available)
+        checkbox.setEnabled(
+            bool(available and getattr(self, "_archive_toolbar_controls_enabled", False))
+        )
 
     def _archive_active_package_has_cloth_batches(self) -> bool:
         package_dir = getattr(self, "archive_isolated_renderer_active_package", None)

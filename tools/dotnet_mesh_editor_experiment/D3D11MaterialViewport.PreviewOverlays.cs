@@ -7,6 +7,12 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class D3D11MaterialViewport
 {
+    // Chosen so a deflected vertex returns over a few tenths of a second: stiff
+    // enough that the garment holds its authored silhouette, soft enough that
+    // gravity and wind still visibly move it.
+    private const float ClothRestStiffness = 34.0f;
+    private const float ClothVelocityDamping = 0.90f;
+
     private readonly List<Vector3> _clothOverlayPositions = new();
     private readonly List<Vector3> _clothOverlayVelocities = new();
     private readonly List<Vector3> _clothOverlayRestPositions = new();
@@ -59,10 +65,61 @@ internal sealed partial class D3D11MaterialViewport
         DrawOverlayPrimitive(PrimitiveTopology.LineList, selected, OverlayColor(255, 210, 76, 255), matrix);
     }
 
+    /// <summary>
+    /// Push the solved particle positions into the submeshes they came from, so
+    /// the textured mesh is what moves. Without this the solver only fed a line
+    /// overlay and the model stayed rigid underneath it.
+    /// </summary>
+    private void ApplyClothSimulationToMesh(NetPreviewOverlayState overlays)
+    {
+        if (_document is null || overlays.ClothBatchRanges.Count == 0)
+        {
+            return;
+        }
+        foreach (var range in overlays.ClothBatchRanges)
+        {
+            if (range.SubmeshIndex < 0 || range.SubmeshIndex >= _document.Submeshes.Count)
+            {
+                continue;
+            }
+            var submesh = _document.Submeshes[range.SubmeshIndex];
+            // A topology edit between package load and now would make the range
+            // describe a mesh that no longer exists; leave that frame alone.
+            if (submesh.Vertices.Count != range.Count)
+            {
+                continue;
+            }
+            var batch = _batches.FirstOrDefault(candidate => candidate.SubmeshIndex == range.SubmeshIndex);
+            if (batch is null
+                || batch.TopologyGeneration != _topologyGeneration
+                || batch.SourceVertexToRenderCorners.SourceVertexCount != submesh.Vertices.Count)
+            {
+                continue;
+            }
+            for (var index = 0; index < range.Count; index++)
+            {
+                var position = _clothOverlayPositions[range.Offset + index];
+                submesh.Vertices[index] = new Vec3(position.X, position.Y, position.Z);
+            }
+            // Every vertex moved, so range coalescing would rebuild the whole
+            // batch anyway; upload it in one call and let WriteFaceVertices
+            // recompute the normals and tangent frames from the new positions.
+            UploadFaceRange(batch, submesh, 0, batch.RenderFaces.Length - 1);
+        }
+    }
+
     private void DrawClothPreviewOverlay(NetPreviewOverlayState overlays)
     {
         EnsureClothOverlaySimulation(overlays);
         StepClothOverlaySimulation(overlays);
+        ApplyClothSimulationToMesh(overlays);
+        // The constraint lines were the only way to see the simulation when it
+        // could not move the mesh. Now that it can, they are debug output and
+        // ride with the other debug overlays rather than being the whole show.
+        if (!overlays.ClothShowPins && !overlays.ClothShowColliders)
+        {
+            return;
+        }
         var constraints = ResetScratchA();
         foreach (var constraint in overlays.ClothConstraints)
         {
@@ -174,7 +231,16 @@ internal sealed partial class D3D11MaterialViewport
                 _clothOverlayVelocities[index] = Vector3.Zero;
                 continue;
             }
-            var velocity = (_clothOverlayVelocities[index] + acceleration * deltaSeconds) * 0.992f;
+            // The authored shape is the equilibrium, not the floor. Distance
+            // constraints alone do not oppose a constant pull, so a garment with
+            // few pins sagged until it collapsed into a heap -- correct for a
+            // flag, wrong for trousers already hanging where they belong. A
+            // spring back to the rest pose makes gravity a deflection the cloth
+            // recovers from rather than a direction it keeps travelling in.
+            var toRest = _clothOverlayRestPositions[index] - _clothOverlayPositions[index];
+            var restoring = toRest * ClothRestStiffness;
+            var velocity = (_clothOverlayVelocities[index] + (acceleration + restoring) * deltaSeconds)
+                * ClothVelocityDamping;
             _clothOverlayVelocities[index] = velocity;
             _clothOverlayPositions[index] += velocity * deltaSeconds * (1.0f - pinWeight);
         }
