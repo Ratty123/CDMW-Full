@@ -364,18 +364,25 @@ class MeshEditorDotNetProtocolMixin(
                 self._set_embedded_dotnet_state("ready", active=True)
                 self._notify_embedded_dotnet_ready()
                 self.update_editor_action_state(selection_empty=self.current_selection_empty)
-            self._send_dotnet_session_state()
-            comparison_mode, interaction_mode = self._dotnet_initial_scene_modes(
-                embedded=bool(self.standalone_dotnet_target_embedded)
-            )
-            self._send_dotnet_scene_state(
-                comparison_mode=comparison_mode,
-                interaction_mode=interaction_mode,
-                placement=self._dotnet_current_placement_state(
+            # `activated` is emitted *after* the helper has revealed its window.
+            # Re-pushing state the rehydrator already delivered before activation
+            # makes the helper re-run its interaction-mode controls on screen, so
+            # the reader watches the tool rail re-assert itself. A resume that
+            # never went through a package apply has no rehydrate behind it and
+            # still needs this.
+            if not self._dotnet_state_already_pushed_for_process():
+                self._send_dotnet_session_state()
+                comparison_mode, interaction_mode = self._dotnet_initial_scene_modes(
                     embedded=bool(self.standalone_dotnet_target_embedded)
-                ),
-            )
-            self._sync_embedded_builder_presentation_state()
+                )
+                self._send_dotnet_scene_state(
+                    comparison_mode=comparison_mode,
+                    interaction_mode=interaction_mode,
+                    placement=self._dotnet_current_placement_state(
+                        embedded=bool(self.standalone_dotnet_target_embedded)
+                    ),
+                )
+                self._sync_embedded_builder_presentation_state()
             self._set_embedded_dotnet_preview_loading(False, "Preview ready.")
             return True
         if event == "deactivated":

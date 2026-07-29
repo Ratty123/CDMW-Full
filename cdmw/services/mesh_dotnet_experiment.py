@@ -712,6 +712,7 @@ def mesh_dotnet_experiment_command(
     embedded_parent_hwnd: int = 0,
     developer_renderer_fallback: bool = False,
     profile: str = "authoring",
+    prewarm_launch: bool = False,
 ) -> tuple[str, list[str]]:
     executable = Path(executable_path)
     if not str(executable).strip():
@@ -748,6 +749,10 @@ def mesh_dotnet_experiment_command(
         args.extend(["--embedded", "--parent-hwnd", str(int(embedded_parent_hwnd))])
     if bool(developer_renderer_fallback):
         args.append("--developer-renderer-fallback")
+    if bool(prewarm_launch):
+        # The helper stays hidden while it serves this placeholder, so the scene
+        # nobody asked for is never painted into the host pane.
+        args.append("--prewarm")
     return (
         str(executable),
         args,

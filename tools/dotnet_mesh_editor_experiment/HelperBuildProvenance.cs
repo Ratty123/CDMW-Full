@@ -16,6 +16,11 @@ internal static class HelperBuildProvenance
         "mesh_edit_revision_ack_v1",
         "resident_mutation_envelope_v2",
         "host_tool_state_v1",
+        // A prewarmed authoring helper handshakes with a placeholder session the
+        // first real Edit Mesh replaces. Hosts gate the early prewarm on this,
+        // rather than requiring it, so an older helper still runs -- it just pays
+        // the cold start it always did.
+        "authoring_provisional_session_v1",
         "resident_material_updates_v2",
         "resident_material_parameter_updates_v1",
         "resident_texture_region_updates_v1",
@@ -23,6 +28,7 @@ internal static class HelperBuildProvenance
         "resident_scene_state_v1",
         "authoritative_resident_scene_frame_v2",
         "helper_build_provenance_v1",
+        "ui_localization_v1",
         "renderer_status_request_v1",
         "deterministic_offscreen_capture_v1",
         "performance_capture_v1",
@@ -46,7 +52,8 @@ internal static class HelperBuildProvenance
             capabilities = capabilities.Where(capability => capability is not (
                 "mesh_edit_revision_ack_v1"
                 or "resident_mutation_envelope_v2"
-                or "host_tool_state_v1"));
+                or "host_tool_state_v1"
+                or "authoring_provisional_session_v1"));
         }
         return capabilities.Order(StringComparer.Ordinal).ToArray();
     }

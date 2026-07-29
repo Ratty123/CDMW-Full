@@ -169,6 +169,7 @@ internal sealed partial class MeshViewport
             "mesh_edit_revision_ack_v1",
             "resident_mutation_envelope_v2",
             "host_tool_state_v1",
+            "authoring_provisional_session_v1",
             "resident_material_updates_v2",
             "procedural_morph_refit_v2",
         };
@@ -220,6 +221,7 @@ internal sealed partial class MeshViewport
                 or "mesh_edit_revision_ack_v1"
                 or "resident_mutation_envelope_v2"
                 or "host_tool_state_v1"
+                or "authoring_provisional_session_v1"
                 or "procedural_morph_refit_v2");
             capabilities.Add("preview_profile_read_only_v1");
         }

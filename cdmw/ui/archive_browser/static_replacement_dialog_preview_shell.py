@@ -31,6 +31,32 @@ def _legacy_preview_rows(QWidget, QHBoxLayout, parent):
     return legacy_preview_controls_widget, preview_controls_row, legacy_preview_camera_widget, preview_camera_row
 
 
+def _prewarm_alignment_dotnet_host(host) -> bool:
+    """Start the resident authoring helper before the first Edit Mesh click.
+
+    Best effort by definition: the dialog can be gone by the time this fires, the
+    cache root can be unset, and a helper that will not start is reported through
+    the normal launch path rather than here. A failure costs the cold start that
+    was being paid anyway.
+    """
+
+    try:
+        cache_root = host.property("cdmwPreviewPrewarmCacheRoot")
+    except (AttributeError, RuntimeError):
+        return False
+    if not cache_root:
+        return False
+    prewarm = getattr(host, "prewarm_from_cache", None)
+    if not callable(prewarm):
+        return False
+    try:
+        from pathlib import Path
+
+        return bool(prewarm(Path(str(cache_root))))
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return False
+
+
 def create_alignment_preview_shell_section(context: dict[str, object]) -> SimpleNamespace:
     DOTNET_PREVIEW_VIEW_MODE_OPTIONS = context.get('DOTNET_PREVIEW_VIEW_MODE_OPTIONS')
     Dict = context.get('Dict')
@@ -499,12 +525,20 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
             or MESH_PREVIEW_DEFAULT_DISPLAY_MODE
         )
     )
-    # The Mesh Editor starts this prewarm after its authoritative edit-session
-    # id is known.  Starting it here would bind the resident authoring helper
-    # to a throwaway session before the real package can supersede it.
     alignment_d3d11_preview_host.setProperty(
         "cdmwPreviewPrewarmCacheRoot",
         str(self._native_preview_package_cache_root()),
+    )
+    # Start the helper now rather than on the first Edit Mesh.  This used to be
+    # unsafe -- an authoring handshake made before the edit session existed
+    # latched a throwaway id that the real package could not supersede -- so the
+    # prewarm waited for the session and could only overlap the package build.
+    # The handshake is provisional now (`authoring_provisional_session_v1`), so
+    # the real session adopts the warm process instead of being refused by it,
+    # and the process start, JIT and D3D device are all paid before the click.
+    QTimer.singleShot(
+        750,
+        lambda: _prewarm_alignment_dotnet_host(alignment_d3d11_preview_host),
     )
     alignment_d3d11_split_ratio_settings_key = "ui/mesh_alignment/d3d11_side_by_side_split_ratio"
     try:

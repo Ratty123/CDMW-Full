@@ -17,6 +17,7 @@ from cdmw.services.atomic_file_service import atomic_copy_file
 from cdmw.services.preview_rendering_service import (
     acquire_dotnet_preview_package_cache_lease_for_path,
 )
+from cdmw.domain.localization import plural_rule_for_code
 from cdmw.services.mesh_dotnet_experiment import (
     MeshDotNetExperimentPackage,
     mesh_dotnet_experiment_command,
@@ -52,6 +53,7 @@ _BASE_PROTOCOL_CAPABILITIES = (
     "overlay_state_update_v1",
     "skeleton_overlay_v1",
     "pbd_cloth_overlay_v1",
+    "ui_localization_v1",
 )
 _PREVIEW_PROTOCOL_CAPABILITIES = (
     "preview_profile_read_only_v1",
@@ -77,6 +79,7 @@ class DotNetPreviewSessionController(QObject):
     part_pick_result = Signal(object)
     capture_completed = Signal(object)
     rehydrate_requested = Signal(int)
+    localization_applied = Signal(str, int)
 
     def __init__(
         self,
@@ -121,6 +124,7 @@ class DotNetPreviewSessionController(QObject):
         self._protocol_ready = False
         self._renderer_ready = False
         self._session_established = False
+        self._session_provisional = False
         self._active = False
         self._retry_attempt = 0
         self._retry_reason = ""
@@ -137,6 +141,15 @@ class DotNetPreviewSessionController(QObject):
         self._prewarm_capture_request_id = 0
         self._prewarm_capture_path: Path | None = None
         self._last_event: dict[str, object] = {}
+        self._ui_localizer: object | None = None
+        self._localization_keys: tuple[str, ...] = ()
+        self._localization_key_manifest_hash = ""
+        self._localization_request_id = 0
+        self._pending_localization: dict[str, object] | None = None
+        self._localization_initial_established = True
+        self._localization_applied_revision = -1
+        self._renderer_ready_payload: dict[str, object] | None = None
+        self._renderer_ready_announced = False
 
         self._retry_timer = QTimer(self)
         self._retry_timer.setSingleShot(True)
@@ -185,6 +198,46 @@ class DotNetPreviewSessionController(QObject):
     def set_configured_executable(self, executable: Path | str | None) -> None:
         self._configured_executable = executable
 
+    def set_ui_localizer(self, localizer: object | None) -> None:
+        if localizer is self._ui_localizer:
+            return
+        previous_signal = getattr(
+            self._ui_localizer,
+            "language_changed",
+            None,
+        )
+        if previous_signal is not None:
+            try:
+                previous_signal.disconnect(self._handle_ui_language_changed)
+            except (RuntimeError, TypeError):
+                pass
+        self._ui_localizer = localizer
+        signal = getattr(localizer, "language_changed", None)
+        if signal is not None:
+            try:
+                signal.connect(self._handle_ui_language_changed)
+            except (RuntimeError, TypeError):
+                pass
+        if self._protocol_ready and self._localization_keys:
+            self._send_ui_localization_state()
+
+    def _handle_ui_language_changed(
+        self,
+        _language_code: str,
+        _revision: int,
+    ) -> None:
+        if self._protocol_ready and self._localization_keys:
+            self._send_ui_localization_state()
+
+    def _reset_localization_handshake(self) -> None:
+        self._localization_keys = ()
+        self._localization_key_manifest_hash = ""
+        self._pending_localization = None
+        self._localization_initial_established = False
+        self._localization_applied_revision = -1
+        self._renderer_ready_payload = None
+        self._renderer_ready_announced = False
+
     def _follow_preview_package_session(self, resolved: object, scene_session_id: str) -> bool:
         """Adopt the session id a read-only preview package declares.
 
@@ -215,13 +268,88 @@ class DotNetPreviewSessionController(QObject):
         return True
 
     def set_authoritative_session_id(self, session_id: str) -> bool:
+        """Bind this controller to a real edit session, adopting a prewarm if one is running.
+
+        A prewarmed authoring helper handshakes before any edit session exists, so
+        it is holding a placeholder id. That used to make the binding fail and the
+        first Edit Mesh report "authoring session changed while the resident helper
+        was active" -- which is why the prewarm could only be started *after* the
+        session id was known, i.e. too late to hide the helper's start-up. While
+        the session is still provisional the real id replaces it and is
+        re-handshaked; once a real session owns the helper nothing may take it.
+        """
+
         normalized = str(session_id or "").strip()
         if self.profile is not DotNetPreviewProfile.AUTHORING or not normalized:
             return False
-        if self._session_established and normalized != self._session_id:
+        if normalized == self._session_id:
+            return True
+        if self._session_established and not self._session_provisional:
+            if self._launch_is_prewarm and self._desired_package is None:
+                # A prewarm holding a session it cannot hand back must never be
+                # the reason a real edit session is refused. This is the older
+                # helper without `authoring_provisional_session_v1`: drop the
+                # warm process and let the real package start its own.
+                self._discard_prewarm_process()
+                self._session_id = normalized
+                return True
             return False
         self._session_id = normalized
+        if self._session_provisional and self._session_established:
+            sent = self._send_authoritative_session_state()
+            if sent and self._protocol_ready and self._localization_keys:
+                self._send_ui_localization_state()
+            return sent
+        if self._protocol_ready and self._localization_keys:
+            self._send_ui_localization_state()
         return True
+
+    def _discard_prewarm_process(self) -> None:
+        """Stop a prewarmed helper without touching the desired-package stream."""
+
+        process = self._process
+        self._process = None
+        self._ready_timer.stop()
+        self._package_timer.stop()
+        self._pending_package_generation = 0
+        self._protocol_ready = False
+        self._renderer_ready = False
+        self._session_established = False
+        self._session_provisional = False
+        self._active = False
+        self._capabilities.clear()
+        self._reset_localization_handshake()
+        self._clear_prewarm_capture()
+        prewarm_path = (
+            str(self._prewarm_package.package_dir) if self._prewarm_package is not None else ""
+        )
+        self._prewarm_package = None
+        self._launch_is_prewarm = False
+        if process is not None:
+            self._send_json_to_process(process, {"event": "close_request"})
+            stop_qprocess_async(process)
+        if prewarm_path:
+            self._release_package_lease(prewarm_path)
+
+    def _send_authoritative_session_state(self) -> bool:
+        """Promote the live handshake from the placeholder id to the real one."""
+
+        sent = self._send_json(
+            {
+                "event": "session_state",
+                "session_id": self._session_id,
+                "process_generation": self._process_generation,
+                "protocol_version": 2,
+                "provisional_session": False,
+                "revision": 0,
+                "edit_revision": 0,
+                "history": {"undo": [], "redo": []},
+                "selection": {},
+            }
+        )
+        if sent:
+            self._session_provisional = False
+        return sent
 
     def set_authoring_rehydrator(
         self,
@@ -333,6 +461,7 @@ class DotNetPreviewSessionController(QObject):
                 and self._protocol_ready
                 and self._renderer_ready
                 and self._session_established
+                and self._localization_initial_established
                 and not self._package_timer.isActive()
             ):
                 # A prior recoverable package failure leaves the desired identity
@@ -367,7 +496,11 @@ class DotNetPreviewSessionController(QObject):
                 self._activate()
             return True
         if self._visible:
-            if self._launch_is_prewarm and not self._renderer_ready:
+            if (
+                self._launch_is_prewarm
+                and not self._renderer_ready
+                and self._localization_initial_established
+            ):
                 if not self._request_resident_package_load():
                     self._activate_prewarm()
             elif self._can_send_protocol():
@@ -428,7 +561,12 @@ class DotNetPreviewSessionController(QObject):
             self._active = False
             self._set_state("inactive", ".NET/Vortice Preview paused while hidden.")
             return
-        if self._launch_is_prewarm and self._session_established and not self._renderer_ready:
+        if (
+            self._launch_is_prewarm
+            and self._session_established
+            and self._localization_initial_established
+            and not self._renderer_ready
+        ):
             if self._desired_package is None:
                 # Becoming visible with nothing selected must not present the
                 # procedural prewarm scene: the helper stays resident and warm,
@@ -442,7 +580,11 @@ class DotNetPreviewSessionController(QObject):
             return
         if self._process is None or not qprocess_is_running(self._process):
             self.retry_now()
-        elif self._applied_package_path and self._session_established:
+        elif (
+            self._applied_package_path
+            and self._session_established
+            and self._localization_initial_established
+        ):
             self._activate_applied()
             if self._applied_package_identity != self._desired_package_identity:
                 self._request_resident_package_load()
@@ -479,7 +621,11 @@ class DotNetPreviewSessionController(QObject):
             # drops the helper out of it, on this send and on the reload replay.
             body.update(self._authoring_scene_modes)
         self._store_resident_state(normalized_key, event, body)
-        if self._session_established and self._renderer_ready:
+        if (
+            self._session_established
+            and self._renderer_ready
+            and self._localization_initial_established
+        ):
             return self.send_correlated(event, body) > 0
         return True
 
@@ -492,7 +638,10 @@ class DotNetPreviewSessionController(QObject):
         self._resident_state.pop(str(key or "").strip().lower(), None)
 
     def send_correlated(self, event: str, payload: Mapping[str, object] | None = None) -> int:
-        if not self._session_established:
+        if not (
+            self._session_established
+            and self._localization_initial_established
+        ):
             return 0
         self._protocol_request_id += 1
         request_id = self._protocol_request_id
@@ -575,6 +724,14 @@ class DotNetPreviewSessionController(QObject):
         if process is not None:
             self._send_json_to_process(process, {"event": "close_request"})
             stop_qprocess_async(process)
+        signal = getattr(self._ui_localizer, "language_changed", None)
+        if signal is not None:
+            try:
+                signal.disconnect(self._handle_ui_language_changed)
+            except (RuntimeError, TypeError):
+                pass
+        self._ui_localizer = None
+        self._reset_localization_handshake()
         self._release_package_leases()
         self._pending_captures.clear()
         self._clear_prewarm_capture()
@@ -614,6 +771,7 @@ class DotNetPreviewSessionController(QObject):
                 package,
                 embedded_parent_hwnd=parent_hwnd,
                 profile=self.profile.value,
+                prewarm_launch=prewarm_launch,
             )
         except (OSError, TypeError, ValueError) as exc:
             self._schedule_retry(f"Could not configure .NET/Vortice Preview: {exc}", static_failure=False)
@@ -630,9 +788,11 @@ class DotNetPreviewSessionController(QObject):
         self._protocol_ready = False
         self._renderer_ready = False
         self._session_established = False
+        self._session_provisional = False
         self._pending_package_generation = 0
         self._active = False
         self._capabilities.clear()
+        self._reset_localization_handshake()
         self._clear_prewarm_capture()
         self._stdout_buffer = b""
         self._stdout_tail = ""
@@ -685,6 +845,8 @@ class DotNetPreviewSessionController(QObject):
         self._protocol_ready = False
         self._renderer_ready = False
         self._session_established = False
+        self._session_provisional = False
+        self._reset_localization_handshake()
         self._clear_prewarm_capture()
         self._active = False
         self._prewarm_package = None
@@ -748,6 +910,183 @@ class DotNetPreviewSessionController(QObject):
         if chunk:
             self._stderr_tail = append_bounded_text(self._stderr_tail, chunk)
 
+    @staticmethod
+    def _localization_manifest_hash(keys: Sequence[str]) -> str:
+        encoded = "\n".join(sorted(str(key) for key in keys)).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def _localization_payload_values(
+        self,
+    ) -> tuple[str, str, int, dict[str, object], str]:
+        keys = self._localization_keys
+        localizer = self._ui_localizer
+        snapshot_method = getattr(localizer, "translation_snapshot", None)
+        if callable(snapshot_method):
+            language_code = str(
+                getattr(localizer, "language_code", "en") or "en"
+            )
+            try:
+                revision = max(0, int(getattr(localizer, "revision", 0) or 0))
+            except (TypeError, ValueError, OverflowError):
+                revision = 0
+            snapshot = dict(
+                snapshot_method(
+                    keys,
+                    max_keys=10_000,
+                    max_bytes=DOTNET_PROTOCOL_LINE_LIMIT - (16 * 1024),
+                )
+            )
+        else:
+            from cdmw.ui.localization_catalogs_v2 import builtin_translation_entries
+
+            language_code = "en"
+            revision = 0
+            english = builtin_translation_entries("en")
+            snapshot = {
+                source: (
+                    str(english[source])
+                    if isinstance(english.get(source), str)
+                    else dict(english[source])  # type: ignore[arg-type]
+                )
+                for source in keys
+                if source in english
+            }
+        if set(snapshot) != set(keys):
+            missing = sorted(set(keys) - set(snapshot))
+            raise ValueError(
+                "Helper localization keys are absent from the host catalog: "
+                + ", ".join(missing[:3])
+            )
+        from cdmw.ui.localization_catalogs_v2 import translation_catalog_hash
+
+        catalog_hash = translation_catalog_hash(
+            language_code,
+            snapshot,  # type: ignore[arg-type]
+            keys=keys,
+        )
+        return (
+            language_code,
+            plural_rule_for_code(language_code),
+            revision,
+            snapshot,
+            catalog_hash,
+        )
+
+    def _send_ui_localization_state(self) -> bool:
+        if not self._protocol_ready or not self._localization_keys:
+            return False
+        try:
+            (
+                language_code,
+                plural_rule,
+                revision,
+                translations,
+                catalog_hash,
+            ) = self._localization_payload_values()
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            self._fail_current_process(
+                f".NET/Vortice localization payload was rejected by the host: {exc}",
+                static_failure=True,
+            )
+            return False
+        self._localization_request_id += 1
+        request_id = self._localization_request_id
+        correlation: dict[str, object] = {
+            "language_code": language_code,
+            "plural_rule": plural_rule,
+            "catalog_hash": catalog_hash,
+            "key_manifest_hash": self._localization_key_manifest_hash,
+            "session_id": self._session_id,
+            "process_generation": self._process_generation,
+            "request_id": request_id,
+            "localization_revision": revision,
+        }
+        message = {
+            "event": "ui_localization_state",
+            **correlation,
+            "translations": translations,
+        }
+        encoded = (
+            json.dumps(message, ensure_ascii=False, separators=(",", ":"))
+            + "\n"
+        ).encode("utf-8")
+        if len(encoded) > DOTNET_PROTOCOL_LINE_LIMIT:
+            self._fail_current_process(
+                ".NET/Vortice localization payload exceeded the protocol line limit.",
+                static_failure=True,
+            )
+            return False
+        if not self._send_json(message):
+            return False
+        self._pending_localization = correlation
+        return True
+
+    @staticmethod
+    def _localization_ack_matches(
+        payload: Mapping[str, object],
+        expected: Mapping[str, object],
+    ) -> bool:
+        for field in (
+            "language_code",
+            "plural_rule",
+            "catalog_hash",
+            "key_manifest_hash",
+            "session_id",
+        ):
+            if str(payload.get(field, "") or "") != str(expected.get(field, "") or ""):
+                return False
+        for field in (
+            "process_generation",
+            "request_id",
+            "localization_revision",
+        ):
+            try:
+                actual_number = int(payload.get(field, -1))
+                expected_number = int(expected.get(field, -1))
+            except (TypeError, ValueError, OverflowError):
+                return False
+            if actual_number != expected_number:
+                return False
+        return True
+
+    def _handle_ui_localization_ack(
+        self,
+        payload: Mapping[str, object],
+    ) -> None:
+        expected = self._pending_localization
+        if expected is None or not self._localization_ack_matches(payload, expected):
+            return
+        status = str(payload.get("status", "") or "").strip().lower()
+        if status != "applied":
+            detail = str(payload.get("reason", "") or status or "rejected")
+            self._fail_current_process(
+                f".NET/Vortice localization acknowledgement was rejected: {detail}",
+                static_failure=True,
+            )
+            return
+        self._pending_localization = None
+        self._localization_initial_established = True
+        self._localization_applied_revision = int(
+            expected["localization_revision"]
+        )
+        self.localization_applied.emit(
+            str(expected["language_code"]),
+            self._localization_applied_revision,
+        )
+        self._announce_renderer_ready()
+        self._maybe_finish_launch()
+
+    def _announce_renderer_ready(self) -> None:
+        if (
+            not self._renderer_ready
+            or self._renderer_ready_announced
+            or not self._localization_initial_established
+        ):
+            return
+        self._renderer_ready_announced = True
+        self._ready_timer.stop()
+        self.renderer_ready.emit(dict(self._renderer_ready_payload or {}))
+
     def _handle_protocol_event(self, payload: dict[str, object], generation: int) -> None:
         if generation != self._process_generation:
             return
@@ -764,6 +1103,8 @@ class DotNetPreviewSessionController(QObject):
         self.protocol_event.emit(dict(payload))
         if event == "protocol_ready":
             self._handle_protocol_ready(payload)
+        elif event == "ui_localization_state_ack":
+            self._handle_ui_localization_ack(payload)
         elif event == "preview_session_state_ack":
             if str(payload.get("status", "") or "").lower() == "applied" and self._event_process_matches(payload):
                 self._session_established = True
@@ -813,7 +1154,62 @@ class DotNetPreviewSessionController(QObject):
         raw_capabilities = payload.get("capabilities", ())
         if isinstance(raw_capabilities, Sequence) and not isinstance(raw_capabilities, (str, bytes)):
             self._capabilities = {str(value) for value in raw_capabilities}
+        if "ui_localization_v1" in self._capabilities:
+            raw_keys = payload.get("localization_keys", ())
+            if (
+                not isinstance(raw_keys, Sequence)
+                or isinstance(raw_keys, (str, bytes))
+                or not raw_keys
+                or len(raw_keys) > 10_000
+                or any(not isinstance(value, str) or not value for value in raw_keys)
+            ):
+                self._fail_current_process(
+                    ".NET/Vortice helper localization key manifest is invalid.",
+                    static_failure=True,
+                )
+                return
+            localization_keys = tuple(str(value) for value in raw_keys)
+            if localization_keys != tuple(sorted(set(localization_keys))):
+                self._fail_current_process(
+                    ".NET/Vortice helper localization keys are not unique and sorted.",
+                    static_failure=True,
+                )
+                return
+            advertised_hash = str(
+                payload.get("localization_key_manifest_hash", "") or ""
+            )
+            expected_hash = self._localization_manifest_hash(localization_keys)
+            if advertised_hash != expected_hash:
+                self._fail_current_process(
+                    ".NET/Vortice helper localization manifest hash did not match its keys.",
+                    static_failure=True,
+                )
+                return
+            from cdmw.ui.localization_catalogs_v2 import SOURCE_STRING_CATALOGUE
+
+            unknown_keys = set(localization_keys) - set(SOURCE_STRING_CATALOGUE)
+            if unknown_keys:
+                self._fail_current_process(
+                    ".NET/Vortice helper localization manifest is newer than the host catalog.",
+                    static_failure=True,
+                )
+                return
+            self._localization_keys = localization_keys
+            self._localization_key_manifest_hash = advertised_hash
+            self._localization_initial_established = False
+        else:
+            self._localization_keys = ()
+            self._localization_key_manifest_hash = ""
+            self._localization_initial_established = True
         self._protocol_ready = True
+        if self._localization_keys and not self._send_ui_localization_state():
+            if self._process is not None:
+                self._fail_current_process(
+                    "Could not establish .NET/Vortice interface localization.",
+                    static_failure=False,
+                )
+            return
+        self._announce_renderer_ready()
         if self.profile is DotNetPreviewProfile.PREVIEW:
             sent = self._send_json(
                 {
@@ -826,12 +1222,22 @@ class DotNetPreviewSessionController(QObject):
             if not sent:
                 self._fail_current_process("Could not establish the preview session.", static_failure=False)
         else:
+            # A prewarm launch has no edit session to name yet, so it handshakes
+            # with a placeholder the first real Edit Mesh is allowed to replace.
+            # Gated on the capability rather than required: an older helper still
+            # runs, it just cannot be prewarmed ahead of the session.
+            provisional = bool(
+                self._launch_is_prewarm
+                and self._desired_package is None
+                and "authoring_provisional_session_v1" in self._capabilities
+            )
             sent = self._send_json(
                 {
                     "event": "session_state",
                     "session_id": self._session_id,
                     "process_generation": self._process_generation,
                     "protocol_version": 2,
+                    "provisional_session": provisional,
                     "revision": 0,
                     "edit_revision": 0,
                     "history": {"undo": [], "redo": []},
@@ -839,6 +1245,7 @@ class DotNetPreviewSessionController(QObject):
                 }
             )
             self._session_established = bool(sent)
+            self._session_provisional = bool(sent and provisional)
             if not sent:
                 self._fail_current_process("Could not establish the authoring session.", static_failure=False)
                 return
@@ -861,8 +1268,8 @@ class DotNetPreviewSessionController(QObject):
             )
             return False
         self._renderer_ready = True
-        self._ready_timer.stop()
-        self.renderer_ready.emit(dict(payload))
+        self._renderer_ready_payload = dict(payload)
+        self._announce_renderer_ready()
         self._maybe_finish_launch()
         return True
 
@@ -871,6 +1278,7 @@ class DotNetPreviewSessionController(QObject):
             self._launch_is_prewarm
             and self._protocol_ready
             and self._session_established
+            and self._localization_initial_established
             and not self._renderer_ready
         ):
             # A hidden embedded HWND cannot present its first frame yet. The
@@ -885,7 +1293,12 @@ class DotNetPreviewSessionController(QObject):
                 self._ready_timer.stop()
                 self._set_state("prewarmed", ".NET/Vortice Preview is ready for a model.")
             return
-        if not (self._protocol_ready and self._renderer_ready and self._session_established):
+        if not (
+            self._protocol_ready
+            and self._renderer_ready
+            and self._session_established
+            and self._localization_initial_established
+        ):
             return
         if self._launch_is_prewarm:
             self._launch_is_prewarm = False
@@ -908,7 +1321,11 @@ class DotNetPreviewSessionController(QObject):
         package = self._desired_package
         if package is None or not self._can_send_protocol():
             return False
-        if not (self._protocol_ready and self._session_established):
+        if not (
+            self._protocol_ready
+            and self._session_established
+            and self._localization_initial_established
+        ):
             return False
         if not self._renderer_ready and not self._launch_is_prewarm:
             return False
@@ -1124,6 +1541,8 @@ class DotNetPreviewSessionController(QObject):
         self._protocol_ready = False
         self._renderer_ready = False
         self._session_established = False
+        self._session_provisional = False
+        self._reset_localization_handshake()
         self._pending_package_generation = 0
         self._clear_prewarm_capture()
         self._active = False
@@ -1174,7 +1593,15 @@ class DotNetPreviewSessionController(QObject):
         if not qprocess_is_running(process):
             return False
         try:
-            data = (json.dumps(dict(payload), separators=(",", ":"), default=str) + "\n").encode("utf-8")
+            data = (
+                json.dumps(
+                    dict(payload),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    default=str,
+                )
+                + "\n"
+            ).encode("utf-8")
             return int(process.write(data)) == len(data)
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return False
