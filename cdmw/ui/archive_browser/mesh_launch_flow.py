@@ -41,6 +41,7 @@ from cdmw.ui.archive_browser.mesh_import_setup_state import (
     direct_source_model_swap_unexpected_payload_status,
     direct_source_model_swap_written_status,
     in_game_mesh_swap_banner_cancel_tooltip,
+    in_game_mesh_swap_banner_preparing_text,
     in_game_mesh_swap_banner_text,
     in_game_mesh_swap_progress_text,
     in_game_mesh_swap_same_source_status,
@@ -319,6 +320,21 @@ class ArchiveMeshLaunchFlowMixin:
             task_accepts_cancel=True,
         )
 
+    def _pin_in_game_mesh_swap_target_dependencies(self, entry: Optional[ArchiveEntry]) -> bool:
+        """Hold ``entry``'s prepared dependencies against LRU eviction.
+
+        Returns whether a snapshot is held right now. False means the target has not
+        been prepared yet; the pin is still recorded, so the snapshot is protected as
+        soon as it lands. Only the v2 backend prepares dependencies, so the legacy
+        path always reports ready.
+        """
+
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is None or not bool(getattr(remote_bridge, "displays_v2", False)):
+            return True
+        pin = getattr(remote_bridge, "pin_prepared_dependencies_for", None)
+        return bool(pin(entry)) if callable(pin) else True
+
     def _refresh_archive_in_game_swap_banner(self) -> None:
         banner = getattr(self, "archive_swap_banner", None)
         if banner is None:
@@ -329,7 +345,12 @@ class ArchiveMeshLaunchFlowMixin:
             banner.setVisible(False)
             return
         target_path = str(getattr(pending_target, "path", "") or "").replace("\\", "/")
-        self.archive_swap_banner_label.setText(in_game_mesh_swap_banner_text(target_path))
+        prepared = self._pin_in_game_mesh_swap_target_dependencies(pending_target)
+        self.archive_swap_banner_label.setText(
+            in_game_mesh_swap_banner_text(target_path)
+            if prepared
+            else in_game_mesh_swap_banner_preparing_text(target_path)
+        )
         self.archive_swap_banner_cancel_button.setToolTip(
             in_game_mesh_swap_banner_cancel_tooltip(target_path)
         )
@@ -339,10 +360,8 @@ class ArchiveMeshLaunchFlowMixin:
         self.pending_in_game_mesh_swap_target = entry
         # Choosing the source means browsing, and browsing evicts the target from the
         # four-slot prepared-dependency LRU. Hold it for as long as the swap is armed.
-        remote_bridge = getattr(self, "archive_remote_bridge", None)
-        pin = getattr(remote_bridge, "pin_prepared_dependencies_for", None)
-        if callable(pin):
-            pin(entry)
+        # The refresh below pins it; doing it there keeps the banner and the pin from
+        # ever disagreeing about whether the target is ready.
         self._refresh_archive_in_game_swap_banner()
         self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
 

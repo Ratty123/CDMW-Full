@@ -381,6 +381,11 @@ class ArchivePreviewWorkerMixin:
         controls_target = getattr(self, "_archive_model_preview_controls_target", None)
         if callable(update_controls) and callable(controls_target):
             update_controls(controls_target())
+        # An armed swap target may have been armed before its own dependencies landed;
+        # this is where the banner stops saying it is still being prepared.
+        refresh_swap_banner = getattr(self, "_refresh_archive_in_game_swap_banner", None)
+        if callable(refresh_swap_banner):
+            refresh_swap_banner()
         self._flush_scheduled_archive_preview_request()
         self._schedule_archive_preview_secondary_index_retry(payload)
 

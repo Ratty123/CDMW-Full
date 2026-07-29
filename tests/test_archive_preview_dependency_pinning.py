@@ -114,6 +114,23 @@ def test_releasing_the_pin_restores_normal_eviction() -> None:
     assert provider.snapshot_for_entry(target) is None
 
 
+def test_pinning_a_target_whose_snapshot_has_not_landed_yet_still_protects_it() -> None:
+    """Arming can beat the async preparation, so the pin has to apply retroactively."""
+
+    _app()
+    provider = _provider()
+    target = _entry(f"{_WEAPONS}/cd_phm_01_sword_0070.pac", 70)
+
+    assert provider.pin_entry(target) is False, "nothing is prepared yet"
+
+    # The target's own preparation lands after arming, then browsing continues.
+    provider._remember_snapshot(_snapshot(target))
+    for index in range(MAX_ARCHIVE_PREVIEW_SNAPSHOTS + 2):
+        provider._remember_snapshot(_snapshot(_entry(f"{_WEAPONS}/other_{index}.pac", 900 + index)))
+
+    assert provider.snapshot_for_entry(target) is not None
+
+
 def test_a_scope_change_keeps_the_pinned_target() -> None:
     """apply_entry_id_scope cancels with clear_snapshot=True while a swap is armed."""
 

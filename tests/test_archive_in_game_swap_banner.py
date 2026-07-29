@@ -77,9 +77,33 @@ class ArchiveInGameSwapBannerTests(unittest.TestCase):
 
         self.assertIs(self.window.pending_in_game_mesh_swap_target, target)
         self.assertTrue(self.window.archive_swap_banner.isVisibleTo(self.window.archive_files_group))
-        banner_text = self.window.archive_swap_banner_label.text()
-        self.assertIn(target.path, banner_text)
-        self.assertIn("Use This as Swap Source", banner_text)
+        self.assertIn(target.path, self.window.archive_swap_banner_label.text())
+
+    def test_banner_says_use_this_as_swap_source_once_the_target_is_prepared(self) -> None:
+        target = _entry("character/model/weapon/002_sword/cd_phm_02_sword_0019.pac", self.root)
+
+        with patch.object(
+            self.window,
+            "_pin_in_game_mesh_swap_target_dependencies",
+            return_value=True,
+        ):
+            self.window._handle_archive_in_game_mesh_swap_entry(target)
+
+        self.assertIn("Use This as Swap Source", self.window.archive_swap_banner_label.text())
+
+    def test_banner_says_preparing_while_the_target_has_no_snapshot(self) -> None:
+        """Arming can beat the async dependency preparation on the v2 backend."""
+
+        target = _entry("character/model/weapon/002_sword/cd_phm_02_sword_0019.pac", self.root)
+
+        with patch.object(
+            self.window,
+            "_pin_in_game_mesh_swap_target_dependencies",
+            return_value=False,
+        ):
+            self.window._handle_archive_in_game_mesh_swap_entry(target)
+
+        self.assertIn("Still preparing", self.window.archive_swap_banner_label.text())
 
     def test_banner_cancel_button_clears_the_armed_target(self) -> None:
         target = _entry("character/model/weapon/002_sword/cd_phm_02_sword_0019.pac", self.root)
