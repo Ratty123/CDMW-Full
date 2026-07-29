@@ -40,6 +40,7 @@ from cdmw.rendering.model_preview_prepare import prepare_model_preview
 from cdmw.rendering.static_model_thumbnail import render_static_model_thumbnail_image
 from cdmw.workers.archive_preview_native import ArchivePreviewNativeMixin, NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
 from cdmw.rendering.dotnet_preview_package_cache import (
+    dotnet_preview_package_derived_cache_root,
     lookup_dotnet_preview_package_cache,
 )
 from cdmw.services.mesh_dotnet_preview_package import (
@@ -335,7 +336,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             source_manifest=source_manifest,
         )
         dotnet_hit = lookup_dotnet_preview_package_cache(
-            Path(cache_root) / "dotnet_vortice",
+            dotnet_preview_package_derived_cache_root(cache_root),
             dotnet_cache_key,
             validate_package=validate_dotnet_preview_package,
         )

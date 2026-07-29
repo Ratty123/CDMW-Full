@@ -1803,9 +1803,7 @@ class ModelPreviewRenderSettings:
 @dataclass(slots=True)
 class ArchivePerformanceSettings:
     resource_profile: str = "balanced_60fps"
-    ui_frame_budget_ms: int = 12
     archive_fetch_batch_size: int = 0
-    background_worker_limit: int = 0
     native_archive_acceleration: bool = True
     enable_sidecar_indexing: bool = False
     sidecar_worker_count: int = 0
@@ -1834,22 +1832,12 @@ def clamp_archive_performance_settings(
     if native_preview_cache_mode not in {"off", "balanced", "aggressive"}:
         native_preview_cache_mode = "balanced"
     try:
-        ui_frame_budget_ms = int(getattr(current, "ui_frame_budget_ms", 12))
-    except (TypeError, ValueError):
-        ui_frame_budget_ms = 12
-    try:
         archive_fetch_batch_size = int(getattr(current, "archive_fetch_batch_size", 0))
     except (TypeError, ValueError):
         archive_fetch_batch_size = 0
-    try:
-        background_worker_limit = int(getattr(current, "background_worker_limit", 0))
-    except (TypeError, ValueError):
-        background_worker_limit = 0
     return ArchivePerformanceSettings(
         resource_profile=resource_profile,
-        ui_frame_budget_ms=max(4, min(16, ui_frame_budget_ms)),
         archive_fetch_batch_size=max(0, min(5000, archive_fetch_batch_size)),
-        background_worker_limit=max(0, min(16, background_worker_limit)),
         native_archive_acceleration=bool(getattr(current, "native_archive_acceleration", True)),
         enable_sidecar_indexing=bool(current.enable_sidecar_indexing),
         sidecar_worker_count=max(0, min(16, sidecar_worker_count)),

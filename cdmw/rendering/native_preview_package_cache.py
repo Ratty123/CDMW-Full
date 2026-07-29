@@ -20,6 +20,7 @@ BALANCED_NATIVE_PREVIEW_PACKAGE_TARGET_BYTES = 384 * 1024 * 1024
 AGGRESSIVE_NATIVE_PREVIEW_PACKAGE_MAX_BYTES = 2 * 1024 * 1024 * 1024
 AGGRESSIVE_NATIVE_PREVIEW_PACKAGE_TARGET_BYTES = 1536 * 1024 * 1024
 NATIVE_PREVIEW_PACKAGE_CACHE_RECENT_USE_SECONDS = 30.0
+NATIVE_PREVIEW_PACKAGE_DERIVED_CACHE_DIRNAME = "dotnet_vortice"
 
 _CACHE_STATE_LOCK = threading.RLock()
 _CACHE_KEY_LOCKS: weakref.WeakValueDictionary[tuple[str, str], threading.RLock] = weakref.WeakValueDictionary()
@@ -88,12 +89,27 @@ def native_preview_package_cache_budget(mode: object) -> Tuple[int, int]:
     return 0, 0
 
 
-def native_preview_package_prefetch_limit(mode: object) -> int:
-    return 2 if clamp_native_preview_package_cache_mode(mode) == "aggressive" else 0
-
-
 def native_preview_package_cache_packages_root(cache_root: Path) -> Path:
     return Path(cache_root) / "packages"
+
+
+def native_preview_package_derived_cache_root(cache_root: Path) -> Path:
+    """Root of the Vortice-ready tier built from decoded source packages."""
+
+    return Path(cache_root) / NATIVE_PREVIEW_PACKAGE_DERIVED_CACHE_DIRNAME
+
+
+def native_preview_package_cache_tiers(cache_root: Path) -> Tuple[Path, Path]:
+    """Both durable tiers under one preview cache root.
+
+    Each tier is an independent cache with its own ``packages`` directory and is
+    bounded separately at store time.  Maintenance that walks only the source
+    tier leaves behind the derived packages the resident renderer actually
+    loads, so prune and clear have to cover both.
+    """
+
+    root = Path(cache_root)
+    return root, native_preview_package_derived_cache_root(root)
 
 
 def native_preview_package_cache_entry_dir(cache_root: Path, cache_key: str) -> Path:
@@ -449,6 +465,35 @@ def prune_native_preview_package_cache(
     }
 
 
+def prune_native_preview_package_cache_tiers(
+    cache_root: Path,
+    *,
+    max_bytes: int,
+    target_bytes: int,
+    protected_keys: Sequence[str] = (),
+) -> dict:
+    """Prune every durable tier to the same budget store time applies to each."""
+
+    totals = {"entries": 0, "bytes": 0, "removed_entries": 0, "removed_bytes": 0}
+    for tier_root in native_preview_package_cache_tiers(cache_root):
+        report = prune_native_preview_package_cache(
+            tier_root,
+            max_bytes=max_bytes,
+            target_bytes=target_bytes,
+            protected_keys=protected_keys,
+        )
+        for field_name in totals:
+            totals[field_name] += int(report.get(field_name, 0) or 0)
+    return totals
+
+
+def clear_native_preview_package_cache_tiers(cache_root: Path) -> None:
+    """Clear every durable tier, derived packages included."""
+
+    for tier_root in native_preview_package_cache_tiers(cache_root):
+        clear_native_preview_package_cache(tier_root)
+
+
 def clear_native_preview_package_cache(cache_root: Path) -> None:
     packages_root = native_preview_package_cache_packages_root(cache_root)
     try:
@@ -474,12 +519,14 @@ def clear_native_preview_package_cache(cache_root: Path) -> None:
 # renderer code imports the canonical facade in ``dotnet_preview_package_cache``.
 DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA = NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA
 DOTNET_PREVIEW_PACKAGE_CACHE_MODES = NATIVE_PREVIEW_PACKAGE_CACHE_MODES
+DOTNET_PREVIEW_PACKAGE_DERIVED_CACHE_DIRNAME = NATIVE_PREVIEW_PACKAGE_DERIVED_CACHE_DIRNAME
 DotNetPreviewPackageCacheHit = NativePreviewPackageCacheHit
 DotNetPreviewPackageCacheLease = NativePreviewPackageCacheLease
 clamp_dotnet_preview_package_cache_mode = clamp_native_preview_package_cache_mode
 dotnet_preview_package_cache_budget = native_preview_package_cache_budget
-dotnet_preview_package_prefetch_limit = native_preview_package_prefetch_limit
 dotnet_preview_package_cache_packages_root = native_preview_package_cache_packages_root
+dotnet_preview_package_derived_cache_root = native_preview_package_derived_cache_root
+dotnet_preview_package_cache_tiers = native_preview_package_cache_tiers
 dotnet_preview_package_cache_entry_dir = native_preview_package_cache_entry_dir
 dotnet_preview_package_cache_build_lock = native_preview_package_cache_build_lock
 create_dotnet_preview_package_staging_dir = create_native_preview_package_staging_dir
@@ -492,4 +539,6 @@ is_durable_dotnet_preview_package_path = is_durable_native_preview_package_path
 lookup_dotnet_preview_package_cache = lookup_native_preview_package_cache
 store_dotnet_preview_package_cache = store_native_preview_package_cache
 prune_dotnet_preview_package_cache = prune_native_preview_package_cache
+prune_dotnet_preview_package_cache_tiers = prune_native_preview_package_cache_tiers
 clear_dotnet_preview_package_cache = clear_native_preview_package_cache
+clear_dotnet_preview_package_cache_tiers = clear_native_preview_package_cache_tiers

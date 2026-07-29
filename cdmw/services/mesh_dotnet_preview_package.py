@@ -22,6 +22,7 @@ from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.rendering.dotnet_preview_package_cache import (
     create_dotnet_preview_package_staging_dir,
     dotnet_preview_package_cache_build_lock,
+    dotnet_preview_package_derived_cache_root,
     lookup_dotnet_preview_package_cache,
     release_dotnet_preview_package_staging_dir,
     store_dotnet_preview_package_cache,
@@ -570,7 +571,7 @@ def _build_or_lookup_legacy_dotnet_preview_package(
         sidecar_generation=sidecar_generation,
         source_manifest=source_manifest,
     )
-    derived_cache_root = Path(cache_root) / "dotnet_vortice"
+    derived_cache_root = dotnet_preview_package_derived_cache_root(cache_root)
     durable = str(cache_mode or "off").strip().lower() in {"balanced", "aggressive"} and max_bytes > 0
     if durable:
         build_lock = dotnet_preview_package_cache_build_lock(derived_cache_root, cache_key)
@@ -661,7 +662,7 @@ def build_or_lookup_dotnet_preview_package_from_model(
         sidecar_generation=sidecar_generation,
         source_manifest=source_manifest,
     )
-    derived_cache_root = Path(cache_root) / "dotnet_vortice"
+    derived_cache_root = dotnet_preview_package_derived_cache_root(cache_root)
     durable = str(cache_mode or "off").strip().lower() in {"balanced", "aggressive"} and max_bytes > 0
     if durable:
         with dotnet_preview_package_cache_build_lock(derived_cache_root, cache_key):

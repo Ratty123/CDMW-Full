@@ -28,8 +28,9 @@ from cdmw.services.preview_rendering_service import (
 )
 from cdmw.services.preview_rendering_service import (
     DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA,
-    clear_dotnet_preview_package_cache,
+    clear_dotnet_preview_package_cache_tiers,
     dotnet_preview_package_cache_budget,
+    dotnet_preview_package_derived_cache_root,
     is_durable_dotnet_preview_package_path,
 )
 from cdmw.services.mesh_dotnet_preview_package import validate_dotnet_preview_package
@@ -75,7 +76,7 @@ class ArchivePreviewCacheMixin:
         self.archive_preview_cache_last_miss_reason = ""
         self.archive_preview_cache_last_miss_detail = ""
         if clear_native_packages:
-            clear_dotnet_preview_package_cache(self._native_preview_package_cache_root())
+            clear_dotnet_preview_package_cache_tiers(self._native_preview_package_cache_root())
             clear_pac_xml_profile_index_cache(self.settings_file_path.parent)
 
     @staticmethod
@@ -415,7 +416,7 @@ class ArchivePreviewCacheMixin:
         dotnet_package_path = str(getattr(result, "dotnet_preview_package_path", "") or "").strip()
         if dotnet_package_path:
             if not is_durable_dotnet_preview_package_path(
-                self._native_preview_package_cache_root() / "dotnet_vortice",
+                dotnet_preview_package_derived_cache_root(self._native_preview_package_cache_root()),
                 dotnet_package_path,
             ):
                 return False

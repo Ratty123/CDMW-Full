@@ -555,22 +555,22 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         preview_cache_group, preview_cache_layout = _performance_group("Preview Caches")
         preview_cache_row = 0
         self.archive_preview_cache_limit_mode_combo = QComboBox()
-        self.archive_preview_cache_limit_mode_combo.addItem("Low 24 (less RAM)", 24)
+        self.archive_preview_cache_limit_mode_combo.addItem("Low 24", 24)
         self.archive_preview_cache_limit_mode_combo.addItem("Balanced 64 (recommended)", 64)
-        self.archive_preview_cache_limit_mode_combo.addItem("High 128 (faster)", 128)
-        self.archive_preview_cache_limit_mode_combo.addItem("Max 256 (more RAM)", 256)
+        self.archive_preview_cache_limit_mode_combo.addItem("High 128", 128)
+        self.archive_preview_cache_limit_mode_combo.addItem("Max 256", 256)
         self.archive_preview_cache_limit_mode_combo.addItem("Custom...", -1)
         self.archive_preview_cache_limit_mode_combo.setMinimumContentsLength(24)
         self.archive_preview_cache_limit_mode_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.archive_preview_cache_limit_mode_combo.setToolTip(
-            "Number of Archive Browser preview results kept in RAM. Higher values make back-and-forth previewing faster, but increase memory use."
+            "How many recently previewed entries the Archive Browser remembers, so revisiting one skips the rebuild. Model previews now live in the resident renderer, so each remembered entry is a small reference to its disk package rather than the preview payload itself. Requires the .NET/Vortice disk cache below; with that set to Off, nothing can be remembered."
         )
         self.archive_preview_cache_limit_spin = QSpinBox()
         self.archive_preview_cache_limit_spin.setRange(12, 256)
         self.archive_preview_cache_limit_spin.setSingleStep(4)
         self.archive_preview_cache_limit_spin.setValue(64)
         self.archive_preview_cache_limit_spin.setToolTip(
-            "Custom RAM preview cache size. More entries make repeated previewing faster but keep more preview payloads in memory."
+            "Custom entry count for the remembered-preview list."
         )
         preview_cache_limit_row = QWidget()
         preview_cache_limit_layout = QHBoxLayout(preview_cache_limit_row)
@@ -585,27 +585,27 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         preview_cache_row = _add_performance_row(
             preview_cache_layout,
             preview_cache_row,
-            "RAM cache",
+            "Remembered previews",
             preview_cache_limit_row,
-            "Impact: higher = faster back-and-forth previewing, but more RAM.",
+            "Impact: higher = more previews skip a rebuild when you return to them. Needs the disk cache below.",
             max_control_width=430,
         )
         self.archive_native_preview_cache_mode_combo = QComboBox()
         self.archive_native_preview_cache_mode_combo.addItem("Off (least disk use)", "off")
         self.archive_native_preview_cache_mode_combo.addItem("Balanced (reuse exact previews)", "balanced")
-        self.archive_native_preview_cache_mode_combo.addItem("Aggressive (more disk / nearby prebuilds)", "aggressive")
+        self.archive_native_preview_cache_mode_combo.addItem("Aggressive (larger disk budget)", "aggressive")
         self.archive_native_preview_cache_mode_combo.setMinimumContentsLength(36)
         self.archive_native_preview_cache_mode_combo.setMinimumWidth(360)
         self.archive_native_preview_cache_mode_combo.setMaximumWidth(460)
         self.archive_native_preview_cache_mode_combo.setToolTip(
-            "Durable .NET/Vortice .pac preview package cache on disk. Balanced reuses exact previews. Aggressive also prebuilds a few nearby visible models and uses more disk."
+            "Durable .NET/Vortice .pac preview package cache on disk. Balanced keeps up to 512 MB of packages and 192 MB of decoded textures. Aggressive raises those to 2 GB and 512 MB, so previews you return to stay warm for longer. Off rebuilds every preview and clears what earlier modes wrote."
         )
         preview_cache_row = _add_performance_row(
             preview_cache_layout,
             preview_cache_row,
             ".NET/Vortice disk cache",
             self.archive_native_preview_cache_mode_combo,
-            "Impact: Balanced reuses exact previews. Aggressive uses more disk to prebuild nearby models.",
+            "Impact: Balanced reuses exact previews. Aggressive keeps more of them on disk. Off makes every preview a rebuild.",
             max_control_width=460,
         )
         self.archive_quick_then_full_checkbox = QCheckBox("Show metadata first")
@@ -1652,12 +1652,12 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         self.archive_sidecar_worker_mode_combo.setEnabled(enabled)
         self.archive_sidecar_worker_spin.setVisible(manual)
         self.archive_sidecar_worker_spin.setEnabled(enabled and manual)
-        self.archive_preview_cache_limit_spin.setVisible(
-            self._combo_int_data(self.archive_preview_cache_limit_mode_combo) == -1
-        )
-        self.archive_preview_cache_limit_spin.setEnabled(
-            self._combo_int_data(self.archive_preview_cache_limit_mode_combo) == -1
-        )
+        custom_preview_cache_limit = self._combo_int_data(self.archive_preview_cache_limit_mode_combo) == -1
+        # A remembered preview references a durable package, so Off holds none.
+        preview_cache_available = str(self.archive_native_preview_cache_mode_combo.currentData() or "balanced") != "off"
+        self.archive_preview_cache_limit_mode_combo.setEnabled(preview_cache_available)
+        self.archive_preview_cache_limit_spin.setVisible(custom_preview_cache_limit)
+        self.archive_preview_cache_limit_spin.setEnabled(custom_preview_cache_limit and preview_cache_available)
         self.archive_maximum_indexing_priority_checkbox.setEnabled(True)
 
     def sync_archive_performance_controls(

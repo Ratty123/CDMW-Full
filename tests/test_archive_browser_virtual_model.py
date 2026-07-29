@@ -269,17 +269,13 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
         settings = clamp_archive_performance_settings(
             ArchivePerformanceSettings(
                 resource_profile="bad",
-                ui_frame_budget_ms=99,
                 archive_fetch_batch_size=99999,
-                background_worker_limit=999,
                 native_archive_acceleration=False,
                 native_preview_cache_mode="bad",
             )
         )
         self.assertEqual(settings.resource_profile, "balanced_60fps")
-        self.assertEqual(settings.ui_frame_budget_ms, 16)
         self.assertEqual(settings.archive_fetch_batch_size, 5000)
-        self.assertEqual(settings.background_worker_limit, 16)
         self.assertFalse(settings.native_archive_acceleration)
         self.assertEqual(settings.native_preview_cache_mode, "balanced")
 
@@ -651,8 +647,19 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("Cache warmup", source)
         self.assertIn("archive_preview_cache_limit_mode_combo", source)
         self.assertIn("Balanced 64 (recommended)", source)
-        self.assertIn("High 128 (faster)", source)
+        self.assertIn("High 128", source)
         self.assertIn(".NET/Vortice disk cache", source)
+        # The remembered-preview count only works through durable packages, so
+        # the disk cache being Off has to disable it rather than lie about it.
+        self.assertIn("preview_cache_available", source)
+        self.assertIn(
+            "self.archive_preview_cache_limit_mode_combo.setEnabled(preview_cache_available)",
+            source,
+        )
+        # Nearby prebuilds were removed with the resident migration; the label
+        # must not promise them again.
+        self.assertNotIn("nearby prebuilds", source)
+        self.assertNotIn("prebuilds a few nearby", source)
         self.assertIn("archive_resource_profile_combo", source)
         self.assertIn("archive_native_acceleration_checkbox", source)
         self.assertIn("archive_native_preview_cache_mode_combo", source)
