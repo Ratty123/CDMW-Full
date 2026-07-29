@@ -101,6 +101,13 @@ internal sealed partial class MeshViewport
             context.DisplayMode = DisplayMode;
             context.MaterialDebugMode = MaterialDebugMode;
             context.TexturesEnabled = TexturesEnabled;
+            // X-Ray is part of the display mode, not a separate pane preference:
+            // it is derived by the same switch that sets DisplayMode. Omitting it
+            // here left TrySetDisplayMode and SaveActivePresentationContext as its
+            // only writers, and both touch the active context alone -- so picking
+            // X-Ray changed whichever pane happened to be active and left the
+            // other one depth-testing its overlays as before.
+            context.XRay = ShowXRay;
             // Grid and gizmo visibility are host-wide, but every pane draws
             // from its own context and only the active one is ever written
             // back. Leaving these out let the two panes drift apart, so a pane
