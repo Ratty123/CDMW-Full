@@ -280,6 +280,14 @@ internal sealed partial class MeshViewport
             EndEditorStroke(e.Location, cancelled: false);
             _rotating = false;
             _panning = false;
+            if (_placementDragActive)
+            {
+                // Same reasoning as the stroke above, and the host now treats an
+                // active placement drag as owning the provisional placement, so
+                // a drag left open by a lost mouse-up would stall every later
+                // authoritative frame.
+                EndPlacementGizmoDrag();
+            }
         }
         if (_placementDragActive && (e.Button & MouseButtons.Left) == MouseButtons.Left)
         {

@@ -17,6 +17,13 @@ internal sealed partial class MeshViewport
 
     private GizmoDragState? _gizmoDragState;
 
+    /// <summary>
+    /// Whether a gizmo handle is currently being dragged. The host reads this
+    /// before completing a provisional placement: the drag owns the provisional
+    /// snapshot for its whole duration.
+    /// </summary>
+    public bool PlacementDragActive => _placementDragActive;
+
     private bool PlacementGizmoEnabled =>
         _scene.GizmoVisible
         && !string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase);
