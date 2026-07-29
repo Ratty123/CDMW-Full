@@ -12,11 +12,14 @@ from cdmw.models import ArchiveEntry, RunCancelled
 from cdmw.rendering.native_preview_core import NativePreviewCoreAttempt
 from cdmw.rendering.native_preview_package_cache import (
     NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA,
+    clear_native_preview_package_cache_tiers,
     create_native_preview_package_staging_dir,
     acquire_native_preview_package_cache_lease_for_path,
     lookup_native_preview_package_cache,
     native_preview_package_cache_use,
+    native_preview_package_derived_cache_root,
     prune_native_preview_package_cache,
+    prune_native_preview_package_cache_tiers,
     release_native_preview_package_staging_dir,
     store_native_preview_package_cache,
 )
@@ -323,6 +326,36 @@ class NativePreviewPackageCacheConcurrencyTests(unittest.TestCase):
 
             self.assertTrue(recent_entry.is_dir())
             self.assertFalse(old_entry.exists())
+
+    def test_prune_and_clear_reach_the_derived_vortice_tier(self) -> None:
+        # The resident renderer loads packages from the derived tier, so
+        # maintenance that only walks the source tier leaves those on disk.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            derived_root = native_preview_package_derived_cache_root(cache_root)
+
+            source_entry = _raw_cache_entry(cache_root, "source_key")
+            derived_entry = _raw_cache_entry(derived_root, "derived_key")
+
+            prune_native_preview_package_cache(cache_root, max_bytes=1, target_bytes=0)
+            self.assertFalse(source_entry.exists())
+            self.assertTrue(derived_entry.is_dir(), "single-tier prune must miss the derived tier")
+
+            source_entry = _raw_cache_entry(cache_root, "source_key")
+            report = prune_native_preview_package_cache_tiers(
+                cache_root,
+                max_bytes=1,
+                target_bytes=0,
+            )
+            self.assertFalse(source_entry.exists())
+            self.assertFalse(derived_entry.exists())
+            self.assertEqual(report["removed_entries"], 2)
+
+            source_entry = _raw_cache_entry(cache_root, "source_key")
+            derived_entry = _raw_cache_entry(derived_root, "derived_key")
+            clear_native_preview_package_cache_tiers(cache_root)
+            self.assertFalse(source_entry.exists())
+            self.assertFalse(derived_entry.exists())
 
     def test_path_lease_stays_pinned_until_renderer_release(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

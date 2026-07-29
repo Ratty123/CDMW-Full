@@ -22,9 +22,17 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "cdmw.rendering.dotnet_preview_package_cache",
         "clear_dotnet_preview_package_cache",
     ),
+    "clear_dotnet_preview_package_cache_tiers": (
+        "cdmw.rendering.dotnet_preview_package_cache",
+        "clear_dotnet_preview_package_cache_tiers",
+    ),
     "dotnet_preview_package_cache_budget": (
         "cdmw.rendering.dotnet_preview_package_cache",
         "dotnet_preview_package_cache_budget",
+    ),
+    "dotnet_preview_package_derived_cache_root": (
+        "cdmw.rendering.dotnet_preview_package_cache",
+        "dotnet_preview_package_derived_cache_root",
     ),
     "is_durable_dotnet_preview_package_path": (
         "cdmw.rendering.dotnet_preview_package_cache",
@@ -33,6 +41,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "prune_dotnet_preview_package_cache": (
         "cdmw.rendering.dotnet_preview_package_cache",
         "prune_dotnet_preview_package_cache",
+    ),
+    "prune_dotnet_preview_package_cache_tiers": (
+        "cdmw.rendering.dotnet_preview_package_cache",
+        "prune_dotnet_preview_package_cache_tiers",
     ),
     "NativePreviewPackageCacheLease": (
         "cdmw.rendering.native_preview_package_cache",
@@ -65,10 +77,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "native_preview_package_cache_entry_dir": (
         "cdmw.rendering.native_preview_package_cache",
         "native_preview_package_cache_entry_dir",
-    ),
-    "native_preview_package_prefetch_limit": (
-        "cdmw.rendering.native_preview_package_cache",
-        "native_preview_package_prefetch_limit",
     ),
     "prune_native_preview_package_cache": (
         "cdmw.rendering.native_preview_package_cache",
