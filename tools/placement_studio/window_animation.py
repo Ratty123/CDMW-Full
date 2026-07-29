@@ -136,6 +136,9 @@ class AnimationTabMixin:
         # A fixed-height strip; the lists take the room.
         retarget_box.setMaximumHeight(retarget_box.sizeHint().height())
         layout.addWidget(retarget_box)
+        # Kept so `_on_tab_changed_for_clips` can recognise this tab by identity, and start
+        # the clip index the first time it is opened.
+        self._animation_page = page
         return page
 
     def _build_socket_clips_pane(self) -> QWidget:
@@ -206,6 +209,9 @@ class AnimationTabMixin:
         """Play a clip named by the charts, resolved through the browser's index."""
 
         stem = item.data(Qt.UserRole) or item.text()
+        # Resolved in this same turn, so the index has to be built rather than merely
+        # started — otherwise a clip the charts definitely name is reported as missing.
+        self._ensure_clip_index(wait=True)
         found, _total = self._clip_index.filter(text=stem, include_lod=False, limit=32)
         exact = next((entry for entry in found if entry.name == stem), None)
         if exact is None:

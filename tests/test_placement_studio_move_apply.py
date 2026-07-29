@@ -85,6 +85,8 @@ class _Harness(window_carry.CarryPickerMixin):
         self._status = _Status()
         self.routed_to = ""
         self.swapped = ()
+        self.asked_for_clip_index = False
+        self.waited_for_clip_index = False
 
     # what the handler calls out to
     def statusBar(self):  # noqa: N802 - mimics QMainWindow
@@ -106,6 +108,16 @@ class _Harness(window_carry.CarryPickerMixin):
 
     def _sync_part_box(self, _name: str) -> None:
         pass
+
+    def _ensure_clip_index(self, *, wait: bool = False) -> None:
+        """Live on `ClipBrowserMixin`; the swap asks for it because donor clips come from it.
+
+        The swap passes `wait=True`: the dialog reads the index inside its own constructor,
+        so being told the scan has *started* is not enough.
+        """
+
+        self.asked_for_clip_index = True
+        self.waited_for_clip_index = wait
 
 
 def _run(plan: MovePlan, *, accepted: bool = True, move_succeeds: bool = True) -> _Harness:
@@ -145,6 +157,19 @@ class MoveAppliesTests(unittest.TestCase):
 
         self.assertEqual(harness.routed_to, "Spine2_B_MainWeapon_Socket")
         self.assertEqual(len(harness.swapped), 1)
+
+    def test_the_swap_waits_for_the_clip_index_rather_than_only_starting_it(self) -> None:
+        """The dialog builds its donor rows inside its constructor.
+
+        With the index merely started, `pairs_for` runs against an empty one and the dialog
+        opens saying no animation has a counterpart for this weapon — a wrong answer rather
+        than a slow one, and the user moves the socket believing there was nothing to swap.
+        """
+
+        harness = _run(MovePlan("CD_MainWeapon_Sword_R", "Spine2_B_MainWeapon_Socket", _PAIRS))
+
+        self.assertTrue(harness.asked_for_clip_index)
+        self.assertTrue(harness.waited_for_clip_index)
 
     def test_cancelling_changes_nothing(self) -> None:
         harness = _run(

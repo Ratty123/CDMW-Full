@@ -10,10 +10,11 @@ order they sort into, so the picker reads head-down like a character sheet.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Mapping, Optional, Sequence
 
 #: Directory name -> label, in the order they should appear.
 SLOTS: tuple[tuple[str, str], ...] = (
@@ -213,22 +214,11 @@ def _cache_file(game_root) -> Path:
 
 
 def _cache_signature(game_root) -> List[list]:
-    """What the cache was built from: every package table, by name, size and mtime.
+    """What the cache was built from: every package table, by name, size and mtime."""
 
-    Cheap to compute — it stats 33 files — and it catches a game update, which is the only
-    thing that can invalidate the index.
-    """
+    from .corpus import package_signature
 
-    from cdmw.core.archive_format import discover_pamt_files
-
-    signature = []
-    for pamt in sorted(discover_pamt_files(Path(game_root))):
-        try:
-            stat = pamt.stat()
-        except OSError:
-            continue
-        signature.append([str(pamt), stat.st_size, int(stat.st_mtime)])
-    return signature
+    return package_signature(Path(game_root))
 
 
 def _entry_fields() -> Sequence[str]:
@@ -321,6 +311,108 @@ def _write_index_cache(game_root, result) -> None:
         temporary.replace(path)
     except OSError:
         pass
+
+
+# ── extracted content cache ──────────────────────────────────────────
+#
+# The index above says where a file is; this one keeps what was in it. Opening the studio
+# reads a character's weapon socket files and its action charts out of the packages — 140
+# entries and 33 MB decompressed for Kliff — and that was 2.5 seconds of seeking and
+# inflating on every open, and again on every character switch. Stored as one blob it is
+# 3.6 MiB that reads back in 0.04s.
+
+_CONTENT_VERSION = 1
+
+
+def _content_file(model: str, kind: str) -> Path:
+    from .corpus import work_root
+
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in f"{kind}-{model}")
+    return Path(work_root()) / f"content-{safe}.bin"
+
+
+def cached_content(model: str, kind: str, game_root=None) -> Optional[Dict[str, bytes]]:
+    """Previously extracted payloads for one character, or `None` if there are none to use.
+
+    Takes the root the payloads were read from rather than re-resolving it, which is what
+    `_read_index_cache` next door already does. Re-resolving keys the cache on wherever the
+    setting points *now*, so changing the archive path mid-session would validate a blob
+    extracted from the old install against the new one.
+    """
+
+    import json
+    import zlib
+
+    from .corpus import package_signature
+
+    try:
+        raw = zlib.decompress(_content_file(model, kind).read_bytes())
+    except (OSError, zlib.error):
+        return None
+    try:
+        header_length = int.from_bytes(raw[:8], "little")
+        header = json.loads(raw[8:8 + header_length])
+        # A valid zlib stream is not a valid cache: a JSON list here made `.get` raise
+        # AttributeError straight out of this function and abort the content load.
+        if not isinstance(header, dict):
+            return None
+        if header.get("version") != _CONTENT_VERSION:
+            return None
+        if header.get("signature") != package_signature(game_root):
+            return None
+        payloads: Dict[str, bytes] = {}
+        at = 8 + header_length
+        for path, length in header["files"]:
+            payloads[str(path)] = raw[at:at + int(length)]
+            at += int(length)
+        if at != len(raw):
+            return None
+    except Exception:  # noqa: BLE001 - any malformed cache is a cache miss, never a crash
+        return None
+    return payloads
+
+
+def store_content(
+    model: str, kind: str, payloads: Mapping[str, bytes], game_root=None, *, signature=None
+) -> None:
+    """Keep what was extracted. A failure here costs a re-read next launch, nothing more.
+
+    `signature` is the caller's reading of the packages taken *before* it started
+    extracting. Signing afterwards would label a payload read from the old install with the
+    new one's key if the game were patched during the read.
+    """
+
+    import json
+    import zlib
+
+    from .corpus import package_signature
+
+    files = [[path, len(data)] for path, data in payloads.items()]
+    header = json.dumps({
+        "version": _CONTENT_VERSION,
+        "signature": package_signature(game_root) if signature is None else signature,
+        "model": model,
+        "kind": kind,
+        "files": files,
+    }).encode("utf-8")
+    # Level 6, not the clip index's level 1: this is written once per character per game
+    # version and read on every open, so 0.3s of compression buys a permanently smaller file.
+    body = zlib.compress(
+        len(header).to_bytes(8, "little") + header + b"".join(payloads.values()), 6
+    )
+
+    target = _content_file(model, kind)
+    # Per-writer staging name; see `clips._staging_path` for why a shared one is wrong.
+    temporary = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary.write_bytes(body)
+        temporary.replace(target)
+    except OSError:
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
 
 
 def read_entry(entry) -> bytes:
