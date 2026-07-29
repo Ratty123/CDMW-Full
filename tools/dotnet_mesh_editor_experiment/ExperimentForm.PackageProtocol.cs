@@ -247,7 +247,7 @@ internal sealed partial class ExperimentForm
         _saved = false;
         _rendererDiagnosticCache = null;
         RefreshSubmeshList();
-        ReassertInteractionModeAfterPackageSwap();
+        ReassertInteractionModeControls();
         previousTextures.Dispose();
         var loadCount = Interlocked.Increment(ref _residentPackageLoadCount);
         _statusLabel.Text = $"Resident package loaded: {_document.Submeshes.Count} part(s).";
@@ -289,20 +289,23 @@ internal sealed partial class ExperimentForm
     }
 
     /// <summary>
-    /// The swap cleared the viewport's presentation contexts and selection, and
-    /// the preview profile can still pin its own mode above. Re-running the
-    /// interaction-mode controls re-asserts the rail and the editable
-    /// presentation view, and is the only thing that keeps
-    /// <c>_meshEditInteractionActive</c> from disagreeing with the new scene.
+    /// A package swap cleared the viewport's presentation contexts and
+    /// selection, and the preview profile can still pin its own mode above;
+    /// an authoritative scene frame can likewise arrive with a different
+    /// interaction mode. Re-running the interaction-mode controls re-asserts
+    /// the rail and the editable presentation view, and is the only thing that
+    /// keeps <c>_meshEditInteractionActive</c> from disagreeing with the scene.
     /// </summary>
-    private void ReassertInteractionModeAfterPackageSwap()
+    private void ReassertInteractionModeControls()
     {
         var meshEdit = string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase);
         if (!meshEdit && meshEdit == _meshEditInteractionActive)
         {
-            // Placement on both sides: nothing to re-assert, and running the
-            // full classic restore on every archive package swap would rebuild
-            // the tool stacks for no visible gain.
+            // Placement on both sides: nothing to re-assert, and the classic
+            // restore rebuilds every tool stack inside a redraw batch. Running
+            // it per package swap gains nothing visible; running it per scene
+            // frame tears the window apart, because a gizmo drag publishes one
+            // authoritative frame per pointer sample.
             return;
         }
         ApplyInteractionModeControls();

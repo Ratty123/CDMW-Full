@@ -1192,7 +1192,7 @@ internal sealed partial class ExperimentForm
         if (applied)
         {
             CompleteAuthoritativeSceneState();
-            ApplyInteractionModeControls();
+            ReassertInteractionModeControls();
             _viewport.ApplySceneState();
             RefreshSubmeshList();
         }

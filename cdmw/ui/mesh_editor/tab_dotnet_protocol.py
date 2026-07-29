@@ -252,7 +252,12 @@ class MeshEditorDotNetProtocolMixin(
                 )
                 return False
             try:
-                applied = bool(handler(placement))
+                applied = bool(
+                    handler(
+                        placement,
+                        phase=str(payload.get("placement_phase", "end") or "end"),
+                    )
+                )
                 self._send_dotnet_command_result(
                     "placement_transform",
                     ok=applied,

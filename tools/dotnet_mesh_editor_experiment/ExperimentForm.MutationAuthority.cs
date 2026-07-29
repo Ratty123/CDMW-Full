@@ -122,6 +122,17 @@ internal sealed partial class ExperimentForm
 
     private void CompleteAuthoritativeSceneState()
     {
+        if (_viewport.PlacementDragActive)
+        {
+            // A live gizmo drag owns the provisional snapshot, and the frame
+            // that just landed usually echoes a sample the pointer has already
+            // moved past. Clearing the snapshot here re-bases the next sample
+            // on that stale frame -- BeginProvisionalPlacement would pair the
+            // already-moved translation with the pre-move model matrix -- so
+            // the mesh stops tracking the pointer for the rest of the drag.
+            // EndPlacementGizmoDrag's terminal frame completes it instead.
+            return;
+        }
         if (!_scene.AcceptAuthoritativePlacementFrame())
         {
             return;

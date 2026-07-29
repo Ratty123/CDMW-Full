@@ -5791,6 +5791,31 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         prewarm_request = launch_source.index("prewarm(Path(str(cache_root)))")
         self.assertLess(session_bind, prewarm_request)
 
+    def test_resident_gizmo_drag_defers_the_authoritative_scene_frame(self) -> None:
+        """A live gizmo drag must not publish a scene frame per pointer sample.
+
+        The resident helper reports one ``placement_transform_request`` every
+        30 ms. Answering each with the full update rebuilds the authoritative
+        frame over every vertex and makes the .NET host re-run its
+        interaction-mode controls, which is a whole-window layout restore.
+        """
+        placement_handler = function_source(
+            static_replacement_ui_implementation_source(ROOT),
+            "_mesh_editor_apply_dotnet_placement_state",
+        )
+        protocol_source = (
+            ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_protocol.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('phase: str = \'end\'', placement_handler)
+        self.assertIn('str(phase or \'end\').strip().lower() == \'update\'', placement_handler)
+        deferred = placement_handler.index(
+            "str(phase or 'end').strip().lower() == 'update'"
+        )
+        published = placement_handler.index("_queue_global_transform_preview_update()")
+        self.assertLess(deferred, published)
+        self.assertIn('payload.get("placement_phase", "end")', protocol_source)
+
 
 if __name__ == "__main__":
     unittest.main()

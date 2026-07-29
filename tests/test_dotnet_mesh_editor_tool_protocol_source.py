@@ -702,6 +702,19 @@ def test_dotnet_provisional_picking_and_mutation_responses_are_authority_safe() 
     assert "ForceAcceptAuthoritativePlacementFrame" in mutation_authority
     assert "CompleteAuthoritativeSceneState();" in protocol
 
+    # A drag owns its provisional snapshot until it ends. Completing it from an
+    # authoritative frame that lands mid-drag re-bases the next pointer sample
+    # on the frame that just arrived, and the mesh stops following the gizmo.
+    assert "public bool PlacementDragActive => _placementDragActive;" in gizmo
+    accept_guard = mutation_authority.index("if (_viewport.PlacementDragActive)")
+    assert accept_guard < mutation_authority.index(
+        "if (!_scene.AcceptAuthoritativePlacementFrame())"
+    )
+    # A scene frame arrives per drag sample. Re-running the interaction-mode
+    # controls unconditionally restores the whole classic layout each time.
+    assert "ApplyInteractionModeControls();" not in protocol
+    assert "ReassertInteractionModeControls();" in protocol
+
 
 def test_dotnet_texture_decode_cache_singleflights_and_prunes_inactive_entries() -> None:
     texture_source = "\n".join(

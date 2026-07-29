@@ -207,6 +207,12 @@ internal sealed partial class NetSceneState
             && string.Equals(SourceIdentity, sourceIdentity, StringComparison.Ordinal);
         var residentGridOrigin = GridOrigin;
         var residentGridSpacing = GridSpacing;
+        // Overlay visibility is host state, not scene content: it belongs to the
+        // Grid and Gizmo checkboxes and arrives through presentation updates.
+        // Every authoritative frame writes "visible": true for both, so adopting
+        // them would re-show an overlay the user just switched off.
+        var residentGridVisible = GridVisible;
+        var residentGizmoVisible = GizmoVisible;
         var provisionalTranslation = Translation;
         var provisionalRotation = RotationDegrees;
         var provisionalScale = Scale;
@@ -215,6 +221,8 @@ internal sealed partial class NetSceneState
         candidate.Apply(root, documentSubmeshCount);
         candidate.LastRequestId = requestId;
         CopyFrom(candidate);
+        GridVisible = residentGridVisible;
+        GizmoVisible = residentGizmoVisible;
         if (preserveResidentWorldFrame)
         {
             GridOrigin = residentGridOrigin;
