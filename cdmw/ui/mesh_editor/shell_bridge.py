@@ -237,8 +237,10 @@ class MeshEditorShellBridgeMixin:
         if not isinstance(entry, ArchiveEntry):
             self.set_status_message("Mesh Editor has no valid target mesh.", error=True)
             return
-        self._open_mesh_editor_for_entry(entry, mode="in_game_swap", activate=True)
         self._handle_archive_in_game_mesh_swap_entry(entry)
+        if self.pending_in_game_mesh_swap_target is not None:
+            # Armed, not fired: the source is picked in Archive Browser.
+            self._show_archive_browser_from_texture_editor(entry.path)
 
     def _mesh_editor_show_archive_target_requested(self, entry: object) -> None:
         if not isinstance(entry, ArchiveEntry):

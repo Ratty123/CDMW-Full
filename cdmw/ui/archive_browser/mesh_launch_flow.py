@@ -40,6 +40,8 @@ from cdmw.ui.archive_browser.mesh_import_setup_state import (
     direct_source_model_swap_task_status,
     direct_source_model_swap_unexpected_payload_status,
     direct_source_model_swap_written_status,
+    in_game_mesh_swap_banner_cancel_tooltip,
+    in_game_mesh_swap_banner_text,
     in_game_mesh_swap_progress_text,
     in_game_mesh_swap_same_source_status,
     mesh_import_file_dialog_title,
@@ -317,19 +319,43 @@ class ArchiveMeshLaunchFlowMixin:
             task_accepts_cancel=True,
         )
 
+    def _refresh_archive_in_game_swap_banner(self) -> None:
+        banner = getattr(self, "archive_swap_banner", None)
+        if banner is None:
+            return
+        pending_target = getattr(self, "pending_in_game_mesh_swap_target", None)
+        if pending_target is None:
+            self.archive_swap_banner_label.clear()
+            banner.setVisible(False)
+            return
+        target_path = str(getattr(pending_target, "path", "") or "").replace("\\", "/")
+        self.archive_swap_banner_label.setText(in_game_mesh_swap_banner_text(target_path))
+        self.archive_swap_banner_cancel_button.setToolTip(
+            in_game_mesh_swap_banner_cancel_tooltip(target_path)
+        )
+        banner.setVisible(True)
+
+    def _set_pending_in_game_mesh_swap_target(self, entry: Optional[ArchiveEntry]) -> None:
+        self.pending_in_game_mesh_swap_target = entry
+        self._refresh_archive_in_game_swap_banner()
+        self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
+
+    def _cancel_archive_in_game_mesh_swap_target(self) -> None:
+        if getattr(self, "pending_in_game_mesh_swap_target", None) is None:
+            return
+        self._set_pending_in_game_mesh_swap_target(None)
+        self.set_status_message(pending_in_game_mesh_swap_cancelled_status())
+
     def _handle_archive_in_game_mesh_swap_entry(self, entry: ArchiveEntry) -> None:
         pending_target = self.pending_in_game_mesh_swap_target
         if pending_target is None:
-            self.pending_in_game_mesh_swap_target = entry
+            self._set_pending_in_game_mesh_swap_target(entry)
             self.set_status_message(
                 pending_in_game_mesh_swap_target_status(entry.basename)
             )
-            self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
             return
         if self._same_archive_entry(entry, pending_target):
-            self.pending_in_game_mesh_swap_target = None
-            self.set_status_message(pending_in_game_mesh_swap_cancelled_status())
-            self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
+            self._cancel_archive_in_game_mesh_swap_target()
             return
         self._start_archive_in_game_mesh_swap(pending_target, entry)
 
@@ -618,8 +644,7 @@ class ArchiveMeshLaunchFlowMixin:
             ):
                 return
             if swap_scope.use_source_model_payload_directly:
-                self.pending_in_game_mesh_swap_target = None
-                self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
+                self._set_pending_in_game_mesh_swap_target(None)
                 self._start_archive_direct_source_model_swap(
                     target_entry,
                     source_entry,
@@ -647,8 +672,7 @@ class ArchiveMeshLaunchFlowMixin:
                 setup.preferred_complete_source_swap = bool(swap_scope.complete_swap)
                 setup.source_texture_evidence = tuple(payload.source_texture_evidence)
                 setup.extra_supplemental_specs = payload.extra_specs
-                self.pending_in_game_mesh_swap_target = None
-                self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
+                self._set_pending_in_game_mesh_swap_target(None)
                 self._start_archive_mesh_patch(target_entry, preset_setup=setup)
 
             self._prepare_archive_mesh_import_setup_async(
