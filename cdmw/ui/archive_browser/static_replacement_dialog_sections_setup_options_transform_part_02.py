@@ -199,7 +199,7 @@ def _setup_options_transform_step_016(_state):
     _state._finish_alignment_d3d11_rotation = _state.alignment_transform_drag_callbacks._finish_alignment_d3d11_rotation
     _state._commit_alignment_preview_translation = _state.alignment_transform_drag_callbacks._commit_alignment_preview_translation
     _state._commit_alignment_preview_rotation = _state.alignment_transform_drag_callbacks._commit_alignment_preview_rotation
-    def _mesh_editor_apply_dotnet_placement_state(payload: object) -> bool:
+    def _mesh_editor_apply_dotnet_placement_state(payload: object, phase: str = 'end') -> bool:
         if not isinstance(payload, _state.Mapping):
             return False
         rows = (
@@ -222,10 +222,25 @@ def _setup_options_transform_step_016(_state):
                     widget.setValue(parsed)
                 finally:
                     widget.blockSignals(False)
+                if callable(getattr(_state, '_sync_alignment_transform_slider_from_spin', None)):
+                    _state._sync_alignment_transform_slider_from_spin(widget)
                 changed = True
-        if changed:
-            _state._queue_global_transform_preview_update()
-        return changed
+        if not changed:
+            return False
+        # A gizmo drag reports one sample every 30 ms, and the full update
+        # publishes a fresh authoritative scene frame per call: a background
+        # recalculation over every vertex, then a resident scene_state_update
+        # that makes the .NET host re-assert its interaction-mode controls and
+        # arms the static preview rebuild. At drag cadence that tears the
+        # embedded window apart and starves the pointer samples, so the mesh
+        # stops following the gizmo. The resident viewport already renders the
+        # drag from its own provisional placement, so intermediate samples only
+        # need the controls; the terminal sample publishes the frame that makes
+        # the placement authoritative again.
+        if str(phase or 'end').strip().lower() == 'update':
+            return True
+        _state._queue_global_transform_preview_update()
+        return True
     if _state.dialog is not None:
         setattr(_state.dialog, '_mesh_editor_apply_dotnet_placement_state', _mesh_editor_apply_dotnet_placement_state)
     _state.reset_buttons_by_key['location'].clicked.connect(_state._reset_location_values)
