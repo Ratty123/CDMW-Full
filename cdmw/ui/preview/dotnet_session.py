@@ -185,6 +185,35 @@ class DotNetPreviewSessionController(QObject):
     def set_configured_executable(self, executable: Path | str | None) -> None:
         self._configured_executable = executable
 
+    def _follow_preview_package_session(self, resolved: object, scene_session_id: str) -> bool:
+        """Adopt the session id a read-only preview package declares.
+
+        Loading a simple-preview package makes the renderer latch that package's
+        scene session id as its resident session, and every correlated message is
+        then compared against it by ordinal equality. A preview host that kept the
+        random id it generated at construction therefore had *every*
+        ``presentation_state_update`` refused -- which is what made unticking
+        "Load textures" do nothing while the send itself looked successful.
+
+        Authoring binds through ``set_authoritative_session_id`` because an edit
+        session owns the helper and must not be stolen. A preview owns nothing, so
+        it simply follows the package.
+        """
+
+        normalized = scene_session_id.strip()
+        if not normalized:
+            scene_path = Path(getattr(resolved, "package_dir", "")) / "dotnet_scene.json"
+            try:
+                payload = json.loads(scene_path.read_text(encoding="utf-8-sig"))
+            except (OSError, TypeError, ValueError):
+                return False
+            if isinstance(payload, Mapping):
+                normalized = str(payload.get("session_id", "") or "").strip()
+        if not normalized or normalized == self._session_id:
+            return False
+        self._session_id = normalized
+        return True
+
     def set_authoritative_session_id(self, session_id: str) -> bool:
         normalized = str(session_id or "").strip()
         if self.profile is not DotNetPreviewProfile.AUTHORING or not normalized:
@@ -279,10 +308,10 @@ class DotNetPreviewSessionController(QObject):
         self._invalid_retry_status_path = ""
         self._invalid_retry_reset_view = False
         identity = self._package_identity(resolved)
+        scene_session_id = str(
+            getattr(getattr(resolved, "scene_frame", None), "scene_session_id", "") or ""
+        ).strip()
         if self.profile is DotNetPreviewProfile.AUTHORING:
-            scene_session_id = str(
-                getattr(getattr(resolved, "scene_frame", None), "scene_session_id", "") or ""
-            ).strip()
             if scene_session_id and not self.set_authoritative_session_id(scene_session_id):
                 detail = (
                     ".NET/Vortice authoring package belongs to a different active edit session. "
@@ -291,6 +320,8 @@ class DotNetPreviewSessionController(QObject):
                 self.package_failed.emit(str(resolved.package_dir), self._package_generation, detail)
                 self._set_state("package_error", detail)
                 return False
+        else:
+            self._follow_preview_package_session(resolved, scene_session_id)
         if not force_reload and identity == self._desired_package_identity:
             if reset_view:
                 self._resident_state.pop("presentation", None)
