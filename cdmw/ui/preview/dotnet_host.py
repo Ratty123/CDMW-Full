@@ -76,6 +76,17 @@ class _DotNetPreviewPrewarmTask(QRunnable):
             pass
 
     def run(self) -> None:
+        """Never let anything escape: this is a Python override of a C++ virtual.
+
+        The task runs on the *global* thread pool and nothing waits for it, so it
+        can outlive the host that started it. `self.signals` is then a deleted
+        QObject and the emit raises "Internal C++ object already deleted" --
+        which was outside the guard below, so it escaped `run()`. PySide6 reports
+        that as `Error calling Python override of QRunnable::run()` and the
+        process dies, in whatever unrelated test happens to be running by then.
+        A prewarm is best-effort by definition; nothing here is worth a crash.
+        """
+
         started_at = time.perf_counter()
         try:
             self._seed_provenance_hashes()
@@ -85,13 +96,18 @@ class _DotNetPreviewPrewarmTask(QRunnable):
                 "package_ms": (time.perf_counter() - started_at) * 1000.0,
                 "error": "",
             }
-        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        except Exception as exc:  # noqa: BLE001 - see the docstring
             result = {
                 "package": None,
                 "package_ms": (time.perf_counter() - started_at) * 1000.0,
                 "error": str(exc),
             }
-        self.signals.completed.emit(result)
+        try:
+            self.signals.completed.emit(result)
+        except RuntimeError:
+            # The host went away while this was queued. Its result is now
+            # nobody's news, and there is no one left to tell.
+            return
 
 
 class DotNetPreviewHostFrame(QFrame):
