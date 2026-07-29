@@ -855,14 +855,16 @@ internal sealed partial class ExperimentForm
     private void UpdateViewportControlsHint()
     {
         string hint;
-        if (!string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase))
+        var meshEdit = string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase);
+        var tool = (_viewport.ActiveTool ?? string.Empty).Trim().ToLowerInvariant();
+        var primary = "Orbit: LMB drag";
+        if (!meshEdit)
         {
             hint = "Orbit: LMB drag  |  Pan: Shift+LMB / MMB / RMB  |  Zoom: Wheel";
         }
         else
         {
-            var tool = (_viewport.ActiveTool ?? string.Empty).Trim().ToLowerInvariant();
-            var primary = tool switch
+            primary = tool switch
             {
                 "select" => $"Select {_selectionTarget.SelectedItem ?? "mesh"}: LMB click/drag",
                 "orbit" => "Orbit: LMB drag",
@@ -873,9 +875,17 @@ internal sealed partial class ExperimentForm
                 "pinch" => "Pinch: LMB drag",
                 _ => "Apply tool: LMB drag",
             };
-            hint = $"{primary}  |  Orbit override: Ctrl+LMB drag  |  Pan: Shift+LMB / MMB / RMB  |  Zoom: Wheel  |  Undo: Ctrl+Z  |  Redo: Ctrl+Y / Ctrl+Shift+Z";
+            hint = $"{primary}  |  Orbit override: Alt+LMB / Ctrl+LMB drag  |  Pan: Shift+LMB / MMB / RMB  |  Zoom: Wheel  |  Undo: Ctrl+Z  |  Redo: Ctrl+Y / Ctrl+Shift+Z";
         }
         _controlsHintLabel.Text = hint;
+        // The strip under the viewport names the active tool and the modifiers
+        // that move the camera around it. The modifiers are highlighted exactly
+        // when they are the only way to move the camera: while an edit tool owns
+        // the left button.
+        UpdateViewportNavigationStrip(
+            primary,
+            modifiersOwnTheCamera: meshEdit
+                && !string.Equals(tool, "orbit", StringComparison.OrdinalIgnoreCase));
         SetHelpText(
             _viewportHelpMarker,
             $"{hint}\r\n\r\nChoose the preview mode, topology appearance, or a camera preset. Colors and sizes are saved; X-Ray uses white wire and magenta vertices while preserving those sizes.");

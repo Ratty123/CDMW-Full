@@ -27,6 +27,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage
 
 from cdmw.core.dds_native import dds_native_report_dict, dds_source_path_from_report, inspect_dds_native_path
+from cdmw.domain.camera_bindings import resolve_camera_bindings
 from cdmw.core.atomic_file import atomic_write_text
 from cdmw.core.model_preview_orientation import resolve_preview_texture_flip_vertical
 from cdmw.core.texture_native import read_native_texture_report_sidecar
@@ -1461,6 +1462,10 @@ def write_isolated_d3d11_preview_package(
     tone_exposure = _safe_float(getattr(settings, "d3d11_tone_exposure", 1.00), 1.00)
     tone_contrast = _safe_float(getattr(settings, "d3d11_tone_contrast", 1.08), 1.08)
     tone_gamma = _safe_float(getattr(settings, "d3d11_tone_gamma", 1.00), 1.00)
+    camera_orbit_modifier, camera_pan_modifier = resolve_camera_bindings(
+        getattr(settings, "camera_orbit_modifier", None),
+        getattr(settings, "camera_pan_modifier", None),
+    )
     if aggregate_geometry_chunks:
         (geometry_dir / "geometry.bin").write_bytes(b"".join(aggregate_geometry_chunks))
     package_write_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
@@ -1489,6 +1494,8 @@ def write_isolated_d3d11_preview_package(
         "invert_orbit_y": bool(getattr(settings, "invert_orbit_y", False)),
         "invert_pan_x": bool(getattr(settings, "invert_pan_x", False)),
         "invert_pan_y": bool(getattr(settings, "invert_pan_y", False)),
+        "camera_orbit_modifier": camera_orbit_modifier,
+        "camera_pan_modifier": camera_pan_modifier,
         "use_textures": bool(use_textures),
         "high_quality_textures": bool(high_quality_textures),
         "texture_manifest": {

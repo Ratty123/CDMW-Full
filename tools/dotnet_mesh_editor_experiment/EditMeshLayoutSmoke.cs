@@ -271,6 +271,74 @@ internal static class EditMeshLayoutSmoke
                 && EditMeshLayoutContracts.DefaultToolRailPanelWidth(1180, 68) == 448,
             "The tool rail default proportions changed.");
 
+        // The rail selects the page that owns the viewport's tool, and that page
+        // then asserts its own default tool. Edit Mesh boots on "orbit", so any
+        // page answering for orbit is a page that arms an edit tool nobody chose.
+        // The camera is reached by the modifiers on the navigation strip instead,
+        // so orbit must own no page at all.
+        var openingPage = EditMeshLayoutContracts.ToolRailPageForTool("orbit");
+        Require(
+            openingPage is null,
+            "Edit Mesh no longer opens with the rail cleared, so a tool is armed on entry.");
+        Require(
+            EditMeshLayoutContracts.ToolRailPageForTool(string.Empty) is null
+                && EditMeshLayoutContracts.ToolRailPageForTool("not_a_tool") is null,
+            "An unknown tool no longer leaves the rail cleared.");
+        Require(
+            Enum.GetValues<ToolRailPage>().All(
+                page => !EditMeshLayoutContracts.RailPageOwnsTool(page, "orbit")),
+            "A rail page claimed the orbit tool.");
+        Require(
+            EditMeshLayoutContracts.ToolRailPageForTool("select") == ToolRailPage.Selection
+                && EditMeshLayoutContracts.ToolRailPageForTool("grab") == ToolRailPage.Transform
+                && EditMeshLayoutContracts.ToolRailPageForTool("pinch") == ToolRailPage.Brush,
+            "A modal tool no longer resolves to its own rail page.");
+        Require(
+            !EditMeshLayoutContracts.RailPageOwnsTool(ToolRailPage.Selection, "smooth")
+                && !EditMeshLayoutContracts.RailPageOwnsTool(ToolRailPage.Brush, "select"),
+            "A rail page claimed a tool that belongs to another page.");
+
+        // Command pages arm no tool, so the viewport sits on orbit the whole time
+        // one is open. Whether the rail may close a page because the tool is orbit
+        // is therefore decided by whether that page armed a tool at all -- closing
+        // on the tool alone shut Topology, Colour and Morph & Refit every time the
+        // host published a disabled mesh-edit state.
+        var commandPages = Enum.GetValues<ToolRailPage>()
+            .Where(page => EditMeshLayoutContracts.DefaultToolForRailPage(page) is null)
+            .ToArray();
+        var modalPages = Enum.GetValues<ToolRailPage>()
+            .Where(page => EditMeshLayoutContracts.DefaultToolForRailPage(page) is not null)
+            .ToArray();
+        Require(
+            commandPages.Length == 3 && modalPages.Length == 3,
+            "The split between modal tool pages and command pages changed.");
+        Require(
+            commandPages.Contains(ToolRailPage.Topology)
+                && commandPages.Contains(ToolRailPage.Colour)
+                && commandPages.Contains(ToolRailPage.MorphRefit),
+            "A command page started arming a tool, so orbit would now close it.");
+
+        // Rebinding: every accepted modifier resolves to itself, anything else
+        // falls back, and the default pair does not collide.
+        Require(
+            CameraModifierBindings.Normalize("ALT", CameraModifierBindings.DefaultOrbit) == CameraModifierBindings.Alt
+                && CameraModifierBindings.Normalize(" shift ", CameraModifierBindings.DefaultOrbit) == CameraModifierBindings.Shift
+                && CameraModifierBindings.Normalize("nonsense", CameraModifierBindings.DefaultPan) == CameraModifierBindings.DefaultPan
+                && CameraModifierBindings.Normalize(null, CameraModifierBindings.DefaultOrbit) == CameraModifierBindings.DefaultOrbit,
+            "Camera modifier normalization changed.");
+        Require(
+            CameraModifierBindings.IsHeld(CameraModifierBindings.AltOrCtrl, Keys.Alt)
+                && CameraModifierBindings.IsHeld(CameraModifierBindings.AltOrCtrl, Keys.Control)
+                && !CameraModifierBindings.IsHeld(CameraModifierBindings.AltOrCtrl, Keys.Shift)
+                && CameraModifierBindings.IsHeld(CameraModifierBindings.Shift, Keys.Shift)
+                && !CameraModifierBindings.IsHeld(CameraModifierBindings.Shift, Keys.Alt),
+            "Camera modifier hit-testing changed.");
+        Require(
+            !CameraModifierBindings.IsHeld(CameraModifierBindings.DefaultOrbit, Keys.Shift)
+                && !CameraModifierBindings.IsHeld(CameraModifierBindings.DefaultPan, Keys.Alt)
+                && !CameraModifierBindings.IsHeld(CameraModifierBindings.DefaultPan, Keys.Control),
+            "The default orbit and pan modifiers now collide.");
+
         var report = new Dictionary<string, object?>
         {
             ["ok"] = true,
@@ -281,6 +349,10 @@ internal static class EditMeshLayoutSmoke
             ["same_viewport_handle"] = true,
             ["stable_viewport_parent"] = true,
             ["pages_visited"] = pagesVisited,
+            ["opening_page"] = openingPage?.ToString() ?? "none",
+            ["opening_tool"] = "orbit",
+            ["camera_orbit_modifier_default"] = CameraModifierBindings.DefaultOrbit,
+            ["camera_pan_modifier_default"] = CameraModifierBindings.DefaultPan,
             ["morph_columns"] = new Dictionary<string, int>
             {
                 ["narrow"] = EditMeshLayoutContracts.MorphColumnsForLogicalWidth(899),

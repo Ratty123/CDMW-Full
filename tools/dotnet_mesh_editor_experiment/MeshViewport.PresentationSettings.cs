@@ -74,6 +74,12 @@ internal sealed partial class MeshViewport
             InvertOrbitY = JsonBool(quality, "invert_orbit_y", defaults.InvertOrbitY),
             InvertPanX = JsonBool(quality, "invert_pan_x", defaults.InvertPanX),
             InvertPanY = JsonBool(quality, "invert_pan_y", defaults.InvertPanY),
+            CameraOrbitModifier = CameraModifierBindings.Normalize(
+                JsonText(quality, "camera_orbit_modifier", defaults.CameraOrbitModifier),
+                defaults.CameraOrbitModifier),
+            CameraPanModifier = CameraModifierBindings.Normalize(
+                JsonText(quality, "camera_pan_modifier", defaults.CameraPanModifier),
+                defaults.CameraPanModifier),
             BackgroundColor = PresentationBackgroundColor(quality, defaults.BackgroundColor),
             UvScale = new Vector2(
                 SafeNonZero(JsonFloat(uv, "scale_u", defaults.UvScale.X)),

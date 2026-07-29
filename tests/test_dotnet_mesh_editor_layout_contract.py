@@ -303,7 +303,7 @@ def test_tool_rail_is_the_default_and_reuses_the_live_editor_controls() -> None:
 def test_tool_rail_swaps_only_modal_tools_and_pins_the_scene_groups() -> None:
     layout = _source("ExperimentForm.EditMeshLayouts.cs")
 
-    # Only the five modal tools get a rail button. Parts, Action History and
+    # Only the modal tools get a rail button. Parts, Action History and
     # Viewport are not modal, so hiding them behind a rail button would trade a
     # full-height column for a click.
     for page, caption in (
@@ -342,6 +342,138 @@ def test_tool_rail_swaps_only_modal_tools_and_pins_the_scene_groups() -> None:
     assert "_viewportWorkspaceSplit.Panel2Collapsed = true;" in activate
     assert '_viewport.ActivatePresentationView("editable");' in layout
     assert "_presentationViewSelector.Visible = !compactEditableOnly;" in layout
+
+
+def test_edit_mesh_opens_with_no_tool_armed_and_the_camera_on_the_button() -> None:
+    """Edit Mesh used to open with Select armed.
+
+    The rail selects the page owning the viewport's tool and that page then
+    asserts its own default tool. The viewport boots on ``orbit``, which no page
+    owned, so the fallback landed on Selection and the very first click on the
+    model changed the selection instead of turning the model.
+
+    The camera is not a rail page — it is always available through the modifiers
+    the navigation strip names — so orbit resolves to no page at all and the rail
+    opens cleared. The mapping itself is executed by the ``mesh-unit`` layout
+    smoke; this guards the wiring around it, which the smoke cannot construct.
+    """
+    contracts = _source("EditMeshLayoutContracts.cs")
+    layout = _source("ExperimentForm.EditMeshLayouts.cs")
+    program = _source("Program.cs")
+
+    assert "internal enum ToolRailPage" in contracts
+    assert "public static ToolRailPage? ToolRailPageForTool(string? tool)" in contracts
+    assert "_ => null," in contracts
+    # No page may answer for orbit, or entering Edit Mesh arms that page's tool.
+    assert "ToolRailPage.Camera" not in contracts
+    assert 'ToolRailPage.Camera' not in layout
+    assert '"orbit"' not in contracts.split("RailPageOwnsTool", 1)[1].split("ToolRailPageForTool", 1)[0]
+
+    # The camera has no rail button and no tool panel of its own.
+    assert "AddToolRailButton(rail, ToolRailPage.Camera," not in layout
+    assert "_cameraSection" not in layout
+    assert "_cameraSection" not in program
+
+    # The unopened rail resolves its page from the live tool rather than from a
+    # remembered default, and only then marks itself chosen.
+    assert "private ToolRailPage? _selectedToolRailPage;" in layout
+    assert "private void ShowToolRailPage(ToolRailPage? page)" in layout
+    first_reveal = layout.split("if (!_toolRailPageSelected)", 1)[1]
+    first_reveal = first_reveal.split("ShowToolRailPage(_selectedToolRailPage);", 1)[0]
+    assert "_selectedToolRailPage = ToolRailPageForActiveTool();" in first_reveal
+
+    # Nothing selected means no accent and no header, not a page shown blank.
+    show = layout.split("private void ShowToolRailPage(ToolRailPage? page)", 1)[1]
+    show = show.split("private void RevealToolRailPage", 1)[0]
+    assert "SetButtonAccent(pair.Value, pair.Key == page);" in show
+    assert "? string.Empty" in show
+
+    # One owner for the rules: ExperimentForm must not keep a second copy that
+    # the executed smoke would not be checking.
+    assert "private static string? DefaultToolForRailPage" not in layout
+    assert "private static bool RailPageOwnsTool" not in layout
+    assert "EditMeshLayoutContracts.ToolRailPageForTool(_viewport.ActiveTool)" in layout
+
+    # Clearing the rail because the tool is orbit must only close a page that
+    # armed a tool. Topology, Colour and Morph & Refit arm none, so the viewport
+    # sits on orbit the whole time one is open -- closing on the tool alone shut
+    # them the moment the host published a disabled mesh-edit tool state, which
+    # it does on every selection change.
+    sync = layout.split("private void SyncToolRailPageToActiveTool()", 1)[1]
+    sync = sync.split("private void ApplyToolRailSplitterLayout", 1)[0]
+    assert (
+        "EditMeshLayoutContracts.DefaultToolForRailPage(_selectedToolRailPage.Value) is not null"
+        in sync
+    )
+    assert "if (page is null || EditMeshLayoutContracts.RailPageOwnsTool(" not in sync
+
+
+def test_edit_tools_show_the_camera_modifiers_that_still_work() -> None:
+    """The camera modifiers are on screen while an edit tool owns the button.
+
+    A brush claims the left button, so the only way to turn the model without
+    dropping the tool is a modifier. Nothing on screen said so: the hint label
+    carrying those bindings was added to the region in the simple-preview
+    profile only, and Edit Mesh runs the authoring profile.
+    """
+    controls = _source("ExperimentForm.Controls.cs")
+    presentation = _source("ExperimentForm.PresentationProtocol.cs")
+    layout = _source("ExperimentForm.EditMeshLayouts.cs")
+    input_source = _source("MeshViewport.Input.cs")
+    program = _source("Program.cs")
+
+    # Both gestures resolve their key through the binding rather than testing
+    # ModifierKeys directly, or a rebind would leave the strip promising a key
+    # that does nothing.
+    assert "CameraModifierBindings.IsHeld(CameraPanModifier, ModifierKeys)" in input_source
+    assert "CameraModifierBindings.IsHeld(CameraOrbitModifier, ModifierKeys)" in input_source
+    assert "Keys.Control" not in input_source
+    assert "Keys.Shift" not in input_source
+
+    # Full window width, not the viewport column: both flanks are open in Edit
+    # Mesh, and the bindings do not fit in what is left between them.
+    assert (
+        "_editMeshLayoutHost.Controls.Add(BuildViewportNavigationStrip(), 0, 2);"
+        in layout
+    )
+    assert "region.Controls.Add(BuildViewportNavigationStrip()" not in presentation
+
+    strip = presentation.split("private Control BuildViewportNavigationStrip()", 1)[1]
+    strip = strip.split("private Control NavigationChip", 1)[0]
+    assert 'Name = "ResidentViewportNavigationStrip"' in strip
+    assert 'NavigationChip("Orbit", out _orbitChipBadge)' in strip
+    assert 'NavigationChip("Pan", out _panChipBadge)' in strip
+    assert 'NavigationChip("Zoom", out var zoomBadge)' in strip
+    assert 'zoomBadge.Text = "Wheel";' in strip
+
+    # The badge names whatever the modifier is bound to now, one whole literal
+    # per binding so each stays a single translatable phrase.
+    update = presentation.split("private void UpdateViewportNavigationStrip(", 1)[1]
+    update = update.split("private Control BuildAuthoringStatusFooter", 1)[0]
+    assert "_orbitChipBadge.Text = _viewport.CameraOrbitModifier switch" in update
+    assert "_panChipBadge.Text = _viewport.CameraPanModifier switch" in update
+    for literal in (
+        '"Alt + left-drag"',
+        '"Ctrl + left-drag"',
+        '"Shift + left-drag"',
+        '"Alt or Ctrl + left-drag"',
+        '"Shift + left-drag, or middle / right-drag"',
+    ):
+        assert literal in update, literal
+
+    # A rebind arrives on the presentation payload, and the strip is the only
+    # thing that reports it, so applying one has to refresh the strip.
+    applied = presentation.split("if (applied)", 1)[1].split("var payload", 1)[0]
+    assert "UpdateViewportControlsHint();" in applied
+
+    # The badges are highlighted exactly while an edit tool owns the left
+    # button, which is when the modifiers are the only way to move the camera.
+    hint = controls.split("private void UpdateViewportControlsHint()", 1)[1]
+    hint = hint.split("protected override bool ProcessCmdKey", 1)[0]
+    assert "UpdateViewportNavigationStrip(" in hint
+    assert 'modifiersOwnTheCamera: meshEdit' in hint
+    assert '!string.Equals(tool, "orbit", StringComparison.OrdinalIgnoreCase)' in hint
+    assert "badge.BackColor = modifiersOwnTheCamera ? ThemeAccent" in presentation
 
 
 def test_tool_rail_uses_the_stacked_morph_section_not_the_deck_card_grid() -> None:

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QDialog
 
 from cdmw.services.archive_workflow_service import set_model_texture_display_preview_max_dimension
 from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
+from cdmw.domain.camera_bindings import normalize_camera_modifier
 from cdmw.models import (
     ArchivePerformanceSettings,
     ModelPreviewRenderSettings,
@@ -18,8 +19,9 @@ from cdmw.models import (
     clamp_model_preview_render_settings,
 )
 from cdmw.services.preview_rendering_service import (
+    clear_dotnet_preview_package_cache_tiers,
     dotnet_preview_package_cache_budget,
-    prune_dotnet_preview_package_cache,
+    prune_dotnet_preview_package_cache_tiers,
 )
 from cdmw.ui.model_preview_native import (
     ARCHIVE_MODEL_RENDERER_D3D11,
@@ -301,6 +303,14 @@ class ArchivePreviewSettingsMixin:
                 invert_orbit_y=self._read_bool("preview/invert_orbit_y", defaults.invert_orbit_y),
                 invert_pan_x=self._read_bool("preview/invert_pan_x", defaults.invert_pan_x),
                 invert_pan_y=self._read_bool("preview/invert_pan_y", defaults.invert_pan_y),
+                camera_orbit_modifier=normalize_camera_modifier(
+                    self.settings.value("preview/camera_orbit_modifier", defaults.camera_orbit_modifier),
+                    defaults.camera_orbit_modifier,
+                ),
+                camera_pan_modifier=normalize_camera_modifier(
+                    self.settings.value("preview/camera_pan_modifier", defaults.camera_pan_modifier),
+                    defaults.camera_pan_modifier,
+                ),
                 gizmo_x_axis_color=str(
                     self.settings.value("preview/gizmo_x_axis_color", defaults.gizmo_x_axis_color)
                     or defaults.gizmo_x_axis_color
@@ -695,11 +705,15 @@ class ArchivePreviewSettingsMixin:
             self._stop_archive_native_preview_prefetch()
             max_bytes, target_bytes = dotnet_preview_package_cache_budget(performance_settings.native_preview_cache_mode)
             if max_bytes > 0:
-                prune_dotnet_preview_package_cache(
+                prune_dotnet_preview_package_cache_tiers(
                     self._native_preview_package_cache_root(),
                     max_bytes=max_bytes,
                     target_bytes=target_bytes,
                 )
+            else:
+                # "Off" promises the least disk use, so stop reserving what a
+                # previous mode already wrote.  Packages in use stay pinned.
+                clear_dotnet_preview_package_cache_tiers(self._native_preview_package_cache_root())
             self.append_archive_log(
                 f".NET/Vortice preview package cache mode set to {performance_settings.native_preview_cache_mode}."
             )

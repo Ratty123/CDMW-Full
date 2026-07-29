@@ -38,6 +38,8 @@ DOTNET_CAMERA_INPUT_SETTING_FIELDS = (
     "invert_orbit_y",
     "invert_pan_x",
     "invert_pan_y",
+    "camera_orbit_modifier",
+    "camera_pan_modifier",
 )
 
 DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS = GIZMO_APPEARANCE_SETTING_FIELDS
@@ -81,6 +83,8 @@ _DOTNET_SETTING_EFFECTS = {
     "invert_orbit_y": "reverses vertical resident-camera orbit input",
     "invert_pan_x": "reverses horizontal resident-camera pan input",
     "invert_pan_y": "reverses vertical resident-camera pan input",
+    "camera_orbit_modifier": "binds the held key that orbits while an edit tool owns the left button",
+    "camera_pan_modifier": "binds the held key that pans while an edit tool owns the left button",
     "gizmo_x_axis_color": "sets the placement Gizmo X-axis color",
     "gizmo_y_axis_color": "sets the placement Gizmo Y-axis color",
     "gizmo_z_axis_color": "sets the placement Gizmo Z-axis color",
@@ -141,6 +145,8 @@ def preview_setting_widgets_by_tab(dialog: object) -> dict[str, dict[str, object
             "invert_orbit_y": dialog.invert_orbit_y_checkbox,
             "invert_pan_x": dialog.invert_pan_x_checkbox,
             "invert_pan_y": dialog.invert_pan_y_checkbox,
+            "camera_orbit_modifier": dialog.camera_orbit_modifier_combo,
+            "camera_pan_modifier": dialog.camera_pan_modifier_combo,
         },
         "Gizmo": dict(dialog.gizmo_settings_panel.controls_by_key),
     }

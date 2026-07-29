@@ -179,7 +179,11 @@ if ($Area -eq "mesh-unit") {
     # Edit Mesh entered through Classic when this gate was written; it now opens
     # in the Tool Rail and the smoke reports `tool_rail_default`. The gate kept
     # asserting the removed `classic_default`, which is always $null, so
-    # `-not $null` failed every mesh-unit run after the rename.
+    # `-not $null` failed every mesh-unit run after the rename. The page count
+    # was stale the same way: the rail has carried six pages since Colour was
+    # added, and the gate still asked for five. The camera never became a
+    # seventh -- it is reached by the modifiers on the navigation strip -- so
+    # orbit owns no page and the rail opens on none of them.
     if (-not $LayoutPayload.ok `
         -or -not $LayoutPayload.tool_rail_default `
         -or $LayoutPayload.round_trip_layout -ne "classic" `
@@ -188,7 +192,9 @@ if ($Area -eq "mesh-unit") {
         -or -not $LayoutPayload.same_viewport_handle `
         -or -not $LayoutPayload.stable_viewport_parent `
         -or -not $LayoutPayload.zero_size_splitter_construction `
-        -or $LayoutPayload.pages_visited.Count -ne 5 `
+        -or $LayoutPayload.pages_visited.Count -ne 6 `
+        -or $LayoutPayload.opening_page -ne "none" `
+        -or $LayoutPayload.opening_tool -ne "orbit" `
         -or $LayoutPayload.renderer_started `
         -or $LayoutPayload.visible_window_started) {
         Write-Error "Edit Mesh Tool Rail construction smoke returned an invalid report at '$LayoutReport'."

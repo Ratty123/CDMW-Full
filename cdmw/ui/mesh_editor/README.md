@@ -107,7 +107,11 @@ reapplying an earlier Fit or camera nudge.
 Preview Settings opened anywhere while .NET/Vortice owns the embedded Mesh
 Editor session use an explicit .NET preview target. In that context the dialog
 shows Camera Input and Gizmo tabs. Camera Input contains orbit sensitivity, pan
-sensitivity, and the four orbit/pan inversion switches. Gizmo contains the
+sensitivity, the four orbit/pan inversion switches, and the rebindable orbit and
+pan modifiers -- the held keys that move the camera while an edit tool owns the
+left button. A pair that shares a key is resolved by
+`cdmw.domain.camera_bindings` before it reaches the helper, because the viewport
+tests pan first and a collision would otherwise leave orbit silently dead. Gizmo contains the
 X/Y/Z, active/hover, and label colors plus line thickness, overall size,
 font/label size, and handle size. Those values apply live through the resident
 presentation payload and persist with the main Preview Settings config.
@@ -140,9 +144,13 @@ controls. Texture and view-mode choices synchronize across both role panes
 without merging their independent cameras.
 The Gizmo is a placement aid: entering Edit Mesh suppresses both its renderer
 overlay and its pointer interaction, while leaving Edit Mesh restores the saved
-placement visibility preference. In Edit Mesh, clicking the currently active
-Select, Move, Grab,
-or brush-tool button again returns the viewport to Orbit navigation. Host
+placement visibility preference. Edit Mesh opens with no rail page selected and
+the viewport on Orbit — orbit owns no page, and neither does any tool the rail
+has not been taught — so the first drag turns the model rather than editing it,
+and the tool-properties column stays collapsed to the icon rail until a tool is
+picked. The Orbit button in the Viewport section returns the viewport to Orbit
+navigation; the camera is otherwise reached by the rebindable modifiers named on
+the navigation strip. Host
 `tool_state` synchronization still applies its requested tool directly and does
 not toggle it off during resident-state replay. Every .NET button uses the same
 dark-theme depth treatment: raised at rest and visibly sunken while held by

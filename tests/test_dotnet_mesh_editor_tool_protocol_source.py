@@ -236,10 +236,11 @@ def test_dotnet_mesh_edit_history_and_selection_navigation_are_visible_and_short
     assert 'state == "undone"' in history_source
     assert 'WriteCommandRequest("undo")' in controls_source
     assert 'WriteCommandRequest("redo")' in controls_source
-    assert "Ctrl+LMB drag" in controls_source
     assert "Ctrl+Shift+Z" in controls_source
     assert "IsOrbitOverrideGesture(e)" in input_source
-    assert '(ModifierKeys & Keys.Control) == Keys.Control' in input_source
+    # The orbit override is rebindable, so the gesture reads the binding rather
+    # than naming a key. Undo/redo stay hardwired to Ctrl.
+    assert "CameraModifierBindings.IsHeld(CameraOrbitModifier, ModifierKeys)" in input_source
     assert 'Name = "ResidentViewportControlsHint"' in presentation_source
 
 

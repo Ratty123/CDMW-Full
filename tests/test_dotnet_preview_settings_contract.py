@@ -46,6 +46,7 @@ def test_every_visible_dotnet_setting_has_transport_parser_and_runtime_consumer(
             _source("MeshViewport.GizmoAppearance.cs"),
         )
     )
+    bindings = _source("CameraModifierBindings.cs")
     renderer = "\n".join(
         (
             _source("D3D11MaterialViewport.PresentationSettings.cs"),
@@ -67,6 +68,11 @@ def test_every_visible_dotnet_setting_has_transport_parser_and_runtime_consumer(
         "invert_orbit_y": ("InvertOrbitY",),
         "invert_pan_x": ("InvertPanX",),
         "invert_pan_y": ("InvertPanY",),
+        # Both gestures resolve their held key through CameraModifierBindings, so
+        # the binding is what the viewport actually reads rather than a hardcoded
+        # Keys test.
+        "camera_orbit_modifier": ("CameraOrbitModifier", "IsOrbitOverrideGesture"),
+        "camera_pan_modifier": ("CameraPanModifier", "IsPanGesture"),
         "gizmo_x_axis_color": ("XAxis",),
         "gizmo_y_axis_color": ("YAxis",),
         "gizmo_z_axis_color": ("ZAxis",),
@@ -84,6 +90,16 @@ def test_every_visible_dotnet_setting_has_transport_parser_and_runtime_consumer(
         assert f'"{field}"' in parser, field
         for token in tokens:
             assert token in renderer, f"{field}: {token}"
+
+    # The two rebindable modifiers must not decay into a hardcoded key test: the
+    # navigation strip promises whatever they are bound to, so a literal
+    # ModifierKeys check in the gesture path would make the strip lie.
+    assert "CameraModifierBindings.IsHeld(CameraPanModifier, ModifierKeys)" in renderer
+    assert "CameraModifierBindings.IsHeld(CameraOrbitModifier, ModifierKeys)" in renderer
+    assert "(ModifierKeys & Keys.Shift) == Keys.Shift" not in renderer
+    assert "(ModifierKeys & Keys.Control) == Keys.Control" not in renderer
+    for token in ("Keys.Alt", "Keys.Control", "Keys.Shift"):
+        assert token in bindings, token
 
 
 def test_default_vortice_presentation_preserves_unclassified_real_pac_faces() -> None:
@@ -454,10 +470,34 @@ def test_texture_toggle_and_view_mode_are_synchronized_across_resident_role_pane
     assert "context.DisplayMode = DisplayMode;" in settings
     assert "context.MaterialDebugMode = MaterialDebugMode;" in settings
     assert "context.TexturesEnabled = TexturesEnabled;" in settings
+    # X-Ray is derived by the same switch that sets DisplayMode, so it belongs in
+    # the same fan-out. Left out, its only writers were TrySetDisplayMode and
+    # SaveActivePresentationContext, which both touch the active context alone --
+    # so X-Ray applied to whichever pane was active and no other.
+    assert "context.XRay = ShowXRay;" in settings
     assert "context.TexturesEnabled," in split
+    assert "context.XRay," in split
     assert "TexturesEnabled = pane.TexturesEnabled" in panes
+    assert "_overlayShowXRay = pane.XRay;" in panes
     assert 'string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase)' in panes
     assert 'string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase)' in panes
+
+
+def test_a_host_display_mode_update_fans_out_like_the_helpers_own_combo() -> None:
+    """Both routes into the viewport must leave the same per-pane state behind.
+
+    `viewport_display_update` is the route the Mesh Editor tool rail drives.
+    The bare `TrySetDisplayMode` writes the new mode into the active pane's
+    context only, so a host-driven change left every other pane rendering the
+    mode it had before; the helper's own Preview mode combo already used the
+    synchronized setter and did not have the bug.
+    """
+    protocol = _source("ExperimentForm.ViewportDisplayProtocol.cs")
+    handler = protocol.split("private void HandleViewportDisplayUpdate(", maxsplit=1)[1]
+    handler = handler.split("private void WriteViewportDisplayResult(", maxsplit=1)[0]
+
+    assert "_viewport.TrySetSynchronizedDisplayMode(mode, out var error)" in handler
+    assert "_viewport.TrySetDisplayMode(mode, out var error)" not in handler
 
 
 def test_builder_uv_transforms_apply_only_to_the_editable_preview_role() -> None:

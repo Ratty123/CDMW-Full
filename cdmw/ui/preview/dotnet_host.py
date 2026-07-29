@@ -13,6 +13,7 @@ from PySide6.QtCore import QObject, QRunnable, QThreadPool, Qt, Signal
 from PySide6.QtGui import QImage, QResizeEvent
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
+from cdmw.domain.camera_bindings import resolve_camera_bindings
 from cdmw.services.mesh_dotnet_experiment import (
     MeshDotNetExperimentPackage,
     resolve_mesh_dotnet_experiment_editor,
@@ -461,6 +462,13 @@ class DotNetPreviewHostFrame(QFrame):
         return self._remember_presentation_state()
 
     def set_render_tuning(self, settings: object) -> bool:
+        # Resolved here rather than on the wire: the helper tests pan before
+        # orbit, so a colliding pair would leave orbit silently dead instead of
+        # reporting a conflict.
+        camera_orbit_modifier, camera_pan_modifier = resolve_camera_bindings(
+            getattr(settings, "camera_orbit_modifier", None),
+            getattr(settings, "camera_pan_modifier", None),
+        )
         quality = {
             "max_anisotropy": int(getattr(settings, "max_anisotropy", 16) or 16),
             "d3d11_mip_lod_bias": float(getattr(settings, "d3d11_mip_lod_bias", -2.0)),
@@ -490,6 +498,8 @@ class DotNetPreviewHostFrame(QFrame):
             "invert_orbit_y": bool(getattr(settings, "invert_orbit_y", False)),
             "invert_pan_x": bool(getattr(settings, "invert_pan_x", False)),
             "invert_pan_y": bool(getattr(settings, "invert_pan_y", False)),
+            "camera_orbit_modifier": camera_orbit_modifier,
+            "camera_pan_modifier": camera_pan_modifier,
         }
         display = dict(self._presentation_state.get("display", {}))
         display["quality"] = quality

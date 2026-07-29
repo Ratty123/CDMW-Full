@@ -46,6 +46,12 @@ from cdmw.models import (
     clamp_archive_performance_settings,
     clamp_model_preview_render_settings,
 )
+from cdmw.domain.camera_bindings import (
+    CAMERA_MODIFIER_CHOICES,
+    camera_modifier_label,
+    normalize_camera_modifier,
+    resolve_camera_bindings,
+)
 from cdmw.ui.model_preview_gizmo_settings import GizmoPreviewSettingsPanel
 from cdmw.ui.model_preview_settings_visibility import initialize_preview_settings_state, sync_renderer_specific_controls
 
@@ -148,6 +154,7 @@ class ModelPreviewSettingsDialog(QDialog):
         self.setModal(False)
         self.resize(560, 420)
         self._applying_settings = False
+        self._syncing_camera_modifiers = False
         initialize_preview_settings_state(
             self,
             settings,
@@ -593,6 +600,19 @@ class ModelPreviewSettingsDialog(QDialog):
         invert_layout.addLayout(invert_row_one)
         invert_layout.addLayout(invert_row_two)
         controls_form.addRow("Control inversion", invert_widget)
+        self.camera_orbit_modifier_combo = QComboBox()
+        self.camera_pan_modifier_combo = QComboBox()
+        for combo in (self.camera_orbit_modifier_combo, self.camera_pan_modifier_combo):
+            for value, label in CAMERA_MODIFIER_CHOICES:
+                combo.addItem(label, value)
+        self.camera_orbit_modifier_combo.setToolTip(
+            "Hold this while left-dragging to orbit without leaving the active Select, Move, or Brush tool."
+        )
+        self.camera_pan_modifier_combo.setToolTip(
+            "Hold this while left-dragging to pan without leaving the active tool. Middle-drag and right-drag always pan and are not rebindable."
+        )
+        controls_form.addRow("Orbit modifier", self.camera_orbit_modifier_combo)
+        controls_form.addRow("Pan modifier", self.camera_pan_modifier_combo)
         controls_layout.addLayout(controls_form)
         self.inversion_hint_label = QLabel(
             "Invert orbit X reverses horizontal orbit: dragging left/right spins around the model in the opposite direction. Invert orbit Y reverses vertical orbit. Pan inversion reverses screen-space panning and never edits the asset."
@@ -600,6 +620,17 @@ class ModelPreviewSettingsDialog(QDialog):
         self.inversion_hint_label.setObjectName("HintLabel")
         self.inversion_hint_label.setWordWrap(True)
         controls_layout.addWidget(self.inversion_hint_label)
+        self.camera_modifier_hint_label = QLabel()
+        self.camera_modifier_hint_label.setObjectName("HintLabel")
+        self.camera_modifier_hint_label.setWordWrap(True)
+        controls_layout.addWidget(self.camera_modifier_hint_label)
+        self.camera_orbit_modifier_combo.currentIndexChanged.connect(
+            self._sync_camera_modifier_hint
+        )
+        self.camera_pan_modifier_combo.currentIndexChanged.connect(
+            self._sync_camera_modifier_hint
+        )
+        self._sync_camera_modifier_hint()
         self.controls_hint_label = QLabel(
             "Reset keeps the inversion checkboxes as-is so you do not lose your preferred camera controls."
         )
@@ -655,14 +686,14 @@ class ModelPreviewSettingsDialog(QDialog):
         self.preview_cache_limit_spin.setRange(12, 256)
         self.preview_cache_limit_spin.setSingleStep(4)
         self.preview_cache_limit_spin.setToolTip(
-            "Number of Archive Browser preview results kept in memory. Higher values use more RAM and help when revisiting recently previewed files."
+            "How many recently previewed entries the Archive Browser remembers, so revisiting one skips the rebuild. Each remembered entry is a small reference to its durable package, so this needs the .NET/Vortice package cache below; with that set to Off, nothing can be remembered."
         )
         self.native_preview_cache_mode_combo = QComboBox()
         self.native_preview_cache_mode_combo.addItem("Off", "off")
         self.native_preview_cache_mode_combo.addItem("Balanced", "balanced")
         self.native_preview_cache_mode_combo.addItem("Aggressive", "aggressive")
         self.native_preview_cache_mode_combo.setToolTip(
-            "Durable .NET/Vortice package cache. Balanced reuses exact previews; Aggressive also prebuilds nearby visible models and uses more disk."
+            "Durable .NET/Vortice package cache. Balanced keeps up to 512 MB of packages and 192 MB of decoded textures; Aggressive raises those to 2 GB and 512 MB. Off rebuilds every preview and clears what earlier modes wrote."
         )
         self.quick_then_full_checkbox = QCheckBox("Show metadata placeholder while 3D preview builds")
         self.quick_then_full_checkbox.setToolTip(
@@ -670,7 +701,7 @@ class ModelPreviewSettingsDialog(QDialog):
         )
         self.clear_preview_cache_button = QPushButton("Clear Preview Cache")
         self.clear_preview_cache_button.setToolTip("Clears in-memory Archive Browser preview results, durable .NET/Vortice preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.")
-        preview_cache_layout.addRow("In-memory preview results", self.preview_cache_limit_spin)
+        preview_cache_layout.addRow("Remembered previews", self.preview_cache_limit_spin)
         preview_cache_layout.addRow(".NET/Vortice package cache", self.native_preview_cache_mode_combo)
         preview_cache_layout.addRow("", self.quick_then_full_checkbox)
         preview_cache_layout.addRow("", self.clear_preview_cache_button)
@@ -716,6 +747,8 @@ class ModelPreviewSettingsDialog(QDialog):
             self.diffuse_swizzle_combo,
             self.d3d11_normal_y_mode_combo,
             self.d3d11_texture_address_mode_combo,
+            self.camera_orbit_modifier_combo,
+            self.camera_pan_modifier_combo,
         ):
             combo.currentIndexChanged.connect(self._emit_settings_changed)
         self.texture_probe_source_combo.currentIndexChanged.connect(self._handle_texture_probe_source_changed)
@@ -867,6 +900,10 @@ class ModelPreviewSettingsDialog(QDialog):
         current.solo_batch_index = self.solo_batch_spin.value()
         current.orbit_sensitivity = self._slider_controls["orbit_sensitivity"].value()
         current.pan_sensitivity = self._slider_controls["pan_sensitivity"].value()
+        current.camera_orbit_modifier, current.camera_pan_modifier = resolve_camera_bindings(
+            self.camera_orbit_modifier_combo.currentData(),
+            self.camera_pan_modifier_combo.currentData(),
+        )
         current.invert_orbit_x = self.invert_orbit_x_checkbox.isChecked()
         current.invert_orbit_y = self.invert_orbit_y_checkbox.isChecked()
         current.invert_pan_x = self.invert_pan_x_checkbox.isChecked()
@@ -883,9 +920,7 @@ class ModelPreviewSettingsDialog(QDialog):
         return clamp_archive_performance_settings(
             ArchivePerformanceSettings(
                 resource_profile=base.resource_profile,
-                ui_frame_budget_ms=base.ui_frame_budget_ms,
                 archive_fetch_batch_size=base.archive_fetch_batch_size,
-                background_worker_limit=base.background_worker_limit,
                 native_archive_acceleration=base.native_archive_acceleration,
                 enable_sidecar_indexing=self.sidecar_indexing_enabled_checkbox.isChecked(),
                 sidecar_worker_count=worker_count,
@@ -943,6 +978,11 @@ class ModelPreviewSettingsDialog(QDialog):
             self.show_tool_pbd_cloth_pins_checkbox.setChecked(clamped.show_tool_pbd_cloth_pins)
             self.show_tool_pbd_cloth_colliders_checkbox.setChecked(clamped.show_tool_pbd_cloth_colliders)
             self.solo_batch_spin.setValue(clamped.solo_batch_index)
+            orbit_modifier, pan_modifier = resolve_camera_bindings(
+                clamped.camera_orbit_modifier, clamped.camera_pan_modifier
+            )
+            self._select_combo_value(self.camera_orbit_modifier_combo, orbit_modifier)
+            self._select_combo_value(self.camera_pan_modifier_combo, pan_modifier)
             self.invert_orbit_x_checkbox.setChecked(clamped.invert_orbit_x)
             self.invert_orbit_y_checkbox.setChecked(clamped.invert_orbit_y)
             self.invert_pan_x_checkbox.setChecked(clamped.invert_pan_x)
@@ -954,6 +994,9 @@ class ModelPreviewSettingsDialog(QDialog):
             self._applying_settings = False
         self._sync_renderer_specific_controls()
         self._sync_probe_controls_enabled()
+        # Suppressed while applying, so the hint would otherwise still describe
+        # the bindings the dialog held before this call.
+        self._sync_camera_modifier_hint()
 
     def set_archive_performance_settings(self, settings: Optional[ArchivePerformanceSettings]) -> None:
         clamped = clamp_archive_performance_settings(settings)
@@ -970,10 +1013,55 @@ class ModelPreviewSettingsDialog(QDialog):
             self.preview_cache_limit_spin.setValue(clamped.preview_cache_limit)
             native_cache_index = self.native_preview_cache_mode_combo.findData(clamped.native_preview_cache_mode)
             self.native_preview_cache_mode_combo.setCurrentIndex(max(0, native_cache_index))
+            self.preview_cache_limit_spin.setEnabled(str(self.native_preview_cache_mode_combo.currentData() or "balanced") != "off")
             self.quick_then_full_checkbox.setChecked(clamped.quick_then_full_preview)
             self.maximum_indexing_priority_checkbox.setChecked(clamped.maximum_indexing_priority)
         finally:
             self._applying_settings = False
+
+    @staticmethod
+    def _select_combo_value(combo: QComboBox, value: str) -> None:
+        index = combo.findData(value)
+        if index >= 0:
+            combo.setCurrentIndex(index)
+
+    def _sync_camera_modifier_hint(self, *_args) -> None:
+        """Resolve a colliding pair into the combos, and say what happened.
+
+        The viewport tests pan before orbit, so a shared key would pan and the
+        orbit binding would just look broken. `resolve_camera_bindings` moves
+        orbit off the clash — and the orbit combo has to move with it, or it
+        would keep displaying a binding that is not the one in effect until the
+        dialog was next reopened.
+        """
+        if self._applying_settings or self._syncing_camera_modifiers:
+            return
+        requested_orbit = normalize_camera_modifier(
+            self.camera_orbit_modifier_combo.currentData(), "alt_or_ctrl"
+        )
+        requested_pan = normalize_camera_modifier(
+            self.camera_pan_modifier_combo.currentData(), "shift"
+        )
+        orbit, pan = resolve_camera_bindings(requested_orbit, requested_pan)
+        if orbit != requested_orbit:
+            # Re-entrant: this fires currentIndexChanged again, and the second
+            # pass would see no collision and erase the explanation below.
+            self._syncing_camera_modifiers = True
+            try:
+                self._select_combo_value(self.camera_orbit_modifier_combo, orbit)
+            finally:
+                self._syncing_camera_modifiers = False
+        text = (
+            f"Hold {camera_modifier_label(orbit)} and left-drag to orbit, or "
+            f"{camera_modifier_label(pan)} and left-drag to pan, without leaving the active "
+            "Select, Move, or Brush tool. Middle-drag and right-drag always pan."
+        )
+        if orbit != requested_orbit:
+            text += (
+                f" {camera_modifier_label(requested_orbit)} cannot orbit while pan uses the same key, "
+                f"so orbit moved to {camera_modifier_label(orbit)}."
+            )
+        self.camera_modifier_hint_label.setText(text)
 
     def _emit_settings_changed(self, *_args) -> None:
         if self._applying_settings:
@@ -1116,6 +1204,7 @@ class ModelPreviewSettingsDialog(QDialog):
         self.sidecar_worker_mode_combo.setEnabled(enabled)
         self.sidecar_worker_spin.setEnabled(enabled and manual)
         self.maximum_indexing_priority_checkbox.setEnabled(True)
+        self.preview_cache_limit_spin.setEnabled(str(self.native_preview_cache_mode_combo.currentData() or "balanced") != "off")
         if self._applying_settings:
             return
         updated = self.current_archive_performance_settings()
@@ -1134,6 +1223,8 @@ class ModelPreviewSettingsDialog(QDialog):
             self.set_settings(current)
             self.settings_changed.emit(self.current_settings())
             return
+        defaults.camera_orbit_modifier = current.camera_orbit_modifier
+        defaults.camera_pan_modifier = current.camera_pan_modifier
         defaults.invert_orbit_x = current.invert_orbit_x
         defaults.invert_orbit_y = current.invert_orbit_y
         defaults.invert_pan_x = current.invert_pan_x
