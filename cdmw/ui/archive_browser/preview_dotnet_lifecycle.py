@@ -354,6 +354,12 @@ class ArchivePreviewDotNetLifecycleMixin:
                 checkbox.setToolTip(
                     "Check to resolve and display textures after geometry is usable. This choice is kept after restart."
                 )
+        # Every path that lands a package refreshes this one, and the cloth
+        # control's availability comes from that same package. Moving the
+        # availability into the cloth sync was not enough on its own -- nothing
+        # called it from here, so the toggle still only appeared once something
+        # else ran the full toolbar pass.
+        self._sync_archive_cloth_physics_action_state()
 
     def _sync_archive_model_toolbar_toggles(
         self,
@@ -371,13 +377,14 @@ class ArchivePreviewDotNetLifecycleMixin:
         self._archive_toolbar_controls_enabled = bool(controls_enabled)
         sync_texture_action = getattr(self, "_sync_archive_texture_action_state", None)
         if callable(sync_texture_action):
+            # This already refreshes the cloth control from the flags above.
             sync_texture_action()
         else:
             self.archive_isolated_renderer_button.setText("Load textures")
+            self._sync_archive_cloth_physics_action_state()
         self.archive_isolated_renderer_button.setVisible(bool(resident_available))
         if not bool(getattr(self, "_archive_texture_request_loading", False)):
             self.archive_isolated_renderer_button.setEnabled(bool(resident_available and controls_enabled))
-        self._sync_archive_cloth_physics_action_state()
 
     def _handle_archive_renderer_protocol_event(self, payload: object) -> None:
         """Surface a refused presentation update instead of dropping it silently.
