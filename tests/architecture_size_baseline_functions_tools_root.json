@@ -8,7 +8,6 @@
     "tools/mesh_harness/modify_original_audit.py::run_modify_original_material_subset": 270,
     "tools/mesh_harness/real_dotnet.py::_run_performance_interactions": 312,
     "tools/mesh_harness/real_dotnet.py::run_real_archive_mesh_editor_dotnet_edit_smoke": 156,
-    "tools/mesh_harness/real_dotnet_display.py::exercise_geometry_display_modes": 156,
     "tools/mesh_harness/real_dotnet_flow.py::exercise_assignment_and_mesh_edits": 178,
     "tools/mesh_harness/real_dotnet_flow.py::exercise_linked_texture_strokes": 170,
     "tools/mesh_harness/visual_audit_cli.py::_write_draft_review": 153,
@@ -22,12 +21,13 @@
     "tools/placement_studio/gates_clipping.py::cmd_clipping": 180,
     "tools/placement_studio/move_weapon.py::MoveWeaponDialog.__init__": 158,
     "tools/placement_studio/viewport.py::SkeletonViewport._draw_meshes": 258,
-    "tools/placement_studio/window.py::PlacementStudioWindow._build_ui": 216,
+    "tools/placement_studio/window.py::PlacementStudioWindow._build_ui": 218,
     "tools/placement_studio/window_editing.py::EditPanelMixin._build_edit_panel": 205,
     "tools/run_crimson_renderdoc_hotkey_capture.py::run_renderdoc_hotkey_capture": 169,
     "tools/texture_replacer_headless_harness.py::_scenario_consumer_matrix": 226,
     "tools/texture_replacer_headless_harness.py::_scenario_failure_lifecycle": 198,
     "tools/texture_replacer_headless_harness.py::_scenario_policy_matrix": 214,
     "tools/texture_replacer_headless_harness.py::main": 162
-  }
+  },
+  "tools/mesh_harness/real_dotnet_display.py::exercise_geometry_display_modes": 156
 }
