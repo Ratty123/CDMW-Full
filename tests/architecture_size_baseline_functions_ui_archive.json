@@ -1,6 +1,6 @@
 {
   "functions": {
-    "cdmw/ui/archive_browser/action_controls.py::ArchiveBrowserActionControlsMixin._update_archive_model_action_controls": 305,
+    "cdmw/ui/archive_browser/action_controls.py::ArchiveBrowserActionControlsMixin._update_archive_model_action_controls": 297,
     "cdmw/ui/archive_browser/actions.py::ArchiveBrowserActionMixin._show_archive_tree_context_menu": 214,
     "cdmw/ui/archive_browser/appearance_composite.py::ArchiveAppearanceCompositeMixin._prompt_appearance_composite_component_selection": 161,
     "cdmw/ui/archive_browser/asset_catalog_dialog.py::ArchiveAssetCatalogDialogMixin._show_archive_asset_catalog_dialog": 844,
@@ -34,7 +34,7 @@
     "cdmw/ui/archive_browser/mesh_patch_flow.py::ArchiveMeshPatchFlowMixin._start_archive_mesh_patch._start_build_with_static_options._start_commit._commit_task": 299,
     "cdmw/ui/archive_browser/mesh_patch_flow.py::ArchiveMeshPatchFlowMixin._start_archive_mesh_patch._start_build_with_static_options._start_commit._handle_commit_complete": 182,
     "cdmw/ui/archive_browser/mesh_setup_helpers.py::ArchiveMeshSetupHelperMixin._add_replacement_asset_profile_summary": 209,
-    "cdmw/ui/archive_browser/mesh_swap_scope_dialog.py::ArchiveMeshSwapScopeDialogMixin._prompt_archive_in_game_mesh_swap_scope": 526,
+    "cdmw/ui/archive_browser/mesh_swap_scope_dialog.py::ArchiveMeshSwapScopeDialogMixin._prompt_archive_in_game_mesh_swap_scope": 515,
     "cdmw/ui/archive_browser/mesh_swap_scope_preflight.py::prepare_archive_mesh_swap_scope": 171,
     "cdmw/ui/archive_browser/mesh_swap_support.py::ArchiveMeshSwapSupportMixin._build_archive_swap_source_texture_evidence": 187,
     "cdmw/ui/archive_browser/mod_ready_export.py::ArchiveModReadyExportMixin._prompt_archive_mod_ready_export_target": 256,

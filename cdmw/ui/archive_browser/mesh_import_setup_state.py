@@ -49,6 +49,14 @@ def in_game_mesh_swap_banner_text(target_path: object) -> str:
     )
 
 
+def in_game_mesh_swap_banner_preparing_text(target_path: object) -> str:
+    return (
+        f"In-game mesh swap armed. Target: {target_path}. "
+        "Still preparing this target's dependencies -- select it in the file list if "
+        "this does not clear, then pick the mesh you want to swap in."
+    )
+
+
 def in_game_mesh_swap_banner_cancel_text() -> str:
     return "Cancel Swap"
 
@@ -138,6 +146,7 @@ __all__ = [
     "direct_source_model_swap_written_status",
     "in_game_mesh_swap_banner_cancel_text",
     "in_game_mesh_swap_banner_cancel_tooltip",
+    "in_game_mesh_swap_banner_preparing_text",
     "in_game_mesh_swap_banner_text",
     "in_game_mesh_swap_progress_text",
     "in_game_mesh_swap_same_source_status",
