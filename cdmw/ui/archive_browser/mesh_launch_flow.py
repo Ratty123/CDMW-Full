@@ -337,6 +337,12 @@ class ArchiveMeshLaunchFlowMixin:
 
     def _set_pending_in_game_mesh_swap_target(self, entry: Optional[ArchiveEntry]) -> None:
         self.pending_in_game_mesh_swap_target = entry
+        # Choosing the source means browsing, and browsing evicts the target from the
+        # four-slot prepared-dependency LRU. Hold it for as long as the swap is armed.
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        pin = getattr(remote_bridge, "pin_prepared_dependencies_for", None)
+        if callable(pin):
+            pin(entry)
         self._refresh_archive_in_game_swap_banner()
         self._update_archive_model_action_controls(self._archive_model_preview_controls_target())
 
@@ -345,6 +351,32 @@ class ArchiveMeshLaunchFlowMixin:
             return
         self._set_pending_in_game_mesh_swap_target(None)
         self.set_status_message(pending_in_game_mesh_swap_cancelled_status())
+
+    def _report_in_game_mesh_swap_blocked(
+        self,
+        target_entry: ArchiveEntry,
+        source_entry: ArchiveEntry,
+        reason: str,
+    ) -> None:
+        """Surface a swap that stopped before it started.
+
+        These paths used to write to set_status_message alone, which renders on the
+        Textures tab -- so from Archive Browser the click did nothing at all. The swap
+        stays armed, because the target is still a valid choice.
+        """
+
+        self.set_status_message(f"In-game mesh swap is unavailable: {reason}", error=True)
+        QMessageBox.warning(
+            self,
+            "In-Game Mesh Swap Not Started",
+            (
+                f"{reason}\n\n"
+                f"Target: {target_entry.path}\n"
+                f"Source: {source_entry.path}\n\n"
+                "Select the target in Archive Browser so its dependencies are prepared "
+                "again, then choose the source. The swap target stays armed."
+            ),
+        )
 
     def _handle_archive_in_game_mesh_swap_entry(self, entry: ArchiveEntry) -> None:
         pending_target = self.pending_in_game_mesh_swap_target
@@ -484,14 +516,15 @@ class ArchiveMeshLaunchFlowMixin:
                     source_dependencies,
                 )
             except ArchiveWorkflowDependenciesUnavailable as exc:
-                self.set_status_message(f"In-game mesh swap is unavailable: {exc}", error=True)
+                self._report_in_game_mesh_swap_blocked(target_entry, source_entry, str(exc))
                 return
             prepared_target = dependencies.entry_matching(target_entry)
             prepared_source = dependencies.entry_matching(source_entry)
             if prepared_target is None or prepared_source is None:
-                self.set_status_message(
-                    "In-game mesh swap is unavailable because its prepared target/source entries expired.",
-                    error=True,
+                self._report_in_game_mesh_swap_blocked(
+                    target_entry,
+                    source_entry,
+                    "The prepared target/source entries expired.",
                 )
                 return
             target_entry = prepared_target

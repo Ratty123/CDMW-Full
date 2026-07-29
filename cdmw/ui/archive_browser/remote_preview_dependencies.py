@@ -136,6 +136,10 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             ArchiveEntryIdentity,
             ArchivePreviewDependencySet,
         ] = OrderedDict()
+        #: Held across arbitrary browsing by a workflow that armed an entry earlier and
+        #: needs it again later -- an in-game swap target, whose source is chosen by
+        #: browsing, which is exactly what evicts it from a four-slot LRU.
+        self._pinned_identity: ArchiveEntryIdentity | None = None
         service.batch_ready.connect(self._handle_batch)
         service.result_ready.connect(self._handle_result)
         service.request_failed.connect(self._handle_failure)
@@ -152,6 +156,22 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         if snapshot.entry_id != int(entry_id) or self._snapshot_ui_request_id != int(ui_request_id):
             return None
         return snapshot
+
+    def pin_entry(self, entry: ArchiveEntry | None) -> bool:
+        """Exempt ``entry``'s snapshot from LRU eviction. Returns whether one is held.
+
+        Pinning nothing (``None``) releases the previous pin.
+        """
+
+        if not isinstance(entry, ArchiveEntry):
+            self._pinned_identity = None
+            return False
+        identity = entry.identity
+        self._pinned_identity = identity
+        if identity in self._snapshots_by_identity:
+            self._snapshots_by_identity.move_to_end(identity)
+            return True
+        return False
 
     def snapshot_for_entry(self, entry: ArchiveEntry) -> ArchivePreviewDependencySet | None:
         if not isinstance(entry, ArchiveEntry):
@@ -204,7 +224,10 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         if clear_snapshot:
             self._snapshot = None
             self._snapshot_ui_request_id = -1
+            pinned = self._snapshots_by_identity.get(self._pinned_identity) if self._pinned_identity else None
             self._snapshots_by_identity.clear()
+            if pinned is not None:
+                self._snapshots_by_identity[self._pinned_identity] = pinned
 
     def _handle_batch(self, request_id: str, operation: str, payload: object) -> None:
         pending = self._matching_pending(request_id, operation)
@@ -258,7 +281,19 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         self._snapshots_by_identity[identity] = snapshot
         self._snapshots_by_identity.move_to_end(identity)
         while len(self._snapshots_by_identity) > MAX_ARCHIVE_PREVIEW_SNAPSHOTS:
-            self._snapshots_by_identity.popitem(last=False)
+            evicted = next(
+                (
+                    key
+                    for key in self._snapshots_by_identity
+                    if key != self._pinned_identity
+                ),
+                None,
+            )
+            if evicted is None:
+                # Only the pin is left and it still exceeds the bound, which cannot
+                # happen with a bound above one, but never spin here if it does.
+                break
+            del self._snapshots_by_identity[evicted]
 
     def _handle_failure(self, request_id: str, error: object) -> None:
         pending = self._pending

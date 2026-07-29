@@ -410,6 +410,12 @@ class ArchiveRemoteWindowBridge(QObject):
             return None
         return provider.snapshot_for_entry(entry)
 
+    def pin_prepared_dependencies_for(self, entry: ArchiveEntry | None) -> bool:
+        provider = self._preview_dependencies
+        if provider is None:
+            return False
+        return bool(provider.pin_entry(entry))
+
     def preview_dependencies_pending_for(self, ui_request_id: int) -> bool:
         provider = self._preview_dependencies
         return provider is not None and provider.pending_ui_request_id == int(ui_request_id)
