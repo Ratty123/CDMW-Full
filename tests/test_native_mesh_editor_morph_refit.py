@@ -347,13 +347,135 @@ def test_resident_morph_drag_refits_selected_garment_with_one_history_entry_and_
     _assert_positions_close(after_redo.submeshes[2].vertices, after.submeshes[2].vertices)
 
 
+def _tilt_mesh() -> ParsedMesh:
+    """One driver triangle in z=0 plus two garment vertices bound to it.
+
+    Garment vertex 0 sits above the centroid, so its closest point is strictly
+    interior and its standoff is purely normal. Vertex 1 overhangs the far edge,
+    so its closest point is a corner and its offset carries a tangential part.
+    The two vertices are what separate the normal term from the tangential
+    residual.
+    """
+
+    driver = _part(
+        "body",
+        [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+        [(0, 1, 2)],
+        material="skin",
+        texture="skin.dds",
+    )
+    garment = _part(
+        "shirt",
+        [(1.0 / 3.0, 1.0 / 3.0, 0.1), (2.0, 2.0, 0.1)],
+        [(0, 1, 0)],
+        material="shirt-mat",
+        texture="shirt.dds",
+    )
+    parts = [driver, garment]
+    return ParsedMesh(
+        path="tilt.pac",
+        format="pac",
+        submeshes=parts,
+        total_vertices=sum(len(part.vertices) for part in parts),
+        total_faces=sum(len(part.faces) for part in parts),
+        has_uvs=True,
+        has_bones=True,
+    )
+
+
+def _tilt_profile_payload(lift: float) -> dict[str, object]:
+    """A field that lifts only driver corner 0, so the bound face rotates."""
+
+    return {
+        "profile": {
+            "profile_id": "tilt",
+            "name": "Tilt",
+            "topology_fingerprint": "b" * 64,
+            "definitions": [
+                {
+                    "definition_id": "tilt",
+                    "label": "Tilt",
+                    "category": "Body",
+                    "min_percent": -100.0,
+                    "max_percent": 100.0,
+                    "default_percent": 0.0,
+                }
+            ],
+            "fields": [
+                {
+                    "definition_id": "tilt",
+                    "submesh_index": 0,
+                    "vertex_indices": [0],
+                    "deltas": [[0.0, 0.0, lift]],
+                }
+            ],
+        }
+    }
+
+
+def test_refit_standoff_rotates_with_a_tilting_driver_face_instead_of_staying_axis_pinned() -> None:
+    mesh = _tilt_mesh()
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", _tilt_profile_payload(0.6))
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [1]})
+        _command(
+            session_id,
+            "morph_change",
+            {"definition_id": "tilt", "value": 100.0, "phase": "end", "change_id": "tilt-1"},
+        )
+        after = _snapshot(mesh, session_id)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+    # Driver corner 0 rises to z=0.6, so the face normal turns from (0, 0, 1) to
+    # (0.6, 0.6, 1) normalised. The interior-bound garment vertex must land
+    # exactly on the deformed surface point plus its 0.1 standoff along the new
+    # normal; under translation-only refit it would sit at (1/3, 1/3, 0.3) with
+    # no in-plane motion at all.
+    scale = (0.6 * 0.6 + 0.6 * 0.6 + 1.0) ** 0.5
+    normal = (0.6 / scale, 0.6 / scale, 1.0 / scale)
+    surface = (1.0 / 3.0, 1.0 / 3.0, 0.2)
+    assert after.submeshes[1].vertices[0] == pytest.approx(
+        tuple(surface[axis] + 0.1 * normal[axis] for axis in range(3))
+    )
+    assert after.submeshes[1].vertices[0][0] != pytest.approx(1.0 / 3.0)
+
+
+def test_refit_is_exactly_identity_at_zero_and_pure_translation_for_an_edge_bound_overhang() -> None:
+    mesh = _tilt_mesh()
+    garment_rest = list(mesh.submeshes[1].vertices)
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", _tilt_profile_payload(0.6))
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [1]})
+        at_bind = _snapshot(mesh, session_id)
+        _command(
+            session_id,
+            "morph_change",
+            {"definition_id": "tilt", "value": 0.0, "phase": "end", "change_id": "zero-1"},
+        )
+        at_zero = _snapshot(mesh, session_id)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+    # Vertex 1 overhangs the triangle, so its closest point is corner (1, 0, 0)
+    # and most of its offset is tangential. A refit that rebuilt the vertex from
+    # a normal-only height would snap that tangential part away the moment the
+    # garment was bound. Binding and holding at zero must both be exact no-ops.
+    _assert_positions_close(at_bind.submeshes[1].vertices, garment_rest)
+    _assert_positions_close(at_zero.submeshes[1].vertices, garment_rest)
+
+
 def test_residual_edit_is_retained_by_reset_while_refit_displacement_is_removed_then_bake_allows_topology() -> None:
     mesh = _driver_garment_mesh()
     session_id = _open(mesh)
     try:
         _command(session_id, "morph_upload", _profile_payload(mesh))
         _command(session_id, "morph_set_driver", {"submesh_indices": [0, 1]})
-        _command(session_id, "morph_bind", {"garment_submesh_indices": [2]})
+        bound = _command(session_id, "morph_bind", {"garment_submesh_indices": [2]})
         _change(session_id, 50.0, "end", "numeric-1")
         assert mesh_native_core.select_native_mesh_editor_session(
             session_id,
@@ -388,13 +510,31 @@ def test_residual_edit_is_retained_by_reset_while_refit_displacement_is_removed_
 
     assert edited is not None
     assert after_edit.submeshes[0].vertices[0][2] == pytest.approx(0.75)
-    assert after_edit.submeshes[2].vertices[0][2] == pytest.approx(0.85)
+    # Translating only driver vertex 0 tilts the bound face, so the garment's
+    # standoff turns with it instead of staying pinned to +Z: the vertex picks up
+    # the in-plane motion the old translation-only refit could never produce, and
+    # loses height by h * (n' - n0). Bound at barycentric (1, 0, 0) with h = 0.1,
+    # the tilted normal is (0.25, 0.25, 1) / sqrt(1.125).
+    assert after_edit.submeshes[2].vertices[0] == pytest.approx(
+        (0.023570226039551587, 0.023570226039551587, 0.8442809041582063)
+    )
     assert reset["history_published"] is True
     assert reset["morph_state"]["values"] == {"lift": 0}  # type: ignore[index]
     assert reset["morph_state"]["unbaked"] is False  # type: ignore[index]
     assert after_reset.submeshes[0].vertices[0] == pytest.approx((0.0, 0.0, 0.25))
     assert after_reset.submeshes[0].vertices[1] == pytest.approx((1.0, 0.0, 0.0))
     _assert_positions_close(after_reset.submeshes[2].vertices, mesh.submeshes[2].vertices)
+    # Reset rebases onto the residual edit it just kept, so the diagnostics have
+    # to describe that new rest state rather than the bind that preceded it. The
+    # edit lifted driver corner 0 to z=0.25 while the garment returned to z=0.1,
+    # so the vertices bound to that corner now stand 0.15 off their driver where
+    # they stood 0.1 off it at bind. Reporting the bind-time figure would leave
+    # the status line describing a rest state that no longer exists.
+    assert bound["morph_state"]["refit"]["maximum_distance"] == pytest.approx(0.1)  # type: ignore[index]
+    assert reset["morph_state"]["refit"]["maximum_distance"] == pytest.approx(0.15)  # type: ignore[index]
+    assert reset["morph_state"]["refit"]["warning_distance"] == pytest.approx(  # type: ignore[index]
+        (9.0 + 1.0 + 0.0625) ** 0.5 * 0.05
+    )
     assert bake["history_published"] is True
     assert bake["morph_state"]["values"] == {"lift": 0}  # type: ignore[index]
     assert bake["morph_state"]["unbaked"] is False  # type: ignore[index]
