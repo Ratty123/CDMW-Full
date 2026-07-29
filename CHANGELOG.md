@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Changed
+- **An AI API key that cannot be encrypted is no longer written to disk.** Storage tries Windows DPAPI and used to fall back to `plain:<base64>`, which is encoding rather than encryption: anyone who could read the file could read the key, and the warning shown at the time did not change that. CodeQL reported it as clear-text storage of a credential and was right. Everything else in the config still saves, the key still works for the session, and the dialog now says it was not saved rather than that it was saved unprotected. On Windows, where DPAPI is available, nothing changes.
+
 ### Fixed
 - **A queued preview prewarm could take the whole app down.** `_DotNetPreviewPrewarmTask` runs on the *global* thread pool and nothing waits for it, so it can outlive the host that started it. `self.signals` is then a deleted QObject and the emit raises `Internal C++ object already deleted` — and that emit sat outside the guard, so the exception escaped `QRunnable.run()`. An exception escaping a Python override of a C++ virtual is fatal: PySide6 reports `Error calling Python override of QRunnable::run()` and the process dies. In the app that means closing a preview while a prewarm is in flight; in CI it killed whichever test happened to be running when the task came due, which is how it presented as a crash in the mesh builder tests at 24%.
 - A prewarm is best-effort by definition, so nothing in it is worth a crash: `run()` now contains its own failures and treats a departed host as nobody left to tell.

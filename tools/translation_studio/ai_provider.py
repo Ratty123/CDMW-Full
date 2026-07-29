@@ -279,9 +279,19 @@ def load_config() -> ProviderConfig:
 
 
 def save_config(config: ProviderConfig) -> ProviderConfig:
-    """Write the config and return it with `key_is_encrypted` telling the truth."""
+    """Write the config and return it with `key_is_encrypted` telling the truth.
+
+    A key that cannot be protected is not written at all. The fallback used to
+    store `plain:<base64>`, which is encoding rather than encryption: anyone who
+    could read the file could read the key, and the warning the panel showed did
+    not change that. Everything else in the config still saves; the key stays in
+    memory for the session and has to be entered again next time, which is the
+    price of not leaving a credential readable on disk.
+    """
 
     stored_key, encrypted = protect_secret(config.api_key)
+    if not encrypted:
+        stored_key = ""
     payload = {
         "preset": config.preset,
         "base_url": config.base_url,

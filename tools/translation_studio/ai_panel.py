@@ -232,10 +232,10 @@ class ProviderSettingsDialog(QDialog):
         if config.api_key and not self.config.key_is_encrypted:
             QMessageBox.warning(
                 self,
-                "Key stored unencrypted",
-                "Windows account encryption was unavailable, so the API key is stored as "
-                "plain text in the app's workspace folder. Anyone who can read that file "
-                "can read the key.",
+                "API key not saved",
+                "Windows account encryption was unavailable, so the API key was not "
+                "written to disk. Everything else was saved, and the key still works "
+                "for this session; you will need to enter it again next time.",
             )
         self.accept()
 
