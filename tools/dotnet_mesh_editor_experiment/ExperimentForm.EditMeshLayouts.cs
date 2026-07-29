@@ -13,21 +13,6 @@ internal sealed partial class ExperimentForm
         ToolRail,
     }
 
-    /// <summary>
-    /// The modal tools, one rail button each. Only these swap with the rail —
-    /// the scene groups (Parts, Action History, Viewport) are not modal and
-    /// live permanently in the right inspector. Declaration order is rail order.
-    /// </summary>
-    private enum ToolRailPage
-    {
-        Selection,
-        Transform,
-        Brush,
-        Topology,
-        Colour,
-        MorphRefit,
-    }
-
     private readonly Dictionary<ToolRailPage, Button> _toolRailButtons = new();
     private readonly Dictionary<ToolRailPage, Panel> _toolRailPages = new();
     // The classic caption of every section the rail blanks, so Classic gets it
@@ -38,7 +23,9 @@ internal sealed partial class ExperimentForm
     // the session bar.
     private EditMeshLayoutMode _requestedEditMeshLayout = EditMeshLayoutMode.ToolRail;
     private EditMeshLayoutMode _activeEditMeshLayout = EditMeshLayoutMode.Classic;
-    private ToolRailPage _selectedToolRailPage = ToolRailPage.Selection;
+    // Null means no tool is armed: Edit Mesh opens this way, with the camera on
+    // the left button and the navigation strip naming the modifiers.
+    private ToolRailPage? _selectedToolRailPage;
     private bool _toolRailPageSelected;
     private bool _applyingToolRailSplitterLayout;
     private Point _classicLeftScrollPosition;
@@ -92,7 +79,7 @@ internal sealed partial class ExperimentForm
             Name = "DotNetMeshEditorLayoutHost",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = 3,
             Margin = new Padding(0),
             Padding = new Padding(0),
             BackColor = ThemeWindowBackground,
@@ -100,6 +87,9 @@ internal sealed partial class ExperimentForm
         _editMeshLayoutHost.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         _editMeshLayoutHost.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
         _editMeshLayoutHost.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        _editMeshLayoutHost.RowStyles.Add(new RowStyle(
+            SizeType.Absolute,
+            _options.SimplePreview ? 0 : Math.Max(30, _statusLabel.Height + 12)));
         _editMeshLayoutHost.Resize += (_, _) =>
         {
             if (IsToolRailActive)
@@ -108,6 +98,13 @@ internal sealed partial class ExperimentForm
             }
         };
         _editMeshLayoutHost.Controls.Add(_classicEditMeshLayoutRoot, 0, 1);
+        if (!_options.SimplePreview)
+        {
+            // Full window width: the legend has to stay readable with both tool
+            // flanks open, which the viewport column alone cannot manage.
+            _editMeshLayoutHost.Controls.Add(BuildViewportNavigationStrip(), 0, 2);
+            UpdateViewportControlsHint();
+        }
         Controls.Add(_editMeshLayoutHost);
         // The session bar belongs to the tool rail Edit Mesh layout, so it
         // follows the same schedule as the panels it sits above.
@@ -321,30 +318,30 @@ internal sealed partial class ExperimentForm
             Name = "EditMeshToolRail",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 7,
+            RowCount = 8,
             Margin = new Padding(0),
             Padding = new Padding(6, 8, 6, 8),
             BackColor = ThemeRailBackground,
         };
         rail.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var buttonHeight = ScaleToolPanelWidth(ToolRailButtonHeight);
-        for (var row = 0; row < 6; row++)
+        for (var row = 0; row < 7; row++)
         {
             rail.RowStyles.Add(new RowStyle(SizeType.Absolute, buttonHeight));
         }
         rail.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        AddToolRailButton(rail, ToolRailPage.Selection, "◰", "Select", 0,
+        AddToolRailButton(rail, ToolRailPage.Selection, "◰", "Select", 1,
             "Vertex, face and part selection, X-Ray and Part Pick.");
-        AddToolRailButton(rail, ToolRailPage.Transform, "✥", "Move", 1,
+        AddToolRailButton(rail, ToolRailPage.Transform, "✥", "Move", 2,
             "Translate step, Move and Grab.");
-        AddToolRailButton(rail, ToolRailPage.Brush, "◍", "Brush", 2,
+        AddToolRailButton(rail, ToolRailPage.Brush, "◍", "Brush", 3,
             "Smooth, Inflate and Pinch with radius, strength and falloff.");
-        AddToolRailButton(rail, ToolRailPage.Topology, "△", "Topo", 3,
+        AddToolRailButton(rail, ToolRailPage.Topology, "△", "Topo", 4,
             "Subdivide and Refine Smooth.");
-        AddToolRailButton(rail, ToolRailPage.Colour, "◧", "Colour", 4,
+        AddToolRailButton(rail, ToolRailPage.Colour, "◧", "Colour", 5,
             "Per-part tint, recolour and glow for the current selection.");
-        AddToolRailButton(rail, ToolRailPage.MorphRefit, "◑", "Morph", 5,
+        AddToolRailButton(rail, ToolRailPage.MorphRefit, "◑", "Morph", 6,
             "Definition profiles, shape sliders and garment refit binding.");
         return rail;
     }
@@ -1019,39 +1016,26 @@ internal sealed partial class ExperimentForm
     }
 
     /// <summary>
-    /// The tool a rail page puts the viewport into. Topology and Morph &amp; Refit
-    /// are command pages rather than modal tools, so they leave the active tool
-    /// alone and return null.
+    /// Reveals one rail page, or none of them when <paramref name="page"/> is
+    /// null. No page means no tool is armed and the left button belongs to the
+    /// camera, which is how Edit Mesh opens.
     /// </summary>
-    private static string? DefaultToolForRailPage(ToolRailPage page) => page switch
-    {
-        ToolRailPage.Selection => "select",
-        ToolRailPage.Transform => "move",
-        ToolRailPage.Brush => "smooth",
-        _ => null,
-    };
-
-    private static bool RailPageOwnsTool(ToolRailPage page, string tool) => page switch
-    {
-        ToolRailPage.Selection => string.Equals(tool, "select", StringComparison.OrdinalIgnoreCase),
-        ToolRailPage.Transform => tool.ToLowerInvariant() is "move" or "grab",
-        ToolRailPage.Brush => tool.ToLowerInvariant() is "smooth" or "inflate" or "pinch",
-        _ => false,
-    };
-
-    private void ShowToolRailPage(ToolRailPage page)
+    private void ShowToolRailPage(ToolRailPage? page)
     {
         _selectedToolRailPage = page;
         _toolRailPageSelected = true;
         // A rail button that names a tool has to select that tool. Revealing the
         // page alone left the viewport in whatever mode it was already in, so
         // clicking "Select" and then clicking the model did nothing.
-        var defaultTool = DefaultToolForRailPage(page);
+        var defaultTool = page is null
+            ? null
+            : EditMeshLayoutContracts.DefaultToolForRailPage(page.Value);
         if (defaultTool is not null
+            && page is not null
             && _meshEditInteractionActive
-            && !RailPageOwnsTool(page, _viewport.ActiveTool))
+            && !EditMeshLayoutContracts.RailPageOwnsTool(page.Value, _viewport.ActiveTool))
         {
-            ActivateTool(defaultTool, ToolRailPageTitle(page));
+            ActivateTool(defaultTool, ToolRailPageTitle(page.Value));
         }
         if (page == ToolRailPage.Colour)
         {
@@ -1074,7 +1058,14 @@ internal sealed partial class ExperimentForm
         }
         if (_toolRailPanelHeader is not null)
         {
-            _toolRailPanelHeader.Text = ToolRailPageTitle(page).ToUpperInvariant();
+            _toolRailPanelHeader.Text = page is null
+                ? string.Empty
+                : ToolRailPageTitle(page.Value).ToUpperInvariant();
+        }
+        // Selecting or clearing a page changes how wide the dock needs to be.
+        if (IsToolRailActive)
+        {
+            ApplyToolRailSplitterLayout();
         }
     }
 
@@ -1113,7 +1104,7 @@ internal sealed partial class ExperimentForm
                 ["children"] = ToolRailChildDiagnostics(page),
             });
             _statusLabel.Text =
-                $"The {ToolRailPageTitle(_selectedToolRailPage)} panel could not be shown "
+                $"The {(_selectedToolRailPage is null ? page.Name : ToolRailPageTitle(_selectedToolRailPage.Value))} panel could not be shown "
                 + $"(Win32 {ex.NativeErrorCode}). The rail stays on the previous tool.";
         }
     }
@@ -1161,20 +1152,21 @@ internal sealed partial class ExperimentForm
         internal static extern bool IsWindow(IntPtr hwnd);
     }
 
-    private ToolRailPage ToolRailPageForActiveTool()
-    {
-        return _viewport.ActiveTool.ToLowerInvariant() switch
-        {
-            "move" or "grab" => ToolRailPage.Transform,
-            "smooth" or "inflate" or "pinch" => ToolRailPage.Brush,
-            _ => ToolRailPage.Selection,
-        };
-    }
+    private ToolRailPage? ToolRailPageForActiveTool() =>
+        EditMeshLayoutContracts.ToolRailPageForTool(_viewport.ActiveTool);
 
     /// <summary>
     /// Keeps the rail highlight on the page that owns the active tool when the
     /// tool is changed from the page's own buttons rather than from the rail.
+    /// Dropping back to orbit owns no page, so a modal tool page clears.
     /// </summary>
+    /// <remarks>
+    /// Topology, Colour and Morph &amp; Refit are command pages: they never armed
+    /// a tool, so the viewport sits on orbit the whole time one is open. Closing
+    /// a page on "the tool is now orbit" alone would therefore shut them the
+    /// moment anything re-asserted orbit — and the host does exactly that every
+    /// time it publishes a disabled mesh-edit tool state.
+    /// </remarks>
     private void SyncToolRailPageToActiveTool()
     {
         if (!IsToolRailActive)
@@ -1182,7 +1174,20 @@ internal sealed partial class ExperimentForm
             return;
         }
         var page = ToolRailPageForActiveTool();
-        if (page != _selectedToolRailPage && RailPageOwnsTool(page, _viewport.ActiveTool))
+        if (page == _selectedToolRailPage)
+        {
+            return;
+        }
+        if (page is null)
+        {
+            if (_selectedToolRailPage is not null
+                && EditMeshLayoutContracts.DefaultToolForRailPage(_selectedToolRailPage.Value) is not null)
+            {
+                ShowToolRailPage(null);
+            }
+            return;
+        }
+        if (EditMeshLayoutContracts.RailPageOwnsTool(page.Value, _viewport.ActiveTool))
         {
             ShowToolRailPage(page);
         }
@@ -1203,7 +1208,13 @@ internal sealed partial class ExperimentForm
             _leftToolSplit.PerformLayout();
             _rightToolSplit.PerformLayout();
 
-            var toolDockWidth = ScaleToolPanelWidth(ToolRailWidth + ToolPropertyWidth);
+            // With no tool armed the property column has nothing to show, and a
+            // full-height empty panel beside the rail reads as a failed load.
+            // The rail alone is the honest opening state.
+            var toolDockWidth = ScaleToolPanelWidth(
+                _selectedToolRailPage is null
+                    ? ToolRailWidth
+                    : ToolRailWidth + ToolPropertyWidth);
             ApplySplitterDistance(
                 _leftToolSplit,
                 toolDockWidth,
@@ -1216,6 +1227,10 @@ internal sealed partial class ExperimentForm
                 ScaleToolPanelWidth(SceneInspectorWidth),
                 ScaleToolPanelWidth(MinimumViewportWidth),
                 ScaleToolPanelWidth(280));
+            // Selecting a tool widens this dock and clearing it narrows it. The
+            // strip of flank that the property column vacates keeps whatever was
+            // painted there until something asks for it back.
+            _leftToolSplit.Panel1.Invalidate(invalidateChildren: true);
         }
         finally
         {

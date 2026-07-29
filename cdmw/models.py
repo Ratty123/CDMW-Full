@@ -1777,6 +1777,11 @@ class ModelPreviewRenderSettings:
     invert_orbit_y: bool = False
     invert_pan_x: bool = False
     invert_pan_y: bool = False
+    # Held modifiers that hand the left button to the camera while an edit tool
+    # owns it. cdmw.domain.camera_bindings owns the legal values and resolves a
+    # colliding pair; these two are only the stored choice.
+    camera_orbit_modifier: str = "alt_or_ctrl"
+    camera_pan_modifier: str = "shift"
     gizmo_x_axis_color: str = "#EB4B4B"
     gizmo_y_axis_color: str = "#50DC69"
     gizmo_z_axis_color: str = "#4B91FF"

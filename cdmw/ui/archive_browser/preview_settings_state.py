@@ -151,6 +151,8 @@ def model_preview_settings_change_flags(
         or previous_settings.invert_orbit_y != preview_settings.invert_orbit_y
         or previous_settings.invert_pan_x != preview_settings.invert_pan_x
         or previous_settings.invert_pan_y != preview_settings.invert_pan_y
+        or previous_settings.camera_orbit_modifier != preview_settings.camera_orbit_modifier
+        or previous_settings.camera_pan_modifier != preview_settings.camera_pan_modifier
         or previous_settings.enable_tool_pbd_cloth_preview != preview_settings.enable_tool_pbd_cloth_preview
         or previous_settings.pause_tool_pbd_cloth_preview != preview_settings.pause_tool_pbd_cloth_preview
         or previous_settings.tool_pbd_cloth_wind_strength != preview_settings.tool_pbd_cloth_wind_strength

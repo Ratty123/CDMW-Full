@@ -7,7 +7,11 @@ internal sealed partial class ExperimentForm
 {
     private readonly Dictionary<string, Button> _presentationViewButtons =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<Label> _navigationChipBadges = new();
     private TableLayoutPanel? _presentationViewSelector;
+    private Label? _viewportNavigationPrimary;
+    private Label? _orbitChipBadge;
+    private Label? _panChipBadge;
     private bool _presentationHeaderDividerDragging;
 
     private Control BuildPresentationViewportRegion()
@@ -117,6 +121,132 @@ internal sealed partial class ExperimentForm
         }
         UpdatePresentationViewButtons();
         return region;
+    }
+
+    /// <summary>
+    /// The permanent camera legend along the bottom of the editor: the active
+    /// tool on the left, then the modifier bindings that orbit, pan and zoom. It
+    /// is always on screen because the bindings only matter once an edit tool
+    /// has taken the left button, which is exactly when there is nothing left to
+    /// discover them from.
+    /// </summary>
+    /// <remarks>
+    /// It spans the whole window rather than sitting inside the viewport region.
+    /// Both tool flanks are open in Edit Mesh, which leaves the viewport column
+    /// around 380 px: a third of what these bindings need to read, and
+    /// <see cref="FlowLayoutPanel"/> clips rather than wraps them.
+    /// </remarks>
+    private Control BuildViewportNavigationStrip()
+    {
+        var strip = new FlowLayoutPanel
+        {
+            Name = "ResidentViewportNavigationStrip",
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            AutoScroll = false,
+            Margin = new Padding(0),
+            Padding = new Padding(10, 3, 10, 3),
+            BackColor = ThemeStatusBackground,
+        };
+        _viewportNavigationPrimary = new Label
+        {
+            Name = "ResidentViewportNavigationTool",
+            AutoSize = true,
+            UseMnemonic = false,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Margin = new Padding(0, 4, 16, 0),
+            BackColor = ThemeStatusBackground,
+            ForeColor = ThemeStrongText,
+            Font = new Font(Font, FontStyle.Bold),
+        };
+        strip.Controls.Add(_viewportNavigationPrimary);
+        strip.Controls.Add(NavigationChip("Orbit", out _orbitChipBadge));
+        strip.Controls.Add(NavigationChip("Pan", out _panChipBadge));
+        strip.Controls.Add(NavigationChip("Zoom", out var zoomBadge));
+        zoomBadge.Text = "Wheel";
+        return strip;
+    }
+
+    /// <summary>
+    /// One binding on the navigation strip: the keys in a badge, the camera
+    /// move they perform beside it. The badge is written by
+    /// <see cref="UpdateViewportNavigationStrip"/> because orbit and pan are
+    /// rebindable and the strip has to name whatever they are bound to now.
+    /// </summary>
+    private Control NavigationChip(string action, out Label badge)
+    {
+        var chip = new FlowLayoutPanel
+        {
+            Name = $"ResidentViewportNavigationChip{action}",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Margin = new Padding(0, 0, 14, 0),
+            Padding = new Padding(0),
+            BackColor = ThemeStatusBackground,
+        };
+        badge = new Label
+        {
+            AutoSize = true,
+            UseMnemonic = false,
+            TextAlign = ContentAlignment.MiddleCenter,
+            Margin = new Padding(0, 1, 6, 1),
+            Padding = new Padding(6, 2, 6, 2),
+            BackColor = ThemeButtonBackground,
+            ForeColor = ThemeStrongText,
+        };
+        var label = new Label
+        {
+            Text = action,
+            AutoSize = true,
+            UseMnemonic = false,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Margin = new Padding(0, 4, 0, 0),
+            BackColor = ThemeStatusBackground,
+            ForeColor = ThemeMutedText,
+        };
+        chip.Controls.Add(badge);
+        chip.Controls.Add(label);
+        _navigationChipBadges.Add(badge);
+        return chip;
+    }
+
+    private void UpdateViewportNavigationStrip(string activeTool, bool modifiersOwnTheCamera)
+    {
+        if (_viewportNavigationPrimary is not null)
+        {
+            _viewportNavigationPrimary.Text = activeTool;
+        }
+        // Written from the live bindings rather than baked in, because both are
+        // rebindable from Model Preview Settings > Controls. Each arm is a whole
+        // literal so it stays one translatable phrase per binding.
+        if (_orbitChipBadge is not null)
+        {
+            _orbitChipBadge.Text = _viewport.CameraOrbitModifier switch
+            {
+                CameraModifierBindings.Alt => "Alt + left-drag",
+                CameraModifierBindings.Ctrl => "Ctrl + left-drag",
+                CameraModifierBindings.Shift => "Shift + left-drag",
+                _ => "Alt or Ctrl + left-drag",
+            };
+        }
+        if (_panChipBadge is not null)
+        {
+            _panChipBadge.Text = _viewport.CameraPanModifier switch
+            {
+                CameraModifierBindings.Alt => "Alt + left-drag, or middle / right-drag",
+                CameraModifierBindings.Ctrl => "Ctrl + left-drag, or middle / right-drag",
+                CameraModifierBindings.Shift => "Shift + left-drag, or middle / right-drag",
+                _ => "Alt or Ctrl + left-drag, or middle / right-drag",
+            };
+        }
+        foreach (var badge in _navigationChipBadges)
+        {
+            badge.BackColor = modifiersOwnTheCamera ? ThemeAccent : ThemeButtonBackground;
+            badge.ForeColor = modifiersOwnTheCamera ? Color.White : ThemeStrongText;
+        }
     }
 
     private Control BuildAuthoringStatusFooter()
@@ -239,6 +369,9 @@ internal sealed partial class ExperimentForm
         {
             SyncPreviewModeSelection(_viewport.DisplayMode);
             UpdatePresentationViewButtons();
+            // The camera modifiers arrive in this payload, and the strip is the
+            // only thing that tells the user what they are now bound to.
+            UpdateViewportControlsHint();
             _statusLabel.Text = $"Resident presentation updated: {_viewport.ActivePresentationView}.";
         }
         var payload = new Dictionary<string, object?>
