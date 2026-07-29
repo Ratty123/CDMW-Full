@@ -382,16 +382,53 @@ def test_real_dotnet_geometry_color_guard_rejects_black_and_accepts_lit_faces(tm
     assert _image_color_metrics(lit)["non_black_geometry"] is True
 
 
-def test_real_dotnet_proof_requires_textured_faces_without_textures_and_vertices() -> None:
+def test_real_dotnet_proof_exercises_every_mode_the_mesh_view_controls_offer() -> None:
+    """A mode the user can pick but the harness never drives is an untested claim.
+
+    Covering only a subset is how "Solid + Wire" reached users broken while this
+    gate stayed green, so the harness table is pinned to the combo table rather
+    than to a hand-kept shortlist.
+    """
+    from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
+        MESH_PREVIEW_DISPLAY_MODE_OPTIONS,
+        MESH_PREVIEW_DISPLAY_MODES,
+    )
+
+    exercised = {mode for mode, _capture_name in _DISPLAY_MODES}
+    capture_names = [capture_name for _mode, capture_name in _DISPLAY_MODES]
+
+    assert exercised == set(MESH_PREVIEW_DISPLAY_MODES)
+    assert len(capture_names) == len(set(capture_names))
+    assert _REQUIRED_PRODUCTION_DISPLAY_MODES <= exercised
+    assert _DISPLAY_MODE_LABELS == {
+        mode: label for label, mode in MESH_PREVIEW_DISPLAY_MODE_OPTIONS
+    }
+    # Textured is restored last so the run leaves the viewport as it found it.
+    assert _DISPLAY_MODES[-1][0] == "textured"
+
+
+def test_real_dotnet_display_mode_flags_match_the_dotnet_mode_table() -> None:
+    """The expected flags are the viewport's own switch, not a second opinion."""
+    from tools.mesh_harness.real_dotnet_display import (
+        _DISPLAY_MODE_COUNTERS,
+        _DISPLAY_MODE_FLAGS,
+    )
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "tools"
+        / "dotnet_mesh_editor_experiment"
+        / "MeshViewport.DisplayModes.cs"
+    ).read_text(encoding="utf-8")
     exercised = {mode for mode, _capture_name in _DISPLAY_MODES}
 
-    assert _REQUIRED_PRODUCTION_DISPLAY_MODES <= exercised
-    assert {_DISPLAY_MODE_LABELS[mode] for mode in _REQUIRED_PRODUCTION_DISPLAY_MODES} == {
-        "Solid (Textured)",
-        "Faces (No Textures)",
-        "Vertices",
-    }
-    assert _DISPLAY_MODES[-1][0] == "textured"
+    assert set(_DISPLAY_MODE_FLAGS) == exercised
+    assert set(_DISPLAY_MODE_COUNTERS) == exercised
+    assert all(_DISPLAY_MODE_COUNTERS.values())
+    for mode, flags in _DISPLAY_MODE_FLAGS.items():
+        rendered = ", ".join("true" if value else "false" for value in flags)
+        assert f'"{mode}"' in source
+        assert f"({rendered})" in source, f"{mode} expects ({rendered})"
 
 
 def test_real_assignment_preserves_source_dds_format_and_mips(tmp_path: Path) -> None:

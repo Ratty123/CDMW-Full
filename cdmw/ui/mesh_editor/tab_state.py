@@ -821,11 +821,15 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
             return
         if (
             normalized == "already_loaded"
+            and self.standalone_dotnet_applied_material_generation > 0
             and self.standalone_dotnet_material_generation
             <= self.standalone_dotnet_completed_material_generation
         ):
             # The resolved materials were already resident, so the republish
             # deduplicated and there is no acknowledgement left to wait for.
+            # "Already resident" requires something to have been applied: the
+            # generations both start at zero, so without that guard this declared
+            # success before any material had ever reached the viewport.
             self._finish_pending_textured_view(success=True)
             return
         self._arm_pending_textured_view_watchdog()

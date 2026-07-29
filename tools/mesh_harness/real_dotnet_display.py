@@ -10,19 +10,61 @@ from tools.mesh_harness.real_dotnet_material import (
 )
 
 
+# Every mode the Mesh View controls offer, in the order the combos list them.
+# Covering only a subset let "Solid + Wire" ship broken behind a green gate:
+# nothing here ever asked the viewport for a textured mode with a wire overlay.
+# `textured` stays last so the run leaves the viewport where it found it.
 _DISPLAY_MODES = (
     ("untextured_faces", "real_archive_dotnet_untextured_faces.png"),
-    ("wire_vertices", "real_archive_dotnet_wire_vertices.png"),
+    ("untextured_wire", "real_archive_dotnet_untextured_wire.png"),
+    ("textured_wire", "real_archive_dotnet_textured_wire.png"),
+    ("wire", "real_archive_dotnet_wire.png"),
     ("vertices", "real_archive_dotnet_vertices.png"),
+    ("wire_vertices", "real_archive_dotnet_wire_vertices.png"),
+    ("xray", "real_archive_dotnet_xray.png"),
     ("textured", "real_archive_dotnet_textured_restored.png"),
 )
 _DISPLAY_MODE_LABELS = {
     "textured": "Solid (Textured)",
     "untextured_faces": "Faces (No Textures)",
-    "wire_vertices": "Wire + Vertices",
+    "untextured_wire": "Faces + Wire",
+    "textured_wire": "Solid + Wire",
+    "wire": "Wire",
     "vertices": "Vertices",
+    "wire_vertices": "Wire + Vertices",
+    "xray": "X-Ray",
 }
-_REQUIRED_PRODUCTION_DISPLAY_MODES = frozenset({"textured", "untextured_faces", "vertices"})
+_REQUIRED_PRODUCTION_DISPLAY_MODES = frozenset(
+    {"textured", "textured_wire", "untextured_faces", "untextured_wire", "vertices"}
+)
+# (show_solid, show_wire, show_vertices, show_xray, textures_enabled), mirroring
+# MeshViewport.TrySetDisplayMode. A mode that acknowledges different flags is
+# drawing something other than what its label promises.
+_DISPLAY_MODE_FLAGS = {
+    "untextured_faces": (True, False, False, False, False),
+    "untextured_wire": (True, True, False, False, False),
+    "textured_wire": (True, True, False, False, True),
+    "wire": (False, True, False, False, False),
+    "vertices": (False, False, True, False, False),
+    "wire_vertices": (False, True, True, False, False),
+    "xray": (False, True, True, True, False),
+    "textured": (True, False, False, False, True),
+}
+# Draw counters that must advance for the mode to have actually drawn.
+_DISPLAY_MODE_COUNTERS = {
+    "untextured_faces": ("untextured_solid_batch_draws",),
+    "untextured_wire": ("untextured_solid_batch_draws", "wire_overlay_draws"),
+    "textured_wire": ("textured_solid_batch_draws", "wire_overlay_draws"),
+    "wire": ("wire_overlay_draws",),
+    "vertices": ("vertex_overlay_batch_draws",),
+    "wire_vertices": ("wire_overlay_draws", "vertex_overlay_batch_draws"),
+    "xray": ("xray_wire_no_depth_draws", "xray_vertex_no_depth_passes"),
+    "textured": ("textured_solid_batch_draws",),
+}
+# Modes that fill faces, so a black frame means the shading never landed.
+_SOLID_DISPLAY_MODES = frozenset(
+    {"untextured_faces", "untextured_wire", "textured_wire", "textured"}
+)
 
 
 def _image_color_metrics(path: Path) -> dict[str, object]:
@@ -350,18 +392,8 @@ def exercise_geometry_display_modes(
     }
     lifecycle_before = dict(state.tab.standalone_dotnet_lifecycle_counts)
     rows: list[dict[str, object]] = []
-    expected_flags = {
-        "untextured_faces": (True, False, False, False),
-        "wire_vertices": (False, True, True, False),
-        "vertices": (False, False, True, False),
-        "textured": (True, False, False, True),
-    }
-    counter_keys = {
-        "untextured_faces": ("untextured_solid_batch_draws",),
-        "wire_vertices": ("wire_overlay_draws", "vertex_overlay_batch_draws"),
-        "vertices": ("vertex_overlay_batch_draws",),
-        "textured": ("textured_solid_batch_draws",),
-    }
+    expected_flags = _DISPLAY_MODE_FLAGS
+    counter_keys = _DISPLAY_MODE_COUNTERS
 
     for mode, filename in _DISPLAY_MODES:
         before_resources = renderer_resource_metrics(current_renderer)
@@ -392,12 +424,13 @@ def exercise_geometry_display_modes(
         # the stricter source.
         if "texture_decode_attempts" in acknowledged_renderer:
             latest_full_renderer = acknowledged_renderer
-        show_solid, show_wire, show_vertices, textures_enabled = expected_flags[mode]
+        show_solid, show_wire, show_vertices, show_xray, textures_enabled = expected_flags[mode]
         flags_ok = bool(
             acknowledgement.get("mode") == mode
             and acknowledgement.get("show_solid") is show_solid
             and acknowledgement.get("show_wire") is show_wire
             and acknowledgement.get("show_vertices") is show_vertices
+            and acknowledgement.get("show_xray") is show_xray
             and acknowledgement.get("textures_enabled") is textures_enabled
         )
         color = _image_color_metrics(capture_path) if capture.get("ok") else {}
@@ -406,7 +439,7 @@ def exercise_geometry_display_modes(
             and capture.get("ok")
             and rendered
             and all(int(resources.get(key, 0) or 0) > floor for key, floor in floors.items())
-            and (mode not in {"untextured_faces", "textured"} or color.get("non_black_geometry"))
+            and (mode not in _SOLID_DISPLAY_MODES or color.get("non_black_geometry"))
         )
         rows.append(
             {

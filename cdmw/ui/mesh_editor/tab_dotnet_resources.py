@@ -417,6 +417,7 @@ class MeshEditorDotNetResourceProtocolMixin(
             if (
                 effective_material_signature
                 and effective_material_signature == self.standalone_dotnet_material_signature
+                and self.standalone_dotnet_applied_material_generation > 0
                 and self.standalone_dotnet_material_generation
                 <= self.standalone_dotnet_completed_material_generation
             ):
@@ -425,6 +426,14 @@ class MeshEditorDotNetResourceProtocolMixin(
                 # textured Mesh view waiting on one would sit on the untextured
                 # fallback until its watchdog gave up; the resident helper
                 # already holds exactly these materials, so honour the mode now.
+                #
+                # "Already holds" has to mean something was applied. The signature
+                # is seeded from the launch package, whose materials are deliberately
+                # empty (`"reason": "textures_on_demand"`), and the generations all
+                # start at zero -- so on an unedited mesh this matched on the very
+                # first textured request, skipped the compile, and reported success
+                # over a package with no material resources at all. That is why
+                # Solid (Textured) drew exactly like Faces (No Textures).
                 self._finish_pending_textured_view(success=True)
                 return True
             generation = self.standalone_dotnet_material_generation + 1

@@ -9,6 +9,7 @@ from PySide6.QtGui import QColor, QImage
 from cdmw.models import PreviewMaterialTextureInput
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services import mesh_dotnet_material_package
+from cdmw.services.mesh_dotnet_material_compiler import _material_compile_blockers
 
 
 def _image(path: Path, color: tuple[int, int, int, int]) -> Path:
@@ -207,6 +208,146 @@ def test_unreadable_neutral_metal_graph_fails_closed_without_index_error(
     assert "failure" not in binding["material_synthesis"]
     assert binding["resolved_channels"] == binding["raw_resolved_channels"]
     assert "albedo synthesis failed" in binding["material_synthesis"]["notes"]
+
+
+def _support_map_submesh(normal_dds: Path, height_dds: Path, layer_dds: Path) -> SubMesh:
+    submesh = _submesh()
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            parameter_name="_detailDiffuseMaskR",
+            source_dds_path=str(layer_dds),
+            preview_texture_path=str(layer_dds),
+            semantic_type="color",
+            semantic_subtype="detail_diffuse",
+            shader_family="SkinnedMeshStandard_Ver2",
+            layer_role="detail",
+            layer_channel="r",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_normalTexture",
+            source_dds_path=str(normal_dds),
+            preview_texture_path=str(normal_dds),
+            semantic_type="normal",
+            semantic_subtype="normal",
+            shader_family="SkinnedMeshStandard_Ver2",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="height",
+            parameter_name="_heightMap",
+            source_dds_path=str(height_dds),
+            preview_texture_path=str(height_dds),
+            semantic_type="height",
+            semantic_subtype="height",
+            shader_family="SkinnedMeshStandard_Ver2",
+            visualized=True,
+        ),
+    )
+    return submesh
+
+
+def test_raw_support_map_channels_do_not_block_the_material_compile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Skipping a decode is not a read failure, and must not abort the compile.
+
+    Normal and height inputs whose raw DDS is packaged verbatim are never
+    decoded, so the combiner reads the `.dds` itself, fails, and used to leave
+    an `unreadable:` note behind. `_material_compile_blockers` treats those as
+    hard blockers, so Solid (Textured) got no textures at all for any mesh with
+    a raw normal map.
+    """
+    layer_dds = tmp_path / "cd_texturelayer_003_0005.dds"
+    layer_dds.write_bytes(b"DDS graph input placeholder")
+    normal_dds = tmp_path / "cd_phm_01_blade_0070_n.dds"
+    normal_dds.write_bytes(b"DDS normal input placeholder")
+    height_dds = tmp_path / "cd_phm_01_blade_0070_disp.dds"
+    height_dds.write_bytes(b"DDS height input placeholder")
+    layer_png = _image(tmp_path / "cd_texturelayer_003_0005.png", (184, 132, 72, 255))
+
+    def decode(jobs, *, include_job_keys, stop_event):
+        from cdmw.core.texture_native import directxtex_preview_result_key
+
+        # The raw-channel normal and height never reach the decoder.
+        assert [job["dds_path"] for job in jobs] == [str(layer_dds.resolve())]
+        return {
+            directxtex_preview_result_key(
+                layer_dds,
+                max_dimension=512,
+                slot_kind="base",
+                srgb="srgb",
+                normal_space="auto",
+            ): layer_png,
+        }
+
+    monkeypatch.setattr(
+        "cdmw.core.texture_native.ensure_directxtex_dds_preview_pngs",
+        decode,
+    )
+
+    payload = _write_manifest(
+        tmp_path / "package",
+        _support_map_submesh(normal_dds, height_dds, layer_dds),
+    )
+    binding = payload["submeshes"][0]
+    notes = tuple(binding["material_synthesis"]["notes"])
+
+    assert binding["material_synthesis"]["succeeded"] is True
+    assert not [note for note in notes if "unreadable:" in note.casefold()]
+    assert "normal not decoded, raw channel packaged:cd_phm_01_blade_0070_n.dds" in notes
+    assert "height not decoded, raw channel packaged:cd_phm_01_blade_0070_disp.dds" in notes
+    assert binding["raw_resolved_channels"]["normal"] == str(normal_dds)
+    assert binding["resolved_channels"]["normal"] == str(normal_dds)
+    assert _material_compile_blockers(payload) == []
+
+
+def test_unreadable_input_without_a_raw_channel_still_blocks_the_compile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The relabelling only covers deliberate skips, never a real decode failure."""
+    layer_dds = tmp_path / "cd_texturelayer_003_0005.dds"
+    layer_dds.write_bytes(b"DDS graph input placeholder")
+    # No file on disk, so nothing packages this channel verbatim and the
+    # combiner's failure to read it is a genuine one.
+    missing_normal_dds = tmp_path / "cd_phm_01_blade_0070_n.dds"
+    height_dds = tmp_path / "cd_phm_01_blade_0070_disp.dds"
+    height_dds.write_bytes(b"DDS height input placeholder")
+    layer_png = _image(tmp_path / "cd_texturelayer_003_0005.png", (184, 132, 72, 255))
+
+    def decode(jobs, *, include_job_keys, stop_event):
+        from cdmw.core.texture_native import directxtex_preview_result_key
+
+        return {
+            directxtex_preview_result_key(
+                layer_dds,
+                max_dimension=512,
+                slot_kind="base",
+                srgb="srgb",
+                normal_space="auto",
+            ): layer_png,
+        }
+
+    monkeypatch.setattr(
+        "cdmw.core.texture_native.ensure_directxtex_dds_preview_pngs",
+        decode,
+    )
+
+    payload = _write_manifest(
+        tmp_path / "package",
+        _support_map_submesh(missing_normal_dds, height_dds, layer_dds),
+    )
+    blockers = _material_compile_blockers(payload)
+    unreadable = [
+        blocker for blocker in blockers if blocker["kind"] == "unreadable_material_inputs"
+    ]
+
+    assert unreadable
+    assert unreadable[0]["notes"] == ["normal unreadable:cd_phm_01_blade_0070_n.dds"]
 
 
 def test_missing_raw_height_dds_uses_valid_generated_height(

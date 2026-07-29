@@ -39,6 +39,13 @@ from cdmw.services.mesh_dotnet_material_channels import (
 from cdmw.services.mesh_dotnet_material_payload import (
     _dotnet_manifest_resource_bindings,
 )
+from cdmw.services.mesh_dotnet_material_raw_channels import (
+    _has_native_support_map,
+    _input_value,
+    _local_synthesis_dds_path,
+    _native_support_map_channel,
+    _relabel_deferred_raw_channel_notes,
+)
 from cdmw.services.mesh_dotnet_material_semantics import (
     _dotnet_material_semantic_contract,
     _source_file_stat_key,
@@ -173,12 +180,6 @@ def _dotnet_material_slot_payload(slot: object, fallback_index: int) -> dict[str
     }
 
 
-def _input_value(item: object, name: str, fallback: object = "") -> object:
-    if isinstance(item, Mapping):
-        return item.get(name, fallback)
-    return getattr(item, name, fallback)
-
-
 def _package_synthesis_inputs(
     source: object | None,
     raw_contract: Mapping[str, object],
@@ -262,58 +263,27 @@ def _synthesis_preview_profile(
     return max_dimension, decode_slot, srgb, normal_space
 
 
-def _local_synthesis_dds_path(item: object) -> Path | None:
-    for field_name in (
-        "preview_texture_path",
-        "source_dds_path",
-        "source_texture_path",
-    ):
-        raw_path = str(_input_value(item, field_name) or "").strip()
-        if not raw_path:
-            continue
-        if raw_path.casefold().startswith("file:"):
-            raw_path = QUrl(raw_path).toLocalFile()
-        try:
-            path = Path(raw_path).expanduser().resolve()
-        except (OSError, RuntimeError, ValueError):
-            continue
-        if path.suffix.casefold() == ".dds" and path.is_file():
-            return path
-    return None
-
-
-def _has_native_support_map(
-    item: object,
-    raw_channels: Mapping[str, str],
-) -> bool:
-    slot = str(_input_value(item, "slot_kind") or "").strip().casefold()
-    semantic = str(_input_value(item, "semantic_type") or "").strip().casefold()
-    if slot == "normal" or semantic == "normal":
-        channel = "normal"
-    elif slot in {"height", "displacement"} or semantic in {"height", "displacement"}:
-        channel = "height"
-    else:
-        return False
-    raw_path = _local_synthesis_dds_path(
-        {"source_dds_path": raw_channels.get(channel, "")}
-    )
-    return raw_path is not None
-
-
 def _decode_synthesis_input_previews(
     inputs: tuple[object, ...],
     raw_channels: Mapping[str, str],
     *,
     cancelled: Callable[[], bool] | None,
-) -> tuple[tuple[object, ...], int]:
+) -> tuple[tuple[object, ...], int, dict[str, set[str]]]:
     from cdmw.core.texture_native import (
         directxtex_preview_result_key,
         ensure_directxtex_dds_preview_pngs,
     )
-    from cdmw.rendering.material_combiner_rules import _mask_inputs_for_albedo
+    from cdmw.rendering.material_combiner_rules import (
+        _mask_inputs_for_albedo,
+        _texture_label,
+    )
 
     jobs: list[dict[str, object]] = []
     job_keys: dict[int, str] = {}
+    # Inputs whose raw DDS is packaged verbatim are never decoded here, so the
+    # combiner still sees a `.dds` it cannot read and calls it unreadable. Keep
+    # their labels so that false alarm can be relabelled once combining is done.
+    deferred_raw_channel_labels: dict[str, set[str]] = {}
     albedo_mask_ids = {
         id(item)
         for item in _mask_inputs_for_albedo(
@@ -328,7 +298,14 @@ def _decode_synthesis_input_previews(
         dds_path = _local_synthesis_dds_path(item)
         if dds_path is None:
             continue
-        if _has_native_support_map(item, raw_channels):
+        native_channel = _native_support_map_channel(item, raw_channels)
+        if native_channel:
+            deferred_raw_channel_labels.setdefault(native_channel, set()).add(
+                _texture_label(
+                    _input_value(item, "preview_texture_path"),
+                    _input_value(item, "texture_name"),
+                ).casefold()
+            )
             continue
         max_dimension, slot_kind, srgb, normal_space = _synthesis_preview_profile(
             item,
@@ -351,7 +328,7 @@ def _decode_synthesis_input_previews(
             normal_space=normal_space,
         )
     if not jobs:
-        return inputs, 0
+        return inputs, 0, deferred_raw_channel_labels
     results = ensure_directxtex_dds_preview_pngs(
         jobs,
         include_job_keys=True,
@@ -371,7 +348,7 @@ def _decode_synthesis_input_previews(
             preview_texture_path=str(preview_path),
         )
         decoded += 1
-    return tuple(updated_inputs), decoded
+    return tuple(updated_inputs), decoded, deferred_raw_channel_labels
 
 
 def _decoded_base_alpha_summary(
@@ -865,7 +842,11 @@ def _synthesize_dotnet_material_channels(
             "skipped": "cancelled",
         }, ()
     try:
-        inputs, decoded_preview_input_count = _decode_synthesis_input_previews(
+        (
+            inputs,
+            decoded_preview_input_count,
+            deferred_raw_channel_labels,
+        ) = _decode_synthesis_input_previews(
             inputs,
             raw_channels,
             cancelled=cancelled,
@@ -935,7 +916,10 @@ def _synthesize_dotnet_material_channels(
         shutil.rmtree(output_dir, ignore_errors=True)
     channels = dict(raw_channels)
     channels.update(generated)
-    synthesis_notes = list(tuple(getattr(combined, "notes", ()) or ()))
+    synthesis_notes = _relabel_deferred_raw_channel_notes(
+        tuple(getattr(combined, "notes", ()) or ()),
+        deferred_raw_channel_labels,
+    )
     if identity_noop:
         synthesis_notes.append("material graph resolved as source-identity no-op")
     metadata: dict[str, object] = {
