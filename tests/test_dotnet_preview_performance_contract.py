@@ -178,8 +178,16 @@ def test_performance_protocol_capability_and_compact_completion_stay_additive() 
     packaging = (ROOT / "build_pyside6_app.ps1").read_text(encoding="utf-8")
     python_protocol = (ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_protocol.py").read_text(encoding="utf-8")
 
-    for source in (provenance, status, packaging):
+    for source in (provenance, status):
         assert '"performance_capture_v1"' in source
+    # The packaged manifest no longer restates the capability list; it reads it
+    # out of HelperBuildProvenance.cs, which is the copy asserted above. Naming
+    # the literal here again would require the duplication that failed the
+    # release build, so this asserts the derivation that replaced it.
+    # tests/test_dotnet_helper_manifest_contract.py covers the parse itself.
+    assert "function Get-DotNetMeshEditorHelperContract" in packaging
+    assert "$helperContract = Get-DotNetMeshEditorHelperContract" in packaging
+    assert '"performance_capture_v1"' not in packaging
     assert 'case "performance_capture_start":' in protocol
     assert 'case "performance_capture_stop":' in protocol
     assert '"performance_capture_complete"' in performance

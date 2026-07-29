@@ -35,6 +35,50 @@ $vgmstreamBuildCommit = "21bfb6f0a513271f2e18a51322128756bb59f365"
 $vgmstreamArchiveSha256 = "110f9087e60057c4af6cff84e26c214159c224792421affdddd3aaa2091f2641"
 $vgmstreamDownloadUrl = "https://github.com/bnnm/vgmstream-builds/raw/$vgmstreamBuildCommit/bin/vgmstream-$vgmstreamVersion-test-u.zip"
 
+function Get-PathHoldingProcesses {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$LiteralPath
+    )
+
+    # "Access to the path is denied" on a build output almost always means the
+    # app is running out of it. Name the process rather than making the reader
+    # guess at an ACL problem.
+    $normalized = $LiteralPath.TrimEnd('\')
+    $holders = @()
+    foreach ($proc in (Get-Process -ErrorAction SilentlyContinue)) {
+        $processPath = $null
+        try {
+            $processPath = $proc.Path
+        } catch {
+            continue
+        }
+        if (-not $processPath) {
+            continue
+        }
+        if (
+            $processPath -eq $normalized -or
+            $processPath.StartsWith("$normalized\", [StringComparison]::OrdinalIgnoreCase)
+        ) {
+            $holders += "$($proc.ProcessName) [$($proc.Id)]"
+        }
+    }
+    return @($holders | Sort-Object -Unique)
+}
+
+function Get-PathBlockedNote {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$LiteralPath
+    )
+
+    $holders = Get-PathHoldingProcesses -LiteralPath $LiteralPath
+    if ($holders.Count -eq 0) {
+        return ""
+    }
+    return " Still running from that path: $($holders -join ', '). Close it and build again."
+}
+
 function Remove-PathWithRetries {
     param(
         [Parameter(Mandatory = $true)]
@@ -58,7 +102,7 @@ function Remove-PathWithRetries {
             return
         } catch {
             if ($attempt -ge $RetryCount) {
-                throw "Failed to remove '$LiteralPath' after $RetryCount attempt(s): $($_.Exception.Message)"
+                throw "Failed to remove '$LiteralPath' after $RetryCount attempt(s): $($_.Exception.Message)$(Get-PathBlockedNote -LiteralPath $LiteralPath)"
             }
             Start-Sleep -Milliseconds $DelayMilliseconds
         }
@@ -95,7 +139,7 @@ function Move-PathWithRetries {
             return
         } catch {
             if ($attempt -ge $RetryCount) {
-                throw "Failed to move '$SourcePath' to '$DestinationPath' after $RetryCount attempt(s): $($_.Exception.Message)"
+                throw "Failed to move '$SourcePath' to '$DestinationPath' after $RetryCount attempt(s): $($_.Exception.Message)$(Get-PathBlockedNote -LiteralPath $DestinationPath)"
             }
             Start-Sleep -Milliseconds $DelayMilliseconds
         }
@@ -574,6 +618,55 @@ function Test-NativeOutputsPresent {
     return $true
 }
 
+function Get-DotNetMeshEditorHelperContract {
+    # The helper reports its own protocol contract at runtime, so anything the
+    # manifest hardcodes drifts the moment the C# side gains a capability. Read
+    # the contract straight out of the sources the helper is built from.
+    $provenanceSource = Join-Path $scriptDir "tools\dotnet_mesh_editor_experiment\HelperBuildProvenance.cs"
+    if (-not (Test-Path -LiteralPath $provenanceSource -PathType Leaf)) {
+        throw ".NET Mesh Editor provenance source is missing: $provenanceSource"
+    }
+    $provenanceText = Get-Content -LiteralPath $provenanceSource -Raw
+
+    $capabilityBlock = [regex]::Match(
+        $provenanceText,
+        'RequiredProtocolCapabilities\s*=\s*\{(?<body>.*?)\};',
+        [Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $capabilityBlock.Success) {
+        throw "Could not read RequiredProtocolCapabilities from $provenanceSource."
+    }
+    $capabilityBody = [regex]::Replace($capabilityBlock.Groups['body'].Value, '//[^\r\n]*', '')
+    $capabilities = @(
+        [regex]::Matches($capabilityBody, '"(?<name>[^"]+)"') |
+            ForEach-Object { $_.Groups['name'].Value }
+    )
+    if ($capabilities.Count -eq 0) {
+        throw "RequiredProtocolCapabilities in $provenanceSource is empty."
+    }
+
+    $protocolMatch = [regex]::Match($provenanceText, '\["protocol_version"\]\s*=\s*(?<value>\d+)')
+    if (-not $protocolMatch.Success) {
+        throw "Could not read protocol_version from $provenanceSource."
+    }
+
+    $projectPath = Join-Path $scriptDir "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
+    if (-not (Test-Path -LiteralPath $projectPath -PathType Leaf)) {
+        throw ".NET Mesh Editor project is missing: $projectPath"
+    }
+    $versionMatch = [regex]::Match(
+        (Get-Content -LiteralPath $projectPath -Raw),
+        '<Version>\s*(?<value>\d+\.\d+\.\d+)[^<]*</Version>')
+    if (-not $versionMatch.Success) {
+        throw "Could not read a three-part <Version> from $projectPath."
+    }
+
+    return [ordered]@{
+        Capabilities = $capabilities
+        ProtocolVersion = [int]$protocolMatch.Groups['value'].Value
+        SemanticVersion = $versionMatch.Groups['value'].Value
+    }
+}
+
 function Invoke-DotNetMeshEditorGpuSmoke {
     param(
         [Parameter(Mandatory = $true)]
@@ -628,20 +721,41 @@ function Invoke-DotNetMeshEditorProvenanceCheck {
         $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
         $manifestCapabilities = @($manifest.capabilities | ForEach-Object { [string]$_ } | Sort-Object)
         $reportCapabilities = @($report.capabilities | ForEach-Object { [string]$_ } | Sort-Object)
-        if (
-            $report.manifest_mode -ne "release_manifest" -or
-            $report.manifest_id -ne $manifest.manifest_id -or
-            $report.semantic_version -ne $manifest.semantic_version -or
-            $report.protocol_version -ne $manifest.protocol_version -or
-            $report.process_sha256 -ne $manifest.executable_sha256 -or
-            $report.shader_sha256 -ne $manifest.shader_sha256 -or
-            $report.renderer_backend -ne $manifest.renderer_backend -or
-            $report.edit_backend -ne $manifest.edit_backend -or
-            $manifestCapabilities.Count -eq 0 -or
-            $reportCapabilities.Count -ne $manifestCapabilities.Count -or
-            ($reportCapabilities -join "`n") -ne ($manifestCapabilities -join "`n")
-        ) {
-            throw ".NET Mesh Editor $Context provenance does not match its packaged manifest."
+        $mismatches = New-Object System.Collections.Generic.List[string]
+        if ($report.manifest_mode -ne "release_manifest") {
+            $mismatches.Add("manifest_mode: helper reported '$($report.manifest_mode)', expected 'release_manifest'")
+        }
+        $fieldPairs = @(
+            @{ Field = "manifest_id"; Reported = $report.manifest_id; Expected = $manifest.manifest_id },
+            @{ Field = "semantic_version"; Reported = $report.semantic_version; Expected = $manifest.semantic_version },
+            @{ Field = "protocol_version"; Reported = $report.protocol_version; Expected = $manifest.protocol_version },
+            @{ Field = "process_sha256"; Reported = $report.process_sha256; Expected = $manifest.executable_sha256 },
+            @{ Field = "shader_sha256"; Reported = $report.shader_sha256; Expected = $manifest.shader_sha256 },
+            @{ Field = "renderer_backend"; Reported = $report.renderer_backend; Expected = $manifest.renderer_backend },
+            @{ Field = "edit_backend"; Reported = $report.edit_backend; Expected = $manifest.edit_backend }
+        )
+        foreach ($pair in $fieldPairs) {
+            if ($pair.Reported -ne $pair.Expected) {
+                $mismatches.Add("$($pair.Field): helper reported '$($pair.Reported)', manifest has '$($pair.Expected)'")
+            }
+        }
+        if ($manifestCapabilities.Count -eq 0) {
+            $mismatches.Add("capabilities: the manifest lists none")
+        }
+        $onlyInHelper = @($reportCapabilities | Where-Object { $manifestCapabilities -notcontains $_ })
+        $onlyInManifest = @($manifestCapabilities | Where-Object { $reportCapabilities -notcontains $_ })
+        if ($onlyInHelper.Count -gt 0) {
+            $mismatches.Add("capabilities missing from the manifest: $($onlyInHelper -join ', ')")
+        }
+        if ($onlyInManifest.Count -gt 0) {
+            $mismatches.Add("capabilities the helper does not report: $($onlyInManifest -join ', ')")
+        }
+        if ($mismatches.Count -gt 0) {
+            throw (
+                ".NET Mesh Editor $Context provenance does not match its packaged manifest:" +
+                [Environment]::NewLine +
+                (($mismatches | ForEach-Object { "  - $_" }) -join [Environment]::NewLine)
+            )
         }
     } finally {
         Remove-Item -LiteralPath $reportPath -Force -ErrorAction SilentlyContinue
@@ -700,32 +814,9 @@ function Invoke-DotNetMeshEditorBuild {
     }
     $exeHash = (Get-FileHash -LiteralPath $exePath -Algorithm SHA256).Hash.ToLowerInvariant()
     $shaderHash = (Get-FileHash -LiteralPath $shaderPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    $semanticVersion = "2.0.0"
-    $protocolCapabilities = @(
-        "mesh_edit_revision_ack_v1"
-        "resident_mutation_envelope_v2"
-        "host_tool_state_v1"
-        "resident_material_updates_v2"
-        "resident_material_parameter_updates_v1"
-        "resident_texture_region_updates_v1"
-        "resident_package_load_v1"
-        "viewport_display_modes_v1"
-        "resident_scene_state_v1"
-        "authoritative_resident_scene_frame_v2"
-        "helper_build_provenance_v1"
-        "renderer_status_request_v1"
-        "deterministic_offscreen_capture_v1"
-        "performance_capture_v1"
-        "resident_preview_package_replace_v2"
-        "preview_profile_read_only_v1"
-        "preview_session_v1"
-        "view_state_changed_v1"
-        "absolute_camera_state_v1"
-        "read_only_part_pick_v1"
-        "overlay_state_update_v1"
-        "skeleton_overlay_v1"
-        "pbd_cloth_overlay_v1"
-    )
+    $helperContract = Get-DotNetMeshEditorHelperContract
+    $semanticVersion = $helperContract.SemanticVersion
+    $protocolCapabilities = $helperContract.Capabilities
     $sourceRevision = (& git -C $scriptDir rev-parse HEAD 2>$null | Select-Object -First 1)
     if (-not $sourceRevision) {
         $sourceRevision = "unavailable"
@@ -743,7 +834,7 @@ function Invoke-DotNetMeshEditorBuild {
         manifest_id = $manifestId
         source_revision = [string]$sourceRevision
         semantic_version = $semanticVersion
-        protocol_version = 2
+        protocol_version = $helperContract.ProtocolVersion
         executable = "cdmw-mesh-dotnet-editor.exe"
         executable_sha256 = $exeHash
         shader = "D3D11MaterialShaders.hlsl"
@@ -906,6 +997,13 @@ Write-BuildProgress -Percent 3 -Stage "Verifying generated feature metadata"
 if ($LASTEXITCODE -ne 0) {
     throw "Generated MainWindow feature metadata failed verification after regeneration."
 }
+
+# The published helper is compared against this contract, but only after every
+# native and .NET target has been built. Derive it now so a contract the build
+# cannot read fails in seconds rather than at the end of the compile.
+Write-BuildProgress -Percent 4 -Stage "Reading .NET helper protocol contract"
+$helperContractPreflight = Get-DotNetMeshEditorHelperContract
+Write-Host "Mesh Editor helper contract: $($helperContractPreflight.Capabilities.Count) capabilities, protocol $($helperContractPreflight.ProtocolVersion), version $($helperContractPreflight.SemanticVersion)."
 
 if ($BuildProfile -eq "release") {
     Write-BuildProgress -Percent 4 -Stage "Verifying release dependency pins"

@@ -136,6 +136,35 @@ budget to decide how far up the tiers to go, with these project specifics:
 - `mesh` and any visual or real-game gate require explicit user authorization.
   A game path already being present is not authorization.
 
+## The release builder
+
+`build.bat <onedir|onefile> <release|fast|debug>` wraps `build_pyside6_app.ps1`.
+A release build compiles four native targets and publishes two self-contained
+.NET helpers before it packages anything, so a mistake in its last gates costs
+minutes and surfaces as an unexplained packaging failure.
+
+- The build is the only proof that the build works. A test passing is not it.
+  After changing `build_pyside6_app.ps1`, `build_native_windows.ps1`,
+  `scripts/full_archive_backend_release.ps1`, the `.spec`, or a helper's
+  publish output, run the builder before calling the change done:
+  `.\build_pyside6_app.ps1 -Package onefile -Profile release -NativeHelpersOnly`
+  for helper and native changes — it runs the same provenance and GPU gates in
+  about two minutes — and a full `.\build.bat onefile release` for packaging
+  changes.
+- Never restate the .NET helper's protocol contract in the build script.
+  `Get-DotNetMeshEditorHelperContract` reads the capability list from
+  `tools/dotnet_mesh_editor_experiment/HelperBuildProvenance.cs`, the protocol
+  version from the same file, and the semantic version from the `.csproj`,
+  because the published helper reports its own contract and the build refuses
+  any mismatch. A hand-maintained second copy fails the build at its last step,
+  which is exactly what adding `authoring_provisional_session_v1` did.
+  `tests/test_dotnet_helper_manifest_contract.py` guards this and runs in the
+  `mesh-unit` gate; run it after any change to that capability list, to
+  `HelperBuildProvenance.cs`, or to the manifest the build writes.
+- A build gate that rejects something must say what disagreed. These failures
+  are read minutes after the command was typed, usually by someone who did not
+  write the gate.
+
 ## Cleanup safety
 
 - Never run blanket `git clean -fd`, `git clean -fdX`, or `git clean -xdf`.
