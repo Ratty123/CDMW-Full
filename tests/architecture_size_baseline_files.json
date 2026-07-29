@@ -65,6 +65,7 @@
     "cdmw/ui/localization_catalogs.py": 2461,
     "cdmw/ui/mesh_editor/native_preview_payloads.py": 1380,
     "cdmw/ui/model_preview_settings_dialog.py": 1142,
+    "cdmw/ui/preview/dotnet_host.py": 1014,
     "cdmw/ui/preview/dotnet_session.py": 1245,
     "cdmw/ui/recolor_variants_tab.py": 1247,
     "cdmw/ui/settings_tab.py": 2161,
