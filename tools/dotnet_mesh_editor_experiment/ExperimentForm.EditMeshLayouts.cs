@@ -30,6 +30,9 @@ internal sealed partial class ExperimentForm
 
     private readonly Dictionary<ToolRailPage, Button> _toolRailButtons = new();
     private readonly Dictionary<ToolRailPage, Panel> _toolRailPages = new();
+    // The classic caption of every section the rail blanks, so Classic gets it
+    // back verbatim rather than from a second copy of the same literals.
+    private readonly Dictionary<GroupBox, string> _classicSectionCaptions = new();
     // Entering Edit Mesh presents the tool rail. Classic remains the control
     // tree's construction and non-mesh-mode state, and stays reachable from
     // the session bar.
@@ -373,7 +376,9 @@ internal sealed partial class ExperimentForm
     private static string ToolRailPageTitle(ToolRailPage page) => page switch
     {
         ToolRailPage.Selection => "Selection",
-        ToolRailPage.Transform => "Transform",
+        // The rail button, the tool it activates and this header all say Move.
+        // "Transform" is only the classic section's own caption.
+        ToolRailPage.Transform => "Move",
         ToolRailPage.Brush => "Brush",
         ToolRailPage.Topology => "Topology",
         ToolRailPage.Colour => "Colour",
@@ -691,6 +696,7 @@ internal sealed partial class ExperimentForm
             // The dock header already names the tool, so the section's own
             // collapse header would just repeat it.
             SetMorphCollapseHeaderVisible(false);
+            SetRailToolSectionCaptionsVisible(false);
 
             // Left: only the modal tools swap with the rail. Selection owns two
             // sections, so it gets a grid; the rest own one page each.
@@ -751,6 +757,7 @@ internal sealed partial class ExperimentForm
         {
             ExitCompactMorphLayout();
             SetMorphCollapseHeaderVisible(true);
+            SetRailToolSectionCaptionsVisible(true);
             MoveSessionControlsToClassicSection();
             RebuildClassicToolStacks();
             ConfigurePresentationRegion(compactEditableOnly: false);
@@ -1236,6 +1243,37 @@ internal sealed partial class ExperimentForm
         if (_morphSectionBody is not null)
         {
             _morphSectionBody.Visible = !visible || _morphClassicExpanded;
+        }
+    }
+
+    /// <summary>
+    /// Blanks the caption of the section a rail page is built around, because
+    /// the dock header above it already names that page: the Move page read
+    /// "MOVE" over a "TRANSFORM" box, and every other page repeated itself
+    /// outright. Part Pick keeps its caption — it is the second box on the
+    /// Selection page — as do the scene groups, which have no header at all.
+    /// The classic stack has no dock header, so it gets every caption back.
+    /// </summary>
+    private void SetRailToolSectionCaptionsVisible(bool visible)
+    {
+        foreach (var section in new[]
+        {
+            _selectionSection,
+            _transformSection,
+            _brushSection,
+            _topologySection,
+            _colourSection,
+        })
+        {
+            if (section is null)
+            {
+                continue;
+            }
+            if (!_classicSectionCaptions.ContainsKey(section))
+            {
+                _classicSectionCaptions[section] = section.Text;
+            }
+            section.Text = visible ? _classicSectionCaptions[section] : string.Empty;
         }
     }
 
