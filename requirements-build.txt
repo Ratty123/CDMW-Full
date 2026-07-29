@@ -1,2 +1,6 @@
 -r requirements.txt
 PyInstaller>=6.0
+# Bundled into release packages, and build_pyside6_app.ps1 refuses to build
+# without it. It was only ever installed by hand, so a clean environment could
+# not produce a release.
+openimageio>=3.1
