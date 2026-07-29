@@ -209,7 +209,10 @@ void mesh_editor_add_refit_layer(
         const Vec3 baseline_point = mesh_editor_refit_driver_point(binding, morph.refit->driver_baseline_positions);
         target_layer[static_cast<std::size_t>(binding.garment_vertex_index)] = add_vec3(
             target_layer[static_cast<std::size_t>(binding.garment_vertex_index)],
-            sub_vec3(current_point, baseline_point)
+            add_vec3(
+                sub_vec3(current_point, baseline_point),
+                refit_normal_correction_native(binding, driver_visible)
+            )
         );
     }
 }
@@ -833,6 +836,7 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_build_refit(
             binding.distance = length_vec3(sub_vec3(point, bound_point));
             binding.garment_submesh_index = garment_index;
             binding.garment_vertex_index = static_cast<int>(vertex_index);
+            refit_bind_normal_height_native(binding, refit->driver_baseline_positions, point);
             distances.push_back(binding.distance);
             refit->bindings.push_back(std::move(binding));
         }
@@ -876,6 +880,7 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_rebased_refit(
         if (found == submeshes.end()) throw std::runtime_error("garment refit driver topology changed");
         refit->driver_baseline_positions[driver_index] = found->second.vertices;
     }
+    refit_rebind_bindings_native(*refit, submeshes);
     return refit;
 }
 

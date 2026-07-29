@@ -67,6 +67,15 @@ struct MeshRefitVertexBindingRuntime {
     std::array<int, 3> driver_vertices{-1, -1, -1};
     std::array<double, 3> barycentric{1.0, 0.0, 0.0};
     double distance = 0.0;
+    // Signed standoff from the bound triangle, in the baseline face frame. The
+    // refit displaces a garment vertex by its driver point's translation plus
+    // normal_height * (current normal - baseline_normal), so the standoff turns
+    // with a rotating body instead of staying pinned to a world direction. Both
+    // fields describe the same rest state and are only ever written together, by
+    // refit_bind_normal_height_native. A zero baseline_normal means the baseline
+    // face was degenerate and the normal term is disabled for this binding.
+    Vec3 baseline_normal{0.0, 0.0, 0.0};
+    double normal_height = 0.0;
 };
 
 struct MeshRefitRuntime {

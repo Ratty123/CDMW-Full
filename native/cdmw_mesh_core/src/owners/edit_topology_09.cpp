@@ -142,6 +142,94 @@ NativeWeightTransferSample closest_source_weight_sample_native(
     return sample;
 }
 
+bool refit_triangle_corners_native(
+    const std::map<int, std::vector<Vec3>>& positions,
+    int submesh_index,
+    const std::array<int, 3>& corners,
+    std::array<Vec3, 3>& out
+) {
+    const auto found = positions.find(submesh_index);
+    if (found == positions.end()) return false;
+    for (std::size_t corner = 0; corner < 3; ++corner) {
+        const int vertex_index = corners[corner];
+        if (vertex_index < 0 || static_cast<std::size_t>(vertex_index) >= found->second.size()) return false;
+        out[corner] = found->second[static_cast<std::size_t>(vertex_index)];
+    }
+    return true;
+}
+
+Vec3 refit_face_normal_native(const Vec3& a, const Vec3& b, const Vec3& c) {
+    const Vec3 ab = sub_vec3(b, a);
+    const Vec3 ac = sub_vec3(c, a);
+    const Vec3 normal{
+        ab[1] * ac[2] - ab[2] * ac[1],
+        ab[2] * ac[0] - ab[0] * ac[2],
+        ab[0] * ac[1] - ab[1] * ac[0],
+    };
+    const double length_squared = dot_vec3(normal, normal);
+    // Judge the cross product against the edges that produced it rather than
+    // against an absolute epsilon, so a millimetre-scale but well-formed face
+    // survives while a sliver at any scale does not.
+    const double edge_scale = dot_vec3(ab, ab) * dot_vec3(ac, ac);
+    if (!std::isfinite(length_squared) || length_squared <= edge_scale * 1.0e-16) {
+        return Vec3{0.0, 0.0, 0.0};
+    }
+    return scale_vec3(normal, 1.0 / std::sqrt(length_squared));
+}
+
+bool refit_barycentric_point_native(
+    const MeshRefitVertexBindingRuntime& binding,
+    const std::map<int, std::vector<Vec3>>& positions,
+    Vec3& out
+) {
+    std::array<Vec3, 3> triangle{};
+    if (!refit_triangle_corners_native(positions, binding.driver_submesh_index, binding.driver_vertices, triangle)) {
+        return false;
+    }
+    out = Vec3{0.0, 0.0, 0.0};
+    for (std::size_t corner = 0; corner < 3; ++corner) {
+        out = add_vec3(out, scale_vec3(triangle[corner], binding.barycentric[corner]));
+    }
+    return true;
+}
+
+Vec3 refit_binding_face_normal_native(
+    const MeshRefitVertexBindingRuntime& binding,
+    const std::map<int, std::vector<Vec3>>& positions
+) {
+    std::array<Vec3, 3> triangle{};
+    if (!refit_triangle_corners_native(positions, binding.driver_submesh_index, binding.driver_vertices, triangle)) {
+        return Vec3{0.0, 0.0, 0.0};
+    }
+    return refit_face_normal_native(triangle[0], triangle[1], triangle[2]);
+}
+
+void refit_bind_normal_height_native(
+    MeshRefitVertexBindingRuntime& binding,
+    const std::map<int, std::vector<Vec3>>& baseline,
+    const Vec3& garment_rest
+) {
+    binding.baseline_normal = Vec3{0.0, 0.0, 0.0};
+    binding.normal_height = 0.0;
+    Vec3 point{0.0, 0.0, 0.0};
+    const Vec3 normal = refit_binding_face_normal_native(binding, baseline);
+    if (dot_vec3(normal, normal) <= 0.0 || !refit_barycentric_point_native(binding, baseline, point)) return;
+    binding.baseline_normal = normal;
+    binding.normal_height = dot_vec3(sub_vec3(garment_rest, point), normal);
+}
+
+Vec3 refit_normal_correction_native(
+    const MeshRefitVertexBindingRuntime& binding,
+    const std::map<int, std::vector<Vec3>>& current
+) {
+    if (dot_vec3(binding.baseline_normal, binding.baseline_normal) <= 0.0) return Vec3{0.0, 0.0, 0.0};
+    const Vec3 normal = refit_binding_face_normal_native(binding, current);
+    // A face that collapses only under the live morph keeps the rest standoff
+    // rather than snapping the vertex onto the driver surface.
+    if (dot_vec3(normal, normal) <= 0.0) return Vec3{0.0, 0.0, 0.0};
+    return scale_vec3(sub_vec3(normal, binding.baseline_normal), binding.normal_height);
+}
+
 double skin_transfer_distance_limit_native(const std::vector<Vec3>& vertices) {
     if (vertices.empty()) {
         return 0.0;
@@ -167,4 +255,49 @@ double percentile_95_native(std::vector<double> values) {
     std::sort(values.begin(), values.end());
     const std::size_t rank = std::max<std::size_t>(1, static_cast<std::size_t>(std::ceil(values.size() * 0.95)));
     return values[std::min(values.size() - 1, rank - 1)];
+}
+
+void refit_rebind_bindings_native(
+    MeshRefitRuntime& refit,
+    const std::map<int, MeshSessionSubmesh>& submeshes
+) {
+    // Rebasing moves the rest state onto the current geometry, so everything the
+    // bindings measured against the old rest has to be measured again: the
+    // standoff each vertex keeps from its face, and the distances the status
+    // line reports as current. Leaving the standoff behind would re-apply an
+    // already-baked rotation on the next slider move; leaving the distances
+    // behind would describe a rest state that no longer exists, so the warning
+    // could stay lit after a bake had resolved it, or stay dark after an edit
+    // had pulled a garment away from its driver. The bound face and
+    // barycentrics are deliberately kept: this re-measures the existing
+    // bindings, it does not re-bind them.
+    std::vector<Vec3> driver_vertices;
+    for (const auto& item : refit.driver_baseline_positions) {
+        driver_vertices.insert(driver_vertices.end(), item.second.begin(), item.second.end());
+    }
+    std::vector<double> distances;
+    distances.reserve(refit.bindings.size());
+    for (MeshRefitVertexBindingRuntime& binding : refit.bindings) {
+        const auto garment = submeshes.find(binding.garment_submesh_index);
+        Vec3 point{0.0, 0.0, 0.0};
+        if (garment == submeshes.end()
+            || binding.garment_vertex_index < 0
+            || static_cast<std::size_t>(binding.garment_vertex_index) >= garment->second.vertices.size()
+            || !refit_barycentric_point_native(binding, refit.driver_baseline_positions, point)) {
+            binding.baseline_normal = Vec3{0.0, 0.0, 0.0};
+            binding.normal_height = 0.0;
+            continue;
+        }
+        const Vec3& rest = garment->second.vertices[static_cast<std::size_t>(binding.garment_vertex_index)];
+        refit_bind_normal_height_native(binding, refit.driver_baseline_positions, rest);
+        binding.distance = length_vec3(sub_vec3(rest, point));
+        distances.push_back(binding.distance);
+    }
+    refit.warning_distance = skin_transfer_distance_limit_native(driver_vertices);
+    refit.maximum_distance = distances.empty()
+        ? 0.0
+        : *std::max_element(distances.begin(), distances.end());
+    refit.p95_distance = percentile_95_native(distances);
+    refit.distance_warning = refit.maximum_distance > refit.warning_distance
+        || refit.p95_distance > refit.warning_distance;
 }
