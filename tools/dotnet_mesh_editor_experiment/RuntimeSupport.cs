@@ -219,7 +219,8 @@ internal sealed record LaunchOptions(
     bool Embedded,
     string Profile,
     bool DeveloperRendererFallback,
-    long ParentHwnd)
+    long ParentHwnd,
+    bool PrewarmLaunch = false)
 {
     public bool SimplePreview => string.Equals(Profile, "preview", StringComparison.OrdinalIgnoreCase);
     public bool Authoring => string.Equals(Profile, "authoring", StringComparison.OrdinalIgnoreCase);
@@ -265,7 +266,8 @@ internal sealed record LaunchOptions(
                 || IsTruthy(Environment.GetEnvironmentVariable("CDMW_MESH_DOTNET_DEVELOPER_RENDERER_FALLBACK")),
             values.TryGetValue("parent-hwnd", out var parentHwnd) && long.TryParse(parentHwnd, NumberStyles.Integer, CultureInfo.InvariantCulture, out var hwnd)
                 ? hwnd
-                : 0L);
+                : 0L,
+            values.ContainsKey("prewarm"));
     }
 
     private static bool IsTruthy(string? value)
