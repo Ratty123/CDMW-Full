@@ -19,6 +19,32 @@ internal sealed partial class MeshViewport
         return hasTextureResources ? "textured_wire" : "untextured_wire";
     }
 
+    /// <summary>
+    /// The mode a package swap should settle on. Once the host has stated a
+    /// display mode it owns the choice, so a swap keeps it rather than snapping
+    /// back to the package default: unticking "Load textures" and then touching
+    /// anything that re-applies the package otherwise put the textures straight
+    /// back. A package with no textures still cannot honour a textured mode, so
+    /// that case falls back to the untextured equivalent.
+    /// </summary>
+    internal string ResidentDisplayModeForSwap(bool hasTextureResources)
+    {
+        if (!_hostDisplayModeAuthoritative)
+        {
+            return InitialResidentDisplayMode(hasTextureResources);
+        }
+        if (hasTextureResources)
+        {
+            return DisplayMode;
+        }
+        return DisplayMode switch
+        {
+            "textured" => "untextured_faces",
+            "textured_wire" => "untextured_wire",
+            _ => DisplayMode,
+        };
+    }
+
     public void ReplaceResidentPackage(
         ObjDocument document,
         NetMaterialSet materials,
@@ -88,7 +114,7 @@ internal sealed partial class MeshViewport
         // different one here made every swap present an intermediate view
         // before the host's own display update corrected it.
         _ = TrySetSynchronizedDisplayMode(
-            InitialResidentDisplayMode(hasTextureResources),
+            ResidentDisplayModeForSwap(hasTextureResources),
             out _);
         ApplySceneState();
     }

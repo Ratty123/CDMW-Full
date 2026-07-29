@@ -378,6 +378,30 @@ static bool material_keys_match_for_identity(const std::string& candidate_key, c
     return cover_score >= 100;
 }
 
+// Wrapper order says which of a model's materials a submesh uses. It is not a
+// claim that a material's own maps belong to one submesh only: a model can bind
+// the same material to several submeshes, and only the one whose local index
+// happened to equal the wrapper index kept its textures.
+//
+// Sharing a material name is not enough on its own to make two wrappers'
+// textures interchangeable. On cd_m0041_00_woodenowl_00_0001 the Eye and Body
+// submeshes both declare CD_M0041_00_WoodenOwl_0001 yet bind blackoil and the
+// owl's own atlas respectively, so the Eye's texture must not reach the Body.
+// The candidate also has to *be* the mesh's material, which is what makes
+// cd_phm_02_acc_0032 shared by two sword accessory submeshes safe to reuse.
+static bool binding_texture_family_is_mesh_material(
+    const TextureBinding& binding,
+    const NativeSubmesh& mesh
+) {
+    const std::string mesh_key = normalized_material_key(mesh.material);
+    if (mesh_key.empty()) return false;
+    const std::string binding_key = normalized_material_key(binding.material_name);
+    if (binding_key.empty() || !material_keys_match_for_identity(binding_key, mesh_key)) return false;
+    const std::string texture_family_key = normalized_texture_family_key(
+        binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
+    return material_keys_match_for_identity(texture_family_key, mesh_key);
+}
+
 static std::string material_component_key_from_path(const std::string& path) {
     std::string key = normalized_material_key(stem_from_path(path));
     bool stripped = true;
@@ -470,9 +494,13 @@ static int material_identity_match_score(const TextureBinding& binding, const Na
         const std::string mesh_submesh_key = normalized_material_key(mesh.name);
         const std::string binding_key = normalized_material_key(binding.material_name);
         const std::string texture_family_key = normalized_texture_family_key(binding.texture_name.empty() ? binding.archive_path : binding.texture_name);
+        // A shared material is not a cross-wrapper leak. Without this a second
+        // submesh bound to the same material scored zero identity and lost its
+        // albedo, because its own name never overlaps the material's name.
         const bool submesh_specific_match =
             material_keys_overlap(binding_key, mesh_submesh_key)
-            || material_keys_overlap(texture_family_key, mesh_submesh_key);
+            || material_keys_overlap(texture_family_key, mesh_submesh_key)
+            || binding_texture_family_is_mesh_material(binding, mesh);
         return submesh_specific_match && text_score >= 120 ? std::min(text_score, 220) : 0;
     }
     return text_score;

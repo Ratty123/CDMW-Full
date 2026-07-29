@@ -39,6 +39,22 @@ from cdmw.ui.widgets import (
 class ArchivePreviewLayoutMixin:
     """Build the Archive Preview panel."""
 
+    def _build_archive_model_toolbar_toggles(self) -> None:
+        """Create the model toolbar checkboxes, both hidden until a model loads."""
+
+        self.archive_isolated_renderer_button = QCheckBox("Load textures")
+        self.archive_isolated_renderer_button.setToolTip(
+            "Resolve and display model textures on demand. This choice is kept after restart."
+        )
+        self.archive_cloth_physics_button = QCheckBox("Cloth physics")
+        self.archive_cloth_physics_button.setToolTip(
+            "Simulate cloth, hair, and rope batches that declare PBD physics, and draw the solved "
+            "constraints over the model. This choice is kept after restart."
+        )
+        for toggle in (self.archive_isolated_renderer_button, self.archive_cloth_physics_button):
+            toggle.setEnabled(False)
+            toggle.setVisible(False)
+
     def _build_archive_preview_panel(self) -> None:
         archive_preview_group = FlatSectionPanel("Preview")
         archive_preview_min, _archive_preview_pref, _archive_preview_max = responsive_sidebar_bounds(self, role="wide")
@@ -98,12 +114,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_model_preview_disable_support_checkbox.setVisible(False)
         self.archive_model_preview_refresh_button = QPushButton("Refresh")
         self.archive_model_preview_refresh_button.setToolTip(archive_model_preview_refresh_tooltip())
-        self.archive_isolated_renderer_button = QCheckBox("Load textures")
-        self.archive_isolated_renderer_button.setToolTip(
-            "Resolve and display model textures on demand. This choice is kept after restart."
-        )
-        self.archive_isolated_renderer_button.setEnabled(False)
-        self.archive_isolated_renderer_button.setVisible(False)
+        self._build_archive_model_toolbar_toggles()
         self.archive_d3d11_part_visibility_button = QToolButton()
         self.archive_d3d11_part_visibility_button.setObjectName("ArchivePartVisibilityButton")
         self.archive_d3d11_part_visibility_button.setText("Parts")
@@ -496,6 +507,7 @@ class ArchivePreviewLayoutMixin:
             (self.archive_preview_zoom_in_button, 30),
             (self.archive_model_preview_refresh_button, 72),
             (self.archive_isolated_renderer_button, 136),
+            (self.archive_cloth_physics_button, 118),
         ):
             button.setMinimumWidth(width)
             button.setMinimumHeight(24)
@@ -529,6 +541,7 @@ class ArchivePreviewLayoutMixin:
         archive_view_controls_layout.addSpacing(8)
         archive_view_controls_layout.addWidget(self.archive_model_preview_refresh_button)
         archive_view_controls_layout.addWidget(self.archive_isolated_renderer_button)
+        archive_view_controls_layout.addWidget(self.archive_cloth_physics_button)
         archive_view_controls_layout.addWidget(self.archive_d3d11_part_visibility_button)
         archive_view_controls_layout.addWidget(self.archive_model_preview_reset_overrides_button)
         archive_view_controls_layout.addWidget(self.archive_model_preview_flip_v_checkbox)
@@ -638,6 +651,9 @@ class ArchivePreviewLayoutMixin:
         )
         self.archive_d3d11_preview_host.controller.package_failed.connect(
             self._handle_archive_resident_package_failed
+        )
+        self.archive_d3d11_preview_host.renderer_event_received.connect(
+            self._handle_archive_renderer_protocol_event
         )
         QTimer.singleShot(750, self._prewarm_archive_dotnet_preview)
         self.archive_d3d11_preview_status_label = QLabel(".NET/Vortice Preview")

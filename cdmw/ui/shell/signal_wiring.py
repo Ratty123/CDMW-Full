@@ -83,9 +83,8 @@ class ShellSignalWiringMixin:
             self._handle_archive_model_preview_disable_support_maps_toggled
         )
         self.archive_model_preview_refresh_button.clicked.connect(self._force_refresh_current_model_preview_assets)
-        self.archive_isolated_renderer_button.toggled.connect(
-            lambda _checked=False: self._open_archive_isolated_d3d11_preview()
-        )
+        self.archive_isolated_renderer_button.toggled.connect(lambda _checked=False: self._open_archive_isolated_d3d11_preview())
+        self.archive_cloth_physics_button.toggled.connect(lambda _checked=False: self._toggle_archive_cloth_physics_preview())
         self.archive_model_preview_reset_overrides_button.clicked.connect(
             self._handle_archive_model_preview_reset_overrides
         )

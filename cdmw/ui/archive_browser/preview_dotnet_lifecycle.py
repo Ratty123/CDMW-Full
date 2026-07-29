@@ -350,6 +350,98 @@ class ArchivePreviewDotNetLifecycleMixin:
                     "Check to resolve and display textures after geometry is usable. This choice is kept after restart."
                 )
 
+    def _sync_archive_model_toolbar_toggles(
+        self,
+        *,
+        resident_available: bool,
+        controls_enabled: bool,
+    ) -> None:
+        """Refresh the Load textures and Cloth physics toolbar checkboxes."""
+
+        sync_texture_action = getattr(self, "_sync_archive_texture_action_state", None)
+        if callable(sync_texture_action):
+            sync_texture_action()
+        else:
+            self.archive_isolated_renderer_button.setText("Load textures")
+        self.archive_isolated_renderer_button.setVisible(bool(resident_available))
+        if not bool(getattr(self, "_archive_texture_request_loading", False)):
+            self.archive_isolated_renderer_button.setEnabled(bool(resident_available and controls_enabled))
+        self._sync_archive_cloth_physics_action_state()
+        # Only assets whose package declares PBD batches can simulate anything, so
+        # the control stays hidden rather than offering a toggle that does nothing.
+        cloth_available = bool(resident_available and self._archive_active_package_has_cloth_batches())
+        self.archive_cloth_physics_button.setVisible(cloth_available)
+        self.archive_cloth_physics_button.setEnabled(bool(cloth_available and controls_enabled))
+
+    def _handle_archive_renderer_protocol_event(self, payload: object) -> None:
+        """Surface a refused presentation update instead of dropping it silently.
+
+        Only the mesh editor read these acknowledgements, so an Archive Browser
+        display change the renderer rejected -- a stale session or process
+        generation -- left the toolbar showing the new state over a viewport that
+        never changed, with nothing anywhere saying why.
+        """
+
+        if not isinstance(payload, Mapping):
+            return
+        if str(payload.get("event", "") or "").strip().lower() != "presentation_state_update_ack":
+            return
+        if str(payload.get("status", "") or "").strip().lower() != "rejected":
+            return
+        reason = str(payload.get("reason", "") or "").strip() or "no reason reported"
+        self._archive_presentation_rejection_reason = reason
+        self.set_status_message(
+            f"The preview renderer refused the display change ({reason}); the viewport still shows the previous view.",
+            error=True,
+        )
+        self._set_archive_isolated_renderer_debug(
+            f".NET/Vortice Preview: presentation update rejected: {reason}"
+        )
+
+    def _toggle_archive_cloth_physics_preview(self) -> None:
+        """Apply the toolbar cloth checkbox through the shared preview settings."""
+
+        checkbox = getattr(self, "archive_cloth_physics_button", None)
+        if checkbox is None or not hasattr(checkbox, "isChecked"):
+            return
+        settings = self._current_model_preview_render_settings()
+        enabled = bool(checkbox.isChecked())
+        if bool(settings.enable_tool_pbd_cloth_preview) == enabled:
+            return
+        self._handle_model_preview_settings_changed(
+            replace(settings, enable_tool_pbd_cloth_preview=enabled)
+        )
+        self.set_status_message(
+            "Cloth physics preview enabled; batches that declare PBD physics are simulated."
+            if enabled
+            else "Cloth physics preview disabled."
+        )
+
+    def _sync_archive_cloth_physics_action_state(self) -> None:
+        checkbox = getattr(self, "archive_cloth_physics_button", None)
+        if checkbox is None:
+            return
+        preference_enabled = bool(
+            self._current_model_preview_render_settings().enable_tool_pbd_cloth_preview
+        )
+        previous_blocked = checkbox.blockSignals(True)
+        try:
+            checkbox.setChecked(preference_enabled)
+        finally:
+            checkbox.blockSignals(previous_blocked)
+
+    def _archive_active_package_has_cloth_batches(self) -> bool:
+        package_dir = getattr(self, "archive_isolated_renderer_active_package", None)
+        if package_dir is None:
+            return False
+        try:
+            payload = json.loads((Path(package_dir) / "manifest.json").read_text(encoding="utf-8-sig"))
+        except (OSError, TypeError, ValueError):
+            return False
+        if not isinstance(payload, Mapping):
+            return False
+        return int(payload.get("cloth_batch_count", 0) or 0) > 0
+
     def _start_archive_native_preview_prefetch(self) -> None:
         """Compatibility no-op; canonical packages are cached by preview preparation."""
 

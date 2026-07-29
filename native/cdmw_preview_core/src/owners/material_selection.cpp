@@ -299,11 +299,17 @@ static const TextureBinding* best_base_binding_for_mode(
             append_rejected_binding_example(rejected_examples, "base", "cross-part", binding, mesh, identity_score);
             continue;
         }
+        // The support roles already exempt a binding that names the mesh's own
+        // material; base did not, so a second submesh sharing one material kept
+        // its normal and surface maps but lost its albedo and fell back to a flat
+        // material tint. cd_phm_02_sword_0013 binds cd_phm_02_acc_0032 to two
+        // accessory submeshes and only the first was rendering its texture.
         if (
             binding.material_wrapper_order_authoritative
             && binding.material_wrapper_index >= 0
             && mesh.source_local_submesh_index >= 0
             && binding.material_wrapper_index != mesh.source_local_submesh_index
+            && !binding_texture_family_is_mesh_material(binding, mesh)
         ) {
             continue;
         }

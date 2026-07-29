@@ -296,18 +296,10 @@ class ArchiveBrowserActionControlsMixin:
                 or getattr(self, "archive_isolated_renderer_active_package", None) is not None
             )
         )
-        sync_texture_action = getattr(self, "_sync_archive_texture_action_state", None)
-        if callable(sync_texture_action):
-            sync_texture_action()
-        else:
-            self.archive_isolated_renderer_button.setText("Load textures")
-        self.archive_isolated_renderer_button.setVisible(
-            bool(d3d11_backend_active and resident_texture_action_available)
+        self._sync_archive_model_toolbar_toggles(
+            resident_available=bool(d3d11_backend_active and resident_texture_action_available),
+            controls_enabled=bool(controls_enabled),
         )
-        if not bool(getattr(self, "_archive_texture_request_loading", False)):
-            self.archive_isolated_renderer_button.setEnabled(
-                bool(d3d11_backend_active and resident_texture_action_available and controls_enabled)
-            )
         preview_settings = self._current_model_preview_render_settings()
         for widget in self._archive_model_preview_widgets():
             if hasattr(widget, "set_use_textures"):

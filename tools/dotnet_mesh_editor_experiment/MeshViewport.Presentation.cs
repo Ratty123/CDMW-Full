@@ -68,6 +68,9 @@ internal sealed partial class MeshViewport
     private bool _comparisonCameraLinked;
     private bool _presentationGridVisible = true;
     private bool _presentationGizmoVisible = true;
+    // Set once the host has named a display mode, so a package swap knows the
+    // difference between "nobody has chosen yet" and "the host chose this".
+    private bool _hostDisplayModeAuthoritative;
     private int _presentationHoveredSource = -1;
     private string _presentationStateFingerprint = string.Empty;
     private long _presentationGeneration;
@@ -233,6 +236,7 @@ internal sealed partial class MeshViewport
             {
                 return false;
             }
+            _hostDisplayModeAuthoritative = true;
             MaterialDebugMode = Math.Clamp(JsonInt(display, "material_debug_mode", MaterialDebugMode), 0, 12);
             _presentationGridVisible = JsonBool(display, "grid_visible", _presentationGridVisible);
             _presentationGizmoVisible = JsonBool(display, "gizmo_visible", _presentationGizmoVisible);
