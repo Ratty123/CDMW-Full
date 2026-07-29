@@ -13,7 +13,12 @@ internal sealed partial class ExperimentForm
             WriteViewportDisplayResult(root, "viewport_display_failed", sessionId, mode, "session_mismatch", sessionError);
             return;
         }
-        if (!_viewport.TrySetDisplayMode(mode, out var error))
+        // Synchronized, like the helper's own Preview mode combo: a bare
+        // TrySetDisplayMode writes the new mode into the active pane's context
+        // only, so a host-driven change left every other pane rendering the mode
+        // it had before. The tool rail drives this route, which is why Edit Mesh
+        // and the Builder combo disagreed about what the viewport was showing.
+        if (!_viewport.TrySetSynchronizedDisplayMode(mode, out var error))
         {
             WriteViewportDisplayResult(root, "viewport_display_failed", sessionId, mode, "invalid_mode", error);
             return;
