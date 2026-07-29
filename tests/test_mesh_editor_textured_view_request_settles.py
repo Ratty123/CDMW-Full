@@ -99,11 +99,45 @@ def test_load_start_state_reports_why_no_worker_started() -> None:
     )
 
 
-def test_already_resolved_textures_apply_without_a_new_acknowledgement() -> None:
+def test_already_loaded_does_not_claim_textures_that_were_never_applied() -> None:
+    """"Already loaded" is about the resolver, not about the resident viewport.
+
+    Both material generations start at zero, so `generation <= completed` held
+    before anything had ever been applied. A resolver reporting `already_loaded`
+    then completed the request as a success, the viewport was told to show
+    "textured" over a launch package whose materials are deliberately empty
+    (`"reason": "textures_on_demand"`), and Solid (Textured) drew exactly like
+    Faces (No Textures) with no diagnostic anywhere.
+    """
     app, tab, builder, process = _mounted_tab(
         "MeshEditorTexturedViewAlreadyLoaded",
         lambda: ORIGINAL_REFERENCE_TEXTURE_REQUEST_ALREADY_LOADED,
     )
+
+    assert tab.standalone_dotnet_applied_material_generation == 0
+    assert tab._handle_embedded_viewport_display_mode("textured")
+
+    # No claim of success, and the viewport stays honestly untextured while the
+    # watchdog waits for an acknowledgement that may still arrive.
+    assert tab.standalone_dotnet_pending_textured_view is True
+    assert _display_modes(process)[-1] == "untextured_faces"
+    assert tab.standalone_dotnet_pending_textured_view_timer.isActive()
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
+def test_already_resolved_textures_apply_without_a_new_acknowledgement() -> None:
+    app, tab, builder, process = _mounted_tab(
+        "MeshEditorTexturedViewAlreadyLoadedApplied",
+        lambda: ORIGINAL_REFERENCE_TEXTURE_REQUEST_ALREADY_LOADED,
+    )
+    # A material state really was applied earlier in this session, so the
+    # resolver's "already loaded" genuinely describes the resident viewport.
+    tab.standalone_dotnet_material_generation = 1
+    tab.standalone_dotnet_completed_material_generation = 1
+    tab.standalone_dotnet_applied_material_generation = 1
 
     assert tab._handle_embedded_viewport_display_mode("textured")
 
@@ -306,6 +340,11 @@ def test_a_deduplicated_material_publish_completes_the_textured_view() -> None:
     # The resolver's model carries exactly the materials the helper reported at
     # ready, so publishing it deduplicates instead of sending an update.
     tab.standalone_dotnet_material_signature = _resident_material_signature(tab)
+    # A generation was applied while the request was in flight, which is what
+    # makes "the helper already holds these" true rather than merely unproven.
+    tab.standalone_dotnet_material_generation = 1
+    tab.standalone_dotnet_completed_material_generation = 1
+    tab.standalone_dotnet_applied_material_generation = 1
     assert tab._send_dotnet_material_state(reason="late_exact_clone_resources")
     assert tab.standalone_dotnet_lifecycle_counts["material_state_deduplicated_count"] == 1
 
@@ -313,6 +352,42 @@ def test_a_deduplicated_material_publish_completes_the_textured_view() -> None:
     assert not tab.standalone_dotnet_pending_textured_view_timer.isActive()
     assert _display_modes(process)[-1] == "textured"
     assert combo.currentData() == "textured"
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
+def test_the_launch_package_signature_does_not_deduplicate_the_first_publish() -> None:
+    """The launch package's signature is not evidence that textures are resident.
+
+    `_start_standalone_dotnet_editor_process` seeds
+    `standalone_dotnet_material_signature` from the launch package, whose
+    materials are deliberately empty. On an unedited mesh the first real publish
+    therefore computed the very same signature, and with both generations still
+    at zero `generation <= completed` held too -- so the publish deduplicated,
+    no compile ever ran, and the textured view was reported as succeeding over a
+    package with no material resources at all.
+    """
+    app, tab, builder, process = _mounted_tab(
+        "MeshEditorTexturedViewLaunchSignature",
+        lambda: ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED,
+    )
+    # Exactly what the launch package seeds, for a mesh nobody has edited yet.
+    tab.standalone_dotnet_material_signature = _resident_material_signature(tab)
+    assert tab.standalone_dotnet_applied_material_generation == 0
+
+    assert tab._handle_embedded_viewport_display_mode("textured")
+    assert tab.standalone_dotnet_pending_textured_view is True
+
+    assert tab._send_dotnet_material_state(reason="textured_view_requested")
+
+    # The publish must do real work rather than assume the helper already holds
+    # materials it was never sent.
+    assert tab.standalone_dotnet_lifecycle_counts["material_state_deduplicated_count"] == 0
+    assert tab.standalone_dotnet_material_generation > 0
+    assert tab.standalone_dotnet_pending_textured_view is True
+    assert _display_modes(process)[-1] == "untextured_faces"
 
     tab.deleteLater()
     builder.deleteLater()
