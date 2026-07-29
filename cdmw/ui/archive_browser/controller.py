@@ -358,10 +358,9 @@ class ArchiveBrowserRowPayloadMixin:
         return time.perf_counter() < float(getattr(self, "archive_ui_activity_until", 0.0) or 0.0)
 
     def _archive_background_worker_limit(self) -> int:
+        """Preset-derived worker count, used when sidecar indexing has no manual one."""
+
         settings = self._current_archive_performance_settings()
-        manual_limit = int(getattr(settings, "background_worker_limit", 0) or 0)
-        if manual_limit > 0:
-            return max(1, min(16, manual_limit))
         profile = str(getattr(settings, "resource_profile", "balanced_60fps") or "balanced_60fps")
         if profile == "maximum_throughput":
             return min(16, max(4, (os.cpu_count() or 4) - 1))
