@@ -165,15 +165,23 @@ def _dpapi(protect: bool, blob: bytes) -> Optional[bytes]:
 
 
 def protect_secret(secret: str) -> Tuple[str, bool]:
-    """`(stored form, was it encrypted)`. Never raises: a key is not worth a crash."""
+    """`(stored form, was it encrypted)`. Never raises: a key is not worth a crash.
+
+    There is no unencrypted stored form. This used to return
+    `plain:<base64>` when DPAPI was unavailable and leave it to the caller not
+    to write it, which is a rule someone has to keep rather than a property of
+    the code -- and it left a clear-text rendering of a credential in a local
+    variable for anything downstream to pick up. Returning nothing means the
+    only value this can hand back is ciphertext.
+    """
 
     raw = str(secret or "").encode("utf-8")
     if not raw:
         return "", True
     sealed = _dpapi(True, raw)
-    if sealed is not None:
-        return "dpapi:" + base64.b64encode(sealed).decode("ascii"), True
-    return "plain:" + base64.b64encode(raw).decode("ascii"), False
+    if sealed is None:
+        return "", False
+    return "dpapi:" + base64.b64encode(sealed).decode("ascii"), True
 
 
 def unprotect_secret(stored: str) -> str:
