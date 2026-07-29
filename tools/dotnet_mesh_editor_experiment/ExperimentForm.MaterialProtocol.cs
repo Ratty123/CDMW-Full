@@ -175,6 +175,10 @@ internal sealed partial class ExperimentForm
             return false;
         }
         _embeddedViewportActive = true;
+        // A prewarm launch activates before the renderer has ever reported ready,
+        // so this can be the first show. It has to go through the reveal, or the
+        // window comes back invisible on the next handle recreation.
+        EnsureEmbeddedWindowRevealed();
         Show();
         Focus();
         _viewport.Focus();
@@ -288,6 +292,20 @@ internal sealed partial class ExperimentForm
         return false;
     }
 
+    /// <summary>
+    /// True while the latched session is the placeholder a prewarm launch
+    /// handshakes with, rather than a real authoring session.
+    /// </summary>
+    /// <remarks>
+    /// A prewarmed helper is started before the user has opened anything, so
+    /// there is no edit session to name yet and the host handshakes with a
+    /// throwaway id. Latching that as authoritative is what made prewarming the
+    /// authoring profile impossible: the first real Edit Mesh then arrived with a
+    /// different id and was refused as a session mismatch. A provisional session
+    /// may be replaced exactly once, and only before it has owned any mutation.
+    /// </remarks>
+    private bool _residentSessionProvisional;
+
     private void ObserveResidentSession(JsonElement root)
     {
         var sessionId = JsonString(root, "session_id").Trim();
@@ -295,10 +313,12 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
+        var provisional = JsonBoolean(root, "provisional_session");
         var processGeneration = Math.Max(0, JsonLongValue(root, "process_generation"));
+        var sessionChanged = !string.IsNullOrWhiteSpace(_residentMaterialSessionId)
+            && !string.Equals(_residentMaterialSessionId, sessionId, StringComparison.Ordinal);
         if ((_residentProcessGeneration > 0 && processGeneration != _residentProcessGeneration)
-            || (!string.IsNullOrWhiteSpace(_residentMaterialSessionId)
-                && !string.Equals(_residentMaterialSessionId, sessionId, StringComparison.Ordinal)))
+            || sessionChanged)
         {
             ResetPendingMutationAuthority();
         }
@@ -306,18 +326,42 @@ internal sealed partial class ExperimentForm
         if (string.IsNullOrWhiteSpace(_residentMaterialSessionId))
         {
             _residentMaterialSessionId = sessionId;
+            _residentSessionProvisional = provisional;
             _lastObservedSessionRevision = ProtocolEditRevision(root);
             return;
         }
-        if (!string.Equals(_residentMaterialSessionId, sessionId, StringComparison.Ordinal))
+        if (sessionChanged)
         {
-            WriteProtocolEvent("error", new Dictionary<string, object?>
+            if (!_residentSessionProvisional || provisional)
             {
-                ["code"] = "session_mismatch",
+                // Either a real session is already in charge, or this is another
+                // placeholder. Neither may displace what is here.
+                WriteProtocolEvent("error", new Dictionary<string, object?>
+                {
+                    ["code"] = "session_mismatch",
+                    ["session_id"] = sessionId,
+                    ["resident_session_id"] = _residentMaterialSessionId,
+                    ["resident_session_provisional"] = _residentSessionProvisional,
+                });
+                return;
+            }
+            var replaced = _residentMaterialSessionId;
+            _residentMaterialSessionId = sessionId;
+            _residentSessionProvisional = false;
+            // The placeholder's revision history belongs to nothing the user did.
+            _lastObservedSessionRevision = ProtocolEditRevision(root);
+            WriteProtocolEvent("session_rebound", new Dictionary<string, object?>
+            {
                 ["session_id"] = sessionId,
-                ["resident_session_id"] = _residentMaterialSessionId,
+                ["previous_session_id"] = replaced,
+                ["process_generation"] = _residentProcessGeneration,
             });
             return;
+        }
+        if (!provisional)
+        {
+            // The same id promoted from placeholder to authoritative.
+            _residentSessionProvisional = false;
         }
         _lastObservedSessionRevision = Math.Max(_lastObservedSessionRevision, ProtocolEditRevision(root));
     }

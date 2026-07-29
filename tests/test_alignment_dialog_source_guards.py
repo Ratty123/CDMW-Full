@@ -5773,7 +5773,17 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         )
         self.assertIn("if not embedded_alignment_builder:", prompt_open_source)
 
-    def test_authoring_prewarm_waits_for_the_authoritative_edit_session(self) -> None:
+    def test_authoring_prewarm_starts_before_the_authoritative_edit_session(self) -> None:
+        """The preview shell prewarms on open, and the session adopts that helper.
+
+        This guard used to assert the opposite -- that the prewarm waited for the
+        edit-session id -- because an authoring handshake made before the session
+        existed latched a throwaway id the real package could not supersede, and
+        the first Edit Mesh was refused outright.  The handshake is provisional
+        now, so the warm helper is adopted rather than colliding, and waiting
+        would only put the helper's start-up back on the click.
+        """
+
         preview_shell_source = (
             ROOT
             / "cdmw"
@@ -5781,15 +5791,24 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             / "archive_browser"
             / "static_replacement_dialog_preview_shell.py"
         ).read_text(encoding="utf-8")
-        launch_source = (
-            ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_launch.py"
+        session_source = (
+            ROOT / "cdmw" / "ui" / "preview" / "dotnet_session.py"
         ).read_text(encoding="utf-8")
 
         self.assertIn('"cdmwPreviewPrewarmCacheRoot"', preview_shell_source)
-        self.assertNotIn("_prewarm_alignment_d3d11_host", preview_shell_source)
-        session_bind = launch_source.index("set_authoritative_session_id(session_id)")
-        prewarm_request = launch_source.index("prewarm(Path(str(cache_root)))")
-        self.assertLess(session_bind, prewarm_request)
+        self.assertIn("_prewarm_alignment_dotnet_host", preview_shell_source)
+        # The rebind is gated on the helper advertising it, never required, so an
+        # older helper still runs instead of failing provenance.
+        self.assertIn('"authoring_provisional_session_v1" in self._capabilities', session_source)
+        self.assertNotIn(
+            '"authoring_provisional_session_v1"',
+            session_source.split("_AUTHORING_PROTOCOL_CAPABILITIES = (")[1].split(")")[0],
+        )
+        # A real session must never be displaceable by another.
+        self.assertIn(
+            "if self._session_established and not self._session_provisional:",
+            session_source,
+        )
 
     def test_resident_gizmo_drag_defers_the_authoritative_scene_frame(self) -> None:
         """A live gizmo drag must not publish a scene frame per pointer sample.

@@ -365,6 +365,23 @@ internal sealed partial class ExperimentForm : Form
         _readyPendingFirstFrame = true;
         _statusLabel.Text = "Textures ready; drawing the first .NET/Vortice frame...";
         _viewport.ApplySceneState();
+        // The reveal cannot wait for the frame itself — the frame is produced by
+        // a paint, and a hidden window never gets one. This is as late as it can
+        // go: geometry, materials and textures are all bound, so the first paint
+        // draws the finished model rather than an empty viewport.
+        //
+        // A prewarm launch is the exception and must stay hidden. Its scene is a
+        // procedural placeholder nobody asked to see; revealing it painted that
+        // placeholder into the host pane and then hid it again the moment the
+        // host answered `ready` with `deactivate_request` — a flash of the wrong
+        // model at dialog-open time. The host does not need `ready` from a
+        // prewarm (it warms the GPU with an offscreen capture instead), and
+        // without a reveal there is no paint, so `ready` correctly stays pending
+        // until `activate_request` reveals the window over a real package.
+        if (!_options.PrewarmLaunch)
+        {
+            EnsureEmbeddedWindowRevealed();
+        }
     }
 
     protected override void OnShown(EventArgs e)
@@ -381,9 +398,20 @@ internal sealed partial class ExperimentForm : Form
 
     /// <summary>
     /// Everything between a built form and a window the user should be looking
-    /// at. Embedded, this runs hidden (see <see cref="SetVisibleCore"/>) and
-    /// ends by revealing the window; standalone, it runs from OnShown as before.
+    /// at. Embedded, this runs hidden (see <see cref="SetVisibleCore"/>) and the
+    /// reveal is deferred to the texture load's completion; standalone, it runs
+    /// from OnShown as before.
     /// </summary>
+    /// <remarks>
+    /// The reveal used to sit here, before <see cref="StartTextureLoad"/>, which
+    /// meant the host pane showed a fully built but untextured editor for the
+    /// whole texture decode — the chrome arriving seconds before the model, read
+    /// as the editor loading in stages. It sat here because it had to: the D3D11
+    /// device was created by the first paint, a hidden window never paints, and
+    /// <c>TryApplyMaterialState</c> fails outright without a device. Initialising
+    /// the renderer explicitly breaks that dependency, so the window can stay
+    /// hidden until there is a finished picture to show.
+    /// </remarks>
     private void RunStartupRealization()
     {
         _startupRealizationQueued = true;
@@ -396,9 +424,24 @@ internal sealed partial class ExperimentForm : Form
             return;
         }
         ApplySavedToolPanelLayout();
-        if (EmbedsAtBirth)
+        // EnsureRendererInitialized needs the viewport's handle, and nothing has
+        // forced it while the form is hidden.
+        RealizeControlTree(_viewport);
+        if (!_viewport.EnsureRendererInitialized())
         {
-            RevealEmbeddedWindow();
+            // Not fatal, and not worth blocking the reveal over: the first paint
+            // still creates the device the way it always did, and a renderer that
+            // genuinely cannot start reports through the texture/ready path.
+            WriteProtocolEvent("renderer_prewarm_skipped", new Dictionary<string, object?>
+            {
+                ["reason"] = _viewport.RendererBlocked ? _viewport.RendererBlockReason : "device not ready before reveal",
+                ["embedded"] = _options.Embedded,
+                ["prewarm_launch"] = _options.PrewarmLaunch,
+            });
+            if (!_options.PrewarmLaunch)
+            {
+                EnsureEmbeddedWindowRevealed();
+            }
         }
         StartTextureLoad();
     }
@@ -410,6 +453,15 @@ internal sealed partial class ExperimentForm : Form
             return;
         }
         _readyPublished = true;
+        // Every terminal texture failure publishes ready directly, without ever
+        // reaching QueueReadyAfterFirstFrame. Without this the editor would stay
+        // hidden behind the host's spinner with the error only in a status line
+        // nobody can see. A failed prewarm still stays hidden: nobody asked to
+        // see it, and the host simply launches again for the real package.
+        if (!_options.PrewarmLaunch)
+        {
+            EnsureEmbeddedWindowRevealed();
+        }
         var rendererStatus = RendererStatusWithLifecycle();
         WriteStatus(
             _options,

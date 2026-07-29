@@ -107,6 +107,27 @@ internal sealed partial class ExperimentForm
     }
 
     /// <summary>
+    /// Reveals the embedded window if it has not been revealed already.
+    /// </summary>
+    /// <remarks>
+    /// The reveal is driven from more than one place now — the texture load
+    /// finishing, a terminal texture error, and an <c>activate_request</c> that
+    /// arrives before either — so it has to be safe to ask for twice. It also has
+    /// to be the *only* way this window is shown: a bare <c>Show()</c> leaves
+    /// <see cref="_embeddedWindowRevealed"/> false, and the next handle
+    /// recreation would then rebuild the window without WS_VISIBLE with WinForms
+    /// believing it is already shown.
+    /// </remarks>
+    private void EnsureEmbeddedWindowRevealed()
+    {
+        if (!EmbedsAtBirth || _embeddedWindowRevealed)
+        {
+            return;
+        }
+        RevealEmbeddedWindow();
+    }
+
+    /// <summary>
     /// The single moment the embedded editor becomes visible, once it is fully
     /// built and sized to the host.
     /// </summary>

@@ -242,6 +242,19 @@ internal sealed partial class D3D11MaterialViewport : Control
         }
     }
 
+    /// <summary>
+    /// Creates the device, swap chain and geometry without waiting for a paint.
+    /// </summary>
+    /// <remarks>
+    /// The device is otherwise created by the first <see cref="OnPaint"/>, and a
+    /// hidden window never gets one. <c>TryApplyMaterialState</c> returns
+    /// "D3D11 device is not initialized" without it, so the startup order used to
+    /// be forced: reveal the window, let it paint, then load textures. That is
+    /// what put an untextured editor on screen for the whole texture load. Only
+    /// the handle is required here, not visibility.
+    /// </remarks>
+    public bool EnsureRendererInitialized() => EnsureDeviceReady();
+
     private bool EnsureDeviceReady()
     {
         try

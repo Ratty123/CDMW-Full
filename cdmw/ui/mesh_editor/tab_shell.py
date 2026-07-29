@@ -754,7 +754,28 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         self._send_dotnet_scene_state()
         self._send_dotnet_presentation_state()
         self._send_dotnet_cached_morph_state()
+        # This runs after the package is applied and before the helper is
+        # activated, so the interaction mode is settled while the window is
+        # still hidden. The `activated` handler used to push the identical
+        # state again, after the reveal, and a redundant mesh_edit frame makes
+        # the helper re-run its interaction-mode controls and re-assert the
+        # tool rail in full view -- the layout visibly rearranging on open.
+        self.standalone_dotnet_state_pushed_generation = int(
+            getattr(self, "standalone_dotnet_process_generation", 0) or 0
+        )
         return bool(sent)
+
+    def _dotnet_state_already_pushed_for_process(self) -> bool:
+        """True when the rehydrator has already sent session/scene/presentation state.
+
+        Scoped to the current process generation, so a suspend/resume cycle --
+        which activates without a package apply and therefore without a
+        rehydrate -- still pushes its state.
+        """
+
+        generation = int(getattr(self, "standalone_dotnet_process_generation", 0) or 0)
+        pushed = int(getattr(self, "standalone_dotnet_state_pushed_generation", -1) or -1)
+        return generation > 0 and pushed == generation
     def _wire_standalone_native_part_events(self, host: object | None) -> None:
         if host is None:
             return
