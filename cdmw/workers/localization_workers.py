@@ -6,6 +6,12 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
+from cdmw.domain.localization import (
+    FrozenTranslationEntry,
+    TranslationEntry,
+    freeze_translation_entry,
+    thaw_translation_entry,
+)
 from cdmw.services.localization_file_service import (
     load_language_file,
     safe_language_code,
@@ -18,7 +24,7 @@ class LanguageExportRequest:
     output_path: Path
     language_code: str
     language_name: str
-    translations: tuple[tuple[str, str], ...]
+    translations: tuple[tuple[str, FrozenTranslationEntry], ...]
     request_id: int = 0
 
 
@@ -43,7 +49,25 @@ class LanguageImportResult:
     language_code: str
     language_name: str
     target_path: Path
-    translations: tuple[tuple[str, str], ...]
+    translations: tuple[tuple[str, FrozenTranslationEntry], ...]
+
+
+def _thaw_translations(
+    translations: tuple[tuple[str, FrozenTranslationEntry], ...],
+) -> dict[str, TranslationEntry]:
+    return {
+        str(source): thaw_translation_entry(value)
+        for source, value in translations
+    }
+
+
+def _freeze_translations(
+    translations: dict[str, TranslationEntry],
+) -> tuple[tuple[str, FrozenTranslationEntry], ...]:
+    return tuple(
+        (source, freeze_translation_entry(value))
+        for source, value in sorted(translations.items())
+    )
 
 
 def run_language_export(
@@ -51,7 +75,7 @@ def run_language_export(
     *,
     stop_event: threading.Event | None = None,
 ) -> LanguageExportResult:
-    translations = dict(request.translations)
+    translations = _thaw_translations(request.translations)
     write_language_file(
         request.output_path,
         language_code=request.language_code,
@@ -90,7 +114,7 @@ def run_language_import(
         language_code,
         language_name,
         target_path,
-        tuple(sorted(translations.items())),
+        _freeze_translations(translations),
     )
 
 

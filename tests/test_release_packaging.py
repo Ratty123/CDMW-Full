@@ -75,6 +75,8 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert "-p:PublishTrimmed=false" in source
     assert "scripts\\verify_release_dependencies.py" in source
     assert "scripts\\generate_window_feature_provider_members.py" in source
+    assert "scripts\\generate_ui_localization_manifest.py" in source
+    assert "scripts\\validate_ui_localization_catalogs.py" in source
     assert "constraints-release.txt" in source
     assert "scripts\\verify_packaged_startup.ps1" in source
     assert 'Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $exePath -Context "published"' in source
@@ -104,11 +106,15 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     describe_only_return = 'if ($DescribeOnly) {\n    return\n}'
     metadata_refresh = 'Stage "Refreshing generated feature metadata"'
     metadata_check = 'Stage "Verifying generated feature metadata"'
+    localization_check = 'Stage "Verifying interface localization catalogs"'
     assert "& $pythonExe $providerMetadataGenerator\n" in source
     assert "& $pythonExe $providerMetadataGenerator --check" in source
     assert source.index(describe_only_return) < source.index(metadata_refresh)
     assert source.index(metadata_refresh) < source.index(metadata_check)
-    assert source.index(metadata_check) < source.index("Starting PyInstaller")
+    assert source.index(metadata_check) < source.index(localization_check)
+    assert source.index(localization_check) < source.index("Starting PyInstaller")
+    assert "& $pythonExe $localizationManifestGenerator --check" in source
+    assert "& $pythonExe $localizationCatalogValidator" in source
     texture_backend_stage = 'Stage "Verifying packaged native texture backend"'
     assert source.index(texture_backend_stage) < source.index(packaged_smoke)
     assert source.index(texture_backend_stage) < source.index('Stage "Verifying packaged startup"')
@@ -119,6 +125,8 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert 'native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}/D3D11MaterialShaders.hlsl' in spec_source
     assert 'native/cdmw_full_archive_backend/build/{NATIVE_CONFIGURATION}' in spec_source
     assert '"archive_backend"' in spec_source
+    assert '"cdmw/resources/localization"' in spec_source
+    assert 'suffixes={".json"}' in spec_source
     assert 'scripts\\full_archive_backend_release.ps1' in source
     assert "function Invoke-FullArchiveBackendBuild" in archive_backend_source
     assert "function Test-OnedirFullArchiveBackend" in archive_backend_source

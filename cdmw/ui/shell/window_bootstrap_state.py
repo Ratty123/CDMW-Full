@@ -78,10 +78,20 @@ class ShellWindowBootstrapStateMixin:
                 pass
 
         self.language_dir = self.settings_file_path.parent / "languages"
+        saved_language_code = str(
+            self.settings.value("appearance/language", "en") or "en"
+        )
         self.ui_localizer = UiLocalizer(
             language_dir=self.language_dir,
-            language_code=str(self.settings.value("appearance/language", "en") or "en"),
+            language_code=saved_language_code,
+            parent=self,
         )
+        if self.ui_localizer.language_code != saved_language_code:
+            self.settings.setValue(
+                "appearance/language",
+                self.ui_localizer.language_code,
+            )
+            self.settings.sync()
         self._settings_ready = False
         self._record_runtime_event = record_runtime_event
         self._set_last_active_operation = set_last_active_operation

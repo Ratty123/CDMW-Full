@@ -27,7 +27,10 @@ $TestsByArea = @{
     responsiveness = @(
         "tests/test_ui_responsiveness_source_guards.py",
         "tests/test_mesh_edit_responsiveness_source_guards.py",
-        "tests/test_texture_workflow_ui_source_guards.py"
+        "tests/test_texture_workflow_ui_source_guards.py",
+        "tests/test_localization_async_io.py",
+        "tests/test_localization_translations.py",
+        "tests/test_localization_catalog_contracts.py"
     )
     archive = @(
         "tests/test_archive_browser_virtual_model.py",
@@ -59,6 +62,8 @@ $TestsByArea = @{
         "tests/test_mesh_visual_audit_integrity.py",
         "tests/test_mesh_visual_audit_package.py",
         "tests/test_dotnet_helper_manifest_contract.py",
+        "tests/test_dotnet_ui_localization_protocol_source.py",
+        "tests/test_dotnet_preview_shared_host.py",
         "tests/test_dotnet_mesh_editor_layout_contract.py",
         "tests/test_dotnet_mesh_editor_tool_protocol_source.py",
         "tests/test_mesh_morph_slider_ui_source_guards.py",
@@ -202,6 +207,38 @@ if ($Area -eq "mesh-unit") {
     }
     Remove-Item -LiteralPath $LayoutReport
     Write-Host "Edit Mesh Tool Rail construction smoke passed."
+
+    $LocalizationRunId = [Guid]::NewGuid().ToString("N")
+    $LocalizationReport = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-ui-localization-$LocalizationRunId.json"
+    $LocalizationProcess = Start-Process `
+        -FilePath $DotNetHelper `
+        -ArgumentList @("--headless-ui-localization-contract", "--localization-report", $LocalizationReport) `
+        -Wait `
+        -PassThru `
+        -WindowStyle Hidden
+    if ($LocalizationProcess.ExitCode -ne 0) {
+        Write-Error ".NET interface-localization contract smoke failed with exit code $($LocalizationProcess.ExitCode)."
+        exit $LocalizationProcess.ExitCode
+    }
+    if (-not (Test-Path -LiteralPath $LocalizationReport)) {
+        Write-Error ".NET interface-localization contract smoke did not create '$LocalizationReport'."
+        exit 1
+    }
+    $LocalizationPayload = Get-Content -LiteralPath $LocalizationReport -Raw | ConvertFrom-Json
+    if (-not $LocalizationPayload.ok `
+        -or $LocalizationPayload.boundary_count -lt 28 `
+        -or $LocalizationPayload.localization_key_count -lt 1 `
+        -or $LocalizationPayload.localization_key_manifest_hash.Length -ne 64 `
+        -or -not $LocalizationPayload.presentation_format_ok `
+        -or -not $LocalizationPayload.invariant_metrics_source_ok `
+        -or -not $LocalizationPayload.cjk_font_fallbacks_ok `
+        -or $LocalizationPayload.renderer_started `
+        -or $LocalizationPayload.visible_window_started) {
+        Write-Error ".NET interface-localization contract smoke returned an invalid report at '$LocalizationReport'."
+        exit 1
+    }
+    Remove-Item -LiteralPath $LocalizationReport
+    Write-Host ".NET interface-localization contract smoke passed."
 }
 
 exit 0

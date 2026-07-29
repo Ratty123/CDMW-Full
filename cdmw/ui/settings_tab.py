@@ -71,6 +71,7 @@ from cdmw.models import (
 )
 from cdmw.ui.archive_performance_settings_io import read_archive_performance_settings
 from cdmw.domain.camera_bindings import normalize_camera_modifier
+from cdmw.domain.localization import canonical_language_code
 from cdmw.ui.localization import BUILTIN_LANGUAGES
 from cdmw.ui.settings_helper_discovery import (
     SettingsHelperDiscoveryMixin,
@@ -1180,7 +1181,6 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         options = language_options or tuple(
             (code, str(payload.get("language_name", code)))
             for code, payload in BUILTIN_LANGUAGES.items()
-            if code in {"en", "es", "de"}
         )
         self.language_combo.blockSignals(True)
         self.language_combo.clear()
@@ -1806,7 +1806,7 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         self._last_applied_appearance_state = self._appearance_state()
 
     def set_language_selection(self, language_code: str) -> None:
-        code = str(language_code or "en").strip() or "en"
+        code = canonical_language_code(language_code)
         index = self.language_combo.findData(code)
         if index < 0:
             index = self.language_combo.findData("en")

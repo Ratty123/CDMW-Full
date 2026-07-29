@@ -7,6 +7,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QFrame, QWidget
 
 from cdmw.constants import DEFAULT_UI_THEME
+from cdmw.ui.localization import translate_active_ui_text
 from cdmw.ui.themes import UI_THEME_SCHEMES, get_theme
 
 
@@ -111,14 +112,22 @@ class ThemeChangeBusyOverlay(QFrame):
         painter.setPen(QColor(str(theme.get("text_strong", "#f3f3f3"))))
         text_left = spinner_rect.right() + 18.0
         text_rect = QRectF(text_left, panel.top() + 30.0, panel.right() - text_left - 22.0, 28.0)
-        painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, self._overlay_title)
+        painter.drawText(
+            text_rect,
+            Qt.AlignLeft | Qt.AlignVCenter,
+            translate_active_ui_text(self._overlay_title),
+        )
 
         body_font = QFont(self.font())
         body_font.setPointSize(max(9, body_font.pointSize()))
         painter.setFont(body_font)
         painter.setPen(QColor(str(theme.get("text_muted", "#9da0a6"))))
         body_rect = QRectF(text_left, panel.top() + 60.0, panel.right() - text_left - 22.0, 34.0)
-        painter.drawText(body_rect, Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, self._overlay_detail)
+        painter.drawText(
+            body_rect,
+            Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap,
+            translate_active_ui_text(self._overlay_detail),
+        )
 
 
 __all__ = ["ThemeChangeBusyOverlay"]

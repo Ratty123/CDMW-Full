@@ -752,6 +752,10 @@ class StartupPromptMixin:
             initial_path=self.archive_package_root_edit.text().strip(),
             startup_splash=startup_splash,
         )
+        localizer = getattr(self, "ui_localizer", None)
+        apply_localizer = getattr(localizer, "apply", None)
+        if callable(apply_localizer):
+            apply_localizer(dialog)
         if not self.windowIcon().isNull():
             dialog.setWindowIcon(self.windowIcon())
         dialog.center_on_screen()
