@@ -376,16 +376,30 @@ internal sealed partial class MeshViewport
         base.OnMouseWheel(e);
     }
 
-    private static bool IsPanGesture(MouseEventArgs e)
+    internal string CameraOrbitModifier => CameraModifierBindings.Normalize(
+        _residentPresentationSettings.CameraOrbitModifier,
+        CameraModifierBindings.DefaultOrbit);
+
+    internal string CameraPanModifier => CameraModifierBindings.Normalize(
+        _residentPresentationSettings.CameraPanModifier,
+        CameraModifierBindings.DefaultPan);
+
+    private bool IsPanGesture(MouseEventArgs e)
     {
         return e.Button is MouseButtons.Middle or MouseButtons.Right
-            || (e.Button == MouseButtons.Left && (ModifierKeys & Keys.Shift) == Keys.Shift);
+            || (e.Button == MouseButtons.Left
+                && CameraModifierBindings.IsHeld(CameraPanModifier, ModifierKeys));
     }
 
-    private static bool IsOrbitOverrideGesture(MouseEventArgs e)
+    /// <summary>
+    /// The camera takes the left button away from the active edit tool while the
+    /// bound modifier is held. <see cref="IsPanGesture"/> is tested before this,
+    /// so a modifier bound to both pans.
+    /// </summary>
+    private bool IsOrbitOverrideGesture(MouseEventArgs e)
     {
         return e.Button == MouseButtons.Left
-            && (ModifierKeys & Keys.Control) == Keys.Control;
+            && CameraModifierBindings.IsHeld(CameraOrbitModifier, ModifierKeys);
     }
 
     private void BeginEditorStroke(Point location)

@@ -534,9 +534,16 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   The embedded right tool panel shows the live authoritative action timeline
   and enables Undo/Redo from its cursor; Ctrl+Z, Ctrl+Y, and Ctrl+Shift+Z use the
   same background command path. Select and brush tools retain camera access
-  through Ctrl+left-drag orbit, Shift+left-drag or middle/right-drag pan, and
-  wheel zoom. Active bindings are exposed by the Viewport section's `?` hover
-  help rather than a persistent footer below the editing viewport. Entering or
+  through a held modifier: orbit defaults to Alt or Ctrl and pan to Shift, both
+  rebindable from Model Preview Settings > Controls, alongside the always-on
+  middle/right-drag pan and wheel zoom. Pan is tested before orbit, so
+  `cdmw.domain.camera_bindings` moves orbit off a colliding pair rather than
+  letting it fire never. The live bindings are named on a permanent strip across
+  the bottom of the editor, whose key badges are highlighted while an edit tool
+  owns the left button. Edit Mesh opens with no rail page selected and the
+  viewport on `orbit`, so the first drag turns the model rather than editing it;
+  the tool-properties column stays collapsed to the icon rail until a tool is
+  picked. Entering or
   leaving Edit Mesh collapses or restores both tool panels as one suspended,
   buffered layout update; it does not resize each section recursively or restart
   the resident helper. Escape is consumed by the embedded builder instead of

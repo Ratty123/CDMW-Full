@@ -80,6 +80,11 @@ internal sealed record D3D11PresentationSettings
     public bool InvertOrbitY { get; init; }
     public bool InvertPanX { get; init; }
     public bool InvertPanY { get; init; }
+    // Which held modifier hands the left button to the camera while an edit tool
+    // owns it. One of "alt", "ctrl", "shift", or "alt_or_ctrl" — see
+    // CameraModifierBindings, which is the only thing that should read them.
+    public string CameraOrbitModifier { get; init; } = CameraModifierBindings.DefaultOrbit;
+    public string CameraPanModifier { get; init; } = CameraModifierBindings.DefaultPan;
     public Vector2 UvScale { get; init; } = Vector2.One;
     public Vector2 UvOffset { get; init; }
     public float UvRotationDegrees { get; init; }

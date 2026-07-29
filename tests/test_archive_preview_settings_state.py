@@ -33,6 +33,10 @@ def _changed_settings(field_name: str) -> ModelPreviewRenderSettings:
         "gizmo_z_axis_color": "#123456",
         "gizmo_highlight_color": "#123456",
         "gizmo_label_color": "#123456",
+        # Rebinding one modifier has to reach the renderer like any other camera
+        # setting; the pair stays non-overlapping so nothing resolves it away.
+        "camera_orbit_modifier": "ctrl",
+        "camera_pan_modifier": "alt",
     }
     old_value = getattr(base, field_name)
     if field_name in explicit_values:
@@ -106,6 +110,8 @@ _EXPECTED_CHANGE_ROUTES: dict[str, set[str]] = {
     "invert_orbit_y": {"d3d11_render_tuning_changed"},
     "invert_pan_x": {"d3d11_render_tuning_changed"},
     "invert_pan_y": {"d3d11_render_tuning_changed"},
+    "camera_orbit_modifier": {"d3d11_render_tuning_changed"},
+    "camera_pan_modifier": {"d3d11_render_tuning_changed"},
     "gizmo_x_axis_color": set(),
     "gizmo_y_axis_color": set(),
     "gizmo_z_axis_color": set(),
