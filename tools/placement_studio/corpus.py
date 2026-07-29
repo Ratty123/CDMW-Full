@@ -264,14 +264,62 @@ def archive_paths_matching(suffix: str, *, contains: str = "") -> List[str]:
     return sorted(found)
 
 
-def _iter_archive_entries(root: Path):
+def package_signature(root: Optional[Path] = None) -> List[list]:
+    """What a cache built from the packages was built from: name, size and mtime.
+
+    Shared rather than per-cache: the clip index, the wearables index and the
+    extracted-content cache all go stale together, for the same reason, and three copies of
+    this would be three chances to disagree.
+
+    Covers the `.paz` archives as well as the `.pamt` tables. A cached row is a *location* —
+    an offset and a length into a `.paz` — so a payload rewritten without its table changing
+    is exactly the update that would be read back as a valid offset into different bytes.
+    33 tables and 179 archives cost 8 ms to stat together, so the wider key is free.
+
+    Nanosecond mtimes, not whole seconds: a rewrite inside the same second is otherwise
+    invisible whenever the size happens to match. That is not sufficient on its own — an
+    updater that preserves timestamps defeats any mtime scheme — which is why the callers
+    also re-check the signature after a scan rather than trusting it once.
+    """
+
+    from cdmw.core.archive_format import discover_pamt_files
+
+    base = Path(root) if root is not None else game_root()
+    paths = set(discover_pamt_files(base))
+    try:
+        paths |= set(base.rglob("*.paz"))
+    except OSError:
+        pass  # an unreadable tree signs as whatever was reachable; the scan will fail anyway
+
+    signature: List[list] = []
+    for package in sorted(paths):
+        try:
+            stat = package.stat()
+        except OSError:
+            continue
+        signature.append([str(package), stat.st_size, stat.st_mtime_ns])
+    return signature
+
+
+def _iter_archive_entries(root: Path, *, on_error=None):
+    """Every entry in every package table. A table that will not parse is skipped.
+
+    `on_error` is called with `(pamt_path, exception)` for each skipped table. Skipping was
+    always right for a *display* — one bad package should not empty the browser — but it is
+    wrong to then persist the result: a transient read failure would be frozen into a cache
+    and every later launch would serve the same incomplete index without retrying. Callers
+    that store what they walked pass this and refuse to write when it fires.
+    """
+
     from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
 
     for pamt in discover_pamt_files(root):
         package = pamt.parent.name
         try:
             entries = parse_archive_pamt(pamt)
-        except Exception:
+        except Exception as error:  # noqa: BLE001 - a bad package is not the end of the walk
+            if on_error is not None:
+                on_error(pamt, error)
             continue
         for entry in entries:
             yield package, entry
