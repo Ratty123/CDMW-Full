@@ -529,7 +529,7 @@ class ThemeControllerMixin:
                     app,
                 ),
             )
-            self._queue_ui_font_apply_steps(app, schedule_column_autofit=False)
+            self._queue_ui_font_apply_steps(app, schedule_column_autofit=False, queue_responsive_minimums=False)
             if data["requires_data_fonts"]:
                 self._queue_data_font_apply_steps(schedule_column_autofit=False)
             if data["requires_text_colors"]:
@@ -606,7 +606,7 @@ class ThemeControllerMixin:
         )
         self._apply_theme_window_icon(self.current_theme_key)
 
-    def _queue_ui_font_apply_steps(self, app: QApplication, *, schedule_column_autofit: bool) -> None:
+    def _queue_ui_font_apply_steps(self, app: QApplication, *, schedule_column_autofit: bool, queue_responsive_minimums: bool = True) -> None:
         self._queue_appearance_apply_step("Updating app UI fonts", lambda app=app: self._apply_application_ui_fonts(app))
         texture_editor_tab = created_tool_widget(getattr(self, "texture_editor_tab", None))
         if texture_editor_tab is not None:
@@ -615,7 +615,10 @@ class ThemeControllerMixin:
                 lambda app=app, texture_editor_tab=texture_editor_tab: texture_editor_tab.sync_ui_font(app.font()),
             )
         self._queue_appearance_apply_step("Updating mesh editor font", lambda app=app: self._sync_mesh_editor_font(app))
-        self._queue_appearance_apply_step("Updating responsive controls", self._apply_responsive_control_minimums)
+        # A full theme apply queues this itself, later and better informed. Doing
+        # it here too walked every responsive control twice per theme change.
+        if queue_responsive_minimums:
+            self._queue_appearance_apply_step("Updating responsive controls", self._apply_responsive_control_minimums)
         if schedule_column_autofit:
             self._queue_appearance_apply_step("Scheduling column sizing", self._schedule_column_autofit)
 

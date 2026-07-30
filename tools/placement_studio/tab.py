@@ -268,6 +268,40 @@ class PlacementStudioTab(QWidget):
 
     # ── lifecycle ───────────────────────────────────────────────────
 
+    def iter_shutdown_workers(self):
+        """Every thread the shell's close sweep has to know about.
+
+        The shell finds threads through `findChildren`, so it did wait for these -- but
+        it could not name them, could not ask them to stop, and its force-stop pass
+        never reached them. Closing during a baseline extraction, a carry measurement
+        or an armour index therefore hid the window and left the process alive until
+        the sweep ended on its own.
+        """
+
+        tracked = [("baseline", self._thread, self._worker)]
+        studio = self._studio
+        if studio is not None:
+            for name in ("_armour_thread", "_swap_thread", "_carry_thread"):
+                thread = getattr(studio, name, None)
+                if thread is not None:
+                    tracked.append((name.lstrip("_"), thread, None))
+        return tuple((name, thread, worker) for name, thread, worker in tracked if thread is not None)
+
+    def request_shutdown(self) -> None:
+        """Ask every thread to finish, without waiting for any of them.
+
+        `shutdown()` blocks for up to five seconds; the shell calls this first on every
+        worker tab precisely so the waiting happens once, afterwards, across all of
+        them rather than tab by tab.
+        """
+
+        for _name, thread, _worker in self.iter_shutdown_workers():
+            try:
+                thread.requestInterruption()
+                thread.quit()
+            except RuntimeError:
+                continue
+
     def shutdown(self) -> None:
         """Stop the worker so closing the app never waits on an archive sweep."""
 

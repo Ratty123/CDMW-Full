@@ -100,6 +100,11 @@ from cdmw.ui.mesh_editor.workspace_views import (
 
 class WorkspacePanelBuilderMixin:
     def _build_right_panels(self) -> QTabWidget:
+        # Keyed on the English title the panel was added under, never on what the tab
+        # currently draws: the localizer rewrites `Checks` to `Prueft`, and matching the
+        # drawn text meant a finished validation or rebuild silently left the user on
+        # whatever pane they were already looking at.
+        self._right_panels_by_title: dict[str, QWidget] = {}
         tabs = QTabWidget(self)
         tabs.setObjectName("MeshEditorRightPanels")
         tabs.setUsesScrollButtons(True)
@@ -133,6 +138,7 @@ class WorkspacePanelBuilderMixin:
             (self.history_list, "History"),
         ):
             tabs.addTab(widget, title)
+            self._right_panels_by_title[title.strip().lower()] = widget
         self.update_session_summary(None)
         self.update_workspace_summary(None)
         self.update_uv_summary(None)
@@ -277,6 +283,12 @@ class WorkspacePanelBuilderMixin:
         if tabs is None:
             return
         normalized = str(title or "").strip().lower()
+        widget = getattr(self, "_right_panels_by_title", {}).get(normalized)
+        if widget is not None:
+            index = tabs.indexOf(widget)
+            if index >= 0:
+                tabs.setCurrentIndex(index)
+                return
         for index in range(tabs.count()):
             if tabs.tabText(index).strip().lower() == normalized:
                 tabs.setCurrentIndex(index)

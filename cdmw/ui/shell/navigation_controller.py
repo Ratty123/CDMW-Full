@@ -199,6 +199,23 @@ class NavigationControllerMixin:
         if key:
             self._attach_detached_tool(key)
 
+    def _remembered_tab_label(self, key: str, tab_widget: QTabWidget, index: int) -> str:
+        """The caption to put back, read off the tab we are about to remove.
+
+        The cache was filled once at registration, in English, and replayed verbatim on
+        every detach and reattach -- so detaching Archive Browser under a German UI put
+        the English caption back and left it there. Re-inserting a tab raises no event
+        the localizer acts on, so nothing corrected it until the next language change.
+        Reading the live text keeps whatever language it is currently in.
+        """
+        live = str(tab_widget.tabText(index) or "").strip() if index >= 0 else ""
+        if live:
+            self._tool_tab_labels_by_key[key] = live
+            return live
+        return self._tool_tab_labels_by_key.get(
+            key, as_label(self._tool_titles_by_key.get(key, key))
+        )
+
     def _detach_tool_key(self, key: str) -> None:
         if not key or key in self._detached_tool_windows:
             self._update_window_menu_state()
@@ -212,7 +229,7 @@ class NavigationControllerMixin:
         if tab_index < 0:
             return
         placeholder = self._create_detached_tool_placeholder(key)
-        tab_label = self._tool_tab_labels_by_key.get(key, as_label(title))
+        tab_label = self._remembered_tab_label(key, tab_widget, tab_index)
         tab_widget.removeTab(tab_index)
         tab_widget.insertTab(tab_index, placeholder, tab_label)
         self._select_tab_widget(tab_widget, placeholder)
@@ -271,12 +288,13 @@ class NavigationControllerMixin:
         tab_widget = self._tool_tab_widgets_by_key.get(key, self.main_tabs)
         tab_index = tab_widget.indexOf(placeholder) if placeholder is not None else -1
         if tab_index >= 0:
+            tab_label = self._remembered_tab_label(key, tab_widget, tab_index)
             tab_widget.removeTab(tab_index)
         else:
             tab_index = self._preferred_tool_tab_index(key)
-        tab_label = self._tool_tab_labels_by_key.get(
-            key, as_label(self._tool_titles_by_key.get(key, key))
-        )
+            tab_label = self._tool_tab_labels_by_key.get(
+                key, as_label(self._tool_titles_by_key.get(key, key))
+            )
         tab_widget.insertTab(tab_index, widget, tab_label)
         widget.updateGeometry()
         if select_after:

@@ -177,3 +177,33 @@ string has an explicit entry in all 14 built-ins and the runtime contracts are
 enforced. It does not certify native-speaker style, Windows-owned dialog chrome,
 raw external exception bodies, game content, developer harnesses, CLI output,
 or visible licensed-asset rendering.
+
+### Auditing what the window actually draws
+
+The checks above run from `source_manifest.json` outwards: every key it lists has
+a translation everywhere. They cannot see the opposite failure, which is the one
+users report — text that is on screen but was never a key, or is a key the
+runtime never looks up. "Production GUI source string" means whatever the
+extractor's sink list recognises, so a label composed at runtime or held in a
+module constant is absent from the manifest *and* from the thing that checks the
+manifest.
+
+`scripts/audit_gui_localization_coverage.py` walks the other way. It builds the
+real window offscreen, constructs every lazy tool, and sorts each visible string
+into the reason it is still English:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\audit_gui_localization_coverage.py --order coverage
+.\.venv\Scripts\python.exe scripts\audit_gui_localization_coverage.py --language de --order after
+```
+
+`--order coverage` stays in English and reports only strings that no language can
+ever change — no catalogue key under any spelling, and no template rule that
+matches. `--order after` switches language first and then opens the tools, the
+way a user does, and reports strings whose translation exists but did not reach
+the screen. `--order before` opens the tools first, so one apply pass covers
+everything; a string that fails only under `after` is a lazily-built tree the
+localizer did not revisit.
+
+Neither mode is a gate. The counts are large enough that ratcheting them would
+lock in the current state rather than describe it.

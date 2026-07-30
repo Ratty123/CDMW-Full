@@ -1836,7 +1836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 470,
+          "line": 482,
           "sink": "addItem"
         }
       ]
@@ -1846,7 +1846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 470,
+          "line": 482,
           "sink": "addItem"
         }
       ]
@@ -1936,7 +1936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 470,
+          "line": 482,
           "sink": "addItem"
         }
       ]
@@ -1991,7 +1991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 470,
+          "line": 482,
           "sink": "addItem"
         },
         {
@@ -2121,7 +2121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 470,
+          "line": 482,
           "sink": "addItem"
         },
         {
@@ -3871,7 +3871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_remaining_geometry_history_part_01.py",
-          "line": 741,
+          "line": 766,
           "sink": "set_status_message"
         },
         {
@@ -4626,7 +4626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_texture_material_part_01.py",
-          "line": 693,
+          "line": 699,
           "sink": "set_status_message"
         }
       ]
@@ -5231,7 +5231,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 541,
+          "line": 553,
           "sink": "_part_control_button"
         },
         {
@@ -5331,7 +5331,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 630,
+          "line": 637,
           "sink": "addItem"
         }
       ]
@@ -5386,12 +5386,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 184,
+          "line": 196,
           "sink": "getSaveFileName:filter-label"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 341,
+          "line": 354,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -5526,7 +5526,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 637,
+          "line": 644,
           "sink": "addItem"
         }
       ]
@@ -6126,7 +6126,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 450,
+          "line": 462,
           "sink": "add_group_label"
         },
         {
@@ -7131,7 +7131,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 336,
+          "line": 339,
           "sink": "_begin_pending"
         }
       ]
@@ -7231,7 +7231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 361,
+          "line": 364,
           "sink": "_begin_pending"
         }
       ]
@@ -7976,7 +7976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 316,
+          "line": 319,
           "sink": "append_archive_log"
         }
       ]
@@ -7986,7 +7986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 279,
+          "line": 282,
           "sink": "append_archive_log"
         }
       ]
@@ -7996,7 +7996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 867,
+          "line": 870,
           "sink": "append_archive_log"
         }
       ]
@@ -8036,12 +8036,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 838,
+          "line": 841,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 839,
+          "line": 842,
           "sink": "append_archive_log"
         }
       ]
@@ -8131,17 +8131,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 254,
+          "line": 257,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 255,
+          "line": 258,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 256,
+          "line": 259,
           "sink": "append_archive_log"
         }
       ]
@@ -8166,22 +8166,22 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 675,
+          "line": 678,
           "sink": "_set_archive_list_status"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 677,
+          "line": 680,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 678,
+          "line": 681,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 679,
+          "line": 682,
           "sink": "append_archive_log"
         }
       ]
@@ -9081,17 +9081,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 254,
+          "line": 257,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 255,
+          "line": 258,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 256,
+          "line": 259,
           "sink": "append_archive_log"
         }
       ]
@@ -9346,7 +9346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 810,
+          "line": 813,
           "sink": "append_archive_log"
         }
       ]
@@ -9356,7 +9356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 610,
+          "line": 613,
           "sink": "append_archive_log"
         }
       ]
@@ -10526,7 +10526,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 346,
+          "line": 358,
           "sink": "_uv_action_button"
         }
       ]
@@ -11971,7 +11971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 344,
+          "line": 356,
           "sink": "_uv_action_button"
         }
       ]
@@ -14146,7 +14146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 670,
+          "line": 673,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -14186,7 +14186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 670,
+          "line": 673,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -14226,12 +14226,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 249,
+          "line": 252,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 827,
+          "line": 830,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -14311,7 +14311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 833,
+          "line": 836,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -14331,7 +14331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 242,
+          "line": 245,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -14596,7 +14596,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 598,
+          "line": 601,
           "sink": "setText"
         },
         {
@@ -14641,7 +14641,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 143,
+          "line": 154,
           "sink": "QProgressDialog"
         },
         {
@@ -14741,7 +14741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 599,
+          "line": 602,
           "sink": "setToolTip"
         }
       ]
@@ -15116,7 +15116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 490,
+          "line": 497,
           "sink": "setText"
         }
       ]
@@ -15126,7 +15126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 429,
+          "line": 436,
           "sink": "setText"
         }
       ]
@@ -15226,7 +15226,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 609,
+          "line": 616,
           "sink": "setText"
         }
       ]
@@ -15321,7 +15321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 116,
+          "line": 122,
           "sink": "_combo"
         },
         {
@@ -15426,7 +15426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 129,
+          "line": 137,
           "sink": "setToolTip"
         }
       ]
@@ -15586,7 +15586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 256,
+          "line": 261,
           "sink": "QLabel"
         }
       ]
@@ -16136,7 +16136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 135,
+          "line": 140,
           "sink": "addTab"
         }
       ]
@@ -17511,12 +17511,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 325,
+          "line": 337,
           "sink": "_uv_command_button"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 549,
+          "line": 561,
           "sink": "_part_control_button"
         },
         {
@@ -17781,7 +17781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 325,
+          "line": 337,
           "sink": "_uv_command_button"
         }
       ]
@@ -17871,7 +17871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 549,
+          "line": 561,
           "sink": "_part_control_button"
         }
       ]
@@ -18136,7 +18136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 574,
+          "line": 586,
           "sink": "_part_action_button"
         },
         {
@@ -18176,7 +18176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 574,
+          "line": 586,
           "sink": "_part_action_button"
         }
       ]
@@ -18326,7 +18326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 465,
+          "line": 467,
           "sink": "set_status_message"
         }
       ]
@@ -18336,7 +18336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 377,
+          "line": 379,
           "sink": "set_status_message"
         }
       ]
@@ -18346,7 +18346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 192,
+          "line": 198,
           "sink": "_tree"
         }
       ]
@@ -20436,7 +20436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 179,
+          "line": 185,
           "sink": "setText"
         },
         {
@@ -20681,7 +20681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 181,
+          "line": 187,
           "sink": "setToolTip"
         }
       ]
@@ -20701,7 +20701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 180,
+          "line": 186,
           "sink": "setAccessibleName"
         }
       ]
@@ -20861,7 +20861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 477,
+          "line": 484,
           "sink": "_show_error"
         }
       ]
@@ -20881,7 +20881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 688,
+          "line": 699,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -21501,7 +21501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 906,
+          "line": 917,
           "sink": "emit"
         }
       ]
@@ -22351,7 +22351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 116,
+          "line": 122,
           "sink": "_combo"
         }
       ]
@@ -22601,7 +22601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 345,
+          "line": 357,
           "sink": "_uv_action_button"
         }
       ]
@@ -23521,7 +23521,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 577,
+          "line": 589,
           "sink": "_part_action_button"
         },
         {
@@ -23796,7 +23796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 577,
+          "line": 589,
           "sink": "_part_action_button"
         }
       ]
@@ -24261,7 +24261,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 135,
+          "line": 140,
           "sink": "addTab"
         },
         {
@@ -27201,7 +27201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 538,
+          "line": 549,
           "sink": "emit"
         }
       ]
@@ -27231,7 +27231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 736,
+          "line": 747,
           "sink": "emit"
         }
       ]
@@ -27241,7 +27241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 733,
+          "line": 744,
           "sink": "emit"
         }
       ]
@@ -27316,7 +27316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 959,
+          "line": 970,
           "sink": "emit"
         }
       ]
@@ -27326,7 +27326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 963,
+          "line": 974,
           "sink": "emit"
         }
       ]
@@ -27336,7 +27336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 940,
+          "line": 951,
           "sink": "emit"
         }
       ]
@@ -27346,7 +27346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 944,
+          "line": 955,
           "sink": "emit"
         }
       ]
@@ -27356,7 +27356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 920,
+          "line": 931,
           "sink": "emit"
         }
       ]
@@ -27366,7 +27366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 540,
+          "line": 551,
           "sink": "emit"
         }
       ]
@@ -27376,7 +27376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 524,
+          "line": 535,
           "sink": "emit"
         }
       ]
@@ -27386,7 +27386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 519,
+          "line": 530,
           "sink": "emit"
         }
       ]
@@ -27396,7 +27396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 469,
+          "line": 480,
           "sink": "emit"
         }
       ]
@@ -27406,17 +27406,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 449,
+          "line": 460,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 510,
+          "line": 521,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 531,
+          "line": 542,
           "sink": "emit"
         }
       ]
@@ -27426,7 +27426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 915,
+          "line": 926,
           "sink": "emit"
         }
       ]
@@ -27436,7 +27436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 931,
+          "line": 942,
           "sink": "emit"
         }
       ]
@@ -27446,7 +27446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 475,
+          "line": 486,
           "sink": "emit"
         }
       ]
@@ -27456,7 +27456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 911,
+          "line": 922,
           "sink": "emit"
         }
       ]
@@ -28521,7 +28521,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 365,
+          "line": 370,
           "sink": "QPushButton"
         }
       ]
@@ -29621,7 +29621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 388,
+          "line": 393,
           "sink": "setToolTip"
         }
       ]
@@ -29631,7 +29631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 367,
+          "line": 372,
           "sink": "setToolTip"
         }
       ]
@@ -30931,7 +30931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 393,
+          "line": 398,
           "sink": "QLabel"
         }
       ]
@@ -31006,7 +31006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 111,
+          "line": 116,
           "sink": "_part_tree"
         }
       ]
@@ -31291,7 +31291,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 271,
+          "line": 277,
           "sink": "_tree"
         }
       ]
@@ -32106,7 +32106,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 558,
+          "line": 561,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -33036,7 +33036,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 588,
+          "line": 600,
           "sink": "_part_action_button"
         }
       ]
@@ -33096,7 +33096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 588,
+          "line": 600,
           "sink": "_part_action_button"
         }
       ]
@@ -34611,7 +34611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 117,
+          "line": 123,
           "sink": "_combo"
         }
       ]
@@ -34866,7 +34866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 115,
+          "line": 121,
           "sink": "_combo"
         },
         {
@@ -36416,7 +36416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 135,
+          "line": 140,
           "sink": "addTab"
         },
         {
@@ -37246,7 +37246,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 599,
+          "line": 602,
           "sink": "setToolTip"
         }
       ]
@@ -37471,7 +37471,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 372,
+          "line": 377,
           "sink": "QPushButton"
         }
       ]
@@ -37951,7 +37951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 374,
+          "line": 379,
           "sink": "setToolTip"
         }
       ]
@@ -39111,7 +39111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 116,
+          "line": 122,
           "sink": "_combo"
         }
       ]
@@ -39596,7 +39596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 557,
+          "line": 569,
           "sink": "_part_control_button"
         },
         {
@@ -39726,7 +39726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 557,
+          "line": 569,
           "sink": "_part_control_button"
         }
       ]
@@ -40231,7 +40231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 601,
+          "line": 608,
           "sink": "setText"
         }
       ]
@@ -40506,7 +40506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 341,
+          "line": 354,
           "sink": "getSaveFileName:filter-label"
         },
         {
@@ -42756,7 +42756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 783,
+          "line": 794,
           "sink": "emit"
         }
       ]
@@ -42776,7 +42776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 208,
+          "line": 211,
           "sink": "_begin_pending"
         }
       ]
@@ -42871,7 +42871,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 409,
+          "line": 416,
           "sink": "setText"
         }
       ]
@@ -43126,7 +43126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 117,
+          "line": 123,
           "sink": "_combo"
         },
         {
@@ -43436,7 +43436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 462,
+          "line": 474,
           "sink": "_skeleton_pose_button"
         },
         {
@@ -44431,7 +44431,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 618,
+          "line": 630,
           "sink": "_part_tree"
         }
       ]
@@ -45431,7 +45431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 116,
+          "line": 122,
           "sink": "_combo"
         }
       ]
@@ -46351,7 +46351,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 144,
+          "line": 155,
           "sink": "setWindowTitle"
         },
         {
@@ -46681,7 +46681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 417,
+          "line": 426,
           "sink": "emit"
         }
       ]
@@ -46691,7 +46691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 408,
+          "line": 417,
           "sink": "emit"
         }
       ]
@@ -47006,7 +47006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 369,
+          "line": 378,
           "sink": "emit"
         }
       ]
@@ -47026,7 +47026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 866,
+          "line": 877,
           "sink": "emit"
         }
       ]
@@ -47196,7 +47196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 184,
+          "line": 196,
           "sink": "getSaveFileName:filter-label"
         }
       ]
@@ -47256,7 +47256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 377,
+          "line": 388,
           "sink": "setText"
         }
       ]
@@ -47691,7 +47691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 192,
+          "line": 198,
           "sink": "_tree"
         }
       ]
@@ -47791,7 +47791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 152,
+          "line": 158,
           "sink": "_tree"
         }
       ]
@@ -48381,7 +48381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 151,
+          "line": 156,
           "sink": "QLabel"
         },
         {
@@ -48421,7 +48421,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 245,
+          "line": 256,
           "sink": "setText"
         }
       ]
@@ -48431,7 +48431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 245,
+          "line": 256,
           "sink": "setText"
         }
       ]
@@ -50111,7 +50111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 382,
+          "line": 393,
           "sink": "setText"
         }
       ]
@@ -50996,7 +50996,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 364,
+          "line": 375,
           "sink": "setText"
         },
         {
@@ -51301,7 +51301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 530,
+          "line": 537,
           "sink": "setText"
         }
       ]
@@ -52426,7 +52426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 250,
+          "line": 261,
           "sink": "setText"
         }
       ]
@@ -53151,7 +53151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 817,
+          "line": 828,
           "sink": "emit"
         }
       ]
@@ -53551,7 +53551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 767,
+          "line": 778,
           "sink": "emit"
         }
       ]
@@ -53786,27 +53786,27 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 591,
+          "line": 598,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 612,
+          "line": 619,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 613,
+          "line": 620,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 615,
+          "line": 622,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 616,
+          "line": 623,
           "sink": "setText"
         },
         {
@@ -53841,17 +53841,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 440,
+          "line": 452,
           "sink": "_skeleton_pose_button"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 489,
+          "line": 501,
           "sink": "_skeleton_pose_button"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 294,
+          "line": 299,
           "sink": "_rig_palette_button"
         }
       ]
@@ -53866,7 +53866,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 117,
+          "line": 123,
           "sink": "_combo"
         },
         {
@@ -53996,7 +53996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 294,
+          "line": 299,
           "sink": "_rig_palette_button"
         }
       ]
@@ -54846,7 +54846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 115,
+          "line": 121,
           "sink": "_combo"
         },
         {
@@ -55186,7 +55186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 379,
+          "line": 384,
           "sink": "QPushButton"
         },
         {
@@ -55511,7 +55511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 232,
+          "line": 245,
           "sink": "emit"
         }
       ]
@@ -55706,7 +55706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 408,
+          "line": 413,
           "sink": "setToolTip"
         }
       ]
@@ -55751,7 +55751,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 598,
+          "line": 610,
           "sink": "setText"
         }
       ]
@@ -55861,7 +55861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 23,
+          "line": 34,
           "sink": "emit"
         }
       ]
@@ -55871,7 +55871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 119,
+          "line": 130,
           "sink": "emit"
         }
       ]
@@ -55881,7 +55881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 407,
+          "line": 420,
           "sink": "emit"
         }
       ]
@@ -56056,7 +56056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 600,
+          "line": 612,
           "sink": "setToolTip"
         }
       ]
@@ -56066,7 +56066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 599,
+          "line": 611,
           "sink": "setAccessibleName"
         }
       ]
@@ -56131,7 +56131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 261,
+          "line": 266,
           "sink": "_rig_palette_button"
         }
       ]
@@ -56191,7 +56191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 381,
+          "line": 386,
           "sink": "setToolTip"
         }
       ]
@@ -57123,16 +57123,6 @@
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
           "line": 244,
           "sink": "QGroupBox"
-        }
-      ]
-    },
-    {
-      "key": "Orient",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 151,
-          "sink": "QLabel"
         }
       ]
     },
@@ -58206,7 +58196,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 245,
+          "line": 251,
           "sink": "setText"
         },
         {
@@ -58391,7 +58381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 246,
+          "line": 252,
           "sink": "setAccessibleName"
         }
       ]
@@ -58806,7 +58796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 111,
+          "line": 116,
           "sink": "_part_tree"
         },
         {
@@ -58841,7 +58831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 135,
+          "line": 140,
           "sink": "addTab"
         }
       ]
@@ -58936,7 +58926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 400,
+          "line": 405,
           "sink": "QLabel"
         }
       ]
@@ -59061,7 +59051,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 135,
+          "line": 140,
           "sink": "addTab"
         },
         {
@@ -59611,12 +59601,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 215,
+          "line": 228,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 216,
+          "line": 229,
           "sink": "emit"
         }
       ]
@@ -60206,7 +60196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 135,
+          "line": 140,
           "sink": "addTab"
         },
         {
@@ -60507,16 +60497,6 @@
       ]
     },
     {
-      "key": "Pivot",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 151,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
       "key": "Pivot socket",
       "origins": [
         {
@@ -60541,7 +60521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 115,
+          "line": 121,
           "sink": "_combo"
         }
       ]
@@ -61046,7 +61026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 343,
+          "line": 355,
           "sink": "_uv_action_button"
         }
       ]
@@ -61266,7 +61246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 451,
+          "line": 463,
           "sink": "_skeleton_pose_button"
         },
         {
@@ -61501,22 +61481,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 428,
+          "line": 440,
           "sink": "_skeleton_pose_button"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 433,
+          "line": 445,
           "sink": "add_group_label"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 270,
+          "line": 275,
           "sink": "_rig_palette_button"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 417,
+          "line": 422,
           "sink": "setText"
         },
         {
@@ -62096,7 +62076,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 558,
+          "line": 561,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -62141,7 +62121,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 564,
+          "line": 567,
           "sink": "_set_archive_warmup_overlay"
         },
         {
@@ -63066,12 +63046,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 232,
+          "line": 238,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 427,
+          "line": 439,
           "sink": "add_group_label"
         },
         {
@@ -63956,7 +63936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 233,
+          "line": 239,
           "sink": "setAccessibleName"
         }
       ]
@@ -64111,7 +64091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 234,
+          "line": 240,
           "sink": "setToolTip"
         }
       ]
@@ -64981,7 +64961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 113,
+          "line": 118,
           "sink": "_tree"
         }
       ]
@@ -66056,12 +66036,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 254,
+          "line": 257,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 677,
+          "line": 680,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -66301,7 +66281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 250,
+          "line": 261,
           "sink": "setText"
         }
       ]
@@ -66531,12 +66511,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 135,
+          "line": 140,
           "sink": "addTab"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 219,
+          "line": 225,
           "sink": "setText"
         }
       ]
@@ -66571,7 +66551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 184,
+          "line": 196,
           "sink": "getSaveFileName"
         }
       ]
@@ -66581,7 +66561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 242,
+          "line": 255,
           "sink": "emit"
         }
       ]
@@ -66616,7 +66596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 220,
+          "line": 226,
           "sink": "setAccessibleName"
         }
       ]
@@ -66626,12 +66606,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 215,
+          "line": 228,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 216,
+          "line": 229,
           "sink": "emit"
         }
       ]
@@ -66641,7 +66621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 384,
+          "line": 397,
           "sink": "emit"
         }
       ]
@@ -66651,7 +66631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 381,
+          "line": 394,
           "sink": "emit"
         }
       ]
@@ -66931,7 +66911,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 580,
+          "line": 592,
           "sink": "_part_action_button"
         }
       ]
@@ -66941,7 +66921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 580,
+          "line": 592,
           "sink": "_part_action_button"
         }
       ]
@@ -67591,7 +67571,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 585,
+          "line": 592,
           "sink": "setText"
         }
       ]
@@ -67611,7 +67591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 608,
+          "line": 615,
           "sink": "setText"
         }
       ]
@@ -68161,7 +68141,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 598,
+          "line": 601,
           "sink": "setText"
         },
         {
@@ -68446,7 +68426,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 208,
+          "line": 211,
           "sink": "_begin_pending"
         }
       ]
@@ -68876,7 +68856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 360,
+          "line": 365,
           "sink": "setToolTip"
         }
       ]
@@ -69891,7 +69871,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 447,
+          "line": 459,
           "sink": "_skeleton_pose_button"
         },
         {
@@ -69991,7 +69971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_remaining_geometry_history_part_01.py",
-          "line": 720,
+          "line": 741,
           "sink": "_push_geometry_undo_snapshot"
         }
       ]
@@ -70646,7 +70626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 400,
+          "line": 409,
           "sink": "emit"
         }
       ]
@@ -70656,7 +70636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 691,
+          "line": 698,
           "sink": "setText"
         }
       ]
@@ -71311,7 +71291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 111,
+          "line": 116,
           "sink": "_part_tree"
         }
       ]
@@ -71401,7 +71381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 135,
+          "line": 140,
           "sink": "addTab"
         },
         {
@@ -71626,7 +71606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 459,
+          "line": 471,
           "sink": "_skeleton_pose_button"
         }
       ]
@@ -71636,7 +71616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 135,
+          "line": 140,
           "sink": "addTab"
         }
       ]
@@ -71696,7 +71676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 406,
+          "line": 418,
           "sink": "QLabel"
         }
       ]
@@ -71921,12 +71901,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 440,
+          "line": 452,
           "sink": "_skeleton_pose_button"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 489,
+          "line": 501,
           "sink": "_skeleton_pose_button"
         }
       ]
@@ -71936,12 +71916,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 440,
+          "line": 452,
           "sink": "_skeleton_pose_button"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 489,
+          "line": 501,
           "sink": "_skeleton_pose_button"
         }
       ]
@@ -71951,12 +71931,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 440,
+          "line": 452,
           "sink": "_skeleton_pose_button"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 489,
+          "line": 501,
           "sink": "_skeleton_pose_button"
         }
       ]
@@ -72016,7 +71996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 338,
+          "line": 350,
           "sink": "_uv_action_button"
         }
       ]
@@ -72296,12 +72276,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 166,
+          "line": 172,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 206,
+          "line": 212,
           "sink": "setText"
         },
         {
@@ -72356,7 +72336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 338,
+          "line": 351,
           "sink": "emit"
         }
       ]
@@ -72376,7 +72356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 168,
+          "line": 174,
           "sink": "setToolTip"
         }
       ]
@@ -72386,7 +72366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 207,
+          "line": 213,
           "sink": "setAccessibleName"
         }
       ]
@@ -72406,7 +72386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 167,
+          "line": 173,
           "sink": "setAccessibleName"
         }
       ]
@@ -72416,7 +72396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 148,
+          "line": 159,
           "sink": "emit"
         }
       ]
@@ -72426,7 +72406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 179,
+          "line": 191,
           "sink": "emit"
         }
       ]
@@ -72496,7 +72476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 56,
+          "line": 67,
           "sink": "emit"
         }
       ]
@@ -72506,7 +72486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 54,
+          "line": 65,
           "sink": "setText"
         }
       ]
@@ -72516,7 +72496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 174,
+          "line": 186,
           "sink": "emit"
         }
       ]
@@ -72526,7 +72506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 143,
+          "line": 154,
           "sink": "QProgressDialog"
         },
         {
@@ -72961,7 +72941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 258,
+          "line": 264,
           "sink": "setText"
         },
         {
@@ -73086,7 +73066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 341,
+          "line": 354,
           "sink": "getSaveFileName"
         }
       ]
@@ -73156,7 +73136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 259,
+          "line": 265,
           "sink": "setAccessibleName"
         }
       ]
@@ -73166,7 +73146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 260,
+          "line": 266,
           "sink": "setToolTip"
         }
       ]
@@ -73356,7 +73336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 377,
+          "line": 390,
           "sink": "emit"
         }
       ]
@@ -73991,12 +73971,12 @@
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 620,
+          "line": 623,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 749,
+          "line": 752,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -74011,7 +73991,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 352,
+          "line": 355,
           "sink": "setText"
         }
       ]
@@ -74036,7 +74016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 712,
+          "line": 719,
           "sink": "setText"
         }
       ]
@@ -74461,7 +74441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 409,
+          "line": 416,
           "sink": "setText"
         }
       ]
@@ -74556,7 +74536,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 151,
+          "line": 156,
           "sink": "QLabel"
         },
         {
@@ -74596,7 +74576,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 317,
+          "line": 329,
           "sink": "_uv_command_button"
         },
         {
@@ -76316,7 +76296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 317,
+          "line": 329,
           "sink": "_uv_command_button"
         }
       ]
@@ -76326,7 +76306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 541,
+          "line": 553,
           "sink": "_part_control_button"
         }
       ]
@@ -76616,7 +76596,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 584,
+          "line": 591,
           "sink": "setText"
         }
       ]
@@ -76641,7 +76621,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 588,
+          "line": 595,
           "sink": "setText"
         }
       ]
@@ -76716,7 +76696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 676,
+          "line": 683,
           "sink": "information"
         }
       ]
@@ -77476,7 +77456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 533,
+          "line": 545,
           "sink": "QLabel"
         },
         {
@@ -77991,7 +77971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 247,
+          "line": 253,
           "sink": "setToolTip"
         }
       ]
@@ -78526,7 +78506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 192,
+          "line": 198,
           "sink": "_tree"
         }
       ]
@@ -79376,7 +79356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 407,
+          "line": 412,
           "sink": "setAccessibleName"
         }
       ]
@@ -79661,7 +79641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 532,
+          "line": 539,
           "sink": "setText"
         }
       ]
@@ -80471,22 +80451,22 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 410,
+          "line": 422,
           "sink": "_tree"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 501,
+          "line": 513,
           "sink": "_tree"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 261,
+          "line": 266,
           "sink": "_rig_palette_button"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 406,
+          "line": 411,
           "sink": "setText"
         },
         {
@@ -80751,7 +80731,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 618,
+          "line": 630,
           "sink": "_part_tree"
         }
       ]
@@ -80872,16 +80852,6 @@
       ]
     },
     {
-      "key": "Snap",
-      "origins": [
-        {
-          "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 151,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
       "key": "Snap Grid",
       "origins": [
         {
@@ -80891,7 +80861,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 347,
+          "line": 359,
           "sink": "_uv_action_button"
         }
       ]
@@ -80906,7 +80876,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 348,
+          "line": 360,
           "sink": "_uv_action_button"
         }
       ]
@@ -83271,7 +83241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 456,
+          "line": 468,
           "sink": "_skeleton_pose_button"
         }
       ]
@@ -83326,7 +83296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 857,
+          "line": 868,
           "sink": "emit"
         }
       ]
@@ -83356,7 +83326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/close_controller.py",
-          "line": 361,
+          "line": 363,
           "sink": "set_status_message"
         }
       ]
@@ -85051,7 +85021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 244,
+          "line": 255,
           "sink": "setText"
         }
       ]
@@ -85456,7 +85426,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 618,
+          "line": 630,
           "sink": "_part_tree"
         },
         {
@@ -86981,7 +86951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 395,
+          "line": 402,
           "sink": "_show_error"
         }
       ]
@@ -87566,7 +87536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 386,
+          "line": 389,
           "sink": "emit"
         }
       ]
@@ -87576,7 +87546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 706,
+          "line": 713,
           "sink": "setText"
         }
       ]
@@ -87751,7 +87721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 564,
+          "line": 567,
           "sink": "_set_archive_warmup_overlay"
         }
       ]
@@ -88011,7 +87981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 743,
+          "line": 754,
           "sink": "emit"
         }
       ]
@@ -88711,7 +88681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 418,
+          "line": 423,
           "sink": "setAccessibleName"
         }
       ]
@@ -88721,7 +88691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 419,
+          "line": 424,
           "sink": "setToolTip"
         }
       ]
@@ -88731,7 +88701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 270,
+          "line": 275,
           "sink": "_rig_palette_button"
         }
       ]
@@ -89026,17 +88996,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 440,
+          "line": 452,
           "sink": "_skeleton_pose_button"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 489,
+          "line": 501,
           "sink": "_skeleton_pose_button"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 282,
+          "line": 287,
           "sink": "_rig_palette_button"
         }
       ]
@@ -89046,7 +89016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 282,
+          "line": 287,
           "sink": "_rig_palette_button"
         }
       ]
@@ -89756,7 +89726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 305,
+          "line": 317,
           "sink": "_tree"
         },
         {
@@ -89781,7 +89751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 135,
+          "line": 140,
           "sink": "addTab"
         }
       ]
@@ -89816,7 +89786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 295,
+          "line": 307,
           "sink": "QLabel"
         }
       ]
@@ -90781,7 +90751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 810,
+          "line": 813,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -90816,7 +90786,7 @@
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 618,
+          "line": 621,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -90856,22 +90826,22 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 732,
+          "line": 735,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 744,
+          "line": 747,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 784,
+          "line": 787,
           "sink": "_queue_appearance_apply_step"
         },
         {
           "path": "cdmw/ui/shell/theme_controller.py",
-          "line": 800,
+          "line": 803,
           "sink": "_queue_appearance_apply_step"
         }
       ]
@@ -92136,7 +92106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 208,
+          "line": 214,
           "sink": "setToolTip"
         }
       ]
@@ -92191,12 +92161,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 78,
+          "line": 89,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 79,
+          "line": 90,
           "sink": "emit"
         }
       ]
@@ -92206,12 +92176,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 72,
+          "line": 83,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 73,
+          "line": 84,
           "sink": "emit"
         }
       ]
@@ -92221,12 +92191,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 153,
+          "line": 164,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 154,
+          "line": 165,
           "sink": "emit"
         }
       ]
@@ -92306,32 +92276,32 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 113,
+          "line": 118,
           "sink": "_tree"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 152,
+          "line": 158,
           "sink": "_tree"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 271,
+          "line": 277,
           "sink": "_tree"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 305,
+          "line": 317,
           "sink": "_tree"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 410,
+          "line": 422,
           "sink": "_tree"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 501,
+          "line": 513,
           "sink": "_tree"
         },
         {
@@ -92566,7 +92536,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 115,
+          "line": 121,
           "sink": "_combo"
         }
       ]
@@ -92761,12 +92731,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 117,
+          "line": 123,
           "sink": "_combo"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_shell_builder.py",
-          "line": 151,
+          "line": 156,
           "sink": "QLabel"
         },
         {
@@ -93001,12 +92971,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 440,
+          "line": 452,
           "sink": "_skeleton_pose_button"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 489,
+          "line": 501,
           "sink": "_skeleton_pose_button"
         }
       ]
@@ -93016,12 +92986,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 440,
+          "line": 452,
           "sink": "_skeleton_pose_button"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 489,
+          "line": 501,
           "sink": "_skeleton_pose_button"
         }
       ]
@@ -93231,12 +93201,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 33,
+          "line": 44,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 126,
+          "line": 137,
           "sink": "emit"
         }
       ]
@@ -93276,7 +93246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 350,
+          "line": 363,
           "sink": "emit"
         }
       ]
@@ -93446,7 +93416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 804,
+          "line": 807,
           "sink": "append_archive_log"
         }
       ]
@@ -93541,7 +93511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 697,
+          "line": 700,
           "sink": "append_archive_log"
         }
       ]
@@ -93561,7 +93531,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 652,
+          "line": 655,
           "sink": "append_archive_log"
         },
         {
@@ -94116,7 +94086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 481,
+          "line": 493,
           "sink": "add_group_label"
         },
         {
@@ -95531,7 +95501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 221,
+          "line": 227,
           "sink": "setToolTip"
         }
       ]
@@ -99126,12 +99096,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 331,
+          "line": 343,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 555,
+          "line": 567,
           "sink": "emit"
         }
       ]
@@ -103416,17 +103386,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 249,
+          "line": 252,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 670,
+          "line": 673,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 827,
+          "line": 830,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -104076,7 +104046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
-          "line": 563,
+          "line": 575,
           "sink": "emit"
         }
       ]
@@ -107296,7 +107266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 401,
+          "line": 414,
           "sink": "RuntimeError"
         }
       ]
@@ -108231,7 +108201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 252,
+          "line": 265,
           "sink": "_standalone_rebuilt_asset_handoff_payload"
         }
       ]
@@ -109121,7 +109091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_reports.py",
-          "line": 246,
+          "line": 259,
           "sink": "_standalone_rebuilt_asset_handoff_payload"
         }
       ]
@@ -188121,7 +188091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 833,
+          "line": 836,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -188191,7 +188161,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 242,
+          "line": 245,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -189796,7 +189766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 510,
+          "line": 517,
           "sink": "QListWidgetItem"
         }
       ]
@@ -190006,7 +189976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 602,
+          "line": 609,
           "sink": "setText"
         }
       ]
@@ -190016,7 +189986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 514,
+          "line": 521,
           "sink": "setToolTip"
         }
       ]
@@ -190196,7 +190166,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 639,
+          "line": 646,
           "sink": "addItem"
         },
         {
@@ -190411,7 +190381,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 603,
+          "line": 610,
           "sink": "setText"
         },
         {
@@ -190501,7 +190471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 632,
+          "line": 639,
           "sink": "addItem"
         }
       ]
@@ -190676,7 +190646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 604,
+          "line": 611,
           "sink": "setText"
         }
       ]
@@ -190781,12 +190751,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 232,
+          "line": 243,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 233,
+          "line": 244,
           "sink": "emit"
         }
       ]
@@ -193236,7 +193206,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 456,
+          "line": 463,
           "sink": "setText"
         },
         {
@@ -193886,7 +193856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 456,
+          "line": 463,
           "sink": "setText"
         },
         {

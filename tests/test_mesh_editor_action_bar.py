@@ -1342,9 +1342,17 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertIsNotNone(workspace.findChild(QFrame, "MeshEditorCentralPreview"))
         self.assertIsNotNone(workspace.findChild(QFrame, "MeshEditorBottomStatusStrip"))
         self.assertIsNotNone(workspace.findChild(QFrame, "MeshEditorUVCanvas"))
-        self.assertIsNotNone(workspace.findChild(QComboBox, "MeshEditorSnapModeCombo"))
-        self.assertIsNotNone(workspace.findChild(QComboBox, "MeshEditorPivotCombo"))
-        self.assertIsNotNone(workspace.findChild(QComboBox, "MeshEditorOrientationCombo"))
+        # Built but deliberately off the bar: nothing reads snap, pivot or orient, so
+        # showing them advertised behavior the editor does not have. Asserting they are
+        # hidden is what keeps them from drifting back onto the bar unwired.
+        for unwired_name in (
+            "MeshEditorSnapModeCombo",
+            "MeshEditorPivotCombo",
+            "MeshEditorOrientationCombo",
+        ):
+            unwired = workspace.findChild(QComboBox, unwired_name)
+            self.assertIsNotNone(unwired)
+            self.assertFalse(unwired.isVisibleTo(workspace), unwired_name)
         panels = workspace.findChild(QTabWidget, "MeshEditorRightPanels")
         assert panels is not None
         self.assertEqual(
@@ -4534,3 +4542,51 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MeshEditorLocalizedIdentityTests(unittest.TestCase):
+    """Panels and captions must be found by identity, never by displayed text."""
+
+    def test_report_panes_focus_after_the_captions_are_translated(self) -> None:
+        from pathlib import Path as _Path
+
+        from cdmw.ui.localization import UiLocalizer
+
+        app = QApplication.instance() or QApplication([])
+        workspace = MeshEditorWorkspace()
+        panels = workspace.findChild(QTabWidget, "MeshEditorRightPanels")
+        assert panels is not None
+
+        german = UiLocalizer(language_dir=_Path("__unused__"), language_code="de")
+        german.apply(workspace)
+        app.processEvents()
+
+        # Guard the premise: if the captions stopped being translated this test would
+        # pass for the wrong reason.
+        checks_index = next(
+            index
+            for index in range(panels.count())
+            if panels.widget(index) is workspace._right_panels_by_title["checks"]
+        )
+        self.assertNotEqual("Checks", panels.tabText(checks_index))
+
+        panels.setCurrentIndex(0)
+        workspace._focus_right_panel("Checks")
+        self.assertEqual(checks_index, panels.currentIndex())
+
+        panels.setCurrentIndex(0)
+        workspace._focus_right_panel("Rebuild")
+        self.assertIs(
+            workspace._right_panels_by_title["rebuild"],
+            panels.widget(panels.currentIndex()),
+        )
+
+        panels.setCurrentIndex(0)
+        workspace._focus_right_panel("Rig")
+        self.assertIs(
+            workspace._right_panels_by_title["rig"],
+            panels.widget(panels.currentIndex()),
+        )
+
+        workspace.deleteLater()
+        app.processEvents()

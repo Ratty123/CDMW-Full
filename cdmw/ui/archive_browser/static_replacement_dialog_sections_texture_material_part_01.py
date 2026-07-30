@@ -496,6 +496,12 @@ def _texture_material_step_006(_state):
     _state.texture_transform_header_row.addWidget(_state._inline_help_button_helper(_state.texture_uv_control_text['help']))
     _state.texture_transform_layout.addLayout(_state.texture_transform_header_row, 0, 0, 1, 6)
     _state.texture_transform_material_combo = _state.QComboBox()
+    # Every row carries its key as item data, which is the localizer's signal that the
+    # display text is a label and safe to translate. Here it is not: the rows are game
+    # material names, and the save path reads `currentText()`. A material named `Body`
+    # was written into the UV transform as `Koerper` under a German UI, so the exported
+    # override named a material the asset does not have.
+    _state.texture_transform_material_combo.setProperty('_i18n_skip_combo_items', True)
     _state.texture_transform_material_combo.setSizePolicy(_state.QSizePolicy.Expanding, _state.QSizePolicy.Fixed)
     _state.texture_transform_material_combo.setToolTip(_state.texture_uv_control_text['material_tooltip'])
     _state.texture_transform_rotate_combo = _state.QComboBox()

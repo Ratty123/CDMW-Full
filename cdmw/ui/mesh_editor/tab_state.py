@@ -100,8 +100,19 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
         self._refresh_standalone_compare_summary(view)
         self._refresh_standalone_export_validation(view)
         rebuild_updater = getattr(self.standalone_workspace, "update_rebuild_report", None)
-        if callable(rebuild_updater):
+        # A rebuild report goes stale when the geometry changes, not when the user
+        # clicks a different part -- and this ran on every state refresh, so selecting
+        # a part threw away a finished report the user could no longer inspect,
+        # preview or package. Only a geometry command moves `revision`.
+        stamped = self.standalone_rebuild_report_revision
+        report_is_stale = (
+            view is None
+            or stamped is None
+            or int(getattr(view, "revision", -1)) != int(stamped)
+        )
+        if callable(rebuild_updater) and report_is_stale:
             self.standalone_last_rebuild_report = None
+            self.standalone_rebuild_report_revision = None
             rebuild_updater(None)
         if view is None:
             self.update_editor_action_state(

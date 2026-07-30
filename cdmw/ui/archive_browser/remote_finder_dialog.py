@@ -372,6 +372,13 @@ class RemoteArchiveFinderDialog(QDialog):
         finally:
             for widget in (self._search_edit, self._category_combo, self._material_combo):
                 widget.blockSignals(False)
+        # The saved filter is held here until the first facet response replaces it with
+        # a real combo selection. Clearing only the controls left the next search still
+        # reading it, so Clear pressed before the facets arrived showed "All" over
+        # results that were still restricted.
+        self._preferred_category = ""
+        self._preferred_group = ""
+        self._preferred_material = ""
         self._page_start = 0
         self._start_search()
 
