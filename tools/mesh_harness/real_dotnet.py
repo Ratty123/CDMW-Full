@@ -694,6 +694,9 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         state.visual_proof_path,
         before_center=state.projected_center,
         after_center=state.projected_after_center,
+        # The centres are in the pane the projection was built for; the captures are
+        # whatever the window was when they were grabbed, and it narrows mid-run.
+        projection_size=(state.projection_viewport_width, state.projection_viewport_height),
     )
     state.handler_summary = _timing_summary(state.stroke_handler_timings, "handler_ms")
     state.handler_p95_ms = _finite_float(state.handler_summary.get("p95_ms"))

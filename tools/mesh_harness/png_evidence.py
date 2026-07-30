@@ -133,7 +133,19 @@ def _write_real_archive_visual_edit_proof(
     *,
     before_center: Sequence[object] | None,
     after_center: Sequence[object] | None,
+    projection_size: Sequence[object] | None = None,
 ) -> dict[str, object]:
+    """Crop the region a drag was projected into and diff the two captures.
+
+    The centres arrive in the space the projection was built for -- the renderer's
+    pane -- while the images are whatever the window was when they were grabbed.
+    Those are the same rectangle only if nothing resized in between, and the mesh
+    proof narrows its window mid-run: a 1467-wide frame presented into a 957-wide
+    window puts the edit at pane_x * 957/1467, so cropping at pane_x looked at
+    empty background and reported zero changed pixels for a drag that had visibly
+    worked. Pass `projection_size` and the centres are mapped into image space.
+    """
+
     try:
         from PIL import Image, ImageChops, ImageDraw, ImageEnhance
     except Exception as exc:
@@ -162,8 +174,17 @@ def _write_real_archive_visual_edit_proof(
         except (TypeError, ValueError, OverflowError, IndexError):
             return fallback
 
-    before_point = _point(before_center, (width * 0.5, height * 0.5))
+    scale_x = 1.0
+    scale_y = 1.0
+    projection = _point(projection_size, (0.0, 0.0))
+    if projection[0] > 0.0 and projection[1] > 0.0:
+        scale_x = width / projection[0]
+        scale_y = height / projection[1]
+
+    before_point = _point(before_center, (width * 0.5 / scale_x, height * 0.5 / scale_y))
     after_point = _point(after_center, before_point)
+    before_point = (before_point[0] * scale_x, before_point[1] * scale_y)
+    after_point = (after_point[0] * scale_x, after_point[1] * scale_y)
     min_x = max(0, int(math.floor(min(before_point[0], after_point[0]) - 180)))
     max_x = min(width, int(math.ceil(max(before_point[0], after_point[0]) + 180)))
     min_y = max(0, int(math.floor(min(before_point[1], after_point[1]) - 140)))
@@ -216,6 +237,9 @@ def _write_real_archive_visual_edit_proof(
         "crop_box": list(crop_box),
         "before_center": [before_point[0], before_point[1]],
         "after_center": [after_point[0], after_point[1]],
+        "capture_size": [width, height],
+        "projection_size": [projection[0], projection[1]],
+        "projection_to_capture_scale": [scale_x, scale_y],
     }
 
 def _png_unfilter_scanline(scanline: bytearray, previous: bytearray, channels: int, filter_type: int) -> None:
