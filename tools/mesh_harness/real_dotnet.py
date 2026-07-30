@@ -62,6 +62,7 @@ from tools.mesh_harness.real_dotnet_material import (
     resident_material_evidence,
     resident_material_gates,
 )
+from tools.mesh_harness.real_dotnet_geometry import refresh_editable_viewport_rectangle
 from tools.mesh_harness.real_dotnet_flow import (
     exercise_assignment_and_mesh_edits,
     exercise_coherent_export,
@@ -489,88 +490,6 @@ def _execute_performance_capture(state: SimpleNamespace, request: PerformanceReq
 
 
 
-def _refresh_editable_viewport_rectangle(state: SimpleNamespace) -> dict[str, object]:
-    """Replace the ready-event viewport snapshot with the renderer's live one.
-
-    Both rectangles are editable-pane-local by contract -- the renderer publishes
-    `screen_x`/`screen_y` as the pane's screen origin and `width`/`height` as the
-    pane's size, precisely so that input and projection payloads agree with it --
-    so this swaps a stale reading for a current one without changing what the
-    numbers mean. The HWNDs are kept from the original because they identify the
-    windows the harness already resolved and must not silently move.
-    """
-
-    status = request_full_renderer_status(state, _pump_until)
-    raw = status.get("viewport") if isinstance(status, Mapping) else None
-    if not isinstance(raw, Mapping):
-        return {"refreshed": False, "reason": "renderer published no viewport rectangle"}
-    fresh = dict(raw)
-    width = int(fresh.get("width", 0) or 0)
-    height = int(fresh.get("height", 0) or 0)
-    if width <= 0 or height <= 0:
-        return {"refreshed": False, "reason": "renderer published an empty viewport rectangle"}
-    hwnd = int(fresh.get("hwnd", 0) or 0)
-    if hwnd and hwnd != int(state.viewport_hwnd or 0):
-        return {"refreshed": False, "reason": "renderer published a different viewport window"}
-    before = dict(state.viewport)
-    fresh.setdefault("hwnd", before.get("hwnd"))
-    fresh.setdefault("form_hwnd", before.get("form_hwnd"))
-    state.viewport = fresh
-    # Sample what Windows says about the very same handle at the very same moment.
-    # A client area cannot be wider than its window, so if these disagree here the
-    # renderer is drawing and projecting at a size its window no longer has, and
-    # the disagreement is not a layout change that happened later.
-    raw_audit = raw.get("geometry_audit")
-    audit = dict(raw_audit) if isinstance(raw_audit, Mapping) else {}
-    window_rect = _host_window_rect(int(state.viewport_hwnd or 0))
-    live_window = (
-        {
-            "screen_x": int(window_rect[0]),
-            "screen_y": int(window_rect[1]),
-            "width": int(window_rect[2] - window_rect[0]),
-            "height": int(window_rect[3] - window_rect[1]),
-        }
-        if window_rect
-        else {}
-    )
-    return {
-        "refreshed": True,
-        "renderer_pane": {
-            "screen_x": int(fresh.get("screen_x", 0) or 0),
-            "screen_y": int(fresh.get("screen_y", 0) or 0),
-            "width": width,
-            "height": height,
-        },
-        "os_window_at_same_moment": live_window,
-        # Sampled inside the control itself, so WinForms' belief, Windows' answer and
-        # the swap chain's actual render size are read at one instant on one thread.
-        "renderer_geometry_audit": audit,
-        "renderer_matches_os_window": bool(
-            live_window
-            and live_window["width"] == width
-            and live_window["height"] == height
-            and live_window["screen_x"] == int(fresh.get("screen_x", 0) or 0)
-            and live_window["screen_y"] == int(fresh.get("screen_y", 0) or 0)
-        ),
-        "before": {
-            "screen_x": int(before.get("screen_x", 0) or 0),
-            "screen_y": int(before.get("screen_y", 0) or 0),
-            "width": int(before.get("width", 0) or 0),
-            "height": int(before.get("height", 0) or 0),
-        },
-        "after": {
-            "screen_x": int(fresh.get("screen_x", 0) or 0),
-            "screen_y": int(fresh.get("screen_y", 0) or 0),
-            "width": width,
-            "height": height,
-        },
-        "grew_after_ready_event": (
-            width != int(before.get("width", 0) or 0)
-            or height != int(before.get("height", 0) or 0)
-        ),
-    }
-
-
 def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, object] | None:
     initial_faces = tuple(range(min(12, len(state.submesh.faces))))
     state.controller.select(faces_by_submesh={state.submesh_index: initial_faces}, operation="replace")
@@ -594,7 +513,7 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
     # projection and a drag with a mix of the two clamps the stroke to a right
     # edge that moved long ago. Both payloads are editable-pane-local, so a fresh
     # read is directly comparable; the renderer publishes it on demand.
-    state.viewport_refresh = _refresh_editable_viewport_rectangle(state)
+    state.viewport_refresh = refresh_editable_viewport_rectangle(state, _pump_until)
     width = int(state.viewport.get("width", 0) or 0)
     height = int(state.viewport.get("height", 0) or 0)
     client_x = int(state.viewport.get("client_x", 0) or 0)
