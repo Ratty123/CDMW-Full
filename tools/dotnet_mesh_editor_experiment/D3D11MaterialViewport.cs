@@ -55,16 +55,6 @@ internal sealed partial class D3D11MaterialViewport : Control
     private ID3D11DepthStencilState? _gizmoDepthState;
     private int _renderWidth;
     private int _renderHeight;
-
-    /// <summary>
-    /// The size the swap chain was last resized to, which is the size the frames
-    /// actually being presented were rendered at. It lags <see cref="Control.ClientSize"/>
-    /// by design — resizes are coalesced through a timer — so a diagnostic that wants
-    /// to know whether a presented frame matches its window has to read this and not
-    /// just the control.
-    /// </summary>
-    public System.Drawing.Size PresentedRenderSize => new(_renderWidth, _renderHeight);
-
     private bool _renderResourcesDirty = true;
     private const int ResizeCommitDelayMilliseconds = 150;
     private readonly System.Windows.Forms.Timer _resizeCommitTimer = new() { Interval = ResizeCommitDelayMilliseconds };
