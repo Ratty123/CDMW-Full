@@ -56,6 +56,11 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid as qt_object_is_valid
 
+from cdmw.services.active_ui_translation import (
+    active_ui_localizer,
+    translate_active_text,
+    translate_active_ui_text,
+)
 from cdmw.domain.localization import (
     BUILTIN_LANGUAGE_CODES,
     FrozenTranslationEntry,
@@ -157,27 +162,11 @@ _DIALOG_BUTTON_SOURCES = (
 )
 
 
-def _active_ui_localizer() -> object | None:
-    app = QApplication.instance()
-    if app is None or not qt_object_is_valid(app):
-        return None
-    localizer = app.property("_cdmw_ui_localizer")
-    if isinstance(localizer, QObject) and not qt_object_is_valid(localizer):
-        return None
-    return localizer
-
-
-def _translate_active_text(value: object) -> object:
-    localizer = _active_ui_localizer()
-    translate_rendered = getattr(localizer, "translate_rendered", None)
-    if not callable(translate_rendered) or not isinstance(value, str):
-        return value
-    return translate_rendered(value)
-
-
-def translate_active_ui_text(value: str) -> str:
-    """Translate one already-rendered GUI value through the process owner."""
-    return str(_translate_active_text(str(value or "")))
+# Defined in cdmw.services.active_ui_translation so that standalone Qt tools can
+# reach it without importing this module, and re-exported here under their existing
+# names because the shell imports them from here.
+_active_ui_localizer = active_ui_localizer
+_translate_active_text = translate_active_text
 
 
 def _replace_dialog_argument(

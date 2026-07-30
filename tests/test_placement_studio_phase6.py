@@ -168,6 +168,10 @@ class IsolationTests(unittest.TestCase):
                 "cdmw.models",
                 "cdmw.modding.mesh_parser",
                 "cdmw.modding.skeleton_parser",
+                # Reads the localizer the running app publishes on itself and renders
+                # one string with it. Deliberately not cdmw.ui.localization, which
+                # would pull the shell's dialog patching into a standalone tool.
+                "cdmw.services.active_ui_translation",
             },
         )
 
