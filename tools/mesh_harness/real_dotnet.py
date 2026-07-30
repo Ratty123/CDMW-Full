@@ -516,8 +516,37 @@ def _refresh_editable_viewport_rectangle(state: SimpleNamespace) -> dict[str, ob
     fresh.setdefault("hwnd", before.get("hwnd"))
     fresh.setdefault("form_hwnd", before.get("form_hwnd"))
     state.viewport = fresh
+    # Sample what Windows says about the very same handle at the very same moment.
+    # A client area cannot be wider than its window, so if these disagree here the
+    # renderer is drawing and projecting at a size its window no longer has, and
+    # the disagreement is not a layout change that happened later.
+    window_rect = _host_window_rect(int(state.viewport_hwnd or 0))
+    live_window = (
+        {
+            "screen_x": int(window_rect[0]),
+            "screen_y": int(window_rect[1]),
+            "width": int(window_rect[2] - window_rect[0]),
+            "height": int(window_rect[3] - window_rect[1]),
+        }
+        if window_rect
+        else {}
+    )
     return {
         "refreshed": True,
+        "renderer_pane": {
+            "screen_x": int(fresh.get("screen_x", 0) or 0),
+            "screen_y": int(fresh.get("screen_y", 0) or 0),
+            "width": width,
+            "height": height,
+        },
+        "os_window_at_same_moment": live_window,
+        "renderer_matches_os_window": bool(
+            live_window
+            and live_window["width"] == width
+            and live_window["height"] == height
+            and live_window["screen_x"] == int(fresh.get("screen_x", 0) or 0)
+            and live_window["screen_y"] == int(fresh.get("screen_y", 0) or 0)
+        ),
         "before": {
             "screen_x": int(before.get("screen_x", 0) or 0),
             "screen_y": int(before.get("screen_y", 0) or 0),
@@ -688,6 +717,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "game_root": str(state.game_root),
         "pamt_path": str(state.pamt_path),
         "model_path": state.model_entry.path,
+        "viewport_refresh": getattr(state, "viewport_refresh", {}),
         "archive_provenance": _archive_entry_provenance(state.model_entry),
         "source_payload_sha256": state.source_payload_sha256,
         "source_payload_unchanged": state.source_payload_unchanged,
