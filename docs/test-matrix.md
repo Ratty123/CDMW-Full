@@ -40,7 +40,7 @@ worker signals execute on the owning QApplication thread.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_ui_responsiveness_source_guards.py tests/test_mesh_edit_responsiveness_source_guards.py tests/test_texture_workflow_ui_source_guards.py
-.\.venv\Scripts\python.exe -m pytest tests/test_attachment_async_io.py tests/test_appearance_async.py tests/test_localization_async_io.py tests/test_localization_translations.py tests/test_localization_catalog_contracts.py
+.\.venv\Scripts\python.exe -m pytest tests/test_attachment_async_io.py tests/test_appearance_async.py tests/test_localization_async_io.py tests/test_localization_translations.py tests/test_localization_catalog_contracts.py tests/test_localization_translation_quality.py
 .\.venv\Scripts\python.exe scripts/generate_ui_localization_manifest.py --check
 .\.venv\Scripts\python.exe scripts/validate_ui_localization_catalogs.py
 .\scripts\codex_check.ps1 -Area responsiveness
@@ -53,6 +53,15 @@ start from a saved non-English locale, pre-Qt startup fallback, and exact
 source/catalog parity. The production shell smoke also constructs every lazy
 tool after a live non-English switch. The inventory's reviewed exclusions are in
 `scripts/ui_localization_exclusions.json`.
+
+`test_localization_translation_quality.py` measures something the key-set
+contracts cannot see: a translation that is present, non-empty, and still mostly
+English, because a glossary term was substituted into the source sentence instead
+of the sentence being translated. It fails a catalog above 2.5% of its multi-word
+strings; every healthy built-in measures 0.3-1.0%, and the two that shipped this
+way measured 6.8% and 7.6%. Do not swap it for a word-count metric — German
+*Export*, Italian *file* and Polish *folder* are correct translations, so counting
+shared words scores a good catalog worse than a bad one.
 
 ## Archive Browser And Archive Services
 

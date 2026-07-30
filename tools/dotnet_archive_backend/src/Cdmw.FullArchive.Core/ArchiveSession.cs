@@ -182,6 +182,7 @@ internal sealed class CompiledArchiveQuery
         Query = query;
         _entryIds = entryIds;
         EntryCount = entryIds?.LongLength ?? identityEntryCount;
+        HasAscendingEntryIds = entryIds is null || IsAscending(entryIds);
     }
 
     public string QueryId { get; }
@@ -189,6 +190,13 @@ internal sealed class CompiledArchiveQuery
     public ArchiveQuery Query { get; }
     public long EntryCount { get; }
     public bool UsesIdentityOrder => _entryIds is null;
+
+    /// <summary>
+    /// True when row order follows entry-id order, which — because the index is
+    /// sorted by path — means it also follows path order. Callers that binary-search
+    /// a folder prefix depend on that; a sorted query breaks it.
+    /// </summary>
+    public bool HasAscendingEntryIds { get; }
 
     public static CompiledArchiveQuery Identity(
         string queryId,
@@ -203,6 +211,18 @@ internal sealed class CompiledArchiveQuery
         ArchiveQuery query,
         long[] entryIds) =>
         new(queryId, generation, query, entryIds, 0);
+
+    private static bool IsAscending(long[] entryIds)
+    {
+        for (var index = 1; index < entryIds.Length; index++)
+        {
+            if (entryIds[index] <= entryIds[index - 1])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 
     public long EntryIdAt(long row)
     {

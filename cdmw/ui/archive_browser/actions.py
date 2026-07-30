@@ -326,6 +326,57 @@ class ArchiveBrowserActionMixin:
             lambda _checked=False, current_material_entry=material_sidecar_entry: self._open_material_sidecar_editor(current_material_entry)
         )
 
+    def _archive_tree_folder_path(self, item) -> str:
+        """Return a folder node's virtual path, from either browser model.
+
+        The legacy model stores the path as a tuple of segments; the remote one
+        stores the joined path. Both are entry paths, not package-root paths.
+        """
+
+        value = self._archive_tree_item_value(item)
+        if isinstance(value, tuple):
+            return "/".join(str(part) for part in value if str(part))
+        return str(value or "").replace("\\", "/").strip("/")
+
+    def _select_archive_tree_item_for_context_menu(self, item) -> None:
+        self.archive_context_menu_selection_suppressed = True
+        if not item.isSelected():
+            self.archive_tree.clearSelection()
+        try:
+            self.archive_tree.setCurrentItem(item)
+        finally:
+            self.archive_context_menu_selection_suppressed = False
+        self._schedule_archive_selection_state_update()
+
+    def _build_archive_folder_context_menu(self, item) -> Optional[QMenu]:
+        if self._archive_tree_item_kind(item) != "folder":
+            return None
+        folder_path = self._archive_tree_folder_path(item)
+        if not folder_path:
+            return None
+        self._select_archive_tree_item_for_context_menu(item)
+
+        menu = QMenu(self)
+        if hasattr(menu, "setToolTipsVisible"):
+            menu.setToolTipsVisible(True)
+        menu_icons = archive_context_menu_icons()
+
+        menu.addSection(menu_icons["file"], "Folder")
+        export_folder_action = menu.addAction(menu_icons["file"], "Export Folder...")
+        export_folder_action.setToolTip(
+            "Extract every file in this folder and the folders under it, keeping their structure."
+        )
+        export_folder_action.triggered.connect(
+            lambda _checked=False: self.extract_selected_archive_entries()
+        )
+        return menu
+
+    def _show_archive_folder_context_menu(self, position, item) -> None:
+        menu = self._build_archive_folder_context_menu(item)
+        if menu is None:
+            return
+        menu.exec(self.archive_tree.viewport().mapToGlobal(position))
+
     def _show_archive_tree_context_menu(self, position) -> None:
         context_started_at = time.perf_counter()
         item = self.archive_tree.itemAt(position)
@@ -333,6 +384,9 @@ class ArchiveBrowserActionMixin:
             return
         kind = self._archive_tree_item_kind(item)
         value = self._archive_tree_item_value(item)
+        if kind == "folder":
+            self._show_archive_folder_context_menu(position, item)
+            return
         if kind != "file" or not isinstance(value, int):
             return
         entry = self._archive_entry_at_tree_position(position)

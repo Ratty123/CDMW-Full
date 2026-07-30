@@ -20,6 +20,8 @@ internal static class FullArchiveTestRunner
             ("query_lookup_search_prepare_export", QueryLookupSearchPrepareExportAsync),
             ("preview_association_and_prepare_batch", PreviewAssociationAndPrepareBatchAsync),
             ("query_sort_parity", QuerySortParityAsync),
+            ("folder_children_prefix_walk", FolderChildrenPrefixWalkAsync),
+            ("exact_path_lookup_follows_index_order", ExactPathLookupFollowsIndexOrderAsync),
             ("duplicate_override_state", DuplicateOverrideStateAsync),
             ("archive_name_index", ArchiveNameIndexAsync),
             ("item_catalogue_paging_and_bounded_scope", ItemCataloguePagingAndBoundedScopeAsync),
@@ -745,6 +747,37 @@ internal static class FullArchiveTestRunner
                 await File.ReadAllTextAsync(Path.Combine(folderRoot, "base", "text", "hello.txt")).ConfigureAwait(false) == "Hello Crimson\nline 2",
                 "folder export package layout changed");
 
+            // The browser's folder tree names entry paths, not package-root paths, and
+            // matching only the latter exported nothing for every folder it can name.
+            var entryPathRoot = Path.Combine(exportRoot, "entry-path-folder-export");
+            var entryPathExport = await exports.ExportAsync(
+                new ArchiveExportRequest(
+                    sessionHandle.SessionId,
+                    ArchiveExportSelectionKind.Folder,
+                    entryPathRoot,
+                    FolderPath: "text",
+                    CollisionPolicy: ArchiveExportCollisionPolicy.Overwrite,
+                    IncludePackageRoot: false),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(
+                entryPathExport.Exported == 1,
+                $"entry-path folder export resolved {entryPathExport.Exported} files, expected 1");
+            Require(
+                await File.ReadAllTextAsync(Path.Combine(entryPathRoot, "text", "hello.txt")).ConfigureAwait(false) == "Hello Crimson\nline 2",
+                "entry-path folder export layout changed");
+            var packageNameAsEntryPath = await exports.ExportAsync(
+                new ArchiveExportRequest(
+                    sessionHandle.SessionId,
+                    ArchiveExportSelectionKind.Folder,
+                    Path.Combine(exportRoot, "wrong-namespace-export"),
+                    FolderPath: "base",
+                    CollisionPolicy: ArchiveExportCollisionPolicy.Overwrite,
+                    IncludePackageRoot: false),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(
+                packageNameAsEntryPath.Exported == 0,
+                "an entry-path folder export matched a package-root folder name");
+
             var familyRoot = Path.Combine(exportRoot, "family-export");
             var familyExport = await exports.ExportAsync(
                 new ArchiveExportRequest(
@@ -1039,6 +1072,168 @@ internal static class FullArchiveTestRunner
                         "roles/sidecar.pac_xml",
                     ]),
                 "descending role-display ordering changed");
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
+        }
+    }
+
+    /// <summary>
+    /// Folder children come from a prefix range over the sorted index rather than a
+    /// pass over every entry, so the boundaries have to hold exactly: a folder must
+    /// not absorb a sibling that merely shares its opening characters, and the order
+    /// has to be the index's own, which puts '_' before a letter.
+    /// </summary>
+    private static async Task FolderChildrenPrefixWalkAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateFolderHierarchyAsync().ConfigureAwait(false);
+        var cacheRoot = TempDirectory("folders-cache");
+        try
+        {
+            var native = new NativeArchiveCore();
+            var cache = new ArchiveCacheStore(cacheRoot);
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var session = await sessions.OpenAsync(
+                new OpenArchiveRequest(fixture.Root),
+                CancellationToken.None).ConfigureAwait(false);
+            var queries = new ArchiveQueryService(sessions);
+            var query = await queries.CreateAsync(
+                new ArchiveQuery(session.SessionId, ViewMode: ArchiveViewMode.Folders),
+                generation: 1,
+                CancellationToken.None).ConfigureAwait(false);
+
+            ArchiveChildrenResult Children(string? parent, int limit = 64, int offset = 0) =>
+                queries.FetchChildren(
+                    session.SessionId,
+                    new ArchiveChildrenRequest(query.QueryId, parent, null, limit, offset));
+
+            var root = Children(null);
+            Require(
+                root.Children.Select(static child => (child.Key, child.IsFolder, child.MatchCount)).SequenceEqual(
+                    [("other", true, 1L), ("tree", true, 11L)]),
+                "root folder listing changed");
+
+            var tree = Children("tree");
+            Require(tree.TotalChildren == 10, $"tree child count is {tree.TotalChildren}, expected 10");
+            Require(
+                tree.Children.Where(static child => child.IsFolder)
+                    .Select(static child => (child.Key, child.Label, child.MatchCount))
+                    .SequenceEqual([("tree/a_b", "a_b", 2L), ("tree/ab", "ab", 1L), ("tree/zz", "zz", 1L)]),
+                "subfolder grouping or index ordering changed");
+            Require(
+                tree.Children.Where(static child => !child.IsFolder)
+                    .Select(static child => child.Entry!.Path)
+                    .SequenceEqual(
+                        [
+                            "tree/a.pac",
+                            "tree/a_b.pac",
+                            "tree/file01.bin",
+                            "tree/file02.bin",
+                            "tree/file03.bin",
+                            "tree/file04.bin",
+                            "tree/file05.bin",
+                        ]),
+                "direct file listing changed");
+
+            // 'tree/a' is not a folder: neither 'tree/a_b' nor 'tree/ab' may answer for it.
+            var partialSegment = Children("tree/a");
+            Require(partialSegment.TotalChildren == 0, "a partial path segment matched a folder");
+            var underscoreFolder = Children("tree/a_b");
+            Require(
+                underscoreFolder.Children.Select(static child => child.Entry!.Path).SequenceEqual(
+                    ["tree/a_b/one.pac", "tree/a_b/two.pac"]),
+                "underscore folder listing changed");
+            var nested = Children("tree/zz");
+            Require(
+                nested.Children is [{ Key: "tree/zz/deep", IsFolder: true, MatchCount: 1 }],
+                "nested folder listing changed");
+
+            var firstPage = Children("tree", limit: 4);
+            var secondPage = Children("tree", limit: 4, offset: 4);
+            var thirdPage = Children("tree", limit: 4, offset: 8);
+            Require(
+                firstPage.NextOffset == 4 && secondPage.NextOffset == 8 && thirdPage.NextOffset is null,
+                "folder paging continuation changed");
+            Require(
+                firstPage.Children.Concat(secondPage.Children).Concat(thirdPage.Children)
+                    .Select(static child => child.Key)
+                    .SequenceEqual(tree.Children.Select(static child => child.Key)),
+                "paged folder children do not reassemble the whole listing");
+
+            // A sorted query cannot use the prefix walk; the scan fallback must still answer.
+            var sorted = await queries.CreateAsync(
+                new ArchiveQuery(
+                    session.SessionId,
+                    ViewMode: ArchiveViewMode.Folders,
+                    SortField: ArchiveSortField.OriginalSize,
+                    SortActive: true),
+                generation: 2,
+                CancellationToken.None).ConfigureAwait(false);
+            var scanned = queries.FetchChildren(
+                session.SessionId,
+                new ArchiveChildrenRequest(sorted.QueryId, "tree", null, 64));
+            Require(scanned.TotalChildren == 10, $"scan fallback child count is {scanned.TotalChildren}, expected 10");
+            Require(
+                scanned.Children.Where(static child => child.IsFolder)
+                    .Select(static child => child.MatchCount)
+                    .Order()
+                    .SequenceEqual([1L, 1L, 2L]),
+                "scan fallback subfolder counts changed");
+
+            var categoryFiltered = queries.FetchChildren(
+                session.SessionId,
+                new ArchiveChildrenRequest(query.QueryId, "tree", "Model", 64));
+            Require(
+                categoryFiltered.Children.Where(static child => !child.IsFolder)
+                    .Select(static child => child.Entry!.Path)
+                    .SequenceEqual(["tree/a.pac", "tree/a_b.pac"]),
+                "role-filtered folder children changed");
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
+        }
+    }
+
+    /// <summary>
+    /// Every stored path has to be findable by exact path. The index is ordered by an
+    /// ASCII-lowercase fold, so a search that folds to upper case reads '_'-adjacent
+    /// neighbours as descending, converges on the wrong position, and reports a path
+    /// that is present as missing — silently, because the callers fall through to a
+    /// basename guess or to nothing at all.
+    /// </summary>
+    private static async Task ExactPathLookupFollowsIndexOrderAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateUnderscoreOrderingAsync().ConfigureAwait(false);
+        var cacheRoot = TempDirectory("underscore-cache");
+        try
+        {
+            var native = new NativeArchiveCore();
+            var cache = new ArchiveCacheStore(cacheRoot);
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var handle = await sessions.OpenAsync(
+                new OpenArchiveRequest(fixture.Root),
+                CancellationToken.None).ConfigureAwait(false);
+            var index = sessions.GetRequired(handle.SessionId).Index;
+
+            var missing = SyntheticArchiveFixture.UnderscoreOrderingPaths
+                .Where(path => index.FindEntriesByPath(path, 4).Count == 0)
+                .ToArray();
+            Require(
+                missing.Length == 0,
+                $"{missing.Length} stored paths did not resolve by exact path, first: {missing.FirstOrDefault()}");
+
+            // The result is the entry that was asked for, not a neighbour.
+            foreach (var path in SyntheticArchiveFixture.UnderscoreOrderingPaths)
+            {
+                var matches = index.FindEntriesByPath(path, 4);
+                Require(
+                    matches.All(match => match.Path.Equals(path, StringComparison.OrdinalIgnoreCase)),
+                    $"exact-path lookup for {path} returned a different entry");
+            }
+
+            Require(index.FindEntriesByPath("motion/facial/absent_00.paa", 4).Count == 0, "an absent path resolved");
         }
         finally
         {

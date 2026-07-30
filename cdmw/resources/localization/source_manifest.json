@@ -6956,7 +6956,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 273,
+          "line": 267,
           "sink": "setToolTip"
         }
       ]
@@ -6971,7 +6971,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 258,
+          "line": 252,
           "sink": "setToolTip"
         }
       ]
@@ -6991,7 +6991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 233,
+          "line": 227,
           "sink": "setToolTip"
         }
       ]
@@ -8006,7 +8006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 864,
+          "line": 867,
           "sink": "append_archive_log"
         }
       ]
@@ -8046,12 +8046,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 835,
+          "line": 838,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 836,
+          "line": 839,
           "sink": "append_archive_log"
         }
       ]
@@ -8176,22 +8176,22 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 672,
+          "line": 675,
           "sink": "_set_archive_list_status"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 674,
+          "line": 677,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 675,
+          "line": 678,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 676,
+          "line": 679,
           "sink": "append_archive_log"
         }
       ]
@@ -8241,7 +8241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 538,
+          "line": 592,
           "sink": "append_archive_log"
         }
       ]
@@ -9356,7 +9356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 807,
+          "line": 810,
           "sink": "append_archive_log"
         }
       ]
@@ -9366,7 +9366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 607,
+          "line": 610,
           "sink": "append_archive_log"
         }
       ]
@@ -9526,7 +9526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 171,
+          "line": 165,
           "sink": "QPushButton"
         }
       ]
@@ -9626,7 +9626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 402,
+          "line": 456,
           "sink": "_add_menu_section"
         },
         {
@@ -9646,7 +9646,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 154,
+          "line": 148,
           "sink": "QPushButton"
         },
         {
@@ -9701,12 +9701,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 403,
+          "line": 457,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 194,
+          "line": 188,
           "sink": "QPushButton"
         }
       ]
@@ -10276,7 +10276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 526,
+          "line": 580,
           "sink": "_add_menu_section"
         },
         {
@@ -12226,7 +12226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 505,
+          "line": 559,
           "sink": "setToolTip"
         }
       ]
@@ -12461,7 +12461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 604,
+          "line": 658,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -12481,17 +12481,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 425,
+          "line": 479,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 431,
+          "line": 485,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 207,
+          "line": 201,
           "sink": "QPushButton"
         }
       ]
@@ -12786,7 +12786,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 208,
+          "line": 202,
           "sink": "setToolTip"
         }
       ]
@@ -12796,7 +12796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 172,
+          "line": 166,
           "sink": "setToolTip"
         }
       ]
@@ -14166,7 +14166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 667,
+          "line": 670,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -14206,7 +14206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 667,
+          "line": 670,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -14251,7 +14251,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 824,
+          "line": 827,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -14331,7 +14331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 830,
+          "line": 833,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -14616,7 +14616,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 595,
+          "line": 598,
           "sink": "setText"
         },
         {
@@ -14711,7 +14711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 465,
+          "line": 519,
           "sink": "addAction"
         }
       ]
@@ -14761,7 +14761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 596,
+          "line": 599,
           "sink": "setToolTip"
         }
       ]
@@ -14946,12 +14946,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_preview_package.py",
-          "line": 621,
+          "line": 608,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_dotnet_preview_package.py",
-          "line": 710,
+          "line": 697,
           "sink": "RuntimeError"
         }
       ]
@@ -17926,7 +17926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 141,
+          "line": 135,
           "sink": "setToolTip"
         }
       ]
@@ -18362,36 +18362,6 @@
       ]
     },
     {
-      "key": "Cloth physics",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 49,
-          "sink": "QCheckBox"
-        }
-      ]
-    },
-    {
-      "key": "Cloth physics preview disabled.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 427,
-          "sink": "set_status_message"
-        }
-      ]
-    },
-    {
-      "key": "Cloth physics preview enabled; batches that declare PBD physics are simulated.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 427,
-          "sink": "set_status_message"
-        }
-      ]
-    },
-    {
       "key": "Code",
       "origins": [
         {
@@ -18416,12 +18386,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 443,
+          "line": 497,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 213,
+          "line": 207,
           "sink": "setToolTip"
         }
       ]
@@ -19401,7 +19371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 166,
+          "line": 160,
           "sink": "QPushButton"
         }
       ]
@@ -20306,7 +20276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 686,
+          "line": 678,
           "sink": "QLabel"
         },
         {
@@ -20401,12 +20371,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 361,
+          "line": 415,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 561,
+          "line": 615,
           "sink": "set_status_message"
         }
       ]
@@ -20526,17 +20496,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 372,
+          "line": 426,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 557,
+          "line": 611,
           "sink": "_current_archive_action_entry"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 182,
+          "line": 176,
           "sink": "QPushButton"
         }
       ]
@@ -20636,12 +20606,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 373,
+          "line": 427,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 183,
+          "line": 177,
           "sink": "setToolTip"
         }
       ]
@@ -21651,7 +21621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 243,
+          "line": 237,
           "sink": "setToolTip"
         }
       ]
@@ -21671,7 +21641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 516,
+          "line": 570,
           "sink": "setToolTip"
         }
       ]
@@ -22286,7 +22256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 523,
+          "line": 516,
           "sink": "setToolTip"
         }
       ]
@@ -22871,7 +22841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 476,
+          "line": 530,
           "sink": "addAction"
         }
       ]
@@ -24301,7 +24271,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 704,
+          "line": 696,
           "sink": "addTab"
         },
         {
@@ -25021,7 +24991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 396,
+          "line": 450,
           "sink": "setToolTip"
         },
         {
@@ -25031,7 +25001,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 306,
+          "line": 300,
           "sink": "setToolTip"
         }
       ]
@@ -26436,22 +26406,22 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 407,
+          "line": 461,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 488,
+          "line": 542,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 277,
+          "line": 271,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 282,
+          "line": 276,
           "sink": "QPushButton"
         },
         {
@@ -26501,7 +26471,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 310,
+          "line": 304,
           "sink": "QPushButton"
         },
         {
@@ -26641,7 +26611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 515,
+          "line": 569,
           "sink": "addAction"
         }
       ]
@@ -26791,7 +26761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 408,
+          "line": 462,
           "sink": "setToolTip"
         }
       ]
@@ -26821,7 +26791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 283,
+          "line": 277,
           "sink": "setToolTip"
         }
       ]
@@ -28561,7 +28531,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 396,
+          "line": 390,
           "sink": "_make_archive_action_menu_button"
         },
         {
@@ -28626,12 +28596,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 379,
+          "line": 433,
           "sink": "_export_archive_reference_entry"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 567,
+          "line": 621,
           "sink": "_export_archive_reference_entry"
         }
       ]
@@ -28701,7 +28671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 610,
+          "line": 664,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -28741,12 +28711,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 442,
+          "line": 496,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 212,
+          "line": 206,
           "sink": "QPushButton"
         }
       ]
@@ -28811,7 +28781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 501,
+          "line": 555,
           "sink": "addAction"
         }
       ]
@@ -28926,12 +28896,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 440,
+          "line": 494,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 222,
+          "line": 216,
           "sink": "QPushButton"
         }
       ]
@@ -28941,7 +28911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 598,
+          "line": 652,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -28951,7 +28921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 420,
+          "line": 474,
           "sink": "addAction"
         },
         {
@@ -28961,7 +28931,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 204,
+          "line": 198,
           "sink": "QPushButton"
         },
         {
@@ -28976,7 +28946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 564,
+          "line": 618,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -28986,12 +28956,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 377,
+          "line": 431,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 185,
+          "line": 179,
           "sink": "QPushButton"
         }
       ]
@@ -29003,6 +28973,16 @@
           "path": "cdmw/ui/text_search/export_actions.py",
           "line": 24,
           "sink": "question"
+        }
+      ]
+    },
+    {
+      "key": "Export Folder...",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 365,
+          "sink": "addAction"
         }
       ]
     },
@@ -29061,12 +29041,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 490,
+          "line": 544,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 252,
+          "line": 246,
           "sink": "QPushButton"
         }
       ]
@@ -29076,12 +29056,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 492,
+          "line": 546,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 262,
+          "line": 256,
           "sink": "QPushButton"
         }
       ]
@@ -29091,12 +29071,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 494,
+          "line": 548,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 267,
+          "line": 261,
           "sink": "QPushButton"
         }
       ]
@@ -29186,12 +29166,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 438,
+          "line": 492,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 217,
+          "line": 211,
           "sink": "QPushButton"
         }
       ]
@@ -29246,7 +29226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 509,
+          "line": 563,
           "sink": "addAction"
         }
       ]
@@ -29381,7 +29361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 291,
+          "line": 285,
           "sink": "QPushButton"
         }
       ]
@@ -29406,7 +29386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 527,
+          "line": 581,
           "sink": "addAction"
         }
       ]
@@ -29436,7 +29416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 263,
+          "line": 257,
           "sink": "setToolTip"
         }
       ]
@@ -29451,7 +29431,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 253,
+          "line": 247,
           "sink": "setToolTip"
         }
       ]
@@ -29471,7 +29451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 268,
+          "line": 262,
           "sink": "setToolTip"
         }
       ]
@@ -29501,7 +29481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 292,
+          "line": 286,
           "sink": "setToolTip"
         }
       ]
@@ -29686,7 +29666,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 205,
+          "line": 199,
           "sink": "setToolTip"
         }
       ]
@@ -29701,7 +29681,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 186,
+          "line": 180,
           "sink": "setToolTip"
         }
       ]
@@ -29716,7 +29696,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 223,
+          "line": 217,
           "sink": "setToolTip"
         }
       ]
@@ -29726,7 +29706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 218,
+          "line": 212,
           "sink": "setToolTip"
         }
       ]
@@ -30571,7 +30551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 570,
+          "line": 624,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -30581,12 +30561,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 381,
+          "line": 435,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 188,
+          "line": 182,
           "sink": "QPushButton"
         }
       ]
@@ -30667,6 +30647,16 @@
       ]
     },
     {
+      "key": "Extract every file in this folder and the folders under it, keeping their structure.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 366,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Extract or hand off",
       "origins": [
         {
@@ -30701,7 +30691,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 189,
+          "line": 183,
           "sink": "setToolTip"
         }
       ]
@@ -30836,7 +30826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 478,
+          "line": 532,
           "sink": "_run_archive_extract"
         }
       ]
@@ -30846,17 +30836,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 383,
+          "line": 437,
           "sink": "_run_archive_extract"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 579,
+          "line": 633,
           "sink": "_run_remote_archive_export"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 585,
+          "line": 639,
           "sink": "_run_archive_extract"
         }
       ]
@@ -31406,7 +31396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 371,
+          "line": 425,
           "sink": "_add_menu_section"
         },
         {
@@ -31691,7 +31681,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 416,
+          "line": 470,
           "sink": "setToolTip"
         },
         {
@@ -31701,7 +31691,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 200,
+          "line": 194,
           "sink": "setToolTip"
         },
         {
@@ -31991,12 +31981,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 415,
+          "line": 469,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 592,
+          "line": 646,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -32006,7 +31996,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 199,
+          "line": 193,
           "sink": "QPushButton"
         },
         {
@@ -32136,7 +32126,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 555,
+          "line": 558,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -32716,12 +32706,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 97,
+          "line": 91,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 103,
+          "line": 97,
           "sink": "QLabel"
         },
         {
@@ -32866,7 +32856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 98,
+          "line": 92,
           "sink": "setToolTip"
         },
         {
@@ -33086,7 +33076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 105,
+          "line": 99,
           "sink": "QCheckBox"
         },
         {
@@ -33244,6 +33234,11 @@
     {
       "key": "Folder",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/actions.py",
+          "line": 364,
+          "sink": "addSection"
+        },
         {
           "path": "cdmw/ui/archive_browser/attachment_socket_editor.py",
           "line": 598,
@@ -37271,7 +37266,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 596,
+          "line": 599,
           "sink": "setToolTip"
         }
       ]
@@ -37491,7 +37486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 411,
+          "line": 405,
           "sink": "_make_archive_action_menu_button"
         },
         {
@@ -37521,7 +37516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 232,
+          "line": 226,
           "sink": "QPushButton"
         }
       ]
@@ -37571,7 +37566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 257,
+          "line": 251,
           "sink": "QPushButton"
         }
       ]
@@ -37581,7 +37576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 272,
+          "line": 266,
           "sink": "QPushButton"
         }
       ]
@@ -37656,12 +37651,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 393,
+          "line": 447,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 319,
+          "line": 313,
           "sink": "QPushButton"
         }
       ]
@@ -37726,7 +37721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 227,
+          "line": 221,
           "sink": "QPushButton"
         }
       ]
@@ -37751,12 +37746,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 454,
+          "line": 508,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 237,
+          "line": 231,
           "sink": "QPushButton"
         }
       ]
@@ -37866,7 +37861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 511,
+          "line": 565,
           "sink": "addAction"
         }
       ]
@@ -37946,7 +37941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 532,
+          "line": 586,
           "sink": "addAction"
         }
       ]
@@ -39411,7 +39406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 296,
+          "line": 290,
           "sink": "QPushButton"
         }
       ]
@@ -39421,7 +39416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 499,
+          "line": 553,
           "sink": "addAction"
         }
       ]
@@ -39476,7 +39471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 297,
+          "line": 291,
           "sink": "setToolTip"
         }
       ]
@@ -42471,7 +42466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 320,
+          "line": 314,
           "sink": "setToolTip"
         }
       ]
@@ -42491,7 +42486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 156,
+          "line": 150,
           "sink": "setToolTip"
         }
       ]
@@ -42566,7 +42561,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 383,
+          "line": 370,
           "sink": "setText"
         },
         {
@@ -43146,7 +43141,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 413,
+          "line": 418,
           "sink": "python-return:data"
         },
         {
@@ -43526,7 +43521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 88,
+          "line": 82,
           "sink": "QPushButton"
         },
         {
@@ -46356,7 +46351,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 449,
+          "line": 503,
           "sink": "_add_menu_section"
         }
       ]
@@ -47091,7 +47086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 437,
+          "line": 491,
           "sink": "_add_menu_section"
         }
       ]
@@ -49241,12 +49236,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 450,
+          "line": 504,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 242,
+          "line": 236,
           "sink": "QPushButton"
         }
       ]
@@ -50956,7 +50951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 110,
+          "line": 104,
           "sink": "QCheckBox"
         }
       ]
@@ -55271,7 +55266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 146,
+          "line": 140,
           "sink": "setToolTip"
         }
       ]
@@ -55506,7 +55501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 472,
+          "line": 526,
           "sink": "addAction"
         },
         {
@@ -55656,7 +55651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 504,
+          "line": 558,
           "sink": "addAction"
         }
       ]
@@ -55686,7 +55681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 551,
+          "line": 605,
           "sink": "_current_archive_action_entry"
         }
       ]
@@ -55696,12 +55691,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 366,
+          "line": 420,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 179,
+          "line": 173,
           "sink": "QPushButton"
         }
       ]
@@ -55866,7 +55861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 278,
+          "line": 272,
           "sink": "setToolTip"
         }
       ]
@@ -56311,7 +56306,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 195,
+          "line": 189,
           "sink": "setToolTip"
         }
       ]
@@ -56346,7 +56341,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 180,
+          "line": 174,
           "sink": "setToolTip"
         }
       ]
@@ -59121,7 +59116,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 120,
+          "line": 114,
           "sink": "setText"
         },
         {
@@ -60346,7 +60341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 487,
+          "line": 541,
           "sink": "_add_menu_section"
         },
         {
@@ -62181,7 +62176,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 555,
+          "line": 558,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -62226,7 +62221,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 561,
+          "line": 564,
           "sink": "_set_archive_warmup_overlay"
         },
         {
@@ -63111,12 +63106,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 364,
+          "line": 418,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 545,
+          "line": 599,
           "sink": "_current_archive_action_entry"
         },
         {
@@ -63126,17 +63121,17 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 59,
+          "line": 53,
           "sink": "FlatSectionPanel"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 176,
+          "line": 170,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 703,
+          "line": 695,
           "sink": "addTab"
         },
         {
@@ -63451,7 +63446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 145,
+          "line": 139,
           "sink": "QPushButton"
         },
         {
@@ -63531,7 +63526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 167,
+          "line": 161,
           "sink": "setToolTip"
         }
       ]
@@ -64251,7 +64246,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_preview_package.py",
-          "line": 165,
+          "line": 160,
           "sink": "ValueError"
         }
       ]
@@ -64261,7 +64256,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_preview_package.py",
-          "line": 187,
+          "line": 182,
           "sink": "ValueError"
         }
       ]
@@ -64271,7 +64266,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_preview_package.py",
-          "line": 163,
+          "line": 158,
           "sink": "ValueError"
         }
       ]
@@ -64281,7 +64276,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_preview_package.py",
-          "line": 185,
+          "line": 180,
           "sink": "ValueError"
         }
       ]
@@ -64391,12 +64386,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_preview_package.py",
-          "line": 502,
+          "line": 489,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_dotnet_preview_package.py",
-          "line": 568,
+          "line": 555,
           "sink": "ValueError"
         },
         {
@@ -65186,7 +65181,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_preview_package.py",
-          "line": 293,
+          "line": 280,
           "sink": "ValueError"
         }
       ]
@@ -65591,7 +65586,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 311,
+          "line": 305,
           "sink": "setToolTip"
         }
       ]
@@ -66146,7 +66141,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 674,
+          "line": 677,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -66756,7 +66751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 228,
+          "line": 222,
           "sink": "setToolTip"
         }
       ]
@@ -66766,7 +66761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 238,
+          "line": 232,
           "sink": "setToolTip"
         }
       ]
@@ -67501,7 +67496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 83,
+          "line": 77,
           "sink": "setToolTip"
         }
       ]
@@ -68241,12 +68236,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 115,
+          "line": 109,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 595,
+          "line": 598,
           "sink": "setText"
         },
         {
@@ -69186,7 +69181,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 177,
+          "line": 171,
           "sink": "setToolTip"
         }
       ]
@@ -69971,7 +69966,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 140,
+          "line": 134,
           "sink": "QPushButton"
         },
         {
@@ -70366,7 +70361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_preview_package.py",
-          "line": 732,
+          "line": 719,
           "sink": "ModelPreviewData"
         }
       ]
@@ -70951,7 +70946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 315,
+          "line": 309,
           "sink": "QPushButton"
         }
       ]
@@ -70976,7 +70971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 316,
+          "line": 310,
           "sink": "setToolTip"
         }
       ]
@@ -73611,7 +73606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 287,
+          "line": 281,
           "sink": "QPushButton"
         }
       ]
@@ -73621,7 +73616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 301,
+          "line": 295,
           "sink": "QPushButton"
         }
       ]
@@ -73661,7 +73656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 288,
+          "line": 282,
           "sink": "setToolTip"
         }
       ]
@@ -73741,7 +73736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 302,
+          "line": 296,
           "sink": "setToolTip"
         }
       ]
@@ -74111,7 +74106,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 192,
+          "line": 186,
           "sink": "setToolTip"
         }
       ]
@@ -76456,7 +76451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 77,
+          "line": 71,
           "sink": "QLabel"
         },
         {
@@ -76496,7 +76491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 577,
+          "line": 631,
           "sink": "set_status_message"
         }
       ]
@@ -76546,12 +76541,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 607,
+          "line": 599,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 663,
+          "line": 655,
           "sink": "MediaPreviewWidget"
         },
         {
@@ -79041,12 +79036,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 389,
+          "line": 443,
           "sink": "addAction"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 191,
+          "line": 185,
           "sink": "QPushButton"
         }
       ]
@@ -79371,7 +79366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 123,
+          "line": 117,
           "sink": "setToolTip"
         }
       ]
@@ -79556,7 +79551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 100,
+          "line": 94,
           "sink": "setToolTip"
         },
         {
@@ -80273,16 +80268,6 @@
           "path": "tools/placement_studio/glossary.py",
           "line": 139,
           "sink": "Term"
-        }
-      ]
-    },
-    {
-      "key": "Simulate cloth, hair, and rope batches that declare PBD physics, and draw the solved constraints over the model. This choice is kept after restart.",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 50,
-          "sink": "setToolTip"
         }
       ]
     },
@@ -81856,12 +81841,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 424,
+          "line": 478,
           "sink": "_add_menu_section"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 430,
+          "line": 484,
           "sink": "_add_menu_section"
         }
       ]
@@ -82541,7 +82526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 465,
+          "line": 519,
           "sink": "addAction"
         }
       ]
@@ -83781,7 +83766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 498,
+          "line": 552,
           "sink": "_add_menu_section"
         }
       ]
@@ -84256,7 +84241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 247,
+          "line": 241,
           "sink": "QPushButton"
         }
       ]
@@ -84361,7 +84346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 89,
+          "line": 83,
           "sink": "setToolTip"
         }
       ]
@@ -85326,7 +85311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 111,
+          "line": 105,
           "sink": "setToolTip"
         }
       ]
@@ -85336,7 +85321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 106,
+          "line": 100,
           "sink": "setToolTip"
         }
       ]
@@ -85526,7 +85511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 471,
+          "line": 525,
           "sink": "_add_menu_section"
         },
         {
@@ -87611,7 +87596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 406,
+          "line": 392,
           "sink": "set_status_message"
         }
       ]
@@ -87866,7 +87851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 561,
+          "line": 564,
           "sink": "_set_archive_warmup_overlay"
         }
       ]
@@ -88026,7 +88011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 691,
+          "line": 683,
           "sink": "setToolTip"
         },
         {
@@ -88961,7 +88946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 422,
+          "line": 416,
           "sink": "_make_sectioned_archive_action_menu_button"
         },
         {
@@ -91486,7 +91471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 465,
+          "line": 519,
           "sink": "addAction"
         }
       ]
@@ -91526,7 +91511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 248,
+          "line": 242,
           "sink": "setToolTip"
         }
       ]
@@ -92901,7 +92886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 363,
+          "line": 417,
           "sink": "_add_menu_section"
         },
         {
@@ -93561,7 +93546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 801,
+          "line": 804,
           "sink": "append_archive_log"
         }
       ]
@@ -93656,7 +93641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 694,
+          "line": 697,
           "sink": "append_archive_log"
         }
       ]
@@ -93676,7 +93661,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 649,
+          "line": 652,
           "sink": "append_archive_log"
         },
         {
@@ -93921,7 +93906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 305,
+          "line": 299,
           "sink": "QPushButton"
         }
       ]
@@ -93931,7 +93916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 395,
+          "line": 449,
           "sink": "addAction"
         },
         {
@@ -95071,7 +95056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 392,
+          "line": 446,
           "sink": "_add_menu_section"
         },
         {
@@ -96746,7 +96731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 102,
+          "line": 96,
           "sink": "setToolTip"
         },
         {
@@ -96771,7 +96756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
-          "line": 96,
+          "line": 90,
           "sink": "setToolTip"
         },
         {
@@ -97631,7 +97616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 526,
+          "line": 580,
           "sink": "_add_menu_section"
         }
       ]
@@ -99106,7 +99091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 300,
+          "line": 305,
           "sink": "emit"
         }
       ]
@@ -100141,7 +100126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 498,
+          "line": 552,
           "sink": "_add_menu_section"
         }
       ]
@@ -102471,7 +102456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 402,
+          "line": 456,
           "sink": "_add_menu_section"
         },
         {
@@ -102591,12 +102576,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 441,
+          "line": 495,
           "sink": "_start_archive_mesh_export"
         },
         {
           "path": "cdmw/ui/shell/signal_wiring.py",
-          "line": 112,
+          "line": 111,
           "sink": "_export_current_archive_mesh"
         }
       ]
@@ -102626,7 +102611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 371,
+          "line": 425,
           "sink": "_add_menu_section"
         },
         {
@@ -102676,7 +102661,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 433,
+          "line": 438,
           "sink": "python-return:data"
         },
         {
@@ -103536,12 +103521,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 667,
+          "line": 670,
           "sink": "_set_archive_cache_health"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 824,
+          "line": 827,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -105106,7 +105091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 415,
+          "line": 420,
           "sink": "python-return:data"
         }
       ]
@@ -106036,12 +106021,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 437,
+          "line": 491,
           "sink": "_add_menu_section"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 449,
+          "line": 503,
           "sink": "_add_menu_section"
         },
         {
@@ -107641,7 +107626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 439,
+          "line": 493,
           "sink": "_start_archive_mesh_export"
         },
         {
@@ -108166,22 +108151,22 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/signal_wiring.py",
-          "line": 161,
+          "line": 160,
           "sink": "_set_compare_fit_mode"
         },
         {
           "path": "cdmw/ui/shell/signal_wiring.py",
-          "line": 162,
+          "line": 161,
           "sink": "_set_compare_zoom_factor"
         },
         {
           "path": "cdmw/ui/shell/signal_wiring.py",
-          "line": 163,
+          "line": 162,
           "sink": "_adjust_compare_zoom"
         },
         {
           "path": "cdmw/ui/shell/signal_wiring.py",
-          "line": 164,
+          "line": 163,
           "sink": "_adjust_compare_zoom"
         },
         {
@@ -108211,22 +108196,22 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/signal_wiring.py",
-          "line": 165,
+          "line": 164,
           "sink": "_set_compare_fit_mode"
         },
         {
           "path": "cdmw/ui/shell/signal_wiring.py",
-          "line": 166,
+          "line": 165,
           "sink": "_set_compare_zoom_factor"
         },
         {
           "path": "cdmw/ui/shell/signal_wiring.py",
-          "line": 167,
+          "line": 166,
           "sink": "_adjust_compare_zoom"
         },
         {
           "path": "cdmw/ui/shell/signal_wiring.py",
-          "line": 168,
+          "line": 167,
           "sink": "_adjust_compare_zoom"
         },
         {
@@ -108356,7 +108341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 265,
+          "line": 270,
           "sink": "emit"
         }
       ]
@@ -108836,7 +108821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 487,
+          "line": 541,
           "sink": "_add_menu_section"
         },
         {
@@ -109266,7 +109251,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_preview_package.py",
-          "line": 732,
+          "line": 719,
           "sink": "ModelPreviewData"
         }
       ]
@@ -187491,7 +187476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 471,
+          "line": 525,
           "sink": "_add_menu_section"
         },
         {
@@ -188236,7 +188221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 830,
+          "line": 833,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -188776,7 +188761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 363,
+          "line": 417,
           "sink": "_add_menu_section"
         },
         {
@@ -189271,17 +189256,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 392,
+          "line": 446,
           "sink": "_add_menu_section"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 424,
+          "line": 478,
           "sink": "_add_menu_section"
         },
         {
           "path": "cdmw/ui/archive_browser/actions.py",
-          "line": 430,
+          "line": 484,
           "sink": "_add_menu_section"
         }
       ]
@@ -190691,12 +190676,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 717,
+          "line": 740,
           "sink": "python-return:_format_bytes"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_model.py",
-          "line": 723,
+          "line": 746,
           "sink": "python-return:_format_bytes"
         }
       ]

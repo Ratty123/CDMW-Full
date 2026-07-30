@@ -55,58 +55,12 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         var limit = Math.Clamp(request.Limit, 1, WorkerProtocol.MaximumPageSize);
         var offset = Math.Max(0, request.Offset);
         var parent = NormalizeFolder(request.ParentPath);
-        var folders = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
-        var entries = new List<(string Path, long EntryId)>();
-        var entryCount = compiled?.EntryCount ?? session.Index.EntryCount;
-        for (long entryIndex = 0; entryIndex < entryCount; entryIndex++)
-        {
-            if ((entryIndex & 0xFFF) == 0)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-            var entryId = compiled is null ? entryIndex : compiled.EntryIdAt(entryIndex);
-            var entry = session.ReadEntry(entryId);
-            if (!string.IsNullOrWhiteSpace(request.Category) &&
-                !entry.Category.Equals(request.Category, StringComparison.OrdinalIgnoreCase) &&
-                !entry.Role.ToString().Equals(request.Category, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-            var hierarchyPath = request.IncludePackageRoot
-                ? StructurePath(entry)
-                : entry.Path;
-            if (!hierarchyPath.StartsWith(parent, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-            var relative = hierarchyPath[parent.Length..].TrimStart('/');
-            if (relative.Length == 0)
-            {
-                continue;
-            }
-            var separator = relative.IndexOf('/');
-            if (separator >= 0)
-            {
-                var name = relative[..separator];
-                var full = string.IsNullOrEmpty(parent) ? name : $"{parent.TrimEnd('/')}/{name}";
-                folders[full] = folders.GetValueOrDefault(full) + 1;
-            }
-            else
-            {
-                entries.Add((entry.Path, entry.EntryId));
-            }
-        }
-
-        var folderNodes = folders
-            .OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(static pair => new ArchiveChildNode(pair.Key, Path.GetFileName(pair.Key), true, pair.Value))
-            .ToArray();
-        entries.Sort(static (left, right) =>
-        {
-            var compared = StringComparer.OrdinalIgnoreCase.Compare(left.Path, right.Path);
-            return compared != 0 ? compared : left.EntryId.CompareTo(right.EntryId);
-        });
-        var totalChildren = (long)folderNodes.Length + entries.Count;
+        var listing = CanWalkSortedRange(request, compiled)
+            ? ListChildrenBySortedRange(session, compiled, parent, cancellationToken)
+            : ListChildrenByScan(session, compiled, request, parent, cancellationToken);
+        var folderNodes = listing.Folders;
+        var fileEntryIds = listing.FileEntryIds;
+        var totalChildren = (long)folderNodes.Length + fileEntryIds.Count;
         var pageNodes = new List<ArchiveChildNode>(limit);
         for (long childIndex = offset; childIndex < totalChildren && pageNodes.Count < limit; childIndex++)
         {
@@ -115,8 +69,7 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
                 pageNodes.Add(folderNodes[childIndex]);
                 continue;
             }
-            var direct = entries[checked((int)(childIndex - folderNodes.Length))];
-            var entry = session.ReadEntry(direct.EntryId);
+            var entry = session.ReadEntry(fileEntryIds[checked((int)(childIndex - folderNodes.Length))]);
             pageNodes.Add(new ArchiveChildNode(
                 $"entry:{entry.EntryId}",
                 entry.Name,
@@ -135,6 +88,205 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             offset,
             totalChildren,
             nextOffset);
+    }
+
+    /// <summary>
+    /// The index is sorted by path, so every descendant of a folder occupies one
+    /// contiguous run of rows. When the request groups on the entry path and the
+    /// query preserves index order, a folder listing is two binary searches and a
+    /// walk of that run instead of a pass over the whole archive.
+    /// </summary>
+    private static bool CanWalkSortedRange(ArchiveChildrenRequest request, CompiledArchiveQuery? compiled) =>
+        !request.IncludePackageRoot
+        && string.IsNullOrWhiteSpace(request.Category)
+        && (compiled is null || compiled.HasAscendingEntryIds);
+
+    private static ChildListing ListChildrenBySortedRange(
+        ArchiveSession session,
+        CompiledArchiveQuery? compiled,
+        string parent,
+        CancellationToken cancellationToken)
+    {
+        var rowCount = compiled?.EntryCount ?? session.Index.EntryCount;
+        var low = FindPrefixBoundary(session, compiled, 0, rowCount, parent, after: false);
+        var high = FindPrefixBoundary(session, compiled, low, rowCount, parent, after: true);
+        var folders = new List<ArchiveChildNode>();
+        var files = new List<long>();
+        var position = low;
+        while (position < high)
+        {
+            if ((position & 0xFFF) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            var path = ReadRowPath(session, compiled, position);
+            if (ArchivePathOrder.ComparePrefix(path, parent) != 0)
+            {
+                // The range came from the index's own ordering, so this is unreachable
+                // unless the index is not ordered the way it claims. Skip rather than
+                // index off the end of the path and fail the whole listing.
+                position++;
+                continue;
+            }
+            var relative = path.AsSpan(parent.Length);
+            var separator = relative.IndexOf('/');
+            if (separator < 0)
+            {
+                if (!relative.IsEmpty)
+                {
+                    files.Add(RowEntryId(compiled, position));
+                }
+                position++;
+                continue;
+            }
+            var name = relative[..separator].ToString();
+            var folderPath = parent + name;
+            var blockEnd = FindPrefixBoundary(session, compiled, position + 1, high, folderPath + "/", after: true);
+            folders.Add(new ArchiveChildNode(folderPath, name, true, blockEnd - position));
+            position = blockEnd;
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        return new ChildListing([.. folders], files);
+    }
+
+    /// <summary>
+    /// Returns the first row at or after <paramref name="low"/> that sorts at
+    /// (<paramref name="after"/> false) or past (true) the rows carrying
+    /// <paramref name="prefix"/>.
+    /// </summary>
+    private static long FindPrefixBoundary(
+        ArchiveSession session,
+        CompiledArchiveQuery? compiled,
+        long low,
+        long high,
+        string prefix,
+        bool after)
+    {
+        var target = after ? 1 : 0;
+        while (low < high)
+        {
+            var middle = low + (high - low) / 2;
+            if (ArchivePathOrder.ComparePrefix(ReadRowPath(session, compiled, middle), prefix) < target)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+        return low;
+    }
+
+    private static string ReadRowPath(ArchiveSession session, CompiledArchiveQuery? compiled, long row) =>
+        session.Index.ReadEntryPath(RowEntryId(compiled, row));
+
+    private static long RowEntryId(CompiledArchiveQuery? compiled, long row) =>
+        compiled is null ? row : compiled.EntryIdAt(row);
+
+    /// <summary>
+    /// The general listing: a pass over every row in the query. It still avoids
+    /// <see cref="ArchiveSession.ReadEntry"/>, because a path is all the grouping
+    /// needs and the category and role a filter tests are derived from that path.
+    /// </summary>
+    private static ChildListing ListChildrenByScan(
+        ArchiveSession session,
+        CompiledArchiveQuery? compiled,
+        ArchiveChildrenRequest request,
+        string parent,
+        CancellationToken cancellationToken)
+    {
+        var categoryFilter = CategoryFilter.Parse(request.Category);
+        var folders = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var entries = new List<(string Path, long EntryId)>();
+        var rowCount = compiled?.EntryCount ?? session.Index.EntryCount;
+        for (long row = 0; row < rowCount; row++)
+        {
+            if ((row & 0xFFF) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            var entryId = RowEntryId(compiled, row);
+            var path = session.Index.ReadEntryPath(entryId);
+            if (!categoryFilter.Matches(path))
+            {
+                continue;
+            }
+            var hierarchyPath = request.IncludePackageRoot
+                ? StructurePath(session, entryId, path)
+                : path;
+            if (!hierarchyPath.StartsWith(parent, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            var relative = hierarchyPath[parent.Length..].TrimStart('/');
+            if (relative.Length == 0)
+            {
+                continue;
+            }
+            var separator = relative.IndexOf('/');
+            if (separator >= 0)
+            {
+                var name = relative[..separator];
+                var full = string.IsNullOrEmpty(parent) ? name : $"{parent.TrimEnd('/')}/{name}";
+                folders[full] = folders.GetValueOrDefault(full) + 1;
+            }
+            else
+            {
+                entries.Add((path, entryId));
+            }
+        }
+
+        var folderNodes = folders
+            .OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(static pair => new ArchiveChildNode(pair.Key, Path.GetFileName(pair.Key), true, pair.Value))
+            .ToArray();
+        entries.Sort(static (left, right) =>
+        {
+            var compared = StringComparer.OrdinalIgnoreCase.Compare(left.Path, right.Path);
+            return compared != 0 ? compared : left.EntryId.CompareTo(right.EntryId);
+        });
+        return new ChildListing(folderNodes, entries.Select(static item => item.EntryId).ToList());
+    }
+
+    private readonly record struct ChildListing(ArchiveChildNode[] Folders, List<long> FileEntryIds);
+
+    /// <summary>
+    /// A children request names one facet, which is either an extension category or a
+    /// role. Both are derived from the path, so the filter never needs a full entry.
+    /// </summary>
+    private readonly record struct CategoryFilter(
+        bool Active,
+        ArchiveExtensionCategory? Category,
+        ArchiveEntryRole? Role)
+    {
+        public static CategoryFilter Parse(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return new CategoryFilter(false, null, null);
+            }
+            var text = value.Trim();
+            return new CategoryFilter(
+                true,
+                Enum.TryParse<ArchiveExtensionCategory>(text, ignoreCase: true, out var category) ? category : null,
+                Enum.TryParse<ArchiveEntryRole>(text, ignoreCase: true, out var role) ? role : null);
+        }
+
+        public bool Matches(string path)
+        {
+            if (!Active)
+            {
+                return true;
+            }
+            if (Category is null && Role is null)
+            {
+                return false;
+            }
+            var extension = Path.GetExtension(path).ToLowerInvariant();
+            return (Category is { } category && ArchiveEntryClassifier.ClassifyExtensionCategory(extension) == category)
+                || (Role is { } role && ArchiveEntryClassifier.Classify(path, extension) == role);
+        }
     }
 
     public IReadOnlyList<long> GetEntryIds(string sessionId, string queryId)
@@ -578,14 +730,20 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         return value.Replace('\\', '/').Trim('/') + "/";
     }
 
-    private static string StructurePath(ArchiveEntryDto entry)
+    private static string StructurePath(ArchiveEntryDto entry) =>
+        StructurePath(entry.SourcePamt, entry.Path);
+
+    private static string StructurePath(ArchiveSession session, long entryId, string path) =>
+        StructurePath(session.Index.ReadString(session.Index.GetPamtPathRange(entryId)), path);
+
+    private static string StructurePath(string sourcePamt, string path)
     {
-        var packageDirectory = Path.GetFileName(Path.GetDirectoryName(entry.SourcePamt));
+        var packageDirectory = Path.GetFileName(Path.GetDirectoryName(sourcePamt));
         if (string.IsNullOrWhiteSpace(packageDirectory))
         {
             packageDirectory = "package";
         }
-        return $"{packageDirectory.Trim('/')}/{entry.Path.Trim('/')}";
+        return $"{packageDirectory.Trim('/')}/{path.Trim('/')}";
     }
 
     private static void Publish(Func<ProgressUpdate, Task>? progress, ProgressUpdate update) =>

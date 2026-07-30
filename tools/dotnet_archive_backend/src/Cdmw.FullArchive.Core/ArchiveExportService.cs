@@ -228,6 +228,11 @@ public sealed class ArchiveExportService(
                 {
                     throw new InvalidDataException("Folder export requires a virtual folder path.");
                 }
+                // IncludePackageRoot picks the namespace the folder path is written in,
+                // for matching as well as for the output layout. The browser's folder
+                // tree is built on entry paths; the folder filter is built on
+                // package-root paths. Matching only the latter silently exported
+                // nothing for every folder the tree can name.
                 var folder = request.FolderPath.Replace('\\', '/').Trim('/') + "/";
                 var folderIds = new List<long>();
                 var queryEntryIds = string.IsNullOrWhiteSpace(request.QueryId)
@@ -243,7 +248,10 @@ public sealed class ArchiveExportService(
                     var entryId = queryEntryIds is null
                         ? candidateIndex
                         : queryEntryIds[checked((int)candidateIndex)];
-                    if (StructurePath(session.ReadEntry(entryId)).StartsWith(folder, StringComparison.OrdinalIgnoreCase))
+                    var hierarchyPath = request.IncludePackageRoot
+                        ? StructurePath(session, entryId)
+                        : session.Index.ReadEntryPath(entryId);
+                    if (hierarchyPath.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
                     {
                         folderIds.Add(entryId);
                     }
@@ -312,6 +320,9 @@ public sealed class ArchiveExportService(
     {
         return $"{PackageRoot(entry)}/{entry.Path.Trim('/')}";
     }
+
+    private static string StructurePath(ArchiveSession session, long entryId) =>
+        StructurePath(session.ReadEntry(entryId));
 
     private static string PackageRoot(ArchiveEntryDto entry)
     {
