@@ -520,6 +520,8 @@ def _refresh_editable_viewport_rectangle(state: SimpleNamespace) -> dict[str, ob
     # A client area cannot be wider than its window, so if these disagree here the
     # renderer is drawing and projecting at a size its window no longer has, and
     # the disagreement is not a layout change that happened later.
+    raw_audit = raw.get("geometry_audit")
+    audit = dict(raw_audit) if isinstance(raw_audit, Mapping) else {}
     window_rect = _host_window_rect(int(state.viewport_hwnd or 0))
     live_window = (
         {
@@ -540,6 +542,9 @@ def _refresh_editable_viewport_rectangle(state: SimpleNamespace) -> dict[str, ob
             "height": height,
         },
         "os_window_at_same_moment": live_window,
+        # Sampled inside the control itself, so WinForms' belief, Windows' answer and
+        # the swap chain's actual render size are read at one instant on one thread.
+        "renderer_geometry_audit": audit,
         "renderer_matches_os_window": bool(
             live_window
             and live_window["width"] == width
