@@ -50,6 +50,12 @@ _WINDOWS_CJK_FONT_FILES = {
     "zh-Hant": ("msjh.ttc",),
 }
 _REGISTERED_CJK_FONT_PATHS: set[str] = set()
+# The handle each registration returned, kept because adding a font changes text
+# metrics for every widget built afterwards in this process. The application never
+# withdraws one -- a language can be switched back and forth all session -- but the
+# state is process-wide, so being able to say what was added, and to undo it, is
+# what lets a test measure widths without inheriting another test's fonts.
+_REGISTERED_CJK_FONT_IDS: list[int] = []
 
 
 def _register_windows_cjk_fonts(language_code: str) -> None:
@@ -61,8 +67,18 @@ def _register_windows_cjk_fonts(language_code: str) -> None:
         path_key = str(path).casefold()
         if path_key in _REGISTERED_CJK_FONT_PATHS or not path.is_file():
             continue
-        if QFontDatabase.addApplicationFont(str(path)) >= 0:
+        font_id = QFontDatabase.addApplicationFont(str(path))
+        if font_id >= 0:
             _REGISTERED_CJK_FONT_PATHS.add(path_key)
+            _REGISTERED_CJK_FONT_IDS.append(font_id)
+
+
+def _unregister_cjk_fonts() -> None:
+    """Withdraws every font `_register_windows_cjk_fonts` added to this process."""
+
+    while _REGISTERED_CJK_FONT_IDS:
+        QFontDatabase.removeApplicationFont(_REGISTERED_CJK_FONT_IDS.pop())
+    _REGISTERED_CJK_FONT_PATHS.clear()
 
 
 def _same_font(left: QFont, right: QFont) -> bool:

@@ -1033,6 +1033,23 @@ class AssetFamilyGraph:
     summary: str = ""
 
 
+@dataclass(slots=True, frozen=True)
+class ArchivePreviewTrack:
+    """One playable sound inside a container that holds several.
+
+    A Wwise sound bank is the case that needs this: the bank is one archive entry
+    but embeds many sounds, and the decoder selects between them by subsong.
+    """
+
+    index: int
+    """The one-based position the decoder uses to select this sound."""
+
+    name: str
+    """The sound's own identity, which for a bank is its Wwise source id."""
+
+    size: int = 0
+
+
 @dataclass(slots=True)
 class ArchivePreviewResult:
     status: str
@@ -1047,6 +1064,8 @@ class ArchivePreviewResult:
     preview_image: object = None
     preview_media_path: str = ""
     preview_media_kind: str = ""
+    preview_tracks: Tuple["ArchivePreviewTrack", ...] = ()
+    preview_track_index: int = 0
     preview_text: str = ""
     preview_model: object = None
     static_preview_image: object = None

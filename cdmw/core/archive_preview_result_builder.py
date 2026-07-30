@@ -23,6 +23,13 @@ from cdmw.models import (
     DdsInfo,
     ModelPreviewData,
 )
+from cdmw.core.archive_wwise_bank_preview import (
+    build_sound_bank_tracks,
+    decode_sound_bank_track,
+    select_sound_bank_track,
+    sound_bank_detail_parts,
+    sound_bank_metadata_summary,
+)
 from cdmw.core.common import RunCancelled
 from cdmw.core.archive_model_references import _ArchiveModelSidecarTextureBinding
 from cdmw.core.archive_model_textures import _FAST_ARCHIVE_PREVIEW_TEXTURE_NOTE
@@ -119,6 +126,7 @@ def build_archive_preview_result(
     support_texture_slots: Sequence[str] = ("normal", "material", "height", "emissive"),
     quality_tier: str = "full",
     enable_hkx_visual_preview: bool = True,
+    preview_track_index: int = 0,
     stop_event: Optional[threading.Event] = None,
 ) -> ArchivePreviewResult:
     normalized_quality_tier = _normalize_archive_preview_quality_tier(quality_tier)
@@ -378,26 +386,41 @@ def build_archive_preview_result(
 
         if extension == ".bnk":
             bnk_preview_text, bnk_detail_text = build_bnk_soundbank_preview(data)
-            detail_extra = "\n\n".join(
-                part
-                for part in [
-                    (
-                        "Archive entry uses non-DDS Partial storage; preview is based on raw stored bytes."
-                        if "PartialRaw" in note_flags
-                        else ""
-                    ),
-                    ("Decrypted via deterministic ChaCha20 filename derivation." if "ChaCha20" in note_flags else ""),
-                    bnk_detail_text,
-                ]
-                if part
-            )
+            detail_parts = sound_bank_detail_parts(note_flags, bnk_detail_text)
+            # A bank that embeds sounds is playable one sound at a time. One that
+            # embeds none keeps its readable analysis instead of an empty player,
+            # because its audio streams from separate .wem files and there is
+            # nothing inside it to play.
+            tracks = build_sound_bank_tracks(data)
+            media_source = None
+            selected_index = 0
+            if tracks:
+                selected_index = select_sound_bank_track(tracks, preview_track_index)
+                media_source, playback_note = decode_sound_bank_track(
+                    entry,
+                    selected_index,
+                    ensure_preview_source=ensure_archive_preview_source,
+                    ensure_media_source=_ensure_media_preview_source_path,
+                    stop_event=stop_event,
+                )
+                detail_parts.append(playback_note)
             return ArchivePreviewResult(
                 status="ok",
                 title=entry.basename,
-                metadata_summary=f"{metadata_summary} | Wwise SoundBank",
-                detail_text=build_archive_entry_detail_text(entry, detail_extra),
+                metadata_summary=(
+                    sound_bank_metadata_summary(metadata_summary, tracks, selected_index)
+                    if media_source
+                    else f"{metadata_summary} | Wwise SoundBank"
+                ),
+                detail_text=build_archive_entry_detail_text(
+                    entry, "\n\n".join(part for part in detail_parts if part)
+                ),
+                preview_media_path=media_source or "",
+                preview_media_kind="audio" if media_source else "",
+                preview_tracks=tracks,
+                preview_track_index=selected_index,
                 preview_text=bnk_preview_text or build_binary_strings_preview(data),
-                preferred_view="text",
+                preferred_view="media" if media_source else "text",
                 loose_file_path=loose_file_path,
                 loose_preview_image_path=loose_preview_image_path,
                 loose_preview_media_path=loose_preview_media_path,

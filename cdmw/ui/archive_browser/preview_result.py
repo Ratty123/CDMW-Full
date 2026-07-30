@@ -250,6 +250,8 @@ class ArchivePreviewResultMixin:
                 preview_media_path,
                 media_kind=preview_media_kind,
                 detail_text=detail_text,
+                tracks=result.preview_tracks,
+                track_index=result.preview_track_index,
             )
             self.archive_preview_stack.setCurrentWidget(self.archive_media_preview)
             self.archive_preview_tabs.setCurrentIndex(0)

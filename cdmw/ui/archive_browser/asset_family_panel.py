@@ -21,6 +21,7 @@ from cdmw.models import (
     AssetFamilyMember,
     AttachmentPlacementEvidence,
 )
+from cdmw.domain.archives.association_vocabulary import ASSET_FAMILY_GROUP_ORDER
 from cdmw.ui.archive_browser.asset_family_references import _asset_family_dependency_maps
 
 
@@ -308,19 +309,7 @@ class ArchiveAssetFamilyPanelMixin:
                 reference_index_by_path[resolved_path] = index
 
         if member_rows:
-            group_order = (
-                "Selected Model",
-                "Attachment / Placement",
-                "Material",
-                "Textures",
-                "Item Icons",
-                "Physics / HKX",
-                "MeshInfo",
-                "Prefab / Metadata",
-                "Skeleton / Rig",
-                "Animation / Motion",
-                "Other",
-            )
+            group_order = ASSET_FAMILY_GROUP_ORDER
             group_items: Dict[str, QTreeWidgetItem] = {}
             for group_label in group_order:
                 rows = [row for row in member_rows if row.group == group_label]
