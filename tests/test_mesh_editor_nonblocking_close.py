@@ -55,3 +55,84 @@ def test_close_standalone_session_detaches_slow_controller_without_waiting() -> 
     tab.standalone_live_stroke_dispatcher = None
     tab.deleteLater()
     app.processEvents()
+
+
+def test_closing_a_session_retires_the_ids_queued_completions_are_matched_against() -> None:
+    """Cancelling a worker cannot recall a result already queued on the event loop.
+
+    Teardown stopped the action and rebuild workers but left their request ids intact,
+    so a completion emitted just before the cancel still matched and was published --
+    through whichever controller was current by then. An operation started on one mesh
+    could refresh the next one with an incompatible native payload.
+    """
+
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings("CDMWTests", "MeshEditorStaleCompletion")
+    settings.clear()
+    tab = MeshEditorTab(settings=settings)
+    tab.standalone_action_request_id = 7
+    tab.standalone_rebuild_report_request_id = 4
+    in_flight_action = tab.standalone_action_request_id
+    in_flight_rebuild = tab.standalone_rebuild_report_request_id
+
+    tab.close_standalone_session()
+
+    assert tab.standalone_action_request_id != in_flight_action
+    assert tab.standalone_rebuild_report_request_id != in_flight_rebuild
+
+    # The late result now fails the id check and never reaches a controller.
+    published: list[object] = []
+    tab.standalone_action_controller = object()  # type: ignore[assignment]
+    tab._finish_standalone_action_execution = lambda *a, **k: published.append(a)  # type: ignore[assignment]
+    tab._handle_standalone_action_completed(in_flight_action, object())
+
+    assert published == []
+    tab.deleteLater()
+    app.processEvents()
+
+
+def test_a_finished_rebuild_report_survives_an_unrelated_selection_refresh() -> None:
+    """Selecting a different part used to destroy a valid rebuild report.
+
+    Every `update_editor_session_state` cleared it, and part selection goes through
+    that path -- so a finished report could no longer be inspected, previewed or
+    packaged after a click that changed no geometry. Only a geometry command moves
+    `MeshEditSessionView.revision`, which is what now decides staleness.
+    """
+
+    from cdmw.domain.mesh import MeshEditSelection, MeshEditSessionView
+
+    def _view(revision: int) -> MeshEditSessionView:
+        return MeshEditSessionView(
+            session_id="session-a",
+            mode="object",
+            revision=revision,
+            selection=MeshEditSelection(),
+            submesh_count=1,
+            vertex_count=8,
+            face_count=12,
+        )
+
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings("CDMWTests", "MeshEditorRebuildReportRetention")
+    settings.clear()
+    tab = MeshEditorTab(settings=settings)
+    report = object()
+    tab.standalone_last_rebuild_report = report
+    tab.standalone_rebuild_report_revision = 4
+
+    tab.update_editor_session_state(_view(4))
+    assert tab.standalone_last_rebuild_report is report
+
+    tab.update_editor_session_state(_view(5))
+    assert tab.standalone_last_rebuild_report is None
+    assert tab.standalone_rebuild_report_revision is None
+
+    # A session that has gone away clears it too.
+    tab.standalone_last_rebuild_report = report
+    tab.standalone_rebuild_report_revision = 6
+    tab.update_editor_session_state(None)
+    assert tab.standalone_last_rebuild_report is None
+
+    tab.deleteLater()
+    app.processEvents()

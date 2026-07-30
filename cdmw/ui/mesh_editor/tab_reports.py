@@ -15,6 +15,17 @@ from cdmw.ui.mesh_editor.tab_support import _rebuild_report_json_payload
 
 
 class MeshEditorReportsMixin:
+    def _standalone_session_revision(self) -> int | None:
+        """The geometry revision a finished report describes, or None if unknowable."""
+        controller = getattr(self, "standalone_controller", None)
+        session_view = getattr(controller, "session_view", None)
+        if not callable(session_view):
+            return None
+        try:
+            return int(getattr(session_view(), "revision", -1))
+        except (RuntimeError, TypeError, ValueError):
+            return None
+
     def _standalone_validation_worker_active(self) -> bool:
         return self.standalone_validation_thread is not None or self.standalone_validation_worker is not None
     def _start_standalone_export_validation_requested(self) -> None:
@@ -166,6 +177,7 @@ class MeshEditorReportsMixin:
         self.standalone_rebuild_report_worker = worker
         self.standalone_rebuild_report_progress = progress
         self.standalone_last_rebuild_report = None
+        self.standalone_rebuild_report_revision = None
         self.standalone_last_rebuilt_asset_path = None
         self.standalone_workspace.update_rebuild_report(None)
         self._set_rebuild_report_button_enabled(False)
@@ -207,6 +219,7 @@ class MeshEditorReportsMixin:
         if int(request_id) != int(self.standalone_rebuild_report_request_id):
             return
         self.standalone_last_rebuild_report = report
+        self.standalone_rebuild_report_revision = self._standalone_session_revision()
         self.standalone_workspace.update_rebuild_report(report)
         self.standalone_workspace._focus_right_panel("Rebuild")
         output_path = str(getattr(report, "output_path", "") or "").strip()

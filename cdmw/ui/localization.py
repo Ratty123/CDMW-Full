@@ -1403,6 +1403,30 @@ class UiLocalizer(QObject):
         self._remember_rendered_translation(value, translated)
         return translated
 
+    def translate_mnemonic(self, text: str) -> str:
+        """Translate text drawn by a surface that eats `&` as a mnemonic marker.
+
+        Tab bars, menus and actions read a lone `&` as "underline the next letter",
+        so `as_label()` doubles it before handing the title over. The catalog key was
+        recorded from the title as written -- one `&` -- which means the doubled form
+        never matches and "Placement & Animation Studio" stayed English in every
+        language. Look the drawn text up the way it was written down, then re-escape
+        what comes back so the translation is drawn as literally as the source was.
+
+        Only the doubled form takes this path. A real mnemonic (`&Help`) has a single
+        `&` and is left to the ordinary lookup, which is what keeps this from eating
+        an accelerator the caller meant to keep.
+        """
+        value = str(text or "")
+        translated = self.translate_rendered(value)
+        if translated != value or "&&" not in value:
+            return translated
+        unescaped = value.replace("&&", "&")
+        localized = self.translate_rendered(unescaped)
+        if localized == unescaped:
+            return translated
+        return localized.replace("&", "&&")
+
     def _remember_rendered_translation(self, value: str, translated: str) -> None:
         cache = self._rendered_translation_cache
         if len(cache) >= _RENDERED_CACHE_LIMIT:
@@ -1848,7 +1872,15 @@ class UiLocalizer(QObject):
             obj.setProperty(key, value)
         return value
 
-    def _apply_setter(self, obj: object, property_name: str, getter_name: str, setter_name: str) -> None:
+    def _apply_setter(
+        self,
+        obj: object,
+        property_name: str,
+        getter_name: str,
+        setter_name: str,
+        *,
+        mnemonic: bool = False,
+    ) -> None:
         try:
             # Even the attribute lookup raises once the C++ object behind a live
             # Python wrapper is gone, so it belongs inside the guard.
@@ -1862,7 +1894,11 @@ class UiLocalizer(QObject):
                 # accessible text. Writing an empty string back is two Qt calls
                 # per widget per property, on every widget in the window.
                 return
-            translated = self.translate_rendered(source)
+            translated = (
+                self.translate_mnemonic(source)
+                if mnemonic
+                else self.translate_rendered(source)
+            )
             setter(translated)
             if hasattr(obj, "setProperty"):
                 obj.setProperty(f"_i18n_rendered_{property_name}", translated)
@@ -2003,8 +2039,38 @@ class UiLocalizer(QObject):
             if callable(update):
                 update()
 
+    def _iter_translatable_widgets(self, root: QWidget) -> Iterable[QWidget]:
+        """Walk `root` and its descendants, pruning at every hidden subtree.
+
+        Nobody can read a hidden widget, and Qt raises a Show event on each
+        widget of a subtree as it is revealed -- which this localizer's own
+        application-wide event filter already turns into a deferred apply, the
+        same route a lazily built tool tab has always taken. So a hidden page
+        costs nothing to skip here and is translated the moment it is opened.
+        On a shell whose twelve tool tabs are built but closed that is 4,345 of
+        4,453 widgets, and a tab the reader never opens is never walked at all.
+
+        The root itself is never pruned. A top-level window reports `isHidden()`
+        until it is first shown, and the startup apply for a saved non-English
+        locale runs before that -- pruning there would translate nothing.
+        """
+        yield root
+        pending = root.findChildren(
+            QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly
+        )
+        while pending:
+            widget = pending.pop()
+            if widget.isHidden():
+                continue
+            yield widget
+            pending.extend(
+                widget.findChildren(
+                    QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly
+                )
+            )
+
     def _apply_widget_tree(self, root: QWidget) -> None:
-        for widget in [root, *root.findChildren(QWidget)]:
+        for widget in self._iter_translatable_widgets(root):
             if (
                 isinstance(widget, QLabel)
                 and widget.property("_i18n_human_number_value") is not None
@@ -2167,7 +2233,7 @@ class UiLocalizer(QObject):
                 rendered_key,
                 widget.tabText(index),
             )
-            translated = self.translate_rendered(source)
+            translated = self.translate_mnemonic(source)
             widget.setTabText(index, translated)
             widget.setProperty(rendered_key, translated)
             tooltip_source_key = f"_i18n_tab_tooltip_source_{index}"
@@ -2195,7 +2261,7 @@ class UiLocalizer(QObject):
                 rendered_key,
                 widget.tabText(index),
             )
-            translated = self.translate_rendered(source)
+            translated = self.translate_mnemonic(source)
             widget.setTabText(index, translated)
             widget.setProperty(rendered_key, translated)
             tooltip_source_key = (
@@ -2588,7 +2654,7 @@ class UiLocalizer(QObject):
         widget.setProperty("_i18n_rendered_plain_text", translated)
 
     def _apply_action(self, action: QAction) -> None:
-        self._apply_setter(action, "text", "text", "setText")
+        self._apply_setter(action, "text", "text", "setText", mnemonic=True)
         self._apply_setter(action, "tooltip", "toolTip", "setToolTip")
         self._apply_setter(
             action,
@@ -2604,4 +2670,4 @@ class UiLocalizer(QObject):
         )
 
     def _apply_menu(self, menu: QMenu) -> None:
-        self._apply_setter(menu, "title", "title", "setTitle")
+        self._apply_setter(menu, "title", "title", "setTitle", mnemonic=True)

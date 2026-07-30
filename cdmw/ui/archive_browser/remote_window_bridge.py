@@ -187,10 +187,13 @@ class ArchiveRemoteWindowBridge(QObject):
         if callable(invalidate_item_finder):
             invalidate_item_finder()
         current_session = self.current_session
+        # Every open creates a fresh backend session, not only a forced Refresh, so
+        # recording this only for Refresh meant an ordinary Scan -- or a root change --
+        # left the previous session, its generation lease, mapped files and query cache
+        # alive until backend shutdown. Publishing already skips the close when the
+        # reopen handed back the same session id, so this is safe to record always.
         self._superseded_session_id = (
-            current_session.session_id
-            if force_refresh and current_session is not None
-            else None
+            current_session.session_id if current_session is not None else None
         )
         self.cancel_preview_dependencies(clear_snapshot=True)
         self._last_open_root = str(Path(package_root))

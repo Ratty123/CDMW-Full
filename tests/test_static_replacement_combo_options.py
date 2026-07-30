@@ -119,3 +119,40 @@ def test_populate_combo_options_adds_labels_and_payloads() -> None:
     populate_combo_options(combo, (("First", 1), ("Second", "two")))
 
     assert _combo_entries(combo) == [("First", 1), ("Second", "two")]
+
+
+def test_material_rows_are_never_translated_because_the_save_path_reads_their_text() -> None:
+    """A game material name is a value, not a label, even though it carries item data.
+
+    The UV material combo stores each material's key as item data, which is the
+    localizer's signal that the display text is safe to translate. It is not: the save
+    path reads `currentText()`, so under a German UI a material named `Body` was
+    recorded as `Koerper` and the exported override named a material the asset has no
+    such thing as. The opt-out property is what keeps the rows verbatim.
+    """
+
+    from pathlib import Path
+
+    from cdmw.ui.localization import UiLocalizer
+
+    app = QApplication.instance() or QApplication([])
+    german = UiLocalizer(language_dir=Path("__unused__"), language_code="de")
+    # Guard the premise: these are real catalog keys, so the risk is not hypothetical.
+    assert german.translate_rendered("Body") != "Body"
+
+    combo = QComboBox()
+    combo.setProperty("_i18n_skip_combo_items", True)
+    for material_name, key in (("Body", "body"), ("Face", "face"), ("Default", "default")):
+        combo.addItem(material_name, key)
+
+    german.apply(combo)
+    app.processEvents()
+
+    assert [combo.itemText(index) for index in range(combo.count())] == [
+        "Body",
+        "Face",
+        "Default",
+    ]
+    assert combo.currentText() == "Body"
+    combo.deleteLater()
+    app.processEvents()

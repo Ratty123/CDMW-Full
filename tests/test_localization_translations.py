@@ -9,10 +9,12 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QLabel, QMainWindow
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QTabWidget, QWidget
 
 from cdmw.ui.localization import UiLocalizer, collect_translatable_source_strings
 from cdmw.ui.shell.language_controller import LanguageControllerMixin
+from cdmw.ui.shell.lazy_tool_tab import as_label
 from cdmw.ui.shell.utility_controller import UtilityControllerMixin
 
 
@@ -352,6 +354,55 @@ def test_documentation_and_readme_cover_current_mesh_and_dds_workflows() -> None
     assert "OBJ/DAE/glTF/GLB import preview" in readme_source
     assert "bundled `cd-texture-dx.exe` native" in readme_source
     assert "DDS preview, staging, and rebuild use the bundled `cd-texture-dx.exe`" in readme_source
+
+
+def test_mnemonic_escaped_tab_titles_still_reach_their_catalog_key() -> None:
+    """`as_label()` doubles `&`; the catalog key was recorded with one.
+
+    "Placement & Animation Studio" is drawn as "Placement && Animation Studio" so the
+    tab bar does not eat the ampersand as a mnemonic marker, and the exact lookup
+    against the undoubled key missed -- the tab stayed English in every language.
+    """
+
+    app = QApplication.instance() or QApplication([])
+    german = UiLocalizer(language_dir=Path("__unused__"), language_code="de")
+
+    assert german.translate("Placement & Animation Studio") == "Platzierungs- und Animationsstudio"
+    assert german.translate_rendered("Placement && Animation Studio") == (
+        "Placement && Animation Studio"
+    )
+    assert german.translate_mnemonic("Placement && Animation Studio") == (
+        "Platzierungs- und Animationsstudio"
+    )
+
+    tabs = QTabWidget()
+    tabs.addTab(QWidget(), as_label("Placement & Animation Studio"))
+    tabs.addTab(QWidget(), as_label("Settings"))
+    german.apply(tabs)
+
+    assert tabs.tabText(0) == "Platzierungs- und Animationsstudio"
+    assert tabs.tabText(1) == german.translate("Settings")
+
+    # A translation carrying its own `&` is re-escaped, so the menu draws it as
+    # literally as the source was drawn rather than eating a letter.
+    german.translations["Show Placement & Animation Studio"] = "Zeige Platzierung & Animation"
+    action = QAction(as_label("Show Placement & Animation Studio"))
+    german._apply_action(action)
+    assert action.text() == "Zeige Platzierung && Animation"
+
+    tabs.deleteLater()
+    app.processEvents()
+
+
+def test_mnemonic_translation_leaves_a_real_accelerator_alone() -> None:
+    """A single `&` is an accelerator the caller chose, not escaping to undo."""
+
+    german = UiLocalizer(language_dir=Path("__unused__"), language_code="de")
+    german.translations["&Help"] = "&Hilfe"
+
+    assert german.translate_mnemonic("&Help") == "&Hilfe"
+    assert german.translate_mnemonic("Pending changes") == "Ausstehende Änderungen"
+    assert german.translate_mnemonic("") == ""
 
 
 def test_supported_documentation_languages_cover_all_topic_ids() -> None:

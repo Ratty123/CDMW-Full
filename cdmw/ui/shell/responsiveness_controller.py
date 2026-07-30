@@ -180,7 +180,16 @@ class ResponsivenessControllerMixin:
         scale = responsive_control_scale_for_resolution(screen_width, screen_height)
         if not getattr(self, "_responsive_control_widgets", ()):
             self._cache_responsive_control_widgets()
-        for widget in tuple(getattr(self, "_responsive_control_widgets", ())):
+        # The cache is rebuilt when a tool tab is constructed, never when one of its
+        # controls is destroyed. A panel that rebuilds its own progress bar therefore
+        # leaves a dead wrapper here, and touching it raises out of a queued appearance
+        # step -- an unhandled exception, because a timer callback has no caller to
+        # catch it. Drop the dead entries on the way past instead.
+        cached = tuple(getattr(self, "_responsive_control_widgets", ()))
+        live = tuple(widget for widget in cached if qt_wrapper_is_valid(widget))
+        if len(live) != len(cached):
+            self._responsive_control_widgets = live
+        for widget in live:
             base_min_width = widget.property("_cdmw_responsive_base_min_width")
             if base_min_width is None:
                 base_min_width = int(widget.minimumWidth())
