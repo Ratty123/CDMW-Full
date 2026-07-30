@@ -67,6 +67,9 @@ internal sealed partial class D3D11MaterialViewport
         Invalidate();
     }
 
+    /// <summary>True while a coalesced resize is still waiting to be committed.</summary>
+    public bool ResizeCommitPending => _resizeCommitTimer.Enabled;
+
     public void CommitResizeImmediately()
     {
         _resizeCommitTimer.Stop();
