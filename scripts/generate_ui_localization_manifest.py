@@ -102,6 +102,23 @@ MANUAL_SOURCE_KEYS = frozenset(
         "texture",
         "warning",
         "{count} files",
+        # Associated Assets group headers. They are rendered from
+        # `cdmw.domain.archives.association_vocabulary.ASSET_FAMILY_GROUP_ORDER`
+        # so the panel, the dialog and the graph builder cannot disagree about
+        # which groups exist, and `cdmw/domain` is not a scanned source root.
+        # Without these the headers would quietly fall back to English.
+        "Animation / Motion",
+        "Attachment / Placement",
+        "Audio / Video",
+        "Item Icons",
+        "Material",
+        "MeshInfo",
+        "Other",
+        "Physics / HKX",
+        "Prefab / Metadata",
+        "Selected Model",
+        "Skeleton / Rig",
+        "Textures",
     }
 )
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QImage, QImageReader, QPixmap
@@ -13,7 +13,7 @@ except ImportError:
     QAudioOutput = None
     QMediaPlayer = None
     QVideoWidget = None
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSlider, QVBoxLayout, QWidget
 
 class PreviewLabel(QLabel):
     color_sampled = Signal(str)
@@ -420,6 +420,9 @@ def _format_media_preview_time(value_ms: int) -> str:
     return f"{minutes:d}:{seconds:02d}"
 
 class MediaPreviewWidget(QWidget):
+    track_selected = Signal(int)
+    """Emitted with the one-based sound the reader chose inside a multi-sound file."""
+
     def __init__(self, message: str, *, theme_key: str):
         super().__init__()
         self._message = message
@@ -437,6 +440,23 @@ class MediaPreviewWidget(QWidget):
         self.info_label.setWordWrap(True)
         self.info_label.setObjectName("HintLabel")
         layout.addWidget(self.info_label)
+
+        # A container that holds several sounds, such as a Wwise sound bank, is
+        # decoded one sound at a time, so the reader picks which one plays. The
+        # row stays hidden for the ordinary single-stream file.
+        self.track_row = QHBoxLayout()
+        self.track_row.setSpacing(8)
+        self.track_label = QLabel("Sound:")
+        self.track_label.setObjectName("HintLabel")
+        self.track_combo = QComboBox()
+        self.track_combo.setObjectName("archiveMediaPreviewTrackCombo")
+        self.track_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.track_row.addWidget(self.track_label)
+        self.track_row.addWidget(self.track_combo, stretch=1)
+        layout.addLayout(self.track_row)
+        self._suppress_track_signal = False
+        self.track_combo.currentIndexChanged.connect(self._handle_track_changed)
+        self._set_track_row_visible(False)
 
         if self._media_supported:
             self.video_widget = QVideoWidget()
@@ -487,10 +507,49 @@ class MediaPreviewWidget(QWidget):
     def set_theme(self, theme_key: str) -> None:
         self._theme_key = theme_key
 
+    def _set_track_row_visible(self, visible: bool) -> None:
+        self.track_label.setVisible(visible)
+        self.track_combo.setVisible(visible)
+
+    def _handle_track_changed(self, row: int) -> None:
+        # Repopulating the combo moves the current index, so a programmatic change
+        # would otherwise re-request the sound that is already playing.
+        if self._suppress_track_signal or row < 0:
+            return
+        track_index = self.track_combo.itemData(row)
+        if track_index is None:
+            return
+        self.track_selected.emit(int(track_index))
+
+    def set_tracks(self, tracks: Sequence[object], selected_index: int) -> None:
+        """Shows the sounds a multi-sound file holds, with the playing one selected.
+
+        Fewer than two sounds needs no chooser: a bank with one sound behaves
+        like any other single-stream file.
+        """
+
+        rows = tuple(tracks or ())
+        self._suppress_track_signal = True
+        try:
+            self.track_combo.clear()
+            for position, track in enumerate(rows, start=1):
+                index = int(getattr(track, "index", position) or position)
+                name = str(getattr(track, "name", "") or index)
+                self.track_combo.addItem(f"{index} of {len(rows)} — {name}", index)
+            if len(rows) > 1:
+                for row in range(self.track_combo.count()):
+                    if self.track_combo.itemData(row) == int(selected_index):
+                        self.track_combo.setCurrentIndex(row)
+                        break
+        finally:
+            self._suppress_track_signal = False
+        self._set_track_row_visible(len(rows) > 1)
+
     def clear_media(self, message: str) -> None:
         self._message = message
         self._media_path = ""
         self._media_kind = ""
+        self.set_tracks((), 0)
         if self.player is not None:
             self.player.stop()
             self.player.setSource(QUrl())
@@ -507,12 +566,24 @@ class MediaPreviewWidget(QWidget):
     def shutdown(self) -> None:
         self.clear_media(self._message)
 
-    def set_media(self, media_path: str, *, media_kind: str, detail_text: str = "") -> None:
+    def set_media(
+        self,
+        media_path: str,
+        *,
+        media_kind: str,
+        detail_text: str = "",
+        tracks: Sequence[object] = (),
+        track_index: int = 0,
+    ) -> None:
         normalized_path = str(media_path or "").strip()
         normalized_kind = str(media_kind or "").strip().lower()
         if not normalized_path:
             self.clear_media(detail_text or "No media preview available.")
             return
+
+        # Set every time, so moving from a bank to an ordinary sound takes the
+        # chooser away rather than leaving the previous file's sounds listed.
+        self.set_tracks(tracks, track_index)
 
         self._media_path = normalized_path
         self._media_kind = normalized_kind

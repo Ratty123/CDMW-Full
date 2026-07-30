@@ -111,9 +111,11 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         static_thumbnail_size: Optional[Tuple[int, int]] = None,
         static_thumbnail_text_color: str = "#8b949e",
         static_thumbnail_point_cloud: bool = False,
+        preview_track_index: int = 0,
     ):
         super().__init__()
         self.request_id = request_id
+        self.preview_track_index = max(0, int(preview_track_index))
         self.entry = entry
         self.companion_entry = companion_entry
         self.texture_entries_by_normalized_path = texture_entries_by_normalized_path
@@ -518,6 +520,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             support_texture_slots=self.support_texture_slots if support_texture_slots is None else support_texture_slots,
             quality_tier=quality_tier,
             enable_hkx_visual_preview=str(getattr(self.entry, "extension", "") or "").strip().lower() not in {".hkx", ".hkt"},
+            preview_track_index=self.preview_track_index,
             stop_event=self.stop_event,
         )
         timings["worker_build_s"] = max(0.0, float(time.perf_counter() - worker_build_started_at))
