@@ -7,7 +7,7 @@ import string
 import weakref
 from datetime import date, datetime, time
 from pathlib import Path
-from typing import Callable, Dict, Iterable, Mapping, Optional, Set, Tuple
+from typing import Callable, Dict, Iterable, Mapping, NamedTuple, Optional, Set, Tuple
 
 from PySide6.QtCore import (
     QAbstractItemModel,
@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFontDialog,
     QGroupBox,
+    QHeaderView,
     QInputDialog,
     QLabel,
     QLineEdit,
@@ -500,6 +501,51 @@ def _install_file_dialog_wrappers() -> None:
         setattr(QFileDialog, method_name, staticmethod(wrapper))
 
 
+def _owns_its_tab_bar(widget: QTabBar) -> bool:
+    """True when this tab bar is the one a QTabWidget draws its own tabs in."""
+    parent = widget.parentWidget()
+    return isinstance(parent, QTabWidget) and parent.tabBar() is widget
+
+
+def _combo_box_owning_view(view: QAbstractItemView) -> QComboBox | None:
+    """The combo box whose popup this view is, if that is what it is.
+
+    The popup sits two parents up, inside a container widget Qt creates.
+    """
+    parent = view.parentWidget()
+    for _ in range(3):
+        if parent is None:
+            return None
+        if isinstance(parent, QComboBox):
+            return parent if parent.view() is view else None
+        parent = parent.parentWidget()
+    return None
+
+
+def _view_translates_its_own_model(view: QAbstractItemView) -> bool:
+    """False for the views whose text another widget is already responsible for.
+
+    A combo box's popup and a header view both read a model some other widget owns.
+    Walking them as views translated the same strings a second time -- and for a
+    QTreeWidget or QTableWidget, whose headers are tracked as widget properties
+    rather than in the model, the two records then disagreed about which string was
+    the English one.
+    """
+    if isinstance(view, QHeaderView):
+        return False
+    return _combo_box_owning_view(view) is None
+
+
+def _is_combo_box_editor(widget: QLineEdit) -> bool:
+    """True when this line edit is an editable combo box's own editor.
+
+    Its text mirrors the current item, so the combo owns it; translating it here
+    as well would translate the item's text a second time.
+    """
+    parent = widget.parentWidget()
+    return isinstance(parent, QComboBox) and parent.lineEdit() is widget
+
+
 def _looks_like_translatable_text(value: str) -> bool:
     text = _WHITESPACE_RE.sub(" ", str(value or "").strip())
     if not text:
@@ -654,6 +700,32 @@ def write_language_file(
     )
 
 
+class _TemplateRule(NamedTuple):
+    """One catalogue template compiled for matching against already-rendered text.
+
+    ``prefix`` and ``literal`` are what make the match *skippable* without running
+    the regex. Both are text the pattern copies through verbatim, so a value that
+    lacks them cannot possibly match: ``prefix`` is the first three characters of
+    a template that starts with a literal (the pattern is ``^``-anchored, so a
+    match must start with them), and ``literal`` is the first three characters of
+    the longest literal anywhere in the template, which a match must contain.
+    ``rank`` preserves the single global try-order across the split index.
+    """
+
+    rank: int
+    pattern: re.Pattern[str]
+    source: str
+    fields: Tuple[Tuple[str, str], ...]
+    prefix: str
+    literal: str
+    literals: Tuple[str, ...]
+    tail: str
+
+
+_TEMPLATE_INDEX_KEY_LENGTH = 3
+_RENDERED_CACHE_LIMIT = 4_096
+
+
 class UiLocalizer(QObject):
     language_changed = Signal(str, int)
 
@@ -681,7 +753,13 @@ class UiLocalizer(QObject):
         self._runtime_tracking_active = False
         self._event_filter_busy = False
         self._rendered_translation_cache: dict[str, str] = {}
+        self._pending_flush_scheduled = False
         self._template_patterns = self._build_template_patterns(SOURCE_STRING_CATALOGUE)
+        (
+            self._template_prefix_index,
+            self._template_literal_index,
+            self._template_unfiltered_rules,
+        ) = self._build_template_index(self._template_patterns)
         self._scan_custom_languages_once()
         self.load_language(self.language_code)
 
@@ -1126,9 +1204,9 @@ class UiLocalizer(QObject):
     @staticmethod
     def _build_template_patterns(
         sources: Iterable[str],
-    ) -> Tuple[Tuple[re.Pattern[str], str, Tuple[Tuple[str, str], ...]], ...]:
+    ) -> Tuple[_TemplateRule, ...]:
         patterns: list[
-            Tuple[int, re.Pattern[str], str, Tuple[Tuple[str, str], ...]]
+            Tuple[int, re.Pattern[str], str, Tuple[Tuple[str, str], ...], str, str]
         ] = []
         for source in sources:
             source_text = str(source)
@@ -1145,9 +1223,15 @@ class UiLocalizer(QObject):
             fields: list[Tuple[str, str]] = []
             seen: dict[str, str] = {}
             literal_chars = 0
+            # Only the text before the *first* placeholder anchors the match; a
+            # later literal can sit anywhere in the rendered value.
+            leading_literal = parsed[0][0]
+            longest_literal = ""
             for literal, field, _format_spec, _conversion in parsed:
                 expression.append(re.escape(literal))
                 literal_chars += len(literal)
+                if len(literal) > len(longest_literal):
+                    longest_literal = literal
                 if field is None:
                     continue
                 field_name = re.split(r"[.[]", str(field), maxsplit=1)[0]
@@ -1176,28 +1260,130 @@ class UiLocalizer(QObject):
                 pattern = re.compile("".join(expression), re.DOTALL)
             except re.error:
                 continue
+            key_length = _TEMPLATE_INDEX_KEY_LENGTH
+            prefix = (
+                leading_literal[:key_length]
+                if len(leading_literal) >= key_length
+                else ""
+            )
+            literals = tuple(literal for literal, _f, _s, _c in parsed)
             patterns.append(
-                (literal_chars, pattern, source_text, tuple(fields))
+                (
+                    literal_chars,
+                    pattern,
+                    source_text,
+                    tuple(fields),
+                    prefix,
+                    ""
+                    if prefix or len(longest_literal) < key_length
+                    else longest_literal[:key_length],
+                    literals,
+                    literals[-1] if parsed[-1][1] is None else "",
+                )
             )
         patterns.sort(key=lambda item: (-item[0], item[2]))
-        return tuple((pattern, source, fields) for _weight, pattern, source, fields in patterns)
+        return tuple(
+            _TemplateRule(rank, *rest)
+            for rank, (_weight, *rest) in enumerate(patterns)
+        )
+
+    @staticmethod
+    def _build_template_index(
+        rules: Iterable[_TemplateRule],
+    ) -> Tuple[
+        Dict[str, Tuple[_TemplateRule, ...]],
+        Dict[str, Tuple[_TemplateRule, ...]],
+        Tuple[_TemplateRule, ...],
+    ]:
+        """Split the try-order into buckets a rendered value can be matched against.
+
+        Scanning all ~2,100 templates cost about a millisecond of regex
+        backtracking per untranslated string, which a language switch pays
+        thousands of times over. Each rule lands in exactly one bucket, so
+        gathering candidates never has to de-duplicate.
+        """
+        by_prefix: Dict[str, list[_TemplateRule]] = {}
+        by_literal: Dict[str, list[_TemplateRule]] = {}
+        unfiltered: list[_TemplateRule] = []
+        for rule in rules:
+            if rule.prefix:
+                by_prefix.setdefault(rule.prefix, []).append(rule)
+            elif rule.literal:
+                by_literal.setdefault(rule.literal, []).append(rule)
+            else:
+                unfiltered.append(rule)
+        return (
+            {key: tuple(items) for key, items in by_prefix.items()},
+            {key: tuple(items) for key, items in by_literal.items()},
+            tuple(unfiltered),
+        )
+
+    def _candidate_template_rules(self, value: str) -> list[_TemplateRule]:
+        key_length = _TEMPLATE_INDEX_KEY_LENGTH
+        candidates = list(self._template_prefix_index.get(value[:key_length], ()))
+        literal_index = self._template_literal_index
+        if literal_index:
+            keys = {
+                value[offset : offset + key_length]
+                for offset in range(len(value) - key_length + 1)
+            }
+            if len(keys) <= len(literal_index):
+                for key in keys:
+                    candidates.extend(literal_index.get(key, ()))
+            else:
+                for key, rules in literal_index.items():
+                    if key in value:
+                        candidates.extend(rules)
+        candidates.extend(self._template_unfiltered_rules)
+        candidates.sort(key=lambda rule: rule.rank)
+        return candidates
+
+    @staticmethod
+    def _rule_can_match(rule: _TemplateRule, value: str) -> bool:
+        """Reject a rule without running its regex, exactly and in linear time.
+
+        Every placeholder compiles to a non-empty group, so a match is the
+        template's literals laid end to end through the value, in order, with the
+        leading one at the start and any trailing one at the end. Checking that
+        with ``str.find`` first is what keeps one 864-character status line from
+        costing nearly three seconds of lazy-quantifier backtracking against
+        templates that were never going to match it.
+        """
+        literals = rule.literals
+        head = literals[0]
+        if head and not value.startswith(head):
+            return False
+        tail = rule.tail
+        if tail and not value.endswith(tail):
+            return False
+        cursor = len(head)
+        for literal in (literals[1:-1] if tail else literals[1:]):
+            if not literal:
+                continue
+            found = value.find(literal, cursor)
+            if found < 0:
+                return False
+            cursor = found + len(literal)
+        return not tail or len(value) - len(tail) >= cursor
 
     def _translate_rendered_single(self, value: str) -> str:
         if value in self.translations:
             return self.translate(value)
-        for pattern, source, fields in self._template_patterns:
-            match = pattern.fullmatch(value)
+        for rule in self._candidate_template_rules(value):
+            if not self._rule_can_match(rule, value):
+                continue
+            match = rule.pattern.fullmatch(value)
             if match is None:
                 continue
             arguments = {
                 field_name: self._localize_rendered_argument(
                     match.group(group_name),
-                    context=f"{source} {field_name}",
+                    context=f"{rule.source} {field_name}",
                 )
-                for group_name, field_name in fields
+                for group_name, field_name in rule.fields
             }
-            translated = self.format(source, **arguments)
-            if translated != source:
+            translated = self.format(rule.source, **arguments)
+            if translated != rule.source:
                 return translated
         return value
 
@@ -1218,19 +1404,25 @@ class UiLocalizer(QObject):
         if translated == value:
             translated = self._translate_rendered_single(value)
         if translated != value:
-            if len(self._rendered_translation_cache) >= 4_096:
-                self._rendered_translation_cache.clear()
-            self._rendered_translation_cache[value] = translated
+            self._remember_rendered_translation(value, translated)
             return translated
         if "\n" in value:
             translated = "\n".join(
                 self.translate_rendered(line)
                 for line in value.split("\n")
             )
-        if len(self._rendered_translation_cache) >= 4_096:
-            self._rendered_translation_cache.clear()
-        self._rendered_translation_cache[value] = translated
+        self._remember_rendered_translation(value, translated)
         return translated
+
+    def _remember_rendered_translation(self, value: str, translated: str) -> None:
+        cache = self._rendered_translation_cache
+        if len(cache) >= _RENDERED_CACHE_LIMIT:
+            # Evicting the oldest quarter keeps the working set warm. Emptying the
+            # whole cache made a long run of unique text -- a log view, a file
+            # listing -- re-pay the template scan for strings it had just resolved.
+            for stale in tuple(cache)[: _RENDERED_CACHE_LIMIT // 4]:
+                del cache[stale]
+        cache[value] = translated
 
     def activate_runtime_tracking(
         self,
@@ -1260,15 +1452,32 @@ class UiLocalizer(QObject):
         self.register_root(root)
 
     def register_root(self, root: QWidget) -> None:
+        """Remember one widget tree to re-translate, keeping only the topmost.
+
+        A root that an already-registered root contains adds nothing: applying the
+        ancestor walks it anyway. Collapsing on the way in is what keeps this list
+        at one entry per window instead of one per widget that ever asked to be
+        re-applied, which is also what keeps this linear scan cheap.
+        """
         if not isinstance(root, QWidget):
             return
-        for reference in tuple(self._registered_roots):
+        survivors: list[weakref.ReferenceType[QWidget]] = []
+        covered = False
+        for reference in self._registered_roots:
             existing = reference()
-            if existing is None:
-                self._registered_roots.remove(reference)
-            elif existing is root:
-                return
-        self._registered_roots.append(weakref.ref(root))
+            if existing is None or not qt_object_is_valid(existing):
+                continue
+            try:
+                if existing is root or existing.isAncestorOf(root):
+                    covered = True
+                elif root.isAncestorOf(existing):
+                    continue
+            except RuntimeError:
+                continue
+            survivors.append(reference)
+        if not covered:
+            survivors.append(weakref.ref(root))
+        self._registered_roots = survivors
 
     def shutdown(self) -> None:
         self._runtime_tracking_active = False
@@ -1285,15 +1494,17 @@ class UiLocalizer(QObject):
         self._application = None
 
     def apply_registered_roots(self) -> None:
-        for reference in tuple(self._registered_roots):
-            root = reference()
+        live = [reference() for reference in self._registered_roots]
+        self._registered_roots = [
+            weakref.ref(root) for root in live if root is not None
+        ]
+        for root in live:
             if root is None:
-                self._registered_roots.remove(reference)
                 continue
             try:
                 self.apply(root)
             except RuntimeError:
-                self._registered_roots.remove(reference)
+                continue
 
     def mark_source_tree_current(self, root: QWidget) -> None:
         """Mark an untranslated English tree so first-show events do not rescan it."""
@@ -1303,72 +1514,117 @@ class UiLocalizer(QObject):
             self._pending_objects.pop(id(widget), None)
 
     def _schedule_widget_apply(self, widget: QWidget) -> None:
-        if not self._runtime_tracking_active or self._event_filter_busy:
+        if not self._runtime_tracking_active:
             return
         object_id = id(widget)
         if object_id in self._pending_objects:
             return
-        reference = weakref.ref(widget)
-        self._pending_objects[object_id] = reference
+        # Recording the request while an apply pass is running -- rather than
+        # discarding it -- is what stops a widget tree built during that pass from
+        # never being translated at all. Realising a lazy tool tab from a show
+        # event is exactly that case.
+        self._pending_objects[object_id] = weakref.ref(widget)
+        if self._pending_flush_scheduled:
+            return
+        self._pending_flush_scheduled = True
+        QTimer.singleShot(0, self._flush_pending_applies)
 
-        def apply_pending() -> None:
-            stored = self._pending_objects.pop(object_id, None)
-            target = stored() if stored is not None else None
-            if target is None:
-                return
+    def _flush_pending_applies(self) -> None:
+        """Apply every widget that asked to be re-translated, in one pass.
+
+        One timer per widget meant a freshly built tool tab -- around 1,500 widgets,
+        each raising its own show event -- became 1,500 separate subtree walks
+        spread over 1,500 turns of the event loop. That is both the stall and the
+        reason text used to appear in pieces, seconds apart. Applying an ancestor
+        already covers its descendants, so only the topmost requests survive here.
+        """
+        self._pending_flush_scheduled = False
+        if not self._runtime_tracking_active:
+            self._pending_objects.clear()
+            return
+        pending = self._pending_objects
+        self._pending_objects = {}
+        # A weak reference outlives the C++ widget: shiboken keeps the Python
+        # wrapper, and every call on it then raises. Anything queued before its
+        # widget was destroyed has to be dropped here, not walked.
+        targets = [
+            widget
+            for widget in (reference() for reference in pending.values())
+            if widget is not None and qt_object_is_valid(widget)
+        ]
+        live_ids = {id(widget) for widget in targets}
+        outermost: list[QWidget] = []
+        for target in targets:
             try:
-                self.apply(target)
+                parent = target.parentWidget()
+                while parent is not None and id(parent) not in live_ids:
+                    parent = parent.parentWidget()
             except RuntimeError:
-                return
-
-        QTimer.singleShot(0, apply_pending)
+                continue
+            if parent is None:
+                outermost.append(target)
+        for target in outermost:
+            try:
+                self._apply_widget_subtree(target)
+            except RuntimeError:
+                continue
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
         if not self._runtime_tracking_active or self._event_filter_busy:
             return super().eventFilter(watched, event)
+        try:
+            self._dispatch_filtered_event(watched, event)
+        except RuntimeError:
+            # An object can be torn down while its own events are still being
+            # delivered. Letting that escape an event filter override takes the
+            # process down, so nothing here may raise.
+            pass
+        return super().eventFilter(watched, event)
+
+    def _dispatch_filtered_event(self, watched: QObject, event: QEvent) -> None:
         event_type = event.type()
         if event_type == QEvent.Type.ChildAdded:
             child_getter = getattr(event, "child", None)
             child = child_getter() if callable(child_getter) else None
-            target = child if isinstance(child, QWidget) else watched
+            if isinstance(child, QWidget):
+                target: QWidget | None = child
+            elif isinstance(child, (QAction, QMenu)) and isinstance(watched, QWidget):
+                # Actions and menus live outside the widget tree, so the parent has
+                # to be re-walked to reach the new one.
+                target = watched
+            else:
+                target = None
             if (
-                isinstance(target, QWidget)
-                and (
-                    self.language_code != "en"
-                    or target.property("_i18n_applied_revision") != self.revision
-                )
+                target is not None
+                and target.property("_i18n_applied_revision") != self.revision
             ):
                 self._schedule_widget_apply(target)
-        elif event_type in {
-            QEvent.Type.Show,
-            QEvent.Type.Polish,
-            QEvent.Type.LayoutRequest,
-        }:
+        elif event_type in {QEvent.Type.Show, QEvent.Type.Polish}:
             if (
                 isinstance(watched, QWidget)
                 and watched.property("_i18n_applied_revision") != self.revision
             ):
                 self._schedule_widget_apply(watched)
-        elif event_type in {
-            QEvent.Type.ToolTipChange,
-            QEvent.Type.WindowTitleChange,
-        }:
-            if (
-                isinstance(watched, QWidget)
-                and not (
-                    self.language_code == "en"
-                    and watched.property("_i18n_applied_revision")
-                    == self.revision
-                )
-            ):
-                self._schedule_widget_apply(watched)
+        elif event_type == QEvent.Type.ToolTipChange and isinstance(watched, QWidget):
+            self._apply_changed_property(
+                watched,
+                "tooltip",
+                "toolTip",
+                "setToolTip",
+            )
+        elif event_type == QEvent.Type.WindowTitleChange and isinstance(watched, QWidget):
+            self._apply_changed_property(
+                watched,
+                "window_title",
+                "windowTitle",
+                "setWindowTitle",
+            )
         elif event_type == QEvent.Type.ActionChanged and isinstance(watched, QAction):
             self._event_filter_busy = True
             try:
                 self._apply_action(watched)
             finally:
                 self._event_filter_busy = False
-        return super().eventFilter(watched, event)
 
     def collect_source_strings(self, root: QWidget) -> Dict[str, TranslationEntry]:
         strings: Dict[str, TranslationEntry] = {}
@@ -1415,7 +1671,7 @@ class UiLocalizer(QObject):
                         if isinstance(tooltip_source, str)
                         else widget.tabToolTip(index)
                     )
-            elif isinstance(widget, QTabBar):
+            elif isinstance(widget, QTabBar) and not _owns_its_tab_bar(widget):
                 for index in range(widget.count()):
                     source = widget.property(
                         f"_i18n_tab_bar_source_{index}"
@@ -1468,9 +1724,10 @@ class UiLocalizer(QObject):
                 for index in range(widget.count()):
                     source = widget.property(f"_i18n_combo_source_{index}")
                     add(source if isinstance(source, str) else widget.itemText(index))
-            if isinstance(widget, QAbstractItemView) and not isinstance(
-                widget,
-                (QComboBox, QListWidget),
+            if (
+                isinstance(widget, QAbstractItemView)
+                and not isinstance(widget, (QComboBox, QListWidget))
+                and _view_translates_its_own_model(widget)
             ):
                 for source in self._iter_model_sources(widget.model()):
                     add(source)
@@ -1489,7 +1746,13 @@ class UiLocalizer(QObject):
 
     def apply(self, root: QWidget) -> None:
         self.register_root(root)
+        self._apply_widget_subtree(root)
+
+    def _apply_widget_subtree(self, root: QWidget) -> None:
         if self._event_filter_busy:
+            # Re-entering would translate already-translated text. The caller's
+            # request is not lost: it stays queued for the next flush.
+            self._schedule_widget_apply(root)
             return
         self._event_filter_busy = True
         try:
@@ -1559,6 +1822,26 @@ class UiLocalizer(QObject):
             yield menu
             pending.extend(action.menu() for action in menu.actions() if action.menu() is not None)
 
+    def _adopts_current_as_source(
+        self,
+        existing: str,
+        rendered: object,
+        current: str,
+    ) -> bool:
+        """Whether text that is not what we last wrote is a new English source.
+
+        Usually it is: the app replaced the string behind our back and the
+        replacement needs translating. But it is *not* when the text is already this
+        language's rendering of the source we hold -- code that sets
+        ``_i18n_source_*`` itself and then writes the translated string lands here,
+        and so does any pass that reaches the same text twice. Adopting a
+        translation as the source is what made a language stick after switching back
+        to English, because English is then translated from French.
+        """
+        if not isinstance(rendered, str) or current in {existing, rendered}:
+            return False
+        return current != self.translate_rendered(existing)
+
     def _source_property(self, obj: object, property_name: str, current_value: str) -> str:
         key = f"_i18n_source_{property_name}"
         rendered_key = f"_i18n_rendered_{property_name}"
@@ -1566,7 +1849,7 @@ class UiLocalizer(QObject):
         if isinstance(existing, str):
             rendered = obj.property(rendered_key) if hasattr(obj, "property") else None
             current = str(current_value or "")
-            if isinstance(rendered, str) and current not in {existing, rendered}:
+            if self._adopts_current_as_source(existing, rendered, current):
                 if hasattr(obj, "setProperty"):
                     obj.setProperty(key, current)
                 return current
@@ -1577,18 +1860,51 @@ class UiLocalizer(QObject):
         return value
 
     def _apply_setter(self, obj: object, property_name: str, getter_name: str, setter_name: str) -> None:
-        getter = getattr(obj, getter_name, None)
-        setter = getattr(obj, setter_name, None)
-        if not callable(getter) or not callable(setter):
-            return
         try:
+            # Even the attribute lookup raises once the C++ object behind a live
+            # Python wrapper is gone, so it belongs inside the guard.
+            getter = getattr(obj, getter_name, None)
+            setter = getattr(obj, setter_name, None)
+            if not callable(getter) or not callable(setter):
+                return
             source = self._source_property(obj, property_name, getter())
+            if not source:
+                # Most widgets carry no tooltip, status tip, placeholder or
+                # accessible text. Writing an empty string back is two Qt calls
+                # per widget per property, on every widget in the window.
+                return
             translated = self.translate_rendered(source)
             setter(translated)
             if hasattr(obj, "setProperty"):
                 obj.setProperty(f"_i18n_rendered_{property_name}", translated)
         except Exception:
             return
+
+    def _apply_changed_property(
+        self,
+        widget: QWidget,
+        property_name: str,
+        getter_name: str,
+        setter_name: str,
+    ) -> None:
+        """Re-translate the single property an event says just changed.
+
+        Queueing a whole-subtree walk for one replaced tooltip was pure waste, and
+        because the setter raises the same event again it also had to be able to
+        re-enter. Doing the one property here, under the re-entry guard, is both
+        cheaper and terminating.
+        """
+        if (
+            self.language_code == "en"
+            or self._event_filter_busy
+            or not qt_object_is_valid(widget)
+        ):
+            return
+        self._event_filter_busy = True
+        try:
+            self._apply_setter(widget, property_name, getter_name, setter_name)
+        finally:
+            self._event_filter_busy = False
 
     def _indexed_source(
         self,
@@ -1601,7 +1917,7 @@ class UiLocalizer(QObject):
         current = str(current_value or "")
         if isinstance(source, str):
             rendered = owner.property(rendered_key) if hasattr(owner, "property") else None
-            if isinstance(rendered, str) and current not in {source, rendered}:
+            if self._adopts_current_as_source(source, rendered, current):
                 if hasattr(owner, "setProperty"):
                     owner.setProperty(source_key, current)
                 return current
@@ -1622,13 +1938,15 @@ class UiLocalizer(QObject):
             stored_rendered = button.property("_i18n_rendered_text")
             current = button.text()
             if isinstance(stored_source, str):
-                if (
-                    isinstance(stored_rendered, str)
-                    and current not in {stored_source, stored_rendered}
-                ):
-                    effective_source = current
-                else:
-                    effective_source = stored_source
+                effective_source = (
+                    current
+                    if self._adopts_current_as_source(
+                        stored_source,
+                        stored_rendered,
+                        current,
+                    )
+                    else stored_source
+                )
             elif (
                 current != source
                 and current in self.translations
@@ -1721,6 +2039,11 @@ class UiLocalizer(QObject):
                         "text",
                         "setText",
                     )
+            elif isinstance(widget, QLineEdit) and _is_combo_box_editor(widget):
+                # The combo owns every string here, including the placeholder.
+                # Marking it keeps show events from asking again.
+                widget.setProperty("_i18n_applied_revision", self.revision)
+                continue
             if isinstance(widget, QGroupBox):
                 self._apply_setter(widget, "title", "title", "setTitle")
             if isinstance(widget, QWizardPage):
@@ -1820,7 +2143,7 @@ class UiLocalizer(QObject):
             self._apply_empty_state(widget)
             if isinstance(widget, QTabWidget):
                 self._apply_tab_widget(widget)
-            elif isinstance(widget, QTabBar):
+            elif isinstance(widget, QTabBar) and not _owns_its_tab_bar(widget):
                 self._apply_tab_bar(widget)
             if isinstance(widget, QComboBox):
                 self._apply_combo(widget)
@@ -1836,7 +2159,9 @@ class UiLocalizer(QObject):
                 self._apply_readonly_text_edit(widget)
             elif isinstance(widget, QPlainTextEdit) and widget.isReadOnly():
                 self._apply_readonly_text_edit(widget)
-            if isinstance(widget, QAbstractItemView):
+            if isinstance(widget, QAbstractItemView) and (
+                _view_translates_its_own_model(widget)
+            ):
                 self._apply_model_view(widget)
             if widget.property("_i18n_applied_revision") != self.revision:
                 widget.setProperty("_i18n_applied_revision", self.revision)
@@ -2098,6 +2423,11 @@ class UiLocalizer(QObject):
             reference = weakref.ref(view)
 
             def schedule_model_apply(*_args: object) -> None:
+                if self._event_filter_busy:
+                    # This pass is what wrote the model, so the signal is its own
+                    # echo. Queueing it would re-translate the view on every turn
+                    # of the event loop for as long as the app is open.
+                    return
                 target = reference()
                 if target is not None:
                     self._schedule_widget_apply(target)
@@ -2141,10 +2471,7 @@ class UiLocalizer(QObject):
                     continue
                 rendered = model.data(index, rendered_role)
                 if isinstance(source, str):
-                    if (
-                        isinstance(rendered, str)
-                        and current not in {source, rendered}
-                    ):
+                    if self._adopts_current_as_source(source, rendered, current):
                         source = current
                         model.setData(index, source, source_role)
                 else:
@@ -2154,6 +2481,12 @@ class UiLocalizer(QObject):
                 if translated != current:
                     model.setData(index, translated, presentation_role)
                 model.setData(index, translated, rendered_role)
+
+        if isinstance(view, (QTreeWidget, QTableWidget)):
+            # These two track their header text as widget properties, in
+            # _apply_tree_headers and _apply_table_headers. Translating the same
+            # sections again through the model would re-translate the translation.
+            return
 
         for orientation, section_count in (
             (Qt.Orientation.Horizontal, model.columnCount),
@@ -2189,10 +2522,7 @@ class UiLocalizer(QObject):
                         rendered_role,
                     )
                     if isinstance(source, str):
-                        if (
-                            isinstance(rendered, str)
-                            and current not in {source, rendered}
-                        ):
+                        if self._adopts_current_as_source(source, rendered, current):
                             source = current
                             model.setHeaderData(
                                 section,

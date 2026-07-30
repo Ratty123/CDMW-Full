@@ -108,6 +108,40 @@ matches all correlation fields. A live language change updates WinForms
 controls without restarting the helper or reloading the model, and reconnect
 replays the latest desired locale.
 
+### One owner per string
+
+Several Qt widgets expose the same text through a second child that also reads
+it: a `QTabWidget`'s own `QTabBar`, a `QComboBox`'s popup view and its editor,
+and the `QHeaderView` over a `QTreeWidget`'s or `QTableWidget`'s headers. Only
+the owning widget is translated. Reaching a string through both surfaces
+translates the translation, and because each surface keeps its own record of the
+English source, the second one stores the rendered text as the source — after
+which switching language renders English out of the previous language. Add a
+widget kind to `_apply_widget_tree` only after checking which of its children
+`findChildren(QWidget)` will also hand back.
+
+Text that the localizer did not write is normally adopted as a new English
+source, since it means the app replaced the string. It is not adopted when it
+already equals the current language's rendering of the source on record, which
+is what lets a widget hold its own translator: set `_i18n_source_<property>`
+and then write the translated string.
+
+### Matching rendered text
+
+A string assembled at runtime is matched back against the catalogue's templates
+by regex. Scanning all ~2,100 of them was about a millisecond each, which a
+language switch pays thousands of times, so they are bucketed by the three
+characters an `^`-anchored match must start with, or by three characters of a
+literal a match must contain, and each candidate is then rejected by walking its
+literals with `str.find` before the regex runs. Both filters are necessary
+conditions on a match, never sufficient ones, so the try-order and every result
+are unchanged; `rank` carries that single global order across the buckets.
+
+Widgets that ask to be re-translated are drained in one pass per turn of the
+event loop, with a queued ancestor absorbing its queued descendants. A queued
+widget can be destroyed before the pass runs, and its weak reference will still
+resolve, so validity is checked before it is touched.
+
 Human-facing dates, counts, file sizes, and durations use the selected locale.
 Paths, hashes, extensions, protocols, editable technical numbers, and
 game-provided content remain invariant. CJK locales preserve a configured font

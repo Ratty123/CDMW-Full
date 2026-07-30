@@ -25,9 +25,13 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QStatusBar,
     QTableView,
+    QTableWidget,
+    QTableWidgetItem,
     QTabWidget,
     QTextBrowser,
     QTextEdit,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -917,6 +921,237 @@ def test_readonly_python_model_presentation_roles_translate_without_mutation(
     assert model.headerData(0, Qt.Orientation.Horizontal) == "Settings"
     localizer.shutdown()
     root.deleteLater()
+
+
+def test_every_composite_widget_kind_restores_its_english_source(tmp_path: Path) -> None:
+    """No widget may be translated twice, in any language or on the way back.
+
+    Each kind here has a second widget that reads the same strings -- a
+    QTabWidget's tab bar, a combo's popup view and editor, a header view over a
+    QTreeWidget's or QTableWidget's own headers. Translating through both stored
+    the translation as the English source, which showed up as one language
+    surviving a switch to another, and as text mangled by being translated twice.
+    """
+    app = _app()
+    root = QWidget()
+    layout = QVBoxLayout(root)
+
+    tabs = QTabWidget(root)
+    tabs.addTab(QWidget(), "Archive Browser")
+    tabs.setTabToolTip(0, "Model Library")
+    layout.addWidget(tabs)
+
+    combo = QComboBox(root)
+    combo.addItem("Flat files", "flat")
+    layout.addWidget(combo)
+
+    editable = QComboBox(root)
+    editable.setEditable(True)
+    editable.addItem("Flat files", "flat")
+    layout.addWidget(editable)
+
+    tree = QTreeWidget(root)
+    tree.setColumnCount(1)
+    tree.setHeaderLabels(["Archive Browser"])
+    tree.addTopLevelItem(QTreeWidgetItem(["Flat files"]))
+    layout.addWidget(tree)
+
+    table = QTableWidget(1, 1, root)
+    table.setHorizontalHeaderLabels(["Archive Browser"])
+    table.setVerticalHeaderLabels(["Flat files"])
+    table.setItem(0, 0, QTableWidgetItem("Archive Files"))
+    layout.addWidget(table)
+
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="en")
+    localizer.activate_runtime_tracking(root, application=app)
+
+    def readings() -> dict[str, str]:
+        return {
+            "tab": tabs.tabText(0),
+            "tab_bar": tabs.tabBar().tabText(0),
+            "tab_tooltip": tabs.tabToolTip(0),
+            "combo_item": combo.itemText(0),
+            "editable_item": editable.itemText(0),
+            "tree_header": tree.headerItem().text(0),
+            "tree_cell": tree.topLevelItem(0).text(0),
+            "table_h_header": table.horizontalHeaderItem(0).text(),
+            "table_v_header": table.verticalHeaderItem(0).text(),
+            "table_cell": table.item(0, 0).text(),
+        }
+
+    english = readings()
+    assert set(english.values()) == {"Archive Browser", "Model Library", "Flat files", "Archive Files"}
+
+    for code in ("fr", "de", "ja", "en", "ru", "en"):
+        localizer.load_language(code)
+        localizer.apply(root)
+        expected = {
+            key: localizer.translate(english[key])
+            for key in english
+        }
+        assert readings() == expected, code
+        # A tab bar reading its QTabWidget's own tabs must agree with it exactly.
+        assert readings()["tab_bar"] == readings()["tab"], code
+
+    localizer.load_language("en")
+    localizer.apply(root)
+    assert readings() == english
+
+    localizer.shutdown()
+    root.deleteLater()
+    app.processEvents()
+
+
+def test_text_set_with_a_declared_source_is_not_mistaken_for_a_new_source(
+    tmp_path: Path,
+) -> None:
+    """Code may write ``_i18n_source_*`` and the translated string together.
+
+    That is how a widget holding its own translator reports what the English text
+    was. Reading the translated string back as the new source made the next switch
+    translate from it, so English never came back.
+    """
+    app = _app()
+    root = QWidget()
+    label = QLabel("Archive Browser", root)
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="de")
+    localizer.activate_runtime_tracking(root, application=app)
+    localizer.apply(root)
+    assert label.text() == localizer.translate("Archive Browser")
+
+    # The owning widget re-renders a *new* English source through its own translator.
+    label.setProperty("_i18n_source_text", "Model Library")
+    label.setText(localizer.translate("Model Library"))
+    localizer.apply(root)
+    assert label.text() == localizer.translate("Model Library")
+
+    localizer.load_language("en")
+    localizer.apply(root)
+    assert label.text() == "Model Library"
+
+    # Text replaced without declaring a source is still adopted as a new source.
+    localizer.load_language("de")
+    localizer.apply(root)
+    label.setText("Flat files")
+    localizer.apply(root)
+    assert label.text() == localizer.translate("Flat files")
+    localizer.load_language("en")
+    localizer.apply(root)
+    assert label.text() == "Flat files"
+
+    localizer.shutdown()
+    root.deleteLater()
+    app.processEvents()
+
+
+def test_template_index_agrees_with_a_full_scan_of_every_rule(tmp_path: Path) -> None:
+    """The bucketed lookup is an optimisation, so it must change no outcome.
+
+    Scanning all rules cost about a millisecond per untranslated string, which a
+    language switch pays thousands of times.
+    """
+    _app()
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="fr")
+    rules = localizer._template_patterns
+    assert len(rules) > 1_000
+    assert sorted(rule.rank for rule in rules) == list(range(len(rules)))
+    bucketed = (
+        sum(len(group) for group in localizer._template_prefix_index.values())
+        + sum(len(group) for group in localizer._template_literal_index.values())
+        + len(localizer._template_unfiltered_rules)
+    )
+    assert bucketed == len(rules), "every rule belongs to exactly one bucket"
+
+    def full_scan(value: str) -> str:
+        if value in localizer.translations:
+            return localizer.translate(value)
+        for rule in rules:
+            match = rule.pattern.fullmatch(value)
+            if match is None:
+                continue
+            arguments = {
+                field_name: localizer._localize_rendered_argument(
+                    match.group(group_name),
+                    context=f"{rule.source} {field_name}",
+                )
+                for group_name, field_name in rule.fields
+            }
+            translated = localizer.format(rule.source, **arguments)
+            if translated != rule.source:
+                return translated
+        return value
+
+    fillers = ("12", "1,234", "3.5", "Ready", "archive.pac", "C:/x/y.dds", "0", "a b c")
+    probes: list[str] = []
+    for offset, rule in enumerate(rules):
+        values = {
+            name: fillers[(offset + index) % len(fillers)]
+            for index, (_group, name) in enumerate(rule.fields)
+        }
+        try:
+            probes.append(rule.source.format(**values))
+        except (KeyError, ValueError, IndexError):
+            continue
+    probes.extend(SOURCE_STRING_CATALOGUE[::37])
+    probes.extend(
+        (
+            "",
+            "Random line that matches nothing at all",
+            "D:/CLAUDETEST/file_12.pac",
+            "12 / 24",
+            "[12:30:05] Wrote 7 files",
+            "- Loaded 7 rows",
+            "itemicon_prefab_weapon.dds",
+        )
+    )
+    for value in probes:
+        localizer._rendered_translation_cache.clear()
+        assert localizer._translate_rendered_single(value) == full_scan(value), value[:80]
+
+
+def test_a_burst_of_new_widgets_costs_one_apply_pass_and_one_root(tmp_path: Path) -> None:
+    """Show events from a freshly built subtree must coalesce into a single walk.
+
+    Realising a tool tab raises one show event per widget. One deferred apply each,
+    every one re-walking its own subtree and registering itself as another root,
+    turned a language switch into tens of seconds of work spread over thousands of
+    turns of the event loop -- which is also why text arrived in pieces.
+    """
+    app = _app()
+    root = QWidget()
+    layout = QVBoxLayout(root)
+    localizer = UiLocalizer(language_dir=tmp_path / "languages", language_code="de")
+    localizer.activate_runtime_tracking(root, application=app)
+    localizer.apply(root)
+    assert len(localizer._registered_roots) == 1
+
+    passes: list[QWidget] = []
+    original = localizer._apply_widget_tree
+
+    def counted(target: QWidget) -> None:
+        passes.append(target)
+        original(target)
+
+    localizer._apply_widget_tree = counted  # type: ignore[method-assign]
+
+    branch = QWidget(root)
+    branch_layout = QVBoxLayout(branch)
+    labels = [QLabel("Archive Browser", branch) for _ in range(40)]
+    for label in labels:
+        branch_layout.addWidget(label)
+    layout.addWidget(branch)
+    branch.show()
+    for _ in range(10):
+        app.processEvents()
+
+    assert len(passes) == 1, [type(widget).__name__ for widget in passes]
+    assert not localizer._pending_objects
+    assert len(localizer._registered_roots) == 1
+    assert all(label.text() == localizer.translate("Archive Browser") for label in labels)
+
+    localizer.shutdown()
+    root.deleteLater()
+    app.processEvents()
 
 
 def test_rich_text_translation_preserves_non_text_blocks() -> None:
