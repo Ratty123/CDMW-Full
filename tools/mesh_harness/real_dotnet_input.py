@@ -722,8 +722,24 @@ def drive_viewport_stroke(
     state.mouse_drag_start = start
     state.mouse_drag_points = tuple((start[0] + offset, start[1]) for offset in range(1, 41))
     state.mouse_drag_end = state.mouse_drag_points[-1]
+    projection_width = int(getattr(state, "projection_viewport_width", 0) or 0)
+    projection_height = int(getattr(state, "projection_viewport_height", 0) or 0)
+    if projection_width and projection_height and (projection_width, projection_height) != (width, height):
+        # The projected point is pane-local and so is this rectangle, so a
+        # disagreement means they describe different moments or different panes.
+        # Clamping through it would post the click somewhere the projection never
+        # pointed and still call the drag a success.
+        return base_error(
+            state,
+            "The .NET viewport rectangle disagrees with the surface its projection was built for: "
+            f"stroke bounds {width}x{height}, projection {projection_width}x{projection_height}.",
+        )
     if state.mouse_drag_end[0] >= width:
-        return base_error(state, "Projected drag would leave the .NET viewport.")
+        return base_error(
+            state,
+            "Projected drag would leave the .NET viewport. "
+            f"projected_center={state.projected_center} clamped_start={start} viewport={width}x{height}",
+        )
     state.form_rect_before = _host_window_rect(state.form_hwnd)
     state.viewport_rect_before = _host_window_rect(state.viewport_hwnd)
     state.action_started = time.perf_counter()

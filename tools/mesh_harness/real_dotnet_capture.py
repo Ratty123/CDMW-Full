@@ -62,25 +62,55 @@ def capture_dotnet_viewport(state: SimpleNamespace, path: Path) -> dict[str, obj
             break
         time.sleep(min(0.4, 0.08 * (attempt + 1)))
     if not ownership_ok:
+        # Name the specific condition: "not the foreground visible target" reads the
+        # same whether activation was refused, another process is in front, or the
+        # point lands on a sibling window, and those need different responses.
+        reasons = []
+        if not activated:
+            reasons.append("the viewport window refused activation")
+        if not _foreground_window_matches(foreground_root_hwnd):
+            reasons.append(f"the foreground window is not the harness root {foreground_root_hwnd}")
+        if visible_pid != expected_pid:
+            reasons.append(f"the window at the capture point belongs to pid {visible_pid}, not {expected_pid}")
+        elif not _window_is_same_or_child(int(state.viewport_hwnd), visible_hwnd):
+            reasons.append(f"the window at the capture point ({visible_hwnd}) is not the viewport or its child")
         return {
             "ok": False,
-            "error": "The .NET viewport was not the foreground visible capture target.",
+            "error": (
+                "The .NET viewport was not the foreground visible capture target: "
+                + ("; ".join(reasons) if reasons else "ownership was lost between the check and the grab")
+            ),
             "foreground_activated": bool(activated),
             "visible_hwnd": visible_hwnd,
             "visible_pid": visible_pid,
             "expected_pid": expected_pid,
         }
-    try:
-        image = ImageGrab.grab(bbox=(x, y, x + width, y + height), all_screens=True)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        image.save(path, format="PNG")
-    except Exception as exc:
-        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    # A D3D11 surface that has been revealed but has not yet presented reads back
+    # as one flat colour, so grabbing the instant ownership is granted photographs
+    # an empty window and calls it a failed capture. Wait for the surface to draw
+    # something instead of for a fixed delay: if it never does, this still fails,
+    # and now with the reason the summary computed.
+    summary: dict[str, object] = {}
+    attempts = 0
+    for attempt in range(12):
+        attempts = attempt + 1
+        try:
+            image = ImageGrab.grab(bbox=(x, y, x + width, y + height), all_screens=True)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            image.save(path, format="PNG")
+        except Exception as exc:
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        summary = _png_capture_summary(path)
+        if summary.get("ok"):
+            break
+        state.app.processEvents()
+        time.sleep(min(0.5, 0.1 * (attempt + 1)))
     return {
-        **_png_capture_summary(path),
+        **summary,
         "hwnd": int(state.viewport_hwnd),
         "screen_rect": list(rect),
         "foreground_activated": True,
+        "capture_attempts": attempts,
         "visible_hwnd": visible_hwnd,
         "visible_pid": visible_pid,
         "expected_pid": expected_pid,

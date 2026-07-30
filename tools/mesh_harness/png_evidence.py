@@ -103,7 +103,7 @@ def _png_capture_summary(path: Path) -> dict[str, object]:
             previous = scanline
 
         ok = width >= 64 and height >= 64 and len(unique_rgb) >= 2 and bright_samples > 0
-        return {
+        summary: dict[str, object] = {
             "ok": ok,
             "width": width,
             "height": height,
@@ -111,6 +111,18 @@ def _png_capture_summary(path: Path) -> dict[str, object]:
             "bright_sample_count": bright_samples,
             "sampled_pixel_count": sampled_pixels,
         }
+        if not ok:
+            # Say which of the four conditions rejected the image. Without this a
+            # blank capture and a truncated one report the same empty reason.
+            reasons = []
+            if width < 64 or height < 64:
+                reasons.append(f"image is {width}x{height}, smaller than 64x64")
+            if len(unique_rgb) < 2:
+                reasons.append(f"only {len(unique_rgb)} distinct colour(s): the surface is blank")
+            if bright_samples <= 0:
+                reasons.append(f"no sample brighter than 96/765 across {sampled_pixels} samples: the surface is black")
+            summary["error"] = "; ".join(reasons)
+        return summary
     except (OSError, ValueError, zlib.error, struct.error) as exc:
         return {"ok": False, "error": str(exc)}
 
