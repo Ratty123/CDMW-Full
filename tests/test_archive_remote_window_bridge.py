@@ -437,6 +437,9 @@ def test_remote_export_selection_represents_folder_and_filtered_query_server_sid
     assert folder_selection.query_id == "query-folder"
     assert folder_selection.folder_path == "0009/texture"
     assert folder_selection.requested_count == 43
+    # Folder nodes carry entry paths, so the export must match and lay out in that
+    # namespace; matching package-root paths resolved nothing for any tree folder.
+    assert folder_selection.include_package_root is False
 
     bridge.controller._current_query = ArchiveQuery("session-a", extensions=(".dds",))
     filtered_selection = bridge.filtered_export_selection()
