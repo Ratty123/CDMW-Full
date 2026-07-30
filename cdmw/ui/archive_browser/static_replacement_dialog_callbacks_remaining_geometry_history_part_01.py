@@ -566,16 +566,23 @@ def _remaining_geometry_history_step_026(_state):
 
 def _remaining_geometry_history_step_027(_state):
 
-    def _restore_geometry_history_state(snapshot: Mapping[str, Any]) -> None:
+    def _restore_geometry_history_state(snapshot: Mapping[str, Any]) -> bool:
+        """Restore one history snapshot, and say whether anything was restored.
+
+        The blocked branch below leaves the mesh exactly as it was. Undo used to pop
+        its snapshot, call this, release the snapshot regardless and then report
+        success -- so the one recoverable state was destroyed by an operation that
+        changed nothing and said it had worked. The callers need the answer.
+        """
         if not snapshot:
-            return
+            return False
         _state.geometry_history_guard['active'] = True
         try:
             if _state._restore_sparse_mesh_edit_geometry_history_state(snapshot):
-                return
+                return True
             restore_state = _state._geometry_history_restore_state_helper(snapshot, default_texture_uv_global_transform_state=_state._default_texture_uv_transform_state('__global__'))
             if not restore_state.metadata_only and _state._geometry_history_restore_mutation_blocked():
-                return
+                return False
             replacement_mesh = restore_state.replacement_mesh
             replacement_base_mesh = restore_state.replacement_base_mesh
             if not restore_state.metadata_only:
@@ -694,6 +701,7 @@ def _remaining_geometry_history_step_027(_state):
                     flush_roles()
             if not resident_updated:
                 _state._geometry_refresh_full_restore_preview()
+            return True
         finally:
             _state.geometry_history_guard['active'] = False
             _state._refresh_geometry_history_buttons()
@@ -705,10 +713,23 @@ def _remaining_geometry_history_step_028(_state):
         if not _state.geometry_undo_stack:
             return
         snapshot = _state.geometry_undo_stack.pop()
+        restored = False
         try:
-            _state._restore_geometry_history_state(snapshot)
+            restored = bool(_state._restore_geometry_history_state(snapshot))
         finally:
-            _state._release_geometry_history_snapshot(snapshot)
+            if restored:
+                _state._release_geometry_history_snapshot(snapshot)
+            else:
+                # Nothing was restored, so this is still the state to come back to.
+                # Releasing it here threw away the only recoverable snapshot on an
+                # operation that had changed nothing.
+                _state.geometry_undo_stack.append(snapshot)
+                _state._refresh_geometry_history_buttons()
+        if not restored:
+            # `_geometry_history_restore_mutation_blocked` already said why on the
+            # status line; overwriting it with "Undid ..." was the part that made a
+            # no-op look like a successful undo.
+            return
         _state.self.set_status_message(_state._geometry_undo_status_text_helper(snapshot.get('reason', 'Geometry change')))
     _state._undo_geometry_change = _undo_geometry_change
 
@@ -718,8 +739,12 @@ def _remaining_geometry_history_step_029(_state):
         if not _state.geometry_initial_snapshot:
             return
         _state._push_geometry_undo_snapshot('Reset Geometry')
-        _state._restore_geometry_history_state(_state.geometry_initial_snapshot)
+        restored = bool(_state._restore_geometry_history_state(_state.geometry_initial_snapshot))
         _state._refresh_geometry_history_buttons()
+        if not restored:
+            # Same as Undo: the blocked branch has already reported why, and saying
+            # the geometry was reset over the top of it is the misleading part.
+            return
         _state.self.set_status_message(_state._geometry_reset_status_text_helper())
     _state._reset_geometry_changes = _reset_geometry_changes
 

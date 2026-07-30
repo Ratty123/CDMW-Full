@@ -471,3 +471,34 @@ def test_remote_export_rejects_an_explicit_selection_larger_than_the_protocol_bo
     assert bridge.export_selection_error == (
         "Select at most 4,096 individual files, or use Extract Filtered for a larger set."
     )
+
+
+def test_a_plain_rescan_records_the_previous_session_for_closure() -> None:
+    """Only a forced Refresh used to record it, so ordinary Scans leaked sessions.
+
+    Every open creates a fresh backend session regardless of `force_refresh`, and the
+    old one holds a generation lease, mapped package files and a compiled-query cache
+    until it is closed. Changing roots and rescanning accumulated all of it.
+    """
+
+    _app()
+    window = _RemoteExportWindow()
+    window.archive_remote_query_pending = False
+    window._update_archive_filter_button_state = lambda: None
+    window._set_archive_warmup_overlay = lambda *_args, **_kwargs: None
+    window.set_busy = lambda *_args, **_kwargs: None
+    window.set_status_message = lambda *_args, **_kwargs: None
+    window._record_runtime_event = lambda *_args, **_kwargs: None
+    window._rebuild_archive_structure_filter_controls = lambda **_kwargs: None
+    window._capture_archive_filter_state = lambda: {}
+    window._set_archive_load_progress = lambda *_args, **_kwargs: None
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge._controller.open_archive = lambda *_args, **_kwargs: None
+
+    handle = ArchiveSessionHandle("session-old", "C:/Game", "fingerprint", 3, 2, True)
+    bridge._controller._current_session = handle
+    assert bridge.current_session is handle
+
+    bridge.open_archive(Path("C:/games/Crimson Desert"), force_refresh=False, activate_tab=False)
+
+    assert bridge._superseded_session_id == "session-old"

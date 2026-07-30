@@ -633,7 +633,12 @@ def _mesh_edit_full_reset_mesh(_state, _callbacks, ) -> None:
     _state.mesh_edit_selected_source_indices.clear()
     if _state._morph_slider_has_loaded_deltas():
         _callbacks._morph_slider_zero_post_edit_deltas_for_sources(source_indices)
-        _callbacks._morph_slider_refresh_topology_block_state()
+        # Scope Reset re-applies the sliders after zeroing the post-edit deltas and
+        # this did not, so Full Reset left the sliders reading whatever the user had
+        # dialled while the working mesh was back at base -- and the next nudge of a
+        # slider jumped the geometry to catch up.
+        if _callbacks._morph_slider_refresh_topology_block_state():
+            _callbacks._morph_slider_apply_to_working_mesh(increment_revision=False, refresh_controls=False)
     _callbacks._mesh_edit_update_mesh_totals()
     _callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)
     _state.mesh_edit_revision["value"] = int(_state.mesh_edit_revision.get("value", 0) or 0) + 1

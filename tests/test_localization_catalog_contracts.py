@@ -560,11 +560,52 @@ def test_real_main_window_honors_saved_non_english_locale_offscreen(
             "assert window.ui_localizer.language_code == 'de'",
             "assets_index = window.main_tabs.indexOf(window.assets_tabs)",
             "assert window.main_tabs.tabText(assets_index) == window.ui_localizer.translate('Assets')",
-            "assert window.settings_tab.export_language_button.text() == window.ui_localizer.translate('Export Language File...')",
+            # A closed tab is left at the old revision and translated when it is
+            # opened, so the button is only required to be German once its page
+            # has actually been shown. Asserting it before proves nothing a
+            # reader could see, and would re-require walking every hidden page.
+            "export_button = window.settings_tab.export_language_button",
+            "expected_export = window.ui_localizer.translate('Export Language File...')",
+            "assert expected_export != 'Export Language File...'",
+            # Still closed, so still at the source string. This half is the
+            # optimization: a page nobody has opened is never walked.
+            "assert export_button.text() == 'Export Language File...', (",
+            "    f'Closed page was walked anyway: {export_button.text()!r}.'",
+            ")",
+            "window.show()",
+            "app.processEvents()",
+            "window.main_tabs.setCurrentIndex(window.main_tabs.indexOf(window.settings_tab))",
+            "app.processEvents()",
+            # The button sits behind two hidden ancestors -- the tab page and
+            # its settings section -- so opening the tab is not enough.
+            "nav = window.settings_tab.section_nav_list",
+            "for row in range(nav.count()):",
+            "    nav.setCurrentRow(row)",
+            "    app.processEvents()",
+            "    if export_button.isVisible():",
+            "        break",
+            "assert export_button.isVisible(), 'No settings section revealed the export button.'",
+            # And this half is the contract the optimization must not break.
+            "assert export_button.text() == expected_export, (",
+            "    f'Revealed page kept {export_button.text()!r}, expected {expected_export!r}.'",
+            ")",
+            # Presentation numbers re-render in the new locale's grouping too,
+            # and are subject to the same deferral: the progress counter lives on
+            # another tab, so it is only required to be French once that tab is
+            # back in front.
             "window.reset_progress(1234)",
             "assert window.total_files_value.text() == window.ui_localizer.format_number(1234)",
             "window._handle_language_changed('fr')",
-            "assert window.total_files_value.text() == window.ui_localizer.format_number(1234)",
+            "for index in range(window.main_tabs.count()):",
+            "    window.main_tabs.setCurrentIndex(index)",
+            "    app.processEvents()",
+            "    if window.total_files_value.isVisible():",
+            "        break",
+            "assert window.total_files_value.isVisible(), 'No tab revealed the progress counter.'",
+            "expected_total = window.ui_localizer.format_number(1234)",
+            "assert window.total_files_value.text() == expected_total, (",
+            "    f'Counter kept {window.total_files_value.text()!r}, expected {expected_total!r}.'",
+            ")",
             "window._finalize_close()",
             "assert app.property('_cdmw_ui_localizer') is None",
             "window.deleteLater()",

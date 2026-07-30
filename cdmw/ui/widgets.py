@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import weakref
 from typing import Callable, Optional
 
 from PySide6.QtCore import QSettings, QTimer
-from PySide6.QtWidgets import QTreeWidget
+from PySide6.QtWidgets import QApplication, QTreeWidget
 
 _RENDER_DIAGNOSTIC_MODE_CODES = {
     "lit": 0,
@@ -38,6 +39,76 @@ _RENDER_DIAGNOSTIC_MODE_CODES = {
     "source_pbr_preview": 29,
     "cd_runtime_approx": 30,
 }
+
+_COLUMN_SAVE_DEBOUNCE_MS = 400
+_SETTINGS_SYNC_DEBOUNCE_MS = 650
+
+_settings_sync_timer: Optional[QTimer] = None
+_settings_sync_pending: list[QSettings] = []
+
+
+def _flush_requested_settings_syncs() -> None:
+    pending = list(_settings_sync_pending)
+    _settings_sync_pending.clear()
+    for settings in pending:
+        try:
+            settings.sync()
+        except (RuntimeError, AttributeError):
+            continue
+
+
+def request_settings_sync(settings: QSettings) -> None:
+    """Flush `settings` to disk once, after the writes around it have settled.
+
+    A `QSettings.sync()` is a synchronous disk write. Calling it from a signal
+    that fires per resized column meant a burst of writes cost one flush each --
+    hundreds during a single drag of a column divider, and fifteen during an
+    interface-language change, which re-lays out every translated header. The
+    flush is coalesced here so a burst costs one.
+
+    The timer is parented to the application rather than left unparented,
+    because a parentless Qt object outlives its interpreter state and takes the
+    test suite down somewhere unrelated.
+    """
+    global _settings_sync_timer
+    if not any(existing is settings for existing in _settings_sync_pending):
+        _settings_sync_pending.append(settings)
+    if _settings_sync_timer is None:
+        owner = QApplication.instance()
+        if owner is None:
+            # No event loop to defer onto; the caller still needs the write.
+            _flush_requested_settings_syncs()
+            return
+        _settings_sync_timer = QTimer(owner)
+        _settings_sync_timer.setSingleShot(True)
+        _settings_sync_timer.timeout.connect(_flush_requested_settings_syncs)
+    _settings_sync_timer.start(_SETTINGS_SYNC_DEBOUNCE_MS)
+
+
+_pending_column_saves: "weakref.WeakKeyDictionary[QTreeWidget, tuple[QTimer, Callable[[], None]]]" = (
+    weakref.WeakKeyDictionary()
+)
+
+
+def flush_pending_tree_column_saves() -> None:
+    """Write every debounced column layout now, and flush the settings behind it.
+
+    Debouncing keeps a drag off the disk, but it also opens a window in which a
+    layout the reader just changed is only in memory. Closing the window, or any
+    other point that must not lose it, calls this.
+    """
+    for tree, entry in list(_pending_column_saves.items()):
+        timer, save = entry
+        try:
+            if not timer.isActive():
+                continue
+            timer.stop()
+            save()
+        except RuntimeError:
+            # The tree's C++ object can be gone while its wrapper is alive.
+            continue
+    _flush_requested_settings_syncs()
+
 
 def persistent_tree_column_widths_key(settings_key: str) -> str:
     return f"{str(settings_key or '').strip()}/column_widths"
@@ -135,14 +206,24 @@ def make_tree_columns_persistent(
                 save_callback()
             except Exception:
                 pass
-        settings.sync()
+        request_settings_sync(settings)
+
+    # `sectionResized` fires once per pointer sample while a divider is dragged,
+    # and once per header whose text a language change re-laid out. Saving from
+    # each one wrote the whole column layout and flushed it to disk; the writes
+    # are coalesced onto the settled layout instead.
+    save_timer = QTimer(tree)
+    save_timer.setSingleShot(True)
+    save_timer.setInterval(_COLUMN_SAVE_DEBOUNCE_MS)
+    save_timer.timeout.connect(_save)
+    _pending_column_saves[tree] = (save_timer, _save)
 
     if restore_later:
         QTimer.singleShot(0, _restore)
     else:
         _restore()
-    header.sectionResized.connect(lambda *_args: _save())
-    header.sectionMoved.connect(lambda *_args: _save())
+    header.sectionResized.connect(lambda *_args: save_timer.start())
+    header.sectionMoved.connect(lambda *_args: save_timer.start())
 
 
 from cdmw.ui.layout_utils import (

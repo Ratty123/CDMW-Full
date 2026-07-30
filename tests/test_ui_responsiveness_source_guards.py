@@ -707,7 +707,18 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         prepare_start = shell_source.index("def _prepare_appearance_apply_steps(")
         prepare_body = shell_source[prepare_start: shell_source.index("def _run_next_appearance_apply_step", prepare_start)]
         self.assertIn('if data["requires_theme_apply"]:', prepare_body)
-        self.assertIn("self._queue_ui_font_apply_steps(app, schedule_column_autofit=False)", prepare_body)
+        # Read the theme path's call by keyword rather than by its exact
+        # spelling: the guard is about which arguments it passes, and pinning
+        # the wrapping made a reformat look like a behavior change.
+        normalized_prepare = " ".join(prepare_body.split())
+        theme_font_call_start = normalized_prepare.index("self._queue_ui_font_apply_steps(")
+        theme_font_call = normalized_prepare[
+            theme_font_call_start: normalized_prepare.index(")", theme_font_call_start)
+        ]
+        self.assertIn("schedule_column_autofit=False", theme_font_call)
+        # A full theme apply queues the responsive pass itself, after the theme
+        # steps. Queueing it here too walked every responsive control twice.
+        self.assertIn("queue_responsive_minimums=False", theme_font_call)
         self.assertIn('if data["requires_data_fonts"]:', prepare_body)
         self.assertIn('if data["requires_text_colors"]:', prepare_body)
         self.assertIn("self._sync_mesh_editor_theme", prepare_body)

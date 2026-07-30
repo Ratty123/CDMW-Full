@@ -9,6 +9,7 @@ from PySide6.QtCore import QProcess, Qt, QThread, QTimer
 from PySide6.QtWidgets import QApplication, QMainWindow
 
 from cdmw.services.process_control_service import force_stop_windows_process_tree
+from cdmw.ui.widgets import flush_pending_tree_column_saves
 
 
 CLOSE_WORKER_FORCE_STOP_AFTER_SECONDS = 8.0
@@ -24,6 +25,7 @@ WORKER_TAB_NAMES = (
     "model_library_tab",
     "recolor_variants_tab",
     "mod_package_retrofit_tab",
+    "placement_studio_tab",
     "settings_tab",
 )
 
@@ -496,6 +498,9 @@ class CloseControllerMixin:
                 pass
         self._close_worker_wait_timer.stop()
         self._shutting_down = True
+        # Column layouts are written on a debounce, so a drag finished in the
+        # last moments before closing is still only in memory.
+        flush_pending_tree_column_saves()
         self._release_startup_splash()
         self._save_detached_tool_geometries()
         self._attach_all_detached_tools(select_after=False)

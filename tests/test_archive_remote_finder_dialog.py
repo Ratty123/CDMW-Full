@@ -223,3 +223,32 @@ def test_full_finder_double_click_uses_exact_item_scope_for_preview() -> None:
     assert window.archive_catalogue_service.scopes[-1].item_ids == (9,)
     assert not window.archive_catalogue_service.scopes[-1].include_related
     dialog.close()
+
+
+def test_clear_drops_the_saved_filter_before_it_searches_again() -> None:
+    """Clear used to reset the controls and search with the old filter anyway.
+
+    The saved category/group/material live in `_preferred_*` until the first facet
+    response replaces them with a real combo selection. `_selected_filters` prefers
+    them, so pressing Clear before the facets arrived showed "All" in every control
+    over results that were still restricted by the filter the dialog opened with.
+    """
+
+    _app()
+    window = _Window()
+    dialog = RemoteArchiveFinderDialog(window)
+    _drain()
+    dialog._preferred_category = "Weapon"
+    dialog._preferred_group = "Sword"
+    dialog._preferred_material = "metal"
+
+    assert dialog._selected_filters() == ("Weapon", "Sword", "metal")
+
+    dialog._clear_filters()
+    _drain()
+
+    assert dialog._selected_filters() == (None, None, None)
+    assert window.archive_catalogue_service.searches[-1].category is None
+    assert window.archive_catalogue_service.searches[-1].group is None
+    assert window.archive_catalogue_service.searches[-1].material_tag is None
+    dialog.close()

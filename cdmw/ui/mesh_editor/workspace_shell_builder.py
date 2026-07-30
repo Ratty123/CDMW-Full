@@ -112,9 +112,17 @@ class WorkspaceShellBuilderMixin:
         layout.setSpacing(6)
         self.mode_combo = self._combo("MeshEditorModeCombo", ("Object", "Edit", "Sculpt"))
         self.selection_combo = self._combo("MeshEditorSelectionCombo", ("Vertex", "Edge", "Face"))
+        # Snap, Pivot and Orient are built but not shown. Nothing anywhere reads them:
+        # no `connect`, no consumer in `cdmw/`, `tools/` or the .NET helper -- picking
+        # Grid or Local changed the dropdown and nothing else, which is a control that
+        # lies about what it does. They stay constructed so the font sweep and the
+        # object-name probes keep resolving, and go back on the bar when a real
+        # gizmo/snap path exists to drive.
         self.snap_combo = self._combo("MeshEditorSnapModeCombo", ("Off", "Grid", "Vertex", "Pixel"))
         self.pivot_combo = self._combo("MeshEditorPivotCombo", ("Median", "Center", "Cursor", "Individual"))
         self.orientation_combo = self._combo("MeshEditorOrientationCombo", ("Global", "Local", "Normal", "View"))
+        for unwired in (self.snap_combo, self.pivot_combo, self.orientation_combo):
+            unwired.setVisible(False)
         # The Builder preview toolbar exposes the same control, so both are
         # driven from one option table: a mode offered by one and missing from
         # the other leaves the two visible controls unable to agree.
@@ -141,9 +149,6 @@ class WorkspaceShellBuilderMixin:
         controls = [
             ("Mode", self.mode_combo),
             ("Select", self.selection_combo),
-            ("Snap", self.snap_combo),
-            ("Pivot", self.pivot_combo),
-            ("Orient", self.orientation_combo),
         ]
         if self._embedded_controls_only:
             controls.append(("View", self.viewport_display_combo))

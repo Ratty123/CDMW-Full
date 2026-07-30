@@ -183,6 +183,10 @@ class MeshEditorTabShellRuntimeMixin:
         self.embedded_dotnet_editor_button: QPushButton | None = None
         self.standalone_last_export_validation_report: object | None = None
         self.standalone_last_rebuild_report: object | None = None
+        # The session revision the rebuild report describes. Only a geometry command
+        # bumps `session.revision`, so this is what tells a stale report from one that
+        # is merely being looked at from a different selection.
+        self.standalone_rebuild_report_revision: int | None = None
         self.standalone_last_rebuilt_asset_path: _tab.Path | None = None
         self.standalone_last_action_result: _tab.MeshEditResult | None = None
         self.standalone_last_action_metrics: dict[str, float] = {}

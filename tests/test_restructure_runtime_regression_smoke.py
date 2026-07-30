@@ -115,8 +115,12 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
                 self.window.main_tabs.indexOf(self.window.assets_tabs)
             ),
         )
+        # The Settings page is closed, so it is deliberately left at the old
+        # revision and translated when it is opened; asserting its text here
+        # would require walking every hidden page on every language change.
+        # tests/test_localization_catalog_contracts.py covers the reveal.
         self.assertEqual(
-            self.window.ui_localizer.translate("Export Language File..."),
+            "Export Language File...",
             self.window.settings_tab.export_language_button.text(),
         )
 

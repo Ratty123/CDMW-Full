@@ -186,6 +186,14 @@ class MeshEditorSessionMixin:
             dispatcher.cancel_pending()
             if controller is not None:
                 dispatcher.retire_controller(controller)
+        # Retire the ids the completion handlers compare against, before cancelling.
+        # Cancelling stops the worker but cannot recall a result already queued on the
+        # event loop, and that result still carried the id the handlers were waiting
+        # for -- so an action or rebuild started on the mesh being closed could land on
+        # the next one, publishing an incompatible native payload through whichever
+        # controller was current by then.
+        self.standalone_action_request_id += 1
+        self.standalone_rebuild_report_request_id += 1
         self._cancel_standalone_file_load()
         self._cancel_standalone_texture_source_resolution()
         self._cancel_standalone_action_worker()
@@ -206,6 +214,7 @@ class MeshEditorSessionMixin:
         self.standalone_mesh_label = ""
         self.standalone_source_skeleton = None
         self.standalone_last_rebuild_report = None
+        self.standalone_rebuild_report_revision = None
         self.standalone_last_rebuilt_asset_path = None
         self.standalone_file_load_source_skeleton = None
         self.standalone_compare_mode = "edited"
