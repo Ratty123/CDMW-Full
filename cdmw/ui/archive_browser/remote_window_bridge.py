@@ -483,6 +483,9 @@ class ArchiveRemoteWindowBridge(QObject):
             max(0, int(node.match_count)),
             query_id=self._model.query_handle.query_id if self._model.query_handle is not None else None,
             folder_path=node.path,
+            # Folder nodes are built on entry paths, so the export has to match and lay
+            # out in that namespace too, not the package-root one.
+            include_package_root=False,
         )
 
     def filtered_export_selection(self) -> ArchiveRemoteExportSelection | None:

@@ -21,6 +21,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveQueryHandle,
     ArchiveViewMode,
 )
+from cdmw.ui.archive_browser import remote_model
 from cdmw.ui.archive_browser.remote_model import (
     REMOTE_ENTRY_DTO_ROLE,
     RemoteArchiveBrowserModel,
@@ -161,6 +162,40 @@ def test_remote_page_cache_is_lru_bounded_below_ten_thousand_entries() -> None:
     assert model.cached_entry_count < 10_000
     assert model.entry_for_index(model.index(0, 0)) is None
     assert model.entry_for_index(model.index(total - 1, 0)) is not None
+
+
+def test_row_payloads_are_built_once_per_entry_across_roles_columns_and_repaints(monkeypatch) -> None:
+    _app()
+    builds: list[int] = []
+    original = remote_model._row_payload
+
+    def counted(entry: ArchiveEntryDto, *, show_full_path: bool):
+        builds.append(entry.entry_id)
+        return original(entry, show_full_path=show_full_path)
+
+    monkeypatch.setattr(remote_model, "_row_payload", counted)
+    model = RemoteArchiveBrowserModel(page_size=16)
+    model.publish_query(_handle(total=16), view_mode=ArchiveViewMode.FLAT)
+    assert model.accept_page(
+        ArchivePage("session-a", "query-a", 4, 16, 0, tuple(_entry(offset) for offset in range(16)))
+    )
+
+    roles = (Qt.DisplayRole, Qt.ToolTipRole)
+    for _repaint in range(3):
+        for row in range(16):
+            for column in range(model.columnCount()):
+                for role in roles:
+                    model.data(model.index(row, column), role)
+    assert sorted(builds) == list(range(16))
+
+    # A new query invalidates the cache: the same rows must be built again.
+    builds.clear()
+    model.publish_query(_handle(query="query-b", total=16), view_mode=ArchiveViewMode.FLAT)
+    assert model.accept_page(
+        ArchivePage("session-a", "query-b", 4, 16, 0, tuple(_entry(offset) for offset in range(16)))
+    )
+    assert model.data(model.index(0, 0), Qt.DisplayRole) == "file_0.pac"
+    assert builds == [0]
 
 
 def test_folder_children_are_requested_and_continuation_pages_append_lazily() -> None:

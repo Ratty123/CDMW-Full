@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.IO.MemoryMappedFiles;
 using System.Text;
 using Cdmw.FullArchive.Contracts;
@@ -125,7 +126,7 @@ public sealed class ArchiveIndex : IDisposable
         var flags = checked((int)_view.ReadUInt32(record + 60));
         var pazIndex = checked((int)_view.ReadUInt32(record + 64));
         var overrideMetadata = _view.ReadUInt32(record + 68);
-        var virtualPath = ReadString(pathOffset, pathLength).Replace('\\', '/').Trim('/');
+        var virtualPath = NormalizePath(ReadString(pathOffset, pathLength));
         var pamt = ReadString(pamtOffset, pamtLength);
         var paz = ReadString(pazOffset, pazLength);
         var extension = System.IO.Path.GetExtension(virtualPath).ToLowerInvariant();
@@ -159,6 +160,25 @@ public sealed class ArchiveIndex : IDisposable
             IsActiveOverride: isActiveOverride,
             OverrideState: overrideState);
         return entry with { TypeDisplay = ArchiveRoleDisplay.For(entry) };
+    }
+
+    /// <summary>
+    /// Reads only an entry's virtual path. Grouping a folder listing needs the path
+    /// and nothing else, and <see cref="ReadEntry"/> costs three string decodes, two
+    /// case foldings and a classification pass on top of it — a difference worth a
+    /// second of wall clock when a caller walks the whole index.
+    /// </summary>
+    public string ReadEntryPath(long entryId)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (entryId < 0 || entryId >= EntryCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entryId));
+        }
+        var record = checked(_recordsOffset + entryId * RecordSize);
+        var pathOffset = checked((long)_view.ReadUInt64(record));
+        var pathLength = checked((int)_view.ReadUInt32(record + 48));
+        return NormalizePath(ReadPooledString(pathOffset, pathLength));
     }
 
     internal int GetPathByteLength(long entryId)
@@ -223,14 +243,15 @@ public sealed class ArchiveIndex : IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(maximumResults));
         }
-        var normalized = virtualPath.Replace('\\', '/').Trim('/');
+        // ArchivePathOrder, not OrdinalIgnoreCase: this walks the index in its own
+        // order, and the two disagree often enough here to lose real entries.
+        var normalized = NormalizePath(virtualPath);
         long low = 0;
         long high = EntryCount;
         while (low < high)
         {
             var middle = low + (high - low) / 2;
-            var comparison = StringComparer.OrdinalIgnoreCase.Compare(ReadEntry(middle).Path, normalized);
-            if (comparison < 0)
+            if (ArchivePathOrder.Compare(ReadEntryPath(middle), normalized) < 0)
             {
                 low = middle + 1;
             }
@@ -243,15 +264,14 @@ public sealed class ArchiveIndex : IDisposable
         var results = new List<ArchiveEntryDto>(Math.Min(maximumResults, 4));
         for (var entryId = low; entryId < EntryCount && results.Count < maximumResults; entryId++)
         {
-            var entry = ReadEntry(entryId);
-            var comparison = StringComparer.OrdinalIgnoreCase.Compare(entry.Path, normalized);
+            var comparison = ArchivePathOrder.Compare(ReadEntryPath(entryId), normalized);
             if (comparison > 0)
             {
                 break;
             }
             if (comparison == 0)
             {
-                results.Add(entry);
+                results.Add(ReadEntry(entryId));
             }
         }
         return results;
@@ -263,6 +283,30 @@ public sealed class ArchiveIndex : IDisposable
         {
             _view.Dispose();
             _mapping.Dispose();
+        }
+    }
+
+    private static string NormalizePath(string value) => value.Replace('\\', '/').Trim('/');
+
+    private string ReadPooledString(long offset, int length)
+    {
+        if (offset < 0 || length < 0 || offset > _stringsSize || length > _stringsSize - offset)
+        {
+            throw new InvalidDataException("Archive index string range is invalid.");
+        }
+        if (length == 0)
+        {
+            return string.Empty;
+        }
+        var buffer = ArrayPool<byte>.Shared.Rent(length);
+        try
+        {
+            _view.ReadArray(checked(_stringsOffset + offset), buffer, 0, length);
+            return Encoding.UTF8.GetString(buffer, 0, length);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 

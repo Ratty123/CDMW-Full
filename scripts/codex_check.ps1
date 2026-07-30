@@ -30,7 +30,8 @@ $TestsByArea = @{
         "tests/test_texture_workflow_ui_source_guards.py",
         "tests/test_localization_async_io.py",
         "tests/test_localization_translations.py",
-        "tests/test_localization_catalog_contracts.py"
+        "tests/test_localization_catalog_contracts.py",
+        "tests/test_localization_translation_quality.py"
     )
     archive = @(
         "tests/test_archive_browser_virtual_model.py",

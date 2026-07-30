@@ -180,6 +180,81 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         return fixture;
     }
 
+    /// <summary>
+    /// A folder tree whose names sit on the boundaries a prefix search gets wrong:
+    /// '_' next to a letter (where uppercase and lowercase orderings disagree), a file
+    /// whose name is a folder name plus an extension, and a folder that is a prefix of
+    /// its sibling.
+    /// </summary>
+    public static async Task<SyntheticArchiveFixture> CreateFolderHierarchyAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-folders-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var fixture = new SyntheticArchiveFixture(root);
+        var payloads = new List<(string Path, byte[] Bytes)>
+        {
+            ("tree/a_b/one.pac", [0x01]),
+            ("tree/a_b/two.pac", [0x02]),
+            ("tree/ab/three.pac", [0x03]),
+            ("tree/a.pac", [0x04]),
+            ("tree/a_b.pac", [0x05]),
+            ("tree/zz/deep/leaf.bin", [0x06]),
+            ("other/x.pac", [0x07]),
+        };
+        for (var index = 1; index <= 5; index++)
+        {
+            payloads.Add(($"tree/file{index:00}.bin", [(byte)(0x10 + index)]));
+        }
+        await BuildPackageAsync(root, "0009", payloads).ConfigureAwait(false);
+        return fixture;
+    }
+
+    /// <summary>
+    /// Paths whose stored order an uppercase-folding comparer reads as descending,
+    /// because '_' (0x5F) sorts before a lowercase letter and after an uppercase one.
+    /// A binary search using the wrong fold walks past entries that are present.
+    /// </summary>
+    public static async Task<SyntheticArchiveFixture> CreateUnderscoreOrderingAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-underscore-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var fixture = new SyntheticArchiveFixture(root);
+        var payloads = new List<(string Path, byte[] Bytes)>();
+        var index = 0;
+        foreach (var name in UnderscoreOrderingPaths)
+        {
+            payloads.Add((name, [(byte)(index++ & 0xFF)]));
+        }
+        await BuildPackageAsync(root, "0009", payloads).ConfigureAwait(false);
+        return fixture;
+    }
+
+    /// <summary>Every path <see cref="CreateUnderscoreOrderingAsync"/> stores.</summary>
+    public static IReadOnlyList<string> UnderscoreOrderingPaths { get; } = BuildUnderscoreOrderingPaths();
+
+    private static string[] BuildUnderscoreOrderingPaths()
+    {
+        var paths = new List<string>
+        {
+            "motion/facial/group_0080__00073.paa",
+            "motion/facial/group_0080_globalgametrack_00064.paa",
+            "motion/facial/group_0080_npc_01_00044.paa",
+            "motion/facial/run_f_turn90r_stt_footr_00.paa",
+            "motion/facial/run_fd_25_ing_00.paa",
+            "motion/facial/run_turn180r_00.paa",
+            "motion/facial/runfast_f_ing_00.paa",
+        };
+
+        // Padding either side, so the search has to traverse the inverted neighbours
+        // rather than land on them from the first probe.
+        for (var index = 0; index < 64; index++)
+        {
+            paths.Add($"motion/aaa/filler_{index:000}.paa");
+            paths.Add($"motion/zzz/filler_{index:000}.paa");
+        }
+        return [.. paths];
+    }
+
     public ValueTask DisposeAsync()
     {
         try

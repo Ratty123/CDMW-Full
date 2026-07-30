@@ -132,6 +132,7 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
         page_size: int = 256,
         page_cache_limit: int = 24,
         child_page_size: int = 256,
+        row_cache_limit: int = 12000,
     ) -> None:
         super().__init__(parent)
         self._page_size = max(1, min(512, int(page_size)))
@@ -147,6 +148,8 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
         self._requests_suspended = False
         self._root = RemoteArchiveBrowserNode("root", "root", fetched=False)
         self._nodes_by_key: dict[str, RemoteArchiveBrowserNode] = {self._root.key: self._root}
+        self._row_cache: OrderedDict[tuple[int, bool], ArchiveBrowserRowPayload] = OrderedDict()
+        self._row_cache_limit = max(1, min(100_000, int(row_cache_limit or 12000)))
 
     @property
     def query_handle(self) -> ArchiveQueryHandle | None:
@@ -190,6 +193,7 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
         self._pages.clear()
         self._queued_pages.clear()
         self._inflight_pages.clear()
+        self._row_cache.clear()
         self._root = RemoteArchiveBrowserNode("root", "root", match_count=handle.total_matches, fetched=False)
         self._nodes_by_key = {self._root.key: self._root}
         self._requests_suspended = False
@@ -208,6 +212,7 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
         self._pages.clear()
         self._queued_pages.clear()
         self._inflight_pages.clear()
+        self._row_cache.clear()
         self._requests_suspended = False
         self._root = RemoteArchiveBrowserNode("root", "root", fetched=True, next_offset=None)
         self._nodes_by_key = {self._root.key: self._root}
@@ -424,7 +429,7 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
             if role == Qt.ToolTipRole:
                 return node.toolTip(index.column())
             return node.data(index.column(), role)
-        payload = _row_payload(entry, show_full_path=self._view_mode is ArchiveViewMode.FLAT)
+        payload = self._payload_for_entry(entry)
         if role == Qt.DisplayRole:
             return payload.columns[index.column()]
         if role == Qt.ToolTipRole:
@@ -497,6 +502,24 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
         if node is None or node.entry is None:
             return ()
         return (node.entry.entry_id,)
+
+    def _payload_for_entry(self, entry: ArchiveEntryDto) -> ArchiveBrowserRowPayload:
+        """Return an entry's display columns, building them at most once per entry.
+
+        A view asks `data()` for every role of every column of every visible row on
+        each repaint, so an uncached build here runs tens of times per row per frame.
+        """
+
+        key = (int(entry.entry_id), self._view_mode is ArchiveViewMode.FLAT)
+        payload = self._row_cache.get(key)
+        if payload is None:
+            payload = _row_payload(entry, show_full_path=key[1])
+            self._row_cache[key] = payload
+            while len(self._row_cache) > self._row_cache_limit:
+                self._row_cache.popitem(last=False)
+        else:
+            self._row_cache.move_to_end(key)
+        return payload
 
     def _page_start(self, row: int) -> int:
         return max(0, int(row) // self._page_size * self._page_size)
