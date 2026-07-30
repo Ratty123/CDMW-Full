@@ -737,8 +737,14 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("self._theme_key = _splash_resolved_theme_key(theme_key)", splash_source)
         self.assertIn("StartupProgressCard(self, theme_key=self._theme_key)", splash_source)
         self.assertIn("StartupSignalMark(self.progress_card, theme_key=self._theme_key)", splash_source)
-        self.assertIn("StartupSplashDialog(theme_key=startup_theme)", source)
-        self.assertIn("ExternalStartupSplashAdapter(external_splash_file, theme_key=startup_theme)", source)
+        # Matched loosely on purpose: the guard is that the resolved startup theme
+        # reaches the splash, not that the call fits on one line. Threading the
+        # startup localizer through it added a second argument and wrapped it.
+        self.assertRegex(source, r"StartupSplashDialog\(\s*theme_key=startup_theme")
+        self.assertRegex(
+            source,
+            r"ExternalStartupSplashAdapter\(\s*external_splash_file,\s*theme_key=startup_theme",
+        )
         self.assertNotIn("build_speed = 1.62", splash_source)
         self.assertNotIn("compass_radius", splash_source)
         self.assertNotIn("platform_y", splash_source)

@@ -28,6 +28,5 @@
     "tools/texture_replacer_headless_harness.py::_scenario_failure_lifecycle": 198,
     "tools/texture_replacer_headless_harness.py::_scenario_policy_matrix": 214,
     "tools/texture_replacer_headless_harness.py::main": 162
-  },
-  "tools/mesh_harness/real_dotnet_display.py::exercise_geometry_display_modes": 156
+  }
 }

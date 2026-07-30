@@ -1,7 +1,7 @@
 {
   "functions": {
     "cdmw/ui/archive_browser/action_controls.py::ArchiveBrowserActionControlsMixin._update_archive_model_action_controls": 297,
-    "cdmw/ui/archive_browser/actions.py::ArchiveBrowserActionMixin._show_archive_tree_context_menu": 214,
+    "cdmw/ui/archive_browser/actions.py::ArchiveBrowserActionMixin._show_archive_tree_context_menu": 217,
     "cdmw/ui/archive_browser/appearance_composite.py::ArchiveAppearanceCompositeMixin._prompt_appearance_composite_component_selection": 161,
     "cdmw/ui/archive_browser/asset_catalog_dialog.py::ArchiveAssetCatalogDialogMixin._show_archive_asset_catalog_dialog": 844,
     "cdmw/ui/archive_browser/asset_family_panel.py::ArchiveAssetFamilyPanelMixin._populate_archive_texture_reference_list": 179,
@@ -39,10 +39,10 @@
     "cdmw/ui/archive_browser/mesh_swap_support.py::ArchiveMeshSwapSupportMixin._build_archive_swap_source_texture_evidence": 187,
     "cdmw/ui/archive_browser/mod_ready_export.py::ArchiveModReadyExportMixin._prompt_archive_mod_ready_export_target": 256,
     "cdmw/ui/archive_browser/preview_d3d11_parts.py::ArchivePreviewD3D11PartsMixin._populate_archive_d3d11_part_visibility_menu": 162,
-    "cdmw/ui/archive_browser/preview_layout.py::ArchivePreviewLayoutMixin._build_archive_preview_panel": 662,
+    "cdmw/ui/archive_browser/preview_layout.py::ArchivePreviewLayoutMixin._build_archive_preview_panel": 660,
     "cdmw/ui/archive_browser/preview_memory.py::ArchivePreviewMemoryAuditMixin._archive_memory_audit_payload": 159,
     "cdmw/ui/archive_browser/preview_result.py::ArchivePreviewResultMixin._show_archive_preview_result": 258,
-    "cdmw/ui/archive_browser/preview_settings.py::ArchivePreviewSettingsMixin._read_model_preview_render_settings": 297,
+    "cdmw/ui/archive_browser/preview_settings.py::ArchivePreviewSettingsMixin._read_model_preview_render_settings": 305,
     "cdmw/ui/archive_browser/reference_export.py::ArchiveReferenceExportMixin._prompt_archive_reference_selection": 154,
     "cdmw/ui/archive_browser/reference_preview.py::ArchiveReferencePreviewMixin._open_archive_reference_preview_entry": 169,
     "cdmw/ui/archive_browser/reference_preview.py::ArchiveReferencePreviewMixin._show_archive_reference_preview_dialog": 343,

@@ -22,7 +22,7 @@ from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QWidget
 
-from cdmw.ui.localization import translate_active_ui_text
+from cdmw.services.active_ui_translation import translate_active_ui_text
 
 from .gizmo import GizmoMixin
 from .model import Vec3

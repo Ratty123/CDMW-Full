@@ -18,7 +18,7 @@ from typing import List, Optional, Tuple
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QPainter, QPen, QPolygonF
 
-from cdmw.ui.localization import translate_active_ui_text
+from cdmw.services.active_ui_translation import translate_active_ui_text
 
 from .model import Vec3
 from .palette import _AXIS_X, _AXIS_Y, _AXIS_Z, _EDGE_ON_LIMIT, _RING_AXES, _RING_BASIS, _SOCKET_SELECTED
