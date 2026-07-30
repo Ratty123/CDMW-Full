@@ -24,6 +24,7 @@ from cdmw.models import (
     AssetFamilyMember,
     AttachmentPlacementEvidence,
 )
+from cdmw.domain.archives.association_vocabulary import ASSET_FAMILY_GROUP_ORDER
 from cdmw.ui.archive_browser.workflow_dependencies import archive_workflow_dependency_context
 
 
@@ -160,19 +161,7 @@ class ArchiveAssetFamilyDialogMixin:
     ) -> None:
         tree.clear()
         group_items: Dict[str, QTreeWidgetItem] = {}
-        order = (
-            "Selected Model",
-            "Attachment / Placement",
-            "Material",
-            "Textures",
-            "Item Icons",
-            "Physics / HKX",
-            "MeshInfo",
-            "Prefab / Metadata",
-            "Skeleton / Rig",
-            "Animation / Motion",
-            "Other",
-        )
+        order = ASSET_FAMILY_GROUP_ORDER
         rows = tuple(getattr(graph, "member_rows", ()) or ())
         for group_label in order:
             group_rows = [row for row in rows if isinstance(row, AssetFamilyMember) and row.group == group_label]

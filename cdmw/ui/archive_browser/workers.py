@@ -109,6 +109,13 @@ class ArchivePreviewWorkerMixin:
         force: bool = False,
     ) -> None:
         self._ensure_archive_preview_startup_state()
+        # The chosen sound belongs to the entry it was chosen in. Without this, the
+        # fifth sound of one bank would be asked for in the next file opened, which
+        # a bank with fewer sounds silently answers with its first.
+        entry_path = str(getattr(entry, "path", "") or "")
+        if entry_path != str(getattr(self, "_archive_preview_track_entry_path", "") or ""):
+            self._archive_preview_track_entry_path = entry_path
+            self.archive_preview_track_index = 0
         if not force and self._mesh_replacement_builder_active():
             self._defer_archive_preview_refresh_for_builder(entry)
             return
@@ -179,6 +186,22 @@ class ArchivePreviewWorkerMixin:
         self.scheduled_archive_preview_request = (request_id, entry, include_loose_preview_assets, bool(force))
         self._show_archive_preview_loading_state(entry)
         self.archive_preview_debounce_timer.start(_archive_preview_debounce_ms(entry))
+
+    def _handle_archive_preview_track_selected(self, track_index: int) -> None:
+        """Re-previews the selected entry with a different embedded sound.
+
+        Only the decode changes, but it happens on the preview worker like every
+        other decode: reading a sound out of a bank is not work for the UI thread.
+        """
+
+        selected = max(0, int(track_index))
+        if selected == int(getattr(self, "archive_preview_track_index", 0) or 0):
+            return
+        entry = self._current_archive_entry()
+        if entry is None:
+            return
+        self.archive_preview_track_index = selected
+        self._render_archive_preview(entry, force=True)
 
     def _flush_scheduled_archive_preview_request(self) -> None:
         if self.scheduled_archive_preview_request is None:
@@ -546,6 +569,7 @@ class ArchivePreviewWorkerMixin:
             preview_cache_snapshot=preview_cache_snapshot,
             emit_quick_preview=emit_quick_preview,
             emit_private_payloads=True,
+            preview_track_index=int(getattr(self, "archive_preview_track_index", 0) or 0),
         )
         thread = QThread(self)
         worker.moveToThread(thread)

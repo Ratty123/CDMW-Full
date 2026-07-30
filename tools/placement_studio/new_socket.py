@@ -214,11 +214,20 @@ class NewSocketDialog(QDialog):
 
         length = len(name)
         if self._target_length:
-            fits = "matches" if length == self._target_length else "does not match"
-            self._length_label.setText(
-                f"{length} of {MAX_SOCKET_NAME} characters — {fits} the "
-                f"{self._target_length} needed to retarget an animation"
-            )
+            # Two whole sentences rather than one with the verb interpolated: a
+            # bare "matches" fragment is not a translatable unit, so it reached
+            # every non-English catalog as untranslated English, and languages
+            # that put the verb elsewhere could not have placed it anyway.
+            if length == self._target_length:
+                self._length_label.setText(
+                    f"{length} of {MAX_SOCKET_NAME} characters — matches the "
+                    f"{self._target_length} needed to retarget an animation"
+                )
+            else:
+                self._length_label.setText(
+                    f"{length} of {MAX_SOCKET_NAME} characters — does not match the "
+                    f"{self._target_length} needed to retarget an animation"
+                )
             self._length_label.setStyleSheet(
                 "color: #78dc8c;" if length == self._target_length else "color: #8a95a8;"
             )

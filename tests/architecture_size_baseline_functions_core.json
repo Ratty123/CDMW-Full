@@ -19,7 +19,7 @@
     "cdmw/core/archive_model_preview.py::_attach_hkx_physics_overlay_to_model_preview": 229,
     "cdmw/core/archive_model_references.py::_parse_archive_model_sidecar_texture_bindings": 243,
     "cdmw/core/archive_model_references.py::_score_model_related_entry_candidate": 162,
-    "cdmw/core/archive_preview_result_builder.py::build_archive_preview_result": 1265,
+    "cdmw/core/archive_preview_result_builder.py::build_archive_preview_result": 1281,
     "cdmw/core/archive_references.py::build_archive_relationship_references": 173,
     "cdmw/core/archive_relationships.py::build_archive_relationship_plan": 156,
     "cdmw/core/archive_scan_cache.py::load_archive_scan_cache": 232,

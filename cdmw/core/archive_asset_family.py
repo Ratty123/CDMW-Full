@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 import threading
 from collections import defaultdict
 from dataclasses import replace
@@ -19,6 +18,12 @@ from cdmw.models import (
     AttachmentStackEquipInfo,
     RelationConfidence,
     RelationKind,
+)
+from cdmw.domain.archives.association_vocabulary import (
+    ASSET_FAMILY_GROUP_ORDER,
+    asset_family_group_from_manifest,
+    asset_family_role_from_manifest,
+    asset_reference_pattern,
 )
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.archive_extraction import read_archive_entry_data
@@ -40,22 +45,11 @@ from cdmw.core.archive_model_references import (
     _score_model_related_entry_candidate,
 )
 from cdmw.core.archive_references import _archive_path_is_probable_item_icon
+from cdmw.core.archive_wwise_bank import embedded_media_wem_basenames
 from cdmw.core.table_catalog import table_field_label
 from cdmw.core.upscale_profiles import derive_texture_group_key, normalize_texture_reference_for_sidecar_lookup
 
-_ASSET_FAMILY_GROUP_ORDER: Tuple[str, ...] = (
-    "Selected Model",
-    "Attachment / Placement",
-    "Material",
-    "Textures",
-    "Item Icons",
-    "Physics / HKX",
-    "MeshInfo",
-    "Prefab / Metadata",
-    "Skeleton / Rig",
-    "Animation / Motion",
-    "Other",
-)
+_ASSET_FAMILY_GROUP_ORDER: Tuple[str, ...] = ASSET_FAMILY_GROUP_ORDER
 _ATTACHMENT_PREFAB_FIELD_NAMES: frozenset[str] = frozenset(
     {
         "_attachedSocketName",
@@ -91,14 +85,15 @@ _ATTACHMENT_WEAPON_SOCKET_PRIORITY: Tuple[str, ...] = (
     "InverseB_ChildSocket",
     "InverseF_ChildSocket",
 )
-_ATTACHMENT_ASSET_REFERENCE_RE = re.compile(
-    r"([A-Za-z0-9_./\\-]+?\.(?:"
-    r"prefabdata_xml|prefabdata\.xml|pamlod_xml|pac_xml|pam_xml|sockets\.xml|"
-    r"paa_metabin|motionblending|paschedulepath|paschedule|paseqc|paseq|pastage|"
-    r"pamlod|meshinfo|prefab|pappt|pamhc|hkx|hkt|pac|pam|pabgb|pabgh|pabc|pabv|papr|pab|paa|pae|paem|seqmt|xml"
-    r"))",
-    re.IGNORECASE,
-)
+# Derived from the capability manifest rather than transcribed, so a format the
+# registry already knows can be followed without editing a second list. The
+# hand-written alternation this replaces ordered its branches by hand and ended
+# without a guard, so a name was clipped onto the shorter registered format it
+# starts with: `world/mesh.paem` read as `world/mesh.pae`, `city.paccd` as
+# `city.pac`, and `crate.prefab_xml` as `crate.prefab`. Where a file of the
+# clipped name existed, the drawer listed it in place of the real one with full
+# confidence, which is worse than finding nothing.
+_ATTACHMENT_ASSET_REFERENCE_RE = asset_reference_pattern()
 
 
 def _asset_family_group_order() -> Tuple[str, ...]:
@@ -144,7 +139,7 @@ def _asset_family_group_for_entry(
         return "Physics / HKX"
     if extension == ".meshinfo":
         return "MeshInfo"
-    if extension in {".prefab", ".prefabdata_xml", ".app_xml", ".pappt"} or "prefab" in lowered:
+    if extension in {".prefab", ".prefab_xml", ".prefabdata_xml", ".app_xml", ".pappt"} or "prefab" in lowered:
         return "Prefab / Metadata"
     if extension in {".pab", ".pabc", ".pabv", ".pabgb", ".pabgh", ".papr"} or "skeleton" in lowered or "rig" in lowered:
         return "Skeleton / Rig"
@@ -152,7 +147,10 @@ def _asset_family_group_for_entry(
         return "Animation / Motion"
     if extension in {".pac", ".pam", ".pamlod"}:
         return "Selected Model"
-    return "Other"
+    # What the capability manifest says the format is, so a registered extension
+    # that no rule above names still reaches the group a reader expects rather
+    # than falling into "Other" for want of a hand-written entry.
+    return asset_family_group_from_manifest(extension)
 
 
 def _asset_family_role_for_entry(entry: Optional[ArchiveEntry], *, relation_kind: str = "", relation_group: str = "") -> str:
@@ -176,13 +174,13 @@ def _asset_family_role_for_entry(entry: Optional[ArchiveEntry], *, relation_kind
         return "HKX / Physics"
     if extension == ".meshinfo":
         return "MeshInfo"
-    if extension in {".prefab", ".prefabdata_xml", ".app_xml", ".pappt"}:
+    if extension in {".prefab", ".prefab_xml", ".prefabdata_xml", ".app_xml", ".pappt"}:
         return "Prefab / Metadata"
     if extension in {".pab", ".pabc", ".pabv", ".pabgb", ".pabgh", ".papr"} or kind == RelationKind.SKELETON.value:
         return "Skeleton / Rig"
     if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"} or kind == RelationKind.ANIMATION.value:
         return "Animation / Motion"
-    return "Related File"
+    return asset_family_role_from_manifest(extension)
 
 
 def _asset_family_status_for_reference(reference: ArchiveModelTextureReference) -> str:
@@ -919,6 +917,14 @@ def build_archive_entry_related_references(
     elif binary_data:
         for reference_name in _extract_binary_asset_references(binary_data, sample_limit=262_144, max_references=64):
             add_reference_name(reference_name)
+
+    # A Wwise bank names its sounds by source id, so nothing inside one reads as a
+    # path and the text scan above finds no companions at all. The media table is
+    # the reference: a sound stored outside the bank carries that id as its file
+    # name, which is what links a bank to the loose sounds that play with it.
+    if binary_data and str(source_entry.extension or "").strip().lower() == ".bnk":
+        for wem_basename in embedded_media_wem_basenames(binary_data):
+            add_reference_name(wem_basename)
 
     combined_companion_entries: List[ArchiveEntry] = []
     seen_companion_paths: set[str] = set()

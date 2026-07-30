@@ -34,6 +34,7 @@ from cdmw.core.archive_extraction import (
 )
 from cdmw.core.archive_format import extract_binary_strings
 from cdmw.core.archive_preview_support import resolve_archive_pathc_path
+from cdmw.core.archive_wwise_bank import read_bank_chunks, read_embedded_media
 from cdmw.core.temp_cache import (
     app_temp_cache_build,
     app_temp_cache_path,
@@ -545,13 +546,25 @@ def _resolve_vgmstream_cli_path() -> Optional[Path]:
 def _decode_wem_with_vgmstream(
     source_path: Path,
     *,
+    subsong: int = 0,
     stop_event: Optional[threading.Event] = None,
 ) -> Tuple[Optional[Path], str]:
+    """Decodes one sound to WAV, or the default sound when `subsong` is zero.
+
+    A container that holds several sounds is decoded one subsong at a time, so
+    the cached WAV is named for the subsong it holds: sharing one name across
+    sounds would serve whichever was decoded first for every row afterwards.
+    """
+
     cli_path = _resolve_vgmstream_cli_path()
     if cli_path is None:
         return None, "Bundled vgmstream decoder is not available in this build."
 
-    output_path = source_path.with_name(f"{sanitize_cache_filename(source_path.stem)}.vgmstream.wav")
+    subsong_index = max(0, int(subsong))
+    subsong_suffix = f".s{subsong_index}" if subsong_index > 0 else ""
+    output_path = source_path.with_name(
+        f"{sanitize_cache_filename(source_path.stem)}.vgmstream{subsong_suffix}.wav"
+    )
     if output_path.exists():
         try:
             if output_path.stat().st_size > 44 and output_path.stat().st_mtime_ns >= source_path.stat().st_mtime_ns:
@@ -559,7 +572,10 @@ def _decode_wem_with_vgmstream(
         except OSError:
             pass
 
-    command = [str(cli_path), "-o", str(output_path), str(source_path)]
+    command = [str(cli_path), "-o", str(output_path)]
+    if subsong_index > 0:
+        command += ["-s", str(subsong_index)]
+    command.append(str(source_path))
     popen_kwargs: Dict[str, object] = {
         "cwd": str(cli_path.parent),
         "stdout": subprocess.DEVNULL,
@@ -606,15 +622,19 @@ def _ensure_media_preview_source_path(
     source_path: Path,
     declared_extension: str,
     *,
+    subsong: int = 0,
     stop_event: Optional[threading.Event] = None,
 ) -> Tuple[Path, str]:
     resolved_source = source_path.expanduser().resolve()
     normalized_extension = str(declared_extension or resolved_source.suffix).strip().lower()
-    if normalized_extension != ".wem":
+    # A sound bank decodes through the same path as a loose .wem, because the
+    # sounds a bank embeds are .wem streams and vgmstream reads them as subsongs.
+    if normalized_extension not in {".wem", ".bnk"}:
         return resolved_source, ""
 
     decoded_wav_path, decode_note = _decode_wem_with_vgmstream(
         resolved_source,
+        subsong=subsong,
         stop_event=stop_event,
     )
     if decoded_wav_path is not None:
@@ -774,21 +794,14 @@ def _iter_bnk_chunks(
     *,
     max_chunks: int = 32,
 ) -> List[Tuple[str, int, int]]:
-    chunks: List[Tuple[str, int, int]] = []
-    offset = 0
-    while offset + 8 <= len(data) and len(chunks) < max_chunks:
-        chunk_name = data[offset : offset + 4].decode("ascii", errors="replace")
-        chunk_size = struct.unpack_from("<I", data, offset + 4)[0]
-        data_offset = offset + 8
-        if data_offset + chunk_size > len(data):
-            break
-        chunks.append((chunk_name, chunk_size, data_offset))
-        next_offset = data_offset + chunk_size
-        aligned_offset = (next_offset + 3) & ~3
-        if aligned_offset <= offset:
-            break
-        offset = aligned_offset
-    return chunks
+    """The bank's chunk envelope as `(identifier, size, payload offset)` rows.
+
+    The walk itself lives in `cdmw.core.archive_wwise_bank`, so the summary here
+    and the media table that drives playback read the bank exactly once over.
+    """
+
+    chunks, _consumed = read_bank_chunks(data, max_chunks=max_chunks)
+    return [(chunk.identifier, chunk.size, chunk.offset) for chunk in chunks]
 
 
 def build_bnk_soundbank_preview(data: bytes) -> Tuple[str, str]:
@@ -817,12 +830,12 @@ def build_bnk_soundbank_preview(data: bytes) -> Tuple[str, str]:
                 bank_version = None
                 bank_id = None
         elif chunk_name == "DIDX" and chunk_size >= 12:
-            embedded_media_count = chunk_size // 12
+            embedded_media = read_embedded_media(data)
+            embedded_media_count = len(embedded_media)
             preview_lines.append(f"- Embedded media entries: {embedded_media_count:,}")
-            for media_index in range(min(8, embedded_media_count)):
-                media_id, media_offset, media_size = struct.unpack_from("<III", data, chunk_offset + media_index * 12)
+            for media in embedded_media[:8]:
                 embedded_media_examples.append(
-                    f"{media_id} @ {media_offset:,} ({format_byte_size(media_size)})"
+                    f"{media.source_id} @ {media.offset:,} ({format_byte_size(media.size)})"
                 )
         elif chunk_name == "HIRC" and chunk_size >= 4:
             try:
@@ -849,9 +862,13 @@ def build_bnk_soundbank_preview(data: bytes) -> Tuple[str, str]:
     detail_lines.append("Top-level chunks: " + ", ".join(chunk_descriptions[:16]))
     if embedded_media_count:
         detail_lines.append(
-            f"Embedded media index contains {embedded_media_count:,} item(s). These can be inspected, but direct bank playback is not exposed yet."
+            f"Embedded media index contains {embedded_media_count:,} sound(s), each playable from the preview pane."
         )
     else:
-        detail_lines.append("No embedded media index entries were detected in the top-level DIDX chunk.")
+        # An event-only bank is the normal shape for one, not a damaged file: its
+        # audio streams from separate .wem files, so there is nothing inside it to play.
+        detail_lines.append(
+            "This bank embeds no audio; its sounds stream from separate .wem files."
+        )
 
     return "\n".join(preview_lines), "\n".join(detail_lines)

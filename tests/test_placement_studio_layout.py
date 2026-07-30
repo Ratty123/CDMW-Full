@@ -15,9 +15,15 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QComboBox  # noqa: E402
 
+from tests.qt_font_metrics_support import pin_default_ui_font  # noqa: E402
 from tools.placement_studio.window import fit_popup  # noqa: E402
 
 _APP = QApplication.instance() or QApplication([])
+
+# Every width below is a real number of pixels or it is meaningless, and the
+# offscreen plugin has no fonts of its own to produce one. See
+# `tests/qt_font_metrics_support.py`.
+_FONT_PINNED = pin_default_ui_font(_APP)
 
 
 class PopupWidthTests(unittest.TestCase):
@@ -89,25 +95,31 @@ if __name__ == "__main__":
 def test_the_clip_filter_rows_fit_the_lane_they_live_in():
     """Qt answers a row it cannot fit by clipping, so no row may ask for more than the lane.
 
-    Three controls shared one row: `Distant versions`, `Only draws for this spot` and the scan
-    button need 216, 312 and 338 px at this DPI — 890 with spacing, in a lane that opens at
-    620. The checkbox lost its last word and the button read `ind which draws fit (~30s`.
+    `Distant versions`, `Only draws for this spot` and the scan button share the clip browser,
+    in a lane that opens at 620 px. The observed failure was real — the checkbox lost its last
+    word and the button read `ind which draws fit (~30s` — and this guard holds each row to the
+    lane so it cannot come back.
+
+    This used to also assert that the three together *exceeded* the lane, on the reading that
+    only their combined width justified splitting them across two rows. That assertion was
+    measuring the offscreen fallback font, not the application's: the 216/312/338 px it was
+    written against are roughly double what Segoe UI produces. In the font the application
+    actually uses they total 386 px at 1366x768, 412 px at 1920x1080 and 450 px at 2560x1440 —
+    inside the lane at every supported resolution. Whether the two rows should now be merged is
+    a layout decision, not something a width can settle, so this test no longer claims it.
     """
 
-    import os
+    import pytest
 
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PySide6.QtWidgets import QApplication
+    if not _FONT_PINNED:
+        pytest.skip("the application's default UI font is unavailable; widths would be fallback metrics")
 
     from tools.placement_studio.corpus import Baseline
     from tools.placement_studio.window import PlacementStudioWindow
 
-    _app = QApplication.instance() or QApplication([])
     try:
         baseline = Baseline.load()
     except Exception as error:  # noqa: BLE001 - needs a pinned baseline to build at all
-        import pytest
-
         pytest.skip(f"no baseline available: {error}")
 
     window = PlacementStudioWindow(baseline)
@@ -121,13 +133,66 @@ def test_the_clip_filter_rows_fit_the_lane_they_live_in():
         # The lane the clip browser opens at; see `_build_animation_tab`.
         assert checkboxes <= 620, f"the checkbox row wants {checkboxes}px"
         assert button <= 620, f"the scan button wants {button}px"
-        assert checkboxes + button > 620, (
-            "these fit on one row now, so splitting them is no longer what keeps them legible"
-        )
     finally:
         window.close()
         window.deleteLater()
         QApplication.processEvents()
+
+
+def test_widths_do_not_change_when_another_test_registers_cjk_fonts():
+    """A measured width may not depend on what ran before it in the same process.
+
+    Resolving fonts for a CJK language registers those font files process-wide and never
+    undoes it, which is correct for the application and invisible to whoever writes a layout
+    test. With no font pinned it moved this window's controls from 528/338 px to 281/169 px,
+    failing a threshold that had nothing to do with the change: running
+    `test_localization_catalog_contracts.py` first was enough.
+    """
+
+    import pytest
+
+    if not _FONT_PINNED:
+        pytest.skip("the application's default UI font is unavailable; widths would be fallback metrics")
+
+    from cdmw.ui.shell.theme_controller import (
+        _REGISTERED_CJK_FONT_IDS,
+        _register_windows_cjk_fonts,
+        _unregister_cjk_fonts,
+    )
+    from tools.placement_studio.corpus import Baseline
+    from tools.placement_studio.window import PlacementStudioWindow
+
+    try:
+        baseline = Baseline.load()
+    except Exception as error:  # noqa: BLE001 - needs a pinned baseline to build at all
+        pytest.skip(f"no baseline available: {error}")
+
+    def measure() -> tuple[int, int]:
+        window = PlacementStudioWindow(baseline)
+        try:
+            return (
+                window._clip_lod_box.sizeHint().width() + window._clip_carry_box.sizeHint().width(),
+                window._carry_match.sizeHint().width(),
+            )
+        finally:
+            window.close()
+            window.deleteLater()
+            QApplication.processEvents()
+
+    before = measure()
+    already_registered = bool(_REGISTERED_CJK_FONT_IDS)
+    for code in ("zh-Hans", "zh-Hant", "ja", "ko"):
+        _register_windows_cjk_fonts(code)
+    try:
+        assert measure() == before, (
+            "registering CJK fonts changed this window's measured widths, so the layout guards "
+            "above depend on test order again"
+        )
+    finally:
+        # Only unwind what this test added. Another test may have registered these
+        # already, and withdrawing its fonts would be the same leak in reverse.
+        if not already_registered:
+            _unregister_cjk_fonts()
 
 
 def test_the_editing_bar_fits_without_clipping_anything():

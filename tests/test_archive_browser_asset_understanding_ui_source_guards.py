@@ -616,7 +616,14 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn('"Active mod"', source)
         self.assertIn('"Shadowed original"', source)
         self.assertIn('"Selected Model"', source)
-        self.assertIn('"Attachment / Placement"', source)
+        # The Associated Assets panel groups by the one shared order rather than a
+        # transcribed tuple, so a group added there reaches the panel and the
+        # dialog together instead of being computed and never rendered.
+        self.assertIn("group_order = ASSET_FAMILY_GROUP_ORDER", source)
+        self.assertIn(
+            "from cdmw.domain.archives.association_vocabulary import ASSET_FAMILY_GROUP_ORDER",
+            source,
+        )
         self.assertIn('"Physics / HKX"', source)
         self.assertIn('"MeshInfo"', source)
         self.assertIn('"Prefab / Metadata"', source)

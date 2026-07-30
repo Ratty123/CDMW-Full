@@ -656,6 +656,7 @@ class ArchivePreviewLayoutMixin:
             "Select an archive file to preview it here.",
             theme_key=self.current_theme_key,
         )
+        self.archive_media_preview.track_selected.connect(self._handle_archive_preview_track_selected)
         self.archive_preview_text_edit = CodePreviewEditor(theme_key=self.current_theme_key)
         self.archive_preview_text_edit.document().setMaximumBlockCount(5000)
         self.archive_preview_info_edit = ArchiveDetailsEditor(theme_key=self.current_theme_key)

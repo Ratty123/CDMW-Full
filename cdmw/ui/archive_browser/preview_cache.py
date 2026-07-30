@@ -179,6 +179,13 @@ class ArchivePreviewCacheMixin:
             ]
         if dependency_digest:
             key_parts.append(f"dependencies:{dependency_digest}")
+        # A container that holds several sounds produces a different preview per
+        # sound from the same entry, so the chosen one belongs in the key. It is
+        # appended only when a sound is actually selected, so every other preview
+        # keeps the key it already had and stays cached across this change.
+        selected_track = int(getattr(self, "archive_preview_track_index", 0) or 0)
+        if selected_track > 0:
+            key_parts.append(f"track:{selected_track}")
         return "::".join(key_parts)
 
     def _native_preview_package_cache_root(self) -> Path:
