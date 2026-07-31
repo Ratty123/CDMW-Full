@@ -46,9 +46,12 @@ class ModelLibraryResultsViewMixin:
     def _handle_results_query_changed(self, text: str) -> None:
         if self._updating_results_query:
             return
+        # Typing records the query and refreshes the label, but never searches.
+        # Re-filtering the local table on every keystroke made a long query
+        # unusable; the search runs on Enter or the Search button, through
+        # _apply_active_results_query, which is what the mirror view already did.
         if self._active_results_view == "local":
             self.settings.setValue("model_library/local_search_query", str(text))
-            self._schedule_results_filter()
             self._update_results_view_label()
             return
         self.settings.setValue("model_library/search_query", str(text))
@@ -89,8 +92,24 @@ class ModelLibraryResultsViewMixin:
         self._updating_results_query = True
         try:
             self.search_edit.setText(str(text or ""))
+            # Programmatic text is an applied query: it is either the stored
+            # query of the view being switched to, or a clear.
+            self._applied_results_query = str(text or "").strip()
         finally:
             self._updating_results_query = False
+
+    def applied_results_query(self) -> str:
+        """The query rows are filtered by, which is not what is being typed.
+
+        Only Enter, Search, Clear, and a view switch move the typed draft into
+        this value. Reading the edit box directly meant any unrelated refresh —
+        a sort, a texture filter, a Hide downloaded toggle — silently applied a
+        query the reader had not submitted.
+        """
+        applied = getattr(self, "_applied_results_query", None)
+        if applied is None:
+            return str(self.search_edit.text() if hasattr(self, "search_edit") else "").strip()
+        return str(applied).strip()
 
     def _set_results_filter_field(self, field: str) -> None:
         if not hasattr(self, "results_filter_field_combo"):
@@ -105,6 +124,7 @@ class ModelLibraryResultsViewMixin:
         self.local_texture_filter_combo.setCurrentIndex(index if index >= 0 else 0)
 
     def _apply_active_results_query(self) -> None:
+        self._applied_results_query = self.search_edit.text().strip()
         if self._active_results_view == "local":
             self.settings.setValue("model_library/local_search_query", self.search_edit.text().strip())
             self._populate_results(self.local_models)
