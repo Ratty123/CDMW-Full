@@ -864,14 +864,35 @@ def _python_ui_return_methods(
         assignments: dict[str, tuple[ast.AST, ...]],
     ) -> bool:
         before = len(ui_return_methods)
-        for candidate in candidates:
+        stack = list(candidates)
+        seen_references: set[str] = set()
+        while stack:
+            candidate = stack.pop()
             for expanded in _python_expand_local_value(candidate, assignments):
                 for descendant in ast.walk(expanded):
-                    if not isinstance(descendant, ast.Call):
+                    if isinstance(descendant, ast.Call):
+                        called = _python_call_name(descendant)
+                        if called in known_methods:
+                            ui_return_methods.add(called)
+                    # An f-string hides its parts behind names: `title, text =
+                    # helper()` then `setText(f"{title}: {text}")` reaches the
+                    # sink with no Call anywhere under the candidate node. The
+                    # rendered translation pass resolves such a line as template
+                    # plus arguments, so the helper's strings are user-visible
+                    # exactly as if returned to the sink directly. Follow only
+                    # names interpolated into f-strings; following every
+                    # reference under a candidate drags identifiers and log
+                    # fragments into the manifest.
+                    if not isinstance(descendant, ast.FormattedValue):
                         continue
-                    called = _python_call_name(descendant)
-                    if called in known_methods:
-                        ui_return_methods.add(called)
+                    reference = _python_reference_name(descendant.value)
+                    if (
+                        reference
+                        and reference not in seen_references
+                        and reference in assignments
+                    ):
+                        seen_references.add(reference)
+                        stack.extend(assignments[reference])
         return len(ui_return_methods) != before
 
     for definition, _parameters in definitions:

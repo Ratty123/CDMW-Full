@@ -137,6 +137,26 @@
       ]
     },
     {
+      "key": "  (orientation {value_0} -> {value_1}){value_2}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 667,
+          "sink": "python-return:_follow_child_socket"
+        }
+      ]
+    },
+    {
+      "key": "  (turned it the right way up)",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 733,
+          "sink": "python-return:_ensure_blade_hangs_down"
+        }
+      ]
+    },
+    {
       "key": "  * ... {value_0} more difference(s)",
       "origins": [
         {
@@ -737,6 +757,66 @@
       ]
     },
     {
+      "key": "  —  WARNING: it is still aimed by {value_0}, which belongs to the {value_1}, so it will hang at the wrong angle. Select the socket you want and press {value_2}.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 778,
+          "sink": "python-return:_warn_if_angle_is_wrong"
+        }
+      ]
+    },
+    {
+      "key": "  —  it is still upside down; aim it by hand with Rotate or Tilt",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 732,
+          "sink": "python-return:_ensure_blade_hangs_down"
+        }
+      ]
+    },
+    {
+      "key": "  —  it is upside down and the correction could not be applied",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 728,
+          "sink": "python-return:_ensure_blade_hangs_down"
+        }
+      ]
+    },
+    {
+      "key": "  —  it is upside down and there is no angle on the item to correct",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 721,
+          "sink": "python-return:_ensure_blade_hangs_down"
+        }
+      ]
+    },
+    {
+      "key": "  —  orientation still from {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 666,
+          "sink": "python-return:_follow_child_socket"
+        }
+      ]
+    },
+    {
+      "key": "  —  orientation still from {value_0}: this item has no {value_1} and no other item defines one, so use Rotate or Tilt to aim it",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 656,
+          "sink": "python-return:_follow_child_socket"
+        }
+      ]
+    },
+    {
       "key": " ({value_0} app settings restored)",
       "origins": [
         {
@@ -858,6 +938,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_preview_part_02.py",
           "line": 12,
           "sink": "python-return:_hkx_preview_placement_status_suffix"
+        }
+      ]
+    },
+    {
+      "key": " Related runtime mesh candidate(s) found: {value_0}{value_1}. Modify Original keeps the selected PAC as the export target; open a candidate directly to edit that asset.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
+          "line": 306,
+          "sink": "python-return:_modify_original_runtime_candidate_note"
         }
       ]
     },
@@ -1318,6 +1408,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 24,
           "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
+      "key": ", angle borrowed from vanilla's {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 821,
+          "sink": "python-return:_borrow_child_socket"
         }
       ]
     },
@@ -1917,6 +2017,16 @@
       ]
     },
     {
+      "key": "1_onehandweapon",
+      "origins": [
+        {
+          "path": "tools/placement_studio/meshes.py",
+          "line": 398,
+          "sink": "python-return:weapon_folder"
+        }
+      ]
+    },
+    {
       "key": "1h",
       "origins": [
         {
@@ -1968,6 +2078,36 @@
           "path": "cdmw/ui/archive_browser/attachment_package.py",
           "line": 319,
           "sink": "add"
+        }
+      ]
+    },
+    {
+      "key": "2H sword hip placement XML included from original archive; no descriptor diff was needed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 2183,
+          "sink": "python-return:_universal_twohand_sword_part_in_out_patch"
+        }
+      ]
+    },
+    {
+      "key": "2H sword hip placement XML was not found; package will contain animation aliases only.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 2170,
+          "sink": "python-return:_universal_twohand_sword_part_in_out_patch"
+        }
+      ]
+    },
+    {
+      "key": "2_twohandweapon",
+      "origins": [
+        {
+          "path": "tools/placement_studio/meshes.py",
+          "line": 398,
+          "sink": "python-return:weapon_folder"
         }
       ]
     },
@@ -7330,6 +7470,11 @@
           "sink": "setHtml"
         },
         {
+          "path": "cdmw/ui/shell/help_dialogs.py",
+          "line": 445,
+          "sink": "python-return:_section_category"
+        },
+        {
           "path": "cdmw/ui/shell/workspace_layout.py",
           "line": 47,
           "sink": "addTab"
@@ -8912,6 +9057,16 @@
       ]
     },
     {
+      "key": "Archive preview cache hit is slower than expected: total={value_0}s.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/preview_timing.py",
+          "line": 42,
+          "sink": "python-return:_archive_preview_timing_warning"
+        }
+      ]
+    },
+    {
       "key": "Archive preview cache size set to {value_0}.",
       "origins": [
         {
@@ -8993,6 +9148,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 24,
           "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
+      "key": "Archive preview model apply is slower than expected: model_apply={value_0}s.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/preview_timing.py",
+          "line": 44,
+          "sink": "python-return:_archive_preview_timing_warning"
         }
       ]
     },
@@ -11405,6 +11570,16 @@
       "key": "Base:",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Base: {value_0}{value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1352,
+          "sink": "python-return:_visual_target_prefab_patch"
+        }
+      ]
     },
     {
       "key": "Baseline written: {value_0} file(s) at {value_1}",
@@ -15575,9 +15750,29 @@
       "key": "Character",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 84,
+          "sink": "python-return:_archive_family_badge"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 87,
+          "sink": "python-return:_archive_family_badge"
+        },
+        {
           "path": "tools/placement_studio/glossary.py",
           "line": 59,
           "sink": "Term"
+        }
+      ]
+    },
+    {
+      "key": "Character Object",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 86,
+          "sink": "python-return:_archive_family_badge"
         }
       ]
     },
@@ -27180,6 +27375,11 @@
       "key": "Effect",
       "origins": [
         {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 69,
+          "sink": "python-return:_archive_family_badge"
+        },
+        {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 550,
           "sink": "setHeaderLabels"
@@ -33907,6 +34107,36 @@
       ]
     },
     {
+      "key": "Full behavior blocked: source role/socket metadata would resize target prefab. {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1346,
+          "sink": "python-return:_visual_target_prefab_patch"
+        }
+      ]
+    },
+    {
+      "key": "Full behavior needs a resolved source prefab role profile.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1316,
+          "sink": "python-return:_visual_target_prefab_patch"
+        }
+      ]
+    },
+    {
+      "key": "Full behavior needs a source prefab CD_* part role.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1328,
+          "sink": "python-return:_visual_target_prefab_patch"
+        }
+      ]
+    },
+    {
       "key": "Full behavior needs a target prefab role patch.",
       "origins": [
         {
@@ -36923,6 +37153,11 @@
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
           "line": 706,
           "sink": "setToolTip"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/icon_pipeline.py",
+          "line": 286,
+          "sink": "python-return:_cached_archive_asset_catalog_inventory_icon_pixmap"
         }
       ]
     },
@@ -41723,6 +41958,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 24,
           "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
+      "key": "Leveldata",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 67,
+          "sink": "python-return:_archive_family_badge"
         }
       ]
     },
@@ -49247,6 +49492,16 @@
       ]
     },
     {
+      "key": "Monster",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 78,
+          "sink": "python-return:_archive_family_badge"
+        }
+      ]
+    },
+    {
       "key": "More",
       "origins": [
         {
@@ -49788,6 +50043,16 @@
           "path": "cdmw/ui/policy_preview_dialog.py",
           "line": 255,
           "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "NPC",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 82,
+          "sink": "python-return:_archive_family_badge"
         }
       ]
     },
@@ -50853,6 +51118,31 @@
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
           "line": 1050,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "No ItemInfo behavior change was produced.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1153,
+          "sink": "python-return:_visual_iteminfo_behavior_patch"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1169,
+          "sink": "python-return:_visual_iteminfo_behavior_patch"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1178,
+          "sink": "python-return:_visual_iteminfo_behavior_patch"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1181,
+          "sink": "python-return:_visual_iteminfo_behavior_patch"
         }
       ]
     },
@@ -52622,6 +52912,16 @@
       ]
     },
     {
+      "key": "No packages",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_view.py",
+          "line": 186,
+          "sink": "python-return:retrofit_scan_readiness_summary"
+        }
+      ]
+    },
+    {
       "key": "No packages selected.",
       "origins": [
         {
@@ -52753,6 +53053,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 286,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "No placement evidence",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_visual_geometry.py",
+          "line": 28,
+          "sink": "python-return:_attachment_visual_chain_transform"
         }
       ]
     },
@@ -52938,6 +53248,21 @@
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
           "line": 720,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "No recovered inventory icon could be resolved for this row.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_catalog_scope.py",
+          "line": 261,
+          "sink": "python-return:_archive_asset_catalog_inventory_icon_pixmap"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/icon_pipeline.py",
+          "line": 254,
+          "sink": "python-return:_cached_archive_asset_catalog_inventory_icon_pixmap"
         }
       ]
     },
@@ -53503,6 +53828,36 @@
           "path": "cdmw/ui/archive_browser/hkx_document_actions.py",
           "line": 473,
           "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "No target .pac_xml sidecar was resolved; slot metadata patch is unavailable.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1275,
+          "sink": "python-return:_visual_target_pac_xml_patch"
+        }
+      ]
+    },
+    {
+      "key": "No target prefab was resolved; target-only placement patch is unavailable.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1299,
+          "sink": "python-return:_visual_target_prefab_patch"
+        }
+      ]
+    },
+    {
+      "key": "No target stack equip type could be inferred from the selected/source socket.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1272,
+          "sink": "python-return:_visual_target_pac_xml_patch"
         }
       ]
     },
@@ -54554,6 +54909,11 @@
     {
       "key": "Object",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 71,
+          "sink": "python-return:_archive_family_badge"
+        },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 152,
@@ -57177,6 +57537,16 @@
       ]
     },
     {
+      "key": "Original 2H sword hip placement XML could not be read.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 2173,
+          "sink": "python-return:_universal_twohand_sword_part_in_out_patch"
+        }
+      ]
+    },
+    {
       "key": "Original DDS",
       "origins": [
         {
@@ -57538,6 +57908,11 @@
           "path": "cdmw/ui/archive_browser/mesh_swap_support.py",
           "line": 185,
           "sink": "python-return:_archive_entry_swap_companion_group"
+        },
+        {
+          "path": "cdmw/ui/shell/help_dialogs.py",
+          "line": 450,
+          "sink": "python-return:_section_category"
         }
       ]
     },
@@ -58478,6 +58853,16 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 1098,
           "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Packages: {value_0}; payload packages: {value_1}; without payloads: {value_2}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_view.py",
+          "line": 190,
+          "sink": "python-return:retrofit_scan_readiness_summary"
         }
       ]
     },
@@ -60853,6 +61238,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 707,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Placement only: behavior table is not patched.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1116,
+          "sink": "python-return:_visual_iteminfo_behavior_patch"
         }
       ]
     },
@@ -64977,6 +65372,16 @@
       ]
     },
     {
+      "key": "Proxy LOD",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 67,
+          "sink": "python-return:_archive_family_badge"
+        }
+      ]
+    },
+    {
       "key": "Proxy LOD Textures / {value_0}",
       "origins": [
         {
@@ -66143,6 +66548,11 @@
           "path": "cdmw/ui/texture_workflow/editor_handoff.py",
           "line": 508,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_view.py",
+          "line": 187,
+          "sink": "python-return:retrofit_scan_readiness_summary"
         }
       ]
     },
@@ -67507,6 +67917,16 @@
       ]
     },
     {
+      "key": "Recovered icon DDS found, but thumbnail conversion failed: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_catalog_scope.py",
+          "line": 253,
+          "sink": "python-return:_archive_asset_catalog_inventory_icon_pixmap"
+        }
+      ]
+    },
+    {
       "key": "Recovered icon path could not be resolved in the loaded archive index.",
       "origins": [
         {
@@ -67544,6 +67964,11 @@
     {
       "key": "Recovered inventory icon: {value_0}",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_catalog_scope.py",
+          "line": 257,
+          "sink": "python-return:_archive_asset_catalog_inventory_icon_pixmap"
+        },
         {
           "path": "cdmw/workers/archive_workers.py",
           "line": 615,
@@ -67923,6 +68348,11 @@
           "path": "cdmw/ui/archive_browser/asset_family_layout.py",
           "line": 95,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/shell/help_dialogs.py",
+          "line": 449,
+          "sink": "python-return:_section_category"
         },
         {
           "path": "tools/translation_studio/table_model.py",
@@ -69217,6 +69647,16 @@
       ]
     },
     {
+      "key": "Repackage summary",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_view.py",
+          "line": 190,
+          "sink": "python-return:retrofit_scan_readiness_summary"
+        }
+      ]
+    },
+    {
       "key": "Repaint",
       "origins": [
         {
@@ -69853,6 +70293,26 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 64,
           "sink": "_make_help_button"
+        }
+      ]
+    },
+    {
+      "key": "Research snapshot ready for the current Archive Browser view ({value_0} file(s)).",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/refresh_population_state.py",
+          "line": 139,
+          "sink": "python-return:research_refresh_ready_status_text"
+        }
+      ]
+    },
+    {
+      "key": "Research snapshot ready for the full loaded archive ({value_0} file(s)).",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/refresh_population_state.py",
+          "line": 139,
+          "sink": "python-return:research_refresh_ready_status_text"
         }
       ]
     },
@@ -71612,6 +72072,16 @@
       ]
     },
     {
+      "key": "Riding",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 80,
+          "sink": "python-return:_archive_family_badge"
+        }
+      ]
+    },
+    {
       "key": "Rig",
       "origins": [
         {
@@ -72303,6 +72773,16 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 129,
           "sink": "EmptyStateTreeWidget"
+        }
+      ]
+    },
+    {
+      "key": "Run Scan first to analyze mod folders.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_view.py",
+          "line": 186,
+          "sink": "python-return:retrofit_scan_readiness_summary"
         }
       ]
     },
@@ -81942,6 +82422,16 @@
       ]
     },
     {
+      "key": "Source prefab payload is still loading or unavailable.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1320,
+          "sink": "python-return:_visual_target_prefab_patch"
+        }
+      ]
+    },
+    {
       "key": "Source prefab: {value_0}",
       "origins": [
         {
@@ -82362,6 +82852,16 @@
       ]
     },
     {
+      "key": "Standalone v2 supplied {value_0} bounded analysis candidate(s) and {value_1} current-view picker row(s).",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/remote_catalogue.py",
+          "line": 488,
+          "sink": "python-return:_research_catalogue_status_suffix"
+        }
+      ]
+    },
+    {
       "key": "Start",
       "origins": [
         {
@@ -82398,6 +82898,16 @@
           "path": "tools/translation_studio/ai_panel.py",
           "line": 400,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Start Here",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/help_dialogs.py",
+          "line": 441,
+          "sink": "python-return:_section_category"
         }
       ]
     },
@@ -84507,6 +85017,26 @@
       ]
     },
     {
+      "key": "Target .pac_xml has no StackEquipDataContainer _equipType.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1281,
+          "sink": "python-return:_visual_target_pac_xml_patch"
+        }
+      ]
+    },
+    {
+      "key": "Target .pac_xml sidecar could not be read.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1278,
+          "sink": "python-return:_visual_target_pac_xml_patch"
+        }
+      ]
+    },
+    {
       "key": "Target / Source Evidence",
       "origins": [
         {
@@ -84858,6 +85388,36 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
           "line": 125,
           "sink": "add_step"
+        }
+      ]
+    },
+    {
+      "key": "Target prefab patch unavailable: prefab stream length changed outside experimental mode.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1343,
+          "sink": "python-return:_visual_target_prefab_patch"
+        }
+      ]
+    },
+    {
+      "key": "Target prefab patch unavailable: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1351,
+          "sink": "python-return:_visual_target_prefab_patch"
+        }
+      ]
+    },
+    {
+      "key": "Target prefab payload is still loading or unavailable.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1309,
+          "sink": "python-return:_visual_target_prefab_patch"
         }
       ]
     },
@@ -86088,6 +86648,11 @@
           "path": "cdmw/ui/shell/help_dialogs.py",
           "line": 245,
           "sink": "setHtml"
+        },
+        {
+          "path": "cdmw/ui/shell/help_dialogs.py",
+          "line": 443,
+          "sink": "python-return:_section_category"
         }
       ]
     },
@@ -88820,6 +89385,11 @@
           "sink": "_make_sectioned_archive_action_menu_button"
         },
         {
+          "path": "cdmw/ui/shell/help_dialogs.py",
+          "line": 447,
+          "sink": "python-return:_section_category"
+        },
+        {
           "path": "cdmw/ui/shell/root_layout.py",
           "line": 31,
           "sink": "addTab"
@@ -89262,6 +89832,16 @@
       ]
     },
     {
+      "key": "Tree",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 75,
+          "sink": "python-return:_archive_family_badge"
+        }
+      ]
+    },
+    {
       "key": "Tree View",
       "origins": [],
       "manual": true
@@ -89594,6 +90174,11 @@
     {
       "key": "UI",
       "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 73,
+          "sink": "python-return:_archive_family_badge"
+        },
         {
           "path": "cdmw/ui/archive_browser/controller.py",
           "line": 158,
@@ -90153,6 +90738,16 @@
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
           "line": 116,
           "sink": "python-return:_archive_reference_role_label"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 61,
+          "sink": "python-return:_archive_family_badge"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/asset_family_references.py",
+          "line": 88,
+          "sink": "python-return:_archive_family_badge"
         },
         {
           "path": "cdmw/ui/archive_browser/controller.py",
@@ -96983,6 +97578,11 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 321,
           "sink": "addItem"
+        },
+        {
+          "path": "cdmw/workers/archive_filter_workers.py",
+          "line": 111,
+          "sink": "python-return:_candidate_entries_for_filter"
         }
       ]
     },
@@ -98713,6 +99313,16 @@
           "path": "cdmw/ui/texture_workflow/upscale_backend_panel.py",
           "line": 94,
           "sink": "finish_texture_workflow_panel_body"
+        }
+      ]
+    },
+    {
+      "key": "channels {value_0}: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/workspace_views.py",
+          "line": 363,
+          "sink": "python-return:_constraint_candidate_token_text"
         }
       ]
     },
@@ -100635,6 +101245,11 @@
       "key": "edit",
       "origins": [
         {
+          "path": "cdmw/services/mesh_service_kernel.py",
+          "line": 161,
+          "sink": "python-return:_required_mode"
+        },
+        {
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 153,
           "sink": "MeshEditorAction"
@@ -102117,6 +102732,31 @@
       ]
     },
     {
+      "key": "extension:{value_0}",
+      "origins": [
+        {
+          "path": "cdmw/workers/archive_filter_workers.py",
+          "line": 113,
+          "sink": "python-return:_candidate_entries_for_filter"
+        },
+        {
+          "path": "cdmw/workers/archive_filter_workers.py",
+          "line": 113,
+          "sink": "python-return:_candidate_entries_for_filter"
+        },
+        {
+          "path": "cdmw/workers/archive_filter_workers.py",
+          "line": 123,
+          "sink": "python-return:_candidate_entries_for_filter"
+        },
+        {
+          "path": "cdmw/workers/archive_filter_workers.py",
+          "line": 123,
+          "sink": "python-return:_candidate_entries_for_filter"
+        }
+      ]
+    },
+    {
       "key": "extent",
       "origins": [
         {
@@ -102473,6 +103113,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_physics_part_01.py",
           "line": 299,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "fields {value_0}: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/workspace_views.py",
+          "line": 450,
+          "sink": "python-return:_constraint_candidate_field_offset_text"
         }
       ]
     },
@@ -104843,6 +105493,16 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 315,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "limits {value_0}: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/workspace_views.py",
+          "line": 363,
+          "sink": "python-return:_constraint_candidate_token_text"
         }
       ]
     },
@@ -107492,6 +108152,26 @@
       ]
     },
     {
+      "key": "numeric constants={value_0} {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/workspace_views.py",
+          "line": 363,
+          "sink": "python-return:_constraint_candidate_token_text"
+        }
+      ]
+    },
+    {
+      "key": "numeric roles {value_0}: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/workspace_views.py",
+          "line": 363,
+          "sink": "python-return:_constraint_candidate_token_text"
+        }
+      ]
+    },
+    {
       "key": "obj",
       "origins": [
         {
@@ -109143,6 +109823,16 @@
           "path": "cdmw/services/mesh_morph_profiles.py",
           "line": 233,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "process did not start and reported no diagnostics",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
+          "line": 124,
+          "sink": "python-return:_dotnet_process_diagnostics"
         }
       ]
     },
@@ -110832,6 +111522,31 @@
       ]
     },
     {
+      "key": "role:{value_0}",
+      "origins": [
+        {
+          "path": "cdmw/workers/archive_filter_workers.py",
+          "line": 113,
+          "sink": "python-return:_candidate_entries_for_filter"
+        },
+        {
+          "path": "cdmw/workers/archive_filter_workers.py",
+          "line": 113,
+          "sink": "python-return:_candidate_entries_for_filter"
+        },
+        {
+          "path": "cdmw/workers/archive_filter_workers.py",
+          "line": 123,
+          "sink": "python-return:_candidate_entries_for_filter"
+        },
+        {
+          "path": "cdmw/workers/archive_filter_workers.py",
+          "line": 123,
+          "sink": "python-return:_candidate_entries_for_filter"
+        }
+      ]
+    },
+    {
       "key": "role={value_0}",
       "origins": [
         {
@@ -111650,6 +112365,11 @@
       "key": "sculpt",
       "origins": [
         {
+          "path": "cdmw/services/mesh_service_kernel.py",
+          "line": 148,
+          "sink": "python-return:_required_mode"
+        },
+        {
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 154,
           "sink": "MeshEditorAction"
@@ -112106,6 +112826,11 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_views.py",
+          "line": 363,
+          "sink": "python-return:_constraint_candidate_token_text"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/workspace_views.py",
           "line": 575,
           "sink": "python-return:_constraint_expression_evidence_text"
         }
@@ -112508,6 +113233,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_physics_part_01.py",
           "line": 546,
           "sink": "_connected_add_row"
+        }
+      ]
+    },
+    {
+      "key": "shape {value_0}: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/workspace_views.py",
+          "line": 363,
+          "sink": "python-return:_constraint_candidate_token_text"
         }
       ]
     },
@@ -190305,6 +191040,36 @@
           "sink": "QTreeWidgetItem"
         },
         {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1153,
+          "sink": "python-return:_visual_iteminfo_behavior_patch"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1169,
+          "sink": "python-return:_visual_iteminfo_behavior_patch"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1178,
+          "sink": "python-return:_visual_iteminfo_behavior_patch"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1181,
+          "sink": "python-return:_visual_iteminfo_behavior_patch"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 1282,
+          "sink": "python-return:_visual_target_pac_xml_patch"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/attachment_visual_geometry.py",
+          "line": 78,
+          "sink": "python-return:_attachment_visual_chain_transform"
+        },
+        {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 922,
           "sink": "_log"
@@ -190528,6 +191293,16 @@
           "path": "cdmw/ui/archive_browser/attachment_batch.py",
           "line": 160,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} 2H sword hip placement field(s) patched.",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
+          "line": 2182,
+          "sink": "python-return:_universal_twohand_sword_part_in_out_patch"
         }
       ]
     },
@@ -192007,6 +192782,16 @@
       ]
     },
     {
+      "key": "{value_0} package(s) found.",
+      "origins": [
+        {
+          "path": "cdmw/ui/tools/mod_package_retrofit_view.py",
+          "line": 187,
+          "sink": "python-return:retrofit_scan_readiness_summary"
+        }
+      ]
+    },
+    {
       "key": "{value_0} part(s)",
       "origins": [
         {
@@ -192568,6 +193353,16 @@
           "path": "tools/placement_studio/viewport.py",
           "line": 1004,
           "sink": "drawText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} {value_1}.",
+      "origins": [
+        {
+          "path": "cdmw/ui/research/remote_catalogue.py",
+          "line": 488,
+          "sink": "python-return:_research_catalogue_status_suffix"
         }
       ]
     },
@@ -193933,6 +194728,16 @@
           "path": "cdmw/ui/model_library/selection.py",
           "line": 66,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: {value_1} | mat {value_2} | tex {value_3}",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/workspace_views.py",
+          "line": 148,
+          "sink": "python-return:_part_detail_text"
         }
       ]
     },
