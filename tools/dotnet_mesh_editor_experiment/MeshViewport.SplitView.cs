@@ -379,7 +379,11 @@ internal sealed partial class MeshViewport
             context.MaterialDebugMode,
             context.TexturesEnabled,
             context.GridVisible,
-            context.GizmoVisible && role == "editable",
+            // The reference pane's model is locked, so it alone hides the
+            // gizmo. Demanding the editable role outright also hid it from the
+            // Overlay view's single "comparison" pane, whose replacement is
+            // exactly what the gizmo exists to move.
+            context.GizmoVisible && role != "reference",
             context.XRay,
             interactionAllowed);
 
