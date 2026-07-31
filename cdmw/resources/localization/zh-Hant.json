@@ -3,6 +3,7 @@
   "language_code": "zh-Hant",
   "language_name": "繁體中文",
   "translations": {
+    "{value_0}/{value_1}{value_2}.paloc": "{value_0}/{value_1}{value_2}.paloc",
     "  (orientation {value_0} -> {value_1}){value_2}": "  (朝向 {value_0} -> {value_1}){value_2}",
     "  (turned it the right way up)": "  (已轉為正確朝向)",
     "  —  WARNING: it is still aimed by {value_0}, which belongs to the {value_1}, so it will hang at the wrong angle. Select the socket you want and press {value_2}.": "  —  警告：它仍由 {value_0} 決定朝向（屬於 {value_1}），因此會以錯誤的角度懸掛。請選擇所需的插槽並按 {value_2}。",

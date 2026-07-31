@@ -3,6 +3,7 @@
   "language_code": "it",
   "language_name": "Italiano",
   "translations": {
+    "{value_0}/{value_1}{value_2}.paloc": "{value_0}/{value_1}{value_2}.paloc",
     "  (orientation {value_0} -> {value_1}){value_2}": "  (orientamento {value_0} -> {value_1}){value_2}",
     "  (turned it the right way up)": "  (raddrizzato nel verso giusto)",
     "  —  WARNING: it is still aimed by {value_0}, which belongs to the {value_1}, so it will hang at the wrong angle. Select the socket you want and press {value_2}.": "  —  ATTENZIONE: è ancora orientato da {value_0}, che appartiene a {value_1}, quindi penderà con l'angolazione sbagliata. Seleziona il socket desiderato e premi {value_2}.",

@@ -48,6 +48,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QProgressBar,
     QPushButton,
     QTableView,
     QVBoxLayout,
@@ -98,6 +99,8 @@ class _LanguageWorker(QObject):
     """
 
     done = Signal(object, str)
+    #: `(done, total)` package tables swept, driving the progress bar on a cold run.
+    progress = Signal(int, int)
 
     def __init__(self, game_root: Optional[str]) -> None:
         super().__init__()
@@ -106,7 +109,7 @@ class _LanguageWorker(QObject):
     def run(self) -> None:
         try:
             root = Path(self._game_root) if self._game_root else None
-            languages = available_languages(root)
+            languages = available_languages(root, on_progress=self.progress.emit)
         except Exception as error:  # noqa: BLE001 - report, never take the window down
             self.done.emit(None, str(error))
             return
@@ -114,7 +117,15 @@ class _LanguageWorker(QObject):
 
 
 class _LoadWorker(QObject):
-    done = Signal(object, object, str)
+    """Reads *and parses* a language table off the UI thread.
+
+    The read was always here, but parsing 187,521 entries -- twice, with a
+    reference language -- ran in the loaded handler on the UI thread, and that
+    is what froze the window for the seconds a load takes. The catalogue is
+    plain Python data, so building it here and handing it over is safe.
+    """
+
+    done = Signal(object, str)
 
     def __init__(self, language: str, reference: str, game_root: Optional[str] = None) -> None:
         super().__init__()
@@ -125,12 +136,13 @@ class _LoadWorker(QObject):
     def run(self) -> None:
         root = Path(self._game_root) if self._game_root else None
         try:
-            data = read_language(self._language, root)
-            reference = read_language(self._reference, root) if self._reference else None
+            catalogue = load_catalogue(read_language(self._language, root), self._language)
+            if self._reference:
+                attach_reference(catalogue, read_language(self._reference, root), self._reference)
         except Exception as error:  # noqa: BLE001 - report, never take the window down
-            self.done.emit(None, None, str(error))
+            self.done.emit(None, str(error))
             return
-        self.done.emit(data, reference, "")
+        self.done.emit(catalogue, "")
 
 
 class TranslationStudioTab(QWidget):
@@ -173,6 +185,11 @@ class TranslationStudioTab(QWidget):
         self.load_button = QPushButton("Load")
         self.load_button.clicked.connect(self._on_load)
         picker.addWidget(self.load_button)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setFixedWidth(150)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setVisible(False)
+        picker.addWidget(self.progress_bar)
         self.status_label = QLabel("Pick a language and load it.")
         self.status_label.setWordWrap(True)
         picker.addWidget(self.status_label, 1)
@@ -325,11 +342,25 @@ class TranslationStudioTab(QWidget):
 
         self.load_button.setEnabled(False)
         self.status_label.setText("Listing the languages in the archives (first time only)...")
+        self._show_busy_progress()
         self._language_thread = QThread()
         self._language_worker = _LanguageWorker(root)
+        self._language_worker.progress.connect(self._on_language_progress)
         _run_detached(self._language_thread, self._language_worker, on_done=self._on_languages)
 
+    def _show_busy_progress(self) -> None:
+        """An indeterminate bar until someone reports real counts."""
+
+        self.progress_bar.setRange(0, 0)
+        self.progress_bar.setVisible(True)
+
+    def _on_language_progress(self, finished: int, total: int) -> None:
+        if total > 0:
+            self.progress_bar.setRange(0, total)
+            self.progress_bar.setValue(finished)
+
     def _on_languages(self, languages, error: str) -> None:
+        self.progress_bar.setVisible(False)
         if error or languages is None:
             self.status_label.setText(f"Could not list languages: {error}")
             return
@@ -356,23 +387,18 @@ class TranslationStudioTab(QWidget):
             return
         self.load_button.setEnabled(False)
         self.status_label.setText(f"Reading {language} from the archives...")
+        self._show_busy_progress()
         self._thread = QThread()
         self._worker = _LoadWorker(language, reference, self._game_root() or None)
         _run_detached(self._thread, self._worker, on_done=self._on_loaded)
 
-    def _on_loaded(self, data, reference, error: str) -> None:
+    def _on_loaded(self, catalogue, error: str) -> None:
         self.load_button.setEnabled(True)
-        if error or data is None:
+        self.progress_bar.setVisible(False)
+        if error or catalogue is None:
             self.status_label.setText(f"Load failed: {error}")
             return
-        language = self.language_box.currentText()
-        try:
-            catalogue = load_catalogue(bytes(data), language)
-            if reference is not None:
-                attach_reference(catalogue, bytes(reference), self.reference_box.currentText())
-        except Exception as err:  # noqa: BLE001
-            self.status_label.setText(f"Could not read {language}: {err}")
-            return
+        language = catalogue.language
         self._catalogue = catalogue
         self.model.set_catalogue(catalogue)
 

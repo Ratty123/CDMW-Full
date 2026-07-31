@@ -1246,7 +1246,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 344,
+          "line": 375,
           "sink": "addItem"
         }
       ]
@@ -3611,7 +3611,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 239,
+          "line": 256,
           "sink": "QPushButton"
         }
       ]
@@ -5621,7 +5621,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 381,
+          "line": 407,
           "sink": "addItem"
         }
       ]
@@ -10581,7 +10581,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 264,
+          "line": 281,
           "sink": "addRow"
         }
       ]
@@ -13066,7 +13066,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 267,
+          "line": 284,
           "sink": "QPushButton"
         }
       ]
@@ -16956,7 +16956,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 240,
+          "line": 257,
           "sink": "setToolTip"
         }
       ]
@@ -21276,7 +21276,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 334,
+          "line": 365,
           "sink": "setText"
         }
       ]
@@ -21578,11 +21578,6 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_actions.py",
           "line": 35,
           "sink": "set_status_message"
-        },
-        {
-          "path": "tools/translation_studio/tab.py",
-          "line": 374,
-          "sink": "setText"
         }
       ]
     },
@@ -25556,7 +25551,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 244,
+          "line": 261,
           "sink": "QLabel"
         }
       ]
@@ -27271,7 +27266,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 195,
+          "line": 212,
           "sink": "QCheckBox"
         }
       ]
@@ -29691,7 +29686,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 255,
+          "line": 272,
           "sink": "QGroupBox"
         }
       ]
@@ -29741,7 +29736,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 571,
+          "line": 597,
           "sink": "python-return:export_mod"
         }
       ]
@@ -32561,7 +32556,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 182,
+          "line": 199,
           "sink": "QLabel"
         }
       ]
@@ -35156,7 +35151,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 189,
+          "line": 206,
           "sink": "QLabel"
         },
         {
@@ -41501,7 +41496,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 165,
+          "line": 177,
           "sink": "QLabel"
         }
       ]
@@ -42401,7 +42396,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 327,
+          "line": 344,
           "sink": "setText"
         }
       ]
@@ -42546,7 +42541,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 173,
+          "line": 185,
           "sink": "QPushButton"
         }
       ]
@@ -42751,7 +42746,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 366,
+          "line": 399,
           "sink": "setText"
         }
       ]
@@ -48501,7 +48496,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 262,
+          "line": 279,
           "sink": "addRow"
         }
       ]
@@ -51626,12 +51621,12 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 257,
+          "line": 274,
           "sink": "QLabel"
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 544,
+          "line": 570,
           "sink": "setText"
         }
       ]
@@ -53801,7 +53796,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 338,
+          "line": 369,
           "sink": "setText"
         }
       ]
@@ -54701,7 +54696,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 562,
+          "line": 588,
           "sink": "python-return:export_mod"
         }
       ]
@@ -54736,7 +54731,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 530,
+          "line": 556,
           "sink": "setText"
         }
       ]
@@ -60761,7 +60756,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 176,
+          "line": 193,
           "sink": "QLabel"
         }
       ]
@@ -65456,7 +65451,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 224,
+          "line": 241,
           "sink": "setToolTip"
         }
       ]
@@ -66371,7 +66366,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 358,
+          "line": 389,
           "sink": "setText"
         }
       ]
@@ -70561,7 +70556,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 228,
+          "line": 245,
           "sink": "QPushButton"
         }
       ]
@@ -71811,7 +71806,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 223,
+          "line": 240,
           "sink": "QPushButton"
         }
       ]
@@ -78461,7 +78456,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 233,
+          "line": 250,
           "sink": "setToolTip"
         }
       ]
@@ -79586,7 +79581,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 169,
+          "line": 181,
           "sink": "QLabel"
         }
       ]
@@ -85921,7 +85916,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 184,
+          "line": 201,
           "sink": "setPlaceholderText"
         }
       ]
@@ -89716,7 +89711,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 232,
+          "line": 249,
           "sink": "QPushButton"
         }
       ]
@@ -95146,7 +95141,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 575,
+          "line": 601,
           "sink": "getExistingDirectory"
         }
       ]
@@ -96731,7 +96726,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 572,
+          "line": 598,
           "sink": "python-return:export_mod"
         }
       ]
@@ -190931,7 +190926,7 @@
         },
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 383,
+          "line": 409,
           "sink": "addItem"
         }
       ]
@@ -192401,7 +192396,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 349,
+          "line": 380,
           "sink": "setText"
         }
       ]
@@ -192411,7 +192406,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 549,
+          "line": 575,
           "sink": "setText"
         }
       ]
@@ -192421,7 +192416,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 416,
+          "line": 442,
           "sink": "setText"
         }
       ]
@@ -192431,7 +192426,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/tab.py",
-          "line": 398,
+          "line": 424,
           "sink": "setText"
         }
       ]
@@ -194203,6 +194198,16 @@
           "path": "tools/placement_studio/meshes.py",
           "line": 360,
           "sink": "python-return:weapon_mesh_paths"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}/{value_1}{value_2}.paloc",
+      "origins": [
+        {
+          "path": "tools/translation_studio/language_index.py",
+          "line": 67,
+          "sink": "python-return:game_path_for"
         }
       ]
     },

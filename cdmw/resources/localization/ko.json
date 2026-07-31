@@ -3,6 +3,7 @@
   "language_code": "ko",
   "language_name": "한국어",
   "translations": {
+    "{value_0}/{value_1}{value_2}.paloc": "{value_0}/{value_1}{value_2}.paloc",
     "  (orientation {value_0} -> {value_1}){value_2}": "  (방향 {value_0} -> {value_1}){value_2}",
     "  (turned it the right way up)": "  (올바른 방향으로 돌렸습니다)",
     "  —  WARNING: it is still aimed by {value_0}, which belongs to the {value_1}, so it will hang at the wrong angle. Select the socket you want and press {value_2}.": "  —  경고: 아직 {value_0}이(가) 방향을 결정하고 있으며 이는 {value_1}에 속하므로 잘못된 각도로 매달립니다. 원하는 소켓을 선택하고 {value_2}을(를) 누르세요.",

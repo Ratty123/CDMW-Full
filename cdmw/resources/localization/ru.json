@@ -3,6 +3,7 @@
   "language_code": "ru",
   "language_name": "Русский",
   "translations": {
+    "{value_0}/{value_1}{value_2}.paloc": "{value_0}/{value_1}{value_2}.paloc",
     "  (orientation {value_0} -> {value_1}){value_2}": "  (ориентация {value_0} -> {value_1}){value_2}",
     "  (turned it the right way up)": "  (повёрнуто правильной стороной вверх)",
     "  —  WARNING: it is still aimed by {value_0}, which belongs to the {value_1}, so it will hang at the wrong angle. Select the socket you want and press {value_2}.": "  —  ВНИМАНИЕ: его по-прежнему направляет {value_0}, принадлежащий {value_1}, поэтому он будет висеть под неправильным углом. Выберите нужный сокет и нажмите {value_2}.",
