@@ -446,11 +446,6 @@ class ArchiveBrowserActionMixin:
         _add_menu_section("workflow", "Workflow")
         import_loose_mod_action = menu.addAction(menu_icons["workflow"], "Import Loose Mod Folder...")
         import_loose_mod_action.triggered.connect(lambda _checked=False: self._open_archive_loose_mod_overlay_dialog())
-        weapon_placement_studio_action = menu.addAction(menu_icons["workflow"], "Weapon Placement Studio (Disabled - WIP)")
-        weapon_placement_studio_action.setToolTip(
-            "Disabled - WIP. Weapon Placement Studio is paused until the preview/export flow is ready again."
-        )
-        weapon_placement_studio_action.setEnabled(False)
 
         if self._archive_entry_supports_family_context_actions(entry):
             _add_menu_section("family", "Asset Family")

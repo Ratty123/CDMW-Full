@@ -68,7 +68,6 @@ ARCHIVE_PREVIEW_LAYOUT = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "previe
 ARCHIVE_REFERENCE_PREVIEW = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "reference_preview.py"
 ARCHIVE_SOURCE_MIX_ACTIONS = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "source_mix_actions.py"
 ARCHIVE_SOURCE_MIX_OVERLAY = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "source_mix_overlay.py"
-ARCHIVE_WEAPON_PLACEMENT_STUDIO = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "weapon_placement_studio.py"
 ARCHIVE_WORKERS = REPO_ROOT / "cdmw" / "workers" / "archive_workers.py"
 ARCHIVE_SCAN_WORKERS = REPO_ROOT / "cdmw" / "workers" / "archive_scan_workers.py"
 ARCHIVE_PREVIEW_NATIVE = REPO_ROOT / "cdmw" / "workers" / "archive_preview_native.py"
@@ -240,8 +239,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn('export_file_action = menu.addAction(menu_icons["file"], "Export File...")', source)
         self.assertIn('extract_file_action = menu.addAction(menu_icons["file"], "Extract File...")', source)
         self.assertIn('family_action = menu.addAction(menu_icons["family"], "Asset Family...")', source)
-        self.assertIn('weapon_placement_studio_action = menu.addAction(menu_icons["workflow"], "Weapon Placement Studio (Disabled - WIP)")', source)
-        self.assertIn("weapon_placement_studio_action.setEnabled(False)", source)
+        # Weapon Placement Studio is removed outright: no menu entry in any state.
+        self.assertNotIn("Weapon Placement Studio", source)
         self.assertNotIn('placement_action = menu.addAction(menu_icons["family"], "Weapon Placement Studio...")', source)
         self.assertNotIn('placement_action = menu.addAction(menu_icons["family"], "Open Placement Workspace...")', source)
         self.assertIn('hkx_placement_action = menu.addAction(menu_icons["family"], "Edit HKX...")', source)
@@ -285,9 +284,9 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             'self.archive_action_export_family_button = QPushButton("Export Family...")',
             'self.archive_action_source_mix_button = QPushButton("Build Loose Package From Sources...")',
             'self.archive_action_character_dependency_button = QPushButton("Export Character Dependency Package...")',
-            'self.archive_weapon_placement_studio_button = QPushButton("Weapon Placement Studio")',
         ):
             self.assertIn(token, source)
+        self.assertNotIn("archive_weapon_placement_studio_button", source)
 
         for token in (
             '("Export File", self.archive_action_export_file_button)',
@@ -301,7 +300,6 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             '("Asset Family", self.archive_action_asset_family_button)',
             '("Filter to Family", self.archive_action_filter_to_family_button)',
             '("Build Loose Package From Sources", self.archive_action_source_mix_button)',
-            '(None, self.archive_weapon_placement_studio_button)',
             '("Edit Material Values", self.archive_material_values_button)',
         ):
             self.assertIn(token, source)
@@ -895,35 +893,30 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("~_state.Qt.ItemFlag.ItemIsEnabled", nav_source)
         self.assertIn("Placement view is disabled - WIP.", source)
 
-    def test_weapon_placement_studio_ui_and_guardrails_are_present(self) -> None:
+    def test_weapon_placement_studio_is_removed(self) -> None:
+        """The studio spent long enough as a disabled stub; it is gone outright.
+
+        No button, no context-menu entry, no Asset Family dialog button, no
+        mixin module. Weapon Placement *Batch* is a different, living feature
+        and stays.
+        """
+
         source = "\n".join(
             (
                 MAIN_WINDOW.read_text(encoding="utf-8"),
-                ARCHIVE_WEAPON_PLACEMENT_STUDIO.read_text(encoding="utf-8"),
                 ARCHIVE_ACTIONS.read_text(encoding="utf-8"),
                 ARCHIVE_ATTACHMENT_BATCH.read_text(encoding="utf-8"),
                 ARCHIVE_ASSET_FAMILY_DIALOG.read_text(encoding="utf-8"),
+                ARCHIVE_PREVIEW_LAYOUT.read_text(encoding="utf-8"),
             )
         )
-        self.assertIn('weapon_placement_studio_action = menu.addAction(menu_icons["workflow"], "Weapon Placement Studio (Disabled - WIP)")', source)
-        self.assertIn('placement_button = QPushButton("Weapon Placement Studio (Disabled - WIP)")', source)
-        self.assertIn("placement_button.setEnabled(False)", source)
-        self.assertIn("weapon_placement_studio_action.setEnabled(False)", source)
-        self.assertNotIn("weapon_placement_studio_action.triggered.connect", source)
+        self.assertFalse(
+            (REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "weapon_placement_studio.py").exists()
+        )
+        self.assertNotIn("Weapon Placement Studio", source)
+        self.assertNotIn("weapon_placement_studio", source)
         self.assertNotIn('"Weapon Swap Studio..."', source)
         self.assertNotIn('"Open Placement Workspace..."', source)
-
-        start = source.index("    def _open_archive_weapon_placement_studio_dialog(")
-        end = source.index("__all__", start)
-        studio_source = source[start:end]
-        self.assertIn("Weapon Placement Studio is disabled - WIP.", studio_source)
-        self.assertIn("return", studio_source)
-        self.assertLessEqual(len(studio_source.splitlines()), 8)
-        self.assertNotIn('dialog.setWindowTitle("Weapon Placement Studio")', studio_source)
-        self.assertNotIn("self._deactivate_archive_model_renderers_for_non_model_preview()", studio_source)
-        self.assertNotIn("Build Placement Package", studio_source)
-        self.assertNotIn("Native PAC view is disabled by default for Weapon Placement Studio", studio_source)
-        self.assertNotIn("CDMW_ENABLE_WEAPON_STUDIO_NATIVE_D3D11", studio_source)
         self.assertNotIn("from cdmw.core.weapon_swap_templates import (", source)
         self.assertIn("Weapon Placement Batch", source)
 

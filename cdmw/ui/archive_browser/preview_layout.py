@@ -296,11 +296,6 @@ class ArchivePreviewLayoutMixin:
         self.archive_sidecar_corpus_button.setToolTip(
             "Scan loose .meshinfo, .motionblending, .paa_metabin, .prefab, .pappt, .pamhc, and .seqmt files and export a read-only schema/layout ranking report."
         )
-        self.archive_weapon_placement_studio_button = QPushButton("Weapon Placement Studio")
-        self.archive_weapon_placement_studio_button.setToolTip(
-            "Disabled - WIP. Weapon Placement Studio is paused until the preview/export flow is ready again."
-        )
-        self.archive_weapon_placement_studio_button.setEnabled(False)
         self.archive_material_values_button = QPushButton("Edit Material Values...")
         self.archive_material_values_button.setToolTip(
             "Read recognized values from a companion .pac_xml/.pam_xml/.pamlod_xml/.pami material sidecar and export edited values as a mod-ready package."
@@ -473,7 +468,6 @@ class ArchivePreviewLayoutMixin:
                     "Maintenance",
                     (
                         ("Restore Backup", self.archive_restore_patch_backup_button),
-                        (None, self.archive_weapon_placement_studio_button),
                     ),
                 ),
             ),
@@ -568,7 +562,6 @@ class ArchivePreviewLayoutMixin:
             self.archive_hkx_edit_button,
             self.archive_hkx_placement_button,
             self.archive_hkx_corpus_button,
-            self.archive_weapon_placement_studio_button,
             self.archive_sidecar_export_json_button,
             self.archive_sidecar_inspect_button,
             self.archive_sidecar_corpus_button,
