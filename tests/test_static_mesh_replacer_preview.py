@@ -2007,7 +2007,7 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
         self.assertEqual([0], mappings[0].source_submesh_indices)
         self.assertEqual([], mappings[1].source_submesh_indices)
 
-    def test_complete_source_owned_blocks_generic_source_in_flag_runtime_slot(self) -> None:
+    def test_complete_source_owned_warns_generic_source_in_flag_runtime_slot(self) -> None:
         vertices = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]
         faces = [(0, 1, 2)]
         original = _mesh(
@@ -2033,7 +2033,7 @@ class StaticMeshReplacementPreviewTests(unittest.TestCase):
 
         report = analyze_static_replacement(original, replacement, options)
 
-        self.assertTrue(any("Unsafe runtime draw-slot mapping" in error for error in report.errors))
+        self.assertTrue(any("Unsafe runtime draw-slot mapping" in w for w in report.warnings) and report.ok)
 
     def test_manual_alignment_does_not_apply_hidden_axis_rotation(self) -> None:
         original = _mesh(

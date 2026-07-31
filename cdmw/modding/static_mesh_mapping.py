@@ -312,12 +312,12 @@ def _append_special_runtime_slot_mapping_findings(
         f"cloth/flag-style target slot: {'; '.join(findings[:4])}. "
         "This can look correct in preview but deform or explode in game; route the source into Blade/Handle/Guard/Acc instead."
     )
-    if bool(getattr(options, "complete_external_swap", False)) and not bool(
-        getattr(options, "allow_unsafe_material_preflight_export", False)
-    ):
-        report.errors.append(message)
-    else:
-        report.warnings.append(message)
+    # Advisory only. Routing geometry into a cloth/flag slot is a modding choice
+    # with a real in-game risk, but it is the modder's call to take: promoting it
+    # to `report.errors` made `ok` false (see StaticReplacementReport.ok) and
+    # blocked Build Mod outright, with no way through except a checkbox most
+    # users never found.
+    report.warnings.append(message)
 
 def _best_target_index_for_source(
     source: SubMesh,
