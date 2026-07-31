@@ -53,7 +53,7 @@ class ModelLibraryResultsMixin:
             download_root=str(self._download_output_root()),
             mirror_url=mirror_url,
             preferred_format=self._primary_preferred_format(),
-            query=str(self.search_edit.text() if hasattr(self, "search_edit") else "").strip(),
+            query=self.applied_results_query(),
             local_filter_field=str(self.results_filter_field_combo.currentData() or "all") if hasattr(self, "results_filter_field_combo") else "all",
             local_texture_filter=str(self.local_texture_filter_combo.currentData() or "all") if hasattr(self, "local_texture_filter_combo") else "all",
             column_filters=tuple(sorted(self._active_column_filters().items())),
@@ -107,7 +107,7 @@ class ModelLibraryResultsMixin:
                         "Turn off Hide downloaded, search a different term, or delete local copies to show them again."
                     )
                 elif total_count <= 0:
-                    query = str(self.search_edit.text() if hasattr(self, "search_edit") else "").strip()
+                    query = self.applied_results_query()
                     message = f"No mirror results found for \"{query}\"." if query else "No mirror results loaded. Search the mirror catalogue or show popular models."
             else:
                 query = str(self.search_edit.text() if hasattr(self, "search_edit") else "").strip()
