@@ -940,6 +940,51 @@ class TabAiTests(unittest.TestCase):
         tab._on_languages(None, "the archives are not where you said")
         self.assertIn("not where you said", tab.status_label.text())
 
+    def test_the_load_worker_hands_over_a_parsed_catalogue(self) -> None:
+        """Parsing 187,521 entries belongs on the worker, not the loaded handler.
+
+        The worker used to emit raw bytes and the UI thread parsed them, which is
+        what froze the window for the seconds a load takes.
+        """
+
+        from tools.translation_studio import tab as tab_module
+
+        results: list = []
+        worker = tab_module._LoadWorker("eng", "kor")
+        worker.done.connect(lambda catalogue, error: results.append((catalogue, error)))
+        original = tab_module.read_language
+        tab_module.read_language = (
+            lambda language, root=None: ENGLISH if language == "eng" else KOREAN
+        )
+        try:
+            worker.run()
+        finally:
+            tab_module.read_language = original
+        catalogue, error = results[0]
+        self.assertEqual(error, "")
+        self.assertEqual(catalogue.language, "eng")
+        self.assertEqual(catalogue.reference_language, "kor")
+        self.assertEqual(len(catalogue), 4)
+
+    def test_the_loaded_handler_installs_the_catalogue_and_hides_the_progress_bar(self) -> None:
+        tab, _cat = self._tab()
+        fresh = load_catalogue(ENGLISH, "eng")
+        tab.progress_bar.setVisible(True)
+        tab._on_loaded(fresh, "")
+        self.assertIs(tab._catalogue, fresh)
+        self.assertTrue(tab.progress_bar.isHidden())
+        self.assertIn("lines in eng", tab.status_label.text())
+
+    def test_a_cold_language_listing_drives_a_determinate_progress_bar(self) -> None:
+        tab, _cat = self._tab()
+        tab._show_busy_progress()
+        self.assertEqual(tab.progress_bar.maximum(), 0, "busy until counts arrive")
+        tab._on_language_progress(12, 33)
+        self.assertEqual(tab.progress_bar.maximum(), 33)
+        self.assertEqual(tab.progress_bar.value(), 12)
+        tab._on_languages(("eng",), "")
+        self.assertTrue(tab.progress_bar.isHidden())
+
     def test_scopes_cover_the_view_and_the_whole_table(self) -> None:
         tab, cat = self._tab()
         labels = [label for label, _lines in tab.ai_scopes()]
