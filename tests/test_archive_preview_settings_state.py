@@ -37,6 +37,8 @@ def _changed_settings(field_name: str) -> ModelPreviewRenderSettings:
         # setting; the pair stays non-overlapping so nothing resolves it away.
         "camera_orbit_modifier": "ctrl",
         "camera_pan_modifier": "alt",
+        "camera_middle_drag": "orbit",
+        "camera_right_drag": "orbit",
     }
     old_value = getattr(base, field_name)
     if field_name in explicit_values:
@@ -112,6 +114,8 @@ _EXPECTED_CHANGE_ROUTES: dict[str, set[str]] = {
     "invert_pan_y": {"d3d11_render_tuning_changed"},
     "camera_orbit_modifier": {"d3d11_render_tuning_changed"},
     "camera_pan_modifier": {"d3d11_render_tuning_changed"},
+    "camera_middle_drag": {"d3d11_render_tuning_changed"},
+    "camera_right_drag": {"d3d11_render_tuning_changed"},
     "gizmo_x_axis_color": set(),
     "gizmo_y_axis_color": set(),
     "gizmo_z_axis_color": set(),

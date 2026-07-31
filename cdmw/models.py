@@ -1801,6 +1801,11 @@ class ModelPreviewRenderSettings:
     # colliding pair; these two are only the stored choice.
     camera_orbit_modifier: str = "alt_or_ctrl"
     camera_pan_modifier: str = "shift"
+    # What dragging with the middle button (the held scroll wheel) or the right
+    # button does: "pan" or "orbit". cdmw.domain.camera_bindings owns the legal
+    # values; these cannot collide with anything.
+    camera_middle_drag: str = "pan"
+    camera_right_drag: str = "pan"
     gizmo_x_axis_color: str = "#EB4B4B"
     gizmo_y_axis_color: str = "#50DC69"
     gizmo_z_axis_color: str = "#4B91FF"

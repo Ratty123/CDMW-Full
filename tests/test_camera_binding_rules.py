@@ -5,13 +5,20 @@ import pytest
 from cdmw.domain.camera_bindings import (
     ALT,
     ALT_OR_CTRL,
+    CAMERA_DRAG_CHOICES,
     CAMERA_MODIFIER_CHOICES,
     CTRL,
+    DEFAULT_MIDDLE_DRAG,
     DEFAULT_ORBIT,
     DEFAULT_PAN,
+    DEFAULT_RIGHT_DRAG,
+    DRAG_ORBIT,
+    DRAG_PAN,
     SHIFT,
     camera_bindings_conflict,
+    camera_drag_label,
     camera_modifier_label,
+    normalize_camera_drag,
     normalize_camera_modifier,
     resolve_camera_bindings,
 )
@@ -84,3 +91,41 @@ def test_labels_cover_every_choice_and_fall_back_for_junk() -> None:
     for value, label in labels.items():
         assert camera_modifier_label(value) == label
     assert camera_modifier_label("nonsense") == labels[DEFAULT_ORBIT]
+
+
+def test_drag_buttons_default_to_pan() -> None:
+    """Middle-drag and right-drag panned before they were rebindable, so the
+    default keeps that behavior for everyone who never opens the dialog."""
+
+    assert DEFAULT_MIDDLE_DRAG == DRAG_PAN
+    assert DEFAULT_RIGHT_DRAG == DRAG_PAN
+    defaults = ModelPreviewRenderSettings()
+    assert defaults.camera_middle_drag == DRAG_PAN
+    assert defaults.camera_right_drag == DRAG_PAN
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("ORBIT", DRAG_ORBIT),
+        (" pan ", DRAG_PAN),
+        ("", DRAG_PAN),
+        (None, DRAG_PAN),
+        ("wheel", DRAG_PAN),
+        (object(), DRAG_PAN),
+    ],
+)
+def test_drag_normalization_accepts_only_pan_or_orbit(value: object, expected: str) -> None:
+    assert normalize_camera_drag(value, DRAG_PAN) == expected
+
+
+def test_drag_choices_have_labels_and_never_conflict_with_modifiers() -> None:
+    """A drag button is its own physical gesture: whatever it is bound to, pan
+    and orbit both stay reachable through the left button's modifiers, so there
+    is deliberately no conflict resolution for these."""
+
+    labels = {value: label for value, label in CAMERA_DRAG_CHOICES}
+    assert set(labels) == {DRAG_PAN, DRAG_ORBIT}
+    for value, label in labels.items():
+        assert camera_drag_label(value) == label
+    assert camera_drag_label("nonsense") == labels[DRAG_PAN]

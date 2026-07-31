@@ -22,7 +22,12 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid as qt_object_is_valid
 
-from cdmw.domain.camera_bindings import resolve_camera_bindings
+from cdmw.domain.camera_bindings import (
+    DEFAULT_MIDDLE_DRAG,
+    DEFAULT_RIGHT_DRAG,
+    normalize_camera_drag,
+    resolve_camera_bindings,
+)
 from cdmw.services.mesh_dotnet_experiment import (
     MeshDotNetExperimentPackage,
     resolve_mesh_dotnet_experiment_editor,
@@ -529,6 +534,12 @@ class DotNetPreviewHostFrame(QFrame):
             "invert_pan_y": bool(getattr(settings, "invert_pan_y", False)),
             "camera_orbit_modifier": camera_orbit_modifier,
             "camera_pan_modifier": camera_pan_modifier,
+            "camera_middle_drag": normalize_camera_drag(
+                getattr(settings, "camera_middle_drag", None), DEFAULT_MIDDLE_DRAG
+            ),
+            "camera_right_drag": normalize_camera_drag(
+                getattr(settings, "camera_right_drag", None), DEFAULT_RIGHT_DRAG
+            ),
         }
         display = dict(self._presentation_state.get("display", {}))
         display["quality"] = quality

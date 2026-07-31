@@ -80,6 +80,12 @@ internal sealed partial class MeshViewport
             CameraPanModifier = CameraModifierBindings.Normalize(
                 JsonText(quality, "camera_pan_modifier", defaults.CameraPanModifier),
                 defaults.CameraPanModifier),
+            CameraMiddleDrag = CameraModifierBindings.NormalizeDrag(
+                JsonText(quality, "camera_middle_drag", defaults.CameraMiddleDrag),
+                defaults.CameraMiddleDrag),
+            CameraRightDrag = CameraModifierBindings.NormalizeDrag(
+                JsonText(quality, "camera_right_drag", defaults.CameraRightDrag),
+                defaults.CameraRightDrag),
             BackgroundColor = PresentationBackgroundColor(quality, defaults.BackgroundColor),
             UvScale = new Vector2(
                 SafeNonZero(JsonFloat(uv, "scale_u", defaults.UvScale.X)),

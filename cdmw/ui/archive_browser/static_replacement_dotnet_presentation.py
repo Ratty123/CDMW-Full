@@ -62,6 +62,8 @@ _RENDER_SETTING_FIELDS = (
     "invert_pan_y",
     "camera_orbit_modifier",
     "camera_pan_modifier",
+    "camera_middle_drag",
+    "camera_right_drag",
     "gizmo_x_axis_color",
     "gizmo_y_axis_color",
     "gizmo_z_axis_color",
