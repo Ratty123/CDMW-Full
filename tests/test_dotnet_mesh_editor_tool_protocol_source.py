@@ -1029,3 +1029,15 @@ def test_an_early_textured_display_request_is_replayed_when_the_session_arrives(
     establish = package.split("private void EstablishSimplePreviewSession(", maxsplit=1)[1]
     establish = establish.split("private void HandleResidentPackageLoadRequest(", maxsplit=1)[0]
     assert "ReplayPendingResidentDisplayRequest();" in establish
+
+
+def test_the_overlay_comparison_pane_keeps_the_placement_gizmo() -> None:
+    """Overlay's single pane has role "comparison", and the old gate required
+    "editable" — so the gizmo silently vanished exactly in the view whose
+    replacement it exists to move. Only the locked reference pane hides it.
+    """
+    split_view = _source("MeshViewport.SplitView.cs")
+    pane = split_view.split("private D3D11RenderPane RenderPane(", maxsplit=1)[1]
+    pane = pane.split("private Dictionary<string, object?> PaneRectangleStatusPayload", maxsplit=1)[0]
+    assert 'context.GizmoVisible && role != "reference"' in pane
+    assert 'role == "editable"' not in pane
