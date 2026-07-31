@@ -5769,7 +5769,7 @@
     "Resident placement bridge is unavailable.": "상주 배치 브리지를 사용할 수 없습니다.",
     "Resident placement mode transition could not be queued.": "상주 배치 모드 전환을 대기열에 추가할 수 없습니다.",
     "Resident presentation updated: {value_0}.": "상주 프레젠테이션이 업데이트되었습니다: {value_0}.",
-    "Resident preview is not ready to load textures yet.": "상주 미리보기는 아직 텍스처를 로드할 준비가 되지 않았습니다.",
+    "Textures will load as soon as the resident preview is ready...": "상주 미리 보기가 준비되는 대로 텍스처를 로드합니다...",
     "Resident scene frame was rejected; the last acknowledged frame remains active: {value_0}": "상주 장면 프레임이 거부되었습니다. 마지막으로 확인된 프레임은 활성 상태로 유지됩니다. {value_0}",
     "ResidentViewportNavigationTool": "ResidentViewportNavigationTool",
     "Resize left Edit Mesh tools": "왼쪽 메시 편집 도구 크기 조정",
