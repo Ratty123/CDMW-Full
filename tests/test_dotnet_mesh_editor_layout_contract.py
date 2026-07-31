@@ -377,14 +377,23 @@ def test_edit_mesh_opens_with_no_tool_armed_and_the_camera_on_the_button() -> No
     # The unopened rail resolves its page from the live tool rather than from a
     # remembered default, and only then marks itself chosen.
     assert "private ToolRailPage? _selectedToolRailPage;" in layout
-    assert "private void ShowToolRailPage(ToolRailPage? page)" in layout
+    assert "private void ShowToolRailPage(ToolRailPage? page, bool armDefaultTool = true)" in layout
     first_reveal = layout.split("if (!_toolRailPageSelected)", 1)[1]
-    first_reveal = first_reveal.split("ShowToolRailPage(_selectedToolRailPage);", 1)[0]
+    first_reveal = first_reveal.split("ShowToolRailPage(_selectedToolRailPage", 1)[0]
     assert "_selectedToolRailPage = ToolRailPageForActiveTool();" in first_reveal
 
+    # Re-revealing the rail is not a tool choice. Layout activation runs on every
+    # redundant mesh_edit frame, and arming there replaced the live tool with the
+    # page's default -- almost always Select, because no page owns orbit, morph or
+    # topo. That is what threw the reader back to Selection > Select after using
+    # Move, a brush, or Clear selection.
+    assert "ShowToolRailPage(_selectedToolRailPage, armDefaultTool: false);" in layout
+
     # Nothing selected means no accent and no header, not a page shown blank.
-    show = layout.split("private void ShowToolRailPage(ToolRailPage? page)", 1)[1]
+    show = layout.split("private void ShowToolRailPage(ToolRailPage? page, bool armDefaultTool = true)", 1)[1]
     show = show.split("private void RevealToolRailPage", 1)[0]
+    # A rail button the reader clicks still selects the tool it names.
+    assert "if (armDefaultTool" in show
     assert "SetButtonAccent(pair.Value, pair.Key == page);" in show
     assert "? string.Empty" in show
 
