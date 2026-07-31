@@ -70,7 +70,10 @@ from cdmw.models import (
     clamp_model_preview_render_settings,
 )
 from cdmw.ui.archive_performance_settings_io import read_archive_performance_settings
-from cdmw.domain.camera_bindings import normalize_camera_modifier
+from cdmw.domain.camera_bindings import (
+    normalize_camera_drag,
+    normalize_camera_modifier,
+)
 from cdmw.domain.localization import canonical_language_code
 from cdmw.ui.localization import BUILTIN_LANGUAGES
 from cdmw.ui.settings_helper_discovery import (
@@ -1511,6 +1514,8 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         self.settings.setValue("preview/invert_pan_y", preview_settings.invert_pan_y)
         self.settings.setValue("preview/camera_orbit_modifier", preview_settings.camera_orbit_modifier)
         self.settings.setValue("preview/camera_pan_modifier", preview_settings.camera_pan_modifier)
+        self.settings.setValue("preview/camera_middle_drag", preview_settings.camera_middle_drag)
+        self.settings.setValue("preview/camera_right_drag", preview_settings.camera_right_drag)
         self.settings.setValue("preview/normal_strength_cap", preview_settings.normal_strength_cap)
         self.settings.setValue("preview/normal_strength_floor", preview_settings.normal_strength_floor)
         self.settings.setValue("preview/height_effect_max", preview_settings.height_effect_max)
@@ -1916,6 +1921,14 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
                     self.settings.value("preview/camera_pan_modifier", defaults.camera_pan_modifier),
                     defaults.camera_pan_modifier,
                 ),
+                camera_middle_drag=normalize_camera_drag(
+                    self.settings.value("preview/camera_middle_drag", defaults.camera_middle_drag),
+                    defaults.camera_middle_drag,
+                ),
+                camera_right_drag=normalize_camera_drag(
+                    self.settings.value("preview/camera_right_drag", defaults.camera_right_drag),
+                    defaults.camera_right_drag,
+                ),
                 normal_strength_cap=self._read_float("preview/normal_strength_cap", defaults.normal_strength_cap),
                 normal_strength_floor=self._read_float("preview/normal_strength_floor", defaults.normal_strength_floor),
                 height_effect_max=self._read_float("preview/height_effect_max", defaults.height_effect_max),
@@ -2105,12 +2118,14 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
                 invert_orbit_y=self.invert_orbit_y_checkbox.isChecked(),
                 invert_pan_x=self.invert_pan_x_checkbox.isChecked(),
                 invert_pan_y=self.invert_pan_y_checkbox.isChecked(),
-                # The Settings tab has no control for the camera modifiers -- they
+                # The Settings tab has no control for the camera bindings -- they
                 # are edited in Model Preview Settings > Controls -- so carry the
-                # stored pair through. Omitting them here would silently reset a
+                # stored values through. Omitting them here would silently reset a
                 # rebind every time anything else on this tab was saved.
                 camera_orbit_modifier=stored.camera_orbit_modifier,
                 camera_pan_modifier=stored.camera_pan_modifier,
+                camera_middle_drag=stored.camera_middle_drag,
+                camera_right_drag=stored.camera_right_drag,
                 normal_strength_cap=self.normal_strength_cap_spin.value(),
                 normal_strength_floor=self.normal_strength_floor_spin.value(),
                 height_effect_max=self.height_effect_max_spin.value(),

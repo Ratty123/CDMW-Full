@@ -219,34 +219,62 @@ internal sealed partial class ExperimentForm
         {
             _viewportNavigationPrimary.Text = activeTool;
         }
-        // Written from the live bindings rather than baked in, because both are
-        // rebindable from Model Preview Settings > Controls. Each arm is a whole
-        // literal so it stays one translatable phrase per binding.
+        // Written from the live bindings rather than baked in, because the
+        // modifiers and the middle/right drags are all rebindable from Model
+        // Preview Settings > Controls. Each combination is a whole literal so
+        // it stays one translatable phrase per binding.
         if (_orbitChipBadge is not null)
         {
-            _orbitChipBadge.Text = _viewport.CameraOrbitModifier switch
-            {
-                CameraModifierBindings.Alt => "Alt + left-drag",
-                CameraModifierBindings.Ctrl => "Ctrl + left-drag",
-                CameraModifierBindings.Shift => "Shift + left-drag",
-                _ => "Alt or Ctrl + left-drag",
-            };
+            _orbitChipBadge.Text = CameraGestureBadgeText(
+                _viewport.CameraOrbitModifier,
+                middleDrag: string.Equals(
+                    _viewport.CameraMiddleDrag, CameraModifierBindings.DragOrbit, StringComparison.Ordinal),
+                rightDrag: string.Equals(
+                    _viewport.CameraRightDrag, CameraModifierBindings.DragOrbit, StringComparison.Ordinal));
         }
         if (_panChipBadge is not null)
         {
-            _panChipBadge.Text = _viewport.CameraPanModifier switch
-            {
-                CameraModifierBindings.Alt => "Alt + left-drag, or middle / right-drag",
-                CameraModifierBindings.Ctrl => "Ctrl + left-drag, or middle / right-drag",
-                CameraModifierBindings.Shift => "Shift + left-drag, or middle / right-drag",
-                _ => "Alt or Ctrl + left-drag, or middle / right-drag",
-            };
+            _panChipBadge.Text = CameraGestureBadgeText(
+                _viewport.CameraPanModifier,
+                middleDrag: string.Equals(
+                    _viewport.CameraMiddleDrag, CameraModifierBindings.DragPan, StringComparison.Ordinal),
+                rightDrag: string.Equals(
+                    _viewport.CameraRightDrag, CameraModifierBindings.DragPan, StringComparison.Ordinal));
         }
         foreach (var badge in _navigationChipBadges)
         {
             badge.BackColor = modifiersOwnTheCamera ? ThemeAccent : ThemeButtonBackground;
             badge.ForeColor = modifiersOwnTheCamera ? Color.White : ThemeStrongText;
         }
+    }
+
+    /// <summary>
+    /// The gestures that perform one camera move, as one whole translatable
+    /// phrase: the bound modifier plus whichever of the middle and right drags
+    /// are bound to the same move. Sixteen combinations, each its own literal,
+    /// because a phrase assembled from fragments cannot be translated as one.
+    /// </summary>
+    private static string CameraGestureBadgeText(string modifier, bool middleDrag, bool rightDrag)
+    {
+        return (modifier, middleDrag, rightDrag) switch
+        {
+            (CameraModifierBindings.Alt, true, true) => "Alt + left-drag, or middle / right-drag",
+            (CameraModifierBindings.Alt, true, false) => "Alt + left-drag, or middle-drag",
+            (CameraModifierBindings.Alt, false, true) => "Alt + left-drag, or right-drag",
+            (CameraModifierBindings.Alt, false, false) => "Alt + left-drag",
+            (CameraModifierBindings.Ctrl, true, true) => "Ctrl + left-drag, or middle / right-drag",
+            (CameraModifierBindings.Ctrl, true, false) => "Ctrl + left-drag, or middle-drag",
+            (CameraModifierBindings.Ctrl, false, true) => "Ctrl + left-drag, or right-drag",
+            (CameraModifierBindings.Ctrl, false, false) => "Ctrl + left-drag",
+            (CameraModifierBindings.Shift, true, true) => "Shift + left-drag, or middle / right-drag",
+            (CameraModifierBindings.Shift, true, false) => "Shift + left-drag, or middle-drag",
+            (CameraModifierBindings.Shift, false, true) => "Shift + left-drag, or right-drag",
+            (CameraModifierBindings.Shift, false, false) => "Shift + left-drag",
+            (_, true, true) => "Alt or Ctrl + left-drag, or middle / right-drag",
+            (_, true, false) => "Alt or Ctrl + left-drag, or middle-drag",
+            (_, false, true) => "Alt or Ctrl + left-drag, or right-drag",
+            _ => "Alt or Ctrl + left-drag",
+        };
     }
 
     private Control BuildAuthoringStatusFooter()

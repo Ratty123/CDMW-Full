@@ -273,13 +273,11 @@ internal sealed partial class MeshViewport
         _lastMouse = e.Location;
         if ((e.Button & MouseButtons.Left) != MouseButtons.Left)
         {
-            // The button is no longer held, so any gesture that was waiting for
-            // a mouse-up is over whether or not that mouse-up ever arrived.
-            // Closing it here keeps a lost capture from leaving the camera
-            // orbiting on hover or a stroke open across later gestures.
+            // The left button is no longer held, so any left-button gesture that
+            // was waiting for a mouse-up is over whether or not that mouse-up
+            // ever arrived. Closing it here keeps a lost capture from leaving a
+            // stroke open across later gestures.
             EndEditorStroke(e.Location, cancelled: false);
-            _rotating = false;
-            _panning = false;
             if (_placementDragActive)
             {
                 // Same reasoning as the stroke above, and the host now treats an
@@ -288,6 +286,17 @@ internal sealed partial class MeshViewport
                 // authoritative frame.
                 EndPlacementGizmoDrag();
             }
+        }
+        if ((e.Button & (MouseButtons.Left | MouseButtons.Middle | MouseButtons.Right)) == MouseButtons.None)
+        {
+            // No camera-capable button is held at all, so orbit and pan are over
+            // too. This is deliberately looser than the left-button check above:
+            // a middle-drag or right-drag drives the camera with the left button
+            // up, and closing the camera gesture on the first move — as the
+            // left-only check used to — is what made holding the scroll wheel
+            // to pan do nothing.
+            _rotating = false;
+            _panning = false;
         }
         if (_placementDragActive && (e.Button & MouseButtons.Left) == MouseButtons.Left)
         {
@@ -384,20 +393,44 @@ internal sealed partial class MeshViewport
         _residentPresentationSettings.CameraPanModifier,
         CameraModifierBindings.DefaultPan);
 
+    internal string CameraMiddleDrag => CameraModifierBindings.NormalizeDrag(
+        _residentPresentationSettings.CameraMiddleDrag,
+        CameraModifierBindings.DefaultMiddleDrag);
+
+    internal string CameraRightDrag => CameraModifierBindings.NormalizeDrag(
+        _residentPresentationSettings.CameraRightDrag,
+        CameraModifierBindings.DefaultRightDrag);
+
     private bool IsPanGesture(MouseEventArgs e)
     {
-        return e.Button is MouseButtons.Middle or MouseButtons.Right
-            || (e.Button == MouseButtons.Left
-                && CameraModifierBindings.IsHeld(CameraPanModifier, ModifierKeys));
+        if (e.Button == MouseButtons.Middle)
+        {
+            return string.Equals(CameraMiddleDrag, CameraModifierBindings.DragPan, StringComparison.Ordinal);
+        }
+        if (e.Button == MouseButtons.Right)
+        {
+            return string.Equals(CameraRightDrag, CameraModifierBindings.DragPan, StringComparison.Ordinal);
+        }
+        return e.Button == MouseButtons.Left
+            && CameraModifierBindings.IsHeld(CameraPanModifier, ModifierKeys);
     }
 
     /// <summary>
     /// The camera takes the left button away from the active edit tool while the
-    /// bound modifier is held. <see cref="IsPanGesture"/> is tested before this,
-    /// so a modifier bound to both pans.
+    /// bound modifier is held, and the middle or right button belongs to the
+    /// camera outright. <see cref="IsPanGesture"/> is tested before this, so a
+    /// modifier bound to both pans.
     /// </summary>
     private bool IsOrbitOverrideGesture(MouseEventArgs e)
     {
+        if (e.Button == MouseButtons.Middle)
+        {
+            return string.Equals(CameraMiddleDrag, CameraModifierBindings.DragOrbit, StringComparison.Ordinal);
+        }
+        if (e.Button == MouseButtons.Right)
+        {
+            return string.Equals(CameraRightDrag, CameraModifierBindings.DragOrbit, StringComparison.Ordinal);
+        }
         return e.Button == MouseButtons.Left
             && CameraModifierBindings.IsHeld(CameraOrbitModifier, ModifierKeys);
     }

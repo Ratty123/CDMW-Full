@@ -27,6 +27,28 @@ internal static class CameraModifierBindings
     public const string DefaultOrbit = AltOrCtrl;
     public const string DefaultPan = Shift;
 
+    /// <summary>
+    /// What a middle-button (held scroll wheel) or right-button drag does.
+    /// Unlike the modifiers these cannot collide: each is its own physical
+    /// button, and pan and orbit both stay reachable through the left
+    /// button's modifiers whatever is chosen.
+    /// </summary>
+    public const string DragPan = "pan";
+    public const string DragOrbit = "orbit";
+
+    public const string DefaultMiddleDrag = DragPan;
+    public const string DefaultRightDrag = DragPan;
+
+    public static string NormalizeDrag(string? value, string fallback)
+    {
+        return (value ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            DragPan => DragPan,
+            DragOrbit => DragOrbit,
+            _ => fallback,
+        };
+    }
+
     public static string Normalize(string? value, string fallback)
     {
         return (value ?? string.Empty).Trim().ToLowerInvariant() switch

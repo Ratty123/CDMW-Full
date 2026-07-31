@@ -858,9 +858,24 @@ internal sealed partial class ExperimentForm
         var meshEdit = string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase);
         var tool = (_viewport.ActiveTool ?? string.Empty).Trim().ToLowerInvariant();
         var primary = "Orbit: LMB drag";
+        // Written from the live bindings: the pan/orbit modifiers and the
+        // middle/right drags are rebindable, so a baked-in "Shift+LMB / MMB /
+        // RMB" would lie the moment one of them moved.
+        var orbitBinding = CameraGestureBadgeText(
+            _viewport.CameraOrbitModifier,
+            middleDrag: string.Equals(
+                _viewport.CameraMiddleDrag, CameraModifierBindings.DragOrbit, StringComparison.Ordinal),
+            rightDrag: string.Equals(
+                _viewport.CameraRightDrag, CameraModifierBindings.DragOrbit, StringComparison.Ordinal));
+        var panBinding = CameraGestureBadgeText(
+            _viewport.CameraPanModifier,
+            middleDrag: string.Equals(
+                _viewport.CameraMiddleDrag, CameraModifierBindings.DragPan, StringComparison.Ordinal),
+            rightDrag: string.Equals(
+                _viewport.CameraRightDrag, CameraModifierBindings.DragPan, StringComparison.Ordinal));
         if (!meshEdit)
         {
-            hint = "Orbit: LMB drag  |  Pan: Shift+LMB / MMB / RMB  |  Zoom: Wheel";
+            hint = $"Orbit: LMB drag  |  Pan: {panBinding}  |  Zoom: Wheel";
         }
         else
         {
@@ -875,7 +890,7 @@ internal sealed partial class ExperimentForm
                 "pinch" => "Pinch: LMB drag",
                 _ => "Apply tool: LMB drag",
             };
-            hint = $"{primary}  |  Orbit override: Alt+LMB / Ctrl+LMB drag  |  Pan: Shift+LMB / MMB / RMB  |  Zoom: Wheel  |  Undo: Ctrl+Z  |  Redo: Ctrl+Y / Ctrl+Shift+Z";
+            hint = $"{primary}  |  Orbit override: {orbitBinding}  |  Pan: {panBinding}  |  Zoom: Wheel  |  Undo: Ctrl+Z  |  Redo: Ctrl+Y / Ctrl+Shift+Z";
         }
         _controlsHintLabel.Text = hint;
         // The strip under the viewport names the active tool and the modifiers
