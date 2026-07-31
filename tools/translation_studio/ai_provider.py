@@ -70,9 +70,8 @@ PRESETS: Tuple[ProviderPreset, ...] = (
         model="claude-sonnet-5",
         model_hint="e.g. claude-sonnet-5",
         note=(
-            "Key from console.anthropic.com. Claude Opus 5 is the strongest and the "
-            "dearest; Sonnet 5 is the balance most translation passes want, and Haiku "
-            "4.5 is the cheapest."
+            "Key from console.anthropic.com. See Anthropic's documentation for "
+            "current model ids and pricing."
         ),
     ),
     ProviderPreset(
@@ -112,10 +111,7 @@ PRESETS: Tuple[ProviderPreset, ...] = (
         base_url="http://localhost:11434",
         model_hint="the model you have pulled, e.g. llama3.1",
         needs_key=False,
-        note=(
-            "A model running on this machine. No key and no network, but a local model "
-            "translates the game's tone far less reliably than a hosted one."
-        ),
+        note="A model running on this machine. No key and no network.",
     ),
 )
 

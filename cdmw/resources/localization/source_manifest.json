@@ -3297,11 +3297,11 @@
       ]
     },
     {
-      "key": "A model running on this machine. No key and no network, but a local model translates the game's tone far less reliably than a hosted one.",
+      "key": "A model running on this machine. No key and no network.",
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 108,
+          "line": 107,
           "sink": "ProviderPreset"
         }
       ]
@@ -34761,7 +34761,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 100,
+          "line": 99,
           "sink": "ProviderPreset"
         }
       ]
@@ -41046,13 +41046,13 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 100,
+          "line": 99,
           "sink": "ProviderPreset"
         }
       ]
     },
     {
-      "key": "Key from console.anthropic.com. Claude Opus 5 is the strongest and the dearest; Sonnet 5 is the balance most translation passes want, and Haiku 4.5 is the cheapest.",
+      "key": "Key from console.anthropic.com. See Anthropic's documentation for current model ids and pricing.",
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
@@ -41066,7 +41066,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 78,
+          "line": 77,
           "sink": "ProviderPreset"
         }
       ]
@@ -54961,7 +54961,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 108,
+          "line": 107,
           "sink": "ProviderPreset"
         }
       ]
@@ -56341,7 +56341,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 78,
+          "line": 77,
           "sink": "ProviderPreset"
         }
       ]
@@ -56351,7 +56351,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 89,
+          "line": 88,
           "sink": "ProviderPreset"
         }
       ]
@@ -56531,7 +56531,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 89,
+          "line": 88,
           "sink": "ProviderPreset"
         }
       ]
@@ -100601,7 +100601,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 100,
+          "line": 99,
           "sink": "ProviderPreset"
         }
       ]
@@ -103026,12 +103026,12 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 100,
+          "line": 99,
           "sink": "ProviderPreset"
         },
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 100,
+          "line": 99,
           "sink": "ProviderPreset"
         }
       ]
@@ -107721,7 +107721,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 108,
+          "line": 107,
           "sink": "ProviderPreset"
         }
       ]
@@ -107821,22 +107821,22 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 78,
+          "line": 77,
           "sink": "ProviderPreset"
         },
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 78,
+          "line": 77,
           "sink": "ProviderPreset"
         },
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 89,
+          "line": 88,
           "sink": "ProviderPreset"
         },
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 108,
+          "line": 107,
           "sink": "ProviderPreset"
         }
       ]
@@ -187491,7 +187491,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 78,
+          "line": 77,
           "sink": "ProviderPreset"
         }
       ]
@@ -187501,7 +187501,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 89,
+          "line": 88,
           "sink": "ProviderPreset"
         }
       ]
@@ -187521,7 +187521,7 @@
       "origins": [
         {
           "path": "tools/translation_studio/ai_provider.py",
-          "line": 108,
+          "line": 107,
           "sink": "ProviderPreset"
         }
       ]
