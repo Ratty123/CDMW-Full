@@ -86,7 +86,6 @@ def preview_grid_visible(checkbox: object) -> bool:
 
 def alignment_preview_control_text() -> dict[str, str]:
     return {
-        "title": "Live Alignment Preview",
         "clear_selection": "Clear Selection",
         "clear_selection_tooltip": (
             "Clear current part/material selections and preview highlights without changing routing, transforms, or texture assignments."
@@ -130,11 +129,6 @@ def alignment_preview_control_text() -> dict[str, str]:
         "use_global": "Use Global",
         "use_global_tooltip": "Reset the alignment render controls to the current global 3D preview settings.",
         "camera_label": "Camera",
-        "d3d11_legend": "Drag axes/center to move; Alt-drag to rotate; wheel zooms.",
-        "d3d11_legend_tooltip": (
-            "Side by side: Original Reference is locked on the left; Replacement Preview is editable on the right. "
-            "Controls: left-drag orbit, middle/right-drag pan, wheel zoom, drag axis/center move, Alt-drag rotate."
-        ),
         "d3d11_waiting_status": ".NET/Vortice alignment preview is waiting for the resident renderer.",
         "d3d11_renderer_error": ".NET/Vortice renderer error.",
         "d3d11_unavailable_status": "Preview host is unavailable.",

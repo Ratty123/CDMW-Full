@@ -43,7 +43,6 @@ def test_alignment_preview_camera_button_specs_preserve_order_labels_and_tooltip
 def test_alignment_preview_control_text_preserves_header_and_control_copy() -> None:
     text = alignment_preview_control_text()
 
-    assert text["title"] == "Live Alignment Preview"
     assert text["clear_selection"] == "Clear Selection"
     assert "without changing routing" in text["clear_selection_tooltip"]
     assert text["renderer_label"] == "Renderer"
@@ -72,8 +71,11 @@ def test_alignment_preview_control_text_preserves_header_and_control_copy() -> N
 def test_alignment_preview_control_text_uses_dotnet_authoritative_status_copy() -> None:
     text = alignment_preview_control_text()
 
-    assert text["d3d11_legend"] == "Drag axes/center to move; Alt-drag to rotate; wheel zooms."
-    assert "left-drag orbit" in text["d3d11_legend_tooltip"]
+    # The gesture legend and the "Live Alignment Preview" title are retired:
+    # both spent a line of the editor's height restating tooltips.
+    assert "d3d11_legend" not in text
+    assert "d3d11_legend_tooltip" not in text
+    assert "title" not in text
     assert text["d3d11_waiting_status"] == ".NET/Vortice alignment preview is waiting for the resident renderer."
     assert text["d3d11_renderer_error"] == ".NET/Vortice renderer error."
     assert text["d3d11_unavailable_status"] == "Preview host is unavailable."

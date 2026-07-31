@@ -2465,7 +2465,13 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_state._apply_alignment_dialog_responsive_layout()", mesh_tab_body)
         self.assertNotIn("_state._apply_alignment_dialog_responsive_layout(force_sizes=True)", mesh_tab_body)
         self.assertIn("preview_header = QVBoxLayout()", source)
-        self.assertIn("preview_action_row = QHBoxLayout()", source)
+        # The title/action row is gone: its label spent a whole-width line on a
+        # caption, and its two buttons now live in the legacy controls row —
+        # which Edit Mesh hides, keeping them out of the editor's top corner.
+        self.assertNotIn("preview_action_row", source)
+        self.assertNotIn('QLabel(alignment_preview_control_text["title"])', source)
+        self.assertIn("preview_controls_row.addWidget(clear_alignment_selection_button)", source)
+        self.assertIn("preview_controls_row.addWidget(generate_alignment_icon_button)", source)
         self.assertIn("preview_controls_row = QHBoxLayout(legacy_preview_controls_widget)", source)
         self.assertIn("preview_camera_row = QHBoxLayout(legacy_preview_camera_widget)", source)
         self.assertIn('generate_alignment_icon_button = QPushButton(custom_icon_control_text["generate_preview_button"])', source)
