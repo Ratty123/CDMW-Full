@@ -199,14 +199,15 @@ def test_layout_transitions_paint_once_instead_of_step_by_step() -> None:
     assert "if (_form._redrawBatchDepth++ == 0)" in redraw_source
     assert "if (--_form._redrawBatchDepth > 0)" in redraw_source
 
-    # Every path that re-parents live sections holds a batch: both layout
-    # activations, and the deferred authoring panel build that runs after the
-    # editor's first frame is already on screen.
+    # Every path that re-parents live sections holds a batch: the rail
+    # activation, the placement restore on mesh-edit exit, and the deferred
+    # authoring panel build that runs after the editor's first frame is
+    # already on screen.
     tool_rail = layouts_source.split("private void ActivateToolRailLayout()", maxsplit=1)[1]
-    tool_rail = tool_rail.split("private void ActivateClassicEditMeshLayout()", maxsplit=1)[0]
-    classic = layouts_source.split("private void ActivateClassicEditMeshLayout()", maxsplit=1)[1]
-    classic = classic.split("private void MoveSessionControlsToCompactBar()", maxsplit=1)[0]
+    tool_rail = tool_rail.split("private void RestorePlacementLayoutForNonMeshMode()", maxsplit=1)[0]
+    placement = layouts_source.split("private void RestorePlacementLayoutForNonMeshMode()", maxsplit=1)[1]
+    placement = placement.split("private void CapturePlacementSectionHomes()", maxsplit=1)[0]
     deferred = program_source.split("private void EnsureAuthoringToolPanelsReady()", maxsplit=1)[1]
     deferred = deferred.split("private (Panel Left, Panel Right) BuildToolPanels()", maxsplit=1)[0]
-    for name, body in (("tool rail", tool_rail), ("classic", classic), ("deferred", deferred)):
+    for name, body in (("tool rail", tool_rail), ("placement", placement), ("deferred", deferred)):
         assert "BeginRedrawBatch()" in body, f"{name} activation must batch its repaint"
