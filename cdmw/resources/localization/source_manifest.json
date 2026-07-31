@@ -1171,7 +1171,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 1107,
+          "line": 1010,
           "sink": "csharp:.Text="
         }
       ]
@@ -1311,7 +1311,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 998,
+          "line": 974,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -1871,7 +1871,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 995,
+          "line": 971,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -3806,7 +3806,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 712,
+          "line": 697,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -4286,7 +4286,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 790,
+          "line": 775,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -11221,7 +11221,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 816,
+          "line": 792,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -12166,7 +12166,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 816,
+          "line": 792,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -12471,18 +12471,8 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 338,
-          "sink": "csharp:csharp-wrapper:AddToolRailButton[3]"
-        },
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 379,
+          "line": 404,
           "sink": "csharp:csharp-return:ToolRailPageTitle"
-        },
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 802,
-          "sink": "csharp:csharp-wrapper:BuildToolNavigator[2]"
         }
       ]
     },
@@ -12491,7 +12481,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 766,
+          "line": 751,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -12541,7 +12531,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 767,
+          "line": 752,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -16866,7 +16856,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 736,
+          "line": 721,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -17416,7 +17406,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 811,
+          "line": 787,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -17593,26 +17583,6 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 955,
           "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "Classic Edit Mesh layout restored.",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 573,
-          "sink": "csharp:.Text="
-        }
-      ]
-    },
-    {
-      "key": "Classic Layout",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 272,
-          "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
     },
@@ -17986,7 +17956,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 681,
+          "line": 683,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -19001,18 +18971,13 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 342,
-          "sink": "csharp:csharp-wrapper:AddToolRailButton[3]"
+          "line": 332,
+          "sink": "csharp:csharp-wrapper:AddToolRailPageButton[3]"
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 381,
+          "line": 406,
           "sink": "csharp:csharp-return:ToolRailPageTitle"
-        },
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 804,
-          "sink": "csharp:csharp-wrapper:BuildToolNavigator[4]"
         }
       ]
     },
@@ -19416,7 +19381,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1152,
+          "line": 1135,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -23736,8 +23701,8 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 345,
-          "sink": "csharp:csharp-wrapper:AddToolRailButton[5]"
+          "line": 335,
+          "sink": "csharp:csharp-wrapper:AddToolRailPageButton[5]"
         }
       ]
     },
@@ -23796,7 +23761,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 722,
+          "line": 707,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -23996,7 +23961,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 781,
+          "line": 766,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -25571,7 +25536,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 595,
+          "line": 570,
           "sink": "csharp:newLabel{"
         }
       ]
@@ -26196,7 +26161,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 721,
+          "line": 706,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -26216,7 +26181,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 782,
+          "line": 767,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -27041,7 +27006,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 238,
+          "line": 226,
           "sink": "csharp:newLabel{"
         }
       ]
@@ -28081,7 +28046,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 713,
+          "line": 698,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -31346,7 +31311,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 771,
+          "line": 756,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -33381,7 +33346,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1123,
+          "line": 1106,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -33391,7 +33356,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1123,
+          "line": 1106,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -34086,7 +34051,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 815,
+          "line": 791,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -34977,16 +34942,6 @@
       ]
     },
     {
-      "key": "Go to {value_0} tools",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 525,
-          "sink": "csharp:AccessibleName="
-        }
-      ]
-    },
-    {
       "key": "Goal",
       "origins": [
         {
@@ -35040,8 +34995,13 @@
           "sink": "MeshEditorAction"
         },
         {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
+          "line": 322,
+          "sink": "csharp:csharp-wrapper:AddToolRailToolButton[3]"
+        },
+        {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 760,
+          "line": 745,
           "sink": "csharp:csharp-wrapper:ToolButton[0]"
         }
       ]
@@ -35256,7 +35216,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 741,
+          "line": 726,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -39415,8 +39375,13 @@
           "sink": "MeshEditorAction"
         },
         {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
+          "line": 326,
+          "sink": "csharp:csharp-wrapper:AddToolRailToolButton[3]"
+        },
+        {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 772,
+          "line": 757,
           "sink": "csharp:csharp-wrapper:ToolButton[0]"
         }
       ]
@@ -39871,7 +39836,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 683,
+          "line": 685,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -41906,12 +41871,12 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 642,
+          "line": 617,
           "sink": "csharp:AccessibleName="
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 815,
+          "line": 791,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -46601,13 +46566,8 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 239,
+          "line": 227,
           "sink": "csharp:Text="
-        },
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 702,
-          "sink": "csharp:csharp-wrapper:AddSection[1]"
         }
       ]
     },
@@ -46616,7 +46576,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 247,
+          "line": 235,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -49571,8 +49531,8 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 344,
-          "sink": "csharp:csharp-wrapper:AddToolRailButton[3]"
+          "line": 334,
+          "sink": "csharp:csharp-wrapper:AddToolRailPageButton[3]"
         }
       ]
     },
@@ -49581,7 +49541,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 382,
+          "line": 407,
           "sink": "csharp:csharp-return:ToolRailPageTitle"
         }
       ]
@@ -49671,12 +49631,12 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 336,
-          "sink": "csharp:csharp-wrapper:AddToolRailButton[3]"
+          "line": 320,
+          "sink": "csharp:csharp-wrapper:AddToolRailToolButton[3]"
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 378,
+          "line": 403,
           "sink": "csharp:csharp-return:ToolRailPageTitle"
         },
         {
@@ -49686,18 +49646,13 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 747,
+          "line": 732,
           "sink": "csharp:csharp-wrapper:GizmoButton[0]"
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 760,
+          "line": 745,
           "sink": "csharp:csharp-wrapper:ToolButton[0]"
-        },
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 801,
-          "sink": "csharp:csharp-wrapper:BuildToolNavigator[1]"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
@@ -49751,7 +49706,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 753,
+          "line": 738,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -49791,7 +49746,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 1003,
+          "line": 979,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -49801,7 +49756,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 1002,
+          "line": 978,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -57456,7 +57411,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 818,
+          "line": 794,
           "sink": "csharp:csharp-wrapper:ToolButton[0]"
         }
       ]
@@ -58116,7 +58071,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1123,
+          "line": 1106,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -59276,7 +59231,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 719,
+          "line": 704,
           "sink": "csharp:csharp-wrapper:AddSection[1]"
         }
       ]
@@ -59486,7 +59441,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 725,
+          "line": 710,
           "sink": "csharp:csharp-wrapper:AddSection[1]"
         }
       ]
@@ -60606,8 +60561,8 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 343,
-          "sink": "csharp:csharp-wrapper:AddToolRailButton[5]"
+          "line": 333,
+          "sink": "csharp:csharp-wrapper:AddToolRailPageButton[5]"
         }
       ]
     },
@@ -60920,8 +60875,13 @@
           "sink": "MeshEditorAction"
         },
         {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
+          "line": 328,
+          "sink": "csharp:csharp-wrapper:AddToolRailToolButton[3]"
+        },
+        {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 772,
+          "line": 757,
           "sink": "csharp:csharp-wrapper:ToolButton[0]"
         }
       ]
@@ -60991,7 +60951,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 745,
+          "line": 730,
           "sink": "csharp:csharp-wrapper:AddSection[1]"
         }
       ]
@@ -61241,7 +61201,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 879,
+          "line": 855,
           "sink": "csharp:.Text="
         }
       ]
@@ -61251,7 +61211,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 948,
+          "line": 924,
           "sink": "csharp:.Text="
         }
       ]
@@ -64166,12 +64126,12 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1020,
+          "line": 1003,
           "sink": "csharp:.Text="
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1044,
+          "line": 1027,
           "sink": "csharp:.Text="
         }
       ]
@@ -65811,7 +65771,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 769,
+          "line": 754,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -68336,7 +68296,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 685,
+          "line": 687,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         },
         {
@@ -68596,7 +68556,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 777,
+          "line": 762,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -70896,7 +70856,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 643,
+          "line": 618,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -70906,7 +70866,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 644,
+          "line": 619,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -71742,16 +71702,6 @@
       ]
     },
     {
-      "key": "Returns the same live Edit Mesh controls and viewport to the classic side-panel layout.",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 277,
-          "sink": "csharp:AccessibleDescription="
-        }
-      ]
-    },
-    {
       "key": "Reusable named per-file override sets for DDS output and direct NCNN settings.",
       "origins": [
         {
@@ -72201,7 +72151,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 815,
+          "line": 791,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -72466,7 +72416,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 747,
+          "line": 732,
           "sink": "csharp:csharp-wrapper:GizmoButton[0]"
         },
         {
@@ -73116,7 +73066,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 465,
+          "line": 490,
           "sink": "csharp:csharp-wrapper:CreateDockHeader[1]"
         }
       ]
@@ -73126,7 +73076,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 401,
+          "line": 426,
           "sink": "csharp:csharp-wrapper:CreateDockHeader[1]"
         }
       ]
@@ -73926,7 +73876,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 747,
+          "line": 732,
           "sink": "csharp:csharp-wrapper:GizmoButton[0]"
         }
       ]
@@ -75066,18 +75016,13 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 334,
-          "sink": "csharp:csharp-wrapper:AddToolRailButton[3]"
+          "line": 318,
+          "sink": "csharp:csharp-wrapper:AddToolRailToolButton[3]"
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 741,
+          "line": 726,
           "sink": "csharp:csharp-wrapper:ToolButton[0]"
-        },
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 800,
-          "sink": "csharp:csharp-wrapper:BuildToolNavigator[0]"
         }
       ]
     },
@@ -75121,7 +75066,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 682,
+          "line": 684,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -78161,12 +78106,12 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 375,
+          "line": 400,
           "sink": "csharp:csharp-return:ToolRailPageTitle"
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 735,
+          "line": 720,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -78226,7 +78171,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 739,
+          "line": 724,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -78246,7 +78191,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 738,
+          "line": 723,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -79331,7 +79276,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 728,
+          "line": 713,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -80286,7 +80231,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 741,
+          "line": 726,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -81335,13 +81280,18 @@
           "sink": "MeshEditorAction"
         },
         {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
+          "line": 324,
+          "sink": "csharp:csharp-wrapper:AddToolRailToolButton[3]"
+        },
+        {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.MorphRefit.cs",
           "line": 1171,
           "sink": "csharp:.Items.AddRange("
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 772,
+          "line": 757,
           "sink": "csharp:csharp-wrapper:ToolButton[0]"
         }
       ]
@@ -81351,8 +81301,18 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 339,
-          "sink": "csharp:csharp-wrapper:AddToolRailButton[5]"
+          "line": 325,
+          "sink": "csharp:csharp-wrapper:AddToolRailToolButton[5]"
+        },
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
+          "line": 327,
+          "sink": "csharp:csharp-wrapper:AddToolRailToolButton[5]"
+        },
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
+          "line": 329,
+          "sink": "csharp:csharp-wrapper:AddToolRailToolButton[5]"
         }
       ]
     },
@@ -84171,7 +84131,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 770,
+          "line": 755,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         },
         {
@@ -84406,7 +84366,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 776,
+          "line": 761,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -84416,8 +84376,8 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 341,
-          "sink": "csharp:csharp-wrapper:AddToolRailButton[5]"
+          "line": 331,
+          "sink": "csharp:csharp-wrapper:AddToolRailPageButton[5]"
         }
       ]
     },
@@ -84813,16 +84773,6 @@
           "path": "tools/placement_studio/window_rig_behaviour.py",
           "line": 308,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "Switches only the Edit Mesh control layout. The resident viewport and edit state remain active.",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 701,
-          "sink": "csharp:AccessibleDescription="
         }
       ]
     },
@@ -87437,6 +87387,16 @@
       ]
     },
     {
+      "key": "The Edit Mesh tool rail could not be activated. {value_0}",
+      "origins": [
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
+          "line": 610,
+          "sink": "csharp:.Text="
+        }
+      ]
+    },
+    {
       "key": "The Formula column shows the rule each bone runs.",
       "origins": [
         {
@@ -87731,7 +87691,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 754,
+          "line": 739,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -88397,16 +88357,6 @@
       ]
     },
     {
-      "key": "The tool rail could not be activated; Classic layout remains in use. {value_0}",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 652,
-          "sink": "csharp:.Text="
-        }
-      ]
-    },
-    {
       "key": "The tooltip identifies direct names and inferred navigation evidence without spending a second table column on confidence.",
       "origins": [
         {
@@ -88441,7 +88391,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 1106,
+          "line": 1009,
           "sink": "csharp:.Text="
         }
       ]
@@ -89422,16 +89372,6 @@
       ]
     },
     {
-      "key": "Tool rail active. All Edit Mesh tools still operate on the same resident session.",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 572,
-          "sink": "csharp:.Text="
-        }
-      ]
-    },
-    {
       "key": "Tool-side PBD physics reset is available when the .NET/Vortice preview is running.",
       "origins": [
         {
@@ -89446,7 +89386,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 830,
+          "line": 805,
           "sink": "csharp:.Text="
         }
       ]
@@ -89481,7 +89421,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 816,
+          "line": 792,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -89506,8 +89446,8 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 340,
-          "sink": "csharp:csharp-wrapper:AddToolRailButton[3]"
+          "line": 330,
+          "sink": "csharp:csharp-wrapper:AddToolRailPageButton[3]"
         }
       ]
     },
@@ -89516,18 +89456,13 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 380,
+          "line": 405,
           "sink": "csharp:csharp-return:ToolRailPageTitle"
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 789,
+          "line": 774,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
-        },
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 803,
-          "sink": "csharp:csharp-wrapper:BuildToolNavigator[3]"
         }
       ]
     },
@@ -89681,7 +89616,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 752,
+          "line": 737,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -89761,7 +89696,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 756,
+          "line": 741,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -89771,8 +89706,13 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 337,
-          "sink": "csharp:csharp-wrapper:AddToolRailButton[5]"
+          "line": 321,
+          "sink": "csharp:csharp-wrapper:AddToolRailToolButton[5]"
+        },
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
+          "line": 323,
+          "sink": "csharp:csharp-wrapper:AddToolRailToolButton[5]"
         }
       ]
     },
@@ -90101,7 +90041,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1123,
+          "line": 1106,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -90656,7 +90596,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 684,
+          "line": 686,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         },
         {
@@ -91752,16 +91692,6 @@
       ]
     },
     {
-      "key": "Use Classic Edit Mesh layout",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 275,
-          "sink": "csharp:AccessibleName="
-        }
-      ]
-    },
-    {
       "key": "Use Existing Preview",
       "origins": [
         {
@@ -92013,16 +91943,6 @@
           "path": "cdmw/ui/archive_browser/actions.py",
           "line": 514,
           "sink": "addAction"
-        }
-      ]
-    },
-    {
-      "key": "Use Tool Rail Layout",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 696,
-          "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
     },
@@ -92463,16 +92383,6 @@
           "path": "cdmw/ui/archive_browser/action_controls.py",
           "line": 267,
           "sink": "_set_action_button_state"
-        }
-      ]
-    },
-    {
-      "key": "Use the tool rail Edit Mesh layout",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 699,
-          "sink": "csharp:AccessibleName="
         }
       ]
     },
@@ -93291,8 +93201,8 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 335,
-          "sink": "csharp:csharp-wrapper:AddToolRailButton[5]"
+          "line": 319,
+          "sink": "csharp:csharp-wrapper:AddToolRailToolButton[5]"
         }
       ]
     },
@@ -93451,7 +93361,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1150,
+          "line": 1133,
           "sink": "csharp:.Text="
         }
       ]
@@ -93461,7 +93371,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 810,
+          "line": 786,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -103856,7 +103766,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 828,
+          "line": 803,
           "sink": "csharp:.Text="
         }
       ]
@@ -104646,7 +104556,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 828,
+          "line": 803,
           "sink": "csharp:.Text="
         }
       ]
@@ -109471,7 +109381,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 828,
+          "line": 803,
           "sink": "csharp:.Text="
         }
       ]
@@ -187176,7 +187086,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 828,
+          "line": 803,
           "sink": "csharp:.Text="
         }
       ]
@@ -189406,7 +189316,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 791,
+          "line": 776,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -190581,7 +190491,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 933,
+          "line": 916,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -191611,7 +191521,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 829,
+          "line": 804,
           "sink": "csharp:.Text="
         }
       ]
@@ -192231,7 +192141,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 603,
+          "line": 578,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -193231,7 +193141,12 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 366,
+          "line": 357,
+          "sink": "csharp:AccessibleName="
+        },
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
+          "line": 378,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -194736,7 +194651,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 905,
+          "line": 881,
           "sink": "csharp:.Items.Add("
         }
       ]

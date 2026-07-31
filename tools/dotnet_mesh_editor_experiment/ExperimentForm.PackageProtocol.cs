@@ -302,8 +302,8 @@ internal sealed partial class ExperimentForm
         var meshEdit = string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase);
         if (!meshEdit && meshEdit == _meshEditInteractionActive)
         {
-            // Placement on both sides: nothing to re-assert, and the classic
-            // restore rebuilds every tool stack inside a redraw batch. Running
+            // Placement on both sides: nothing to re-assert, and the placement
+            // restore re-parents live sections inside a redraw batch. Running
             // it per package swap gains nothing visible; running it per scene
             // frame tears the window apart, because a gizmo drag publishes one
             // authoritative frame per pointer sample.

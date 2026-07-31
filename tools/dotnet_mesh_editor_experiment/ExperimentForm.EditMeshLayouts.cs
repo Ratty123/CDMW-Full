@@ -7,32 +7,24 @@ internal sealed partial class ExperimentForm
     private const int ToolPropertyWidth = 340;
     private const int SceneInspectorWidth = 336;
 
-    private enum EditMeshLayoutMode
-    {
-        Classic,
-        ToolRail,
-    }
-
-    private readonly Dictionary<ToolRailPage, Button> _toolRailButtons = new();
+    private readonly Dictionary<string, Button> _toolRailToolButtons = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<ToolRailPage, Button> _toolRailPageButtons = new();
     private readonly Dictionary<ToolRailPage, Panel> _toolRailPages = new();
-    // The classic caption of every section the rail blanks, so Classic gets it
-    // back verbatim rather than from a second copy of the same literals.
-    private readonly Dictionary<GroupBox, string> _classicSectionCaptions = new();
-    // Entering Edit Mesh presents the tool rail. Classic remains the control
-    // tree's construction and non-mesh-mode state, and stays reachable from
-    // the session bar.
-    private EditMeshLayoutMode _requestedEditMeshLayout = EditMeshLayoutMode.ToolRail;
-    private EditMeshLayoutMode _activeEditMeshLayout = EditMeshLayoutMode.Classic;
+    // The tool rail is the only Edit Mesh layout. The placement flanks remain
+    // the control tree's construction and non-mesh-mode state.
+    private bool _toolRailLayoutActive;
     // Null means no tool is armed: Edit Mesh opens this way, with the camera on
     // the left button and the navigation strip naming the modifiers.
     private ToolRailPage? _selectedToolRailPage;
     private bool _toolRailPageSelected;
     private bool _applyingToolRailSplitterLayout;
-    private Point _classicLeftScrollPosition;
-    private Point _classicRightScrollPosition;
+    // The construction cells of the two sections placement mode shares with the
+    // rail, so leaving mesh edit can put them back where they were built.
+    private TableLayoutPanelCellPosition? _partPickPlacementCell;
+    private TableLayoutPanelCellPosition? _viewportSectionPlacementCell;
 
     private TableLayoutPanel? _editMeshLayoutHost;
-    private Control? _classicEditMeshLayoutRoot;
+    private Control? _placementEditMeshLayoutRoot;
     private SplitContainer? _viewportWorkspaceSplit;
     private Control? _compactSessionBar;
     private FlowLayoutPanel? _compactSessionCommandHost;
@@ -49,10 +41,6 @@ internal sealed partial class ExperimentForm
     private Button? _sessionClearSelectionButton;
     private Button? _sessionSelectAllButton;
     private Button? _sessionInvertButton;
-    private Control? _classicSessionSelectionRow;
-    private Control? _classicSessionHistoryRow;
-    private GroupBox? _classicSessionSection;
-    private TableLayoutPanel? _classicSessionBody;
     private GroupBox? _actionHistorySection;
     private Control? _morphRefitSection;
     private GroupBox? _partPickSection;
@@ -64,13 +52,12 @@ internal sealed partial class ExperimentForm
     private GroupBox? _topologySection;
     private GroupBox? _viewportSection;
 
-    private bool IsToolRailActive =>
-        _activeEditMeshLayout == EditMeshLayoutMode.ToolRail;
+    private bool IsToolRailActive => _toolRailLayoutActive;
 
-    private void InitializeEditMeshLayoutHost(Control classicRoot)
+    private void InitializeEditMeshLayoutHost(Control placementRoot)
     {
-        _classicEditMeshLayoutRoot = classicRoot;
-        _classicEditMeshLayoutRoot.Dock = DockStyle.Fill;
+        _placementEditMeshLayoutRoot = placementRoot;
+        _placementEditMeshLayoutRoot.Dock = DockStyle.Fill;
         BuildPermanentViewportWorkspace();
         BuildPermanentToolModeHosts();
 
@@ -97,7 +84,7 @@ internal sealed partial class ExperimentForm
                 ApplyToolRailSplitterLayout();
             }
         };
-        _editMeshLayoutHost.Controls.Add(_classicEditMeshLayoutRoot, 0, 1);
+        _editMeshLayoutHost.Controls.Add(_placementEditMeshLayoutRoot, 0, 1);
         if (!_options.SimplePreview)
         {
             // Full window width: the legend has to stay readable with both tool
@@ -117,7 +104,8 @@ internal sealed partial class ExperimentForm
     /// <summary>
     /// The session bar occupies row 0 of the layout host, a zero-height row
     /// until the tool rail claims it, so attaching it later is only a cell
-    /// assignment and never touches the viewport's ancestry.
+    /// assignment and never touches the viewport's ancestry. The session
+    /// commands are adopted here once — the bar is their only home.
     /// </summary>
     private void AttachCompactSessionBar()
     {
@@ -128,6 +116,7 @@ internal sealed partial class ExperimentForm
         _compactSessionBar = BuildCompactSessionBar();
         _compactSessionBar.Visible = false;
         _editMeshLayoutHost.Controls.Add(_compactSessionBar, 0, 0);
+        MoveSessionControlsToCompactBar();
     }
 
     private void BuildPermanentViewportWorkspace()
@@ -135,9 +124,9 @@ internal sealed partial class ExperimentForm
         if (_rightToolSplit is null || _presentationViewportRegion is null)
         {
             throw new InvalidOperationException(
-                "The permanent Edit Mesh viewport host requires the classic viewport split.");
+                "The permanent Edit Mesh viewport host requires the placement viewport split.");
         }
-        // Panel2 stays collapsed in both layouts. The split is kept because it
+        // Panel2 stays collapsed in both modes. The split is kept because it
         // is the resident renderer's permanent ancestor: re-parenting the D3D
         // surface to shorten this chain would recreate its Win32 handle.
         _viewportWorkspaceSplit = CreateCompactSplit(
@@ -153,9 +142,9 @@ internal sealed partial class ExperimentForm
     }
 
     /// <summary>
-    /// Both flanks host two mutually exclusive children: the classic scrolling
-    /// tool panel, and this layout's dock. Swapping visibility keeps every live
-    /// control instance parented to a stable ancestor.
+    /// Both flanks host two mutually exclusive children: the placement
+    /// scrolling tool panel, and the rail's dock. Swapping visibility keeps
+    /// every live control instance parented to a stable ancestor.
     /// </summary>
     private void BuildPermanentToolModeHosts()
     {
@@ -181,7 +170,7 @@ internal sealed partial class ExperimentForm
             || _rightToolPanel is null)
         {
             throw new InvalidOperationException(
-                "The permanent Edit Mesh tool hosts require the classic tool panels.");
+                "The permanent Edit Mesh tool hosts require the placement tool panels.");
         }
 
         _leftToolModeHost = new MeshEditorBufferedPanel
@@ -221,7 +210,7 @@ internal sealed partial class ExperimentForm
         {
             Name = "EditMeshSessionBar",
             Dock = DockStyle.Fill,
-            ColumnCount = 4,
+            ColumnCount = 3,
             RowCount = 1,
             Margin = new Padding(0),
             Padding = new Padding(14, 7, 14, 7),
@@ -229,7 +218,6 @@ internal sealed partial class ExperimentForm
         };
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         bar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
@@ -268,20 +256,10 @@ internal sealed partial class ExperimentForm
             Padding = new Padding(0),
             BackColor = ThemePanelBackground,
         };
-        var useClassic = StyledActionButton(
-            "Classic Layout",
-            () => RequestEditMeshLayout(EditMeshLayoutMode.Classic));
-        useClassic.Name = "UseClassicEditMeshLayoutButton";
-        useClassic.AccessibleName = "Use Classic Edit Mesh layout";
-        useClassic.AccessibleDescription =
-            "Returns the same live Edit Mesh controls and viewport to the classic side-panel layout.";
-        useClassic.Margin = new Padding(8, 0, 0, 0);
-        useClassic.Anchor = AnchorStyles.Right;
 
         bar.Controls.Add(title, 0, 0);
         bar.Controls.Add(_compactSessionCommandHost, 1, 0);
         bar.Controls.Add(_compactSessionFinishHost, 2, 0);
-        bar.Controls.Add(useClassic, 3, 0);
         return bar;
     }
 
@@ -311,6 +289,12 @@ internal sealed partial class ExperimentForm
         return _toolDock;
     }
 
+    /// <summary>
+    /// One flat list: every armable tool is its own button, and the command
+    /// pages keep one reveal-only entry each below the tools. There are no
+    /// category buttons — a click either arms exactly the tool it names or
+    /// opens exactly the page it names, never both.
+    /// </summary>
     private Control BuildToolRail()
     {
         var rail = new MeshEditorBufferedTableLayoutPanel
@@ -318,35 +302,70 @@ internal sealed partial class ExperimentForm
             Name = "EditMeshToolRail",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 8,
+            RowCount = 10,
             Margin = new Padding(0),
             Padding = new Padding(6, 8, 6, 8),
             BackColor = ThemeRailBackground,
         };
         rail.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var buttonHeight = ScaleToolPanelWidth(ToolRailButtonHeight);
-        for (var row = 0; row < 7; row++)
+        for (var row = 0; row < 9; row++)
         {
             rail.RowStyles.Add(new RowStyle(SizeType.Absolute, buttonHeight));
         }
         rail.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        AddToolRailButton(rail, ToolRailPage.Selection, "◰", "Select", 1,
+        AddToolRailToolButton(rail, "select", "◰", "Select", 0,
             "Vertex, face and part selection, X-Ray and Part Pick.");
-        AddToolRailButton(rail, ToolRailPage.Transform, "✥", "Move", 2,
+        AddToolRailToolButton(rail, "move", "✥", "Move", 1,
             "Translate step, Move and Grab.");
-        AddToolRailButton(rail, ToolRailPage.Brush, "◍", "Brush", 3,
+        AddToolRailToolButton(rail, "grab", "✜", "Grab", 2,
+            "Translate step, Move and Grab.");
+        AddToolRailToolButton(rail, "smooth", "◍", "Smooth", 3,
             "Smooth, Inflate and Pinch with radius, strength and falloff.");
-        AddToolRailButton(rail, ToolRailPage.Topology, "△", "Topo", 4,
+        AddToolRailToolButton(rail, "inflate", "◉", "Inflate", 4,
+            "Smooth, Inflate and Pinch with radius, strength and falloff.");
+        AddToolRailToolButton(rail, "pinch", "◇", "Pinch", 5,
+            "Smooth, Inflate and Pinch with radius, strength and falloff.");
+        AddToolRailPageButton(rail, ToolRailPage.Topology, "△", "Topo", 6,
             "Subdivide and Refine Smooth.");
-        AddToolRailButton(rail, ToolRailPage.Colour, "◧", "Colour", 5,
+        AddToolRailPageButton(rail, ToolRailPage.Colour, "◧", "Colour", 7,
             "Per-part tint, recolour and glow for the current selection.");
-        AddToolRailButton(rail, ToolRailPage.MorphRefit, "◑", "Morph", 6,
+        AddToolRailPageButton(rail, ToolRailPage.MorphRefit, "◑", "Morph", 8,
             "Definition profiles, shape sliders and garment refit binding.");
+        EditMeshLayoutContracts.RequireCompleteRail(
+            _toolRailToolButtons.Keys.ToArray(),
+            _toolRailPageButtons.Keys.ToArray());
         return rail;
     }
 
-    private void AddToolRailButton(
+    /// <summary>
+    /// A rail button that names a tool arms that tool, and nothing else does:
+    /// the page beside the rail follows from the armed tool rather than from
+    /// the click, so revealing and choosing stay separate.
+    /// </summary>
+    private void AddToolRailToolButton(
+        TableLayoutPanel rail,
+        string tool,
+        string glyph,
+        string caption,
+        int row,
+        string description)
+    {
+        var button = BuildToolRailButton(glyph, caption, description);
+        button.Name = $"EditMeshToolRail{caption}ToolButton";
+        button.AccessibleName = $"{caption} tool";
+        button.Click += (_, _) => ActivateTool(tool, caption);
+        _toolRailToolButtons.Add(tool, button);
+        rail.Controls.Add(button, 0, row);
+    }
+
+    /// <summary>
+    /// A command page's entry only reveals the page. Topology, Colour and
+    /// Morph &amp; Refit hold one-shot commands and settings, so opening one
+    /// must leave the active tool exactly as it was.
+    /// </summary>
+    private void AddToolRailPageButton(
         TableLayoutPanel rail,
         ToolRailPage page,
         string glyph,
@@ -354,27 +373,33 @@ internal sealed partial class ExperimentForm
         int row,
         string description)
     {
+        var button = BuildToolRailButton(glyph, caption, description);
+        button.Name = $"EditMeshToolRail{page}PageButton";
+        button.AccessibleName = $"{ToolRailPageTitle(page)} tool";
+        button.Click += (_, _) => ShowToolRailPage(page);
+        _toolRailPageButtons.Add(page, button);
+        rail.Controls.Add(button, 0, row);
+    }
+
+    private Button BuildToolRailButton(string glyph, string caption, string description)
+    {
         // Glyph over caption: the caption keeps the rail readable even where a
         // symbol falls back, and is the seam to swap in a real icon set later.
         var button = StyledButton($"{glyph}\n{caption}", height: ToolRailButtonHeight);
-        button.Name = $"EditMeshToolRail{page}Button";
         button.AutoSize = false;
         button.Dock = DockStyle.Fill;
         button.Margin = new Padding(0, 0, 0, 4);
         button.Padding = new Padding(0);
         button.TextAlign = ContentAlignment.MiddleCenter;
-        button.AccessibleName = $"{ToolRailPageTitle(page)} tool";
         SetHelpText(button, description);
-        button.Click += (_, _) => ShowToolRailPage(page);
-        _toolRailButtons.Add(page, button);
-        rail.Controls.Add(button, 0, row);
+        return button;
     }
 
     private static string ToolRailPageTitle(ToolRailPage page) => page switch
     {
         ToolRailPage.Selection => "Selection",
-        // The rail button, the tool it activates and this header all say Move.
-        // "Transform" is only the classic section's own caption.
+        // The Move and Grab buttons share this page and this header. "Transform"
+        // was only ever the placement-era section caption.
         ToolRailPage.Transform => "Move",
         ToolRailPage.Brush => "Brush",
         ToolRailPage.Topology => "Topology",
@@ -418,7 +443,7 @@ internal sealed partial class ExperimentForm
             scroll.Controls.Add(host);
         }
 
-        // Selection is the one tool that owns two sections, so it needs a grid
+        // Selection is the one page that owns two sections, so it needs a grid
         // rather than a single docked child.
         _railSelectionStack = new MeshEditorBufferedTableLayoutPanel
         {
@@ -557,110 +582,41 @@ internal sealed partial class ExperimentForm
         return split;
     }
 
-    private void RequestEditMeshLayout(EditMeshLayoutMode layout)
-    {
-        _requestedEditMeshLayout = layout;
-        if (!_meshEditInteractionActive)
-        {
-            return;
-        }
-        if (!TryActivateEditMeshLayout(layout, preserveRequestedLayout: false))
-        {
-            return;
-        }
-        _statusLabel.Text = layout == EditMeshLayoutMode.ToolRail
-            ? "Tool rail active. All Edit Mesh tools still operate on the same resident session."
-            : "Classic Edit Mesh layout restored.";
-    }
-
-    private void ApplyRequestedEditMeshLayout()
+    /// <summary>
+    /// The tool rail is the only Edit Mesh layout. Re-running on a redundant
+    /// mesh_edit frame only re-asserts the dock widths, because the flanks were
+    /// just uncollapsed against the saved placement widths.
+    /// </summary>
+    private void ApplyToolRailEditMeshLayout()
     {
         if (!_meshEditInteractionActive)
         {
             return;
         }
-        _ = TryActivateEditMeshLayout(_requestedEditMeshLayout, preserveRequestedLayout: false);
-    }
-
-    private void RestoreClassicLayoutForNonMeshMode()
-    {
-        var requestedBeforeRestore = _requestedEditMeshLayout;
+        if (_toolRailLayoutActive)
+        {
+            ApplyToolRailSplitterLayout();
+            return;
+        }
         try
         {
-            // Always normalize the live control tree on mode exit. This also
-            // repairs any interrupted rail transition before placement
-            // controls (including Mesh View) become interactive again.
-            ActivateClassicEditMeshLayout();
-        }
-        finally
-        {
-            _requestedEditMeshLayout = requestedBeforeRestore;
-        }
-    }
-
-    private bool TryActivateEditMeshLayout(
-        EditMeshLayoutMode layout,
-        bool preserveRequestedLayout)
-    {
-        if (_activeEditMeshLayout == layout)
-        {
-            // A scene update can arrive with mesh edit already on. The sections
-            // are still in place, but the flanks were just uncollapsed against
-            // the classic saved widths, so the dock width has to be re-asserted.
-            if (layout == EditMeshLayoutMode.ToolRail)
-            {
-                ApplyToolRailSplitterLayout();
-            }
-            return true;
-        }
-        var requestedBeforeSwitch = _requestedEditMeshLayout;
-        // Both directions re-parent live sections between the flanks. Freezing
-        // the window for the swap keeps the reader from seeing sections land one
-        // at a time against a half-empty panel.
-        using var redraw = BeginRedrawBatch();
-        try
-        {
-            if (layout == EditMeshLayoutMode.ToolRail)
-            {
-                ActivateToolRailLayout();
-            }
-            else
-            {
-                ActivateClassicEditMeshLayout();
-            }
-            if (preserveRequestedLayout)
-            {
-                _requestedEditMeshLayout = requestedBeforeSwitch;
-            }
-            return true;
+            ActivateToolRailLayout();
         }
         catch (Exception ex)
         {
-            try
-            {
-                ActivateClassicEditMeshLayout();
-            }
-            catch
-            {
-                // The classic tree is also rebuilt on the next interaction-mode
-                // update. Keep the original layout exception as the actionable
-                // status instead of replacing it with best-effort recovery noise.
-            }
-            _requestedEditMeshLayout = EditMeshLayoutMode.Classic;
-            _activeEditMeshLayout = EditMeshLayoutMode.Classic;
+            // Every move below is idempotent, so the next scene frame retries
+            // the activation rather than leaving the session without tools.
             _statusLabel.Text =
-                $"The tool rail could not be activated; Classic layout remains in use. {ex.Message}";
-            return false;
+                $"The Edit Mesh tool rail could not be activated. {ex.Message}";
         }
     }
 
     private void ActivateToolRailLayout()
     {
-        if (_activeEditMeshLayout == EditMeshLayoutMode.ToolRail
-            || _classicEditMeshLayoutRoot is null
+        if (_toolRailLayoutActive
+            || _placementEditMeshLayoutRoot is null
             || _editMeshLayoutHost is null
             || _compactSessionBar is null
-            || _compactSessionCommandHost is null
             || _toolDock is null
             || _sceneInspectorColumn is null
             || _railSelectionStack is null
@@ -675,7 +631,7 @@ internal sealed partial class ExperimentForm
         }
 
         CaptureToolPanelLayout(persist: false);
-        CaptureClassicScrollPositions();
+        CapturePlacementSectionHomes();
         // Sections are re-parented one at a time below. SuspendLayout defers
         // their measurement but not their painting, so without this the reader
         // sees them land at construction-time bounds: captionless group boxes,
@@ -684,19 +640,18 @@ internal sealed partial class ExperimentForm
         SuspendAllEditMeshLayouts();
         try
         {
-            MoveSessionControlsToCompactBar();
             ConfigurePresentationRegion(compactEditableOnly: true);
             // The Morph & Refit card grid was built for a full-width bottom
-            // deck. In a single tool column its classic stacked form is both
-            // correct and already responsive, so unwind the grid here.
+            // deck. In a single tool column its stacked form is both correct
+            // and already responsive, so unwind the grid here.
             ExitCompactMorphLayout();
             // The dock header already names the tool, so the section's own
             // collapse header would just repeat it.
             SetMorphCollapseHeaderVisible(false);
-            SetRailToolSectionCaptionsVisible(false);
+            HideRailToolSectionCaptions();
 
-            // Left: only the modal tools swap with the rail. Selection owns two
-            // sections, so it gets a grid; the rest own one page each.
+            // Left: the tool and command sections swap with the rail. Selection
+            // owns two sections, so it gets a grid; the rest own one page each.
             AddRailSection(_railSelectionStack, _selectionSection, row: 0);
             AddRailSection(_railSelectionStack, _partPickSection, row: 1);
             AddRailSection(_toolRailPages[ToolRailPage.Transform], _transformSection);
@@ -721,7 +676,7 @@ internal sealed partial class ExperimentForm
             _leftToolSplit.Panel1Collapsed = false;
             _rightToolSplit.Panel2Collapsed = false;
             _viewportWorkspaceSplit.Panel2Collapsed = true;
-            _activeEditMeshLayout = EditMeshLayoutMode.ToolRail;
+            _toolRailLayoutActive = true;
             ApplyToolRailSplitterLayout();
             if (!_toolRailPageSelected)
             {
@@ -731,7 +686,7 @@ internal sealed partial class ExperimentForm
             // A placement boot reaches this after embedding, so OnShown's pass
             // could not have covered the pages just populated here.
             RealizeControlTree(_toolDock);
-            ShowToolRailPage(_selectedToolRailPage, armDefaultTool: false);
+            ShowToolRailPage(_selectedToolRailPage);
         }
         finally
         {
@@ -739,24 +694,25 @@ internal sealed partial class ExperimentForm
         }
     }
 
-    private void ActivateClassicEditMeshLayout()
+    /// <summary>
+    /// Leaving mesh edit returns the flanks to the placement panels. Only the
+    /// two sections placement mode shares with the rail move back — everything
+    /// else in the dock is mesh-edit-only and simply stops being shown. This
+    /// also repairs any interrupted rail transition before placement controls
+    /// (including Mesh View) become interactive again.
+    /// </summary>
+    private void RestorePlacementLayoutForNonMeshMode()
     {
-        if (_classicEditMeshLayoutRoot is null
+        if (_placementEditMeshLayoutRoot is null
             || _editMeshLayoutHost is null)
         {
             return;
         }
-        // RebuildClassicToolStacks clears and re-adds every section, so the same
-        // partial-paint window applies on the way back to Classic.
         using var redraw = BeginRedrawBatch();
         SuspendAllEditMeshLayouts();
         try
         {
-            ExitCompactMorphLayout();
-            SetMorphCollapseHeaderVisible(true);
-            SetRailToolSectionCaptionsVisible(true);
-            MoveSessionControlsToClassicSection();
-            RebuildClassicToolStacks();
+            ReturnPlacementSectionsToFlanks();
             ConfigurePresentationRegion(compactEditableOnly: false);
             if (_viewportWorkspaceSplit is not null)
             {
@@ -798,20 +754,69 @@ internal sealed partial class ExperimentForm
             {
                 _rightToolSplit.Panel2Collapsed = false;
             }
-            _classicEditMeshLayoutRoot.Visible = true;
-            _activeEditMeshLayout = EditMeshLayoutMode.Classic;
+            _placementEditMeshLayoutRoot.Visible = true;
+            _toolRailLayoutActive = false;
             ApplySavedToolPanelLayout();
         }
         finally
         {
             ResumeAllEditMeshLayouts();
         }
-        // The stacks are rebuilt while suspended and resume without their own
-        // layout pass, so their new rows keep construction-time bounds until
-        // something forces the measure. Do it here rather than relying on an
-        // incidental resize.
-        PerformClassicToolStackLayout();
-        RestoreClassicScrollPositions();
+        // The returned sections land while suspended and resume without their
+        // own layout pass, so they keep dock-time bounds until something forces
+        // the measure. Do it here rather than relying on an incidental resize.
+        PerformPlacementFlankLayout();
+    }
+
+    /// <summary>
+    /// Records where the shared sections sit in the placement stacks before the
+    /// rail adopts them, so leaving mesh edit can put them back in the same
+    /// cells. Captured once — the placement stacks never rearrange.
+    /// </summary>
+    private void CapturePlacementSectionHomes()
+    {
+        if (_partPickPlacementCell is null
+            && _leftToolStack is not null
+            && _partPickSection is not null
+            && ReferenceEquals(_partPickSection.Parent, _leftToolStack))
+        {
+            _partPickPlacementCell = _leftToolStack.GetCellPosition(_partPickSection);
+        }
+        if (_viewportSectionPlacementCell is null
+            && _rightToolStack is not null
+            && _viewportSection is not null
+            && ReferenceEquals(_viewportSection.Parent, _rightToolStack))
+        {
+            _viewportSectionPlacementCell = _rightToolStack.GetCellPosition(_viewportSection);
+        }
+    }
+
+    private void ReturnPlacementSectionsToFlanks()
+    {
+        if (_leftToolStack is not null
+            && _partPickSection is not null
+            && _partPickPlacementCell is { } partPickCell)
+        {
+            NormalizeSectionStyle(_partPickSection);
+            EditMeshLayoutContracts.MoveControl(
+                _partPickSection,
+                _leftToolStack,
+                partPickCell.Column,
+                partPickCell.Row,
+                DockStyle.Top);
+        }
+        if (_rightToolStack is not null
+            && _viewportSection is not null
+            && _viewportSectionPlacementCell is { } viewportCell)
+        {
+            NormalizeSectionStyle(_viewportSection);
+            EditMeshLayoutContracts.MoveControl(
+                _viewportSection,
+                _rightToolStack,
+                viewportCell.Column,
+                viewportCell.Row,
+                DockStyle.Top);
+        }
     }
 
     private void MoveSessionControlsToCompactBar()
@@ -842,38 +847,6 @@ internal sealed partial class ExperimentForm
         }
     }
 
-    private void MoveSessionControlsToClassicSection()
-    {
-        if (_classicSessionBody is null
-            || _classicSessionSelectionRow is not TableLayoutPanel selectionRow
-            || _classicSessionHistoryRow is not TableLayoutPanel historyRow
-            || _sessionFinishButton is null
-            || _sessionClearSelectionButton is null
-            || _sessionSelectAllButton is null
-            || _sessionInvertButton is null
-            || _undoButton is null
-            || _redoButton is null)
-        {
-            return;
-        }
-        SetButtonAccent(_sessionFinishButton, false);
-        EditMeshLayoutContracts.MoveControl(
-            _sessionFinishButton,
-            _classicSessionBody,
-            0,
-            0,
-            DockStyle.Top);
-        RestoreButtonRow(
-            selectionRow,
-            _sessionClearSelectionButton,
-            _sessionSelectAllButton);
-        RestoreButtonRow(
-            historyRow,
-            _sessionInvertButton,
-            _undoButton,
-            _redoButton);
-    }
-
     private IEnumerable<Button> SessionCommandButtons()
     {
         if (_sessionClearSelectionButton is not null) yield return _sessionClearSelectionButton;
@@ -882,69 +855,6 @@ internal sealed partial class ExperimentForm
         if (_undoButton is not null) yield return _undoButton;
         if (_redoButton is not null) yield return _redoButton;
         if (_sessionFinishButton is not null) yield return _sessionFinishButton;
-    }
-
-    private static void RestoreButtonRow(TableLayoutPanel row, params Button[] buttons)
-    {
-        for (var index = 0; index < buttons.Length; index++)
-        {
-            var button = buttons[index];
-            button.Dock = DockStyle.Fill;
-            button.Margin = new Padding(
-                index == 0 ? 0 : 3,
-                0,
-                index == buttons.Length - 1 ? 0 : 3,
-                0);
-            EditMeshLayoutContracts.MoveControl(
-                button,
-                row,
-                index,
-                0,
-                DockStyle.Fill);
-        }
-    }
-
-    private void RebuildClassicToolStacks()
-    {
-        if (_leftToolStack is not null)
-        {
-            RebuildClassicStack(
-                _leftToolStack,
-                _classicSessionSection,
-                _partPickSection,
-                _selectionSection,
-                _placementSection,
-                _transformSection,
-                _brushSection,
-                _topologySection);
-        }
-        if (_rightToolStack is not null)
-        {
-            RebuildClassicStack(
-                _rightToolStack,
-                _actionHistorySection,
-                _morphRefitSection,
-                _partsSection,
-                _viewportSection);
-        }
-    }
-
-    private static void RebuildClassicStack(
-        TableLayoutPanel stack,
-        params Control?[] sections)
-    {
-        stack.Controls.Clear();
-        stack.RowStyles.Clear();
-        stack.RowCount = 0;
-        foreach (var section in sections)
-        {
-            if (section is null)
-            {
-                continue;
-            }
-            RestoreClassicSectionStyle(section);
-            AddStackRow(stack, section);
-        }
     }
 
     /// <summary>
@@ -957,7 +867,7 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
-        RestoreClassicSectionStyle(section);
+        NormalizeSectionStyle(section);
         section.Margin = new Padding(0, 0, 0, 10);
 
         if (host is TableLayoutPanel table && row >= 0)
@@ -971,7 +881,7 @@ internal sealed partial class ExperimentForm
         section.BringToFront();
     }
 
-    private static void RestoreClassicSectionStyle(Control section)
+    private static void NormalizeSectionStyle(Control section)
     {
         section.AutoSize = true;
         section.Dock = DockStyle.Top;
@@ -1018,24 +928,15 @@ internal sealed partial class ExperimentForm
     /// <summary>
     /// Reveals one rail page, or none of them when <paramref name="page"/> is
     /// null. No page means no tool is armed and the left button belongs to the
-    /// camera, which is how Edit Mesh opens. armDefaultTool is false when a layout
-    /// re-activation only restores the rail: arming there replaced the live tool
-    /// with the page default, almost always Select.
+    /// camera, which is how Edit Mesh opens. Revealing never arms a tool: the
+    /// rail's tool buttons are the only thing that arms one, so a command page
+    /// opens without disturbing the active tool and a layout re-activation
+    /// restores the rail's appearance without replacing the live tool.
     /// </summary>
-    private void ShowToolRailPage(ToolRailPage? page, bool armDefaultTool = true)
+    private void ShowToolRailPage(ToolRailPage? page)
     {
         _selectedToolRailPage = page;
         _toolRailPageSelected = true;
-        // A rail button that names a tool has to select that tool. Revealing the
-        // page alone left the viewport in whatever mode it was already in, so
-        // clicking "Select" and then clicking the model did nothing.
-        var defaultTool = page is null ? null : EditMeshLayoutContracts.DefaultToolForRailPage(page.Value);
-        if (armDefaultTool && defaultTool is not null && page is not null
-            && _meshEditInteractionActive
-            && !EditMeshLayoutContracts.RailPageOwnsTool(page.Value, _viewport.ActiveTool))
-        {
-            ActivateTool(defaultTool, ToolRailPageTitle(page.Value));
-        }
         if (page == ToolRailPage.Colour)
         {
             // Colour edits land on the base texture, and the editable viewport
@@ -1051,10 +952,12 @@ internal sealed partial class ExperimentForm
                 pair.Value.BringToFront();
             }
         }
-        foreach (var pair in _toolRailButtons)
+        foreach (var pair in _toolRailPageButtons)
         {
             SetButtonAccent(pair.Value, pair.Key == page);
         }
+        // The tool buttons accent by the armed tool, not the visible page.
+        RefreshToolButtonStates();
         if (_toolRailPanelHeader is not null)
         {
             _toolRailPanelHeader.Text = page is null
@@ -1155,12 +1058,12 @@ internal sealed partial class ExperimentForm
         EditMeshLayoutContracts.ToolRailPageForTool(_viewport.ActiveTool);
 
     /// <summary>
-    /// Keeps the rail highlight on the page that owns the active tool when the
-    /// tool is changed from the page's own buttons rather than from the rail.
+    /// Keeps the rail in step with the active tool however the tool was chosen:
+    /// a rail button, a button inside a page, or the host re-asserting a state.
     /// Dropping back to orbit owns no page, so a modal tool page clears.
     /// </summary>
     /// <remarks>
-    /// Topology, Colour and Morph &amp; Refit are command pages: they never armed
+    /// Topology, Colour and Morph &amp; Refit are command pages: they never arm
     /// a tool, so the viewport sits on orbit the whole time one is open. Closing
     /// a page on "the tool is now orbit" alone would therefore shut them the
     /// moment anything re-asserted orbit — and the host does exactly that every
@@ -1180,7 +1083,7 @@ internal sealed partial class ExperimentForm
         if (page is null)
         {
             if (_selectedToolRailPage is not null
-                && EditMeshLayoutContracts.DefaultToolForRailPage(_selectedToolRailPage.Value) is not null)
+                && EditMeshLayoutContracts.RailPageIsModal(_selectedToolRailPage.Value))
             {
                 ShowToolRailPage(null);
             }
@@ -1238,9 +1141,9 @@ internal sealed partial class ExperimentForm
     }
 
     /// <summary>
-    /// The Morph &amp; Refit section carries its own collapse header for the
-    /// classic stack. In the tool dock the header row is redundant, and the
-    /// body must not stay collapsed from a previous classic session.
+    /// The Morph &amp; Refit section carries its own collapse header. In the
+    /// tool dock the header row is redundant — the dock header names the page —
+    /// and the body must not stay collapsed from an earlier session.
     /// </summary>
     private void SetMorphCollapseHeaderVisible(bool visible)
     {
@@ -1266,9 +1169,8 @@ internal sealed partial class ExperimentForm
     /// "MOVE" over a "TRANSFORM" box, and every other page repeated itself
     /// outright. Part Pick keeps its caption — it is the second box on the
     /// Selection page — as do the scene groups, which have no header at all.
-    /// The classic stack has no dock header, so it gets every caption back.
     /// </summary>
-    private void SetRailToolSectionCaptionsVisible(bool visible)
+    private void HideRailToolSectionCaptions()
     {
         foreach (var section in new[]
         {
@@ -1279,61 +1181,25 @@ internal sealed partial class ExperimentForm
             _colourSection,
         })
         {
-            if (section is null)
+            if (section is not null)
             {
-                continue;
+                section.Text = string.Empty;
             }
-            if (!_classicSectionCaptions.ContainsKey(section))
-            {
-                _classicSectionCaptions[section] = section.Text;
-            }
-            section.Text = visible ? _classicSectionCaptions[section] : string.Empty;
         }
     }
 
-    private void PerformClassicToolStackLayout()
+    private void PerformPlacementFlankLayout()
     {
-        _morphSectionBody?.PerformLayout();
-        _morphSectionLayout?.PerformLayout();
         _leftToolStack?.PerformLayout();
         _rightToolStack?.PerformLayout();
         _leftToolPanel?.PerformLayout();
         _rightToolPanel?.PerformLayout();
     }
 
-    private void CaptureClassicScrollPositions()
-    {
-        _classicLeftScrollPosition = CaptureScrollPosition(_leftToolStack);
-        _classicRightScrollPosition = CaptureScrollPosition(_rightToolStack);
-    }
-
-    private void RestoreClassicScrollPositions()
-    {
-        RestoreScrollPosition(_leftToolStack, _classicLeftScrollPosition);
-        RestoreScrollPosition(_rightToolStack, _classicRightScrollPosition);
-    }
-
-    private static Point CaptureScrollPosition(Control? stack)
-    {
-        if (stack?.Parent is not ScrollableControl scroll)
-        {
-            return Point.Empty;
-        }
-        return new Point(-scroll.AutoScrollPosition.X, -scroll.AutoScrollPosition.Y);
-    }
-
-    private static void RestoreScrollPosition(Control? stack, Point position)
-    {
-        if (stack?.Parent is ScrollableControl scroll)
-        {
-            scroll.AutoScrollPosition = position;
-        }
-    }
-
     private void SuspendAllEditMeshLayouts()
     {
         _editMeshLayoutHost?.SuspendLayout();
-        _classicEditMeshLayoutRoot?.SuspendLayout();
+        _placementEditMeshLayoutRoot?.SuspendLayout();
         _viewportWorkspaceSplit?.SuspendLayout();
         _leftToolModeHost?.SuspendLayout();
         _rightToolModeHost?.SuspendLayout();
@@ -1352,7 +1218,7 @@ internal sealed partial class ExperimentForm
         _rightToolModeHost?.ResumeLayout(performLayout: true);
         _leftToolModeHost?.ResumeLayout(performLayout: true);
         _viewportWorkspaceSplit?.ResumeLayout(performLayout: true);
-        _classicEditMeshLayoutRoot?.ResumeLayout(performLayout: true);
+        _placementEditMeshLayoutRoot?.ResumeLayout(performLayout: true);
         _editMeshLayoutHost?.ResumeLayout(performLayout: true);
     }
 }

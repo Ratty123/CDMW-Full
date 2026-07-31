@@ -191,23 +191,25 @@ if ($Area -eq "mesh-unit") {
         exit 1
     }
     $LayoutPayload = Get-Content -LiteralPath $LayoutReport -Raw | ConvertFrom-Json
-    # Edit Mesh entered through Classic when this gate was written; it now opens
-    # in the Tool Rail and the smoke reports `tool_rail_default`. The gate kept
-    # asserting the removed `classic_default`, which is always $null, so
-    # `-not $null` failed every mesh-unit run after the rename. The page count
-    # was stale the same way: the rail has carried six pages since Colour was
-    # added, and the gate still asked for five. The camera never became a
-    # seventh -- it is reached by the modifiers on the navigation strip -- so
-    # orbit owns no page and the rail opens on none of them.
+    # The Tool Rail is the only Edit Mesh layout: the Classic layout is gone,
+    # so the round trip the smoke reports is mesh-edit entry and the return to
+    # the placement flanks. The rail itself is one flat list -- six tool
+    # buttons that each arm exactly the tool they name, and three reveal-only
+    # command-page entries. The camera never became a rail entry -- it is
+    # reached by the modifiers on the navigation strip -- so orbit owns no
+    # page and the rail opens on none of them.
     if (-not $LayoutPayload.ok `
         -or -not $LayoutPayload.tool_rail_default `
-        -or $LayoutPayload.round_trip_layout -ne "classic" `
+        -or -not $LayoutPayload.tool_rail_only_layout `
+        -or $LayoutPayload.round_trip_layout -ne "placement" `
         -or -not $LayoutPayload.same_control_instances `
         -or -not $LayoutPayload.same_viewport_instance `
         -or -not $LayoutPayload.same_viewport_handle `
         -or -not $LayoutPayload.stable_viewport_parent `
         -or -not $LayoutPayload.zero_size_splitter_construction `
         -or $LayoutPayload.pages_visited.Count -ne 6 `
+        -or $LayoutPayload.rail_tool_count -ne 6 `
+        -or $LayoutPayload.rail_command_page_count -ne 3 `
         -or $LayoutPayload.opening_page -ne "none" `
         -or $LayoutPayload.opening_tool -ne "orbit" `
         -or $LayoutPayload.renderer_started `

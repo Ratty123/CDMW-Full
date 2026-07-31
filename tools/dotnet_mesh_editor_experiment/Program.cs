@@ -678,6 +678,8 @@ internal sealed partial class ExperimentForm : Form
         _leftToolStack = leftStack;
         _rightToolStack = rightStack;
 
+        // The session commands live on the compact session bar, which adopts
+        // them when it is attached; until then they are parentless.
         var clearSelectionButton = CommandButton("Clear Selection", "clear_selection");
         var selectAllButton = CommandButton("Select All", "select_all");
         var invertButton = CommandButton("Invert", "invert");
@@ -690,23 +692,6 @@ internal sealed partial class ExperimentForm : Form
         _redoButton = redoButton;
         undoButton.Enabled = false;
         redoButton.Enabled = false;
-        _classicSessionSelectionRow = ButtonRow(clearSelectionButton, selectAllButton);
-        _classicSessionHistoryRow = ButtonRow(invertButton, undoButton, redoButton);
-        var classicLayoutToggleButton = StyledActionButton(
-            "Use Tool Rail Layout",
-            () => RequestEditMeshLayout(EditMeshLayoutMode.ToolRail));
-        classicLayoutToggleButton.Name = "UseToolRailEditMeshLayoutButton";
-        classicLayoutToggleButton.AccessibleName = "Use the tool rail Edit Mesh layout";
-        classicLayoutToggleButton.AccessibleDescription =
-            "Switches only the Edit Mesh control layout. The resident viewport and edit state remain active.";
-        _classicSessionSection = AddSection(leftStack, "Mesh Edit Session",
-            finish,
-            _classicSessionSelectionRow,
-            _classicSessionHistoryRow,
-            classicLayoutToggleButton);
-        _classicSessionSection.Name = "ClassicMeshEditSessionSection";
-        _classicSessionBody = _classicSessionSection.Controls.OfType<TableLayoutPanel>().Single();
-        _meshEditOnlySections.Add(_classicSessionSection);
         _actionHistorySection = AddHelpSection(
             rightStack,
             "Action History",
@@ -795,16 +780,7 @@ internal sealed partial class ExperimentForm : Form
         topologySection.Name = "CompactTopologySection";
         _topologySection = topologySection;
         _meshEditOnlySections.Add(topologySection);
-        var colourSection = BuildColourSection(leftStack);
-        var leftNavigator = BuildToolNavigator(
-            ("Select", selectionSection),
-            ("Move", transformSection),
-            ("Brush", brushSection),
-            ("Topology", topologySection),
-            ("Colour", colourSection));
-        left.Controls.Add(leftNavigator);
-        leftNavigator.BringToFront();
-        _meshEditOnlySections.Add(leftNavigator);
+        _ = BuildColourSection(leftStack);
         _viewportSection = AddHelpSection(
             rightStack,
             "Viewport",

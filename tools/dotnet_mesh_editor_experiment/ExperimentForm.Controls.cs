@@ -517,31 +517,6 @@ internal sealed partial class ExperimentForm
         return panel;
     }
 
-    private Control BuildToolNavigator(params (string Label, Control Target)[] items)
-    {
-        var buttons = items.Select(item =>
-        {
-            var button = StyledButton(item.Label, height: 26);
-            button.AccessibleName = $"Go to {item.Label} tools";
-            button.Click += (_, _) =>
-            {
-                if (item.Target.Parent?.Parent is ScrollableControl scrollPanel)
-                {
-                    scrollPanel.ScrollControlIntoView(item.Target);
-                    scrollPanel.Focus();
-                }
-            };
-            return (Control)button;
-        }).ToArray();
-        var navigator = ButtonRow(buttons);
-        navigator.Name = "DotNetMeshEditorLeftToolNavigator";
-        navigator.Dock = DockStyle.Top;
-        navigator.Margin = new Padding(0);
-        navigator.Padding = new Padding(10, 8, 10, 8);
-        navigator.BackColor = ThemePanelBackground;
-        return navigator;
-    }
-
     private static GroupBox AddSection(TableLayoutPanel stack, string title, params Control[] controls)
     {
         var group = new MeshEditorSectionBox
@@ -846,6 +821,14 @@ internal sealed partial class ExperimentForm
                 pair.Value,
                 string.Equals(pair.Key, _viewport.ActiveTool, StringComparison.OrdinalIgnoreCase));
         }
+        // The rail's tool buttons accent by the armed tool the same way,
+        // however the tool was chosen.
+        foreach (var pair in _toolRailToolButtons)
+        {
+            SetButtonAccent(
+                pair.Value,
+                string.Equals(pair.Key, _viewport.ActiveTool, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     private void RefreshGizmoButtonStates()
@@ -975,7 +958,7 @@ internal sealed partial class ExperimentForm
         _meshEditInteractionActive = meshEdit;
         if (!meshEdit)
         {
-            RestoreClassicLayoutForNonMeshMode();
+            RestorePlacementLayoutForNonMeshMode();
         }
         SuspendToolPanelLayout();
         try
@@ -997,7 +980,7 @@ internal sealed partial class ExperimentForm
             if (meshEdit)
             {
                 ApplyEmbeddedToolPanelVisibility(meshEdit: true);
-                ApplyRequestedEditMeshLayout();
+                ApplyToolRailEditMeshLayout();
             }
         }
         finally

@@ -86,8 +86,8 @@ internal static class EditMeshLayoutSmoke
             "The compact splitter distance is invalid after receiving its real size.");
 
         using var host = new Panel { Name = "LayoutSmokeHost" };
-        using var classicRoot = new Panel { Name = "ClassicTools", Dock = DockStyle.Fill };
-        using var compactRoot = new Panel
+        using var placementRoot = new Panel { Name = "PlacementTools", Dock = DockStyle.Fill };
+        using var railRoot = new Panel
         {
             Name = "ToolRailTools",
             Dock = DockStyle.Fill,
@@ -99,13 +99,13 @@ internal static class EditMeshLayoutSmoke
             Dock = DockStyle.Fill,
         };
         host.Controls.Add(permanentViewportHost);
-        host.Controls.Add(classicRoot);
-        host.Controls.Add(compactRoot);
+        host.Controls.Add(placementRoot);
+        host.Controls.Add(railRoot);
 
-        var classicLeft = CreateStack("ClassicLeftStack");
-        var classicRight = CreateStack("ClassicRightStack");
-        classicRoot.Controls.Add(classicLeft);
-        classicRoot.Controls.Add(classicRight);
+        var placementLeft = CreateStack("PlacementLeftStack");
+        var placementRight = CreateStack("PlacementRightStack");
+        placementRoot.Controls.Add(placementLeft);
+        placementRoot.Controls.Add(placementRight);
 
         var viewport = new Panel { Name = "ResidentViewportRegion" };
         var sessionCommands = Enumerable.Range(0, 6)
@@ -127,19 +127,20 @@ internal static class EditMeshLayoutSmoke
             NewSection("Viewport"),
         };
         var morphSection = NewSection("Morph & Refit");
-        foreach (var command in sessionCommands)
-        {
-            AddRow(classicLeft, command);
-        }
         foreach (var section in editSections)
         {
-            AddRow(classicLeft, section);
+            AddRow(placementLeft, section);
         }
-        AddRow(classicRight, inspectorSections[1]);
-        AddRow(classicRight, morphSection);
-        AddRow(classicRight, inspectorSections[0]);
-        AddRow(classicRight, inspectorSections[2]);
+        AddRow(placementRight, inspectorSections[1]);
+        AddRow(placementRight, morphSection);
+        AddRow(placementRight, inspectorSections[0]);
+        AddRow(placementRight, inspectorSections[2]);
         permanentViewportHost.Controls.Add(viewport);
+
+        // The construction cells of the sections placement mode shares with the
+        // rail: leaving mesh edit puts them back in exactly these cells.
+        var partPickHomeCell = placementLeft.GetCellPosition(editSections[0]);
+        var viewportSectionHomeCell = placementRight.GetCellPosition(inspectorSections[2]);
 
         var compactSession = new FlowLayoutPanel { Name = "CompactSession" };
         var compactInspector = CreateStack("CompactInspector");
@@ -153,16 +154,16 @@ internal static class EditMeshLayoutSmoke
                 Visible = false,
             },
             StringComparer.Ordinal);
-        compactRoot.Controls.Add(compactSession);
-        compactRoot.Controls.Add(compactInspector);
-        compactRoot.Controls.Add(pageHost);
+        railRoot.Controls.Add(compactSession);
+        railRoot.Controls.Add(compactInspector);
+        railRoot.Controls.Add(pageHost);
         foreach (var page in pages.Values)
         {
             pageHost.Controls.Add(page);
         }
         _ = host.Handle;
-        _ = classicRoot.Handle;
-        _ = compactRoot.Handle;
+        _ = placementRoot.Handle;
+        _ = railRoot.Handle;
         _ = permanentViewportHost.Handle;
         var originalViewportHandle = viewport.Handle;
         var originalViewportParent = viewport.Parent;
@@ -177,6 +178,9 @@ internal static class EditMeshLayoutSmoke
         var originalIdentities = originalControls
             .ToDictionary(control => control.Name, control => control, StringComparer.Ordinal);
 
+        // Entering mesh edit: the session commands live on the compact bar and
+        // every tool and command section moves into its rail page. This is the
+        // only Edit Mesh layout.
         foreach (var command in sessionCommands)
         {
             EditMeshLayoutContracts.MoveControl(command, compactSession, DockStyle.None);
@@ -185,7 +189,7 @@ internal static class EditMeshLayoutSmoke
             viewport.IsHandleCreated
                 && viewport.Handle == originalViewportHandle
                 && ReferenceEquals(viewport.Parent, originalViewportParent),
-            "Activating the Bottom Tool Deck changed the permanent viewport host or handle.");
+            "Activating the tool rail changed the permanent viewport host or handle.");
         EditMeshLayoutContracts.MoveControl(editSections[0], pages["Selection"], DockStyle.Top);
         EditMeshLayoutContracts.MoveControl(editSections[1], pages["Selection"], DockStyle.Top);
         EditMeshLayoutContracts.MoveControl(editSections[2], pages["Transform"], DockStyle.Top);
@@ -200,8 +204,8 @@ internal static class EditMeshLayoutSmoke
             morphSection,
             pages["Morph & Refit"],
             DockStyle.Top);
-        compactRoot.Visible = true;
-        classicRoot.Visible = false;
+        railRoot.Visible = true;
+        placementRoot.Visible = false;
 
         var pagesVisited = new List<string>();
         foreach (var selectedPage in ToolPages)
@@ -215,31 +219,32 @@ internal static class EditMeshLayoutSmoke
             }
             Require(
                 pages[selectedPage].Visible,
-                $"The {selectedPage} compact page was not reachable.");
+                $"The {selectedPage} rail page was not reachable.");
             pagesVisited.Add(selectedPage);
         }
 
-        ResetStack(classicLeft);
-        ResetStack(classicRight);
-        foreach (var command in sessionCommands)
-        {
-            AddRow(classicLeft, command);
-        }
-        foreach (var section in editSections)
-        {
-            AddRow(classicLeft, section);
-        }
-        AddRow(classicRight, inspectorSections[1]);
-        AddRow(classicRight, morphSection);
-        AddRow(classicRight, inspectorSections[0]);
-        AddRow(classicRight, inspectorSections[2]);
+        // Leaving mesh edit: only the sections placement mode shares with the
+        // rail return to the flanks, in the cells they were built in. The
+        // mesh-edit-only sections keep their rail pages as their one home.
+        EditMeshLayoutContracts.MoveControl(
+            editSections[0],
+            placementLeft,
+            partPickHomeCell.Column,
+            partPickHomeCell.Row,
+            DockStyle.Top);
+        EditMeshLayoutContracts.MoveControl(
+            inspectorSections[2],
+            placementRight,
+            viewportSectionHomeCell.Column,
+            viewportSectionHomeCell.Row,
+            DockStyle.Top);
         Require(
             viewport.IsHandleCreated
                 && viewport.Handle == originalViewportHandle
                 && ReferenceEquals(viewport.Parent, originalViewportParent),
-            "Returning to Classic changed the permanent viewport host or handle.");
-        compactRoot.Visible = false;
-        classicRoot.Visible = true;
+            "Returning to the placement flanks changed the permanent viewport host or handle.");
+        railRoot.Visible = false;
+        placementRoot.Visible = true;
 
         Require(
             originalControls.All(control =>
@@ -251,15 +256,20 @@ internal static class EditMeshLayoutSmoke
             ReferenceEquals(viewport.Parent, permanentViewportHost),
             "The resident viewport region left its permanent host.");
         Require(
-            sessionCommands.All(command => ReferenceEquals(command.Parent, classicLeft)),
-            "A session command did not return to the Classic layout.");
+            ReferenceEquals(editSections[0].Parent, placementLeft)
+                && placementLeft.GetCellPosition(editSections[0]) == partPickHomeCell,
+            "Part Pick did not return to its placement cell.");
         Require(
-            editSections.All(section => ReferenceEquals(section.Parent, classicLeft)),
-            "An Edit Mesh tool section did not return to the Classic left stack.");
+            ReferenceEquals(inspectorSections[2].Parent, placementRight)
+                && placementRight.GetCellPosition(inspectorSections[2]) == viewportSectionHomeCell,
+            "The Viewport section did not return to its placement cell.");
         Require(
-            inspectorSections.All(section => ReferenceEquals(section.Parent, classicRight))
-                && ReferenceEquals(morphSection.Parent, classicRight),
-            "An inspector or Morph & Refit section did not return to the Classic right stack.");
+            sessionCommands.All(command => ReferenceEquals(command.Parent, compactSession)),
+            "A session command left the compact session bar, which is its only home.");
+        Require(
+            editSections.Skip(1).All(section => ReferenceEquals(section.Parent?.Parent, pageHost))
+                && ReferenceEquals(morphSection.Parent?.Parent, pageHost),
+            "A mesh-edit-only section left its rail page, which is its only home.");
         Require(
             EditMeshLayoutContracts.MorphColumnsForLogicalWidth(899) == 1
                 && EditMeshLayoutContracts.MorphColumnsForLogicalWidth(900) == 2
@@ -271,11 +281,11 @@ internal static class EditMeshLayoutSmoke
                 && EditMeshLayoutContracts.DefaultToolRailPanelWidth(1180, 68) == 448,
             "The tool rail default proportions changed.");
 
-        // The rail selects the page that owns the viewport's tool, and that page
-        // then asserts its own default tool. Edit Mesh boots on "orbit", so any
-        // page answering for orbit is a page that arms an edit tool nobody chose.
-        // The camera is reached by the modifiers on the navigation strip instead,
-        // so orbit must own no page at all.
+        // The rail is one flat list: every armable tool is its own button, and
+        // clicking one arms exactly that tool. Edit Mesh boots on "orbit", and
+        // the camera is not a rail entry — it is reached by the modifiers on the
+        // navigation strip — so orbit must own no page and the rail opens with
+        // nothing highlighted and nothing armed.
         var openingPage = EditMeshLayoutContracts.ToolRailPageForTool("orbit");
         Require(
             openingPage is null,
@@ -288,35 +298,65 @@ internal static class EditMeshLayoutSmoke
             Enum.GetValues<ToolRailPage>().All(
                 page => !EditMeshLayoutContracts.RailPageOwnsTool(page, "orbit")),
             "A rail page claimed the orbit tool.");
+
+        // The flat tool inventory: each rail tool resolves to the page that owns
+        // it, and that page owns it back. Six tools across three modal pages.
+        Require(
+            EditMeshLayoutContracts.RailToolOrder.SequenceEqual(
+                new[] { "select", "move", "grab", "smooth", "inflate", "pinch" }),
+            "The rail's flat tool inventory changed.");
+        foreach (var tool in EditMeshLayoutContracts.RailToolOrder)
+        {
+            var owner = EditMeshLayoutContracts.ToolRailPageForTool(tool);
+            Require(
+                owner is not null
+                    && EditMeshLayoutContracts.RailPageOwnsTool(owner.Value, tool)
+                    && EditMeshLayoutContracts.RailPageIsModal(owner.Value),
+                $"The rail tool '{tool}' no longer resolves to a modal page that owns it.");
+        }
         Require(
             EditMeshLayoutContracts.ToolRailPageForTool("select") == ToolRailPage.Selection
                 && EditMeshLayoutContracts.ToolRailPageForTool("grab") == ToolRailPage.Transform
                 && EditMeshLayoutContracts.ToolRailPageForTool("pinch") == ToolRailPage.Brush,
-            "A modal tool no longer resolves to its own rail page.");
+            "A rail tool no longer resolves to its own page.");
         Require(
             !EditMeshLayoutContracts.RailPageOwnsTool(ToolRailPage.Selection, "smooth")
                 && !EditMeshLayoutContracts.RailPageOwnsTool(ToolRailPage.Brush, "select"),
             "A rail page claimed a tool that belongs to another page.");
 
-        // Command pages arm no tool, so the viewport sits on orbit the whole time
-        // one is open. Whether the rail may close a page because the tool is orbit
-        // is therefore decided by whether that page armed a tool at all -- closing
-        // on the tool alone shut Topology, Colour and Morph & Refit every time the
+        // Command pages arm no tool, so the viewport sits on orbit the whole
+        // time one is open. Whether the rail may close a page because the tool
+        // is orbit is decided by whether the page is modal at all -- closing on
+        // the tool alone shut Topology, Colour and Morph & Refit every time the
         // host published a disabled mesh-edit state.
         var commandPages = Enum.GetValues<ToolRailPage>()
-            .Where(page => EditMeshLayoutContracts.DefaultToolForRailPage(page) is null)
+            .Where(page => !EditMeshLayoutContracts.RailPageIsModal(page))
             .ToArray();
         var modalPages = Enum.GetValues<ToolRailPage>()
-            .Where(page => EditMeshLayoutContracts.DefaultToolForRailPage(page) is not null)
+            .Where(EditMeshLayoutContracts.RailPageIsModal)
             .ToArray();
         Require(
             commandPages.Length == 3 && modalPages.Length == 3,
             "The split between modal tool pages and command pages changed.");
         Require(
+            EditMeshLayoutContracts.RailCommandPageOrder.SequenceEqual(
+                new[] { ToolRailPage.Topology, ToolRailPage.Colour, ToolRailPage.MorphRefit }),
+            "The rail's command-page entries changed.");
+        Require(
             commandPages.Contains(ToolRailPage.Topology)
                 && commandPages.Contains(ToolRailPage.Colour)
                 && commandPages.Contains(ToolRailPage.MorphRefit),
-            "A command page started arming a tool, so orbit would now close it.");
+            "A command page became modal, so orbit would now close it.");
+        Require(
+            EditMeshLayoutContracts.RailToolOrder
+                .Select(tool => EditMeshLayoutContracts.ToolRailPageForTool(tool))
+                .All(page => page is not null && !commandPages.Contains(page.Value)),
+            "A rail tool resolved to a command page.");
+
+        // The built rail must match the executed contract inventories.
+        EditMeshLayoutContracts.RequireCompleteRail(
+            EditMeshLayoutContracts.RailToolOrder,
+            EditMeshLayoutContracts.RailCommandPageOrder);
 
         // Rebinding: every accepted modifier resolves to itself, anything else
         // falls back, and the default pair does not collide.
@@ -343,12 +383,16 @@ internal static class EditMeshLayoutSmoke
         {
             ["ok"] = true,
             ["tool_rail_default"] = true,
-            ["round_trip_layout"] = "classic",
+            ["tool_rail_only_layout"] = true,
+            ["round_trip_layout"] = "placement",
             ["same_control_instances"] = true,
             ["same_viewport_instance"] = true,
             ["same_viewport_handle"] = true,
             ["stable_viewport_parent"] = true,
             ["pages_visited"] = pagesVisited,
+            ["rail_tool_count"] = EditMeshLayoutContracts.RailToolOrder.Length,
+            ["rail_command_page_count"] = EditMeshLayoutContracts.RailCommandPageOrder.Length,
+            ["rail_tools"] = EditMeshLayoutContracts.RailToolOrder,
             ["opening_page"] = openingPage?.ToString() ?? "none",
             ["opening_tool"] = "orbit",
             ["camera_orbit_modifier_default"] = CameraModifierBindings.DefaultOrbit,
@@ -415,13 +459,6 @@ internal static class EditMeshLayoutSmoke
         stack.RowCount = row + 1;
         stack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         EditMeshLayoutContracts.MoveControl(control, stack, 0, row, DockStyle.Top);
-    }
-
-    private static void ResetStack(TableLayoutPanel stack)
-    {
-        stack.Controls.Clear();
-        stack.RowStyles.Clear();
-        stack.RowCount = 0;
     }
 
     private static void Require(bool condition, string message)

@@ -1,9 +1,10 @@
 namespace Cdmw.MeshEditorExperiment;
 
 /// <summary>
-/// The modal tools, one rail button each. Only these swap with the rail — the
+/// The tool-property pages, one per tool family or command group. The rail
+/// itself lists individual tools, several of which share a page — the
 /// scene groups (Parts, Action History, Viewport) are not modal and live
-/// permanently in the right inspector. Declaration order is rail order.
+/// permanently in the right inspector.
 /// </summary>
 internal enum ToolRailPage
 {
@@ -18,17 +19,41 @@ internal enum ToolRailPage
 internal static class EditMeshLayoutContracts
 {
     /// <summary>
-    /// The tool a rail page puts the viewport into. Topology, Colour and
-    /// Morph &amp; Refit are command pages rather than modal tools, so they leave
-    /// the active tool alone and return null.
+    /// Every armable tool, in rail order. Each is its own rail button and
+    /// clicking one arms exactly that tool — nothing else in the rail arms
+    /// anything.
     /// </summary>
-    public static string? DefaultToolForRailPage(ToolRailPage page) => page switch
+    public static readonly string[] RailToolOrder =
     {
-        ToolRailPage.Selection => "select",
-        ToolRailPage.Transform => "move",
-        ToolRailPage.Brush => "smooth",
-        _ => null,
+        "select",
+        "move",
+        "grab",
+        "smooth",
+        "inflate",
+        "pinch",
     };
+
+    /// <summary>
+    /// The command pages that keep a rail entry of their own, in rail order.
+    /// Their entries only reveal the page: Topology, Colour and Morph &amp; Refit
+    /// hold one-shot commands and settings, not modal tools, so revealing one
+    /// leaves the active tool alone.
+    /// </summary>
+    public static readonly ToolRailPage[] RailCommandPageOrder =
+    {
+        ToolRailPage.Topology,
+        ToolRailPage.Colour,
+        ToolRailPage.MorphRefit,
+    };
+
+    /// <summary>
+    /// True for a page that owns modal tools. Only a modal page follows the
+    /// active tool — and only a modal page may be closed because the tool
+    /// dropped back to orbit. Command pages sit on orbit the whole time they
+    /// are open, so the tool says nothing about whether to close them.
+    /// </summary>
+    public static bool RailPageIsModal(ToolRailPage page) =>
+        page is ToolRailPage.Selection or ToolRailPage.Transform or ToolRailPage.Brush;
 
     public static bool RailPageOwnsTool(ToolRailPage page, string? tool)
     {
@@ -46,11 +71,10 @@ internal static class EditMeshLayoutContracts
     /// The page that owns a tool, or null when no page does.
     /// </summary>
     /// <remarks>
-    /// Edit Mesh opens on <c>orbit</c>, and the camera is not a rail page: it is
+    /// Edit Mesh opens on <c>orbit</c>, and the camera is not a rail entry: it is
     /// always available through the modifiers named on the navigation strip. So
     /// orbit — and any tool the rail has not been taught — selects no page at
-    /// all. Returning a page here instead is what used to arm Select on entry,
-    /// because the rail asserts the selected page's own default tool.
+    /// all, and the rail opens with nothing highlighted and nothing armed.
     /// </remarks>
     public static ToolRailPage? ToolRailPageForTool(string? tool) =>
         (tool ?? string.Empty).Trim().ToLowerInvariant() switch
@@ -60,6 +84,30 @@ internal static class EditMeshLayoutContracts
             "smooth" or "inflate" or "pinch" => ToolRailPage.Brush,
             _ => null,
         };
+
+    /// <summary>
+    /// Fails construction when the built rail disagrees with the contract's
+    /// tool and command-page inventories. The rail is built from literals so
+    /// each caption stays a translatable callsite, and this is what keeps
+    /// those literals from drifting away from the executed contract.
+    /// </summary>
+    public static void RequireCompleteRail(
+        IReadOnlyCollection<string> builtTools,
+        IReadOnlyCollection<ToolRailPage> builtCommandPages)
+    {
+        ArgumentNullException.ThrowIfNull(builtTools);
+        ArgumentNullException.ThrowIfNull(builtCommandPages);
+        if (!RailToolOrder.SequenceEqual(builtTools, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "The Edit Mesh rail's tool buttons do not match the contract's tool inventory.");
+        }
+        if (!RailCommandPageOrder.SequenceEqual(builtCommandPages))
+        {
+            throw new InvalidOperationException(
+                "The Edit Mesh rail's command-page buttons do not match the contract's page inventory.");
+        }
+    }
 
     public static int MorphColumnsForLogicalWidth(int logicalWidth)
     {
