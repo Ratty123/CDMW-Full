@@ -19,27 +19,31 @@ from typing import Mapping, Optional, Sequence, Tuple
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = REPO_ROOT / "schemas" / "archive_content_capabilities.v1.json"
 
-#: Where a format is edited. Keyed by extension; the manifest deliberately does not
-#: carry this, because it is a property of the app rather than of the format.
+#: Where a format is edited, as a path a person can follow: every segment is the
+#: label the interface actually draws — a tab name, or a context-menu action under
+#: Archive Browser. Keyed by extension; the manifest deliberately does not carry
+#: this, because it is a property of the app rather than of the format.
+#: `tests/test_format_explorer.py` checks each segment against the shell sources,
+#: so renaming a tab or an action breaks a test instead of leaving a stale path.
 TOOLS: Mapping[str, str] = {
-    ".paloc": "Translation Studio",
-    ".dds": "Texture Workflow",
-    ".png": "Texture Workflow",
-    ".pac": "Mesh Editor",
-    ".pam": "Mesh Editor",
-    ".pamlod": "Mesh Editor",
-    ".pac_xml": "Material sidecar editor",
-    ".pam_xml": "Material sidecar editor",
-    ".pamlod_xml": "Material sidecar editor",
-    ".pami": "Material sidecar editor",
-    ".prefab": "Prefab Inspector",
-    ".hkx": "HKX editor",
-    ".hkt": "HKX editor",
+    ".paloc": "Tools > Translation Studio",
+    ".dds": "Textures > Replacer / Editor",
+    ".png": "Textures > Replacer / Editor",
+    ".pac": "Assets > Mesh Editor",
+    ".pam": "Assets > Mesh Editor",
+    ".pamlod": "Assets > Mesh Editor",
+    ".pac_xml": "Archive Browser > Edit Material Values...",
+    ".pam_xml": "Archive Browser > Edit Material Values...",
+    ".pamlod_xml": "Archive Browser > Edit Material Values...",
+    ".pami": "Archive Browser > Edit Material Values...",
+    ".prefab": "Archive Browser > Open Prefab Inspector...",
+    ".hkx": "Archive Browser > Edit HKX...",
+    ".hkt": "Archive Browser > Edit HKX...",
     ".paa": "Placement & Animation Studio",
     ".pab": "Placement & Animation Studio",
     ".paac": "Placement & Animation Studio",
-    ".papr": "Placement Studio - Driven bones",
-    ".wem": "Archive Browser (audio replace)",
+    ".papr": "Placement & Animation Studio > Driven bones",
+    ".wem": "Archive Browser > Import WAV + Patch to Game...",
 }
 
 #: Formats edited as plain text through any editor, once extracted.

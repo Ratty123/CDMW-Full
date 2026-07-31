@@ -5451,7 +5451,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 119,
+          "line": 155,
           "sink": "addItem"
         }
       ]
@@ -9641,7 +9641,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 70,
+          "line": 103,
           "sink": "QLabel"
         }
       ]
@@ -21566,7 +21566,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 114,
+          "line": 150,
           "sink": "setText"
         }
       ]
@@ -30586,7 +30586,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 66,
+          "line": 99,
           "sink": "setPlaceholderText"
         }
       ]
@@ -31716,7 +31716,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 86,
+          "line": 119,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -32531,7 +32531,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 64,
+          "line": 97,
           "sink": "QLabel"
         },
         {
@@ -33841,7 +33841,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 86,
+          "line": 119,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -38976,7 +38976,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 77,
+          "line": 110,
           "sink": "QCheckBox"
         }
       ]
@@ -54626,7 +54626,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 160,
+          "line": 211,
           "sink": "setHtml"
         }
       ]
@@ -55491,7 +55491,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 74,
+          "line": 107,
           "sink": "QCheckBox"
         }
       ]
@@ -65831,7 +65831,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 86,
+          "line": 119,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -87831,7 +87831,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/catalogue.py",
-          "line": 135,
+          "line": 139,
           "sink": "python-return:headline"
         }
       ]
@@ -94741,7 +94741,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 176,
+          "line": 227,
           "sink": "setHtml"
         }
       ]
@@ -94801,7 +94801,7 @@
         },
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 86,
+          "line": 119,
           "sink": "setHorizontalHeaderLabels"
         },
         {
@@ -94846,7 +94846,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 176,
+          "line": 227,
           "sink": "setHtml"
         }
       ]
@@ -95116,7 +95116,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 86,
+          "line": 119,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -95866,7 +95866,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 86,
+          "line": 119,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -103141,7 +103141,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 176,
+          "line": 227,
           "sink": "setHtml"
         }
       ]
@@ -192061,7 +192061,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 136,
+          "line": 172,
           "sink": "setText"
         }
       ]
@@ -193746,7 +193746,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 148,
+          "line": 190,
           "sink": "QTableWidgetItem"
         }
       ]
@@ -193816,7 +193816,7 @@
       "origins": [
         {
           "path": "tools/format_explorer/tab.py",
-          "line": 176,
+          "line": 227,
           "sink": "setHtml"
         }
       ]

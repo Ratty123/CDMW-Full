@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import sys
 import unittest
 
@@ -60,9 +61,10 @@ class RowTests(unittest.TestCase):
 
     def test_known_formats_name_the_tool_that_edits_them(self) -> None:
         by_extension = {row.extension: row for row in self.rows}
-        self.assertEqual(by_extension[".paloc"].tool, "Translation Studio")
-        self.assertEqual(by_extension[".dds"].tool, "Texture Workflow")
-        self.assertEqual(by_extension[".pac"].tool, "Mesh Editor")
+        self.assertEqual(by_extension[".paloc"].tool, "Tools > Translation Studio")
+        self.assertEqual(by_extension[".dds"].tool, "Textures > Replacer / Editor")
+        self.assertEqual(by_extension[".pac"].tool, "Assets > Mesh Editor")
+        self.assertEqual(by_extension[".hkx"].tool, "Archive Browser > Edit HKX...")
 
     def test_an_undecoded_format_offers_no_tool(self) -> None:
         by_extension = {row.extension: row for row in self.rows}
@@ -74,6 +76,34 @@ class RowTests(unittest.TestCase):
         known = {row.extension for row in self.rows}
         for extension in TOOLS:
             self.assertIn(extension, known)
+
+    def test_tool_locations_are_spelled_the_way_the_interface_draws_them(self) -> None:
+        """Every segment of a location is a label the interface actually renders.
+
+        The shell sources own the tab names and the Archive Browser sources own
+        the context-action names. Checking each segment against them means
+        renaming a tab or an action breaks this test instead of leaving the
+        Format Explorer pointing at a surface that no longer exists by that name.
+        """
+
+        shell_sources = "\n".join(
+            (REPO_ROOT / relative).read_text(encoding="utf-8")
+            for relative in (
+                "cdmw/ui/shell/tool_tabs.py",
+                "cdmw/ui/shell/root_layout.py",
+                "cdmw/ui/shell/workspace_layout.py",
+                "cdmw/ui/shell/texture_workspace_layout.py",
+                "cdmw/ui/archive_browser/actions.py",
+                "tools/placement_studio/window.py",
+            )
+        )
+        for extension, location in TOOLS.items():
+            for segment in re.split(r" > | / ", location):
+                self.assertIn(
+                    f'"{segment}"',
+                    shell_sources,
+                    f"{extension}: {segment!r} is not a label the interface draws",
+                )
 
 
 class HeadlineTests(unittest.TestCase):

@@ -7,7 +7,7 @@ question a new modder actually asks -- *can I change this, and with what?* -- ha
 answer short of reading a JSON file in a schemas directory.
 
 The panel defaults to what is useful rather than what is complete: formats the build
-actually ships, most files first. The 64 entries the game does not contain are one
+actually ships, most files first. The entries the game does not contain are one
 checkbox away, not in the way.
 """
 
@@ -32,11 +32,34 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.services.active_ui_translation import (
+    active_ui_localizer,
+    translate_active_ui_text,
+)
+
 from .catalogue import FormatRow, filter_rows, groups, headline, load_rows
 
 _ALL = "All areas"
 _EDITABLE = QColor(58, 74, 42)
 _READ_ONLY = QColor(70, 62, 40)
+
+
+def localized_tool_location(location: str) -> str:
+    """A location, translated the way the interface translates its own labels.
+
+    Each ` > ` segment — and each ` / ` alternative inside one — is a tab label
+    or a context-action name with its own catalog entry, so translating them one
+    by one keeps this column reading exactly like the tabs and menus it points
+    at. The joined path itself is deliberately not a catalog key.
+    """
+
+    return " > ".join(
+        " / ".join(
+            translate_active_ui_text(alternative.strip())
+            for alternative in segment.split(" / ")
+        )
+        for segment in location.split(" > ")
+    )
 
 
 class FormatExplorerTab(QWidget):
@@ -47,7 +70,17 @@ class FormatExplorerTab(QWidget):
         self._rows: tuple[FormatRow, ...] = ()
         self._shown: tuple[FormatRow, ...] = ()
         self._build_ui()
+        # The "Where to edit it" cells are composed of translated label segments
+        # at fill time, so a language switch must refill them; nothing else in
+        # the table re-renders composed text.
+        localizer = active_ui_localizer()
+        signal = getattr(localizer, "language_changed", None)
+        if signal is not None and hasattr(signal, "connect"):
+            signal.connect(self._on_language_changed)
         self.reload()
+
+    def _on_language_changed(self, *_args) -> None:
+        self._refresh()
 
     # ------------------------------------------------------------------ widgets
 
@@ -92,11 +125,14 @@ class FormatExplorerTab(QWidget):
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setWordWrap(False)
         self.table.setAlternatingRowColors(True)
+        self.table.setTextElideMode(Qt.ElideRight)
+        # Interactive with one sizing pass after each fill, not ResizeToContents:
+        # auto mode re-measured four columns on every one of the ~500 setItem
+        # calls a refresh makes, which is what the filter checkboxes' lag was.
         header = self.table.horizontalHeader()
-        for column in (0, 1, 3, 4):
-            header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
+        for column in (0, 1, 3, 4, 5):
+            header.setSectionResizeMode(column, QHeaderView.Interactive)
         header.setSectionResizeMode(2, QHeaderView.Stretch)
-        header.setSectionResizeMode(5, QHeaderView.Stretch)
         self.table.itemSelectionChanged.connect(self._on_selected)
         outer.addWidget(self.table, 3)
 
@@ -134,24 +170,39 @@ class FormatExplorerTab(QWidget):
         )
         self._shown = rows
         self.count_label.setText(f"{len(rows)} format(s)")
-        self.table.setRowCount(len(rows))
-        for index, row in enumerate(rows):
-            extension = QTableWidgetItem(row.extension)
-            if row.moddable:
-                extension.setBackground(_EDITABLE)
-            elif row.shipped and row.decode != "none":
-                extension.setBackground(_READ_ONLY)
-            self.table.setItem(index, 0, extension)
-            files = QTableWidgetItem(f"{row.files:,}" if row.files else "—")
-            files.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self.table.setItem(index, 1, files)
-            self.table.setItem(index, 2, QTableWidgetItem(
-                f"{row.role} · {row.group.replace('_', ' ')}"))
-            self.table.setItem(index, 3, QTableWidgetItem(row.read_label))
-            self.table.setItem(index, 4, QTableWidgetItem(row.write_label))
-            self.table.setItem(index, 5, QTableWidgetItem(row.tool))
+        # One repaint and one selection change per refresh. Filling item by item
+        # with updates live repainted per cell, and every row the shrinking
+        # selection crossed re-rendered the detail pane on the way.
+        self.table.setUpdatesEnabled(False)
+        self.table.blockSignals(True)
+        try:
+            self.table.setRowCount(len(rows))
+            for index, row in enumerate(rows):
+                extension = QTableWidgetItem(row.extension)
+                if row.moddable:
+                    extension.setBackground(_EDITABLE)
+                elif row.shipped and row.decode != "none":
+                    extension.setBackground(_READ_ONLY)
+                self.table.setItem(index, 0, extension)
+                files = QTableWidgetItem(f"{row.files:,}" if row.files else "—")
+                files.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.table.setItem(index, 1, files)
+                self.table.setItem(index, 2, QTableWidgetItem(
+                    f"{row.role} · {row.group.replace('_', ' ')}"))
+                self.table.setItem(index, 3, QTableWidgetItem(row.read_label))
+                self.table.setItem(index, 4, QTableWidgetItem(row.write_label))
+                location = localized_tool_location(row.tool)
+                where = QTableWidgetItem(location)
+                where.setToolTip(location)
+                self.table.setItem(index, 5, where)
+            if rows:
+                self.table.selectRow(0)
+            for column in (0, 1, 3, 4, 5):
+                self.table.resizeColumnToContents(column)
+        finally:
+            self.table.blockSignals(False)
+            self.table.setUpdatesEnabled(True)
         if rows:
-            self.table.selectRow(0)
             # Refresh the detail directly rather than relying on the selection signal:
             # when row 0 was already selected before the filter changed, Qt emits
             # nothing and the pane would keep describing the previous format.
@@ -176,7 +227,7 @@ class FormatExplorerTab(QWidget):
         self.detail.setHtml(
             f"<h3>{row.extension} &mdash; {row.read_label.lower()}, {row.write_label.lower()}</h3>"
             f"<p><b>{row.files:,}</b> file(s) in the shipped build &middot; "
-            f"{row.origin} format &middot; edited in: <b>{row.tool}</b></p>"
+            f"{row.origin} format &middot; edited in: <b>{localized_tool_location(row.tool)}</b></p>"
             f"<p><b>What this rests on:</b> {row.evidence}</p>"
             f"<p><b>What is left:</b> {remaining}</p>"
         )
