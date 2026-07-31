@@ -157,30 +157,27 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_header = QVBoxLayout()
     preview_header.setContentsMargins(0, 0, 0, 0)
     preview_header.setSpacing(3)
-    preview_action_row = QHBoxLayout()
-    preview_action_row.setContentsMargins(0, 0, 0, 0)
-    preview_action_row.setSpacing(5)
+    # No title row: "Live Alignment Preview" and its whole-width line bought
+    # nothing but height, and the two action buttons that shared it now live in
+    # the legacy controls row — which Edit Mesh already hides, so Clear
+    # Selection and Generate Icon no longer float in the editor's top corner.
     legacy_preview_controls_widget, preview_controls_row, legacy_preview_camera_widget, preview_camera_row = _legacy_preview_rows(QWidget, QHBoxLayout, preview_panel)
     alignment_preview_control_text = _alignment_preview_control_text_helper()
     alignment_preview_render_control_text = _alignment_preview_render_control_text_helper()
     alignment_preview_default_help = _alignment_preview_help_presentation_helper(d3d11_active=False)
-    preview_title_label = QLabel(alignment_preview_control_text["title"])
-    preview_title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-    preview_action_row.addWidget(preview_title_label, 1)
     clear_alignment_selection_button = QPushButton(alignment_preview_control_text["clear_selection"])
     clear_alignment_selection_button.setObjectName("MeshAlignmentGlobalClearSelectionButton")
     clear_alignment_selection_button.setToolTip(alignment_preview_control_text["clear_selection_tooltip"])
     clear_alignment_selection_button.setMinimumWidth(0)
     clear_alignment_selection_button.setMaximumWidth(128)
-    preview_action_row.addWidget(clear_alignment_selection_button)
+    preview_controls_row.addWidget(clear_alignment_selection_button)
     custom_icon_control_text = _custom_item_icon_control_text_helper()
     generate_alignment_icon_button = QPushButton(custom_icon_control_text["generate_preview_button"])
     generate_alignment_icon_button.setObjectName("MeshAlignmentGenerateIconFromPreviewButton")
     generate_alignment_icon_button.setToolTip(custom_icon_control_text["generate_preview_tooltip"])
     generate_alignment_icon_button.setMinimumWidth(0)
     generate_alignment_icon_button.setMaximumWidth(128)
-    preview_action_row.addWidget(generate_alignment_icon_button)
-    preview_header.addLayout(preview_action_row)
+    preview_controls_row.addWidget(generate_alignment_icon_button)
     alignment_d3d11_available = True
     preview_renderer_combo = QComboBox()
     _populate_combo_options_helper(preview_renderer_combo, PREVIEW_RENDERER_OPTIONS)
@@ -558,10 +555,6 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
             pass
 
     alignment_d3d11_preview_host.native_event_received.connect(_remember_alignment_d3d11_split_ratio)
-    alignment_d3d11_preview_legend_label = QLabel(alignment_preview_control_text["d3d11_legend"])
-    alignment_d3d11_preview_legend_label.setObjectName("HintLabel")
-    alignment_d3d11_preview_legend_label.setWordWrap(False)
-    alignment_d3d11_preview_legend_label.setToolTip(alignment_preview_control_text["d3d11_legend_tooltip"])
     alignment_d3d11_preview_status_label = QLabel(alignment_preview_control_text["d3d11_waiting_status"])
     alignment_d3d11_preview_status_label.setObjectName("HintLabel")
     alignment_d3d11_preview_status_label.setAlignment(Qt.AlignCenter)
@@ -583,7 +576,9 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     alignment_d3d11_status_row.addWidget(alignment_d3d11_loading_spinner_label)
     alignment_d3d11_status_row.addWidget(alignment_d3d11_preview_status_label)
     alignment_d3d11_status_row.addStretch(1)
-    alignment_d3d11_preview_layout.addWidget(alignment_d3d11_preview_legend_label)
+    # The one-line gesture legend that used to sit here spent a row of the
+    # editor's height restating what the tooltip and the navigation strip
+    # already say; the viewport gets that height instead.
     alignment_d3d11_preview_layout.addWidget(alignment_d3d11_preview_host, 1)
     alignment_d3d11_preview_layout.addLayout(alignment_d3d11_status_row)
     alignment_d3d11_status_timer = QTimer(dialog)
