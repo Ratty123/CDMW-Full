@@ -87,7 +87,6 @@ from cdmw.ui.archive_browser.source_picker_dialog import ArchiveSourcePickerDial
 from cdmw.ui.archive_browser.static_replacement_dialog import ArchiveStaticReplacementDialogMixin
 from cdmw.ui.archive_browser.ui_formatting import ArchiveUiFormattingMixin
 from cdmw.ui.archive_browser.virtual_path_lookup import ArchiveVirtualPathLookupMixin
-from cdmw.ui.archive_browser.weapon_placement_studio import ArchiveWeaponPlacementStudioMixin
 from cdmw.ui.archive_browser.workers import ArchivePreviewWorkerMixin, ArchiveWorkerLifecycleMixin
 from cdmw.ui.mesh_editor.shell_bridge import MeshEditorShellBridgeMixin
 from cdmw.ui.shell.about_controller import AboutControllerMixin
@@ -239,7 +238,6 @@ ARCHIVE_FEATURE_PROVIDERS = (
     ArchiveAttachmentSocketEditorMixin,
     ArchiveAttachmentVisualDialogMixin,
     ArchiveAttachmentVisualPayloadMixin,
-    ArchiveWeaponPlacementStudioMixin,
     ArchiveAssetFamilyReferenceMixin,
     ArchiveAssetFamilyDialogMixin,
     ArchiveAssetFamilyPanelMixin,
