@@ -73,6 +73,10 @@ def test_every_visible_dotnet_setting_has_transport_parser_and_runtime_consumer(
         # Keys test.
         "camera_orbit_modifier": ("CameraOrbitModifier", "IsOrbitOverrideGesture"),
         "camera_pan_modifier": ("CameraPanModifier", "IsPanGesture"),
+        # The two drag-button bindings route through the same two gesture tests,
+        # which is what lets a middle-drag or right-drag orbit instead of pan.
+        "camera_middle_drag": ("CameraMiddleDrag", "IsPanGesture"),
+        "camera_right_drag": ("CameraRightDrag", "IsOrbitOverrideGesture"),
         "gizmo_x_axis_color": ("XAxis",),
         "gizmo_y_axis_color": ("YAxis",),
         "gizmo_z_axis_color": ("ZAxis",),

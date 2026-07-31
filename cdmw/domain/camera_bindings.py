@@ -28,7 +28,23 @@ CAMERA_MODIFIER_CHOICES: Final[tuple[tuple[str, str], ...]] = (
     (SHIFT, "Shift"),
 )
 
+# What dragging with the middle button (the scroll wheel, held down) or the
+# right button does. Unlike the modifiers above these cannot collide with
+# anything: each is its own physical button, and pan and orbit both stay
+# reachable through the left button's modifiers whatever is chosen here.
+DRAG_PAN: Final = "pan"
+DRAG_ORBIT: Final = "orbit"
+
+DEFAULT_MIDDLE_DRAG: Final = DRAG_PAN
+DEFAULT_RIGHT_DRAG: Final = DRAG_PAN
+
+CAMERA_DRAG_CHOICES: Final[tuple[tuple[str, str], ...]] = (
+    (DRAG_PAN, "Pan"),
+    (DRAG_ORBIT, "Orbit"),
+)
+
 _VALUES: Final[frozenset[str]] = frozenset(value for value, _ in CAMERA_MODIFIER_CHOICES)
+_DRAG_VALUES: Final[frozenset[str]] = frozenset(value for value, _ in CAMERA_DRAG_CHOICES)
 
 # The physical keys each binding claims. Overlap is what makes a pair unusable:
 # the viewport tests pan before orbit, so a shared key would silently pan and
@@ -48,6 +64,22 @@ def normalize_camera_modifier(value: object, fallback: str) -> str:
     if text in _VALUES:
         return text
     return fallback if fallback in _VALUES else DEFAULT_ORBIT
+
+
+def normalize_camera_drag(value: object, fallback: str) -> str:
+    """Coerce a stored or wire value to a legal drag-button binding."""
+
+    text = str(value or "").strip().lower()
+    if text in _DRAG_VALUES:
+        return text
+    return fallback if fallback in _DRAG_VALUES else DRAG_PAN
+
+
+def camera_drag_label(value: str) -> str:
+    for candidate, label in CAMERA_DRAG_CHOICES:
+        if candidate == value:
+            return label
+    return camera_drag_label(DRAG_PAN)
 
 
 def camera_modifier_label(value: str) -> str:

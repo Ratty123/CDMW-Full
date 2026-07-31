@@ -27,7 +27,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage
 
 from cdmw.core.dds_native import dds_native_report_dict, dds_source_path_from_report, inspect_dds_native_path
-from cdmw.domain.camera_bindings import resolve_camera_bindings
+from cdmw.domain.camera_bindings import (
+    DEFAULT_MIDDLE_DRAG,
+    DEFAULT_RIGHT_DRAG,
+    normalize_camera_drag,
+    resolve_camera_bindings,
+)
 from cdmw.core.atomic_file import atomic_write_text
 from cdmw.core.model_preview_orientation import resolve_preview_texture_flip_vertical
 from cdmw.core.texture_native import read_native_texture_report_sidecar
@@ -1496,6 +1501,12 @@ def write_isolated_d3d11_preview_package(
         "invert_pan_y": bool(getattr(settings, "invert_pan_y", False)),
         "camera_orbit_modifier": camera_orbit_modifier,
         "camera_pan_modifier": camera_pan_modifier,
+        "camera_middle_drag": normalize_camera_drag(
+            getattr(settings, "camera_middle_drag", None), DEFAULT_MIDDLE_DRAG
+        ),
+        "camera_right_drag": normalize_camera_drag(
+            getattr(settings, "camera_right_drag", None), DEFAULT_RIGHT_DRAG
+        ),
         "use_textures": bool(use_textures),
         "high_quality_textures": bool(high_quality_textures),
         "texture_manifest": {

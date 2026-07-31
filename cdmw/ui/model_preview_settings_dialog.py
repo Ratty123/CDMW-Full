@@ -47,8 +47,10 @@ from cdmw.models import (
     clamp_model_preview_render_settings,
 )
 from cdmw.domain.camera_bindings import (
+    CAMERA_DRAG_CHOICES,
     CAMERA_MODIFIER_CHOICES,
     camera_modifier_label,
+    normalize_camera_drag,
     normalize_camera_modifier,
     resolve_camera_bindings,
 )
@@ -609,10 +611,23 @@ class ModelPreviewSettingsDialog(QDialog):
             "Hold this while left-dragging to orbit without leaving the active Select, Move, or Brush tool."
         )
         self.camera_pan_modifier_combo.setToolTip(
-            "Hold this while left-dragging to pan without leaving the active tool. Middle-drag and right-drag always pan and are not rebindable."
+            "Hold this while left-dragging to pan without leaving the active tool."
         )
         controls_form.addRow("Orbit modifier", self.camera_orbit_modifier_combo)
         controls_form.addRow("Pan modifier", self.camera_pan_modifier_combo)
+        self.camera_middle_drag_combo = QComboBox()
+        self.camera_right_drag_combo = QComboBox()
+        for combo in (self.camera_middle_drag_combo, self.camera_right_drag_combo):
+            for value, label in CAMERA_DRAG_CHOICES:
+                combo.addItem(label, value)
+        self.camera_middle_drag_combo.setToolTip(
+            "What dragging with the scroll wheel held down does. Pan and orbit stay reachable through the left button's modifiers either way."
+        )
+        self.camera_right_drag_combo.setToolTip(
+            "What dragging with the right mouse button does. Pan and orbit stay reachable through the left button's modifiers either way."
+        )
+        controls_form.addRow("Middle-drag (wheel held)", self.camera_middle_drag_combo)
+        controls_form.addRow("Right-drag", self.camera_right_drag_combo)
         controls_layout.addLayout(controls_form)
         self.inversion_hint_label = QLabel(
             "Invert orbit X reverses horizontal orbit: dragging left/right spins around the model in the opposite direction. Invert orbit Y reverses vertical orbit. Pan inversion reverses screen-space panning and never edits the asset."
@@ -749,6 +764,8 @@ class ModelPreviewSettingsDialog(QDialog):
             self.d3d11_texture_address_mode_combo,
             self.camera_orbit_modifier_combo,
             self.camera_pan_modifier_combo,
+            self.camera_middle_drag_combo,
+            self.camera_right_drag_combo,
         ):
             combo.currentIndexChanged.connect(self._emit_settings_changed)
         self.texture_probe_source_combo.currentIndexChanged.connect(self._handle_texture_probe_source_changed)
@@ -904,6 +921,12 @@ class ModelPreviewSettingsDialog(QDialog):
             self.camera_orbit_modifier_combo.currentData(),
             self.camera_pan_modifier_combo.currentData(),
         )
+        current.camera_middle_drag = normalize_camera_drag(
+            self.camera_middle_drag_combo.currentData(), "pan"
+        )
+        current.camera_right_drag = normalize_camera_drag(
+            self.camera_right_drag_combo.currentData(), "pan"
+        )
         current.invert_orbit_x = self.invert_orbit_x_checkbox.isChecked()
         current.invert_orbit_y = self.invert_orbit_y_checkbox.isChecked()
         current.invert_pan_x = self.invert_pan_x_checkbox.isChecked()
@@ -983,6 +1006,14 @@ class ModelPreviewSettingsDialog(QDialog):
             )
             self._select_combo_value(self.camera_orbit_modifier_combo, orbit_modifier)
             self._select_combo_value(self.camera_pan_modifier_combo, pan_modifier)
+            self._select_combo_value(
+                self.camera_middle_drag_combo,
+                normalize_camera_drag(clamped.camera_middle_drag, "pan"),
+            )
+            self._select_combo_value(
+                self.camera_right_drag_combo,
+                normalize_camera_drag(clamped.camera_right_drag, "pan"),
+            )
             self.invert_orbit_x_checkbox.setChecked(clamped.invert_orbit_x)
             self.invert_orbit_y_checkbox.setChecked(clamped.invert_orbit_y)
             self.invert_pan_x_checkbox.setChecked(clamped.invert_pan_x)
@@ -1225,6 +1256,8 @@ class ModelPreviewSettingsDialog(QDialog):
             return
         defaults.camera_orbit_modifier = current.camera_orbit_modifier
         defaults.camera_pan_modifier = current.camera_pan_modifier
+        defaults.camera_middle_drag = current.camera_middle_drag
+        defaults.camera_right_drag = current.camera_right_drag
         defaults.invert_orbit_x = current.invert_orbit_x
         defaults.invert_orbit_y = current.invert_orbit_y
         defaults.invert_pan_x = current.invert_pan_x

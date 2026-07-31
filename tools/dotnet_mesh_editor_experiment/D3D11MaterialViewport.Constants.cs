@@ -85,6 +85,10 @@ internal sealed record D3D11PresentationSettings
     // CameraModifierBindings, which is the only thing that should read them.
     public string CameraOrbitModifier { get; init; } = CameraModifierBindings.DefaultOrbit;
     public string CameraPanModifier { get; init; } = CameraModifierBindings.DefaultPan;
+    // What a middle-button (held scroll wheel) or right-button drag does:
+    // "pan" or "orbit". See CameraModifierBindings.NormalizeDrag.
+    public string CameraMiddleDrag { get; init; } = CameraModifierBindings.DefaultMiddleDrag;
+    public string CameraRightDrag { get; init; } = CameraModifierBindings.DefaultRightDrag;
     public Vector2 UvScale { get; init; } = Vector2.One;
     public Vector2 UvOffset { get; init; }
     public float UvRotationDegrees { get; init; }

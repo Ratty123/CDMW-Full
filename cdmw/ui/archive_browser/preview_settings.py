@@ -11,7 +11,10 @@ from PySide6.QtWidgets import QDialog
 
 from cdmw.services.archive_workflow_service import set_model_texture_display_preview_max_dimension
 from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
-from cdmw.domain.camera_bindings import normalize_camera_modifier
+from cdmw.domain.camera_bindings import (
+    normalize_camera_drag,
+    normalize_camera_modifier,
+)
 from cdmw.models import (
     ArchivePerformanceSettings,
     ModelPreviewRenderSettings,
@@ -310,6 +313,14 @@ class ArchivePreviewSettingsMixin:
                 camera_pan_modifier=normalize_camera_modifier(
                     self.settings.value("preview/camera_pan_modifier", defaults.camera_pan_modifier),
                     defaults.camera_pan_modifier,
+                ),
+                camera_middle_drag=normalize_camera_drag(
+                    self.settings.value("preview/camera_middle_drag", defaults.camera_middle_drag),
+                    defaults.camera_middle_drag,
+                ),
+                camera_right_drag=normalize_camera_drag(
+                    self.settings.value("preview/camera_right_drag", defaults.camera_right_drag),
+                    defaults.camera_right_drag,
                 ),
                 gizmo_x_axis_color=str(
                     self.settings.value("preview/gizmo_x_axis_color", defaults.gizmo_x_axis_color)

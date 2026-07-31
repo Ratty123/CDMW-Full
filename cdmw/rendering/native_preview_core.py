@@ -544,6 +544,8 @@ def render_settings_to_native_preview_core_dict(settings: Optional[ModelPreviewR
         "invert_pan_y",
         "camera_orbit_modifier",
         "camera_pan_modifier",
+        "camera_middle_drag",
+        "camera_right_drag",
         "specular_base",
         "specular_max",
         "shininess_min",

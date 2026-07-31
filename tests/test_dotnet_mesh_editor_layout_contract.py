@@ -455,20 +455,28 @@ def test_edit_tools_show_the_camera_modifiers_that_still_work() -> None:
     assert 'NavigationChip("Zoom", out var zoomBadge)' in strip
     assert 'zoomBadge.Text = "Wheel";' in strip
 
-    # The badge names whatever the modifier is bound to now, one whole literal
-    # per binding so each stays a single translatable phrase.
+    # The badge names whatever the modifier is bound to now — and whichever of
+    # the middle and right drags share the move — one whole literal per
+    # combination so each stays a single translatable phrase.
     update = presentation.split("private void UpdateViewportNavigationStrip(", 1)[1]
     update = update.split("private Control BuildAuthoringStatusFooter", 1)[0]
-    assert "_orbitChipBadge.Text = _viewport.CameraOrbitModifier switch" in update
-    assert "_panChipBadge.Text = _viewport.CameraPanModifier switch" in update
+    assert "_orbitChipBadge.Text = CameraGestureBadgeText(" in update
+    assert "_panChipBadge.Text = CameraGestureBadgeText(" in update
     for literal in (
         '"Alt + left-drag"',
         '"Ctrl + left-drag"',
         '"Shift + left-drag"',
         '"Alt or Ctrl + left-drag"',
         '"Shift + left-drag, or middle / right-drag"',
+        '"Shift + left-drag, or middle-drag"',
+        '"Shift + left-drag, or right-drag"',
     ):
         assert literal in update, literal
+
+    # The drag buttons resolve through their bindings the same way, so a
+    # middle-drag or right-drag can orbit instead of pan.
+    assert "string.Equals(CameraMiddleDrag, CameraModifierBindings.DragPan" in input_source
+    assert "string.Equals(CameraRightDrag, CameraModifierBindings.DragOrbit" in input_source
 
     # A rebind arrives on the presentation payload, and the strip is the only
     # thing that reports it, so applying one has to refresh the strip.
