@@ -502,7 +502,7 @@ class DotNetPreviewSessionController(QObject):
                 and self._localization_initial_established
             ):
                 if not self._request_resident_package_load():
-                    self._activate_prewarm()
+                    self._await_resident_gates_for_package_load()
             elif self._can_send_protocol():
                 self._request_resident_package_load()
             else:
@@ -574,7 +574,7 @@ class DotNetPreviewSessionController(QObject):
                 # the real package arrives reads as a flicker.
                 return
             if not self._request_resident_package_load():
-                self._activate_prewarm()
+                self._await_resident_gates_for_package_load()
         if self._desired_package is None:
             self._set_state("empty", "Select a model to open .NET/Vortice Preview.")
             return
@@ -1288,7 +1288,7 @@ class DotNetPreviewSessionController(QObject):
             self._request_prewarm_capture()
             if self._visible and self._desired_package is not None:
                 if not self._request_resident_package_load():
-                    self._activate_prewarm()
+                    self._await_resident_gates_for_package_load()
             else:
                 self._ready_timer.stop()
                 self._set_state("prewarmed", ".NET/Vortice Preview is ready for a model.")
@@ -1424,26 +1424,20 @@ class DotNetPreviewSessionController(QObject):
             }
         )
 
-    def _activate_prewarm(self) -> bool:
-        package = self._prewarm_package
-        if (
-            not self._visible
-            or package is None
-            or not self._launch_is_prewarm
-            or not self._protocol_ready
-            or not self._session_established
-        ):
-            return False
-        sent = self._send_json(
-            {
-                "event": "activate_request",
-                "material_signature": str(getattr(package, "material_signature", "") or ""),
-            }
-        )
-        if sent:
-            self._ready_timer.start(_READY_TIMEOUT_MS)
-            self._set_state("preparing", ".NET/Vortice Preview is activating the resident rendererâ€¦")
-        return sent
+    def _await_resident_gates_for_package_load(self) -> None:
+        """A real package is wanted but a handshake gate is still down.
+
+        This used to activate the prewarm scene instead, which is what flashed
+        the placeholder triangle at Mesh Editor start: the helper revealed its
+        procedural warm-up model, then replaced it the moment the load request
+        could be sent. Every gate re-runs `_maybe_finish_launch` when it
+        arrives, so the load fires at the first possible moment without
+        showing anything; this only arms the watchdog, so a helper stuck
+        mid-handshake still fails loudly instead of idling hidden.
+        """
+
+        self._ready_timer.start(_READY_TIMEOUT_MS)
+        self._set_state("preparing", ".NET/Vortice Preview is preparing the selected model…")
 
     def _deactivate_for_replacement(self) -> None:
         if self._process is not None and qprocess_is_running(self._process):

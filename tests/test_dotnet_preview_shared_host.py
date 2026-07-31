@@ -1269,3 +1269,37 @@ def test_crash_retry_schedule_and_hidden_pause(tmp_path: Path) -> None:
     controller.set_visible(False)
     assert not controller._retry_timer.isActive()  # noqa: SLF001
     controller.shutdown()
+
+
+def test_a_pending_real_package_never_activates_the_prewarm_placeholder(tmp_path: Path) -> None:
+    """The prewarm scene is a procedural triangle nobody asked to see.
+
+    With a real package desired and a handshake gate still down, the session
+    used to activate the prewarm scene as a fallback — the flash of the
+    placeholder at Mesh Editor start, replaced moments later by the real
+    model. It now waits: every gate re-runs the launch finisher when it
+    arrives, so the load fires at the first possible moment without ever
+    presenting the placeholder.
+    """
+
+    owner = QObject()
+    controller = DotNetPreviewSessionController(host_hwnd=lambda: 0, parent=owner)
+    sent: list[dict] = []
+    controller._send_json = lambda payload: bool(sent.append(dict(payload)) or True)
+    controller._launch_is_prewarm = True
+    controller._visible = True
+    controller._protocol_ready = True
+    controller._session_established = True
+    controller._localization_initial_established = True
+    controller._renderer_ready = False
+    controller._prewarm_package = _package(tmp_path, "warm")
+    controller._desired_package = _package(tmp_path, "real")
+
+    # The helper process is not running, so the package load cannot be
+    # requested yet; the only wrong move is presenting the placeholder.
+    controller._maybe_finish_launch()
+
+    assert all(payload.get("event") != "activate_request" for payload in sent)
+    controller.shutdown()
+    owner.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
