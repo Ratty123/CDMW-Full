@@ -731,7 +731,7 @@ internal sealed partial class ExperimentForm
             // A placement boot reaches this after embedding, so OnShown's pass
             // could not have covered the pages just populated here.
             RealizeControlTree(_toolDock);
-            ShowToolRailPage(_selectedToolRailPage);
+            ShowToolRailPage(_selectedToolRailPage, armDefaultTool: false);
         }
         finally
         {
@@ -1018,20 +1018,19 @@ internal sealed partial class ExperimentForm
     /// <summary>
     /// Reveals one rail page, or none of them when <paramref name="page"/> is
     /// null. No page means no tool is armed and the left button belongs to the
-    /// camera, which is how Edit Mesh opens.
+    /// camera, which is how Edit Mesh opens. armDefaultTool is false when a layout
+    /// re-activation only restores the rail: arming there replaced the live tool
+    /// with the page default, almost always Select.
     /// </summary>
-    private void ShowToolRailPage(ToolRailPage? page)
+    private void ShowToolRailPage(ToolRailPage? page, bool armDefaultTool = true)
     {
         _selectedToolRailPage = page;
         _toolRailPageSelected = true;
         // A rail button that names a tool has to select that tool. Revealing the
         // page alone left the viewport in whatever mode it was already in, so
         // clicking "Select" and then clicking the model did nothing.
-        var defaultTool = page is null
-            ? null
-            : EditMeshLayoutContracts.DefaultToolForRailPage(page.Value);
-        if (defaultTool is not null
-            && page is not null
+        var defaultTool = page is null ? null : EditMeshLayoutContracts.DefaultToolForRailPage(page.Value);
+        if (armDefaultTool && defaultTool is not null && page is not null
             && _meshEditInteractionActive
             && !EditMeshLayoutContracts.RailPageOwnsTool(page.Value, _viewport.ActiveTool))
         {
