@@ -204,13 +204,20 @@ internal sealed partial class ExperimentForm
         if (string.IsNullOrWhiteSpace(_residentMaterialSessionId)
             || _residentProcessGeneration <= 0)
         {
+            // Too early: there is no session to address the request to yet.
+            // Remember the wish instead of dropping it — the host replays it
+            // the moment a session is observed. Dropping it here is what made
+            // an early "Solid (Textured)" pick do nothing until the user
+            // happened to pick another textured mode later.
+            _pendingResidentDisplayMode = mode;
             SyncPreviewModeSelection(
                 string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase)
                     ? "untextured_wire"
                     : "untextured_faces");
-            _statusLabel.Text = "Resident preview is not ready to load textures yet.";
+            _statusLabel.Text = "Textures will load as soon as the resident preview is ready...";
             return;
         }
+        _pendingResidentDisplayMode = string.Empty;
         WriteProtocolEvent("viewport_display_request", new Dictionary<string, object?>
         {
             ["session_id"] = _residentMaterialSessionId,
@@ -220,6 +227,26 @@ internal sealed partial class ExperimentForm
             ["mode"] = mode,
         });
         _statusLabel.Text = "Loading textures in the resident viewport...";
+    }
+
+    /// <summary>
+    /// A textured display mode chosen before any resident session existed.
+    /// Replayed by <see cref="ReplayPendingResidentDisplayRequest"/> when one
+    /// arrives; empty when nothing is owed.
+    /// </summary>
+    private string _pendingResidentDisplayMode = string.Empty;
+
+    private void ReplayPendingResidentDisplayRequest()
+    {
+        if (_pendingResidentDisplayMode.Length == 0
+            || string.IsNullOrWhiteSpace(_residentMaterialSessionId)
+            || _residentProcessGeneration <= 0)
+        {
+            return;
+        }
+        var mode = _pendingResidentDisplayMode;
+        _pendingResidentDisplayMode = string.Empty;
+        RequestResidentViewportDisplay(mode);
     }
 
     private void SyncPreviewModeSelection(string mode)

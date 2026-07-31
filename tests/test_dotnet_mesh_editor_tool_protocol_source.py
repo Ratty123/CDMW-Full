@@ -1005,3 +1005,27 @@ def test_a_resident_package_swap_keeps_the_host_overlay_choice() -> None:
         "_scene.SetPresentationOverlayVisibility(_presentationGridVisible, _presentationGizmoVisible);"
         in replace
     )
+
+
+def test_an_early_textured_display_request_is_replayed_when_the_session_arrives() -> None:
+    """A textured mode picked before any resident session existed used to be
+    dropped on the floor: the combo snapped back to the untextured fallback and
+    nothing ever re-sent the request, so "Solid (Textured)" did nothing until
+    the user happened to pick another textured mode later.
+    """
+    controls = _source("ExperimentForm.Controls.cs")
+    request = controls.split("private void RequestResidentViewportDisplay(", maxsplit=1)[1]
+    request = request.split("private bool HasResidentTextureResources", maxsplit=1)[0]
+    assert "_pendingResidentDisplayMode = mode;" in request
+    assert "_pendingResidentDisplayMode = string.Empty;" in request
+    assert "private void ReplayPendingResidentDisplayRequest()" in controls
+
+    material = _source("ExperimentForm.MaterialProtocol.cs")
+    observe = material.split("private void ObserveResidentSession(", maxsplit=1)[1]
+    observe = observe.split("private bool CanApplyMaterialEditRevision(", maxsplit=1)[0]
+    assert observe.count("ReplayPendingResidentDisplayRequest();") == 3
+
+    package = _source("ExperimentForm.PackageProtocol.cs")
+    establish = package.split("private void EstablishSimplePreviewSession(", maxsplit=1)[1]
+    establish = establish.split("private void HandleResidentPackageLoadRequest(", maxsplit=1)[0]
+    assert "ReplayPendingResidentDisplayRequest();" in establish

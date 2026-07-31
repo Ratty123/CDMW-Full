@@ -5769,7 +5769,7 @@
     "Resident placement bridge is unavailable.": "Yerleşik yerleştirme köprüsü kullanılamıyor.",
     "Resident placement mode transition could not be queued.": "Yerleşik yerleştirme modu geçişi sıraya alınamadı.",
     "Resident presentation updated: {value_0}.": "Yerleşik sunumu güncellendi: {value_0}.",
-    "Resident preview is not ready to load textures yet.": "Yerleşik önizleme henüz dokuları yüklemeye hazır değil.",
+    "Textures will load as soon as the resident preview is ready...": "Dokular, yerleşik önizleme hazır olur olmaz yüklenecek...",
     "Resident scene frame was rejected; the last acknowledged frame remains active: {value_0}": "Yerleşik sahne karesi reddedildi; onaylanan son kare etkin kalır: {value_0}",
     "ResidentViewportNavigationTool": "ResidentViewportNavigationTool",
     "Resize left Edit Mesh tools": "Soldaki yeniden boyutlandır Mesh araçlarını düzenle",

@@ -5769,7 +5769,7 @@
     "Resident placement bridge is unavailable.": "驻留放置桥已启用不可用。",
     "Resident placement mode transition could not be queued.": "驻留放置模式转换无法排队。",
     "Resident presentation updated: {value_0}.": "居民演示更新：{value_0}。",
-    "Resident preview is not ready to load textures yet.": "常驻预览尚未准备好加载纹理。",
+    "Textures will load as soon as the resident preview is ready...": "常驻预览就绪后将立即加载纹理...",
     "Resident scene frame was rejected; the last acknowledged frame remains active: {value_0}": "驻留场景帧被拒绝；最后确认的帧保持活动状态：{value_0}",
     "ResidentViewportNavigationTool": "ResidentViewportNavigationTool",
     "Resize left Edit Mesh tools": "调整左侧大小编辑网格工具",

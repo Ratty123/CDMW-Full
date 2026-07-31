@@ -5769,7 +5769,7 @@
     "Resident placement bridge is unavailable.": "Мост резидентного размещения недоступен.",
     "Resident placement mode transition could not be queued.": "Не удалось поставить в очередь переход в режим постоянного размещения.",
     "Resident presentation updated: {value_0}.": "Обновлена презентация резидента: {value_0}.",
-    "Resident preview is not ready to load textures yet.": "Резидентная предварительная версия еще не готова к загрузке текстур.",
+    "Textures will load as soon as the resident preview is ready...": "Текстуры загрузятся, как только резидентный предпросмотр будет готов...",
     "Resident scene frame was rejected; the last acknowledged frame remains active: {value_0}": "Кадр резидентной сцены отклонен; последний подтвержденный кадр остается активным: {value_0}",
     "ResidentViewportNavigationTool": "ResidentViewportNavigationTool",
     "Resize left Edit Mesh tools": "Изменение размера слева. Инструменты редактирования сетки.",

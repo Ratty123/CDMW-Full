@@ -328,6 +328,8 @@ internal sealed partial class ExperimentForm
             _residentMaterialSessionId = sessionId;
             _residentSessionProvisional = provisional;
             _lastObservedSessionRevision = ProtocolEditRevision(root);
+            // A textured mode picked before this session existed is owed now.
+            ReplayPendingResidentDisplayRequest();
             return;
         }
         if (sessionChanged)
@@ -356,6 +358,7 @@ internal sealed partial class ExperimentForm
                 ["previous_session_id"] = replaced,
                 ["process_generation"] = _residentProcessGeneration,
             });
+            ReplayPendingResidentDisplayRequest();
             return;
         }
         if (!provisional)
@@ -364,6 +367,7 @@ internal sealed partial class ExperimentForm
             _residentSessionProvisional = false;
         }
         _lastObservedSessionRevision = Math.Max(_lastObservedSessionRevision, ProtocolEditRevision(root));
+        ReplayPendingResidentDisplayRequest();
     }
 
     private bool CanApplyMaterialEditRevision(long revision, out string reason)
