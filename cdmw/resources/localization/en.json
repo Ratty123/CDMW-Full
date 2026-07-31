@@ -9506,6 +9506,7 @@
     "{value_0}/{value_1} weighted | {value_2} bones": "{value_0}/{value_1} weighted | {value_2} bones",
     "{value_0}/{value_1} weighted | {value_2} bones | max influences {value_3}": "{value_0}/{value_1} weighted | {value_2} bones | max influences {value_3}",
     "{value_0}/{value_1}/{value_2}.pac": "{value_0}/{value_1}/{value_2}.pac",
+    "{value_0}/{value_1}{value_2}.paloc": "{value_0}/{value_1}{value_2}.paloc",
     "{value_0}:": "{value_0}:",
     "{value_0}: %v / %m": "{value_0}: %v / %m",
     "{value_0}: 0 result(s)": "{value_0}: 0 result(s)",

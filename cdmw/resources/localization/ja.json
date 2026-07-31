@@ -3,6 +3,7 @@
   "language_code": "ja",
   "language_name": "日本語",
   "translations": {
+    "{value_0}/{value_1}{value_2}.paloc": "{value_0}/{value_1}{value_2}.paloc",
     "  (orientation {value_0} -> {value_1}){value_2}": "  (向き {value_0} -> {value_1}){value_2}",
     "  (turned it the right way up)": "  (正しい向きに直しました)",
     "  —  WARNING: it is still aimed by {value_0}, which belongs to the {value_1}, so it will hang at the wrong angle. Select the socket you want and press {value_2}.": "  —  警告: まだ {value_0} によって向きが決まっています（これは {value_1} のものです）。そのため誤った角度でぶら下がります。目的のソケットを選択して {value_2} を押してください。",

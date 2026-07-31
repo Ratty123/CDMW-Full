@@ -3,6 +3,7 @@
   "language_code": "tr",
   "language_name": "Türkçe",
   "translations": {
+    "{value_0}/{value_1}{value_2}.paloc": "{value_0}/{value_1}{value_2}.paloc",
     "  (orientation {value_0} -> {value_1}){value_2}": "  (yönelim {value_0} -> {value_1}){value_2}",
     "  (turned it the right way up)": "  (doğru yöne çevrildi)",
     "  —  WARNING: it is still aimed by {value_0}, which belongs to the {value_1}, so it will hang at the wrong angle. Select the socket you want and press {value_2}.": "  —  UYARI: hâlâ {value_0} tarafından yönlendiriliyor ve bu {value_1} öğesine ait; bu yüzden yanlış açıda asılı duracak. İstediğiniz soketi seçip {value_2} düğmesine basın.",
