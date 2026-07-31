@@ -135,6 +135,19 @@ budget to decide how far up the tiers to go, with these project specifics:
   Modify Original Builder construction gate under **Mesh Editor Suite**.
 - `mesh` and any visual or real-game gate require explicit user authorization.
   A game path already being present is not authorization.
+- **Editing a file that contains a UI string invalidates the localization
+  manifest even when you change no string at all.**
+  `cdmw/resources/localization/source_manifest.json` stores a `path` and `line`
+  per origin, so inserting or deleting a line anywhere above one is enough. A
+  comment, a docstring, or a reformat does it. That covers most of `cdmw/ui/`
+  and the `tools/dotnet_mesh_editor_experiment/*.cs` form files. The release
+  build verifies this before it compiles anything, so a stale manifest is a
+  failed `build.bat` — not a failed test. `scripts/codex_check.ps1 -Area smoke`
+  now covers it, along with the provider manifest, which goes stale the same
+  way whenever a feature-provider mixin's source changes. Regenerate with
+  `scripts\generate_ui_localization_manifest.py --write` and
+  `scripts\generate_window_feature_provider_members.py`, and commit the result
+  as generated output; never hand-edit either file.
 
 ## The release builder
 

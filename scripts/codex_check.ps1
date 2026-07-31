@@ -12,7 +12,15 @@ $Python = if (Test-Path -LiteralPath $VenvPython) { $VenvPython } else { "python
 
 $TestsByArea = @{
     smoke = @(
-        "tests/test_runtime_dependency_smoke.py"
+        "tests/test_runtime_dependency_smoke.py",
+        # Generated-manifest freshness. Both of these are verified by
+        # build_pyside6_app.ps1 before it compiles anything, so a stale one is a
+        # failed release build. The localization manifest stores a line number
+        # per UI string, which means ANY edit that shifts a line in a file
+        # containing one goes stale -- no new string required. That is not
+        # guessable from an area name, so it belongs in the cheapest gate.
+        "tests/test_window_feature_controller.py",
+        "tests/test_localization_catalog_contracts.py"
     )
     stability = @(
         "tests/test_runtime_dependency_smoke.py",
