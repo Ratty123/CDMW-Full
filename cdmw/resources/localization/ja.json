@@ -5769,7 +5769,7 @@
     "Resident placement bridge is unavailable.": "常駐配置ブリッジが利用できません。",
     "Resident placement mode transition could not be queued.": "常駐配置モードの移行をキューに入れることができませんでした。",
     "Resident presentation updated: {value_0}.": "常駐プレゼンテーションが更新されました: {value_0}。",
-    "Resident preview is not ready to load textures yet.": "常駐プレビューはまだテクスチャをロードする準備ができていません。",
+    "Textures will load as soon as the resident preview is ready...": "常駐プレビューの準備ができ次第、テクスチャを読み込みます...",
     "Resident scene frame was rejected; the last acknowledged frame remains active: {value_0}": "常駐シーン フレームが拒否されました。最後に確認されたフレームはアクティブのままです: {value_0}",
     "ResidentViewportNavigationTool": "ResidentViewportNavigationTool",
     "Resize left Edit Mesh tools": "左のサイズ変更 メッシュ編集ツール",

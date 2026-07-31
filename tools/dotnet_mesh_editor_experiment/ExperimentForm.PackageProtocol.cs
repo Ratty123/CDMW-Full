@@ -59,6 +59,7 @@ internal sealed partial class ExperimentForm
         }
         _residentMaterialSessionId = sessionId.Trim();
         _residentProcessGeneration = 1;
+        ReplayPendingResidentDisplayRequest();
     }
 
     private void HandleResidentPackageLoadRequest(JsonElement root)

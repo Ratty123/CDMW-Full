@@ -5769,7 +5769,7 @@
     "Resident placement bridge is unavailable.": "Most umieszczania części rezydenta jest niedostępny.",
     "Resident placement mode transition could not be queued.": "Nie można ustawić w kolejce przejścia do trybu umieszczania rezydentnego.",
     "Resident presentation updated: {value_0}.": "Zaktualizowano prezentację rezydenta: {value_0}.",
-    "Resident preview is not ready to load textures yet.": "Resident Preview nie jest jeszcze gotowy do załadowania tekstur.",
+    "Textures will load as soon as the resident preview is ready...": "Tekstury wczytają się, gdy tylko rezydentny podgląd będzie gotowy...",
     "Resident scene frame was rejected; the last acknowledged frame remains active: {value_0}": "Ramka sceny rezydentnej została odrzucona; ostatnia potwierdzona klatka pozostaje aktywna: {value_0}",
     "ResidentViewportNavigationTool": "ResidentViewportNavigationTool",
     "Resize left Edit Mesh tools": "Zmień rozmiar w lewo Edytuj narzędzia siatki",

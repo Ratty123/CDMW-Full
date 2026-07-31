@@ -5769,7 +5769,7 @@
     "Resident placement bridge is unavailable.": "Le pont de placement des résidents n'est pas disponible.",
     "Resident placement mode transition could not be queued.": "La transition du mode de placement des résidents n'a pas pu être mise en file d'attente.",
     "Resident presentation updated: {value_0}.": "Présentation résident mise à jour : {value_0}.",
-    "Resident preview is not ready to load textures yet.": "L'aperçu résident n'est pas encore prêt à charger les textures.",
+    "Textures will load as soon as the resident preview is ready...": "Les textures se chargeront dès que l'aperçu résident sera prêt...",
     "Resident scene frame was rejected; the last acknowledged frame remains active: {value_0}": "Le cadre de scène du résident a été rejeté ; la dernière image reconnue reste active : {value_0}",
     "ResidentViewportNavigationTool": "ResidentViewportNavigationTool",
     "Resize left Edit Mesh tools": "Redimensionner à gauche les outils Modifier le maillage",
