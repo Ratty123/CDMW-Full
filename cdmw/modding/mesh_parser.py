@@ -90,9 +90,24 @@ PAMLOD_ENTRY_TABLE = 0x50
 #     7,806 vertices, mean distance 0.266 from that bone against 0.847 for the vertices that stay
 #     put; the hand moves 55, all within 0.036
 #
-# Not yet generalised: resolve_pac_bone_palette finds no palette for some non-body PACs (a 1_phm
-# accessory and a 2_mon monster both returned nothing against their own skeletons), so palette
-# recovery, not this decoding, is the remaining gap.
+# Two binding styles use these same fields, and only one needs a palette.
+#
+# Smooth-skinned meshes -- the character bodies -- spread each vertex over one to six influences
+# and carry a bone palette. The body above splits 2145/2869/2851/2284/1830/1761 across influence
+# counts one through six, and its palette resolves to 206 entries.
+#
+# Rigidly bound meshes -- props, accessories, vehicles -- put the whole weight on one influence and
+# leave every slot at zero. Measured on cd_phm_00_bag_0050.pac (31 submeshes, 180,325 vertices) and
+# cd_m0027_00_plundertank_00_0002.pac (9 submeshes, 178,392 vertices): every vertex is a single
+# influence carrying the full 255, and slot 0 is the only slot value that ever appears. Both still
+# satisfy the six-weight layout, summing to 255 on every record.
+#
+# Those files carry no bone hash at all: a whole-file search finds seven scattered coincidences in
+# the accessory and none whatever in the 24 MB monster, so lowering pac_bone_palette_candidates'
+# minimum_entries does not help and was tried down to one. Which bone a rigid mesh follows is
+# therefore not recorded in the PAC, and resolve_pac_bone_palette returning nothing for them is the
+# right answer rather than a failure. Treat an unresolved palette as "rigid, bone named elsewhere"
+# and not as an error; identifying that bone needs the prefab or attachment data outside the mesh.
 PAC_SKIN_INDEX_OFFSET = 20
 PAC_SKIN_SLOT_GROUPS = (20, 24)      # two u32 groups, three 10-bit slots each
 PAC_SKIN_SLOT_BITS = 10
