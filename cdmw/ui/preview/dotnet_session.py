@@ -405,6 +405,21 @@ class DotNetPreviewSessionController(QObject):
         return self._applied_package_path
 
     @property
+    def serving_prewarm_placeholder(self) -> bool:
+        """True while the resident helper holds only the procedural warm-up scene.
+
+        A prewarm launch starts the helper on a package nobody asked to see, so
+        that the process, JIT and D3D device are warm before the first real
+        request. Until a real package has been applied that helper is not a
+        resident scene any caller may present: activating it reveals the
+        placeholder. `_launch_is_prewarm` alone does not answer this, because it
+        is cleared as soon as the renderer reports ready, which can happen before
+        any package load. The prewarm package plus an empty applied path does.
+        """
+
+        return self._prewarm_package is not None and not self._applied_package_path
+
+    @property
     def last_event(self) -> Mapping[str, object]:
         return dict(self._last_event)
 

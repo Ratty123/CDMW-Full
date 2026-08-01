@@ -59,6 +59,7 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.standalone_native_mesh_edit_stroke_id = ""
         self.standalone_live_stroke_dispatcher = None
         self.applied_revisions: list[int] = []
+        self.committed_revisions: list[int] = []
         self.sent_revisions: list[int] = []
         self.sent_request_ids: list[int] = []
         self.command_results: list[tuple[str, str]] = []
@@ -103,6 +104,13 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
 
     def _apply_embedded_native_update(self, update: MeshEditorNativeUpdate) -> bool:
         self.applied_revisions.extend(int(group["revision"]) for group in update.vertex_groups)
+        return True
+
+    def _commit_embedded_edit_result(self, result, *, command_name: str = "", request_payload=None) -> bool:
+        # The builder-side half of a finished edit: without it the preview moves
+        # but the builder's mesh, totals and revision do not.
+        del command_name, request_payload
+        self.committed_revisions.append(int(result.revision))
         return True
 
     @staticmethod

@@ -11,6 +11,7 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_view_modes import (
     normalize_dotnet_preview_view_mode,
 )
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
+    MESH_EDIT_DEFAULT_DISPLAY_MODE,
     MESH_PREVIEW_DEFAULT_DISPLAY_MODE,
     normalize_mesh_preview_display_mode,
 )
@@ -102,6 +103,7 @@ def builder_presentation_state(
     *,
     comparison_mode: object,
     display_mode: object = MESH_PREVIEW_DEFAULT_DISPLAY_MODE,
+    mesh_edit_display_mode: object = "",
     camera: Mapping[str, object] | None,
     render_settings: object,
     grid_visible: bool,
@@ -144,7 +146,20 @@ def builder_presentation_state(
     settings["dotnet_view_mode"] = dotnet_view_mode
     viewport_display_mode = normalize_mesh_preview_display_mode(display_mode)
     if mesh_edit_active:
-        viewport_display_mode = "wire_vertices"
+        # A default, not an override. Edit Mesh opens on Wire + Vertices because
+        # that is what you want to see while editing topology, but this snapshot
+        # is republished after every accepted scene frame -- so hard-coding it
+        # here meant a mode the reader picked inside Edit Mesh survived only
+        # until the next frame happened to land, which read as random.
+        # normalize_mesh_preview_display_mode() answers with the *placement*
+        # default for anything it does not recognise, so an unset slot has to be
+        # tested before normalizing or Edit Mesh would open on Faces + Wire.
+        requested = str(mesh_edit_display_mode or "").strip()
+        viewport_display_mode = (
+            normalize_mesh_preview_display_mode(requested)
+            if requested
+            else MESH_EDIT_DEFAULT_DISPLAY_MODE
+        )
     material_debug_mode = dotnet_preview_material_debug_mode(dotnet_view_mode)
     return {
         "active_view": active_view,

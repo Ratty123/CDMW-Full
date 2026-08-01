@@ -112,6 +112,47 @@ class MeshEditorDotNetLaunchMixin:
             self.status_message_requested.emit("Mesh .NET editor experiment unavailable: no embedded edit session.", True)
             return
         self._start_dotnet_editor_requested(controller, embedded=True)
+
+    def _resident_helper_holds_cached_scene(self) -> bool:
+        """True when the running helper is actually serving this tab's cached scene.
+
+        The reuse fast path writes `activate_request` straight to the helper, and
+        that reveals whatever scene is resident. Deciding the helper "already has
+        this scene" from `standalone_dotnet_experiment_package` alone is not safe:
+        that cache survives `_stop_standalone_dotnet_editor_process` and outlives
+        the dialog that filled it, while the helper running by then can be a
+        freshly prewarmed one holding the procedural placeholder. That pairing is
+        what flashed the warm-up triangle into the pane at Mesh Editor start. Ask
+        the controller that owns the process instead of trusting the cache.
+        """
+
+        controller = self._active_shared_dotnet_controller()
+        if controller is None:
+            return False
+        cached_package_dir = str(
+            getattr(self.standalone_dotnet_experiment_package, "package_dir", "") or ""
+        )
+        if bool(getattr(controller, "serving_prewarm_placeholder", False)):
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_resident_reuse_declined",
+                reason="prewarm_placeholder_resident",
+                cached_package_dir=cached_package_dir,
+            )
+            return False
+        applied_package_dir = str(getattr(controller, "applied_package_path", "") or "")
+        # Only a package known to be different declines. An empty applied path is
+        # not evidence of a mismatch, and treating it as one would rebuild the
+        # package on every ordinary suspend and resume.
+        if applied_package_dir and applied_package_dir != cached_package_dir:
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_resident_reuse_declined",
+                reason="resident_package_differs",
+                cached_package_dir=cached_package_dir,
+                applied_package_dir=applied_package_dir,
+            )
+            return False
+        return True
+
     def _start_dotnet_editor_requested(self, controller: _tab.MeshEditorController, *, embedded: bool) -> None:
         existing_controller = self.standalone_dotnet_target_controller
         self.standalone_dotnet_target_embedded = bool(embedded)
@@ -119,6 +160,17 @@ class MeshEditorDotNetLaunchMixin:
         self.standalone_dotnet_exit_pending = False
         self.standalone_dotnet_deactivate_acknowledged = False
         self.standalone_dotnet_deactivate_timer.stop()
+        if self._standalone_dotnet_package_worker_active():
+            # A package for this request is already being built, so there is
+            # nothing to decide: the worker's own completion loads what was
+            # asked for. This used to be checked only after the resident-reuse
+            # block below, which meant a re-entrant start evaluated reuse against
+            # a scene that was about to be replaced, and released the resident
+            # scene mid-build -- clearing the controller's package, its leases
+            # and the queued updates that the in-flight build then landed on.
+            self._set_dotnet_status("Mesh .NET editor package is already preparing.")
+            return
+        resident_scene_released = False
         if embedded and self._standalone_dotnet_editor_process_running():
             try:
                 same_session = bool(
@@ -134,7 +186,10 @@ class MeshEditorDotNetLaunchMixin:
                     or ""
                 )
                 current_scene_identity = cached_scene_identity
-                same_scene = bool(cached_scene_identity)
+                same_scene = bool(
+                    cached_scene_identity
+                    and self._resident_helper_holds_cached_scene()
+                )
                 current_material_signature = _tab.mesh_dotnet_material_input_signature(
                     controller.working_mesh(clone=False)
                 )
@@ -175,12 +230,14 @@ class MeshEditorDotNetLaunchMixin:
                     )
                     return
                 self._stop_standalone_dotnet_editor_process(embedded_state="failed")
+                resident_scene_released = True
             else:
                 if same_session and (
                     not same_scene or (not same_materials and not resident_materials)
                 ):
                     self.standalone_dotnet_lifecycle_counts["full_reload_count"] += 1
                 self._stop_standalone_dotnet_editor_process()
+                resident_scene_released = True
         executable = self._dotnet_editor_executable_path()
         builder = self.active_builder() if embedded else None
         if builder is not None:
@@ -204,9 +261,19 @@ class MeshEditorDotNetLaunchMixin:
                 self._notify_embedded_dotnet_launch_failed("mesh_dotnet_missing_executable", diagnostics=message)
             return
         if self._standalone_dotnet_package_worker_active():
+            # Not redundant with the check above: releasing the resident scene
+            # runs builder state callbacks, and one of those re-entering here can
+            # start a worker between the two. Without this the outer call would
+            # start a second build and orphan the first.
             self._set_dotnet_status("Mesh .NET editor package is already preparing.")
             return
-        if self._standalone_dotnet_editor_process_running():
+        if self._standalone_dotnet_editor_process_running() and not resident_scene_released:
+            # Releasing the resident scene above is a decision to rebuild, not a
+            # reason to stop: `_stop_standalone_dotnet_editor_process` clears the
+            # controller's package but deliberately leaves the warm process alive,
+            # so the package worker's `load_package` swaps the new scene into it.
+            # Without this the release would strand the request here and the
+            # editor would never open.
             self._set_dotnet_status("Mesh .NET editor experiment is already running.")
             return
         self._start_standalone_dotnet_package_worker(

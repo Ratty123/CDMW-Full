@@ -352,6 +352,24 @@ class _FakeProcess:
         self.deleted = True
 
 
+def _dotnet_test_package(package_dir: Path, **extra: object) -> MeshDotNetExperimentPackage:
+    """The package layout the helper is launched against, with its output dir made."""
+    output_dir = package_dir / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return MeshDotNetExperimentPackage(
+        package_dir=package_dir,
+        mesh_path=package_dir / "mesh.obj",
+        obj_sidecar_path=package_dir / "mesh.obj.meta.json",
+        cdmeta_path=package_dir / "mesh.cdmeta.json",
+        original_asset_hash_path=package_dir / "original_asset_hash.txt",
+        status_path=output_dir / "dotnet_status.json",
+        output_dir=output_dir,
+        edit_operations_path=output_dir / "edit_operations.json",
+        launch_manifest_path=package_dir / "dotnet_launch.json",
+        **extra,
+    )
+
+
 def _install_shared_dotnet_test_process(
     tab: MeshEditorTab,
     process: _FakeProcess,
@@ -3992,6 +4010,163 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertEqual("mesh_edit_dotnet_failed", fallbacks[0][0])
         self.assertIn("exited unexpectedly", fallbacks[0][1])
         self.assertFalse(getattr(builder, "_mesh_editor_embedded_dotnet_active", True))
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_tab_never_reuses_a_helper_still_holding_the_prewarm_scene(self) -> None:
+        """A resident helper is only reusable while it holds the cached scene.
+
+        The reuse fast path decided that from the tab's own cached package, which
+        outlives both the dialog that built it and the helper it described. A
+        prewarmed helper is resident but is serving the procedural placeholder --
+        it exists so the process, JIT and D3D device are warm before the click --
+        so that stale cache made the tab activate the placeholder, and the reveal
+        put the warm-up triangle in the pane at full size until the real model
+        replaced it.
+        """
+
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetPrewarmReuse"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        mesh = builder.controller.working_mesh(clone=False)
+        signature = mesh_dotnet_material_input_signature(mesh)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            executable = root / "cdmw-mesh-dotnet-editor.exe"
+            executable.write_bytes(b"helper")
+            cached_package = _dotnet_test_package(
+                root / "cached",
+                material_signature=signature,
+                scene_frame=SimpleNamespace(source_identity=static_scene_source_identity(mesh, None)),
+            )
+            placeholder_package = _dotnet_test_package(root / "prewarm")
+            process = _FakeProcess(tab)
+            process._state = process.Running
+            tab.standalone_dotnet_target_embedded = True
+            tab.standalone_dotnet_target_controller = builder.controller
+            tab.standalone_dotnet_experiment_package = cached_package
+            tab.standalone_dotnet_material_signature = signature
+            controller = _install_shared_dotnet_test_process(
+                tab,
+                process,
+                capabilities=("resident_material_updates_v2",),
+            )
+            # The running helper is the prewarmed one: launched on the procedural
+            # placeholder, and never handed a real package.
+            controller._prewarm_package = placeholder_package
+            controller._applied_package_path = ""
+            rebuilt: list[bool] = []
+
+            with patch.object(tab, "_dotnet_editor_executable_path", return_value=executable), patch.object(
+                tab,
+                "_start_standalone_dotnet_package_worker",
+                lambda _controller, *, embedded, executable: rebuilt.append(bool(embedded)),
+            ):
+                tab._start_dotnet_editor_requested(builder.controller, embedded=True)
+
+            self.assertFalse(
+                any(b'"event":"activate_request"' in write for write in process.stdin_writes),
+                "a helper still holding the prewarm placeholder must never be activated",
+            )
+            self.assertEqual([True], rebuilt)
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_tab_leaves_an_in_flight_package_build_alone(self) -> None:
+        """A second start while a package is building must decide nothing.
+
+        The resident-reuse block used to run first, so a re-entrant start
+        evaluated reuse against a scene that was about to be replaced anyway and
+        released it mid-build: the controller's package, its leases and the
+        queued updates were cleared underneath the worker that was still running.
+        """
+
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetBuildInFlight"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        mesh = builder.controller.working_mesh(clone=False)
+        signature = mesh_dotnet_material_input_signature(mesh)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cached_package = _dotnet_test_package(
+                Path(temp_dir) / "cached",
+                material_signature=signature,
+                scene_frame=SimpleNamespace(source_identity=static_scene_source_identity(mesh, None)),
+            )
+            process = _FakeProcess(tab)
+            process._state = process.Running
+            tab.standalone_dotnet_target_embedded = True
+            tab.standalone_dotnet_target_controller = builder.controller
+            tab.standalone_dotnet_experiment_package = cached_package
+            tab.standalone_dotnet_material_signature = signature
+            controller = _install_shared_dotnet_test_process(
+                tab,
+                process,
+                capabilities=("resident_material_updates_v2",),
+            )
+            controller._applied_package_path = str(cached_package.package_dir)
+            # A build for this very request is already running.
+            tab.standalone_dotnet_package_worker = object()
+
+            tab._start_dotnet_editor_requested(builder.controller, embedded=True)
+
+            self.assertFalse(
+                any(b'"event":"activate_request"' in write for write in process.stdin_writes),
+                "an in-flight build must not be pre-empted by activating the resident scene",
+            )
+            self.assertEqual(
+                str(cached_package.package_dir),
+                controller.applied_package_path,
+                "the resident scene must survive a start that had nothing to do",
+            )
+            tab.standalone_dotnet_package_worker = None
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_tab_reuses_a_helper_that_holds_the_cached_scene(self) -> None:
+        """The other half of the contract: a real resident scene is still reused.
+
+        Declining the placeholder must not cost the resident architecture its
+        point. A helper that was never prewarmed, holding the package the tab has
+        cached, is activated in place rather than rebuilt.
+        """
+
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetResidentReuse"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        mesh = builder.controller.working_mesh(clone=False)
+        signature = mesh_dotnet_material_input_signature(mesh)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cached_package = _dotnet_test_package(
+                Path(temp_dir) / "cached",
+                material_signature=signature,
+                scene_frame=SimpleNamespace(source_identity=static_scene_source_identity(mesh, None)),
+            )
+            process = _FakeProcess(tab)
+            process._state = process.Running
+            tab.standalone_dotnet_target_embedded = True
+            tab.standalone_dotnet_target_controller = builder.controller
+            tab.standalone_dotnet_experiment_package = cached_package
+            tab.standalone_dotnet_material_signature = signature
+            controller = _install_shared_dotnet_test_process(
+                tab,
+                process,
+                capabilities=("resident_material_updates_v2",),
+            )
+            controller._applied_package_path = str(cached_package.package_dir)
+
+            tab._start_dotnet_editor_requested(builder.controller, embedded=True)
+
+            self.assertTrue(
+                any(b'"event":"activate_request"' in write for write in process.stdin_writes),
+                "a helper holding the cached scene must be reused in place",
+            )
+            self.assertIs(process, tab.standalone_dotnet_editor_process)
         app.processEvents()
         tab.deleteLater()
 

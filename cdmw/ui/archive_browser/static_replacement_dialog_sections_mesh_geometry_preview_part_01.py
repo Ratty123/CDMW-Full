@@ -357,9 +357,48 @@ def _mesh_geometry_preview_step_007(_state):
     _state.compact_selection_mode_combo = None
     _state.compact_selection_depth_combo = None
 
+def _remember_side_by_side_split_ratio(_state, ratio):
+    """Persist the divider the reader dragged between the two role panes."""
+    try:
+        remembered = _state.alignment_d3d11_preview_host.remember_side_by_side_split_ratio(
+            float(ratio)
+        )
+        _state.self.settings.setValue(
+            'ui/mesh_alignment/d3d11_side_by_side_split_ratio',
+            remembered,
+        )
+        return True
+    except (TypeError, ValueError, AttributeError, RuntimeError):
+        return False
+
+
+def _mesh_edit_display_mode_slot():
+    """The display mode the reader last chose inside Edit Mesh, and its setter.
+
+    A second slot beside the placement combo, on purpose: leaving Edit Mesh
+    restores the placement view rather than the edit one. Empty means nothing has
+    been chosen yet, and the presentation snapshot falls back to the Edit Mesh
+    default instead of re-asserting it over a real choice.
+    """
+    remembered = {"value": ""}
+
+    def remember(mode):
+        normalized = normalize_mesh_preview_display_mode(mode)
+        if not normalized:
+            return False
+        remembered["value"] = normalized
+        return True
+
+    return remembered, remember
+
+
 def _bind_embedded_mesh_editor_preview(_state):
     if _state.dialog is None:
         return
+
+    mesh_edit_display_mode, _mesh_editor_remember_mesh_edit_display_mode = (
+        _mesh_edit_display_mode_slot()
+    )
 
     def _mesh_editor_embedded_presentation_state():
         camera_getter = getattr(_state, '_alignment_current_camera_state', None)
@@ -389,6 +428,7 @@ def _bind_embedded_mesh_editor_preview(_state):
         return builder_presentation_state(
             comparison_mode=comparison_mode,
             display_mode=_state.preview_mesh_view_combo.currentData(),
+            mesh_edit_display_mode=mesh_edit_display_mode["value"],
             camera=camera,
             render_settings=settings,
             grid_visible=preview_grid_visible(_state.preview_grid_checkbox),
@@ -406,17 +446,7 @@ def _bind_embedded_mesh_editor_preview(_state):
         )
 
     def _mesh_editor_embedded_split_ratio_changed(ratio):
-        try:
-            remembered = _state.alignment_d3d11_preview_host.remember_side_by_side_split_ratio(
-                float(ratio)
-            )
-            _state.self.settings.setValue(
-                'ui/mesh_alignment/d3d11_side_by_side_split_ratio',
-                remembered,
-            )
-            return True
-        except (TypeError, ValueError, AttributeError, RuntimeError):
-            return False
+        return _remember_side_by_side_split_ratio(_state, ratio)
 
     def _mesh_editor_embedded_reference_native_package() -> str:
         prepared = str(_state.original_reference_texture_preview_state.get('native_package_path', '') or '').strip()
@@ -500,11 +530,14 @@ def _bind_embedded_mesh_editor_preview(_state):
     )
     setattr(_state.dialog, '_mesh_editor_embedded_interaction_mode', lambda: 'mesh_edit' if _state.mesh_edit_enabled_checkbox.isChecked() else 'placement')
     setattr(_state.dialog, '_mesh_editor_embedded_presentation_state', _mesh_editor_embedded_presentation_state)
+    setattr(_state.dialog, '_mesh_editor_remember_mesh_edit_display_mode', _mesh_editor_remember_mesh_edit_display_mode)
     setattr(_state.dialog, '_mesh_editor_embedded_split_ratio_changed', _mesh_editor_embedded_split_ratio_changed)
     setattr(_state.dialog, '_mesh_editor_embedded_apply_native_update', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_apply_native_update)
     setattr(_state.dialog, '_mesh_editor_embedded_finalize_dotnet_import', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_finalize_dotnet_import)
     setattr(_state.dialog, '_mesh_editor_embedded_run_part_action', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_run_part_action)
     setattr(_state.dialog, '_mesh_editor_embedded_set_skeleton_bone', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_set_skeleton_bone)
+    setattr(_state.dialog, '_mesh_editor_dotnet_tool_changed', _state.alignment_mesh_edit_callbacks._mesh_editor_dotnet_tool_changed)
+    setattr(_state.dialog, '_mesh_editor_commit_dotnet_edit_result', _state.alignment_mesh_edit_callbacks._mesh_editor_commit_dotnet_edit_result)
 
 
 def _mesh_geometry_preview_step_008(_state):
@@ -635,6 +668,7 @@ def _mesh_geometry_preview_step_009(_state):
     _state._mesh_edit_selected_scope_source_index = _state.alignment_mesh_edit_callbacks._mesh_edit_selected_scope_source_index
     _state._mesh_edit_selected_source_index = _state.alignment_mesh_edit_callbacks._mesh_edit_selected_source_index
     _state._mesh_edit_selection_changed = _state.alignment_mesh_edit_callbacks._mesh_edit_selection_changed
+    _state._mesh_editor_dotnet_tool_changed = _state.alignment_mesh_edit_callbacks._mesh_editor_dotnet_tool_changed
     _state._mesh_edit_selection_depth_mode = _state.alignment_mesh_edit_callbacks._mesh_edit_selection_depth_mode
     _state._mesh_edit_selection_mode = _state.alignment_mesh_edit_callbacks._mesh_edit_selection_mode
     _state._mesh_edit_set_vertex_selection = _state.alignment_mesh_edit_callbacks._mesh_edit_set_vertex_selection

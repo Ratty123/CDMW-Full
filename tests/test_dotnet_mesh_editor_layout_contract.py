@@ -58,8 +58,11 @@ def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
     assert _section_stack(program, "Brush Tools") == "leftStack"
     assert _section_stack(program, "Topology") == "leftStack"
     assert _section_stack(program, "Action History") == "rightStack"
-    assert _section_stack(program, "Parts") == "rightStack"
     assert _section_stack(program, "Viewport") == "rightStack"
+    # Parts builds through its own owner, which carries the selected-part
+    # detail; it is still constructed into the right placement stack.
+    assert "_partsSection = BuildPartsSection(rightStack, " in program
+    assert _section_stack(_source("ExperimentForm.PartsSection.cs"), "Parts") == "stack"
 
     assert "_leftToolSplit.Panel1Collapsed = true;" in controls
     assert "_rightToolSplit.Panel2Collapsed = true;" in controls
@@ -96,7 +99,14 @@ def test_both_tool_panel_widths_are_resizable_and_persisted() -> None:
     assert "LogicalToolPanelWidth" in controls
 
 
-def test_long_edit_mesh_help_is_available_from_question_mark_tooltips() -> None:
+def test_long_edit_mesh_help_is_available_from_section_tooltips() -> None:
+    """Help hangs off the section, not off a "?" badge.
+
+    The badge was pinned into the caption row, so every section reserved empty
+    height for it even where the caption is blanked — which put a dead band
+    above each tool's first field. The help text is unchanged; only its handle
+    moved onto the section itself.
+    """
     program = _source("Program.cs")
     controls = _source("ExperimentForm.Controls.cs")
     presentation = _source("ExperimentForm.PresentationProtocol.cs")
@@ -106,12 +116,15 @@ def test_long_edit_mesh_help_is_available_from_question_mark_tooltips() -> None:
             rf"AddHelpSection\(\s*\w+,\s*\"{re.escape(title)}\"",
             program,
         )
-    assert 'Text = "?"' in controls
-    assert "Cursors.Help" in controls
+    assert 'Text = "?"' not in controls
+    assert "Cursors.Help" not in controls
+    assert "SetHelpText(group, helpText);" in controls
     assert "_helpToolTip.SetToolTip(marker, helpText);" in controls
-    assert "AccessibleDescription = helpText" in controls
     assert "SetHelpText(" in controls
     assert "_viewportHelpMarker" in controls
+    # A blanked caption reserves no height, which is what the badge's row was.
+    assert "public void FitCaptionHeight()" in controls
+    assert "string.IsNullOrEmpty(base.Text) ? 8" in controls
 
     build_panels = program.split("private (Panel Left, Panel Right) BuildToolPanels()", 1)[1]
     build_panels = build_panels.split("private static Panel CreateToolPanel", 1)[0]
@@ -312,37 +325,48 @@ def test_tool_rail_is_the_only_layout_and_reuses_the_live_editor_controls() -> N
 def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
     layout = _source("ExperimentForm.EditMeshLayouts.cs")
     contracts = _source("EditMeshLayoutContracts.cs")
+    rows = _source("EditMeshToolListContract.cs")
 
-    # One flat list: every armable tool is its own rail button that arms
-    # exactly the tool it names, and the command pages keep one reveal-only
-    # entry each. There are no category buttons.
-    for tool, caption in (
-        ("select", "Select"),
-        ("move", "Move"),
-        ("grab", "Grab"),
-        ("smooth", "Smooth"),
-        ("inflate", "Inflate"),
-        ("pinch", "Pinch"),
+    # One flat list: every armable tool is its own row that arms exactly the
+    # tool it names, and the command pages keep one reveal-only row each. There
+    # are no category rows.
+    tool_list = _source("ExperimentForm.ToolList.cs")
+    for key, const, caption in (
+        ("select", "Select", "Select"),
+        ("move", "Move", "Move"),
+        ("grab", "Grab", "Grab"),
+        ("smooth", "Smooth", "Smooth"),
+        ("inflate", "Inflate", "Inflate"),
+        ("pinch", "Pinch", "Pinch"),
     ):
-        assert f'AddToolRailToolButton(rail, "{tool}", ' in layout
-        assert f'"{caption}"' in layout
-    for page, caption in (
-        ("Topology", "Topo"),
-        ("Colour", "Colour"),
-        ("MorphRefit", "Morph"),
+        assert f'public const string {const} = "{key}";' in rows
+        assert f"new(ToolListRowKind.Tool, Keys.{const}," in rows
+        # The caption is a literal at the callsite that sinks it, so the
+        # localization manifest can key it.
+        assert f'RowKeys.{const} => "{caption}",' in tool_list
+    for page, const, caption in (
+        ("Topology", "Topology", "Topology"),
+        ("Colour", "Colour", "Colour"),
+        ("MorphRefit", "Morph", "Morph & Refit"),
     ):
-        assert f"AddToolRailPageButton(rail, ToolRailPage.{page}, " in layout
-        assert f'"{caption}"' in layout
-    # The built rail is checked against the executed contract inventories.
-    assert "EditMeshLayoutContracts.RequireCompleteRail(" in layout
+        assert f"new(ToolListRowKind.CommandPage, Keys.{const}, ToolRailPage.{page})" in rows
+        assert f'"{caption}"' in tool_list
+    assert rows.count("new(ToolListRowKind.CommandPage") == 3
+    assert rows.count("new(ToolListRowKind.Tool") == 6
+    # The built list is checked against the executed contract inventories, and
+    # those inventories are still the rail's.
+    assert "EditMeshToolListContract.RequireCompleteList(" in _source(
+        "ExperimentForm.ToolList.cs"
+    )
+    assert "EditMeshLayoutContracts.RailToolOrder.SequenceEqual(toolKeys" in rows
     assert "public static readonly string[] RailToolOrder" in contracts
     assert "public static readonly ToolRailPage[] RailCommandPageOrder" in contracts
 
     # Parts, Action History and Viewport are not modal, so hiding them behind
-    # a rail entry would trade a full-height column for a click.
-    assert "ToolRailPage.Parts" not in layout
-    assert "ToolRailPage.History" not in layout
-    assert "ToolRailPage.Viewport" not in layout
+    # a list row would trade a full-height column for a click.
+    for absent in ("ToolRailPage.Parts", "ToolRailPage.History", "ToolRailPage.Viewport"):
+        assert absent not in layout
+        assert absent not in rows
 
     activate = layout.split("private void ActivateToolRailLayout()", 1)[1]
     activate = activate.split("private void RestorePlacementLayoutForNonMeshMode", 1)[0]
@@ -391,14 +415,23 @@ def test_rail_reveals_never_arm_and_only_tool_buttons_arm() -> None:
     assert "ToolRailPage.Camera" not in layout
     assert '"orbit"' not in contracts.split("RailPageOwnsTool", 1)[1].split("ToolRailPageForTool", 1)[0]
 
-    # The camera has no rail button and no tool panel of its own.
-    assert 'AddToolRailToolButton(rail, "orbit"' not in layout
+    rows = _source("EditMeshToolListContract.cs")
+    tool_list = _source("ExperimentForm.ToolList.cs")
+
+    # The camera has no list row and no tool panel of its own.
+    assert '"orbit"' not in rows
     assert "_cameraSection" not in layout
     assert "_cameraSection" not in program
 
-    # A tool button arms exactly the tool it names; a page button only reveals.
-    assert "button.Click += (_, _) => ActivateTool(tool, caption);" in layout
-    assert "button.Click += (_, _) => ShowToolRailPage(page);" in layout
+    # A tool row arms exactly the tool it names; a command row only reveals.
+    # The click also announces the choice, because the host keeps its own notion
+    # of the tool and republishes it on every control refresh -- without the
+    # announcement that refresh takes the reader's tool away again.
+    assert (
+        "button.Click += (_, _) => ActivateTool(row.Key, caption, announce: true);"
+        in tool_list
+    )
+    assert "button.Click += (_, _) => ShowToolRailPage(row.Page);" in tool_list
 
     # Revealing is pure: ShowToolRailPage takes no arming flag and never
     # activates a tool. The old page-default arming seam is gone entirely.
@@ -410,7 +443,14 @@ def test_rail_reveals_never_arm_and_only_tool_buttons_arm() -> None:
     show = show.split("private void RevealToolRailPage", 1)[0]
     assert "ActivateTool(" not in show
     assert "SetButtonAccent(pair.Value, pair.Key == page);" in show
-    assert "? string.Empty" in show
+    # There is no dock header to retitle. The open row is the page's name, so a
+    # header naming a family while a tool was armed cannot come back.
+    assert "_toolRailPanelHeader" not in layout
+    assert "ApplyToolListExpansion(page);" in show
+    # A null page collapses the list back to rows and parks the body host.
+    expand = tool_list.split("private void ApplyToolListExpansion", 1)[1]
+    assert "_toolListBodyHost.Visible = expandedBaseCell is not null;" in expand
+    assert "EditMeshToolListContract.ParkedBodyCell" in expand
 
     # The unopened rail resolves its page from the live tool rather than from a
     # remembered default, and only then marks itself chosen.
@@ -618,8 +658,9 @@ def test_edit_mesh_captions_and_inputs_survive_theming_and_resize() -> None:
     overlay = controls.split("private Control OverlayAppearanceControls()", 1)[1]
     overlay = overlay.split("private Button OverlayColorButton", 1)[0]
     assert 'LabeledControl(\n            "Topology appearance",' not in overlay
-    assert 'LabeledControl("Wire width (px)", _wireOverlayWidth)' in overlay
-    assert 'LabeledControl("Vertex size (px)", _vertexMarkerSize)' in overlay
+    # The two sizes share a row so the camera presets stay above the fold.
+    assert 'LabeledControl("Wire px", _wireOverlayWidth)' in overlay
+    assert 'LabeledControl("Vertex px", _vertexMarkerSize)' in overlay
 
 
 def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:
@@ -699,3 +740,107 @@ def test_deferred_authoring_tool_panels_have_two_build_triggers() -> None:
     # And the result has to stay observable from outside the process.
     assert '["authoring_tool_panels_present"] = _leftToolPanel is not null && _rightToolPanel is not null' in material_protocol
     assert '["lifecycle_counts"] = LifecycleCountsPayload(),' in protocol
+
+
+def test_tool_list_pages_never_repeat_the_row_that_opened_them() -> None:
+    """A page holds settings; the row that opened it holds the tool's name.
+
+    This is the defect the tool list exists to remove. The Brush page carried
+    Smooth / Inflate / Pinch buttons while the rail carried the same three, so
+    arming Inflate on the left lit an Inflate button on the right and the header
+    above it said BRUSH. Transform did the same with Move and Grab, and Selection
+    with Select.
+    """
+    program = _source("Program.cs")
+
+    # Orbit is the one tool that keeps an in-page button: it has no list row,
+    # because the camera is reached through the navigation strip's modifiers.
+    in_page_tools = set(re.findall(r'ToolButton\("[^"]+",\s*"(\w+)"\)', program))
+    assert in_page_tools == {"orbit"}, (
+        "A page mints a tool button for a tool the list already names: "
+        f"{sorted(in_page_tools - {'orbit'})}"
+    )
+
+    # Grow and Shrink are commands, not a second way to arm Select, so the
+    # Selection page keeps them.
+    assert 'CommandButton("Grow", "grow")' in program
+    assert 'CommandButton("Shrink", "shrink")' in program
+
+
+def test_brush_page_previews_the_falloff_it_will_apply() -> None:
+    program = _source("Program.cs")
+    curve = _source("ExperimentForm.FalloffCurve.cs")
+
+    assert "BuildFalloffCurve()" in program
+    # Strength scales the profile and the falloff reshapes it, so both redraw.
+    # Radius does not: the profile is normalised over it.
+    assert "_falloff.SelectedIndexChanged += (_, _) => RefreshFalloffCurve();" in curve
+    assert "_strength.ValueChanged += (_, _) => RefreshFalloffCurve();" in curve
+    assert "_radius.ValueChanged" not in curve
+
+
+def test_falloff_preview_matches_the_native_brush_weight() -> None:
+    """The preview draws what native mesh core applies, or it misreports strokes.
+
+    ``brush_falloff_weight`` in native mesh core is the authority. This guards
+    the C# copy against drifting away from it; the executed values are asserted
+    in the headless layout gate.
+    """
+    profile = _source("BrushFalloffProfile.cs")
+    native = (
+        Path(__file__).resolve().parents[1]
+        / "native"
+        / "cdmw_mesh_core"
+        / "src"
+        / "owners"
+        / "geometry_uv_04.cpp"
+    ).read_text(encoding="utf-8")
+
+    body = native.split("double brush_falloff_weight(", 1)[1].split("\n}", 1)[0]
+
+    # Every branch the authority has, with the same expression.
+    for expression in (
+        "distance <= 1e-8 ? 1.0 : 0.0",
+        "1.0 - normalized",
+        "(1.0 - normalized) * (1.0 - normalized)",
+        "1.0 - (t * t * (3.0 - 2.0 * t))",
+    ):
+        assert expression in body, f"the C++ authority changed: {expression}"
+        assert expression in profile, f"the C# port drifted: {expression}"
+
+    # Same guards, same order of tests, same fallback.
+    for guard in ("radius <= 1e-8", "normalized >= 1.0"):
+        assert guard in body
+        assert guard in profile
+    for name in ("linear", "sharp", "constant"):
+        assert f'== "{name}"' in body or f'falloff == "{name}"' in body
+        assert f'= "{name}"' in profile
+
+    # The pointer back to the authority has to survive, or the next reader will
+    # not know which copy to change first.
+    assert "geometry_uv_04.cpp" in profile
+
+
+def test_tool_column_width_is_measured_rather_than_reserved() -> None:
+    metrics = _source("EditMeshToolColumnMetrics.cs")
+    tool_list = _source("ExperimentForm.ToolList.cs")
+    layout = _source("ExperimentForm.EditMeshLayouts.cs")
+
+    # The fixed reservations the rail-and-panel layout used are gone.
+    for gone in ("ToolRailWidth", "ToolPropertyWidth", "SceneInspectorWidth"):
+        assert gone not in layout, f"a fixed dock width survived: {gone}"
+
+    # The dock asks what is in it.
+    assert "GetPreferredSize(Size.Empty)" in tool_list
+    assert "ScaleToolPanelWidth(MeasureToolColumnWidth())" in layout
+    assert "MeasureInspectorWidth()" in layout
+
+    # A closed column collapses to its rows; Morph & Refit is the one page
+    # allowed past the ceiling, because its three-button row clips rather
+    # than wraps.
+    collapsed = int(re.search(r"CollapsedFloor = (\d+)", metrics).group(1))
+    expanded = int(re.search(r"ExpandedFloor = (\d+)", metrics).group(1))
+    ceiling = int(re.search(r"ExpandedCeiling = (\d+)", metrics).group(1))
+    uncapped = int(re.search(r"UncappedCeiling = (\d+)", metrics).group(1))
+    assert collapsed < expanded < ceiling < uncapped
+    assert "page == ToolRailPage.MorphRefit" in metrics

@@ -276,10 +276,9 @@ internal static class EditMeshLayoutSmoke
                 && EditMeshLayoutContracts.MorphColumnsForLogicalWidth(1499) == 2
                 && EditMeshLayoutContracts.MorphColumnsForLogicalWidth(1500) == 4,
             "Responsive Morph & Refit column thresholds changed.");
-        Require(
-            EditMeshLayoutContracts.DefaultInspectorWidth(1180) == 380
-                && EditMeshLayoutContracts.DefaultToolRailPanelWidth(1180, 68) == 448,
-            "The tool rail default proportions changed.");
+        RequireToolColumnMetrics();
+        RequireToolListContract();
+        RequireBrushFalloffProfile();
 
         // The rail is one flat list: every armable tool is its own button, and
         // clicking one arms exactly that tool. Edit Mesh boots on "orbit", and
@@ -379,9 +378,23 @@ internal static class EditMeshLayoutSmoke
                 && !CameraModifierBindings.IsHeld(CameraModifierBindings.DefaultPan, Keys.Control),
             "The default orbit and pan modifiers now collide.");
 
+        // A prewarm-launched helper holds a placeholder nobody asked to see, and
+        // must refuse to be revealed until a real package has been applied to it.
+        // Every other combination activates, including a prewarmed process that
+        // has since taken a real package.
+        Require(
+            ResidentActivationContract.ShouldDeferActivation(prewarmLaunch: true, residentPackageLoadCount: 0)
+                && !ResidentActivationContract.ShouldDeferActivation(prewarmLaunch: true, residentPackageLoadCount: 1)
+                && !ResidentActivationContract.ShouldDeferActivation(prewarmLaunch: false, residentPackageLoadCount: 0)
+                && !ResidentActivationContract.ShouldDeferActivation(prewarmLaunch: false, residentPackageLoadCount: 3),
+            "The resident activation contract would reveal the prewarm placeholder.");
+
         var report = new Dictionary<string, object?>
         {
             ["ok"] = true,
+            ["defers_prewarm_placeholder_activation"] = ResidentActivationContract.ShouldDeferActivation(
+                prewarmLaunch: true,
+                residentPackageLoadCount: 0),
             ["tool_rail_default"] = true,
             ["tool_rail_only_layout"] = true,
             ["round_trip_layout"] = "placement",
@@ -403,12 +416,8 @@ internal static class EditMeshLayoutSmoke
                 ["medium"] = EditMeshLayoutContracts.MorphColumnsForLogicalWidth(900),
                 ["wide"] = EditMeshLayoutContracts.MorphColumnsForLogicalWidth(1500),
             },
-            ["default_1180x760"] = new Dictionary<string, int>
-            {
-                ["inspector_width"] = EditMeshLayoutContracts.DefaultInspectorWidth(1180),
-                ["tool_rail_dock_width"] =
-                    EditMeshLayoutContracts.DefaultToolRailPanelWidth(1180, 68),
-            },
+            ["tool_column_width"] = ToolColumnWidthReport(),
+            ["tool_list_row_count"] = EditMeshToolListContract.RowOrder.Length,
             ["zero_size_splitter_construction"] = true,
             ["renderer_started"] = false,
             ["visible_window_started"] = false,
@@ -417,6 +426,162 @@ internal static class EditMeshLayoutSmoke
             reportPath,
             JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         return 0;
+    }
+
+    /// <summary>
+    /// What the dock costs in each state, so a regression that reintroduces a
+    /// fixed-width column is visible in the report rather than only in a failure.
+    /// </summary>
+    private static Dictionary<string, int> ToolColumnWidthReport() => new()
+    {
+        ["collapsed"] = EditMeshToolColumnMetrics.PreferredColumnWidth(0, null),
+        ["brush_open"] = EditMeshToolColumnMetrics.PreferredColumnWidth(320, ToolRailPage.Brush),
+        ["morph_open"] = EditMeshToolColumnMetrics.PreferredColumnWidth(520, ToolRailPage.MorphRefit),
+        ["inspector"] = EditMeshToolColumnMetrics.PreferredInspectorWidth(300),
+    };
+
+    /// <summary>
+    /// The column is measured, not reserved. These are the three cases that
+    /// decide whether the dock wastes width: nothing open, an ordinary page
+    /// open, and the one page allowed to push past the ceiling.
+    /// </summary>
+    private static void RequireToolColumnMetrics()
+    {
+        Require(
+            EditMeshToolColumnMetrics.PreferredColumnWidth(0, null)
+                == EditMeshToolColumnMetrics.CollapsedFloor,
+            "A closed tool column no longer collapses to the row width.");
+        Require(
+            EditMeshToolColumnMetrics.PreferredColumnWidth(9999, null)
+                <= EditMeshToolColumnMetrics.ExpandedFloor,
+            "A closed tool column grew past its own cap.");
+        Require(
+            EditMeshToolColumnMetrics.PreferredColumnWidth(0, ToolRailPage.Brush)
+                == EditMeshToolColumnMetrics.ExpandedFloor,
+            "An open page no longer gets its floor width.");
+        Require(
+            EditMeshToolColumnMetrics.PreferredColumnWidth(9999, ToolRailPage.Brush)
+                == EditMeshToolColumnMetrics.ExpandedCeiling,
+            "A capped page no longer stops at the ceiling.");
+        // Morph & Refit's three-button row clips rather than wraps, so it is the
+        // one page allowed past the ceiling.
+        Require(
+            EditMeshToolColumnMetrics.PageWidthIsUncapped(ToolRailPage.MorphRefit)
+                && Enum.GetValues<ToolRailPage>()
+                    .Where(page => page != ToolRailPage.MorphRefit)
+                    .All(page => !EditMeshToolColumnMetrics.PageWidthIsUncapped(page)),
+            "The set of pages allowed past the width ceiling changed.");
+        Require(
+            EditMeshToolColumnMetrics.PreferredColumnWidth(9999, ToolRailPage.MorphRefit)
+                == EditMeshToolColumnMetrics.UncappedCeiling,
+            "The uncapped page lost its own hard stop.");
+        Require(
+            EditMeshToolColumnMetrics.PreferredInspectorWidth(0)
+                    == EditMeshToolColumnMetrics.InspectorFloor
+                && EditMeshToolColumnMetrics.PreferredInspectorWidth(9999)
+                    == EditMeshToolColumnMetrics.InspectorCeiling,
+            "The scene inspector width no longer follows its own bounds.");
+    }
+
+    /// <summary>
+    /// The list's rows, and the cell arithmetic that puts an open body directly
+    /// under the row that opened it.
+    /// </summary>
+    private static void RequireToolListContract()
+    {
+        EditMeshToolListContract.RequireCompleteList(
+            EditMeshToolListContract.RowOrder.Select(row => row.Key).ToArray());
+        Require(
+            EditMeshToolListContract.RowOrder.Length == 9,
+            "The Edit Mesh tool list's row count changed.");
+        Require(
+            EditMeshToolListContract.RowForTool("orbit") is null
+                && EditMeshToolListContract.RowForTool(null) is null
+                && EditMeshToolListContract.RowForTool("not_a_tool") is null,
+            "An unarmed or unknown tool claimed a list row.");
+        Require(
+            EditMeshToolListContract.RowForTool("inflate")?.Page == ToolRailPage.Brush
+                && EditMeshToolListContract.RowForTool("grab")?.Page == ToolRailPage.Transform,
+            "A tool row no longer opens the page that owns its tool.");
+        // Six tool rows over three shared bodies is the whole point: the row is
+        // the only place a tool is named, so a page cannot name it again.
+        Require(
+            EditMeshToolListContract.RowOrder
+                .Where(row => row.Kind == ToolListRowKind.Tool)
+                .Select(row => row.Page)
+                .Distinct()
+                .Count() == 3,
+            "The tool rows no longer share three modal pages.");
+        Require(
+            EditMeshToolListContract.RowOrder
+                .Select(row => row.Key)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count() == EditMeshToolListContract.RowOrder.Length,
+            "Two list rows carry the same key, so one names something twice.");
+
+        // The open body sits directly under its row, and everything below it —
+        // later rows and the group label alike — moves down exactly one cell.
+        var groupCell = EditMeshToolListContract.GroupLabelBaseCell;
+        Require(
+            EditMeshToolListContract.BaseCell(groupCell) == groupCell + 1,
+            "The command group label no longer owns a cell above the command rows.");
+        var firstToolCell = EditMeshToolListContract.BaseCell(0);
+        Require(
+            EditMeshToolListContract.ResolvedCell(firstToolCell, null) == firstToolCell
+                && EditMeshToolListContract.ResolvedCell(firstToolCell, firstToolCell) == firstToolCell
+                && EditMeshToolListContract.ResolvedCell(firstToolCell + 1, firstToolCell)
+                    == firstToolCell + 2,
+            "Opening a row no longer pushes the rows below it down by one.");
+        Require(
+            EditMeshToolListContract.BodyCell(firstToolCell) == firstToolCell + 1,
+            "The open body no longer sits directly under the row that opened it.");
+        Require(
+            EditMeshToolListContract.ParkedBodyCell
+                == EditMeshToolListContract.TableRowCount - 1,
+            "The closed body host no longer parks below every row.");
+    }
+
+    /// <summary>
+    /// The falloff preview draws <c>brush_falloff_weight</c>, so these are the
+    /// values native mesh core produces. A preview that drifted from the brush
+    /// would quietly misreport every stroke.
+    /// </summary>
+    private static void RequireBrushFalloffProfile()
+    {
+        static bool Near(double actual, double expected) => Math.Abs(actual - expected) < 1e-9;
+
+        Require(
+            Near(BrushFalloffProfile.Weight(0.0, 24.0, BrushFalloffProfile.Smooth), 1.0)
+                && Near(BrushFalloffProfile.Weight(24.0, 24.0, BrushFalloffProfile.Smooth), 0.0)
+                && Near(BrushFalloffProfile.Weight(48.0, 24.0, BrushFalloffProfile.Smooth), 0.0),
+            "The brush falloff profile no longer runs from full at the centre to zero at the rim.");
+        // 1 - t^2(3 - 2t) at the halfway point is exactly 0.5.
+        Require(
+            Near(BrushFalloffProfile.Weight(12.0, 24.0, BrushFalloffProfile.Smooth), 0.5),
+            "The smooth falloff is no longer the complement of smoothstep.");
+        Require(
+            Near(BrushFalloffProfile.Weight(6.0, 24.0, BrushFalloffProfile.Linear), 0.75)
+                && Near(BrushFalloffProfile.Weight(18.0, 24.0, BrushFalloffProfile.Linear), 0.25),
+            "The linear falloff is no longer 1 - t.");
+        Require(
+            Near(BrushFalloffProfile.Weight(12.0, 24.0, BrushFalloffProfile.Sharp), 0.25),
+            "The sharp falloff is no longer (1 - t) squared.");
+        Require(
+            Near(BrushFalloffProfile.Weight(0.0, 24.0, BrushFalloffProfile.Constant), 1.0)
+                && Near(BrushFalloffProfile.Weight(23.9, 24.0, BrushFalloffProfile.Constant), 1.0)
+                && Near(BrushFalloffProfile.Weight(24.0, 24.0, BrushFalloffProfile.Constant), 0.0),
+            "The constant falloff no longer holds full weight to the rim.");
+        // A degenerate radius must not divide by zero.
+        Require(
+            Near(BrushFalloffProfile.Weight(0.0, 0.0, BrushFalloffProfile.Smooth), 1.0)
+                && Near(BrushFalloffProfile.Weight(1.0, 0.0, BrushFalloffProfile.Smooth), 0.0),
+            "A zero-radius brush no longer degenerates to a point.");
+        // An unknown name falls through to smooth, exactly as the C++ does.
+        Require(
+            Near(
+                BrushFalloffProfile.Weight(12.0, 24.0, "not_a_falloff"),
+                BrushFalloffProfile.Weight(12.0, 24.0, BrushFalloffProfile.Smooth)),
+            "An unknown falloff no longer falls back to smooth.");
     }
 
     private static string RequiredValue(string[] args, string name)

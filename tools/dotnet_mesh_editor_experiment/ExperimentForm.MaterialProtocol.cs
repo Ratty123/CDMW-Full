@@ -170,6 +170,24 @@ internal sealed partial class ExperimentForm
 
     private bool ActivateResidentViewport()
     {
+        var residentPackageLoadCount = Interlocked.Read(ref _residentPackageLoadCount);
+        if (ResidentActivationContract.ShouldDeferActivation(_options.PrewarmLaunch, residentPackageLoadCount))
+        {
+            // Refused, not queued for replay. The host reveals through the
+            // `activate_request` it sends once `package_load_applied` has landed,
+            // and its rehydrate runs in between with the window still hidden;
+            // replaying a stale request here would reveal ahead of that and put
+            // the tool rail back on screen mid-assembly. Say what disagreed
+            // instead: this is read long after the request was sent.
+            WriteProtocolEvent("activation_declined", new Dictionary<string, object?>
+            {
+                ["reason"] = "prewarm_placeholder_resident",
+                ["prewarm_launch"] = _options.PrewarmLaunch,
+                ["resident_package_load_count"] = residentPackageLoadCount,
+                ["embedded_window_revealed"] = _embeddedWindowRevealed,
+            });
+            return false;
+        }
         if (_options.Embedded && !TryEmbedOrFail("reactivation"))
         {
             return false;

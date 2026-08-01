@@ -114,30 +114,6 @@ internal static class EditMeshLayoutContracts
         return logicalWidth >= 1500 ? 4 : logicalWidth >= 900 ? 2 : 1;
     }
 
-    public static int DefaultInspectorWidth(int clientLogicalWidth)
-    {
-        return Math.Clamp(
-            (int)Math.Round(Math.Max(1, clientLogicalWidth) * 0.23),
-            380,
-            560);
-    }
-
-    /// <summary>
-    /// Width of the whole right dock: the contextual panel plus the rail beside
-    /// it. The rail is fixed, so only the panel share scales with the window.
-    /// </summary>
-    public static int DefaultToolRailPanelWidth(int clientLogicalWidth, int railWidth)
-    {
-        // The floor is set by the widest three-button row in Morph & Refit
-        // ("Author Slider… / Save Profile / Delete Profile"); below it those
-        // rows clip instead of wrapping.
-        var panel = Math.Clamp(
-            (int)Math.Round(Math.Max(1, clientLogicalWidth) * 0.19),
-            380,
-            520);
-        return panel + Math.Max(0, railWidth);
-    }
-
     public static void ApplyPanelTwoSize(
         SplitContainer split,
         int panelTwoSize,

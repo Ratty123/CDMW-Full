@@ -200,9 +200,17 @@ class MeshEditorDotNetCommandMixin:
         if controller is None or outcome.controller is not controller:
             return
         update = outcome.native_update
+        request_payloads = tuple(outcome.request_payloads)
         if self.standalone_dotnet_target_embedded:
             self._apply_embedded_native_update(update)
             if outcome.phase != "update":
+                # Only a finished stroke is worth recording; the update phases
+                # are provisional and are superseded by the one that lands.
+                self._commit_embedded_edit_result(
+                    outcome.result,
+                    command_name=str(outcome.result.action or "stroke"),
+                    request_payload=request_payloads[-1] if request_payloads else None,
+                )
                 self._refresh_embedded_workspace_from_builder()
         elif (
             update.vertex_groups
@@ -216,7 +224,6 @@ class MeshEditorDotNetCommandMixin:
             self._apply_standalone_native_update(update)
             if outcome.phase != "update":
                 _tab.QTimer.singleShot(0, self._sync_state)
-        request_payloads = tuple(outcome.request_payloads)
         for coalesced_payload in request_payloads[:-1]:
             self._send_dotnet_command_result(
                 outcome.result.action,
@@ -769,10 +776,11 @@ class MeshEditorDotNetCommandMixin:
             )
             return False
         if not self._finalize_embedded_dotnet_import("dotnet_finish_edit"):
-            self._send_dotnet_scene_state(
-                interaction_mode="mesh_edit",
-                comparison_mode="replacement_only",
-            )
+            # No re-arm. The builder unticks its checkbox before anything that
+            # can fail here, so putting the helper back into mesh_edit left the
+            # two sides disagreeing about the mode and the button dead. Report
+            # the failure and leave the helper in the placement mode already
+            # published above, which is the state the builder is now in.
             self._send_dotnet_command_result(
                 "save_request",
                 ok=False,

@@ -91,7 +91,7 @@ internal sealed partial class ExperimentForm
         // Wrap inside the narrowest column this section is shown in. A wider
         // bound leaves the tail of every diagnostic clipped by the tool rail's
         // property column instead of wrapping onto a second line.
-        _morphDiagnosticStatus.MaximumSize = new Size(ScaleToolPanelWidth(ToolPropertyWidth - 40), 0);
+        _morphDiagnosticStatus.MaximumSize = new Size(ScaleToolPanelWidth(EditMeshToolColumnMetrics.WrappedStatusWidth), 0);
 
         _morphSliderStack.Name = "MorphSliderStack";
         _morphSliderStack.ColumnCount = 1;
@@ -415,7 +415,7 @@ internal sealed partial class ExperimentForm
             _morphSectionBody.Padding = new Padding(0);
             _morphSectionBody.Visible = _morphClassicExpanded;
             _morphDiagnosticStatus.MaximumSize =
-                new Size(ScaleToolPanelWidth(ToolPropertyWidth - 40), 0);
+                new Size(ScaleToolPanelWidth(EditMeshToolColumnMetrics.WrappedStatusWidth), 0);
             _morphCompactLayoutActive = false;
         }
         finally
