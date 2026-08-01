@@ -694,9 +694,20 @@ class DotNetPreviewSessionController(QObject):
             and self._session_established
             and self._localization_initial_established
         ):
-            self._activate_applied()
             if self._applied_package_identity != self._desired_package_identity:
+                # Activating first reveals the helper's window on whatever
+                # package is still resident -- the procedural prewarm scene, or
+                # the mesh opened before this one -- and only then asks for the
+                # one that was actually selected. That is the placeholder
+                # triangle at Mesh Editor start: the wrong model, shown for as
+                # long as the real load takes, in a window that was revealed
+                # specifically to show something else. `_activate_applied` does
+                # not check identity, which is what let this through; the load
+                # path activates from `_accept_applied_package` once the right
+                # package has landed, so there is nothing to reveal early for.
                 self._request_resident_package_load()
+            else:
+                self._activate_applied()
         else:
             self._request_resident_package_load()
 
