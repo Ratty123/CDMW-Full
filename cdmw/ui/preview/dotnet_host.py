@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import sys
 import time
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
@@ -254,6 +255,9 @@ class DotNetPreviewHostFrame(QFrame):
         banner_layout.addWidget(self._resident_retry_button)
         self._resident_banner.setVisible(False)
 
+        # The helper's own window, once it reports it. Held so a resize can move
+        # it in the same frame as this widget; see _sync_embedded_child_geometry.
+        self._embedded_child_hwnd = 0
         self.controller = controller or DotNetPreviewSessionController(
             host_hwnd=self._host_hwnd,
             profile=self._profile,
@@ -948,6 +952,64 @@ class DotNetPreviewHostFrame(QFrame):
         super().resizeEvent(event)
         self._status_panel.setGeometry(self.rect())
         self._resident_banner.setGeometry(8, 8, max(0, self.width() - 16), 58)
+        self._sync_embedded_child_geometry()
+
+    def _remember_embedded_child_window(self, payload: Mapping[str, object]) -> None:
+        try:
+            hwnd = int(payload.get("form_hwnd", 0) or 0)
+        except (TypeError, ValueError):
+            return
+        if hwnd > 0:
+            self._embedded_child_hwnd = hwnd
+            self._sync_embedded_child_geometry()
+
+    def _sync_embedded_child_geometry(self) -> None:
+        """Size the helper's window with this one, in the same frame.
+
+        The helper owns a Win32 child of this widget's window and used to learn
+        about a resize only by polling the parent's client rect from its own
+        timer -- and then deliberately waiting for 200ms of size stability
+        before acting, so that dragging a window edge would not reallocate the
+        swap chain on every step. The effect was that the editor kept its old
+        size for the whole drag while the pane around it had already grown,
+        leaving a band of bare background down the side, and snapped into place
+        a fifth of a second after the drag stopped.
+
+        Moving the child window is cheap; reallocating the swap chain is the
+        part worth debouncing, and the helper still debounces that on its own.
+        Doing the move here, synchronously, means the size the helper polls for
+        already matches, so its wait never has anything stale to catch up to.
+        """
+
+        hwnd = getattr(self, "_embedded_child_hwnd", 0)
+        if not hwnd or sys.platform != "win32":
+            return
+        parent = self._host_hwnd()
+        if parent <= 0:
+            return
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            user32 = ctypes.windll.user32
+            if not user32.IsWindow(wintypes.HWND(hwnd)):
+                self._embedded_child_hwnd = 0
+                return
+            rect = wintypes.RECT()
+            if not user32.GetClientRect(wintypes.HWND(parent), ctypes.byref(rect)):
+                return
+            width = max(0, int(rect.right - rect.left))
+            height = max(0, int(rect.bottom - rect.top))
+            if width <= 0 or height <= 0:
+                return
+            # SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER
+            user32.SetWindowPos(
+                wintypes.HWND(hwnd), None, 0, 0, width, height, 0x0004 | 0x0010 | 0x0200
+            )
+        except (OSError, AttributeError, ValueError):
+            # Never let a geometry sync take the preview down; the helper's own
+            # poll remains the backstop.
+            return
 
     def _remember_presentation_state(self) -> bool:
         return self.controller.remember_state(
@@ -989,6 +1051,8 @@ class DotNetPreviewHostFrame(QFrame):
         event = str(payload.get("event", "") or "").strip().lower()
         self.renderer_event_received.emit(dict(payload))
         self.native_event_received.emit(dict(payload))
+        if event in {"embedded_window_revealed", "reembed_ack"}:
+            self._remember_embedded_child_window(payload)
         if event == "placement_transform_request":
             translation = _triple(tuple(payload.get("translation", ()) or ()), (0.0, 0.0, 0.0))
             phase = str(payload.get("placement_phase", "update") or "update").lower()
