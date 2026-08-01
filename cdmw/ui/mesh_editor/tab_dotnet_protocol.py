@@ -73,6 +73,8 @@ class MeshEditorDotNetProtocolMixin(
         self.standalone_dotnet_presentation_pending = None
         self.standalone_dotnet_presentation_queued = False
         self.standalone_dotnet_presentation_acknowledged = None
+        # A fresh process holds no presentation state.
+        self.standalone_dotnet_presentation_published_content = None
         try:
             process.readyReadStandardOutput.connect(
                 lambda target=process: self._handle_dotnet_protocol_stdout_ready(target)
@@ -502,6 +504,9 @@ class MeshEditorDotNetProtocolMixin(
             self.standalone_dotnet_presentation_acknowledged = dict(payload)
             handled = True
         else:
+            # The helper did not take it, so it is not holding it. Forget the
+            # record or the next publish would be skipped as already-applied.
+            self.standalone_dotnet_presentation_published_content = None
             self._set_dotnet_status(
                 "Resident .NET presentation state was rejected: "
                 + str(payload.get("reason", "unknown reason") or "unknown reason"),

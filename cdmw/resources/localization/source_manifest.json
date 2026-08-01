@@ -891,12 +891,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 663,
+          "line": 699,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 696,
+          "line": 732,
           "sink": "_set_dotnet_status"
         },
         {
@@ -1171,7 +1171,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 809,
+          "line": 827,
           "sink": "csharp:.Text="
         }
       ]
@@ -1311,7 +1311,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 971,
+          "line": 974,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -1871,7 +1871,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 968,
+          "line": 971,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -3806,7 +3806,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 697,
+          "line": 700,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -4286,7 +4286,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 770,
+          "line": 773,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -11211,7 +11211,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 789,
+          "line": 792,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -11321,7 +11321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 543,
+          "line": 579,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -12156,7 +12156,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 790,
+          "line": 793,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -12461,7 +12461,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 746,
+          "line": 749,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -12521,7 +12521,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 747,
+          "line": 750,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -14016,7 +14016,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 127,
+          "line": 130,
           "sink": "csharp:Text="
         },
         {
@@ -16856,7 +16856,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 716,
+          "line": 719,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -17406,7 +17406,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 782,
+          "line": 785,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -17956,7 +17956,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 683,
+          "line": 686,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -23756,7 +23756,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 707,
+          "line": 710,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -23956,7 +23956,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 761,
+          "line": 764,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -26151,7 +26151,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 706,
+          "line": 709,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -26171,7 +26171,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 762,
+          "line": 765,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -26996,7 +26996,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 225,
+          "line": 235,
           "sink": "csharp:newLabel{"
         }
       ]
@@ -27411,7 +27411,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 513,
+          "line": 516,
           "sink": "csharp:.Text="
         }
       ]
@@ -27506,7 +27506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 970,
+          "line": 977,
           "sink": "emit"
         }
       ]
@@ -27516,7 +27516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 974,
+          "line": 981,
           "sink": "emit"
         }
       ]
@@ -27526,7 +27526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 951,
+          "line": 958,
           "sink": "emit"
         }
       ]
@@ -27536,7 +27536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 955,
+          "line": 962,
           "sink": "emit"
         }
       ]
@@ -27546,7 +27546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 931,
+          "line": 938,
           "sink": "emit"
         }
       ]
@@ -27616,7 +27616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 926,
+          "line": 933,
           "sink": "emit"
         }
       ]
@@ -27626,7 +27626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 942,
+          "line": 949,
           "sink": "emit"
         }
       ]
@@ -27646,7 +27646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 922,
+          "line": 929,
           "sink": "emit"
         }
       ]
@@ -28046,7 +28046,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 698,
+          "line": 701,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -31101,7 +31101,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 224,
+          "line": 227,
           "sink": "csharp:.Text="
         }
       ]
@@ -31311,7 +31311,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 751,
+          "line": 754,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -32751,7 +32751,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 637,
+          "line": 640,
           "sink": "csharp:csharp-wrapper:StyledButton[0]"
         }
       ]
@@ -32976,7 +32976,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 791,
+          "line": 794,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -34056,7 +34056,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 789,
+          "line": 792,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -35216,7 +35216,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 722,
+          "line": 725,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -36336,7 +36336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1048,
+          "line": 1067,
           "sink": "ValueError"
         }
       ]
@@ -37541,7 +37541,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 568,
+          "line": 571,
           "sink": "csharp:.Text="
         }
       ]
@@ -38491,7 +38491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 641,
+          "line": 677,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -39851,7 +39851,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 685,
+          "line": 688,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -41891,7 +41891,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 790,
+          "line": 793,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -42476,7 +42476,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 557,
+          "line": 560,
           "sink": "csharp:.Text="
         }
       ]
@@ -42876,7 +42876,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 236,
+          "line": 239,
           "sink": "csharp:.Text="
         }
       ]
@@ -43291,7 +43291,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 281,
+          "line": 284,
           "sink": "csharp:.Text="
         }
       ]
@@ -45821,7 +45821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 722,
+          "line": 758,
           "sink": "emit"
         }
       ]
@@ -45921,12 +45921,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 569,
+          "line": 605,
           "sink": "_set_embedded_dotnet_preview_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 570,
+          "line": 606,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -45936,7 +45936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 548,
+          "line": 584,
           "sink": "emit"
         }
       ]
@@ -45991,7 +45991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 701,
+          "line": 737,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46001,7 +46001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 619,
+          "line": 655,
           "sink": "emit"
         }
       ]
@@ -46011,7 +46011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 655,
+          "line": 691,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46021,7 +46021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 616,
+          "line": 652,
           "sink": "emit"
         }
       ]
@@ -46031,12 +46031,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 663,
+          "line": 699,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 696,
+          "line": 732,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46046,12 +46046,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 663,
+          "line": 699,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 696,
+          "line": 732,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46076,7 +46076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 526,
+          "line": 562,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46096,7 +46096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 116,
+          "line": 118,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46106,7 +46106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 109,
+          "line": 111,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46116,7 +46116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 136,
+          "line": 138,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46126,7 +46126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 139,
+          "line": 141,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46136,7 +46136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 158,
+          "line": 160,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46371,7 +46371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 281,
+          "line": 283,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46456,7 +46456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 424,
+          "line": 426,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46556,7 +46556,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 226,
+          "line": 236,
           "sink": "csharp:Text="
         }
       ]
@@ -46566,7 +46566,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 234,
+          "line": 244,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -46971,7 +46971,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 928,
+          "line": 932,
           "sink": "RuntimeError"
         }
       ]
@@ -47116,7 +47116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 553,
+          "line": 589,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -47126,7 +47126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 522,
+          "line": 558,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -47136,7 +47136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 328,
+          "line": 330,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -49621,7 +49621,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 728,
+          "line": 731,
           "sink": "csharp:csharp-wrapper:GizmoButton[0]"
         },
         {
@@ -49676,7 +49676,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 734,
+          "line": 737,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -49726,7 +49726,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 976,
+          "line": 979,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -49736,7 +49736,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 975,
+          "line": 978,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -51896,7 +51896,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 634,
+          "line": 637,
           "sink": "csharp:.Items.Add("
         }
       ]
@@ -57406,7 +57406,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 792,
+          "line": 795,
           "sink": "csharp:csharp-wrapper:ToolButton[0]"
         }
       ]
@@ -59221,12 +59221,12 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 651,
+          "line": 654,
           "sink": "csharp:csharp-wrapper:ConfigureCheckBox[1]"
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 704,
+          "line": 707,
           "sink": "csharp:csharp-wrapper:AddSection[1]"
         }
       ]
@@ -59236,7 +59236,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 662,
+          "line": 665,
           "sink": "csharp:.Text="
         }
       ]
@@ -59246,7 +59246,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 658,
+          "line": 661,
           "sink": "csharp:.Text="
         }
       ]
@@ -60941,7 +60941,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 726,
+          "line": 729,
           "sink": "csharp:csharp-wrapper:AddSection[1]"
         }
       ]
@@ -61191,7 +61191,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 853,
+          "line": 856,
           "sink": "csharp:.Text="
         }
       ]
@@ -61201,7 +61201,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 921,
+          "line": 924,
           "sink": "csharp:.Text="
         }
       ]
@@ -64311,12 +64311,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 365,
+          "line": 367,
           "sink": "_set_embedded_dotnet_preview_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 398,
+          "line": 400,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -65761,7 +65761,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 749,
+          "line": 752,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -68286,7 +68286,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 687,
+          "line": 690,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         },
         {
@@ -68546,7 +68546,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 757,
+          "line": 760,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -70656,7 +70656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 505,
+          "line": 510,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -70796,7 +70796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 258,
+          "line": 260,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -70826,7 +70826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 462,
+          "line": 464,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -72141,7 +72141,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 790,
+          "line": 793,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -72406,7 +72406,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 728,
+          "line": 731,
           "sink": "csharp:csharp-wrapper:GizmoButton[0]"
         },
         {
@@ -73416,7 +73416,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 637,
+          "line": 640,
           "sink": "csharp:csharp-wrapper:StyledButton[0]"
         }
       ]
@@ -73791,7 +73791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 296,
+          "line": 298,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -73846,7 +73846,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 728,
+          "line": 731,
           "sink": "csharp:csharp-wrapper:GizmoButton[0]"
         }
       ]
@@ -74411,7 +74411,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 1215,
+          "line": 1218,
           "sink": "csharp:.Text="
         }
       ]
@@ -75041,7 +75041,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 684,
+          "line": 687,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -76211,7 +76211,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 669,
+          "line": 688,
           "sink": "_set_state"
         }
       ]
@@ -78101,7 +78101,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 715,
+          "line": 718,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -78161,7 +78161,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 719,
+          "line": 722,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -78181,7 +78181,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 718,
+          "line": 721,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -78201,7 +78201,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 564,
+          "line": 567,
           "sink": "csharp:.Text="
         }
       ]
@@ -80211,7 +80211,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 722,
+          "line": 725,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -82821,7 +82821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 204,
+          "line": 206,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -83171,7 +83171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
-          "line": 543,
+          "line": 579,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -84116,7 +84116,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 750,
+          "line": 753,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         },
         {
@@ -84351,7 +84351,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 756,
+          "line": 759,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
@@ -87266,7 +87266,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 338,
+          "line": 341,
           "sink": "csharp:.Text="
         }
       ]
@@ -87276,7 +87276,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 366,
+          "line": 369,
           "sink": "csharp:.Text="
         }
       ]
@@ -87386,7 +87386,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 409,
+          "line": 419,
           "sink": "csharp:.Text="
         }
       ]
@@ -87686,7 +87686,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 735,
+          "line": 738,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -88396,7 +88396,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 808,
+          "line": 826,
           "sink": "csharp:.Text="
         }
       ]
@@ -88406,7 +88406,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EmbeddedWindowRealization.cs",
-          "line": 241,
+          "line": 315,
           "sink": "csharp:.Text="
         }
       ]
@@ -89426,7 +89426,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 789,
+          "line": 792,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -89456,7 +89456,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 769,
+          "line": 772,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -89466,7 +89466,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 983,
+          "line": 986,
           "sink": "csharp:.Text="
         }
       ]
@@ -89611,7 +89611,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 733,
+          "line": 736,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -89691,7 +89691,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 737,
+          "line": 740,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -90586,7 +90586,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 686,
+          "line": 689,
           "sink": "csharp:csharp-wrapper:CommandButton[0]"
         },
         {
@@ -93181,7 +93181,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
-          "line": 863,
+          "line": 866,
           "sink": "csharp:.Text="
         }
       ]
@@ -93361,7 +93361,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 781,
+          "line": 784,
           "sink": "csharp:csharp-wrapper:AddHelpSection[1]"
         }
       ]
@@ -96771,7 +96771,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 200,
+          "line": 203,
           "sink": "csharp:csharp-wrapper:ConfigureCheckBox[1]"
         }
       ]
@@ -96781,7 +96781,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 210,
+          "line": 213,
           "sink": "csharp:.Text="
         }
       ]
@@ -97851,7 +97851,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 273,
+          "line": 275,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -99701,7 +99701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 830,
+          "line": 849,
           "sink": "_set_state"
         }
       ]
@@ -99986,7 +99986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 924,
+          "line": 943,
           "sink": "_set_state"
         }
       ]
@@ -101621,7 +101621,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 669,
+          "line": 688,
           "sink": "_set_state"
         }
       ]
@@ -101771,12 +101771,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 204,
+          "line": 206,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 282,
+          "line": 284,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -104396,12 +104396,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 652,
+          "line": 671,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1651,
+          "line": 1670,
           "sink": "_set_state"
         }
       ]
@@ -105031,7 +105031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 919,
+          "line": 938,
           "sink": "_set_state"
         }
       ]
@@ -109556,12 +109556,12 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1448,
+          "line": 1467,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1532,
+          "line": 1551,
           "sink": "_set_state"
         }
       ]
@@ -109651,7 +109651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 1066,
+          "line": 1089,
           "sink": "emit"
         },
         {
@@ -109741,17 +109741,17 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1386,
+          "line": 1405,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1402,
+          "line": 1421,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1547,
+          "line": 1566,
           "sink": "_set_state"
         }
       ]
@@ -110506,7 +110506,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1217,
+          "line": 1236,
           "sink": "_set_state"
         }
       ]
@@ -110851,7 +110851,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 273,
+          "line": 275,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -111456,7 +111456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1664,
+          "line": 1683,
           "sink": "_set_state"
         }
       ]
@@ -188736,7 +188736,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 258,
+          "line": 260,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -189306,7 +189306,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 771,
+          "line": 774,
           "sink": "csharp:csharp-wrapper:AddHelpSection[2]"
         }
       ]
@@ -191396,7 +191396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1664,
+          "line": 1683,
           "sink": "_set_state"
         }
       ]

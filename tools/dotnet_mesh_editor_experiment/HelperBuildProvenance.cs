@@ -26,6 +26,12 @@ internal static class HelperBuildProvenance
         // the next mesh; without this the helper refuses the new session and
         // that mesh never becomes loadable. Gated at use, like the line above.
         "authoring_session_handoff_v1",
+        // The host names its window once, on the command line, and Qt recreates
+        // that native window on a move to a screen at a different scale. This
+        // says the helper will re-parent itself when told, rather than staying a
+        // child of a window that is no longer the one on screen. An older helper
+        // ignores the request, so the host sends it without gating.
+        "embedded_host_reparent_v1",
         "resident_material_updates_v2",
         "resident_material_parameter_updates_v1",
         "resident_texture_region_updates_v1",

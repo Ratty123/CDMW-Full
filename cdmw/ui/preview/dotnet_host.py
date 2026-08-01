@@ -9,7 +9,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QRunnable, QThreadPool, Qt, Signal
 from PySide6.QtGui import QImage, QResizeEvent
 from PySide6.QtWidgets import (
     QApplication,
@@ -300,6 +300,29 @@ class DotNetPreviewHostFrame(QFrame):
             return max(0, int(self.winId()))
         except (RuntimeError, TypeError, ValueError):
             return 0
+
+    def event(self, event: QEvent) -> bool:
+        # Qt destroys and recreates this widget's native window when the app
+        # moves to a screen at a different scale, and the helper is a Win32
+        # child of that window. The helper is told the HWND once, on its command
+        # line, so a recreation left it parented to a window that is no longer
+        # the one on screen: the panel stayed where it was, or vanished, after a
+        # drag to a second monitor. WinIdChange is the only notice Qt gives.
+        if event.type() == QEvent.Type.WinIdChange:
+            self._reembed_helper_in_current_window()
+        return super().event(event)
+
+    def _reembed_helper_in_current_window(self) -> None:
+        hwnd = self._host_hwnd()
+        if hwnd <= 0:
+            return
+        controller = getattr(self, "controller", None)
+        if controller is None:
+            # WinIdChange can arrive while the frame is still being built.
+            return
+        reembed = getattr(controller, "reembed", None)
+        if callable(reembed):
+            reembed(hwnd)
 
     def load_package(
         self,

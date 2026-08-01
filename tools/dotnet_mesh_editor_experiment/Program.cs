@@ -35,7 +35,10 @@ internal sealed partial class ExperimentForm : Form
     private static readonly Color ThemeStrongText = Color.FromArgb(243, 243, 243);         // #f3f3f3
     private static readonly Color ThemeMutedText = Color.FromArgb(157, 160, 166);          // #9da0a6
     private static readonly Color ThemeStatusBackground = Color.FromArgb(30, 30, 30);      // #1e1e1e
-    private readonly LaunchOptions _options;
+    // Not readonly: the host window this form is embedded in is destroyed and
+    // recreated by Qt when the app moves to a screen at a different scale, and
+    // the replacement has a different HWND. See HandleReembedRequest.
+    private LaunchOptions _options;
     private ObjDocument _document;
     private readonly MeshViewport _viewport;
     private readonly ListBox _submeshList = new();

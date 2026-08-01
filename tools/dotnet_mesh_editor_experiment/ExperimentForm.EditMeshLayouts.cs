@@ -78,10 +78,20 @@ internal sealed partial class ExperimentForm
             _options.SimplePreview ? 0 : Math.Max(30, _statusLabel.Height + 12)));
         _editMeshLayoutHost.Resize += (_, _) =>
         {
-            if (IsToolRailActive)
+            if (!IsToolRailActive)
             {
-                ApplyToolRailSplitterLayout();
+                return;
             }
+            ApplyToolRailSplitterLayout();
+            // A resize moves the splitter without changing the measured column
+            // widths, so the pass above finds nothing to move and returns before
+            // reaching its own invalidate. The strip of flank the dock is
+            // resized across keeps whatever was painted there last, which after
+            // an entry from placement is the placement panel -- the panel the
+            // reader sees briefly behind the tool dock while dragging the
+            // window edge. Nothing else asks for that region back.
+            _leftToolSplit?.Panel1.Invalidate(invalidateChildren: true);
+            _rightToolSplit?.Panel2.Invalidate(invalidateChildren: true);
         };
         _editMeshLayoutHost.Controls.Add(_placementEditMeshLayoutRoot, 0, 1);
         if (!_options.SimplePreview)
@@ -739,6 +749,14 @@ internal sealed partial class ExperimentForm
     {
         _selectedToolRailPage = page;
         _toolRailPageSelected = true;
+        // Opening a row is four separate paints without this: every page's
+        // visibility flips, then the list table re-lays out around the moved
+        // body cell, then the column may scroll, then the splitter pass runs.
+        // The reader saw that sequence rather than the result, which is what
+        // made a tool click feel like it lagged. Every other layout switch here
+        // already holds a batch; this was the one that did not, and it is the
+        // one on the click path.
+        using var redraw = BeginRedrawBatch();
         if (page == ToolRailPage.Colour)
         {
             // Colour edits land on the base texture, and the editable viewport

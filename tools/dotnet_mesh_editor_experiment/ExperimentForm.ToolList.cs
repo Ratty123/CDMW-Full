@@ -260,6 +260,14 @@ internal sealed partial class ExperimentForm
             ? null
             : EditMeshToolListContract.BaseCell(EditMeshToolListContract.IndexOfRow(expandedRow));
 
+        // Batched here as well as in ShowToolRailPage, because the two tools
+        // that share a page reach this without going through it: arming Inflate
+        // after Smooth leaves the page where it is, so only the open body moves.
+        // SuspendLayout defers the measurement but not the painting, so without
+        // this the reader watches the rows shuffle up and the body land. The
+        // batch is refcounted, so arriving from ShowToolRailPage still paints
+        // once for the whole click.
+        using var redraw = BeginRedrawBatch();
         _toolListTable.SuspendLayout();
         try
         {
@@ -512,9 +520,31 @@ internal sealed partial class ExperimentForm
     {
         base.OnDpiChangedAfterParent(e);
         InvalidateToolColumnWidths();
-        if (IsToolRailActive)
+        if (!IsToolRailActive)
         {
-            ApplyToolRailSplitterLayout();
+            return;
+        }
+        // Posted rather than run inline. The layout pass opens a redraw batch,
+        // and WM_SETREDRAW(FALSE) clears WS_VISIBLE for as long as the batch is
+        // held. A DPI change is exactly when WinForms rescales fonts and can
+        // recreate handles, and a recreation landing inside the batch rebuilds
+        // this window from a style that has lost WS_VISIBLE -- the failure
+        // CreateParams already had to be taught to rescue. Running it on a
+        // later message does the same work with the DPI change settled.
+        try
+        {
+            BeginInvoke(new Action(() =>
+            {
+                if (!IsDisposed && !Disposing && IsToolRailActive)
+                {
+                    ApplyToolRailSplitterLayout();
+                }
+            }));
+        }
+        catch (InvalidOperationException)
+        {
+            // No message loop to post to yet; the next resize or page change
+            // runs the same pass.
         }
     }
 

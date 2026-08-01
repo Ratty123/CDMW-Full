@@ -528,6 +528,9 @@ internal sealed partial class ExperimentForm
                     Hide();
                     WriteProtocolEvent("deactivated");
                     break;
+                case "reembed_request":
+                    HandleReembedRequest(root);
+                    break;
                 case "activate_request":
                     var requestedMaterialSignature = JsonString(root, "material_signature");
                     if (requestedMaterialSignature.Length > 0 && !string.Equals(requestedMaterialSignature, _materials.Signature, StringComparison.Ordinal))

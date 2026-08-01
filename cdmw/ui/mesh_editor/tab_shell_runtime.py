@@ -87,6 +87,10 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_presentation_queued = False
         self.standalone_dotnet_presentation_desired: dict[str, object] = {}
         self.standalone_dotnet_presentation_acknowledged: dict[str, object] | None = None
+        # The presentation content the helper is known to be holding. A publish
+        # whose content matches this one would re-apply what is already on
+        # screen, so it is skipped; see _publish_dotnet_presentation_state.
+        self.standalone_dotnet_presentation_published_content: dict[str, object] | None = None
         self.standalone_dotnet_texture_region_request_id = 0
         self.standalone_dotnet_import_thread: _tab.QThread | None = None
         self.standalone_dotnet_import_worker: _tab.MeshDotNetExperimentOutputImportWorker | None = None
