@@ -345,6 +345,72 @@ class FbxSkinExportTests(unittest.TestCase):
         self.assertNotIn(b"LimbNode", payload)
 
 
+class FbxUnitScaleTests(unittest.TestCase):
+    """A game unit is a metre, and the file has to say so.
+
+    UnitScaleFactor states how many centimetres one unit is, and an importer
+    divides by it -- Blender's global_scale is UnitScaleFactor/100. Declaring 1
+    claimed centimetres for metre-scale geometry, so every export arrived at a
+    hundredth of its size.
+    """
+
+    def _unit_scale_factors(self, payload: bytes) -> list[float]:
+        import re
+        import struct
+
+        found = []
+        for match in re.finditer(re.escape(b"UnitScaleFactor"), payload):
+            window = payload[match.end():match.end() + 80]
+            offset = 0
+            while offset < len(window):
+                kind = window[offset:offset + 1]
+                if kind == b"S":
+                    length = struct.unpack_from("<I", window, offset + 1)[0]
+                    offset += 5 + length
+                elif kind == b"D":
+                    found.append(struct.unpack_from("<d", window, offset + 1)[0])
+                    break
+                else:
+                    break
+        return found
+
+    def test_native_export_declares_metres(self) -> None:
+        from cdmw.modding.mesh_native_core import find_native_mesh_core_binary
+
+        if find_native_mesh_core_binary() is None:
+            self.skipTest("cdmw_mesh_core is not built")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            payload = Path(export_fbx(_export_mesh(), temp_dir, name="units")).read_bytes()
+
+        self.assertEqual(self._unit_scale_factors(payload), [100.0, 100.0])
+
+    def test_python_fallback_declares_the_same_unit(self) -> None:
+        """The fallback writes its own GlobalSettings, so it can drift from the native one."""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fake_native = _FakeNativeFbxGeometry(temp_dir)
+            with (
+                mock.patch("cdmw.modding.mesh_exporter._export_fbx_native", return_value=False),
+                mock.patch("cdmw.modding.mesh_exporter._fbx_geometry_native", return_value=fake_native),
+            ):
+                payload = Path(export_fbx(_export_mesh(), temp_dir, name="units_fallback")).read_bytes()
+
+        self.assertEqual(self._unit_scale_factors(payload), [100.0, 100.0])
+
+    def test_skeleton_fallback_declares_the_same_unit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fake_native = _FakeNativeFbxGeometry(temp_dir)
+            with (
+                mock.patch("cdmw.modding.mesh_exporter._export_fbx_native", return_value=False),
+                mock.patch("cdmw.modding.mesh_exporter._fbx_geometry_native", return_value=fake_native),
+            ):
+                payload = Path(export_fbx_with_skeleton(
+                    _skinned_export_mesh(), _two_bone_skeleton(), temp_dir, name="units_skel"
+                )).read_bytes()
+
+        self.assertEqual(self._unit_scale_factors(payload), [100.0, 100.0])
+
+
 class FbxBonePayloadTests(unittest.TestCase):
     """Bind matrices decide whether the mesh arrives at rest or pre-deformed."""
 
