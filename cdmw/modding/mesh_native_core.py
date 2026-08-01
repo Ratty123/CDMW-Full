@@ -223,6 +223,7 @@ from cdmw.modding.mesh_native_outputs import (
     export_native_obj as export_native_obj,
     write_native_obj_roundtrip_manifest as write_native_obj_roundtrip_manifest,
     build_native_fbx_geometry_arrays as build_native_fbx_geometry_arrays,
+    _fbx_skin_rows as _fbx_skin_rows,
     export_native_fbx as export_native_fbx,
 )
 

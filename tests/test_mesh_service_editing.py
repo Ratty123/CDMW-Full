@@ -1650,8 +1650,9 @@ class MeshServiceEditingTests(unittest.TestCase):
         submesh.uvs = submesh.uvs[:2]
         submesh.normals = []
         submesh.texture = "missing.dds"
-        submesh.bone_indices = [(0, 1, 2, 3, 4)] * len(submesh.vertices)
-        submesh.bone_weights = [(0.2, 0.2, 0.2, 0.2, 0.2)] * len(submesh.vertices)
+        # A PAC vertex record holds six influences, so seven is what overruns it.
+        submesh.bone_indices = [(0, 1, 2, 3, 4, 5, 6)] * len(submesh.vertices)
+        submesh.bone_weights = [(0.25, 0.15, 0.15, 0.15, 0.1, 0.1, 0.1)] * len(submesh.vertices)
         mesh.has_bones = True
         service = MeshService()
         view = service.open_edit_session(mesh, session_id="export-invalid", mode="edit")
@@ -1668,8 +1669,23 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertIn("too_many_bone_influences", blocker_codes)
         self.assertIn("missing_skeleton_metadata", blocker_codes)
         missing_skeleton = next(issue for issue in report.blockers if issue.code == "missing_skeleton_metadata")
-        self.assertIn("Inferred bone count from vertex weights: 5", missing_skeleton.message)
+        self.assertIn("Inferred bone count from vertex weights: 7", missing_skeleton.message)
         self.assertIn("missing_tangents", {issue.code for issue in report.warnings})
+
+    def test_export_validator_accepts_a_six_influence_vertex(self) -> None:
+        """Six is the format's own limit, so it must not be reported as an overrun."""
+
+        mesh = _malformed_face_mesh()
+        submesh = mesh.submeshes[0]
+        submesh.bone_indices = [(0, 1, 2, 3, 4, 5)] * len(submesh.vertices)
+        submesh.bone_weights = [(0.25, 0.15, 0.15, 0.15, 0.15, 0.15)] * len(submesh.vertices)
+        mesh.has_bones = True
+        service = MeshService()
+        view = service.open_edit_session(mesh, session_id="export-six", mode="edit")
+
+        report = service.validate_export(view.session_id, available_textures=())
+
+        self.assertNotIn("too_many_bone_influences", {issue.code for issue in report.blockers})
 
     def test_export_validator_reports_import_sidecar_warnings_after_session_clone(self) -> None:
         mesh = _quad_mesh()

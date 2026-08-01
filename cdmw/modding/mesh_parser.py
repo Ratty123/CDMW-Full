@@ -11,7 +11,9 @@ Format overview (all share the 'PAR ' magic):
 
 Vertex positions are uint16-quantized and dequantized using the per-file
 bounding box.  UVs are stored as float16 at vertex offset +8/+10.  Bone
-weights (PAC only) follow the UV data.
+weights (PAC only) follow the UV data: six influences per vertex, packed as
+two u32 of 10-bit palette slots plus six u8 weights.  See the layout notes
+beside the PAC_SKIN_* constants below.
 """
 
 from __future__ import annotations
@@ -108,15 +110,18 @@ PAMLOD_ENTRY_TABLE = 0x50
 # therefore not recorded in the PAC, and resolve_pac_bone_palette returning nothing for them is the
 # right answer rather than a failure. Treat an unresolved palette as "rigid, bone named elsewhere"
 # and not as an error; identifying that bone needs the prefab or attachment data outside the mesh.
-PAC_SKIN_INDEX_OFFSET = 20
 PAC_SKIN_SLOT_GROUPS = (20, 24)      # two u32 groups, three 10-bit slots each
 PAC_SKIN_SLOT_BITS = 10
+PAC_SKIN_SLOTS_PER_GROUP = 3
+PAC_SKIN_SLOT_MASK = (1 << PAC_SKIN_SLOT_BITS) - 1
 PAC_SKIN_INFLUENCES = 6
 PAC_SKIN_WEIGHT_OFFSET = 28
 PAC_SKIN_RECORD_END = PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_INFLUENCES
-PAC_SKIN_UNUSED_SLOT = 0xFF
-PAC_SKIN_MAX_BONE_INDEX = PAC_SKIN_UNUSED_SLOT - 1
-PAC_SKIN_WEIGHT_LAYOUT = "pac_slot_u8x4"
+PAC_SKIN_MAX_BONE_INDEX = PAC_SKIN_SLOT_MASK
+# There is no reserved slot value: a zero weight is what marks an influence unused, and slot 0
+# is a real palette entry. The old layout's 0xFF sentinel was an artifact of reading the lane as
+# four u8 and has no counterpart here.
+PAC_SKIN_WEIGHT_LAYOUT = "pac_slot_u10x6"
 
 # Stride candidates for auto-detection
 STRIDE_CANDIDATES = [6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40, 44, 48, 52, 56, 60, 64]
@@ -1213,17 +1218,7 @@ def _parse_pac_legacy(data: bytes, filename: str = "") -> ParsedMesh:
             packed_bones = ()
             packed_weights = ()
             if rec_off + PAC_SKIN_RECORD_END <= min(len(data), lod0_split):
-                raw_slots = struct.unpack_from("<BBBB", data, rec_off + PAC_SKIN_INDEX_OFFSET)
-                raw_weights = struct.unpack_from("<BBBB", data, rec_off + PAC_SKIN_WEIGHT_OFFSET)
-                mapped_bones = []
-                mapped_weights = []
-                for slot, weight in zip(raw_slots, raw_weights):
-                    if slot == PAC_SKIN_UNUSED_SLOT or weight == 0:
-                        continue
-                    mapped_bones.append(slot)
-                    mapped_weights.append(weight / 255.0)
-                packed_bones = tuple(mapped_bones)
-                packed_weights = tuple(mapped_weights)
+                packed_bones, packed_weights = _decode_pac_skin_influences(data, rec_off)
             bone_indices.append(packed_bones)
             bone_weights.append(packed_weights)
 
@@ -1506,6 +1501,33 @@ def _decode_pac_normal(data: bytes, rec_off: int) -> tuple[float, float, float]:
     return (nx, ny, nz)
 
 
+def _decode_pac_skin_influences(data: bytes, rec_off: int) -> tuple[tuple[int, ...], tuple[float, ...]]:
+    """Decode one PAC vertex's six packed skin influences.
+
+    Returns only the live ones. A zero weight is what marks an influence unused,
+    not the slot value: slot 0 is a real palette entry, and a rigidly bound prop
+    leaves every slot at zero while putting the whole 255 on the first weight.
+
+    Slots are palette tokens, not skeleton bone indices; see
+    :func:`resolve_pac_bone_palette`.
+    """
+
+    if rec_off < 0 or rec_off + PAC_SKIN_RECORD_END > len(data):
+        return (), ()
+
+    slots: list[int] = []
+    for group_offset in PAC_SKIN_SLOT_GROUPS:
+        group = struct.unpack_from("<I", data, rec_off + group_offset)[0]
+        slots.extend(
+            (group >> (PAC_SKIN_SLOT_BITS * position)) & PAC_SKIN_SLOT_MASK
+            for position in range(PAC_SKIN_SLOTS_PER_GROUP)
+        )
+    weights = struct.unpack_from(f"<{PAC_SKIN_INFLUENCES}B", data, rec_off + PAC_SKIN_WEIGHT_OFFSET)
+
+    live = [(slot, weight) for slot, weight in zip(slots, weights) if weight > 0]
+    return tuple(slot for slot, _ in live), tuple(weight / 255.0 for _, weight in live)
+
+
 def _decode_pac_vertex_record(
     data: bytes,
     rec_off: int,
@@ -1526,21 +1548,7 @@ def _decode_pac_vertex_record(
         uv = (0.0, 0.0)
 
     normal = _decode_pac_normal(data, rec_off)
-
-    packed_bones: tuple[int, ...] = ()
-    packed_weights: tuple[float, ...] = ()
-    if rec_off + PAC_SKIN_RECORD_END <= len(data):
-        raw_slots = struct.unpack_from("<BBBB", data, rec_off + PAC_SKIN_INDEX_OFFSET)
-        raw_weights = struct.unpack_from("<BBBB", data, rec_off + PAC_SKIN_WEIGHT_OFFSET)
-        mapped_bones = []
-        mapped_weights = []
-        for slot, weight in zip(raw_slots, raw_weights):
-            if slot == PAC_SKIN_UNUSED_SLOT or weight == 0:
-                continue
-            mapped_bones.append(slot)
-            mapped_weights.append(weight / 255.0)
-        packed_bones = tuple(mapped_bones)
-        packed_weights = tuple(mapped_weights)
+    packed_bones, packed_weights = _decode_pac_skin_influences(data, rec_off)
 
     return pos, uv, normal, packed_bones, packed_weights
 
@@ -2280,9 +2288,12 @@ def pac_bone_palette_candidates(
     """Bone-hash palette tables near the start of a PAC, longest first.
 
     A skinned PAC carries its own bone palette: a u16 count followed by that
-    many u32 ``.pab`` bone-name hashes. A vertex's primary influence byte
-    (``PAC_SKIN_INDEX_OFFSET``) indexes this table, which is what turns an
+    many u32 ``.pab`` bone-name hashes. Every one of a vertex's six influence
+    slots (``PAC_SKIN_SLOT_GROUPS``) indexes this table, which is what turns an
     opaque slot into a named skeleton bone.
+
+    A rigidly bound mesh carries no palette and needs none, so returning nothing
+    here is an answer and not a failure — see the layout notes above.
 
     Several byte runs can satisfy the shape, so every plausible table is
     returned and the caller picks the one that actually resolves against a
@@ -2312,7 +2323,8 @@ def resolve_pac_bone_palette(data: bytes, skeleton: object) -> tuple[int, ...]:
 
     Picks the candidate table whose hashes all resolve against ``skeleton``,
     so a mismatched or missing skeleton yields nothing rather than a wrong
-    palette.
+    palette. A rigidly bound mesh has no palette to find, so callers must treat
+    an empty result as "nothing to name here" rather than as an error.
     """
 
     bones = tuple(getattr(skeleton, "bones", ()) or ())

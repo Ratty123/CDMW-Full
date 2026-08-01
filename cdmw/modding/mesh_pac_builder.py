@@ -322,6 +322,12 @@ def _build_pac_in_place(
                 if len(rec) >= 8:
                     struct.pack_into("<H", rec, 6, 0)
                 if len(rec) >= 28:
+                    # Bytes 20-27 are the six packed skin slots, not shading state -- see
+                    # PAC_SKIN_SLOT_GROUPS. Zeroing them leaves the weight bytes alone, so the
+                    # record reads back as rigidly bound to palette slot 0. That is deliberate
+                    # for an imported static mesh, whose donor weights address vertices that no
+                    # longer exist; where the caller does author skin rows, the full rebuild
+                    # rewrites these lanes afterwards.
                     rec[20:28] = b"\x00" * 8
             vx, vy, vz = new_sm.vertices[vi]
             struct.pack_into(
@@ -770,6 +776,9 @@ def _build_pac_full_rebuild(
                     if len(donor_rec) >= 8:
                         struct.pack_into("<H", donor_rec, 6, 0)
                     if len(donor_rec) >= 28:
+                        # The six packed skin slots, not shading state; see the note on the
+                        # same lanes in _build_pac_in_place. When skin_export is on below,
+                        # patch_pac_vertex_skin rewrites them from the authored rows.
                         donor_rec[20:28] = b"\x00" * 8
                 struct.pack_into(
                     "<HHH",

@@ -840,7 +840,15 @@ def _fbx_bone_visual_sizes(skeleton, scale: float = 1.0) -> dict[int, float]:
     return {index: max(minimum, min(float(size), maximum)) for index, size in sizes.items()}
 
 
-def _export_fbx_native(mesh: ParsedMesh, fbx_path: str, base: str, scale: float, *, skeleton: object = None) -> bool:
+def _export_fbx_native(
+    mesh: ParsedMesh,
+    fbx_path: str,
+    base: str,
+    scale: float,
+    *,
+    skeleton: object = None,
+    bone_palette: object = None,
+) -> bool:
     try:
         from .mesh_native_core import export_native_fbx
     except Exception:
@@ -851,6 +859,7 @@ def _export_fbx_native(mesh: ParsedMesh, fbx_path: str, base: str, scale: float,
         base_name=base,
         scale=scale,
         skeleton=skeleton,
+        bone_palette=bone_palette,
     )
 
 
@@ -1088,12 +1097,25 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
 
 
 def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
-                              name: str = "", scale: float = 1.0) -> str:
-    """Export mesh + skeleton to FBX with armature hierarchy.
+                              name: str = "", scale: float = 1.0,
+                              bone_palette: object = None) -> str:
+    """Export mesh + skeleton to FBX with an armature and skin binding.
 
-    The skeleton parameter is a Skeleton object from skeleton_parser.
-    Bone hierarchy is written as FBX LimbNode models connected to the
-    mesh via Skin deformers. Compatible with Blender, Maya, Unity, Unreal.
+    The skeleton parameter is a Skeleton object from skeleton_parser. Bone
+    hierarchy is written as FBX LimbNode models, and the native writer binds the
+    mesh to it with Skin and Cluster deformers carrying per-vertex indexes and
+    weights. Compatible with Blender, Maya, Unity, Unreal.
+
+    ``bone_palette`` maps a PAC's influence slots onto this skeleton's bone
+    indices -- pass the result of ``resolve_pac_bone_palette``. ``None`` means
+    the slots already are bone indices, which is only right for a mesh that
+    stores them that way; an empty sequence means a palette was wanted and did
+    not resolve. A rigidly bound mesh is that second case, and is written as
+    geometry plus armature with no binding, which is the honest result: nothing
+    in the file says which bone it follows.
+
+    The Python fallback writer, used only when the native mesh core is
+    unavailable, writes the armature without the skin binding.
     """
     from .skeleton_parser import Skeleton
 
@@ -1101,7 +1123,7 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
     base = name or Path(mesh.path).stem
     fbx_path = os.path.join(output_dir, f"{base}.fbx")
 
-    if _export_fbx_native(mesh, fbx_path, base, scale, skeleton=skeleton):
+    if _export_fbx_native(mesh, fbx_path, base, scale, skeleton=skeleton, bone_palette=bone_palette):
         bone_count = len(skeleton.bones) if skeleton else 0
         logger.info("Exported FBX+Skeleton: %s (%d verts, %d faces, %d bones)",
                     fbx_path, mesh.total_vertices, mesh.total_faces, bone_count)
