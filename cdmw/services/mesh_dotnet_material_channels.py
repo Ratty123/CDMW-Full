@@ -12,7 +12,11 @@ from cdmw.core.dds_native import inspect_dds_native_path
 from cdmw.domain.mesh.material_resource_policy import canonical_material_channel
 from cdmw.domain.mesh.normal_y_policy import resolve_preview_normal_y_policy
 from cdmw.modding.asset_replacement import infer_cd_texture_role_from_path
-from cdmw.rendering.crimson_shader_registry import decode_crimson_texture_binding
+from cdmw.rendering.crimson_shader_registry import (
+    PREVIEW_DEFAULT_METALNESS,
+    PREVIEW_DEFAULT_ROUGHNESS,
+    decode_crimson_texture_binding,
+)
 from cdmw.rendering.preview_tint_contract import resolve_preview_tint_contract
 
 
@@ -646,6 +650,17 @@ def _dotnet_initial_material_parameters(
         minimum=0.0,
         maximum=1.0,
     )
+    if native_hints is None:
+        # State the same surface scalars the Archive Browser route always states.
+        # A material that declares neither used to emit nothing here, which left
+        # the shader on its own 0.45 roughness constant while the archive preview
+        # asked for 0.5 -- the same skin, rendered glossier in the Mesh Editor
+        # than in the preview it is supposed to match. The native-hint path owns
+        # these values when it is active, so it keeps them.
+        if roughness is None:
+            roughness = PREVIEW_DEFAULT_ROUGHNESS
+        if metallic is None:
+            metallic = PREVIEW_DEFAULT_METALNESS
     if roughness is not None:
         result["roughness_scale" if "roughness" in resolved_channels else "roughness"] = roughness
     if metallic is not None:

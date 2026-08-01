@@ -949,6 +949,11 @@ def test_color_only_gltf_material_preserves_surface_and_emissive_factors(tmp_pat
         "base_tint_color": [0.0, 1.0, 0.7911],
         "base_tint_strength": 0.0,
         "roughness": 0.920748,
+        # Stated even though this material declares no metalness, because the
+        # Archive Browser route states it too and a scalar only one route sends
+        # is how the two previews drifted apart. It is also the renderer's own
+        # constant, so naming it changes nothing about what is drawn.
+        "metalness": 0.0,
         "emissive_color": [1.0, 0.0, 0.0],
         "emissive_color_authoritative": True,
         "emissive_intensity": 10.0,
