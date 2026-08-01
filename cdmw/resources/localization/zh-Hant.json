@@ -534,7 +534,6 @@
     "All imported files are matched.": "所有匯入的檔案都相符。",
     "All in {value_0}/": "全部位於 {value_0}/",
     "All items ({value_0})": "所有項目 ({value_0})",
-    "All materials": "所有材料",
     "All packages": "所有套餐",
     "All parts": "所有零件",
     "All requested folders already existed.": "所有請求的資料夾都已存在。",
@@ -3716,7 +3715,6 @@
     "Material color targets use swatches instead of DDS preview.": "材質顏色目標使用樣本而非 DDS 預覽。",
     "Material colors": "材質顏色",
     "Material edit cannot be previewed yet: {value_0}": "材質編輯尚無法預覽：{value_0}",
-    "Material evidence: {value_0}": "材質證據：{value_0}",
     "Material groups": "材質組",
     "Material live preview cancelled.": "材質即時預覽已取消。",
     "Material mask generation: flips metal channel. Try when nonmetal/metal response looks reversed.": "材質掩模生成：翻轉金屬通道。當非金屬/金屬反應看起來相反時嘗試。",
@@ -3736,8 +3734,6 @@
     "Material sidecar shares the selected texture stem; this is an indexed same-stem hint, not a live archive scan.": "材質 sidecar 共享選定的紋理莖；這是索引同乾提示，而不是即時存檔掃描。",
     "Material sidecar worker returned invalid data.": "Material Sidecar Worker 傳回了無效資料。",
     "Material source": "材料來源",
-    "Material tags": "材質標籤",
-    "Material tags: {value_0}": "材質標籤：{value_0}",
     "Material texture validation cancelled.": "材質紋理驗證已取消。",
     "Material warning: {value_0}": "材質警告：{value_0}",
     "Material, texture, sampler, and lighting controls are owned by the resident viewport surfaces.": "材質、紋理、取樣器和照明控制由駐留視窗表面擁有。",
@@ -6086,8 +6082,6 @@
     "Search friendly/exact names, values, shaders, or paths...": "搜尋友善/準確的名稱、值、著色器或路徑...",
     "Search highlights: {value_0}": "搜尋亮點：{value_0}",
     "Search in progress...": "搜索正在進行中...",
-    "Search item name, ID, model stem, category, material tag, or icon path": "搜尋項目名稱、ID、模型主幹、類別、材料標籤或圖示路徑",
-    "Search item name, internal ID, model stem, category, material tag, texture, or icon path": "搜尋項目名稱、內部 ID、模型主幹、類別、材質標籤、紋理或圖示路徑",
     "Search item name, model id, category, or recovered file path": "搜尋項目名稱、型號 ID、類別或復原的檔案路徑",
     "Search log cleared.": "搜尋日誌已清除。",
     "Search mirror": "搜尋鏡子",
@@ -9569,6 +9563,8 @@
     "Texture  {value_0}": "貼圖  {value_0}",
     "{value_0}   (hidden)": "{value_0}   (已隱藏)",
     "{value_0} vertices, {value_1} triangles": "{value_0} 個頂點，{value_1} 個三角形",
-    "{value_0}   {value_1} v": "{value_0}   {value_1} 頂點"
+    "{value_0}   {value_1} v": "{value_0}   {value_1} 頂點",
+    "Search item name, ID, model stem, category, or icon path": "搜尋項目名稱、ID、模型主幹、類別或圖示路徑",
+    "Search item name, internal ID, model stem, category, texture, or icon path": "搜尋項目名稱、內部 ID、模型主幹、類別、紋理或圖示路徑"
   }
 }
