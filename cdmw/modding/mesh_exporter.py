@@ -943,7 +943,11 @@ def export_fbx(mesh: ParsedMesh, output_dir: str, name: str = "",
             W(b2, "P", ["FrontAxisSign", "int", "Integer", "", 1])
             W(b2, "P", ["CoordAxis", "int", "Integer", "", 0])
             W(b2, "P", ["CoordAxisSign", "int", "Integer", "", 1])
-            W(b2, "P", ["UnitScaleFactor", "double", "Number", "", 1.0])
+            # One game unit is a metre, and UnitScaleFactor states how many centimetres
+            # a unit is; an importer divides by it. Declaring 1 claimed centimetres and
+            # shrank every export a hundredfold. Mirrors the native writer.
+            W(b2, "P", ["UnitScaleFactor", "double", "Number", "", 100.0])
+            W(b2, "P", ["OriginalUnitScaleFactor", "double", "Number", "", 100.0])
         W(b, "Properties70", children=[props70])
     W(buf, "GlobalSettings", children=[global_settings])
 
@@ -1161,7 +1165,11 @@ def export_fbx_with_skeleton(mesh: ParsedMesh, skeleton, output_dir: str,
             W(b2, "P", ["FrontAxisSign", "int", "Integer", "", 1])
             W(b2, "P", ["CoordAxis", "int", "Integer", "", 0])
             W(b2, "P", ["CoordAxisSign", "int", "Integer", "", 1])
-            W(b2, "P", ["UnitScaleFactor", "double", "Number", "", 1.0])
+            # One game unit is a metre, and UnitScaleFactor states how many centimetres
+            # a unit is; an importer divides by it. Declaring 1 claimed centimetres and
+            # shrank every export a hundredfold. Mirrors the native writer.
+            W(b2, "P", ["UnitScaleFactor", "double", "Number", "", 100.0])
+            W(b2, "P", ["OriginalUnitScaleFactor", "double", "Number", "", 100.0])
         W(b, "Properties70", children=[props70])
     W(buf, "GlobalSettings", children=[global_settings])
 

@@ -204,10 +204,10 @@ def main():
     meshes = _bound_meshes(armature)
     print(f"meshes bound by an armature modifier: {[obj.name for obj in meshes]}")
 
-    # Blender reads a unitless FBX as centimetres and divides by 100 on import, so
-    # every distance below is 100x smaller than the source. The deformation check
-    # compares distances against each other and is unaffected; this is printed only
-    # so the numbers can be read against source-unit references.
+    # Should be 1: the exporter declares UnitScaleFactor 100, so Blender's
+    # global_scale of UnitScaleFactor/100 leaves game units alone. Printed because a
+    # value other than 1 silently rescales every distance below, and because it
+    # caught the export declaring centimetres for metre-scale geometry.
     import_scale = armature.matrix_world.to_scale()[0]
     print(f"import scale: {import_scale:g} (source units = printed / {import_scale:g})")
 

@@ -572,7 +572,14 @@ void write_native_fbx_preamble(std::vector<char>& out) {
                         [](std::vector<char>& props_out) { fbx_node(props_out, "P", {fbx_string("FrontAxisSign"), fbx_string("int"), fbx_string("Integer"), fbx_string(""), fbx_i32(1)}); },
                         [](std::vector<char>& props_out) { fbx_node(props_out, "P", {fbx_string("CoordAxis"), fbx_string("int"), fbx_string("Integer"), fbx_string(""), fbx_i32(0)}); },
                         [](std::vector<char>& props_out) { fbx_node(props_out, "P", {fbx_string("CoordAxisSign"), fbx_string("int"), fbx_string("Integer"), fbx_string(""), fbx_i32(1)}); },
-                        [](std::vector<char>& props_out) { fbx_node(props_out, "P", {fbx_string("UnitScaleFactor"), fbx_string("double"), fbx_string("Number"), fbx_string(""), fbx_f64(1.0)}); },
+                        // Geometry goes out in game units, and a game unit is a metre: a
+                        // body measures 1.808 tall. UnitScaleFactor states how many
+                        // centimetres one unit is, and an importer divides by it -- Blender
+                        // computes global_scale as UnitScaleFactor/100 -- so declaring 1
+                        // here claimed centimetres and landed every export at a hundredth
+                        // of its size.
+                        [](std::vector<char>& props_out) { fbx_node(props_out, "P", {fbx_string("UnitScaleFactor"), fbx_string("double"), fbx_string("Number"), fbx_string(""), fbx_f64(100.0)}); },
+                        [](std::vector<char>& props_out) { fbx_node(props_out, "P", {fbx_string("OriginalUnitScaleFactor"), fbx_string("double"), fbx_string("Number"), fbx_string(""), fbx_f64(100.0)}); },
                     }
                 );
             },
