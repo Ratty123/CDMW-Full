@@ -8,11 +8,11 @@ Of 141 known file formats, 89 are engine formats (Pearl Abyss or licensed middle
 
 | Scope | Formats | Read coverage | Write coverage |
 |---|---|---|---|
-| **Engine formats the build ships** | 77 | **41.7%** | **26.0%** |
+| **Engine formats the build ships** | 77 | **43.0%** | **26.6%** |
 | Weighted by archive file count | 1,383,187 files | 65.9% | 53.8% |
-| Engine formats (proprietary + middleware) | 89 | 41.9% | 27.5% |
-| Pearl Abyss formats only | 82 | 42.6% | 28.0% |
-| All formats | 141 | 54.3% | 33.0% |
+| Engine formats (proprietary + middleware) | 89 | 43.0% | 28.1% |
+| Pearl Abyss formats only | 82 | 43.8% | 28.7% |
+| All formats | 141 | 55.0% | 33.3% |
 
 Coverage is a weighted mean, not a file count: decode `full` = 1.0, decode `partial` = 0.6, decode `surface` = 0.3, decode `none` = 0.0; write `full` = 1.0, write `constrained` = 0.5, write `none` = 0.0.
 
@@ -22,7 +22,7 @@ Coverage is a weighted mean, not a file count: decode `full` = 1.0, decode `part
 |---|---|---|---|
 | `animation_scene` | 15 | `########............` 42.0% | `#####...............` 23.3% |
 | `audio_video` | 18 | `#########...........` 47.2% | `##..................` 8.3% |
-| `material_metadata` | 62 | `#########...........` 46.0% | `#######.............` 33.1% |
+| `material_metadata` | 62 | `##########..........` 47.6% | `#######.............` 33.9% |
 | `model_mesh_physics` | 19 | `###########.........` 54.2% | `#######.............` 36.8% |
 | `texture_image` | 12 | `################....` 80.0% | `###.................` 16.7% |
 | `user_interface_text` | 15 | `##################..` 88.7% | `################....` 80.0% |
@@ -45,6 +45,7 @@ Engine formats only, worst first. Open formats are listed at the end for complet
 | `.motionblending` | 1,637 | surface | none | medium | blend graph not parsed |
 | `.paa_metabin` | 162,179 | surface | none | medium | record layout not parsed |
 | `.pab` | 257 | partial | none | medium | unknown and truncated variants fall back to a best-effort scan, and there is no writer - bones cannot be added, removed or renamed |
+| `.pabgb` | 134 | partial | none | medium | per-table field layout after the name and key fields is unmodelled for every table except ItemInfo |
 | `.padxil` | 89,824 | surface | none | medium | the bytecode itself is not disassembled here; that needs dxc/dxil-dis, and there is no route to recompile an edited shader back into the cache |
 | `.pae` | 6,109 | surface | none | medium | parameter tables not parsed - VFX authoring is closed |
 | `.paem` | 560 | surface | none | medium | parameter tables not parsed - VFX authoring is closed |
@@ -74,8 +75,7 @@ Engine formats only, worst first. Open formats are listed at the end for complet
 | `.paasmt` | 1 | none | none | low | these entries are encrypted with a key CDMW does not have; nothing can be decoded until that is solved |
 | `.paatt` | 223 | none | none | low | container identified, record layout unknown |
 | `.pabc` | 459 | surface | none | low | field semantics unknown |
-| `.pabgb` | 134 | surface | none | low | field semantics unknown |
-| `.pabgh` | 134 | surface | none | low | field semantics unknown |
+| `.pabgh` | 134 | full | constrained | low | the structured-sidecar editor rewrites only the 5- and 8-byte row flavors; the 12- and 16-byte composite-key tables stay read-only |
 | `.pabv` | 101 | surface | none | low | field semantics unknown |
 | `.paccd` | 1,644 | surface | none | low | record layout not parsed |
 | `.pai` | 2 | none | none | low | unknown; rare in shipped archives |

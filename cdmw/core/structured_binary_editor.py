@@ -27,6 +27,9 @@ class PabghRow:
     index: int
     row_id: int
     offset: int
+    #: Raw primary key bytes. Wider than `row_id` for the composite-key tables,
+    #: where `row_id` holds only the leading u32.
+    key: bytes = b""
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +38,27 @@ class PabghTable:
     rows: Tuple[PabghRow, ...]
     header_size: int = 2
     proof_lines: Tuple[str, ...] = ()
+    key_width: int = 4
+
+    def row_spans(self, payload_length: int) -> Tuple[Tuple[PabghRow, int, int], ...]:
+        """`(row, start, end)` per row, in payload order.
+
+        Offsets address the companion `.pabgb`, so a row runs to the next offset
+        and the last row runs to the end of the blob. This is the whole reason the
+        directory exists: without it a reader has to guess where a record stops.
+        """
+
+        limit = max(0, int(payload_length))
+        ordered = sorted(self.rows, key=lambda row: int(row.offset))
+        usable = [row for row in ordered if 0 <= int(row.offset) < limit]
+        return tuple(
+            (
+                row,
+                int(row.offset),
+                int(usable[index + 1].offset) if index + 1 < len(usable) else limit,
+            )
+            for index, row in enumerate(usable)
+        )
 
 
 def _looks_like_editable_text(raw: bytes) -> bool:
@@ -144,15 +168,92 @@ def patch_length_prefixed_string(
     return StructuredStringPatchResult(data=bytes(payload), field=field, resized=False, proof_lines=tuple(proof))
 
 
-def parse_pabgh_table(data: bytes) -> PabghTable:
-    payload = bytes(data or b"")
-    if len(payload) < 2:
+#: Header count fields and primary keys are both variable width, so both are
+#: resolved by search against the payload rather than assumed. Composite keys
+#: (8 and 12 bytes) are real: `characterappearanceindexinfo` uses 8 and
+#: `aieventtableinfo` uses 12, and a reader that allows only 1/2/4 drops them.
+_PABGH_COUNT_WIDTHS = (1, 2, 4)
+_PABGH_KEY_WIDTHS = (1, 2, 4, 8, 12)
+
+
+def _parse_pabgh_row_directory(header: bytes, payload: bytes) -> PabghTable | None:
+    """Resolve the header's count and key widths against the row payload.
+
+    A one-row table fits several widths arithmetically, so the inline key -- every
+    row repeats its own primary key as its first field -- is what decides between
+    them. Without the payload that ambiguity is unresolvable, and this returns None
+    rather than guessing.
+    """
+
+    for count_width in _PABGH_COUNT_WIDTHS:
+        if len(header) < count_width:
+            continue
+        count = int.from_bytes(header[:count_width], "little")
+        if count <= 0:
+            continue
+        remainder = len(header) - count_width
+        if remainder % count:
+            continue
+        row_size = remainder // count
+        key_width = row_size - 4
+        if key_width not in _PABGH_KEY_WIDTHS:
+            continue
+        rows: list[PabghRow] = []
+        cursor = count_width
+        previous = -1
+        usable = True
+        for index in range(count):
+            key = header[cursor : cursor + key_width]
+            target_offset = struct.unpack_from("<I", header, cursor + key_width)[0]
+            if target_offset <= previous:
+                usable = False
+                break
+            previous = target_offset
+            rows.append(
+                PabghRow(
+                    index=index,
+                    row_id=int.from_bytes(key[:4], "little"),
+                    offset=target_offset,
+                    key=bytes(key),
+                )
+            )
+            cursor += row_size
+        if not usable or not rows:
+            continue
+        if rows[0].offset != 0 or rows[-1].offset >= len(payload):
+            continue
+        if any(payload[row.offset : row.offset + key_width] != row.key for row in rows):
+            continue
+        return PabghTable(
+            row_size=row_size,
+            rows=tuple(rows),
+            header_size=count_width,
+            key_width=key_width,
+            proof_lines=(
+                f"Detected {count:,} row(s).",
+                f"Resolved a {count_width}-byte count and a {key_width}-byte key against the payload.",
+                "Every row repeats its own key inline.",
+            ),
+        )
+    return None
+
+
+def parse_pabgh_table(data: bytes, *, payload: bytes | None = None) -> PabghTable:
+    """Parse a `.pabgh` row directory.
+
+    `payload` is the companion `.pabgb`. Supplying it enables the general width
+    search and the inline-key check; without it only the two fixed row flavors the
+    structured-sidecar editor can rewrite are recognized.
+    """
+
+    header = bytes(data or b"")
+    if len(header) < 2:
         raise ValueError("PABGH table is too short to contain a row count.")
-    count = struct.unpack_from("<H", payload, 0)[0]
+    count = struct.unpack_from("<H", header, 0)[0]
     exact_row_sizes = [
         row_size
         for row_size in (8, 5)
-        if count > 0 and 2 + count * row_size == len(payload)
+        if count > 0 and 2 + count * row_size == len(header)
     ]
     if exact_row_sizes:
         row_size = exact_row_sizes[0]
@@ -160,33 +261,41 @@ def parse_pabgh_table(data: bytes) -> PabghTable:
         offset = 2
         for index in range(count):
             if row_size == 5:
-                row_id = payload[offset]
-                target_offset = struct.unpack_from("<I", payload, offset + 1)[0]
+                key = header[offset : offset + 1]
             else:
-                row_id = struct.unpack_from("<I", payload, offset)[0]
-                target_offset = struct.unpack_from("<I", payload, offset + 4)[0]
-            rows.append(PabghRow(index=index, row_id=row_id, offset=target_offset))
+                key = header[offset : offset + 4]
+            target_offset = struct.unpack_from("<I", header, offset + row_size - 4)[0]
+            rows.append(
+                PabghRow(
+                    index=index,
+                    row_id=int.from_bytes(key, "little"),
+                    offset=target_offset,
+                    key=bytes(key),
+                )
+            )
             offset += row_size
         return PabghTable(
             row_size=row_size,
             rows=tuple(rows),
+            key_width=row_size - 4,
             proof_lines=(
                 f"Detected {count:,} row(s).",
                 f"Detected exact {row_size}-byte row flavor.",
             ),
         )
+    if payload is not None:
+        resolved = _parse_pabgh_row_directory(header, bytes(payload))
+        if resolved is not None:
+            return resolved
     candidates: list[tuple[int, int]] = []
     for row_size in (5, 8):
         table_end = 2 + count * row_size
-        if count > 0 and table_end <= len(payload):
+        if count > 0 and table_end <= len(header):
             valid_offsets = 0
             cursor = 2
             for _index in range(count):
-                if row_size == 5:
-                    target_offset = struct.unpack_from("<I", payload, cursor + 1)[0]
-                else:
-                    target_offset = struct.unpack_from("<I", payload, cursor + 4)[0]
-                if 0 <= target_offset <= len(payload):
+                target_offset = struct.unpack_from("<I", header, cursor + row_size - 4)[0]
+                if 0 <= target_offset <= len(header):
                     valid_offsets += 1
                 cursor += row_size
             candidates.append((valid_offsets, row_size))
@@ -196,17 +305,21 @@ def parse_pabgh_table(data: bytes) -> PabghTable:
     rows: list[PabghRow] = []
     offset = 2
     for index in range(count):
-        if row_size == 5:
-            row_id = payload[offset]
-            target_offset = struct.unpack_from("<I", payload, offset + 1)[0]
-        else:
-            row_id = struct.unpack_from("<I", payload, offset)[0]
-            target_offset = struct.unpack_from("<I", payload, offset + 4)[0]
-        rows.append(PabghRow(index=index, row_id=row_id, offset=target_offset))
+        key = header[offset : offset + (1 if row_size == 5 else 4)]
+        target_offset = struct.unpack_from("<I", header, offset + row_size - 4)[0]
+        rows.append(
+            PabghRow(
+                index=index,
+                row_id=int.from_bytes(key, "little"),
+                offset=target_offset,
+                key=bytes(key),
+            )
+        )
         offset += row_size
     return PabghTable(
         row_size=row_size,
         rows=tuple(rows),
+        key_width=row_size - 4,
         proof_lines=(
             f"Detected {count:,} row(s).",
             f"Detected {row_size}-byte row flavor.",

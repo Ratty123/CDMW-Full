@@ -18,6 +18,7 @@ from cdmw.core.archive_model_references import (
     iter_archive_equipment_model_alias_stems,
 )
 from cdmw.core.common import raise_if_cancelled
+from cdmw.core.structured_binary_editor import parse_pabgh_table
 from cdmw.core.table_catalog import (
     TableEvidenceRecord,
     build_item_table_evidence,
@@ -35,6 +36,7 @@ class ArchiveItemRecord:
     item_id: int
     internal_name: str
     display_name: str = ""
+    description: str = ""
     localized_names: tuple[str, ...] = ()
     prefab_hashes: List[int] = field(default_factory=list)
     model_stems: List[str] = field(default_factory=list)
@@ -50,6 +52,7 @@ class ArchiveAssetCatalogEntry:
     internal_name: str
     display_name: str
     category: str
+    description: str = ""
     group: str = ""
     category_evidence: str = ""
     pac_files: tuple[str, ...] = ()
@@ -70,6 +73,7 @@ class ArchiveAssetCatalogEntry:
             "internal_name": self.internal_name,
             "display_name": self.display_name,
             "category": self.category,
+            "description": self.description,
             "group": self.group,
             "category_evidence": self.category_evidence,
             "pac_files": list(self.pac_files),
@@ -101,6 +105,8 @@ class ArchiveItemSearchIndex:
 class _ArchiveItemIndexSources:
     localization_entries: Dict[str, ArchiveEntry] = field(default_factory=dict)
     iteminfo_entry: Optional[ArchiveEntry] = None
+    #: The `.pabgh` companion that says where each `.pabgb` row starts and stops.
+    iteminfo_header_entry: Optional[ArchiveEntry] = None
     stringinfo_entry: Optional[ArchiveEntry] = None
     part_prefab_dye_slot_entry: Optional[ArchiveEntry] = None
     material_match_entry: Optional[ArchiveEntry] = None
@@ -109,6 +115,11 @@ class _ArchiveItemIndexSources:
 
 
 _ITEMINFO_MARKER = b"\x00\x01\x00\x00\x00\x00\x00\x00\x00\x07\x70\x00\x00\x00"
+#: Inline sub-record tags carrying a row's localization keys. The 14-byte marker
+#: above is a fragment of the first of these, which is why scanning for it finds
+#: only the rows whose preceding bytes happen to match.
+_ITEMINFO_NAME_KEY_TAG = b"\x07\x70\x00\x00\x00"
+_ITEMINFO_DESCRIPTION_KEY_TAG = b"\x07\x71\x00\x00\x00"
 _ITEM_INTERNAL_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 _MODEL_HASH_SUFFIXES = (
     "",
@@ -338,6 +349,7 @@ def _collect_archive_item_index_sources(
         stem = os.path.splitext(basename)[0]
         wants_localization = "localizationstring_" in lower_path
         wants_iteminfo = "iteminfo.pabgb" in lower_path
+        wants_iteminfo_header = "iteminfo.pabgh" in lower_path
         wants_stringinfo = basename == "stringinfo.pabgb"
         wants_part_prefab_dye_slot = basename == "partprefabdyeslotinfo.pabgb"
         wants_material_match = basename == "materialmatchinfo.pabgb"
@@ -349,6 +361,7 @@ def _collect_archive_item_index_sources(
         if not (
             wants_localization
             or wants_iteminfo
+            or wants_iteminfo_header
             or wants_stringinfo
             or wants_part_prefab_dye_slot
             or wants_material_match
@@ -364,6 +377,8 @@ def _collect_archive_item_index_sources(
                     break
         elif wants_iteminfo and group == "0008" and sources.iteminfo_entry is None:
             sources.iteminfo_entry = entry
+        elif wants_iteminfo_header and group == "0008" and sources.iteminfo_header_entry is None:
+            sources.iteminfo_header_entry = entry
         elif wants_stringinfo and group == "0008" and sources.stringinfo_entry is None:
             sources.stringinfo_entry = entry
         elif wants_part_prefab_dye_slot and group == "0008" and sources.part_prefab_dye_slot_entry is None:
@@ -775,13 +790,21 @@ def _iteminfo_localization_id_candidates(data: bytes, marker_offset: int, record
     return tuple(candidates)
 
 
-def _parse_archive_iteminfo_data(
+def _parse_archive_iteminfo_data_by_marker(
     data: bytes,
     loc_tables: Mapping[str, Mapping[str, str]],
     *,
     icon_model_hashes: Optional[Mapping[int, str]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> List[ArchiveItemRecord]:
+    """Locate rows by scanning for a byte marker.
+
+    This recovers 4,142 of the 6,508 shipped rows because the marker is a fragment
+    of the display-name sub-record rather than a record header, so any row whose
+    surrounding bytes differ is invisible. It survives only for archives that ship
+    no `.pabgh` companion, and says so in the log when it runs.
+    """
+
     items: List[ArchiveItemRecord] = []
     seen_ids: set[int] = set()
     idx = 0
@@ -907,15 +930,181 @@ def _parse_archive_iteminfo_data(
     return items
 
 
-def _parse_archive_iteminfo_entry(
-    item_entry: ArchiveEntry,
+def _iteminfo_row_internal_name(row: bytes) -> str:
+    """Read the row's own name field, which follows the repeated primary key."""
+
+    if len(row) < 8:
+        return ""
+    length = struct.unpack_from("<I", row, 4)[0]
+    if length <= 0 or length > 256 or 8 + length > len(row):
+        return ""
+    raw = row[8 : 8 + length].split(b"\x00", 1)[0]
+    return raw.decode("ascii", errors="replace")
+
+
+def _iteminfo_sub_record_key(row: bytes, tag: bytes) -> str:
+    """Read a localization key out of an inline `07 7x 00 00 00` sub-record.
+
+    The shape is `tag, u32 repeat-key, u32 length, ascii`. The repeat-key restates
+    the row's own primary key, so the tag is safe to search for inside a row span.
+    """
+
+    at = row.find(tag)
+    if at < 0:
+        return ""
+    cursor = at + len(tag)
+    if cursor + 8 > len(row):
+        return ""
+    length = struct.unpack_from("<I", row, cursor + 4)[0]
+    if length <= 0 or length > 64 or cursor + 8 + length > len(row):
+        return ""
+    raw = row[cursor + 8 : cursor + 8 + length].split(b"\x00", 1)[0]
+    return raw.decode("ascii", errors="replace").strip()
+
+
+def _parse_archive_iteminfo_rows(
+    data: bytes,
+    header_data: bytes,
     loc_tables: Mapping[str, Mapping[str, str]],
     *,
     icon_model_hashes: Optional[Mapping[int, str]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> List[ArchiveItemRecord]:
+    """Read item rows using the `.pabgh` row directory for exact boundaries.
+
+    Every row's span, primary key, internal name, display-name key, and description
+    key come from the file rather than from a scan, so recall is the row count.
+    """
+
+    table = parse_pabgh_table(header_data, payload=data)
+    items: List[ArchiveItemRecord] = []
+    seen_ids: set[int] = set()
+    for row, start, end in table.row_spans(len(data)):
+        raise_if_cancelled(stop_event)
+        item_id = int(row.row_id)
+        if item_id in seen_ids:
+            continue
+        seen_ids.add(item_id)
+        row_bytes = data[start:end]
+        name = _iteminfo_row_internal_name(row_bytes)
+
+        name_key = _iteminfo_sub_record_key(row_bytes, _ITEMINFO_NAME_KEY_TAG)
+        description_key = _iteminfo_sub_record_key(row_bytes, _ITEMINFO_DESCRIPTION_KEY_TAG)
+
+        localized_names: List[str] = []
+        seen_names: set[str] = set()
+        if name_key:
+            for _language_code, table_rows in loc_tables.items():
+                localized_name = str(table_rows.get(name_key, "") or "").strip()
+                normalized_name = localized_name.casefold()
+                if localized_name and normalized_name not in seen_names:
+                    localized_names.append(localized_name)
+                    seen_names.add(normalized_name)
+        display_name = ""
+        if name_key:
+            display_name = str(loc_tables.get("eng", {}).get(name_key, "") or "").strip()
+            if not display_name and localized_names:
+                display_name = localized_names[0]
+        description = ""
+        if description_key:
+            description = str(loc_tables.get("eng", {}).get(description_key, "") or "").strip()
+
+        prefab_hashes: List[int] = []
+        seen_prefab_hashes: set[int] = set()
+        scan = 0
+        while scan + 15 < len(row_bytes) and len(prefab_hashes) < _ITEMINFO_MAX_PREFAB_HASHES:
+            if row_bytes[scan] not in {0x0E, 0x0F, 0x10}:
+                scan += 1
+                continue
+            count1 = struct.unpack_from("<I", row_bytes, scan + 3)[0]
+            count2 = struct.unpack_from("<I", row_bytes, scan + 7)[0]
+            list_end = scan + 11 + count2 * 4
+            if not (
+                0 < count1 <= _ITEMINFO_MAX_PREFAB_LIST_COUNT
+                and 0 < count2 <= _ITEMINFO_MAX_PREFAB_LIST_COUNT
+                and list_end <= len(row_bytes)
+            ):
+                scan += 1
+                continue
+            for hash_index in range(count2):
+                value = struct.unpack_from("<I", row_bytes, scan + 11 + hash_index * 4)[0]
+                if value and value not in seen_prefab_hashes:
+                    prefab_hashes.append(value)
+                    seen_prefab_hashes.add(value)
+            scan = list_end
+
+        model_stems: List[str] = []
+        if icon_model_hashes:
+            for scan in range(0, max(0, len(row_bytes) - 3)):
+                value = struct.unpack_from("<I", row_bytes, scan)[0]
+                model_stem = _normalize_item_icon_model_stem(icon_model_hashes.get(value, ""))
+                if (
+                    model_stem
+                    and model_stem not in model_stems
+                    and _item_icon_model_reference_is_compatible(name, model_stem, display_name)
+                ):
+                    model_stems.append(model_stem)
+
+        table_evidence = build_item_table_evidence(
+            item_id=item_id,
+            internal_name=name,
+            display_name=display_name,
+            localized_names=tuple(localized_names),
+            prefab_hashes=tuple(prefab_hashes),
+            model_stems=tuple(model_stems),
+        )
+        items.append(
+            ArchiveItemRecord(
+                item_id=item_id,
+                internal_name=name,
+                display_name=display_name,
+                description=description,
+                localized_names=tuple(localized_names),
+                prefab_hashes=prefab_hashes,
+                model_stems=model_stems,
+                table_evidence=table_evidence,
+            )
+        )
+    return items
+
+
+def _parse_archive_iteminfo_entry(
+    item_entry: ArchiveEntry,
+    loc_tables: Mapping[str, Mapping[str, str]],
+    *,
+    header_entry: Optional[ArchiveEntry] = None,
+    icon_model_hashes: Optional[Mapping[int, str]] = None,
+    on_log: Optional[Callable[[str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> List[ArchiveItemRecord]:
     data, _decompressed, _note = read_archive_entry_data(item_entry, stop_event=stop_event)
-    return _parse_archive_iteminfo_data(
+    if header_entry is not None:
+        header_data, _header_decompressed, _header_note = read_archive_entry_data(
+            header_entry,
+            stop_event=stop_event,
+        )
+        try:
+            return _parse_archive_iteminfo_rows(
+                data,
+                header_data,
+                loc_tables,
+                icon_model_hashes=icon_model_hashes,
+                stop_event=stop_event,
+            )
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            if on_log is not None:
+                on_log(
+                    "Item-name search: the iteminfo.pabgh row directory could not be read "
+                    f"({exc}); falling back to the marker scan, which finds fewer items."
+                )
+    elif on_log is not None:
+        on_log(
+            "Item-name search: iteminfo.pabgh was not found beside iteminfo.pabgb; "
+            "falling back to the marker scan, which finds fewer items."
+        )
+    return _parse_archive_iteminfo_data_by_marker(
         data,
         loc_tables,
         icon_model_hashes=icon_model_hashes,
@@ -936,7 +1125,13 @@ def parse_archive_iteminfo(
             on_log("Item-name search: iteminfo.pabgb was not found in package 0008.")
         return []
 
-    return _parse_archive_iteminfo_entry(item_entry, loc_tables, stop_event=stop_event)
+    return _parse_archive_iteminfo_entry(
+        item_entry,
+        loc_tables,
+        header_entry=_find_archive_entry(entries, "0008", "iteminfo.pabgh"),
+        on_log=on_log,
+        stop_event=stop_event,
+    )
 
 
 def _build_archive_model_hash_table_from_entries(entries: Sequence[ArchiveEntry]) -> Dict[int, str]:
@@ -1442,6 +1637,7 @@ def _merge_catalog_entry(existing: ArchiveAssetCatalogEntry, item: ArchiveItemRe
         internal_name=existing.internal_name,
         display_name=display_name or existing.internal_name,
         category=existing.category,
+        description=existing.description or item.description,
         group=existing.group,
         category_evidence=existing.category_evidence,
         pac_files=pac_files,
@@ -1496,6 +1692,7 @@ def _build_archive_asset_catalog_entries(items: Sequence[ArchiveItemRecord]) -> 
             internal_name=item.internal_name,
             display_name=display_base or item.display_name or _friendly_internal_item_name(item.internal_name),
             category=category,
+            description=item.description,
             group=catalog_group,
             category_evidence=category_evidence,
             pac_files=tuple(item.pac_files),
@@ -1724,6 +1921,7 @@ def _try_build_archive_item_search_index_native(
                 (payload_root / name).write_bytes(data)
 
             write_payload("iteminfo.bin", sources.iteminfo_entry)
+            write_payload("iteminfo_header.bin", sources.iteminfo_header_entry)
             write_payload("stringinfo.bin", sources.stringinfo_entry)
             write_payload("partprefabdyeslotinfo.bin", sources.part_prefab_dye_slot_entry)
             for language_code, loc_entry in sources.localization_entries.items():
@@ -1775,6 +1973,7 @@ def _try_build_archive_item_search_index_native(
             item_id=int(row.get("item_id") or 0),
             internal_name=str(row.get("internal_name") or ""),
             display_name=str(row.get("display_name") or ""),
+            description=str(row.get("description") or ""),
             localized_names=localized_names,
             prefab_hashes=prefab_hashes,
             model_stems=model_stems,
@@ -1880,7 +2079,9 @@ def build_archive_item_search_index(
             items = _parse_archive_iteminfo_entry(
                 sources.iteminfo_entry,
                 loc_tables,
+                header_entry=sources.iteminfo_header_entry,
                 icon_model_hashes=icon_model_hashes,
+                on_log=on_log,
                 stop_event=stop_event,
             )
             material_tag_index = _parse_archive_part_prefab_dye_slot_material_index(
