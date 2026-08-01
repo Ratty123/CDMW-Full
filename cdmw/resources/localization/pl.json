@@ -534,7 +534,6 @@
     "All imported files are matched.": "Wszystkie zaimportowane pliki są dopasowane.",
     "All in {value_0}/": "Wszystkie w {value_0}/",
     "All items ({value_0})": "Wszystkie elementy ({value_0})",
-    "All materials": "Wszystkie materiały",
     "All packages": "Wszystkie pakiety",
     "All parts": "Wszystkie części",
     "All requested folders already existed.": "Wszystkie żądane foldery już istniały.",
@@ -3716,7 +3715,6 @@
     "Material color targets use swatches instead of DDS preview.": "Docelowe kolory materiału korzystają z próbek zamiast podglądu DDS.",
     "Material colors": "Kolory materiału",
     "Material edit cannot be previewed yet: {value_0}": "Nie można jeszcze wyświetlić podglądu edycji materiału: {value_0}",
-    "Material evidence: {value_0}": "Dowód materiałowy: {value_0}",
     "Material groups": "Grupy materiałów",
     "Material live preview cancelled.": "Podgląd materiału na żywo anulowany.",
     "Material mask generation: flips metal channel. Try when nonmetal/metal response looks reversed.": "Generowanie maski materiałowej: odwraca metalowy kanał. Spróbuj, gdy reakcja niemetalu/metalu wygląda na odwróconą.",
@@ -3736,8 +3734,6 @@
     "Material sidecar shares the selected texture stem; this is an indexed same-stem hint, not a live archive scan.": "Materiał wózka ma współdzielony wybrany trzon tekstury; to jest zindeksowana wskazówka dotycząca tego samego tematu, a nie skan archiwum na żywo.",
     "Material sidecar worker returned invalid data.": "Materialny pracownik wózka bocznego zwrócił nieprawidłowe dane.",
     "Material source": "Źródło materialne",
-    "Material tags": "Tagi materiałowe",
-    "Material tags: {value_0}": "Tagi materiałów: {value_0}",
     "Material texture validation cancelled.": "Weryfikacja tekstury materiału została anulowana.",
     "Material warning: {value_0}": "Ostrzeżenie dotyczące materiału: {value_0}",
     "Material, texture, sampler, and lighting controls are owned by the resident viewport surfaces.": "Elementy sterujące materiałem, teksturą, próbnikiem i oświetleniem należą do rezydentnych powierzchni rzutni.",
@@ -6086,8 +6082,6 @@
     "Search friendly/exact names, values, shaders, or paths...": "Wyszukaj przyjazne/dokładne nazwy, wartości, moduły cieniujące lub ścieżki...",
     "Search highlights: {value_0}": "Najważniejsze informacje o wyszukiwaniu: {value_0}",
     "Search in progress...": "Wyszukiwanie w toku...",
-    "Search item name, ID, model stem, category, material tag, or icon path": "Wyszukaj nazwę elementu, identyfikator, łodygę modelu, kategorię, znacznik materiału lub ścieżkę ikony",
-    "Search item name, internal ID, model stem, category, material tag, texture, or icon path": "Wyszukaj nazwę elementu, identyfikator wewnętrzny, łodygę modelu, kategorię, znacznik materiału, teksturę lub ścieżkę ikony",
     "Search item name, model id, category, or recovered file path": "Wyszukaj nazwę elementu, identyfikator modelu, kategorię lub ścieżkę odzyskanego pliku",
     "Search log cleared.": "Dziennik wyszukiwania został wyczyszczony.",
     "Search mirror": "Szukaj lustro",
@@ -9572,6 +9566,8 @@
     "Texture  {value_0}": "Tekstura  {value_0}",
     "{value_0}   (hidden)": "{value_0}   (ukryty)",
     "{value_0} vertices, {value_1} triangles": "{value_0} wierzchołków, {value_1} trójkątów",
-    "{value_0}   {value_1} v": "{value_0}   {value_1} wierzch."
+    "{value_0}   {value_1} v": "{value_0}   {value_1} wierzch.",
+    "Search item name, ID, model stem, category, or icon path": "Wyszukaj nazwę elementu, identyfikator, łodygę modelu, kategorię lub ścieżkę ikony",
+    "Search item name, internal ID, model stem, category, texture, or icon path": "Wyszukaj nazwę elementu, identyfikator wewnętrzny, łodygę modelu, kategorię, teksturę lub ścieżkę ikony"
   }
 }

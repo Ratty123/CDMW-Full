@@ -73,8 +73,6 @@ class ArchiveAssetCatalogMixin:
             "icon_paths",
             "localized_names",
             "compatibility_tags",
-            "material_tags",
-            "material_evidence",
         ):
             raw_values = row.get(key)
             if isinstance(raw_values, Sequence) and not isinstance(raw_values, (str, bytes, bytearray)):

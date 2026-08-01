@@ -79,7 +79,6 @@ class ItemCatalogSearchRequest:
     query: str = ""
     category: str | None = None
     group: str | None = None
-    material_tag: str | None = None
     page_start: int = 0
     page_size: int = 72
 
@@ -123,7 +122,6 @@ class ItemCatalogRow:
     model_stems: tuple[str, ...]
     icon_paths: tuple[str, ...]
     localized_names: tuple[str, ...]
-    material_tags: tuple[str, ...]
     variant_count: int
     evidence: str
     #: Defaulted so a worker built before these fields still satisfies the contract.
@@ -144,7 +142,6 @@ class ItemCatalogRow:
             model_stems=read_string_tuple(payload, "model_stems"),
             icon_paths=read_string_tuple(payload, "icon_paths"),
             localized_names=read_string_tuple(payload, "localized_names"),
-            material_tags=read_string_tuple(payload, "material_tags"),
             variant_count=read_int(payload, "variant_count"),
             evidence=read_string(payload, "evidence"),
             description=read_string(payload, "description", default=""),
@@ -160,8 +157,6 @@ class ItemCatalogSearchResult:
     page_size: int
     items: tuple[ItemCatalogRow, ...]
     categories: tuple[ItemCatalogCategoryFacet, ...]
-    material_tags: tuple[ItemCatalogValueFacet, ...]
-    has_material_evidence: bool
     warning: str | None = None
 
     @classmethod
@@ -177,11 +172,6 @@ class ItemCatalogSearchResult:
                 ItemCatalogCategoryFacet.from_wire(row)
                 for row in require_sequence(payload.get("categories"), "categories")
             ),
-            material_tags=tuple(
-                ItemCatalogValueFacet.from_wire(row)
-                for row in require_sequence(payload.get("material_tags"), "material_tags")
-            ),
-            has_material_evidence=read_bool(payload, "has_material_evidence", default=False),
             warning=read_optional_string(payload, "warning"),
         )
 
@@ -232,7 +222,6 @@ class ItemCatalogScopeRequest:
     query: str = ""
     category: str | None = None
     group: str | None = None
-    material_tag: str | None = None
     include_related: bool = False
     maximum_results: int = 4096
 

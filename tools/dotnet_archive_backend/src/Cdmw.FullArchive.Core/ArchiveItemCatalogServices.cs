@@ -29,8 +29,6 @@ public sealed class ArchiveItemCatalogService(
                     pageSize,
                     [],
                     [],
-                    [],
-                    HasMaterialEvidence: false,
                     built.Warning ?? "The item catalogue is unavailable for this archive.");
             }
         }
@@ -38,7 +36,6 @@ public sealed class ArchiveItemCatalogService(
             request.Query,
             request.Category,
             request.Group,
-            request.MaterialTag,
             Math.Max(0, request.PageStart),
             pageSize);
         return new ItemCatalogSearchResult(
@@ -47,9 +44,7 @@ public sealed class ArchiveItemCatalogService(
             Math.Max(0, request.PageStart),
             pageSize,
             page.Items.Select(ToContract).ToArray(),
-            catalog.CategoryFacets,
-            catalog.MaterialFacets,
-            catalog.HasMaterialEvidence);
+            catalog.CategoryFacets);
     }
 
     internal static ItemCatalogRow ToContract(ArchiveItemCatalogRecord item) => new(
@@ -63,7 +58,6 @@ public sealed class ArchiveItemCatalogService(
         BoundedValues(item.ModelStems, 4),
         BoundedValues(item.IconPaths, 2),
         BoundedValues(item.LocalizedNames, 3),
-        BoundedValues(item.MaterialTags, 6),
         item.VariantCount,
         Bounded(item.Evidence, 4096),
         Bounded(item.Description, 2048),
@@ -192,7 +186,7 @@ public sealed class ArchiveItemCatalogScopeService(
             var start = 0;
             while (selected.Count < 4096)
             {
-                var page = catalog.Search(request.Query, request.Category, request.Group, request.MaterialTag, start, 256);
+                var page = catalog.Search(request.Query, request.Category, request.Group, start, 256);
                 selected.AddRange(page.Items);
                 start += page.Items.Count;
                 if (page.Items.Count == 0 || start >= page.TotalMatches) break;

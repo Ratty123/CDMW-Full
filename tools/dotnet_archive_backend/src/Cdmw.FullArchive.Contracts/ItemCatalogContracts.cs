@@ -16,7 +16,6 @@ public sealed record ItemCatalogSearchRequest(
     string Query = "",
     string? Category = null,
     string? Group = null,
-    string? MaterialTag = null,
     int PageStart = 0,
     int PageSize = 72);
 
@@ -27,8 +26,6 @@ public sealed record ItemCatalogSearchResult(
     int PageSize,
     IReadOnlyList<ItemCatalogRow> Items,
     IReadOnlyList<ItemCatalogCategoryFacet> Categories,
-    IReadOnlyList<ItemCatalogValueFacet> MaterialTags,
-    bool HasMaterialEvidence,
     string? Warning = null);
 
 public sealed record ItemCatalogRow(
@@ -42,7 +39,6 @@ public sealed record ItemCatalogRow(
     IReadOnlyList<string> ModelStems,
     IReadOnlyList<string> IconPaths,
     IReadOnlyList<string> LocalizedNames,
-    IReadOnlyList<string> MaterialTags,
     int VariantCount,
     string Evidence,
     string Description = "",
@@ -71,7 +67,6 @@ public sealed record ItemCatalogScopeRequest(
     string Query = "",
     string? Category = null,
     string? Group = null,
-    string? MaterialTag = null,
     bool IncludeRelated = false,
     int MaximumResults = 4096);
 

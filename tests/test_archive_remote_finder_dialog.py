@@ -15,7 +15,6 @@ from cdmw.domain.archives.item_catalogue import (
     ItemCatalogRow,
     ItemCatalogScopeResult,
     ItemCatalogSearchResult,
-    ItemCatalogValueFacet,
 )
 from cdmw.ui.archive_browser.remote_finder_dialog import RemoteArchiveFinderDialog
 
@@ -109,7 +108,7 @@ class _Warmup(QObject):
         return tuple(int(item_id) for item_id in item_ids)
 
 
-def _row(item_id: int, *, materials: tuple[str, ...] = ()) -> ItemCatalogRow:
+def _row(item_id: int) -> ItemCatalogRow:
     return ItemCatalogRow(
         item_id,
         f"item_{item_id}",
@@ -121,7 +120,6 @@ def _row(item_id: int, *, materials: tuple[str, ...] = ()) -> ItemCatalogRow:
         (f"item_{item_id}",),
         (),
         (),
-        materials,
         1,
         "model link",
     )
@@ -141,7 +139,7 @@ def test_selecting_an_item_shows_its_equip_slot_and_description() -> None:
     window.archive_catalogue_service.result_ready.emit(
         "search-1",
         "search_item_catalog",
-        ItemCatalogSearchResult("session-a", 1, 0, 72, (armour,), (), (), False),
+        ItemCatalogSearchResult("session-a", 1, 0, 72, (armour,), ()),
     )
     _drain()
     dialog._tree.topLevelItem(0).setSelected(True)
@@ -160,7 +158,7 @@ def test_an_item_with_no_equip_slot_says_so_rather_than_showing_nothing() -> Non
     window.archive_catalogue_service.result_ready.emit(
         "search-1",
         "search_item_catalog",
-        ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(12),), (), (), False),
+        ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(12),), ()),
     )
     _drain()
     dialog._tree.topLevelItem(0).setSelected(True)
@@ -177,6 +175,9 @@ def test_full_item_finder_loads_immediately_and_pages_server_side() -> None:
     dialog = RemoteArchiveFinderDialog(window)
     assert dialog.windowTitle() == "Item Finder"
     assert not hasattr(dialog, "_material_only")
+    # Material classification was never consistent enough to filter or sort on.
+    assert not hasattr(dialog, "_material_combo")
+    assert not hasattr(dialog, "_detail_materials")
     assert not hasattr(dialog, "_all_button")
     assert dialog._status.text() == "Loading catalogue..."
     _drain()
@@ -189,10 +190,8 @@ def test_full_item_finder_loads_immediately_and_pages_server_side() -> None:
         80,
         0,
         72,
-        (_row(1, materials=("metal",)), _row(2)),
+        (_row(1), _row(2)),
         (ItemCatalogCategoryFacet("Weapon", "Sword", 80),),
-        (ItemCatalogValueFacet("metal", 1),),
-        True,
     )
     window.archive_catalogue_service.result_ready.emit("search-1", "search_item_catalog", result)
     _drain()
@@ -206,7 +205,7 @@ def test_full_item_finder_uses_startup_page_and_icon_cache_without_first_open_re
     _app()
     window = _Window()
     row = replace(_row(5), icon_paths=("ui/icon/item_5.dds",))
-    result = ItemCatalogSearchResult("session-a", 1, 0, 72, (row,), (), (), False)
+    result = ItemCatalogSearchResult("session-a", 1, 0, 72, (row,), ())
     image = QImage(16, 16, QImage.Format_ARGB32)
     image.fill(0xFFFF0000)
     window.archive_item_finder_warmup_controller = _Warmup(result, image)
@@ -231,7 +230,7 @@ def test_full_finder_search_is_latest_wins_and_scope_uses_entry_ids() -> None:
     window.archive_catalogue_service.result_ready.emit(
         "search-2",
         "search_item_catalog",
-        ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(7),), (), (), False),
+        ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(7),), ()),
     )
     _drain()
     dialog._tree.topLevelItem(0).setSelected(True)
@@ -255,7 +254,7 @@ def test_full_finder_double_click_uses_exact_item_scope_for_preview() -> None:
     window.archive_catalogue_service.result_ready.emit(
         "search-1",
         "search_item_catalog",
-        ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(9),), (), (), False),
+        ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(9),), ()),
     )
     _drain()
     item = dialog._tree.topLevelItem(0)
@@ -272,7 +271,7 @@ def test_full_finder_double_click_uses_exact_item_scope_for_preview() -> None:
 def test_clear_drops_the_saved_filter_before_it_searches_again() -> None:
     """Clear used to reset the controls and search with the old filter anyway.
 
-    The saved category/group/material live in `_preferred_*` until the first facet
+    The saved category/group live in `_preferred_*` until the first facet
     response replaces them with a real combo selection. `_selected_filters` prefers
     them, so pressing Clear before the facets arrived showed "All" in every control
     over results that were still restricted by the filter the dialog opened with.
@@ -284,15 +283,13 @@ def test_clear_drops_the_saved_filter_before_it_searches_again() -> None:
     _drain()
     dialog._preferred_category = "Weapon"
     dialog._preferred_group = "Sword"
-    dialog._preferred_material = "metal"
 
-    assert dialog._selected_filters() == ("Weapon", "Sword", "metal")
+    assert dialog._selected_filters() == ("Weapon", "Sword")
 
     dialog._clear_filters()
     _drain()
 
-    assert dialog._selected_filters() == (None, None, None)
+    assert dialog._selected_filters() == (None, None)
     assert window.archive_catalogue_service.searches[-1].category is None
     assert window.archive_catalogue_service.searches[-1].group is None
-    assert window.archive_catalogue_service.searches[-1].material_tag is None
     dialog.close()

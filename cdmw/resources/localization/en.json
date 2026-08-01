@@ -479,7 +479,6 @@
     "All imported files are matched.": "All imported files are matched.",
     "All in {value_0}/": "All in {value_0}/",
     "All items ({value_0})": "All items ({value_0})",
-    "All materials": "All materials",
     "All packages": "All packages",
     "All parts": "All parts",
     "All requested folders already existed.": "All requested folders already existed.",
@@ -3756,7 +3755,6 @@
     "Material color targets use swatches instead of DDS preview.": "Material color targets use swatches instead of DDS preview.",
     "Material colors": "Material colors",
     "Material edit cannot be previewed yet: {value_0}": "Material edit cannot be previewed yet: {value_0}",
-    "Material evidence: {value_0}": "Material evidence: {value_0}",
     "Material family: {value_0}": "Material family: {value_0}",
     "Material groups": "Material groups",
     "Material live preview cancelled.": "Material live preview cancelled.",
@@ -3778,8 +3776,6 @@
     "Material sidecar shares the selected texture stem; this is an indexed same-stem hint, not a live archive scan.": "Material sidecar shares the selected texture stem; this is an indexed same-stem hint, not a live archive scan.",
     "Material sidecar worker returned invalid data.": "Material sidecar worker returned invalid data.",
     "Material source": "Material source",
-    "Material tags": "Material tags",
-    "Material tags: {value_0}": "Material tags: {value_0}",
     "Material texture validation cancelled.": "Material texture validation cancelled.",
     "Material warning: {value_0}": "Material warning: {value_0}",
     "Material, texture, sampler, and lighting controls are owned by the resident viewport surfaces.": "Material, texture, sampler, and lighting controls are owned by the resident viewport surfaces.",
@@ -6200,8 +6196,6 @@
     "Search friendly/exact names, values, shaders, or paths...": "Search friendly/exact names, values, shaders, or paths...",
     "Search highlights: {value_0}": "Search highlights: {value_0}",
     "Search in progress...": "Search in progress...",
-    "Search item name, ID, model stem, category, material tag, or icon path": "Search item name, ID, model stem, category, material tag, or icon path",
-    "Search item name, internal ID, model stem, category, material tag, texture, or icon path": "Search item name, internal ID, model stem, category, material tag, texture, or icon path",
     "Search item name, model id, category, or recovered file path": "Search item name, model id, category, or recovered file path",
     "Search log cleared.": "Search log cleared.",
     "Search mirror": "Search mirror",
@@ -9570,6 +9564,8 @@
     "{value_2}:": "{value_2}:",
     "×2 on -70 70": "×2 on -70 70",
     "▸  Morph & Refit": "▸  Morph & Refit",
-    "▾  Morph & Refit": "▾  Morph & Refit"
+    "▾  Morph & Refit": "▾  Morph & Refit",
+    "Search item name, ID, model stem, category, or icon path": "Search item name, ID, model stem, category, or icon path",
+    "Search item name, internal ID, model stem, category, texture, or icon path": "Search item name, internal ID, model stem, category, texture, or icon path"
   }
 }

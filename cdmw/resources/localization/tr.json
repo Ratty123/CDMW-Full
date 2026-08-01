@@ -534,7 +534,6 @@
     "All imported files are matched.": "İçe aktarılan tüm dosyalar eşleştirilir.",
     "All in {value_0}/": "{value_0}'dekilerin tümü/",
     "All items ({value_0})": "Tüm öğeler ({value_0})",
-    "All materials": "Tüm malzemeler",
     "All packages": "Tüm paketler",
     "All parts": "Tüm parçalar",
     "All requested folders already existed.": "İstenen tüm klasörler zaten mevcuttu.",
@@ -3716,7 +3715,6 @@
     "Material color targets use swatches instead of DDS preview.": "Malzeme renk hedeflerinde DDS önizlemesi yerine renk örnekleri kullanılır.",
     "Material colors": "Malzeme renkleri",
     "Material edit cannot be previewed yet: {value_0}": "Malzeme düzenleme henüz önizlenemiyor: {value_0}",
-    "Material evidence: {value_0}": "Materyal kanıt: {value_0}",
     "Material groups": "Malzeme grupları",
     "Material live preview cancelled.": "Malzeme canlı önizlemesi iptal edildi.",
     "Material mask generation: flips metal channel. Try when nonmetal/metal response looks reversed.": "Malzeme maskesi üretimi: metal kanalı çevirir. Ametal/metal tepkisinin tersine göründüğünü deneyin.",
@@ -3736,8 +3734,6 @@
     "Material sidecar shares the selected texture stem; this is an indexed same-stem hint, not a live archive scan.": "Malzeme sepet seçilen doku kökünü paylaşıyor; bu, canlı bir arşiv taraması değil, dizine alınmış aynı kök ipucudur.",
     "Material sidecar worker returned invalid data.": "Malzeme sepeti çalışanı geçersiz veri döndürdü.",
     "Material source": "Malzeme kaynağı",
-    "Material tags": "Malzeme etiketleri",
-    "Material tags: {value_0}": "Malzeme etiketleri: {value_0}",
     "Material texture validation cancelled.": "Malzeme dokusu doğrulaması iptal edildi.",
     "Material warning: {value_0}": "Malzeme uyarısı: {value_0}",
     "Material, texture, sampler, and lighting controls are owned by the resident viewport surfaces.": "Malzeme, doku, örnekleyici ve aydınlatma kontrolleri yerleşik görüntü alanı yüzeylerine aittir.",
@@ -6086,8 +6082,6 @@
     "Search friendly/exact names, values, shaders, or paths...": "Kolay/tam adları, değerleri, gölgelendiricileri veya yolları arayın...",
     "Search highlights: {value_0}": "Aramada öne çıkanlar: {value_0}",
     "Search in progress...": "Arama devam ediyor...",
-    "Search item name, ID, model stem, category, material tag, or icon path": "Öğe adını, kimliğini, model kökünü, kategoriyi, malzeme etiketini veya simge yolunu arayın",
-    "Search item name, internal ID, model stem, category, material tag, texture, or icon path": "Öğe adı, dahili kimlik, model gövdesi, kategori, malzeme etiketi, doku veya simge yolunu arayın",
     "Search item name, model id, category, or recovered file path": "Öğe adını, model kimliğini, kategoriyi veya kurtarılan dosya yolunu arayın",
     "Search log cleared.": "Arama günlüğü temizlendi.",
     "Search mirror": "Arama aynası",
@@ -9569,6 +9563,8 @@
     "Texture  {value_0}": "Doku  {value_0}",
     "{value_0}   (hidden)": "{value_0}   (gizli)",
     "{value_0} vertices, {value_1} triangles": "{value_0} köşe, {value_1} üçgen",
-    "{value_0}   {value_1} v": "{value_0}   {value_1} köşe"
+    "{value_0}   {value_1} v": "{value_0}   {value_1} köşe",
+    "Search item name, ID, model stem, category, or icon path": "Öğe adını, kimliğini, model kökünü, kategoriyi veya simge yolunu arayın",
+    "Search item name, internal ID, model stem, category, texture, or icon path": "Öğe adı, dahili kimlik, model gövdesi, kategori, doku veya simge yolunu arayın"
   }
 }

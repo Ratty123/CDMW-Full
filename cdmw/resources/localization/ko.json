@@ -534,7 +534,6 @@
     "All imported files are matched.": "가져온 모든 파일이 일치합니다.",
     "All in {value_0}/": "모두 {value_0}/",
     "All items ({value_0})": "모든 품목({value_0})",
-    "All materials": "모든 자료",
     "All packages": "모든 패키지",
     "All parts": "모든 부품",
     "All requested folders already existed.": "요청한 폴더가 모두 이미 존재합니다.",
@@ -3716,7 +3715,6 @@
     "Material color targets use swatches instead of DDS preview.": "재료 색상 타겟은 DDS 미리보기 대신 견본을 사용합니다.",
     "Material colors": "소재 색상",
     "Material edit cannot be previewed yet: {value_0}": "아직 재료 편집을 미리 볼 수 없습니다: {value_0}",
-    "Material evidence: {value_0}": "재료 증거: {value_0}",
     "Material groups": "재료 그룹",
     "Material live preview cancelled.": "재료 실시간 미리보기가 취소되었습니다.",
     "Material mask generation: flips metal channel. Try when nonmetal/metal response looks reversed.": "머티리얼 마스크 생성: 금속 채널을 뒤집습니다. 비금속/금속 반응이 반전되어 보일 때 시도해 보세요.",
@@ -3736,8 +3734,6 @@
     "Material sidecar shares the selected texture stem; this is an indexed same-stem hint, not a live archive scan.": "머티리얼 사이드카는 선택한 텍스처 줄기를 공유합니다. 이는 라이브 아카이브 스캔이 아닌 색인화된 동일 줄기 힌트입니다.",
     "Material sidecar worker returned invalid data.": "머티리얼 사이드카 작업자가 잘못된 데이터를 반환했습니다.",
     "Material source": "재료 소스",
-    "Material tags": "소재 태그",
-    "Material tags: {value_0}": "재료 태그: {value_0}",
     "Material texture validation cancelled.": "재료 텍스처 검증이 취소되었습니다.",
     "Material warning: {value_0}": "재료 경고: {value_0}",
     "Material, texture, sampler, and lighting controls are owned by the resident viewport surfaces.": "재질, 텍스처, 샘플러 및 조명 컨트롤은 상주 뷰포트 표면의 소유입니다.",
@@ -6086,8 +6082,6 @@
     "Search friendly/exact names, values, shaders, or paths...": "친숙하고 정확한 이름, 값, 셰이더 또는 경로를 검색하세요...",
     "Search highlights: {value_0}": "검색 하이라이트: {value_0}",
     "Search in progress...": "검색 진행 중...",
-    "Search item name, ID, model stem, category, material tag, or icon path": "항목 이름, ID, 모델 스템, 카테고리, 소재 태그 또는 아이콘 경로를 검색합니다.",
-    "Search item name, internal ID, model stem, category, material tag, texture, or icon path": "항목 이름, 내부 ID, 모델 스템, 카테고리, 소재 태그, 텍스처 또는 아이콘 경로 검색",
     "Search item name, model id, category, or recovered file path": "항목 이름, 모델 ID, 카테고리 또는 복구된 파일 경로 검색",
     "Search log cleared.": "검색 로그가 삭제되었습니다.",
     "Search mirror": "검색 거울",
@@ -9569,6 +9563,8 @@
     "Texture  {value_0}": "텍스처  {value_0}",
     "{value_0}   (hidden)": "{value_0}   (숨김)",
     "{value_0} vertices, {value_1} triangles": "정점 {value_0}개, 삼각형 {value_1}개",
-    "{value_0}   {value_1} v": "{value_0}   정점 {value_1}"
+    "{value_0}   {value_1} v": "{value_0}   정점 {value_1}",
+    "Search item name, ID, model stem, category, or icon path": "항목 이름, ID, 모델 스템, 카테고리 또는 아이콘 경로를 검색합니다.",
+    "Search item name, internal ID, model stem, category, texture, or icon path": "항목 이름, 내부 ID, 모델 스템, 카테고리, 텍스처 또는 아이콘 경로 검색"
   }
 }
