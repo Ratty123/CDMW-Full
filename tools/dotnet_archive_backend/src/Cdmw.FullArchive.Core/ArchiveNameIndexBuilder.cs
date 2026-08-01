@@ -13,6 +13,12 @@ internal static class ArchiveNameIndexBuilder
     private const int MaximumPrefabListCount = 32;
     private const int MaximumPrefabHashes = 128;
     private const int MaximumRelatedModelCandidates = 64;
+    private static readonly int[] PabghCountWidths = [1, 2, 4];
+
+    // Composite keys are real: `characterappearanceindexinfo` uses 8 bytes and
+    // `aieventtableinfo` uses 12, so a reader allowing only 1/2/4 drops them.
+    private static readonly int[] PabghKeyWidths = [1, 2, 4, 8, 12];
+
     private static readonly byte[] ItemInfoMarker =
     [
         0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -96,10 +102,18 @@ internal static class ArchiveNameIndexBuilder
         var stringHashes = sources.StringInfo is null
             ? new Dictionary<uint, string>()
             : ParseStringInfo(DecodeSource(native, sources.StringInfo, cancellationToken), cancellationToken);
-        var records = ParseItemInfo(
-            DecodeSource(native, sources.ItemInfo, cancellationToken),
-            stringHashes,
-            cancellationToken);
+        var itemInfoData = DecodeSource(native, sources.ItemInfo, cancellationToken);
+        // The row directory gives every record an exact boundary. Without the
+        // companion the marker scan below finds fewer rows, so fall back to it
+        // only when the `.pabgh` is absent or does not describe this payload.
+        var records = sources.ItemInfoHeader is null
+            ? null
+            : ParseItemInfoRows(
+                itemInfoData,
+                DecodeSource(native, sources.ItemInfoHeader, cancellationToken),
+                stringHashes,
+                cancellationToken);
+        records ??= ParseItemInfo(itemInfoData, stringHashes, cancellationToken);
         if (records.Count == 0)
         {
             Publish(progress, new ProgressUpdate(session.Index.EntryCount, session.Index.EntryCount, "names_unavailable"));
@@ -192,6 +206,10 @@ internal static class ArchiveNameIndexBuilder
                 if (result.ItemInfo is null && path.Contains("iteminfo.pabgb", StringComparison.OrdinalIgnoreCase))
                 {
                     result.ItemInfo = entry;
+                }
+                else if (result.ItemInfoHeader is null && path.Contains("iteminfo.pabgh", StringComparison.OrdinalIgnoreCase))
+                {
+                    result.ItemInfoHeader = entry;
                 }
                 else if (result.StringInfo is null && basename.Equals("stringinfo.pabgb", StringComparison.OrdinalIgnoreCase))
                 {
@@ -308,6 +326,217 @@ internal static class ArchiveNameIndexBuilder
             position++;
         }
         return hashes;
+    }
+
+    /// <summary>One `.pabgh` row: a primary key and where the matching `.pabgb` row starts.</summary>
+    private readonly record struct PabghDirectoryRow(byte[] Key, uint Offset);
+
+    /// <summary>
+    /// Resolve the header's count and key widths against the row payload.
+    /// Both are variable width, so they are found by search and confirmed against the
+    /// payload: every row repeats its own key inline. A one-row table fits several
+    /// widths arithmetically, and that inline check is the only thing separating them.
+    /// </summary>
+    private static List<PabghDirectoryRow>? ResolvePabghDirectory(byte[] header, byte[] payload)
+    {
+        foreach (var countWidth in PabghCountWidths)
+        {
+            if (header.Length < countWidth)
+            {
+                continue;
+            }
+            long count = 0;
+            for (var i = 0; i < countWidth; i++)
+            {
+                count |= (long)header[i] << (8 * i);
+            }
+            if (count <= 0)
+            {
+                continue;
+            }
+            var remainder = header.Length - countWidth;
+            if (remainder % count != 0)
+            {
+                continue;
+            }
+            var rowSize = remainder / count;
+            if (rowSize < 5)
+            {
+                continue;
+            }
+            var keyWidth = (int)(rowSize - 4);
+            if (Array.IndexOf(PabghKeyWidths, keyWidth) < 0)
+            {
+                continue;
+            }
+            var rows = new List<PabghDirectoryRow>((int)count);
+            var cursor = (long)countWidth;
+            long previous = -1;
+            var usable = true;
+            for (long index = 0; index < count; index++)
+            {
+                var key = new byte[keyWidth];
+                Array.Copy(header, checked((int)cursor), key, 0, keyWidth);
+                var offset = ReadUInt32(header, checked((int)(cursor + keyWidth)));
+                if (offset <= previous)
+                {
+                    usable = false;
+                    break;
+                }
+                previous = offset;
+                rows.Add(new PabghDirectoryRow(key, offset));
+                cursor += rowSize;
+            }
+            if (!usable || rows.Count == 0 || rows[0].Offset != 0 || rows[^1].Offset >= payload.Length)
+            {
+                continue;
+            }
+            var inlineKeysMatch = true;
+            foreach (var row in rows)
+            {
+                if (!payload.AsSpan(checked((int)row.Offset), keyWidth).SequenceEqual(row.Key))
+                {
+                    inlineKeysMatch = false;
+                    break;
+                }
+            }
+            if (inlineKeysMatch)
+            {
+                return rows;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Read a localization key out of an inline `07 7x 00 00 00` sub-record. The shape
+    /// is `tag, u32 repeat-key, u32 length, ascii`.
+    /// </summary>
+    private static string ReadItemInfoSubRecordKey(byte[] data, int rowStart, int rowEnd, byte tagSecond)
+    {
+        Span<byte> tag = [0x07, tagSecond, 0x00, 0x00, 0x00];
+        var span = data.AsSpan(rowStart, rowEnd - rowStart);
+        var relative = span.IndexOf(tag);
+        if (relative < 0)
+        {
+            return string.Empty;
+        }
+        var at = checked(rowStart + relative + tag.Length);
+        if (at + 8 > rowEnd)
+        {
+            return string.Empty;
+        }
+        var length = ReadUInt32(data, at + 4);
+        if (length is 0 or > 64 || at + 8 + length > rowEnd)
+        {
+            return string.Empty;
+        }
+        var raw = data.AsSpan(at + 8, checked((int)length));
+        var nul = raw.IndexOf((byte)0);
+        return Encoding.ASCII.GetString(nul < 0 ? raw : raw[..nul]);
+    }
+
+    /// <summary>The row's own name field, which follows the repeated primary key.</summary>
+    private static string ReadItemInfoRowInternalName(byte[] data, int rowStart, int rowEnd)
+    {
+        if (rowStart + 8 > rowEnd)
+        {
+            return string.Empty;
+        }
+        var length = ReadUInt32(data, rowStart + 4);
+        if (length is 0 or > 256 || rowStart + 8 + length > rowEnd)
+        {
+            return string.Empty;
+        }
+        var raw = data.AsSpan(rowStart + 8, checked((int)length));
+        var nul = raw.IndexOf((byte)0);
+        return Encoding.ASCII.GetString(nul < 0 ? raw : raw[..nul]);
+    }
+
+    /// <summary>
+    /// Read item rows using the `.pabgh` row directory for exact boundaries. Recall is
+    /// the row count, where the marker scan below recovers 4,142 of the 6,508 shipped rows.
+    /// </summary>
+    private static List<ItemRecord>? ParseItemInfoRows(
+        byte[] data,
+        byte[] header,
+        IReadOnlyDictionary<uint, string> stringInfoHashes,
+        CancellationToken cancellationToken)
+    {
+        var directory = ResolvePabghDirectory(header, data);
+        if (directory is null)
+        {
+            return null;
+        }
+        var records = new List<ItemRecord>(directory.Count);
+        var seenIds = new HashSet<uint>();
+        for (var index = 0; index < directory.Count; index++)
+        {
+            if ((index & 0x3FF) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            var rowStart = checked((int)directory[index].Offset);
+            var rowEnd = index + 1 < directory.Count ? checked((int)directory[index + 1].Offset) : data.Length;
+            if (rowStart >= rowEnd || rowEnd > data.Length)
+            {
+                continue;
+            }
+            var itemId = ReadUInt32(data, rowStart);
+            if (!seenIds.Add(itemId))
+            {
+                continue;
+            }
+            var internalName = ReadItemInfoRowInternalName(data, rowStart, rowEnd);
+            var nameKey = ReadItemInfoSubRecordKey(data, rowStart, rowEnd, 0x70);
+            var localizationIds = nameKey.Length == 0 ? new List<string>() : [nameKey];
+
+            var prefabHashes = new List<uint>();
+            var seenPrefabHashes = new HashSet<uint>();
+            var hashScan = rowStart;
+            while (hashScan + 15 < rowEnd && prefabHashes.Count < MaximumPrefabHashes)
+            {
+                if (data[hashScan] is not (0x0E or 0x0F or 0x10))
+                {
+                    hashScan++;
+                    continue;
+                }
+                var firstCount = ReadUInt32(data, hashScan + 3);
+                var secondCount = ReadUInt32(data, hashScan + 7);
+                var listEnd = hashScan + 11L + secondCount * 4L;
+                if (firstCount is not (> 0 and <= MaximumPrefabListCount) ||
+                    secondCount is not (> 0 and <= MaximumPrefabListCount) || listEnd > rowEnd)
+                {
+                    hashScan++;
+                    continue;
+                }
+                for (var hashIndex = 0; hashIndex < secondCount; hashIndex++)
+                {
+                    var value = ReadUInt32(data, checked(hashScan + 11 + (int)hashIndex * 4));
+                    if (value != 0 && seenPrefabHashes.Add(value))
+                    {
+                        prefabHashes.Add(value);
+                    }
+                }
+                hashScan = checked((int)listEnd);
+            }
+
+            var relatedModels = new List<string>();
+            if (stringInfoHashes.Count > 0)
+            {
+                for (var scan = rowStart; scan + 4 <= rowEnd && relatedModels.Count < MaximumRelatedModelCandidates; scan++)
+                {
+                    var value = ReadUInt32(data, scan);
+                    if (stringInfoHashes.TryGetValue(value, out var modelStem) &&
+                        !relatedModels.Contains(modelStem, StringComparer.OrdinalIgnoreCase))
+                    {
+                        relatedModels.Add(modelStem);
+                    }
+                }
+            }
+            records.Add(new ItemRecord(localizationIds, internalName, prefabHashes, relatedModels));
+        }
+        return records;
     }
 
     private static List<ItemRecord> ParseItemInfo(
@@ -748,6 +977,10 @@ internal static class ArchiveNameIndexBuilder
     private sealed class NameSources
     {
         public ArchiveEntryDto? ItemInfo { get; set; }
+
+        /// <summary>The `.pabgh` companion that says where each `.pabgb` row starts and stops.</summary>
+        public ArchiveEntryDto? ItemInfoHeader { get; set; }
+
         public ArchiveEntryDto? StringInfo { get; set; }
         public Dictionary<string, ArchiveEntryDto> Localization { get; } = new(StringComparer.OrdinalIgnoreCase);
     }

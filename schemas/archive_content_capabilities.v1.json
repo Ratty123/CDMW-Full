@@ -45,66 +45,66 @@
       "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work. The shipped bucket drops engine formats the build does not actually contain, which is the number that reflects what a modder can reach.",
       "shipped_engine_formats": {
         "extensions": 77,
-        "decode_percent": 41.7,
-        "write_percent": 26.0,
+        "decode_percent": 43.0,
+        "write_percent": 26.6,
         "decode": {
-          "full": 18,
+          "full": 19,
           "none": 22,
-          "partial": 10,
-          "surface": 27
+          "partial": 11,
+          "surface": 25
         },
         "write": {
-          "constrained": 4,
+          "constrained": 5,
           "full": 18,
-          "none": 55
+          "none": 54
         }
       },
       "engine_formats": {
         "extensions": 89,
-        "decode_percent": 41.9,
-        "write_percent": 27.5,
+        "decode_percent": 43.0,
+        "write_percent": 28.1,
         "decode": {
-          "full": 22,
+          "full": 23,
           "none": 27,
-          "partial": 11,
-          "surface": 29
+          "partial": 12,
+          "surface": 27
         },
         "write": {
-          "constrained": 5,
+          "constrained": 6,
           "full": 22,
-          "none": 62
+          "none": 61
         }
       },
       "proprietary_formats": {
         "extensions": 82,
-        "decode_percent": 42.6,
-        "write_percent": 28.0,
+        "decode_percent": 43.8,
+        "write_percent": 28.7,
         "decode": {
-          "full": 22,
+          "full": 23,
           "none": 25,
-          "partial": 8,
-          "surface": 27
+          "partial": 9,
+          "surface": 25
         },
         "write": {
-          "constrained": 2,
+          "constrained": 3,
           "full": 22,
-          "none": 58
+          "none": 57
         }
       },
       "all_formats": {
         "extensions": 141,
-        "decode_percent": 54.3,
-        "write_percent": 33.0,
+        "decode_percent": 55.0,
+        "write_percent": 33.3,
         "decode": {
-          "full": 57,
+          "full": 58,
           "none": 30,
-          "partial": 11,
-          "surface": 43
+          "partial": 12,
+          "surface": 41
         },
         "write": {
-          "constrained": 5,
+          "constrained": 6,
           "full": 44,
-          "none": 92
+          "none": 91
         }
       }
     },
@@ -117,18 +117,18 @@
     "by_origin": {
       "proprietary": {
         "extensions": 82,
-        "decode_percent": 42.6,
-        "write_percent": 28.0,
+        "decode_percent": 43.8,
+        "write_percent": 28.7,
         "decode": {
-          "full": 22,
+          "full": 23,
           "none": 25,
-          "partial": 8,
-          "surface": 27
+          "partial": 9,
+          "surface": 25
         },
         "write": {
-          "constrained": 2,
+          "constrained": 3,
           "full": 22,
-          "none": 58
+          "none": 57
         }
       },
       "third_party": {
@@ -204,18 +204,18 @@
       },
       "material_metadata": {
         "extensions": 62,
-        "decode_percent": 46.0,
-        "write_percent": 33.1,
+        "decode_percent": 47.6,
+        "write_percent": 33.9,
         "decode": {
-          "full": 21,
+          "full": 22,
           "none": 20,
-          "partial": 4,
-          "surface": 17
+          "partial": 5,
+          "surface": 15
         },
         "write": {
-          "constrained": 1,
+          "constrained": 2,
           "full": 20,
-          "none": 41
+          "none": 40
         }
       },
       "model_mesh_physics": {
@@ -265,8 +265,8 @@
     },
     "priority": {
       "high": 7,
-      "medium": 18,
-      "low": 45,
+      "medium": 19,
+      "low": 44,
       "none": 71
     },
     "open_high_priority_gaps": [
@@ -421,8 +421,8 @@
     { "extension": ".nav", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "world_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "world metadata scrape", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: navmesh geometry not parsed - NPCs cannot be taught new ground" },
     { "extension": ".pabc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 459, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
     { "extension": ".pabv", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 101, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
-    { "extension": ".pabgb", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 134, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
-    { "extension": ".pabgh", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 134, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
+    { "extension": ".pabgb", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "medium", "archive_files": 134, "evidence": "row boundaries come from the .pabgh directory: 283,076 rows across all 134 shipped pairs, each row's inline key matching its directory key. ItemInfo rows decode to id, internal name, and display-name/description localization keys for all 6,508 rows", "remaining": "per-table field layout after the name and key fields is unmodelled for every table except ItemInfo" },
+    { "extension": ".pabgh", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "full", "write": "constrained", "priority": "low", "archive_files": 134, "evidence": "row directory, not a hash table: a 1/2/4-byte count then count x {1/2/4/8/12-byte key, uint32 offset}. Widths resolve by search against the payload for all 134 shipped pairs, confirmed by every row repeating its own key inline", "remaining": "the structured-sidecar editor rewrites only the 5- and 8-byte row flavors; the 12- and 16-byte composite-key tables stay read-only" },
     { "extension": ".pathc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "pathc", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "medium", "archive_files": 1, "evidence": "dedicated PATHC normalized document", "remaining": "no writer, and the payload beyond the parsed header is unmodelled" },
     { "extension": ".uianiminit", "role": "metadata", "group": "user_interface_text", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 883, "evidence": "structured_metadata scrape", "remaining": "record layout not parsed" },
     { "extension": ".binarygimmick", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 13461, "evidence": "structured metadata scrape: names and references", "remaining": "record layout not parsed" },

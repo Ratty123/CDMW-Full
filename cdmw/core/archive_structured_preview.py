@@ -1230,11 +1230,12 @@ def build_structured_asset_preview(
             )
             iteminfo_name_candidates = _iteminfo_internal_name_candidates(strings)
         else:
-            title = "Item info hash table inspector"
+            title = "Item info row directory inspector"
             metadata_label = "Item Database Index"
             inspector_note = (
-                "Summarizes the companion iteminfo.pabgh index/hash table. It is useful as relationship evidence, "
-                "but not directly editable or human-readable by itself."
+                "Summarizes the companion iteminfo.pabgh row directory. It is not a hash table: it holds a row "
+                "count followed by one {primary key, byte offset} pair per row, which is what gives every "
+                "iteminfo.pabgb record an exact start and end."
             )
     schema_declarations = _binary_sidecar_schema_declarations(data, normalized_extension)
     seqmt_metadata = (
