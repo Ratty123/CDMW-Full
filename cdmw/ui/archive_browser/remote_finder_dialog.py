@@ -81,7 +81,6 @@ class RemoteArchiveFinderDialog(QDialog):
             self._preferred_category,
             self._preferred_group,
         )
-        self._preferred_material = self._read_setting("ui/item_finder_material_tag")
         self._item_grid: _ItemFinderGrid | None = None
         self._tree: _ItemFinderGrid | None = None
         self._item_splitter: QSplitter | None = None
@@ -125,16 +124,13 @@ class RemoteArchiveFinderDialog(QDialog):
 
         controls = QHBoxLayout()
         self._search_edit = QLineEdit()
-        self._search_edit.setPlaceholderText("Search item name, ID, model stem, category, material tag, or icon path")
+        self._search_edit.setPlaceholderText("Search item name, ID, model stem, category, or icon path")
         self._category_combo = QComboBox()
         self._category_combo.addItem("All categories", (None, None))
-        self._material_combo = QComboBox()
-        self._material_combo.addItem("All materials", None)
         search_button = QPushButton("Search")
         clear_button = QPushButton("Clear")
         controls.addWidget(self._search_edit, stretch=1)
         controls.addWidget(self._category_combo)
-        controls.addWidget(self._material_combo)
         controls.addWidget(search_button)
         controls.addWidget(clear_button)
         layout.addLayout(controls)
@@ -168,7 +164,6 @@ class RemoteArchiveFinderDialog(QDialog):
         self._visible_icon_timer.setInterval(100)
         self._search_edit.textChanged.connect(self._queue_first_page)
         self._category_combo.currentIndexChanged.connect(self._queue_first_page)
-        self._material_combo.currentIndexChanged.connect(self._queue_first_page)
         self._search_edit.returnPressed.connect(self._start_search)
         search_button.clicked.connect(self._start_search)
         clear_button.clicked.connect(self._clear_filters)
@@ -259,7 +254,6 @@ class RemoteArchiveFinderDialog(QDialog):
         self._detail_stats = self._add_detail_section(detail_body_layout, "Stats")
         self._detail_description = self._add_detail_section(detail_body_layout, "Description")
         self._detail_localized = self._add_detail_section(detail_body_layout, "Localized names")
-        self._detail_materials = self._add_detail_section(detail_body_layout, "Materials")
         self._detail_models = self._add_detail_section(detail_body_layout, "Models and PAC links")
         self._detail_icons = self._add_detail_section(detail_body_layout, "Icons")
         detail_body_layout.addStretch(1)
@@ -365,14 +359,13 @@ class RemoteArchiveFinderDialog(QDialog):
 
     def _clear_filters(self) -> None:
         self._search_timer.stop()
-        for widget in (self._search_edit, self._category_combo, self._material_combo):
+        for widget in (self._search_edit, self._category_combo):
             widget.blockSignals(True)
         try:
             self._search_edit.clear()
             self._category_combo.setCurrentIndex(0)
-            self._material_combo.setCurrentIndex(0)
         finally:
-            for widget in (self._search_edit, self._category_combo, self._material_combo):
+            for widget in (self._search_edit, self._category_combo):
                 widget.blockSignals(False)
         # The saved filter is held here until the first facet response replaces it with
         # a real combo selection. Clearing only the controls left the next search still
@@ -380,11 +373,10 @@ class RemoteArchiveFinderDialog(QDialog):
         # results that were still restricted.
         self._preferred_category = ""
         self._preferred_group = ""
-        self._preferred_material = ""
         self._page_start = 0
         self._start_search()
 
-    def _selected_filters(self) -> tuple[str | None, str | None, str | None]:
+    def _selected_filters(self) -> tuple[str | None, str | None]:
         category: str | None = self._preferred_category or None
         group: str | None = self._preferred_group or None
         if category is None:
@@ -392,9 +384,7 @@ class RemoteArchiveFinderDialog(QDialog):
             if isinstance(value, tuple) and len(value) == 2:
                 category = str(value[0]) if value[0] else None
                 group = str(value[1]) if value[1] else None
-        material_value = self._material_combo.currentData()
-        material = self._preferred_material or (str(material_value) if material_value else None)
-        return category, group, material
+        return category, group
 
     def _start_search(self) -> None:
         if self._closing:
@@ -405,13 +395,12 @@ class RemoteArchiveFinderDialog(QDialog):
             return
         self._cancel_request("_search_request_id")
         self._cancel_icon_loading()
-        category, group, material = self._selected_filters()
+        category, group = self._selected_filters()
         request = ItemCatalogSearchRequest(
             self._session_id,
             query=self._search_edit.text().strip(),
             category=category,
             group=group,
-            material_tag=material,
             page_start=self._page_start,
             page_size=self._page_size,
         )
@@ -600,7 +589,6 @@ class RemoteArchiveFinderDialog(QDialog):
                 self._detail_stats,
                 self._detail_description,
                 self._detail_localized,
-                self._detail_materials,
                 self._detail_models,
                 self._detail_icons,
             ):
@@ -634,7 +622,6 @@ class RemoteArchiveFinderDialog(QDialog):
         self._detail_stats.setText("\n".join(stat_lines) or "No equip slot; this item is not worn or wielded.")
         self._detail_description.setText(row.description or "None")
         self._detail_localized.setText(", ".join(row.localized_names) or "None")
-        self._detail_materials.setText(", ".join(row.material_tags) or "None")
         model_lines = [*(f"PAC: {value}" for value in row.pac_files), *(f"Model: {value}" for value in row.model_stems)]
         self._detail_models.setText("\n".join(model_lines) or "None")
         self._detail_icons.setText("\n".join(row.icon_paths) or "None")
@@ -646,9 +633,7 @@ class RemoteArchiveFinderDialog(QDialog):
             if self._preferred_category
             else self._category_combo.currentData()
         )
-        material_value = self._preferred_material or self._material_combo.currentData()
         self._category_combo.blockSignals(True)
-        self._material_combo.blockSignals(True)
         try:
             self._category_combo.clear()
             self._category_combo.addItem("All categories", (None, None))
@@ -657,18 +642,11 @@ class RemoteArchiveFinderDialog(QDialog):
                     f"{facet.category} / {facet.group} ({facet.count:,})",
                     (facet.category, facet.group),
                 )
-            self._material_combo.clear()
-            self._material_combo.addItem("All materials", None)
-            for facet in result.material_tags[:250]:
-                self._material_combo.addItem(f"{facet.value} ({facet.count:,})", facet.value)
             self._restore_combo_data(self._category_combo, category_value)
-            self._restore_combo_data(self._material_combo, material_value)
         finally:
             self._category_combo.blockSignals(False)
-            self._material_combo.blockSignals(False)
         self._preferred_category = ""
         self._preferred_group = ""
-        self._preferred_material = ""
 
     @staticmethod
     def _restore_combo_data(combo: QComboBox, value: object) -> None:
@@ -906,7 +884,7 @@ class RemoteArchiveFinderDialog(QDialog):
     def _save_settings(self) -> None:
         if self._settings is None:
             return
-        category, group, material = self._selected_filters()
+        category, group = self._selected_filters()
         try:
             self._settings.setValue("ui/item_finder_geometry", self.saveGeometry())
             if self._item_splitter is not None:
@@ -914,7 +892,6 @@ class RemoteArchiveFinderDialog(QDialog):
             self._settings.setValue("ui/item_finder_search_text", self._search_edit.text())
             self._settings.setValue("ui/item_finder_category", category or "")
             self._settings.setValue("ui/item_finder_group", group or "")
-            self._settings.setValue("ui/item_finder_material_tag", material or "")
         except Exception:
             pass
 

@@ -74,7 +74,7 @@ class ArchiveAssetCatalogDialogMixin:
         controls = QHBoxLayout()
         controls.setSpacing(8)
         search_edit = QLineEdit()
-        search_edit.setPlaceholderText("Search item name, internal ID, model stem, category, material tag, texture, or icon path")
+        search_edit.setPlaceholderText("Search item name, internal ID, model stem, category, texture, or icon path")
         clear_search_button = QPushButton("Clear")
         clear_search_button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         controls.addWidget(search_edit, stretch=1)
@@ -455,7 +455,6 @@ class ArchiveAssetCatalogDialogMixin:
             linked_count = len(pac_files) + len(icon_paths)
             table_labels = self._archive_asset_catalog_table_evidence_labels(row)
             compatibility_tags = self._archive_asset_catalog_row_values(row, "compatibility_tags")
-            material_tags = self._archive_asset_catalog_row_values(row, "material_tags")
             item = QListWidgetItem(display_name)
             item.setIcon(self._build_archive_asset_catalog_icon(category, display_name))
             item.setSizeHint(QSize(166, 140))
@@ -481,12 +480,6 @@ class ArchiveAssetCatalogDialogMixin:
                     "Compatibility: "
                     + ", ".join(compatibility_tags[:6])
                     + (" ..." if len(compatibility_tags) > 6 else "")
-                )
-            if material_tags:
-                tooltip_lines.append(
-                    "Material tags: "
-                    + ", ".join(material_tags[:10])
-                    + (" ..." if len(material_tags) > 10 else "")
                 )
             if pac_files:
                 tooltip_lines.append("Models: " + ", ".join(pac_files[:5]) + (" ..." if len(pac_files) > 5 else ""))
@@ -648,8 +641,6 @@ class ArchiveAssetCatalogDialogMixin:
             if icon_paths:
                 self._queue_archive_asset_catalog_icon_warmup_rows([row], front=True, user_visible=True, delay_ms=0)
             localized_names = self._archive_asset_catalog_row_values(row, "localized_names")
-            material_tags = self._archive_asset_catalog_row_values(row, "material_tags")
-            material_evidence = self._archive_asset_catalog_row_values(row, "material_evidence")
             variant_count = int(row.get("variant_count", 1) or 1)
             selected_title.setText(display_name)
             selected_meta.setText(
@@ -664,20 +655,11 @@ class ArchiveAssetCatalogDialogMixin:
                 evidence_parts.append(f"Internal ID: {internal_name}")
             if localized_names:
                 evidence_parts.append("Names: " + ", ".join(localized_names[:4]) + (" ..." if len(localized_names) > 4 else ""))
-            if material_tags:
-                evidence_parts.append("Material tags: " + ", ".join(material_tags[:12]) + (" ..." if len(material_tags) > 12 else ""))
-            if material_evidence:
-                evidence_parts.append(
-                    "Material evidence: "
-                    + ", ".join(material_evidence[:4])
-                    + (" ..." if len(material_evidence) > 4 else "")
-                )
             evidence_label.setText("\n".join(evidence_parts))
             linked_tree.clear()
             _add_link_group("Models", pac_files)
             _add_link_group("Model stems", model_stems, limit=12)
             _add_link_group("Icons", icon_paths)
-            _add_link_group("Material tags", material_tags, limit=12)
             if linked_tree.topLevelItemCount() == 0:
                 empty = QTreeWidgetItem(linked_tree)
                 empty.setText(0, "No direct file links")

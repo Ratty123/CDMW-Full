@@ -22,21 +22,11 @@ public sealed class ArchiveItemCatalog
             .OrderBy(static facet => facet.Category, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static facet => facet.Group, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        MaterialFacets = items
-            .SelectMany(static item => item.MaterialTags)
-            .Where(static value => !string.IsNullOrWhiteSpace(value))
-            .GroupBy(static value => value, StringComparer.OrdinalIgnoreCase)
-            .Select(static group => new ItemCatalogValueFacet(group.Key, group.LongCount()))
-            .OrderByDescending(static facet => facet.Count)
-            .ThenBy(static facet => facet.Value, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
     }
 
     public long Count => _items.Count;
     public IReadOnlyList<ArchiveItemCatalogRecord> Items => _items;
     public IReadOnlyList<ItemCatalogCategoryFacet> CategoryFacets { get; }
-    public IReadOnlyList<ItemCatalogValueFacet> MaterialFacets { get; }
-    public bool HasMaterialEvidence => MaterialFacets.Count > 0;
 
     public static ArchiveItemCatalog FromRecords(IEnumerable<ArchiveItemCatalogRecord> records)
     {
@@ -60,7 +50,6 @@ public sealed class ArchiveItemCatalog
         string? query,
         string? category,
         string? group,
-        string? materialTag,
         int pageStart,
         int pageSize)
     {
@@ -81,10 +70,6 @@ public sealed class ArchiveItemCatalog
         if (!string.IsNullOrWhiteSpace(group))
         {
             matches = matches.Where(item => item.Group.Equals(group.Trim(), StringComparison.OrdinalIgnoreCase));
-        }
-        if (!string.IsNullOrWhiteSpace(materialTag))
-        {
-            matches = matches.Where(item => item.MaterialTags.Contains(materialTag.Trim(), StringComparer.OrdinalIgnoreCase));
         }
         var tokens = NormalizeSearch(query).Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length > 0)
@@ -107,7 +92,6 @@ public sealed class ArchiveItemCatalog
         var modelStems = Values(source.ModelStems);
         var pacFiles = Values(source.PacFiles);
         var iconPaths = Values(source.IconPaths);
-        var materialTags = Values(source.MaterialTags);
         var (category, group, categoryEvidence) = Classify(
             internalName,
             displayName,
@@ -122,7 +106,6 @@ public sealed class ArchiveItemCatalog
                 source.PrefabHashes.Count > 0 ? "prefab link" : "",
                 modelStems.Length > 0 ? "model link" : "",
                 iconPaths.Length > 0 ? "inventory icon" : "",
-                materialTags.Length > 0 ? "material evidence" : "",
             }.Where(static value => value.Length > 0));
         return source with
         {
@@ -133,7 +116,6 @@ public sealed class ArchiveItemCatalog
             ModelStems = modelStems,
             PacFiles = pacFiles,
             IconPaths = iconPaths,
-            MaterialTags = materialTags,
             Category = category,
             Group = group,
             CategoryEvidence = categoryEvidence,
@@ -155,7 +137,7 @@ public sealed class ArchiveItemCatalog
                     .Concat(pacFiles)
                     .Concat(modelStems)
                     .Concat(iconPaths)
-                    .Concat(materialTags))),
+                    )),
         };
     }
 
@@ -446,7 +428,6 @@ public sealed record ArchiveItemCatalogRecord(
     IReadOnlyList<string> ModelStems,
     IReadOnlyList<string> PacFiles,
     IReadOnlyList<string> IconPaths,
-    IReadOnlyList<string> MaterialTags,
     string Category = "",
     string Group = "",
     string CategoryEvidence = "",

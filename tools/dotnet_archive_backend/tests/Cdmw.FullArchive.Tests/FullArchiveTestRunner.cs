@@ -113,8 +113,7 @@ internal static class FullArchiveTestRunner
                 [123u],
                 ["steel_sword"],
                 ["equipment/weapon/steel_sword.pac"],
-                ["ui/icon/steel_sword.dds"],
-                ["metal"]),
+                ["ui/icon/steel_sword.dds"]),
             new ArchiveItemCatalogRecord(
                 11,
                 "leather_glove",
@@ -123,16 +122,18 @@ internal static class FullArchiveTestRunner
                 [],
                 ["leather_glove"],
                 ["equipment/hand/leather_glove.pac"],
-                [],
-                ["leather"]),
+                []),
         ]);
-        var metal = catalog.Search("steel", null, null, "metal", 0, 72);
+        var byName = catalog.Search("steel", null, null, 0, 72);
+        var byCategory = catalog.Search("", "Armor", null, 0, 72);
         Require(
             catalog.Count == 2
-            && metal.TotalMatches == 1
-            && metal.Items[0].ItemId == 10
-            && catalog.MaterialFacets.Count == 2,
-            "item catalogue search, classification, or material facets changed");
+            && byName.TotalMatches == 1
+            && byName.Items[0].ItemId == 10
+            && byCategory.TotalMatches == 1
+            && byCategory.Items[0].ItemId == 11
+            && catalog.CategoryFacets.Count == 2,
+            "item catalogue search, classification, or category facets changed");
 
         await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
         var cacheRoot = TempDirectory("bounded-entry-query");
@@ -205,7 +206,6 @@ internal static class FullArchiveTestRunner
                 string.IsNullOrWhiteSpace(testCase.LocalizedName) ? [] : [testCase.LocalizedName],
                 [],
                 string.IsNullOrWhiteSpace(testCase.ModelStem) ? [] : [testCase.ModelStem],
-                [],
                 [],
                 [])));
 

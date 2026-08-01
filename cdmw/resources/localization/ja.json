@@ -534,7 +534,6 @@
     "All imported files are matched.": "インポートされたすべてのファイルが一致します。",
     "All in {value_0}/": "{value_0} のすべて/",
     "All items ({value_0})": "すべてのアイテム ({value_0})",
-    "All materials": "すべての材料",
     "All packages": "すべてのパッケージ",
     "All parts": "すべての部品",
     "All requested folders already existed.": "要求されたフォルダーはすべてすでに存在しています。",
@@ -3716,7 +3715,6 @@
     "Material color targets use swatches instead of DDS preview.": "マテリアルのカラー ターゲットは、DDS プレビューの代わりにスウォッチを使用します。",
     "Material colors": "素材の色",
     "Material edit cannot be previewed yet: {value_0}": "マテリアル編集はまだプレビューできません: {value_0}",
-    "Material evidence: {value_0}": "マテリアルの証拠: {value_0}",
     "Material groups": "マテリアル グループ",
     "Material live preview cancelled.": "マテリアルのライブ プレビューがキャンセルされました。",
     "Material mask generation: flips metal channel. Try when nonmetal/metal response looks reversed.": "マテリアル マスクの生成: メタル チャネルを反転します。非金属と金属の反応が逆転している場合に試してください。",
@@ -3736,8 +3734,6 @@
     "Material sidecar shares the selected texture stem; this is an indexed same-stem hint, not a live archive scan.": "マテリアル サイドカーは、選択されたテクスチャ ステムを共有します。これはインデックス付きの同一ステム ヒントであり、ライブ アーカイブ スキャンではありません。",
     "Material sidecar worker returned invalid data.": "マテリアル サイドカー ワーカーが無効なデータを返しました。",
     "Material source": "材料源",
-    "Material tags": "素材タグ",
-    "Material tags: {value_0}": "マテリアル タグ: {value_0}",
     "Material texture validation cancelled.": "マテリアル テクスチャ検証がキャンセルされました。",
     "Material warning: {value_0}": "マテリアル警告: {value_0}",
     "Material, texture, sampler, and lighting controls are owned by the resident viewport surfaces.": "マテリアル、テクスチャ、サンプラー、および照明コントロールは、常駐のビューポート サーフェスによって所有されます。",
@@ -6086,8 +6082,6 @@
     "Search friendly/exact names, values, shaders, or paths...": "わかりやすい/正確な名前、値、シェーダー、またはパスを検索します...",
     "Search highlights: {value_0}": "検索ハイライト: {value_0}",
     "Search in progress...": "検索中...",
-    "Search item name, ID, model stem, category, material tag, or icon path": "アイテム名、ID、モデルステム、カテゴリ、材料タグ、またはアイコンパスを検索します",
-    "Search item name, internal ID, model stem, category, material tag, texture, or icon path": "アイテム名、内部ID、モデルステム、カテゴリ、マテリアルタグ、テクスチャ、またはアイコンパスを検索します",
     "Search item name, model id, category, or recovered file path": "アイテム名、モデルID、カテゴリ、または復元されたファイルパスを検索します",
     "Search log cleared.": "検索ログがクリアされました。",
     "Search mirror": "サーチミラー",
@@ -9569,6 +9563,8 @@
     "Texture  {value_0}": "テクスチャ  {value_0}",
     "{value_0}   (hidden)": "{value_0}   (非表示)",
     "{value_0} vertices, {value_1} triangles": "頂点 {value_0}、三角形 {value_1}",
-    "{value_0}   {value_1} v": "{value_0}   頂点 {value_1}"
+    "{value_0}   {value_1} v": "{value_0}   頂点 {value_1}",
+    "Search item name, ID, model stem, category, or icon path": "アイテム名、ID、モデルステム、カテゴリ、またはアイコンパスを検索します",
+    "Search item name, internal ID, model stem, category, texture, or icon path": "アイテム名、内部ID、モデルステム、カテゴリ、テクスチャ、またはアイコンパスを検索します"
   }
 }

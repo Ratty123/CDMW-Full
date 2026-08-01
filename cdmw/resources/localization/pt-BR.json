@@ -534,7 +534,6 @@
     "All imported files are matched.": "Todos os arquivos importados são correspondidos.",
     "All in {value_0}/": "Tudo em {value_0}/",
     "All items ({value_0})": "Todos os itens ({value_0})",
-    "All materials": "Todos os materiais",
     "All packages": "Todos os pacotes",
     "All parts": "Todas as peças",
     "All requested folders already existed.": "Todas as pastas solicitadas já existiam.",
@@ -3716,7 +3715,6 @@
     "Material color targets use swatches instead of DDS preview.": "Alvos de cores de material usam amostras em vez de DDS visualização.",
     "Material colors": "Cores materiais",
     "Material edit cannot be previewed yet: {value_0}": "A edição do material ainda não pode ser visualizada: {value_0}",
-    "Material evidence: {value_0}": "Evidência material: {value_0}",
     "Material groups": "Grupos de materiais",
     "Material live preview cancelled.": "Visualização ao vivo do material cancelada.",
     "Material mask generation: flips metal channel. Try when nonmetal/metal response looks reversed.": "Geração de máscara de material: inverte o canal de metal. Tente quando a resposta não-metal/metal parecer invertida.",
@@ -3736,8 +3734,6 @@
     "Material sidecar shares the selected texture stem; this is an indexed same-stem hint, not a live archive scan.": "Material sidecar compartilha a haste da textura selecionada; esta é uma dica indexada do mesmo radical, não uma verificação de arquivo em tempo real.",
     "Material sidecar worker returned invalid data.": "O trabalhador secundário do material retornou dados inválidos.",
     "Material source": "Fonte de material",
-    "Material tags": "Etiquetas de materiais",
-    "Material tags: {value_0}": "Tags de material: {value_0}",
     "Material texture validation cancelled.": "Validação de textura de material cancelada.",
     "Material warning: {value_0}": "Aviso de material: {value_0}",
     "Material, texture, sampler, and lighting controls are owned by the resident viewport surfaces.": "Os controles de material, textura, amostragem e iluminação pertencem às superfícies da janela de visualização residente.",
@@ -6086,8 +6082,6 @@
     "Search friendly/exact names, values, shaders, or paths...": "Pesquise nomes, valores, shaders ou caminhos amigáveis/exatos...",
     "Search highlights: {value_0}": "Destaques da pesquisa: {value_0}",
     "Search in progress...": "Pesquisa em andamento...",
-    "Search item name, ID, model stem, category, material tag, or icon path": "Pesquise o nome do item, ID, haste do modelo, categoria, tag de material ou caminho do ícone",
-    "Search item name, internal ID, model stem, category, material tag, texture, or icon path": "Pesquise o nome do item, ID interno, haste do modelo, categoria, tag de material, textura ou caminho do ícone",
     "Search item name, model id, category, or recovered file path": "Pesquise o nome do item, ID do modelo, categoria ou caminho do arquivo recuperado",
     "Search log cleared.": "Registro de pesquisa limpo.",
     "Search mirror": "Espelho de pesquisa",
@@ -9571,6 +9565,8 @@
     "Texture  {value_0}": "Textura  {value_0}",
     "{value_0}   (hidden)": "{value_0}   (oculto)",
     "{value_0} vertices, {value_1} triangles": "{value_0} vértices, {value_1} triângulos",
-    "{value_0}   {value_1} v": "{value_0}   {value_1} vért."
+    "{value_0}   {value_1} v": "{value_0}   {value_1} vért.",
+    "Search item name, ID, model stem, category, or icon path": "Pesquise o nome do item, ID, haste do modelo, categoria ou caminho do ícone",
+    "Search item name, internal ID, model stem, category, texture, or icon path": "Pesquise o nome do item, ID interno, haste do modelo, categoria, textura ou caminho do ícone"
   }
 }

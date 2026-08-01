@@ -534,7 +534,6 @@
     "All imported files are matched.": "Tous les fichiers importés correspondent.",
     "All in {value_0}/": "Tout dans {value_0}/",
     "All items ({value_0})": "Tous les articles ({value_0})",
-    "All materials": "Tous les matériaux",
     "All packages": "Tous les forfaits",
     "All parts": "Toutes les pièces",
     "All requested folders already existed.": "Tous les dossiers demandés existaient déjà.",
@@ -3716,7 +3715,6 @@
     "Material color targets use swatches instead of DDS preview.": "Les cibles de couleur des matériaux utilisent des échantillons au lieu de l'aperçu DDS.",
     "Material colors": "Couleurs des matériaux",
     "Material edit cannot be previewed yet: {value_0}": "La modification du matériau ne peut pas encore être prévisualisée : {value_0}",
-    "Material evidence: {value_0}": "Preuve matérielle : {value_0}",
     "Material groups": "Matériau groupes",
     "Material live preview cancelled.": "Aperçu en direct des matériaux annulé.",
     "Material mask generation: flips metal channel. Try when nonmetal/metal response looks reversed.": "Génération de masque de matériau : retourne le canal métallique. Essayez lorsque la réponse non-métal/métal semble inversée.",
@@ -3736,8 +3734,6 @@
     "Material sidecar shares the selected texture stem; this is an indexed same-stem hint, not a live archive scan.": "Le side-car de matériau partage la tige de texture sélectionnée ; il s'agit d'un indice indexé de même tige, pas d'une analyse d'archive en direct.",
     "Material sidecar worker returned invalid data.": "Le travailleur side-car matériel a renvoyé des données non valides.",
     "Material source": "Source matérielle",
-    "Material tags": "Étiquettes matérielles",
-    "Material tags: {value_0}": "Balises de matériau : {value_0}",
     "Material texture validation cancelled.": "Validation de la texture du matériau annulée.",
     "Material warning: {value_0}": "Avertissement concernant le matériau : {value_0}",
     "Material, texture, sampler, and lighting controls are owned by the resident viewport surfaces.": "Les commandes de matériau, de texture, d’échantillonneur et d’éclairage appartiennent aux surfaces de la fenêtre d’affichage résidente.",
@@ -6086,8 +6082,6 @@
     "Search friendly/exact names, values, shaders, or paths...": "Recherchez des noms, des valeurs, des shaders ou des chemins conviviaux/exacts...",
     "Search highlights: {value_0}": "Points forts de la recherche : {value_0}",
     "Search in progress...": "Recherche en cours...",
-    "Search item name, ID, model stem, category, material tag, or icon path": "Rechercher le nom de l'élément, l'ID, la tige du modèle, la catégorie, l'étiquette de matériau ou le chemin de l'icône",
-    "Search item name, internal ID, model stem, category, material tag, texture, or icon path": "Rechercher le nom de l'élément, l'ID interne, la tige du modèle, la catégorie, l'étiquette de matériau, la texture ou le chemin de l'icône",
     "Search item name, model id, category, or recovered file path": "Rechercher le nom de l'élément, l'identifiant du modèle, la catégorie ou le chemin du fichier récupéré",
     "Search log cleared.": "Journal de recherche effacé.",
     "Search mirror": "Miroir de recherche",
@@ -9571,6 +9565,8 @@
     "Texture  {value_0}": "Texture  {value_0}",
     "{value_0}   (hidden)": "{value_0}   (masqué)",
     "{value_0} vertices, {value_1} triangles": "{value_0} sommets, {value_1} triangles",
-    "{value_0}   {value_1} v": "{value_0}   {value_1} som."
+    "{value_0}   {value_1} v": "{value_0}   {value_1} som.",
+    "Search item name, ID, model stem, category, or icon path": "Rechercher le nom de l'élément, l'ID, la tige du modèle, la catégorie ou le chemin de l'icône",
+    "Search item name, internal ID, model stem, category, texture, or icon path": "Rechercher le nom de l'élément, l'ID interne, la tige du modèle, la catégorie, la texture ou le chemin de l'icône"
   }
 }

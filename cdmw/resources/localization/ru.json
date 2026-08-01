@@ -534,7 +534,6 @@
     "All imported files are matched.": "Все импортированные файлы совпадают.",
     "All in {value_0}/": "Все в {value_0}/",
     "All items ({value_0})": "Все позиции ({value_0})",
-    "All materials": "Все материалы",
     "All packages": "Все пакеты",
     "All parts": "Все части",
     "All requested folders already existed.": "Все запрошенные папки уже существовали.",
@@ -3716,7 +3715,6 @@
     "Material color targets use swatches instead of DDS preview.": "В целевых цветах материала используются образцы вместо предварительного просмотра DDS.",
     "Material colors": "Цвета материала",
     "Material edit cannot be previewed yet: {value_0}": "Редактирование материала пока невозможно просмотреть: {value_0}",
-    "Material evidence: {value_0}": "Вещественное доказательство: {value_0}",
     "Material groups": "Группы материалов",
     "Material live preview cancelled.": "Предварительный просмотр материала отменен.",
     "Material mask generation: flips metal channel. Try when nonmetal/metal response looks reversed.": "Генерация маски материала: переворачивает металлический канал. Попробуйте, когда реакция неметалл/металл выглядит обратной.",
@@ -3736,8 +3734,6 @@
     "Material sidecar shares the selected texture stem; this is an indexed same-stem hint, not a live archive scan.": "Сопроводительная часть материала использует выбранную основу текстуры; это индексированная подсказка об одной и той же основе, а не сканирование живого архива.",
     "Material sidecar worker returned invalid data.": "Рабочий с коляской материала вернул неверные данные.",
     "Material source": "Источник материала",
-    "Material tags": "Теги материалов",
-    "Material tags: {value_0}": "Теги материала: {value_0}",
     "Material texture validation cancelled.": "Проверка текстуры материала отменена.",
     "Material warning: {value_0}": "Предупреждение о материале: {value_0}",
     "Material, texture, sampler, and lighting controls are owned by the resident viewport surfaces.": "Элементы управления материалом, текстурой, сэмплером и освещением принадлежат резидентным поверхностям видового экрана.",
@@ -6086,8 +6082,6 @@
     "Search friendly/exact names, values, shaders, or paths...": "Поиск понятных/точных имен, значений, шейдеров или путей...",
     "Search highlights: {value_0}": "Основные моменты поиска: {value_0}",
     "Search in progress...": "Идет поиск...",
-    "Search item name, ID, model stem, category, material tag, or icon path": "Найдите имя элемента, идентификатор, основу модели, категорию, тег материала или путь к значку.",
-    "Search item name, internal ID, model stem, category, material tag, texture, or icon path": "Поиск по имени элемента, внутреннему идентификатору, основе модели, категории, тегу материала, текстуре или пути к значку.",
     "Search item name, model id, category, or recovered file path": "Поиск по имени элемента, идентификатору модели, категории или пути к восстановленному файлу.",
     "Search log cleared.": "Журнал поиска очищен.",
     "Search mirror": "Поиск по зеркалу",
@@ -9572,6 +9566,8 @@
     "Texture  {value_0}": "Текстура  {value_0}",
     "{value_0}   (hidden)": "{value_0}   (скрыто)",
     "{value_0} vertices, {value_1} triangles": "{value_0} вершин, {value_1} треугольников",
-    "{value_0}   {value_1} v": "{value_0}   {value_1} верш."
+    "{value_0}   {value_1} v": "{value_0}   {value_1} верш.",
+    "Search item name, ID, model stem, category, or icon path": "Найдите имя элемента, идентификатор, основу модели, категорию или путь к значку.",
+    "Search item name, internal ID, model stem, category, texture, or icon path": "Поиск по имени элемента, внутреннему идентификатору, основе модели, категории, текстуре или пути к значку."
   }
 }
