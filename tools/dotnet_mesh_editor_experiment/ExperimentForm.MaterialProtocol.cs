@@ -324,6 +324,55 @@ internal sealed partial class ExperimentForm
     /// </remarks>
     private bool _residentSessionProvisional;
 
+    /// <summary>
+    /// True once the session that owns this helper has told it that it is
+    /// letting go, so the next real session may take the warm process over.
+    /// </summary>
+    /// <remarks>
+    /// A resident helper outlives the edit session that opened it: the host
+    /// drops the package and deactivates the viewport but keeps the process,
+    /// its JIT and its D3D device warm for the next mesh. The session latch had
+    /// no counterpart for that, so it kept refusing every later session as a
+    /// mismatch and the next mesh never became loadable. The host now names the
+    /// session it is releasing, and the release is what makes a rebind legal --
+    /// an unreleased session is still nobody else's to take.
+    /// </remarks>
+    private bool _residentSessionReleased;
+
+    /// <summary>
+    /// True from a session rebind until the arriving session's first package,
+    /// so that package opens on its own modes instead of the ones the reader who
+    /// left was working in. See <c>CarryResidentInteractionModesForward</c>.
+    /// </summary>
+    private bool _residentSessionRebound;
+
+    private void ObserveResidentSessionRelease(JsonElement root)
+    {
+        var sessionId = JsonString(root, "session_id").Trim();
+        if (string.IsNullOrWhiteSpace(_residentMaterialSessionId))
+        {
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(sessionId)
+            && !string.Equals(_residentMaterialSessionId, sessionId, StringComparison.Ordinal))
+        {
+            // Only the session actually holding this helper can release it.
+            WriteProtocolEvent("error", new Dictionary<string, object?>
+            {
+                ["code"] = "session_release_mismatch",
+                ["session_id"] = sessionId,
+                ["resident_session_id"] = _residentMaterialSessionId,
+            });
+            return;
+        }
+        _residentSessionReleased = true;
+        WriteProtocolEvent("session_released", new Dictionary<string, object?>
+        {
+            ["session_id"] = _residentMaterialSessionId,
+            ["process_generation"] = _residentProcessGeneration,
+        });
+    }
+
     private void ObserveResidentSession(JsonElement root)
     {
         var sessionId = JsonString(root, "session_id").Trim();
@@ -345,6 +394,7 @@ internal sealed partial class ExperimentForm
         {
             _residentMaterialSessionId = sessionId;
             _residentSessionProvisional = provisional;
+            _residentSessionReleased = false;
             _lastObservedSessionRevision = ProtocolEditRevision(root);
             // A textured mode picked before this session existed is owed now.
             ReplayPendingResidentDisplayRequest();
@@ -352,9 +402,9 @@ internal sealed partial class ExperimentForm
         }
         if (sessionChanged)
         {
-            if (!_residentSessionProvisional || provisional)
+            if ((!_residentSessionProvisional && !_residentSessionReleased) || provisional)
             {
-                // Either a real session is already in charge, or this is another
+                // Either a real session is still in charge, or this is another
                 // placeholder. Neither may displace what is here.
                 WriteProtocolEvent("error", new Dictionary<string, object?>
                 {
@@ -362,13 +412,17 @@ internal sealed partial class ExperimentForm
                     ["session_id"] = sessionId,
                     ["resident_session_id"] = _residentMaterialSessionId,
                     ["resident_session_provisional"] = _residentSessionProvisional,
+                    ["resident_session_released"] = _residentSessionReleased,
                 });
                 return;
             }
             var replaced = _residentMaterialSessionId;
             _residentMaterialSessionId = sessionId;
             _residentSessionProvisional = false;
-            // The placeholder's revision history belongs to nothing the user did.
+            _residentSessionReleased = false;
+            _residentSessionRebound = true;
+            // Neither a placeholder's history nor the released session's belongs
+            // to anything the arriving session did.
             _lastObservedSessionRevision = ProtocolEditRevision(root);
             WriteProtocolEvent("session_rebound", new Dictionary<string, object?>
             {
@@ -384,6 +438,8 @@ internal sealed partial class ExperimentForm
             // The same id promoted from placeholder to authoritative.
             _residentSessionProvisional = false;
         }
+        // The owner came back for its own helper, so its release is withdrawn.
+        _residentSessionReleased = false;
         _lastObservedSessionRevision = Math.Max(_lastObservedSessionRevision, ProtocolEditRevision(root));
         ReplayPendingResidentDisplayRequest();
     }

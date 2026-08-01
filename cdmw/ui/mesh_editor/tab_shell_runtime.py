@@ -221,5 +221,3 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_animation_timer.setInterval(33)
         self.standalone_animation_timer.timeout.connect(self._tick_standalone_animation_playback)
         self.standalone_animation_last_tick = 0.0
-        self._wired_standalone_native_host_ids: set[int] = set()
-        self._wired_shared_dotnet_controller_ids: set[int] = set()

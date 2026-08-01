@@ -34,6 +34,34 @@ from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.tab_support import _mesh_editor_tab_index
 from cdmw.ui.mesh_editor.tab_shell_runtime import MeshEditorTabShellRuntimeMixin
 
+#: Marks naming the tab an object's signals are already connected to.
+_SHARED_DOTNET_WIRED_MARK = "_mesh_editor_shared_dotnet_wired_to"
+_NATIVE_PART_EVENTS_WIRED_MARK = "_mesh_editor_native_part_events_wired_to"
+
+
+def _already_wired_to(target: object, mark: str, owner: object) -> bool:
+    """True when `owner` has already connected its handlers to `target`.
+
+    The mark lives on the object, so it dies with it. A set of `id()` values
+    does not: every builder swap brings a new host and a new controller and
+    leaves the old addresses behind, and CPython hands those addresses straight
+    back to later allocations of the same size. The tab would then take a live
+    object for one it had already wired and connect nothing to it, which is
+    silent -- the preview appears and then reports nothing, or a part click and
+    a brush stroke go nowhere.
+    """
+
+    return getattr(target, mark, None) == id(owner)
+
+
+def _mark_wired_to(target: object, mark: str, owner: object) -> None:
+    try:
+        setattr(target, mark, id(owner))
+    except (AttributeError, RuntimeError):
+        # A target that cannot hold the mark is simply wired again next time,
+        # which the connect calls themselves already tolerate.
+        pass
+
 
 class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
 
@@ -589,7 +617,7 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
 
     def _wire_shared_dotnet_controller(self, host: object | None) -> None:
         controller = getattr(host, "controller", None)
-        if controller is None or id(controller) in self._wired_shared_dotnet_controller_ids:
+        if controller is None or _already_wired_to(controller, _SHARED_DOTNET_WIRED_MARK, self):
             return
         controller.protocol_event.connect(
             lambda payload, target=controller: self._handle_shared_dotnet_protocol_event(target, payload)
@@ -610,7 +638,7 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         controller.set_authoring_rehydrator(
             lambda target=controller: self._rehydrate_shared_dotnet_controller(target)
         )
-        self._wired_shared_dotnet_controller_ids.add(id(controller))
+        _mark_wired_to(controller, _SHARED_DOTNET_WIRED_MARK, self)
 
     def _sync_shared_dotnet_process_identity(self, controller: object) -> None:
         """Adopt the resident controller's process and count real launches.
@@ -779,8 +807,7 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
     def _wire_standalone_native_part_events(self, host: object | None) -> None:
         if host is None:
             return
-        marker = id(host)
-        if marker in self._wired_standalone_native_host_ids:
+        if _already_wired_to(host, _NATIVE_PART_EVENTS_WIRED_MARK, self):
             return
         wired = False
         for signal_name, handler in (
@@ -803,7 +830,7 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
             except (RuntimeError, TypeError):
                 pass
         if wired:
-            self._wired_standalone_native_host_ids.add(marker)
+            _mark_wired_to(host, _NATIVE_PART_EVENTS_WIRED_MARK, self)
     def _set_standalone_native_part_picking(self, enabled: bool) -> bool:
         setter = getattr(self.standalone_native_host, "set_source_part_picking", None)
         if not callable(setter):

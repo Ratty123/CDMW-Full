@@ -7,6 +7,7 @@ internal sealed partial class ExperimentForm
     private static bool IsPreviewProfileMutation(string eventName) =>
         (eventName ?? string.Empty).Trim().ToLowerInvariant() is
             "session_state"
+            or "session_release"
             or "tool_state"
             or "selection_update"
             or "preview_vertex_update"

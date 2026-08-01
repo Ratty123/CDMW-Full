@@ -724,6 +724,223 @@ def test_authoring_prewarm_binds_the_real_edit_session_before_package_switch(
     controller.shutdown()
 
 
+def _authoring_controller(
+    tmp_path: Path,
+    *,
+    capabilities: tuple[str, ...] = (),
+) -> tuple[DotNetPreviewSessionController, list[_FakeProcess], Path]:
+    executable = tmp_path / "helper.exe"
+    executable.write_bytes(b"test")
+    processes: list[_FakeProcess] = []
+
+    def process_factory(parent: QObject) -> _FakeProcess:
+        process = _FakeProcess(parent)
+        processes.append(process)
+        return process
+
+    controller = _own(DotNetPreviewSessionController(
+        host_hwnd=lambda: 1,
+        profile=DotNetPreviewProfile.AUTHORING,
+        configured_executable=executable,
+        terminate_on_close=True,
+        process_factory=process_factory,
+    ))
+    controller._capabilities.update(capabilities)  # noqa: SLF001 - handshake is faked below
+    return controller, processes, executable
+
+
+def _start_authoring_session(
+    controller: DotNetPreviewSessionController,
+    processes: list[_FakeProcess],
+    executable: Path,
+    tmp_path: Path,
+    *,
+    session_id: str,
+    package_name: str,
+) -> MeshDotNetExperimentPackage:
+    assert controller.set_authoritative_session_id(session_id)
+    package = replace(
+        _package(tmp_path, package_name),
+        scene_frame=SimpleNamespace(scene_session_id=session_id),
+    )
+    capabilities = set(controller.capabilities)
+    with (
+        patch(
+            "cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor",
+            return_value=_resolution(executable),
+        ),
+        patch(
+            "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_static_provenance_blockers",
+            return_value=(),
+        ),
+    ):
+        assert controller.load_package(package)
+    with patch(
+        "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers",
+        return_value=(),
+    ):
+        controller._handle_protocol_event(  # noqa: SLF001
+            {
+                "event": "protocol_ready",
+                "profile": "authoring",
+                "capabilities": sorted(capabilities),
+            },
+            controller.process_generation,
+        )
+    return package
+
+
+def test_released_authoring_session_hands_the_warm_helper_to_the_next_one(
+    tmp_path: Path,
+) -> None:
+    """Closing a mesh must not leave the helper claimed by a session that is gone.
+
+    `clear_preview` drops the package, the leases and the viewport but keeps the
+    process warm for the next mesh on purpose. The session claim had no matching
+    release, so it outlived its owner: every later bind was refused and the next
+    mesh's package was rejected as "belongs to a different active edit session"
+    with no way back except killing the helper.
+    """
+
+    controller, processes, executable = _authoring_controller(
+        tmp_path,
+        capabilities=("authoring_session_handoff_v1",),
+    )
+    _start_authoring_session(
+        controller,
+        processes,
+        executable,
+        tmp_path,
+        session_id="edit-session-a",
+        package_name="released-a",
+    )
+    process = processes[-1]
+
+    assert controller.clear_preview()
+    assert controller.is_running, "the resident helper is kept warm across a close"
+    write_offset = len(process.writes)
+
+    assert controller.set_authoritative_session_id("edit-session-b")
+
+    handoff = [
+        payload
+        for payload in process.writes[write_offset:]
+        if payload.get("event") in {"session_release", "session_state"}
+    ]
+    assert [payload["event"] for payload in handoff] == ["session_release", "session_state"]
+    assert handoff[0]["session_id"] == "edit-session-a"
+    assert handoff[1]["session_id"] == "edit-session-b"
+    assert handoff[1]["provisional_session"] is False
+    assert controller.process is process, "the handoff keeps the warm process"
+
+    second = replace(
+        _package(tmp_path, "released-b"),
+        scene_frame=SimpleNamespace(scene_session_id="edit-session-b"),
+    )
+    with (
+        patch(
+            "cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor",
+            return_value=_resolution(executable),
+        ),
+        patch(
+            "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_static_provenance_blockers",
+            return_value=(),
+        ),
+    ):
+        assert controller.load_package(second)
+    assert controller.desired_package_path == str(second.package_dir)
+    controller.shutdown()
+
+
+def test_the_same_session_reclaiming_its_helper_costs_no_rebind(tmp_path: Path) -> None:
+    """A suspend and resume within one mesh is not a handoff.
+
+    `clear_preview` runs on every ordinary release, including the ones that end
+    with the same session coming straight back. Treating that as a handoff would
+    re-handshake the helper -- and, on a helper without the capability, throw the
+    warm process away -- for a session that never actually changed.
+    """
+
+    controller, processes, executable = _authoring_controller(
+        tmp_path,
+        capabilities=("authoring_session_handoff_v1",),
+    )
+    _start_authoring_session(
+        controller,
+        processes,
+        executable,
+        tmp_path,
+        session_id="edit-session-a",
+        package_name="resumed-a",
+    )
+    process = processes[-1]
+
+    assert controller.clear_preview()
+    write_offset = len(process.writes)
+
+    assert controller.set_authoritative_session_id("edit-session-a")
+
+    assert [
+        payload
+        for payload in process.writes[write_offset:]
+        if payload.get("event") in {"session_release", "session_state"}
+    ] == []
+    assert controller.process is process
+    controller.shutdown()
+
+
+def test_a_helper_that_cannot_hand_off_is_replaced_rather_than_reused(tmp_path: Path) -> None:
+    """Without the capability the warm start is traded for a correct one.
+
+    An older helper latches its resident session for the life of the process and
+    cannot be told the owner left, so it would refuse every correlated message
+    from the arriving session: the mesh would appear and then answer nothing.
+    """
+
+    controller, processes, executable = _authoring_controller(tmp_path)
+    _start_authoring_session(
+        controller,
+        processes,
+        executable,
+        tmp_path,
+        session_id="edit-session-a",
+        package_name="legacy-a",
+    )
+    process = processes[-1]
+
+    assert controller.clear_preview()
+    assert controller.set_authoritative_session_id("edit-session-b")
+
+    assert controller.process is not process
+    assert [
+        payload
+        for payload in process.writes
+        if payload.get("event") == "session_release"
+    ] == []
+    controller.shutdown()
+
+
+def test_a_live_authoring_session_is_still_not_stealable(tmp_path: Path) -> None:
+    """The claim only lapses on release; an owner that never let go still owns it."""
+
+    controller, processes, executable = _authoring_controller(
+        tmp_path,
+        capabilities=("authoring_session_handoff_v1",),
+    )
+    _start_authoring_session(
+        controller,
+        processes,
+        executable,
+        tmp_path,
+        session_id="edit-session-a",
+        package_name="live-a",
+    )
+
+    assert not controller.set_authoritative_session_id("edit-session-b")
+    assert controller.process is processes[-1]
+    controller.shutdown()
+
+
 def test_same_package_identity_is_an_idempotent_resident_activation(tmp_path: Path) -> None:
     controller, process, package = _start_controller(tmp_path)
     _make_ready(controller)
