@@ -38,6 +38,7 @@ class ArchiveItemRecord:
     internal_name: str
     display_name: str = ""
     description: str = ""
+    equip_type: str = ""
     localized_names: tuple[str, ...] = ()
     prefab_hashes: List[int] = field(default_factory=list)
     model_stems: List[str] = field(default_factory=list)
@@ -54,6 +55,7 @@ class ArchiveAssetCatalogEntry:
     display_name: str
     category: str
     description: str = ""
+    equip_type: str = ""
     group: str = ""
     category_evidence: str = ""
     pac_files: tuple[str, ...] = ()
@@ -75,6 +77,7 @@ class ArchiveAssetCatalogEntry:
             "display_name": self.display_name,
             "category": self.category,
             "description": self.description,
+            "equip_type": self.equip_type,
             "group": self.group,
             "category_evidence": self.category_evidence,
             "pac_files": list(self.pac_files),
@@ -108,6 +111,9 @@ class _ArchiveItemIndexSources:
     iteminfo_entry: Optional[ArchiveEntry] = None
     #: The `.pabgh` companion that says where each `.pabgb` row starts and stops.
     iteminfo_header_entry: Optional[ArchiveEntry] = None
+    #: EquipTypeInfo names the slot an item equips to; items reference it by hash.
+    equiptypeinfo_entry: Optional[ArchiveEntry] = None
+    equiptypeinfo_header_entry: Optional[ArchiveEntry] = None
     stringinfo_entry: Optional[ArchiveEntry] = None
     part_prefab_dye_slot_entry: Optional[ArchiveEntry] = None
     material_match_entry: Optional[ArchiveEntry] = None
@@ -351,6 +357,8 @@ def _collect_archive_item_index_sources(
         wants_localization = "localizationstring_" in lower_path
         wants_iteminfo = "iteminfo.pabgb" in lower_path
         wants_iteminfo_header = "iteminfo.pabgh" in lower_path
+        wants_equiptypeinfo = basename == "equiptypeinfo.pabgb"
+        wants_equiptypeinfo_header = basename == "equiptypeinfo.pabgh"
         wants_stringinfo = basename == "stringinfo.pabgb"
         wants_part_prefab_dye_slot = basename == "partprefabdyeslotinfo.pabgb"
         wants_material_match = basename == "materialmatchinfo.pabgb"
@@ -363,6 +371,8 @@ def _collect_archive_item_index_sources(
             wants_localization
             or wants_iteminfo
             or wants_iteminfo_header
+            or wants_equiptypeinfo
+            or wants_equiptypeinfo_header
             or wants_stringinfo
             or wants_part_prefab_dye_slot
             or wants_material_match
@@ -380,6 +390,10 @@ def _collect_archive_item_index_sources(
             sources.iteminfo_entry = entry
         elif wants_iteminfo_header and group == "0008" and sources.iteminfo_header_entry is None:
             sources.iteminfo_header_entry = entry
+        elif wants_equiptypeinfo and group == "0008" and sources.equiptypeinfo_entry is None:
+            sources.equiptypeinfo_entry = entry
+        elif wants_equiptypeinfo_header and group == "0008" and sources.equiptypeinfo_header_entry is None:
+            sources.equiptypeinfo_header_entry = entry
         elif wants_stringinfo and group == "0008" and sources.stringinfo_entry is None:
             sources.stringinfo_entry = entry
         elif wants_part_prefab_dye_slot and group == "0008" and sources.part_prefab_dye_slot_entry is None:
@@ -949,12 +963,50 @@ def _iteminfo_sub_record_key(row: bytes, tag: bytes) -> str:
     return raw.decode("ascii", errors="replace").strip()
 
 
+def _parse_equip_type_names(data: bytes, header_data: bytes) -> Dict[int, str]:
+    """`hash -> equip slot name` from EquipTypeInfo.
+
+    113 rows, each a hash key and the slot's name. Items reference the slot by
+    that hash. Every key is above 2^24, which is what makes a match meaningful:
+    a value equal to one is that key rather than an ordinary small integer.
+    """
+
+    names: Dict[int, str] = {}
+    try:
+        table = parse_pabgh_table(header_data, payload=data)
+    except Exception:
+        return names
+    for row, start, end in table.row_spans(len(data)):
+        name = _iteminfo_row_internal_name(data[start:end])
+        if name:
+            names[int(row.row_id)] = name
+    return names
+
+
+def _iteminfo_row_equip_type(row: bytes, equip_type_names: Mapping[int, str]) -> str:
+    """The slot named by this row, when it names exactly one.
+
+    Two candidates means the field position is not established for this row, and
+    a guess would be indistinguishable from a fact once it reaches the UI.
+    """
+
+    candidates: List[str] = []
+    for offset in range(0, max(0, len(row) - 3)):
+        name = equip_type_names.get(struct.unpack_from("<I", row, offset)[0])
+        if name and name not in candidates:
+            candidates.append(name)
+            if len(candidates) > 1:
+                return ""
+    return candidates[0] if candidates else ""
+
+
 def _parse_archive_iteminfo_rows(
     data: bytes,
     header_data: bytes,
     loc_tables: Mapping[str, Mapping[str, str]],
     *,
     icon_model_hashes: Optional[Mapping[int, str]] = None,
+    equip_type_names: Optional[Mapping[int, str]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> List[ArchiveItemRecord]:
     """Read item rows using the `.pabgh` row directory for exact boundaries.
@@ -1032,6 +1084,12 @@ def _parse_archive_iteminfo_rows(
                 ):
                     model_stems.append(model_stem)
 
+        equip_type = (
+            _iteminfo_row_equip_type(row_bytes, equip_type_names)
+            if equip_type_names
+            else ""
+        )
+
         table_evidence = build_item_table_evidence(
             item_id=item_id,
             internal_name=name,
@@ -1039,6 +1097,7 @@ def _parse_archive_iteminfo_rows(
             localized_names=tuple(localized_names),
             prefab_hashes=tuple(prefab_hashes),
             model_stems=tuple(model_stems),
+            equip_type=equip_type,
         )
         items.append(
             ArchiveItemRecord(
@@ -1046,6 +1105,7 @@ def _parse_archive_iteminfo_rows(
                 internal_name=name,
                 display_name=display_name,
                 description=description,
+                equip_type=equip_type,
                 localized_names=tuple(localized_names),
                 prefab_hashes=prefab_hashes,
                 model_stems=model_stems,
@@ -1055,12 +1115,31 @@ def _parse_archive_iteminfo_rows(
     return items
 
 
+def _parse_archive_equip_type_names(
+    equip_entry: Optional[ArchiveEntry],
+    header_entry: Optional[ArchiveEntry],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> Dict[int, str]:
+    if equip_entry is None or header_entry is None:
+        return {}
+    try:
+        data, _decompressed, _note = read_archive_entry_data(equip_entry, stop_event=stop_event)
+        header_data, _hdec, _hnote = read_archive_entry_data(header_entry, stop_event=stop_event)
+    except RunCancelled:
+        raise
+    except Exception:
+        return {}
+    return _parse_equip_type_names(data, header_data)
+
+
 def _parse_archive_iteminfo_entry(
     item_entry: ArchiveEntry,
     loc_tables: Mapping[str, Mapping[str, str]],
     *,
     header_entry: Optional[ArchiveEntry] = None,
     icon_model_hashes: Optional[Mapping[int, str]] = None,
+    equip_type_names: Optional[Mapping[int, str]] = None,
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> List[ArchiveItemRecord]:
@@ -1076,6 +1155,7 @@ def _parse_archive_iteminfo_entry(
                 header_data,
                 loc_tables,
                 icon_model_hashes=icon_model_hashes,
+                equip_type_names=equip_type_names,
                 stop_event=stop_event,
             )
         except RunCancelled:
@@ -1625,6 +1705,7 @@ def _merge_catalog_entry(existing: ArchiveAssetCatalogEntry, item: ArchiveItemRe
         display_name=display_name or existing.internal_name,
         category=existing.category,
         description=existing.description or item.description,
+        equip_type=existing.equip_type or item.equip_type,
         group=existing.group,
         category_evidence=existing.category_evidence,
         pac_files=pac_files,
@@ -1680,6 +1761,7 @@ def _build_archive_asset_catalog_entries(items: Sequence[ArchiveItemRecord]) -> 
             display_name=display_base or item.display_name or _friendly_internal_item_name(item.internal_name),
             category=category,
             description=item.description,
+            equip_type=item.equip_type,
             group=catalog_group,
             category_evidence=category_evidence,
             pac_files=tuple(item.pac_files),
@@ -1909,6 +1991,8 @@ def _try_build_archive_item_search_index_native(
 
             write_payload("iteminfo.bin", sources.iteminfo_entry)
             write_payload("iteminfo_header.bin", sources.iteminfo_header_entry)
+            write_payload("equiptypeinfo.bin", sources.equiptypeinfo_entry)
+            write_payload("equiptypeinfo_header.bin", sources.equiptypeinfo_header_entry)
             write_payload("stringinfo.bin", sources.stringinfo_entry)
             write_payload("partprefabdyeslotinfo.bin", sources.part_prefab_dye_slot_entry)
             for language_code, loc_entry in sources.localization_entries.items():
@@ -1961,6 +2045,7 @@ def _try_build_archive_item_search_index_native(
             internal_name=str(row.get("internal_name") or ""),
             display_name=str(row.get("display_name") or ""),
             description=str(row.get("description") or ""),
+            equip_type=str(row.get("equip_type") or ""),
             localized_names=localized_names,
             prefab_hashes=prefab_hashes,
             model_stems=model_stems,
@@ -1977,6 +2062,8 @@ def _try_build_archive_item_search_index_native(
                 prefab_hashes=tuple(item.prefab_hashes),
                 model_stems=tuple(item.model_stems),
                 icon_paths=tuple(item.icon_paths),
+                description=item.description,
+                equip_type=item.equip_type,
             ),
             _material_evidence_for_item(item, item.material_tags),
         )
@@ -2063,11 +2150,19 @@ def build_archive_item_search_index(
             )
             if on_log is not None and icon_model_hashes:
                 on_log(f"Item-name search: indexed {len(icon_model_hashes):,} item icon model reference hash(es).")
+            equip_type_names = _parse_archive_equip_type_names(
+                sources.equiptypeinfo_entry,
+                sources.equiptypeinfo_header_entry,
+                stop_event=stop_event,
+            )
+            if on_log is not None and equip_type_names:
+                on_log(f"Item-name search: indexed {len(equip_type_names):,} equip type name(s).")
             items = _parse_archive_iteminfo_entry(
                 sources.iteminfo_entry,
                 loc_tables,
                 header_entry=sources.iteminfo_header_entry,
                 icon_model_hashes=icon_model_hashes,
+                equip_type_names=equip_type_names,
                 on_log=on_log,
                 stop_event=stop_event,
             )

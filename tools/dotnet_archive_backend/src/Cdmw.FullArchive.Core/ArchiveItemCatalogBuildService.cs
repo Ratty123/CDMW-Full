@@ -287,7 +287,9 @@ public sealed class ArchiveItemCatalogBuildService(
                 ReadStrings(row, "model_stems"),
                 ReadStrings(row, "pac_files"),
                 ReadStrings(row, "icon_paths"),
-                ReadStrings(row, "material_tags")));
+                ReadStrings(row, "material_tags"),
+                Description: ReadString(row, "description"),
+                EquipType: ReadString(row, "equip_type")));
         }
         return result;
     }

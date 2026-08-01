@@ -65,7 +65,9 @@ public sealed class ArchiveItemCatalogService(
         BoundedValues(item.LocalizedNames, 3),
         BoundedValues(item.MaterialTags, 6),
         item.VariantCount,
-        Bounded(item.Evidence, 4096));
+        Bounded(item.Evidence, 4096),
+        Bounded(item.Description, 2048),
+        Bounded(item.EquipType, 64));
 
     private static string[] BoundedValues(IReadOnlyList<string> values, int maximum) => values
         .Take(maximum)

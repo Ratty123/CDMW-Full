@@ -127,6 +127,50 @@ def _row(item_id: int, *, materials: tuple[str, ...] = ()) -> ItemCatalogRow:
     )
 
 
+def test_selecting_an_item_shows_its_equip_slot_and_description() -> None:
+    _app()
+    window = _Window()
+    dialog = RemoteArchiveFinderDialog(window)
+    _drain()
+    armour = replace(
+        _row(11),
+        display_name="Abyssal Dragon Armor",
+        equip_type="DragonArmor",
+        description="A dragon armor that can be equipped on Blackstar.",
+    )
+    window.archive_catalogue_service.result_ready.emit(
+        "search-1",
+        "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 1, 0, 72, (armour,), (), (), False),
+    )
+    _drain()
+    dialog._tree.topLevelItem(0).setSelected(True)
+    _drain()
+
+    assert "DragonArmor" in dialog._detail_stats.text()
+    assert dialog._detail_description.text() == "A dragon armor that can be equipped on Blackstar."
+    dialog.close()
+
+
+def test_an_item_with_no_equip_slot_says_so_rather_than_showing_nothing() -> None:
+    _app()
+    window = _Window()
+    dialog = RemoteArchiveFinderDialog(window)
+    _drain()
+    window.archive_catalogue_service.result_ready.emit(
+        "search-1",
+        "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(12),), (), (), False),
+    )
+    _drain()
+    dialog._tree.topLevelItem(0).setSelected(True)
+    _drain()
+
+    assert "equip slot" in dialog._detail_stats.text().lower()
+    assert dialog._detail_description.text() == "None"
+    dialog.close()
+
+
 def test_full_item_finder_loads_immediately_and_pages_server_side() -> None:
     _app()
     window = _Window()
