@@ -7591,7 +7591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 142,
+          "line": 170,
           "sink": "append_archive_log"
         }
       ]
@@ -9071,7 +9071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 679,
+          "line": 713,
           "sink": "_write_crash_report"
         }
       ]
@@ -9116,7 +9116,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 387,
+          "line": 421,
           "sink": "_handle_archive_remote_preview_dependencies_failed"
         }
       ]
@@ -9136,7 +9136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 721,
+          "line": 755,
           "sink": "_write_crash_report"
         }
       ]
@@ -9161,12 +9161,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 469,
+          "line": 503,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 689,
+          "line": 723,
           "sink": "set_status_message"
         }
       ]
@@ -14616,7 +14616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 345,
+          "line": 379,
           "sink": "set_status_message"
         }
       ]
@@ -31391,7 +31391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 674,
+          "line": 708,
           "sink": "set_status_message"
         }
       ]
@@ -34166,7 +34166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 730,
+          "line": 764,
           "sink": "set_status_message"
         }
       ]
@@ -63866,7 +63866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 468,
+          "line": 502,
           "sink": "_clear_archive_preview"
         }
       ]
@@ -63966,12 +63966,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 688,
+          "line": 722,
           "sink": "_clear_archive_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 735,
+          "line": 769,
           "sink": "_clear_archive_preview"
         },
         {
@@ -64071,7 +64071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 246,
+          "line": 280,
           "sink": "set_status_message"
         }
       ]
@@ -65606,7 +65606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 672,
+          "line": 706,
           "sink": "set_status_message"
         }
       ]
@@ -67086,7 +67086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 336,
+          "line": 370,
           "sink": "_set_archive_preview_health_message"
         }
       ]
@@ -67136,7 +67136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 335,
+          "line": 369,
           "sink": "setText"
         }
       ]
@@ -71101,7 +71101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 229,
+          "line": 263,
           "sink": "set_status_message"
         }
       ]
@@ -87596,7 +87596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/workers.py",
-          "line": 381,
+          "line": 415,
           "sink": "_handle_archive_remote_preview_dependencies_failed"
         }
       ]
@@ -107816,7 +107816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/static_replacement_adapter.py",
-          "line": 130,
+          "line": 151,
           "sink": "RuntimeError"
         }
       ]
@@ -187611,7 +187611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/static_replacement_adapter.py",
-          "line": 136,
+          "line": 158,
           "sink": "RuntimeError"
         }
       ]
