@@ -4,3 +4,6 @@ PyInstaller>=6.0
 # without it. It was only ever installed by hand, so a clean environment could
 # not produce a release.
 openimageio>=3.1
+# Unpacks the Qt SDK that scripts/vendor_qt_sdk.py fetches for the Qt Quick RHI
+# viewport plugin. Build-time only: nothing at runtime reads a .7z.
+py7zr>=1.0
