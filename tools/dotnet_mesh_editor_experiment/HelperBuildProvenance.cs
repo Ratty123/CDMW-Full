@@ -21,6 +21,11 @@ internal static class HelperBuildProvenance
         // rather than requiring it, so an older helper still runs -- it just pays
         // the cold start it always did.
         "authoring_provisional_session_v1",
+        // A resident helper outlives the edit session that opened it. The
+        // host releases its session claim before handing the warm process to
+        // the next mesh; without this the helper refuses the new session and
+        // that mesh never becomes loadable. Gated at use, like the line above.
+        "authoring_session_handoff_v1",
         "resident_material_updates_v2",
         "resident_material_parameter_updates_v1",
         "resident_texture_region_updates_v1",
@@ -53,7 +58,8 @@ internal static class HelperBuildProvenance
                 "mesh_edit_revision_ack_v1"
                 or "resident_mutation_envelope_v2"
                 or "host_tool_state_v1"
-                or "authoring_provisional_session_v1"));
+                or "authoring_provisional_session_v1"
+                or "authoring_session_handoff_v1"));
         }
         return capabilities.Order(StringComparer.Ordinal).ToArray();
     }

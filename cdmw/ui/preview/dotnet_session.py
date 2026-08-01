@@ -125,6 +125,7 @@ class DotNetPreviewSessionController(QObject):
         self._renderer_ready = False
         self._session_established = False
         self._session_provisional = False
+        self._session_released = False
         self._active = False
         self._retry_attempt = 0
         self._retry_reason = ""
@@ -276,13 +277,19 @@ class DotNetPreviewSessionController(QObject):
         was active" -- which is why the prewarm could only be started *after* the
         session id was known, i.e. too late to hide the helper's start-up. While
         the session is still provisional the real id replaces it and is
-        re-handshaked; once a real session owns the helper nothing may take it.
+        re-handshaked; while a real session still *owns* the helper nothing may
+        take it. Once that session has released it -- see ``clear_preview`` --
+        the warm process is handed on rather than held for a session that no
+        longer exists.
         """
 
         normalized = str(session_id or "").strip()
         if self.profile is not DotNetPreviewProfile.AUTHORING or not normalized:
             return False
         if normalized == self._session_id:
+            # The same session coming back after a suspend is taking its own
+            # helper, so any release it declared on the way out is withdrawn.
+            self._session_released = False
             return True
         if self._session_established and not self._session_provisional:
             if self._launch_is_prewarm and self._desired_package is None:
@@ -290,9 +297,11 @@ class DotNetPreviewSessionController(QObject):
                 # the reason a real edit session is refused. This is the older
                 # helper without `authoring_provisional_session_v1`: drop the
                 # warm process and let the real package start its own.
-                self._discard_prewarm_process()
+                self._discard_warm_process()
                 self._session_id = normalized
                 return True
+            if self._session_released:
+                return self._adopt_released_session(normalized)
             return False
         self._session_id = normalized
         if self._session_provisional and self._session_established:
@@ -304,8 +313,62 @@ class DotNetPreviewSessionController(QObject):
             self._send_ui_localization_state()
         return True
 
-    def _discard_prewarm_process(self) -> None:
-        """Stop a prewarmed helper without touching the desired-package stream."""
+    def _adopt_released_session(self, session_id: str) -> bool:
+        """Hand a warm helper from a released edit session to the next one.
+
+        The claim taken by ``set_authoritative_session_id`` protects a *live*
+        edit session from having its helper stolen. It had no counterpart for
+        the session ending, so it outlived its owner: ``clear_preview`` drops
+        the package, the leases and the viewport but deliberately leaves the
+        process warm for the next mesh, and that warm process stayed bound to a
+        session that no longer existed. Every later bind was refused, and
+        ``load_package`` turned the refusal into "Close the current editor
+        before opening another mesh" -- about an editor the reader had already
+        closed. Nothing but killing the helper, i.e. shutting the whole Mesh
+        Editor down, ever cleared it, which is exactly the shape the report
+        described: the second mesh never loaded.
+
+        Stealing from a live session is still refused by the caller. This is
+        only reached once that session has let go.
+        """
+
+        previous = self._session_id
+        self._session_id = session_id
+        self._session_released = False
+        if not self._can_send_protocol():
+            # No helper is listening, so there is nothing to hand over: the next
+            # launch handshakes with the new id from the start.
+            return True
+        if "authoring_session_handoff_v1" not in self._capabilities:
+            # An older helper latches its resident session for the life of the
+            # process and cannot be told the owner left, so every correlated
+            # message from the new session would be refused as a mismatch --
+            # the mesh would appear and then answer nothing. Trading the warm
+            # start for a correct one is the bargain the prewarm path above
+            # already makes.
+            self._discard_warm_process()
+            return True
+        self._send_json(
+            {
+                "event": "session_release",
+                "session_id": previous,
+                "process_generation": self._process_generation,
+                "protocol_version": 2,
+            }
+        )
+        sent = self._send_authoritative_session_state()
+        if sent and self._protocol_ready and self._localization_keys:
+            self._send_ui_localization_state()
+        return sent
+
+    def _discard_warm_process(self) -> None:
+        """Stop a warm helper without touching the desired-package stream.
+
+        Used by the two paths that decide a resident process cannot serve the
+        session now asking for it: an older prewarm holding a placeholder id it
+        cannot hand back, and a released session on a helper that cannot be
+        handed on. Both want the process gone and the package stream intact.
+        """
 
         process = self._process
         self._process = None
@@ -316,6 +379,7 @@ class DotNetPreviewSessionController(QObject):
         self._renderer_ready = False
         self._session_established = False
         self._session_provisional = False
+        self._session_released = False
         self._active = False
         self._capabilities.clear()
         self._reset_localization_handshake()
@@ -549,6 +613,17 @@ class DotNetPreviewSessionController(QObject):
     def clear_preview(self) -> bool:
         if self._closed:
             return False
+        # Letting go of the resident scene is also letting go of the session
+        # that owned it. The process stays warm on purpose, so without this the
+        # claim outlives its owner and the next edit session can never bind.
+        # `set_authoritative_session_id` withdraws this again if the same
+        # session comes back, so an ordinary suspend and resume costs nothing.
+        if (
+            self.profile is DotNetPreviewProfile.AUTHORING
+            and self._session_established
+            and not self._session_provisional
+        ):
+            self._session_released = True
         self._package_generation += 1
         self._desired_package = None
         self._desired_package_identity = None
@@ -804,6 +879,7 @@ class DotNetPreviewSessionController(QObject):
         self._renderer_ready = False
         self._session_established = False
         self._session_provisional = False
+        self._session_released = False
         self._pending_package_generation = 0
         self._active = False
         self._capabilities.clear()
@@ -861,6 +937,7 @@ class DotNetPreviewSessionController(QObject):
         self._renderer_ready = False
         self._session_established = False
         self._session_provisional = False
+        self._session_released = False
         self._reset_localization_handshake()
         self._clear_prewarm_capture()
         self._active = False
@@ -1551,6 +1628,7 @@ class DotNetPreviewSessionController(QObject):
         self._renderer_ready = False
         self._session_established = False
         self._session_provisional = False
+        self._session_released = False
         self._reset_localization_handshake()
         self._pending_package_generation = 0
         self._clear_prewarm_capture()

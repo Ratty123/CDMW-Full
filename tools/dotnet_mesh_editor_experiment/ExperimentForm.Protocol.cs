@@ -547,6 +547,9 @@ internal sealed partial class ExperimentForm
                         ["profile"] = _options.Profile,
                     });
                     break;
+                case "session_release":
+                    ObserveResidentSessionRelease(root);
+                    break;
                 case "session_state":
                     ObserveResidentSession(root);
                     ApplyHistoryState(root);

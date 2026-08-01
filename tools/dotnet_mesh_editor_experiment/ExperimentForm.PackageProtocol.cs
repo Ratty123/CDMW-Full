@@ -276,6 +276,11 @@ internal sealed partial class ExperimentForm
     /// came back, and the host was never told. This is the same host-owned/
     /// package-owned split ReplaceResidentPackage already applies to the grid
     /// and gizmo toggles.
+    ///
+    /// "Live host state" means live for <em>this</em> edit session. Across a
+    /// session handoff there is nothing to keep: the modes belong to the reader
+    /// who left, and carrying them would open the next mesh with the previous
+    /// one's rail already armed. A rebind clears the carry once.
     /// </summary>
     private void CarryResidentInteractionModesForward(NetSceneState next)
     {
@@ -283,6 +288,11 @@ internal sealed partial class ExperimentForm
         {
             // The read-only preview profile pins its own modes in
             // PrepareResidentPackage and builds no authoring surface to keep.
+            return;
+        }
+        if (_residentSessionRebound)
+        {
+            _residentSessionRebound = false;
             return;
         }
         next.SetInteractionMode(_scene.InteractionMode);

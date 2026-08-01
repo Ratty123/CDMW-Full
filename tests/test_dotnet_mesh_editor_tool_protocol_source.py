@@ -1077,3 +1077,58 @@ def test_the_overlay_comparison_pane_keeps_the_placement_gizmo() -> None:
     pane = pane.split("private Dictionary<string, object?> PaneRectangleStatusPayload", maxsplit=1)[0]
     assert 'context.GizmoVisible && role != "reference"' in pane
     assert 'role == "editable"' not in pane
+
+
+def test_a_released_resident_session_may_be_handed_to_the_next_edit_session() -> None:
+    """The helper's session latch needs a release, or it outlives its owner.
+
+    A resident helper is kept warm across the close of the mesh that opened it,
+    so latching the session for the life of the process left the next Modify
+    Original permanently refused as a mismatch -- the second mesh never loaded
+    and only killing the helper recovered it. A release names the session
+    letting go; an unreleased, non-provisional session is still nobody else's.
+    """
+    material = _source("ExperimentForm.MaterialProtocol.cs")
+    protocol = _source("ExperimentForm.Protocol.cs")
+
+    assert 'case "session_release":\n                    ObserveResidentSessionRelease(root);' in protocol
+    assert 'or "session_release"' in _source("ExperimentForm.ProfileProtocol.cs")
+
+    release = material.split("private void ObserveResidentSessionRelease(", maxsplit=1)[1]
+    release = release.split("private void ObserveResidentSession(", maxsplit=1)[0]
+    assert '["code"] = "session_release_mismatch",' in release, (
+        "only the session holding the helper may release it"
+    )
+    assert "_residentSessionReleased = true;" in release
+
+    observe = material.split("private void ObserveResidentSession(", maxsplit=1)[1]
+    observe = observe.split("private bool CanApplyMaterialEditRevision(", maxsplit=1)[0]
+    assert "if ((!_residentSessionProvisional && !_residentSessionReleased) || provisional)" in observe
+    assert observe.count("_residentSessionReleased = false;") == 3, (
+        "adopting, rebinding and the owner's own return all withdraw the release"
+    )
+
+    # The modes belong to the reader who left, not to the mesh arriving next.
+    assert "_residentSessionRebound = true;" in observe
+    carry = _source("ExperimentForm.PackageProtocol.cs").split(
+        "private void CarryResidentInteractionModesForward(", maxsplit=1
+    )[1]
+    carry = carry.split("private void ReassertInteractionModeControls(", maxsplit=1)[0]
+    assert "if (_residentSessionRebound)" in carry
+    assert "_residentSessionRebound = false;" in carry
+
+
+def test_the_helper_advertises_the_session_handoff_capability() -> None:
+    """The host gates the handoff on it and falls back to a cold start without it."""
+    provenance = _source("HelperBuildProvenance.cs")
+    status = _source("MeshViewport.Status.cs")
+    session = (
+        ROOT / "cdmw" / "ui" / "preview" / "dotnet_session.py"
+    ).read_text(encoding="utf-8")
+
+    assert '"authoring_session_handoff_v1",' in provenance
+    assert '"authoring_session_handoff_v1",' in status
+    assert '"authoring_session_handoff_v1" not in self._capabilities' in session
+    # The read-only preview profile owns no edit session and must not claim it.
+    assert provenance.count('or "authoring_session_handoff_v1"') == 1
+    assert status.count('or "authoring_session_handoff_v1"') == 1
