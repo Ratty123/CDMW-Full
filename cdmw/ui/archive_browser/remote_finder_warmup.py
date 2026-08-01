@@ -216,7 +216,6 @@ class RemoteItemFinderWarmupController(QObject):
             query=self._setting("ui/item_finder_search_text"),
             category=category,
             group=group,
-            material_tag=self._setting("ui/item_finder_material_tag") or None,
             page_start=0,
             page_size=_INITIAL_PAGE_SIZE,
         )
