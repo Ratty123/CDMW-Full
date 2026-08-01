@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import traceback
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Optional
@@ -97,6 +98,33 @@ class ArchiveWorkerLifecycleMixin:
                 _record_archive_worker_lifecycle(self, "archive_worker_failed", reason="worker_failed", worker="structure_filter", error=str(exc))
 
 
+def _preview_request_origin(depth: int = 6) -> str:
+    """Name the call sites that asked for a preview, for the session trail.
+
+    Rebuilding a preview is expensive, there are a dozen places that ask for
+    one, and ``archive_preview_request_sources`` records the literal string
+    "worker" for every single one of them, so a captured session could show the
+    same asset being previewed three times without saying who asked. Reading the
+    stack costs nothing here -- this runs once per preview request, not per
+    frame -- and it is the difference between knowing and guessing.
+    """
+
+    try:
+        frames = traceback.extract_stack()[:-2]
+    except Exception:
+        return "unknown"
+    interesting: list[str] = []
+    for frame in reversed(frames):
+        name = str(frame.name or "")
+        if name.startswith("_preview_request_origin"):
+            continue
+        module = Path(str(frame.filename or "")).stem
+        interesting.append(f"{module}.{name}:{frame.lineno}")
+        if len(interesting) >= depth:
+            break
+    return " <- ".join(interesting) if interesting else "unknown"
+
+
 class ArchivePreviewWorkerMixin:
     """Archive preview worker start, result, error, and queued-request handling."""
 
@@ -150,6 +178,12 @@ class ArchivePreviewWorkerMixin:
             backend=self._archive_model_renderer_backend(),
             include_loose_preview_assets=include_loose_preview_assets,
             prefer_loose_preview=prefer_loose_preview,
+            # Who asked, and whether they overrode the builder guard. A preview
+            # rebuild is seconds of work; a session that does it three times for
+            # one asset has to be able to name the callers.
+            force=bool(force),
+            builder_active=bool(self._mesh_replacement_builder_active()),
+            origin=_preview_request_origin(),
         )
         self.archive_preview_cache_keys = {
             existing_request_id: cache_key
