@@ -18,6 +18,7 @@ from cdmw.core.archive_model_references import (
     iter_archive_equipment_model_alias_stems,
 )
 from cdmw.core.common import raise_if_cancelled
+from cdmw.core.paloc_format import parse_paloc
 from cdmw.core.structured_binary_editor import parse_pabgh_table
 from cdmw.core.table_catalog import (
     TableEvidenceRecord,
@@ -397,33 +398,19 @@ def _parse_archive_localization_entry(
     *,
     stop_event: Optional[threading.Event] = None,
 ) -> Dict[str, str]:
+    """Read a `.paloc` string table into `key -> text`.
+
+    `paloc_format` owns this format: the record count is a footer, so a reader
+    that walks the table can check it landed exactly on that count. The byte scan
+    this replaced could not, and its "a key is 6-to-20 ASCII digits" filter dropped
+    every non-numeric key -- 55,350 of 187,521 entries, all the quest and dialogue
+    text. Item keys are numeric, so the Item Finder never saw the loss.
+    """
+
     data, _decompressed, _note = read_archive_entry_data(loc_entry, stop_event=stop_event)
-    loc_dict: Dict[str, str] = {}
-    pos = 0
-    while pos + 8 < len(data):
-        raise_if_cancelled(stop_event)
-        slen = struct.unpack_from("<I", data, pos)[0]
-        if slen == 0 or slen > 50_000 or pos + 4 + slen > len(data):
-            pos += 1
-            continue
-
-        s_bytes = data[pos + 4 : pos + 4 + slen]
-        if 6 <= slen <= 20 and all(0x30 <= value <= 0x39 for value in s_bytes):
-            loc_id = s_bytes.decode("ascii")
-            text_pos = pos + 4 + slen
-            if text_pos + 4 < len(data):
-                text_len = struct.unpack_from("<I", data, text_pos)[0]
-                if 0 < text_len < 50_000 and text_pos + 4 + text_len <= len(data):
-                    text = data[text_pos + 4 : text_pos + 4 + text_len].decode(
-                        "utf-8",
-                        errors="replace",
-                    )
-                    loc_dict[loc_id] = text
-                    pos = text_pos + 4 + text_len
-                    continue
-        pos += 1
-
-    return loc_dict
+    raise_if_cancelled(stop_event)
+    table = parse_paloc(data, name=str(getattr(loc_entry, "path", "") or ""))
+    return {entry.key: entry.text for entry in table.entries}
 
 
 def parse_archive_localization_strings(
