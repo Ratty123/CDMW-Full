@@ -17,7 +17,8 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QEvent
+from PySide6.QtCore import QEvent, QSize
+from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import QApplication
 
 from cdmw.ui.preview.dotnet_host import DotNetPreviewHostFrame
@@ -103,6 +104,68 @@ def test_an_unrelated_event_does_not_reembed() -> None:
         assert controller.reembedded == [], (
             "a re-parent was issued for an event that did not change the window"
         )
+    finally:
+        frame.deleteLater()
+
+
+def test_a_resize_moves_the_helper_window_in_the_same_frame() -> None:
+    """The helper used to find out by polling, then wait 200ms before acting.
+
+    Dragging a window edge grew this pane immediately and left the editor at its
+    old size for the whole drag, with bare background down the side, snapping
+    into place a fifth of a second after the drag stopped.
+    """
+
+    frame, _controller = _host_frame()
+    try:
+        calls: list[int] = []
+        frame._sync_embedded_child_geometry = lambda: calls.append(1)  # type: ignore[method-assign]
+        frame.resizeEvent(QResizeEvent(QSize(800, 600), QSize(640, 480)))
+        assert calls, (
+            "a resize did not move the helper's window; it is left to the "
+            "helper's own poll, which waits for the size to stop changing"
+        )
+    finally:
+        frame.deleteLater()
+
+
+def test_the_helper_window_is_remembered_from_both_events() -> None:
+    """Reveal names it first; a re-parent names it again in case it changed."""
+
+    for event in ("embedded_window_revealed", "reembed_ack"):
+        frame, _controller = _host_frame()
+        try:
+            # The geometry sync is exercised separately; here the question is
+            # only whether the handle is picked up off the event at all.
+            frame._sync_embedded_child_geometry = lambda: None  # type: ignore[method-assign]
+            frame._handle_protocol_event({"event": event, "form_hwnd": 987654})
+            assert frame._embedded_child_hwnd == 987654, (
+                f"{event} did not record the helper's window, so a resize has "
+                "nothing to move"
+            )
+        finally:
+            frame.deleteLater()
+
+
+def test_a_handle_that_is_no_longer_a_window_is_forgotten() -> None:
+    """A stale handle must not be pushed geometry for the rest of the session."""
+
+    frame, _controller = _host_frame()
+    try:
+        frame._embedded_child_hwnd = 987654  # never was a window
+        frame._sync_embedded_child_geometry()
+        assert frame._embedded_child_hwnd == 0
+    finally:
+        frame.deleteLater()
+
+
+def test_a_missing_helper_window_is_not_an_error() -> None:
+    frame, _controller = _host_frame()
+    try:
+        frame._embedded_child_hwnd = 0
+        frame._sync_embedded_child_geometry()  # must not raise
+        frame._handle_protocol_event({"event": "reembed_ack"})
+        assert frame._embedded_child_hwnd == 0
     finally:
         frame.deleteLater()
 
