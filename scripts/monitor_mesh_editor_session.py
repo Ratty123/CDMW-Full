@@ -267,6 +267,30 @@ def write_report(session: Session, out_root: Path) -> Path:
         lines.append("- none observed")
     lines.append("")
 
+    # Who asked for each preview. Present only once the app is built with the
+    # origin field; older builds simply have nothing to group.
+    previews = [
+        row for row in session.events if row.get("operation") == "archive_preview_request"
+    ]
+    origins = Counter(str(row.get("origin") or "") for row in previews)
+    origins.pop("", None)
+    lines.append("## Who asked for a preview rebuild")
+    lines.append("")
+    if origins:
+        for origin, count in origins.most_common():
+            lines.append(f"- **{count}x** `{origin}`")
+        forced = [row for row in previews if row.get("force")]
+        during_builder = [row for row in previews if row.get("builder_active")]
+        lines.append("")
+        lines.append(f"- forced (bypassed the builder guard): {len(forced)} of {len(previews)}")
+        lines.append(f"- issued while the mesh builder was open: {len(during_builder)}")
+    else:
+        lines.append(
+            "- not recorded; this build predates the origin field. Rebuild the "
+            "portable app to capture it."
+        )
+    lines.append("")
+
     lines.append("## Stalls (gaps between events)")
     lines.append("")
     if stalls:
