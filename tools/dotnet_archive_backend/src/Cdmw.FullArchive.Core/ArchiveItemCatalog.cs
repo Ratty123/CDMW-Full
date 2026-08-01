@@ -139,9 +139,18 @@ public sealed class ArchiveItemCatalog
             CategoryEvidence = categoryEvidence,
             VariantCount = Math.Max(1, source.VariantCount),
             Evidence = evidence,
+            Description = source.Description.Trim(),
+            EquipType = source.EquipType.Trim(),
+            // The equip slot joins the search text so "helm" finds every helm.
+            // The description deliberately does not: it is prose, and folding it
+            // in would make one item's flavour text match half the catalogue.
             SearchText = NormalizeSearch(string.Join(
                 ' ',
-                new[] { source.ItemId.ToString(), internalName, displayName, category, group }
+                new[]
+                {
+                    source.ItemId.ToString(), internalName, displayName, category, group,
+                    source.EquipType.Trim(),
+                }
                     .Concat(localizedNames)
                     .Concat(pacFiles)
                     .Concat(modelStems)
@@ -443,6 +452,8 @@ public sealed record ArchiveItemCatalogRecord(
     string CategoryEvidence = "",
     int VariantCount = 1,
     string Evidence = "",
-    string SearchText = "");
+    string SearchText = "",
+    string Description = "",
+    string EquipType = "");
 
 public sealed record ArchiveItemCatalogPage(long TotalMatches, IReadOnlyList<ArchiveItemCatalogRecord> Items);

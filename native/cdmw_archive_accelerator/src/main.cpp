@@ -884,6 +884,7 @@ struct NativeItemRecord {
     std::string internal_name;
     std::string display_name;
     std::string description;
+    std::string equip_type;
     std::vector<std::string> localized_names;
     std::vector<std::uint32_t> prefab_hashes;
     std::vector<std::string> model_stems;
@@ -1180,6 +1181,27 @@ std::string iteminfo_row_internal_name(const std::vector<char>& data, size_t row
     return value;
 }
 
+// equiptypeinfo is a name table: 113 rows, each a hash key and the equip slot's
+// name. Items reference it by that hash, which is what makes the reference
+// checkable -- every key is above 2^24, so a value matching one is that key
+// rather than an ordinary small integer that happens to collide.
+std::map<std::uint32_t, std::string> parse_equiptypeinfo(
+    const std::vector<char>& data,
+    const std::vector<char>& header
+) {
+    std::map<std::uint32_t, std::string> types;
+    std::vector<PabghDirectoryRow> rows;
+    if (!resolve_pabgh_directory(header, data, rows)) return types;
+    for (size_t index = 0; index < rows.size(); ++index) {
+        const size_t row_start = rows[index].offset;
+        const size_t row_end = index + 1 < rows.size() ? rows[index + 1].offset : data.size();
+        if (row_start >= row_end || row_end > data.size()) continue;
+        const std::string name = iteminfo_row_internal_name(data, row_start, row_end);
+        if (!name.empty()) types[read_u32(data, row_start)] = name;
+    }
+    return types;
+}
+
 // Read item rows using the `.pabgh` row directory for exact boundaries. Recall
 // is the row count, where the marker scan below recovers 4,142 of 6,508.
 std::vector<NativeItemRecord> parse_iteminfo_rows(
@@ -1187,6 +1209,7 @@ std::vector<NativeItemRecord> parse_iteminfo_rows(
     const std::vector<char>& header,
     const std::map<std::string, std::map<std::string, std::string>>& loc_tables,
     const std::map<std::uint32_t, std::string>& icon_hashes,
+    const std::map<std::uint32_t, std::string>& equip_types,
     bool& resolved
 ) {
     std::vector<NativeItemRecord> items;
@@ -1272,6 +1295,17 @@ std::vector<NativeItemRecord> parse_iteminfo_rows(
                     add_unique(record.model_stems, found->second);
                 }
             }
+        }
+        // An equip type is reported only when the row names exactly one. Two
+        // candidates means the field position is not established for this row,
+        // and a guess would be indistinguishable from a fact downstream.
+        if (!equip_types.empty()) {
+            std::vector<std::string> candidates;
+            for (size_t cursor = row_start; cursor + 4 <= row_end && candidates.size() < 2; ++cursor) {
+                auto found = equip_types.find(read_u32(data, cursor));
+                if (found != equip_types.end()) add_unique(candidates, found->second);
+            }
+            if (candidates.size() == 1) record.equip_type = candidates.front();
         }
         items.push_back(std::move(record));
     }
@@ -1542,10 +1576,14 @@ int run_item_index_job(
         const auto icon_hashes = parse_stringinfo_hashes(read_binary_if_exists(work_dir / "stringinfo.bin"));
         const auto iteminfo_data = read_binary_if_exists(work_dir / "iteminfo.bin");
         const auto iteminfo_header = read_binary_if_exists(work_dir / "iteminfo_header.bin");
+        const auto equip_types = parse_equiptypeinfo(
+            read_binary_if_exists(work_dir / "equiptypeinfo.bin"),
+            read_binary_if_exists(work_dir / "equiptypeinfo_header.bin")
+        );
         bool row_directory_resolved = false;
         auto items = iteminfo_header.empty()
             ? std::vector<NativeItemRecord>()
-            : parse_iteminfo_rows(iteminfo_data, iteminfo_header, loc_tables, icon_hashes, row_directory_resolved);
+            : parse_iteminfo_rows(iteminfo_data, iteminfo_header, loc_tables, icon_hashes, equip_types, row_directory_resolved);
         if (!row_directory_resolved) {
             // No `.pabgh` companion, or it did not describe this payload. The
             // marker scan finds fewer rows, so say which one produced the report.
@@ -1632,6 +1670,7 @@ int run_item_index_job(
                 << ",\"internal_name\":\"" << json_escape(item.internal_name)
                 << "\",\"display_name\":\"" << json_escape(item.display_name)
                 << "\",\"description\":\"" << json_escape(item.description)
+                << "\",\"equip_type\":\"" << json_escape(item.equip_type)
                 << "\",\"localized_names\":" << json_string_array(item.localized_names)
                 << ",\"prefab_hashes\":" << json_u32_array(item.prefab_hashes)
                 << ",\"model_stems\":" << json_string_array(item.model_stems)
