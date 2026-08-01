@@ -1160,6 +1160,50 @@ internal sealed partial class ExperimentForm
         }
     }
 
+    /// <summary>
+    /// A panel whose whole descendant tree is composed off screen and blitted
+    /// once, rather than painting one child window at a time.
+    /// </summary>
+    /// <remarks>
+    /// This is the difference that <see cref="Control.DoubleBuffered"/> cannot
+    /// make. Double buffering buffers a control's own painting into its own
+    /// window; it does nothing about the fact that every WinForms container,
+    /// button and list is a separate HWND that paints itself. Any layout change
+    /// moves, resizes, shows or hides those windows individually, each one
+    /// painting as it goes and the parent's background showing through the gaps
+    /// between them, which is what is seen as the panel flickering whenever a
+    /// row, a button or a list is touched. WS_EX_COMPOSITED makes Windows
+    /// compose the entire subtree bottom-up into an off-screen surface and
+    /// present it in one go, so a layout change becomes a single frame.
+    ///
+    /// It is deliberately scoped to the tool flanks rather than set on the form.
+    /// The viewport presents through a DXGI flip-model swap chain, and flip
+    /// model is not compatible with a composited ancestor: putting this on the
+    /// form (or on anything above the viewport) is what would cost the renderer
+    /// its presentation path. Nothing in either flank is an ancestor of the
+    /// viewport, so the chrome composes and the swap chain is left alone.
+    /// </remarks>
+    private sealed class MeshEditorCompositedPanel : Panel
+    {
+        private const int WsExComposited = 0x02000000;
+
+        public MeshEditorCompositedPanel()
+        {
+            DoubleBuffered = true;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        }
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                var parameters = base.CreateParams;
+                parameters.ExStyle |= WsExComposited;
+                return parameters;
+            }
+        }
+    }
+
     private sealed class MeshEditorBufferedTableLayoutPanel : TableLayoutPanel
     {
         public MeshEditorBufferedTableLayoutPanel()
