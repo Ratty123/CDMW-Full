@@ -707,12 +707,7 @@ internal sealed partial class ExperimentForm : Form
         var deletePartButton = CommandButton("Delete", "delete");
         RegisterTopologyMutationButton(duplicatePartButton);
         RegisterTopologyMutationButton(deletePartButton);
-        _partsSection = AddSection(rightStack, "Parts",
-            _submeshList,
-            ButtonRow(
-                CommandButton("Show / Hide", "toggle_visibility"),
-                duplicatePartButton,
-                deletePartButton));
+        _partsSection = BuildPartsSection(rightStack, duplicatePartButton, deletePartButton);
         _partsSection.Name = "CompactPartsSection";
         _meshEditOnlySections.Add(_partsSection);
         var selectionSection = AddHelpSection(
@@ -723,7 +718,8 @@ internal sealed partial class ExperimentForm : Form
             LabeledControl("Selection target", _selectionTarget),
             LabeledControl("Selection mode", _selectionOperation),
             _xray,
-            ButtonRow(ToolButton("Select", "select"), CommandButton("Grow", "grow"), CommandButton("Shrink", "shrink")));
+            // No Select button: its list row arms the tool. Grow and Shrink are commands, so they stay.
+            ButtonRow(CommandButton("Grow", "grow"), CommandButton("Shrink", "shrink")));
         selectionSection.Name = "CompactSelectionSection";
         _selectionSection = selectionSection;
         _meshEditOnlySections.Add(selectionSection);
@@ -741,8 +737,7 @@ internal sealed partial class ExperimentForm : Form
             LabeledControl("Translate step", _translateStep),
             AxisNudgeRow("x"),
             AxisNudgeRow("y"),
-            AxisNudgeRow("z"),
-            ButtonRow(ToolButton("Move", "move"), ToolButton("Grab", "grab")));
+            AxisNudgeRow("z"));
         transformSection.Name = "CompactTransformSection";
         _transformSection = transformSection;
         _meshEditOnlySections.Add(transformSection);
@@ -754,7 +749,7 @@ internal sealed partial class ExperimentForm : Form
             LabeledControl("Radius", _radius),
             LabeledControl("Strength", _strength),
             LabeledControl("Falloff", _falloff),
-            ButtonRow(ToolButton("Smooth", "smooth"), ToolButton("Inflate", "inflate"), ToolButton("Pinch", "pinch")));
+            BuildFalloffCurve());
         brushSection.Name = "CompactBrushSection";
         _brushSection = brushSection;
         _meshEditOnlySections.Add(brushSection);
@@ -788,9 +783,12 @@ internal sealed partial class ExperimentForm : Form
             out var viewportHelpMarker,
             PreviewModeControl(),
             OverlayAppearanceControls(),
-            ButtonRow(CameraButton("Front", "front"), CameraButton("Left", "left"), CameraButton("Right", "right")),
-            ButtonRow(CameraButton("Back", "back"), CameraButton("Top", "top"), CameraButton("Bottom", "bottom")),
-            ButtonRow(StyledActionButton("-15", () => _viewport.RotateYawDegrees(-15.0f)), StyledActionButton("+15", () => _viewport.RotateYawDegrees(15.0f)), StyledActionButton("Reset/Fit", _viewport.FrameMesh)),
+            // Four rows of three rather than three plus a lone Orbit: the whole
+            // group has to fit above the fold, or the camera presets are behind
+            // a scroll on a 1080p column.
+            ButtonRow(CameraButton("Front", "front"), CameraButton("Back", "back"), CameraButton("Top", "top")),
+            ButtonRow(CameraButton("Left", "left"), CameraButton("Right", "right"), CameraButton("Bottom", "bottom")),
+            ButtonRow(StyledActionButton("-15", () => _viewport.RotateYawDegrees(-15.0f)), StyledActionButton("+15", () => _viewport.RotateYawDegrees(15.0f)), StyledActionButton("Fit", _viewport.FrameMesh)),
             ToolButton("Orbit", "orbit"));
         _viewportSection.Name = "CompactViewportSection";
         _viewportHelpMarker = viewportHelpMarker;
@@ -877,8 +875,7 @@ internal sealed partial class ExperimentForm : Form
             _submeshList.Items.Clear();
             for (var index = 0; index < _scene.EditableSubmeshCount; index++)
             {
-                var visibility = _materials.ParametersForSubmesh(index).Visible is false ? "hidden" : "shown";
-                _submeshList.Items.Add($"{index}: {_document.Submeshes[index].Name} [{visibility}]");
+                _submeshList.Items.Add(DescribePartRow(index));
             }
             for (var index = 0; index < _submeshList.Items.Count; index++)
             {
@@ -1101,6 +1098,30 @@ internal sealed partial class MeshViewport : Control
     public string RendererBackend => _rendererBlocked ? "blocked_renderer_unavailable" : (_d3d11Viewport is not null ? "d3d11_vortice_shader" : (_gpuViewport is not null ? "wpf_viewport3d_gpu" : "winforms_gdi_fallback"));
     public int SelectedSubmeshIndex => _selectedSources.Count > 0 ? _selectedSources.Min() : -1;
     public int[] SelectedSubmeshIndices => _selectedSources.OrderBy(index => index).ToArray();
+
+    /// <summary>
+    /// The parts a vertex or face selection sits on, for tools that act per
+    /// part but should still follow a sub-part selection rather than going dead.
+    /// </summary>
+    public int[] SubmeshIndicesTouchedBySelection =>
+        _selectedVertices.Concat(_selectedFaces)
+            .Where(pair => pair.Value.Count > 0)
+            .Select(pair => pair.Key)
+            .Distinct()
+            .OrderBy(index => index)
+            .ToArray();
+
+    /// <summary>True when the selection is a sub-region rather than whole parts.</summary>
+    public bool HasSubPartSelection =>
+        _selectedVertices.Any(pair => pair.Value.Count > 0)
+        || _selectedFaces.Any(pair => pair.Value.Count > 0);
+
+    /// <summary>
+    /// True when faces specifically are selected. Splitting a selection into its
+    /// own part moves whole faces, so a vertex-only selection cannot drive it —
+    /// the host would separate the entire part instead.
+    /// </summary>
+    public bool HasFaceSelection => _selectedFaces.Any(pair => pair.Value.Count > 0);
     public uint PerformanceTimerResolutionBeginResult => _performanceTimerResolutionBeginResult;
     public bool ShowSolid { get; private set; } = true;
     public bool ShowWire { get; private set; }

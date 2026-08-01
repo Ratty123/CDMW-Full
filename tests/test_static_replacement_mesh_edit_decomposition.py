@@ -127,7 +127,7 @@ def test_factory_preserves_public_order_identity_and_patch_seam(monkeypatch) -> 
     callbacks = facade.create_alignment_mesh_edit_callbacks(context)
 
     assert tuple(vars(callbacks)) == builder.PUBLIC_CALLBACK_NAMES
-    assert len(builder.PUBLIC_CALLBACK_NAMES) == len(set(builder.PUBLIC_CALLBACK_NAMES)) == 100
+    assert len(builder.PUBLIC_CALLBACK_NAMES) == len(set(builder.PUBLIC_CALLBACK_NAMES)) == 103
     enabled_signal = context["mesh_edit_enabled_checkbox"].toggled
     assert enabled_signal.slots == [callbacks._mesh_edit_enabled_toggled]
     assert tuple(inspect.signature(callbacks._mesh_edit_apply_preview_payload).parameters) == (

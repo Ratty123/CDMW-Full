@@ -109,6 +109,45 @@ def test_builder_presentation_state_defaults_mesh_edit_to_wire_vertices() -> Non
     assert state["display"]["gizmo_visible"] is False  # type: ignore[index]
 
 
+def test_mesh_edit_display_mode_is_a_default_not_an_override() -> None:
+    """A mode chosen inside Edit Mesh survives the next snapshot.
+
+    This snapshot is republished after every accepted scene frame. While the
+    mesh-edit mode was hard-coded, a pick made inside Edit Mesh lasted only until
+    the next frame landed, so "Solid (Textured)" appeared to stick at random.
+    """
+    kwargs = {
+        "comparison_mode": "replacement_only",
+        "camera": None,
+        "render_settings": ModelPreviewRenderSettings(d3d11_view_mode="lit"),
+        "grid_visible": True,
+        "gizmo_visible": True,
+        "part_pick_enabled": False,
+        "mesh_edit_active": True,
+    }
+
+    remembered = builder_presentation_state(mesh_edit_display_mode="textured", **kwargs)
+    assert remembered["display"]["mode"] == "textured"  # type: ignore[index]
+
+    # The placement combo is a separate slot and must not leak into Edit Mesh.
+    ignored = builder_presentation_state(
+        display_mode="textured_wire",
+        mesh_edit_display_mode="",
+        **kwargs,
+    )
+    assert ignored["display"]["mode"] == "wire_vertices"  # type: ignore[index]
+
+    # Leaving Edit Mesh returns to the placement slot, untouched by the above.
+    placement = dict(kwargs)
+    placement["mesh_edit_active"] = False
+    left = builder_presentation_state(
+        display_mode="textured_wire",
+        mesh_edit_display_mode="textured",
+        **placement,
+    )
+    assert left["display"]["mode"] == "textured_wire"  # type: ignore[index]
+
+
 def test_builder_presentation_state_starts_with_readable_untextured_wire() -> None:
     state = builder_presentation_state(
         comparison_mode="replacement_only",
@@ -301,6 +340,8 @@ def test_embedded_builder_presentation_getter_reads_current_render_settings() ->
         _mesh_editor_embedded_finalize_dotnet_import=lambda *_args, **_kwargs: False,
         _mesh_editor_embedded_run_part_action=lambda *_args, **_kwargs: False,
         _mesh_editor_embedded_set_skeleton_bone=lambda *_args, **_kwargs: False,
+        _mesh_editor_dotnet_tool_changed=lambda *_args, **_kwargs: False,
+        _mesh_editor_commit_dotnet_edit_result=lambda *_args, **_kwargs: False,
     )
     state = SimpleNamespace(
         dialog=dialog,

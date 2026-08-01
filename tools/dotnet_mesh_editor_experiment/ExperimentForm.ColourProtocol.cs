@@ -65,6 +65,13 @@ internal sealed partial class ExperimentForm
         WriteProtocolEvent("part_material_edit_request", payload);
     }
 
+    /// <summary>
+    /// The parts this page will write to. A whole-part selection names them
+    /// directly; a vertex or face selection names the parts it sits on, because
+    /// colour is stored per part and the page going dead on a sub-part selection
+    /// is worse than colouring the part the reader is working inside.
+    /// <see cref="PartColourScopeIsWiderThanSelection"/> is what says so on screen.
+    /// </summary>
     private int[] PartColourTargetIndices()
     {
         var selected = _viewport.SelectedSubmeshIndices
@@ -72,8 +79,29 @@ internal sealed partial class ExperimentForm
             .Distinct()
             .OrderBy(index => index)
             .ToArray();
-        return selected;
+        if (selected.Length > 0)
+        {
+            return selected;
+        }
+        return _viewport.SubmeshIndicesTouchedBySelection
+            .Where(index => index >= 0 && index < _scene.EditableSubmeshCount)
+            .ToArray();
     }
+
+    /// <summary>
+    /// True when the reader picked vertices or faces but the edit will land on
+    /// the whole part. Splitting the selection into its own part is the way to
+    /// narrow it, and that is a topology change worth asking for explicitly.
+    /// </summary>
+    private bool PartColourScopeIsWiderThanSelection() =>
+        _viewport.SelectedSubmeshIndices.Length == 0 && _viewport.HasSubPartSelection;
+
+    /// <summary>
+    /// Whether the selection can be split into a part of its own. Separating
+    /// moves whole faces, so a vertex-only selection cannot narrow anything.
+    /// </summary>
+    private bool PartColourSelectionCanBecomeItsOwnPart() =>
+        _viewport.SelectedSubmeshIndices.Length == 0 && _viewport.HasFaceSelection;
 
     private void ApplyPartColourEditLocally(Dictionary<string, object?> edit, int[] targets)
     {
@@ -272,7 +300,7 @@ internal sealed partial class ExperimentForm
         }
         var targets = PartColourTargetIndices();
         var reason = targets.Length == 0
-            ? "Select at least one part to recolour."
+            ? "Select a part, or any vertices or faces on one, to recolour."
             : string.Empty;
         var enabled = reason.Length == 0;
         foreach (var control in new Control?[]
@@ -289,6 +317,11 @@ internal sealed partial class ExperimentForm
                 control.Enabled = enabled;
             }
         }
+        if (_partColourSplitButton is not null)
+        {
+            _partColourSplitButton.Visible = PartColourSelectionCanBecomeItsOwnPart();
+            _partColourSplitButton.Enabled = _partColourSplitButton.Visible && !_morphUnbaked;
+        }
         var emissiveEnabled = enabled && _partEmissiveCheck is { Checked: true };
         if (_partEmissiveButton is not null)
         {
@@ -301,6 +334,17 @@ internal sealed partial class ExperimentForm
         var scope = targets.Length == 1
             ? $"Editing part {targets[0]}."
             : $"Editing {targets.Length} selected parts.";
+        if (PartColourScopeIsWiderThanSelection())
+        {
+            // Say plainly that the edit is wider than what is highlighted, so a
+            // whole-part recolour is never a surprise.
+            scope += " Colour is stored per part, so this covers the whole part,"
+                + " not only the selected vertices and faces.";
+            if (PartColourSelectionCanBecomeItsOwnPart())
+            {
+                scope += " Split the selection into a part to colour just it.";
+            }
+        }
         if (reason.Length == 0 && !HasResidentTextureResources())
         {
             // The shader gates the recolour on a bound base texture, and the

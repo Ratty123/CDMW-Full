@@ -2,22 +2,22 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class ExperimentForm
 {
-    private const int ToolRailWidth = 74;
-    private const int ToolRailButtonHeight = 48;
-    private const int ToolPropertyWidth = 340;
-    private const int SceneInspectorWidth = 336;
-
+    // Column widths are measured from content in EditMeshToolColumnMetrics
+    // rather than reserved here; the rail-and-panel layout reserved 414 always.
     private readonly Dictionary<string, Button> _toolRailToolButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<ToolRailPage, Button> _toolRailPageButtons = new();
     private readonly Dictionary<ToolRailPage, Panel> _toolRailPages = new();
-    // The tool rail is the only Edit Mesh layout. The placement flanks remain
-    // the control tree's construction and non-mesh-mode state.
+    // The only Edit Mesh layout; the placement flanks remain construction state.
     private bool _toolRailLayoutActive;
     // Null means no tool is armed: Edit Mesh opens this way, with the camera on
     // the left button and the navigation strip naming the modifiers.
     private ToolRailPage? _selectedToolRailPage;
     private bool _toolRailPageSelected;
     private bool _applyingToolRailSplitterLayout;
+    // The dock widths on screen, so a pass that would move nothing is skipped.
+    private int _appliedToolDockWidth = -1;
+    private int _appliedInspectorWidth = -1;
+    private int _appliedLayoutDpi = -1;
     // The construction cells of the two sections placement mode shares with the
     // rail, so leaving mesh edit can put them back where they were built.
     private TableLayoutPanelCellPosition? _partPickPlacementCell;
@@ -32,7 +32,6 @@ internal sealed partial class ExperimentForm
     private Panel? _leftToolModeHost;
     private Panel? _rightToolModeHost;
     private TableLayoutPanel? _toolDock;
-    private Label? _toolRailPanelHeader;
     private TableLayoutPanel? _railSelectionStack;
     private TableLayoutPanel? _sceneInspectorColumn;
     private Control? _presentationViewportRegion;
@@ -264,9 +263,9 @@ internal sealed partial class ExperimentForm
     }
 
     /// <summary>
-    /// Left flank: the tool rail on the outer edge and the active tool's
-    /// properties beside it. Only the selected tool is realised, so an inactive
-    /// tool never reserves space.
+    /// Left flank: one column listing every tool, with the open tool's settings
+    /// inline beneath the row that opened them. Only the open page is realised,
+    /// so a closed tool never reserves space.
     /// </summary>
     private TableLayoutPanel BuildToolDock()
     {
@@ -274,197 +273,16 @@ internal sealed partial class ExperimentForm
         {
             Name = "EditMeshToolDock",
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
+            ColumnCount = 1,
             RowCount = 1,
             Margin = new Padding(0),
             Padding = new Padding(0),
             BackColor = ThemePanelBackground,
         };
-        _toolDock.ColumnStyles.Add(
-            new ColumnStyle(SizeType.Absolute, ScaleToolPanelWidth(ToolRailWidth)));
         _toolDock.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         _toolDock.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        _toolDock.Controls.Add(BuildToolRail(), 0, 0);
-        _toolDock.Controls.Add(BuildToolPropertyPanel(), 1, 0);
+        _toolDock.Controls.Add(BuildToolListColumn(), 0, 0);
         return _toolDock;
-    }
-
-    /// <summary>
-    /// One flat list: every armable tool is its own button, and the command
-    /// pages keep one reveal-only entry each below the tools. There are no
-    /// category buttons — a click either arms exactly the tool it names or
-    /// opens exactly the page it names, never both.
-    /// </summary>
-    private Control BuildToolRail()
-    {
-        var rail = new MeshEditorBufferedTableLayoutPanel
-        {
-            Name = "EditMeshToolRail",
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 10,
-            Margin = new Padding(0),
-            Padding = new Padding(6, 8, 6, 8),
-            BackColor = ThemeRailBackground,
-        };
-        rail.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        var buttonHeight = ScaleToolPanelWidth(ToolRailButtonHeight);
-        for (var row = 0; row < 9; row++)
-        {
-            rail.RowStyles.Add(new RowStyle(SizeType.Absolute, buttonHeight));
-        }
-        rail.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        AddToolRailToolButton(rail, "select", "◰", "Select", 0,
-            "Vertex, face and part selection, X-Ray and Part Pick.");
-        AddToolRailToolButton(rail, "move", "✥", "Move", 1,
-            "Translate step, Move and Grab.");
-        AddToolRailToolButton(rail, "grab", "✜", "Grab", 2,
-            "Translate step, Move and Grab.");
-        AddToolRailToolButton(rail, "smooth", "◍", "Smooth", 3,
-            "Smooth, Inflate and Pinch with radius, strength and falloff.");
-        AddToolRailToolButton(rail, "inflate", "◉", "Inflate", 4,
-            "Smooth, Inflate and Pinch with radius, strength and falloff.");
-        AddToolRailToolButton(rail, "pinch", "◇", "Pinch", 5,
-            "Smooth, Inflate and Pinch with radius, strength and falloff.");
-        AddToolRailPageButton(rail, ToolRailPage.Topology, "△", "Topo", 6,
-            "Subdivide and Refine Smooth.");
-        AddToolRailPageButton(rail, ToolRailPage.Colour, "◧", "Colour", 7,
-            "Per-part tint, recolour and glow for the current selection.");
-        AddToolRailPageButton(rail, ToolRailPage.MorphRefit, "◑", "Morph", 8,
-            "Definition profiles, shape sliders and garment refit binding.");
-        EditMeshLayoutContracts.RequireCompleteRail(
-            _toolRailToolButtons.Keys.ToArray(),
-            _toolRailPageButtons.Keys.ToArray());
-        return rail;
-    }
-
-    /// <summary>
-    /// A rail button that names a tool arms that tool, and nothing else does:
-    /// the page beside the rail follows from the armed tool rather than from
-    /// the click, so revealing and choosing stay separate.
-    /// </summary>
-    private void AddToolRailToolButton(
-        TableLayoutPanel rail,
-        string tool,
-        string glyph,
-        string caption,
-        int row,
-        string description)
-    {
-        var button = BuildToolRailButton(glyph, caption, description);
-        button.Name = $"EditMeshToolRail{caption}ToolButton";
-        button.AccessibleName = $"{caption} tool";
-        button.Click += (_, _) => ActivateTool(tool, caption);
-        _toolRailToolButtons.Add(tool, button);
-        rail.Controls.Add(button, 0, row);
-    }
-
-    /// <summary>
-    /// A command page's entry only reveals the page. Topology, Colour and
-    /// Morph &amp; Refit hold one-shot commands and settings, so opening one
-    /// must leave the active tool exactly as it was.
-    /// </summary>
-    private void AddToolRailPageButton(
-        TableLayoutPanel rail,
-        ToolRailPage page,
-        string glyph,
-        string caption,
-        int row,
-        string description)
-    {
-        var button = BuildToolRailButton(glyph, caption, description);
-        button.Name = $"EditMeshToolRail{page}PageButton";
-        button.AccessibleName = $"{ToolRailPageTitle(page)} tool";
-        button.Click += (_, _) => ShowToolRailPage(page);
-        _toolRailPageButtons.Add(page, button);
-        rail.Controls.Add(button, 0, row);
-    }
-
-    private Button BuildToolRailButton(string glyph, string caption, string description)
-    {
-        // Glyph over caption: the caption keeps the rail readable even where a
-        // symbol falls back, and is the seam to swap in a real icon set later.
-        var button = StyledButton($"{glyph}\n{caption}", height: ToolRailButtonHeight);
-        button.AutoSize = false;
-        button.Dock = DockStyle.Fill;
-        button.Margin = new Padding(0, 0, 0, 4);
-        button.Padding = new Padding(0);
-        button.TextAlign = ContentAlignment.MiddleCenter;
-        SetHelpText(button, description);
-        return button;
-    }
-
-    private static string ToolRailPageTitle(ToolRailPage page) => page switch
-    {
-        ToolRailPage.Selection => "Selection",
-        // The Move and Grab buttons share this page and this header. "Transform"
-        // was only ever the placement-era section caption.
-        ToolRailPage.Transform => "Move",
-        ToolRailPage.Brush => "Brush",
-        ToolRailPage.Topology => "Topology",
-        ToolRailPage.Colour => "Colour",
-        _ => "Morph & Refit",
-    };
-
-    private Control BuildToolPropertyPanel()
-    {
-        var panel = new MeshEditorBufferedTableLayoutPanel
-        {
-            Name = "EditMeshToolPropertyPanel",
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 2,
-            Margin = new Padding(0),
-            Padding = new Padding(0),
-            BackColor = ThemePanelBackground,
-        };
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, ScaleToolPanelWidth(32)));
-        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        _toolRailPanelHeader = CreateDockHeader("EditMeshToolPropertyHeader", "SELECTION");
-
-        var scroll = new MeshEditorBufferedPanel
-        {
-            Name = "EditMeshToolPropertyScroll",
-            Dock = DockStyle.Fill,
-            AutoScroll = true,
-            Margin = new Padding(0),
-            Padding = new Padding(10, 8, 10, 10),
-            BackColor = ThemePanelBackground,
-        };
-        ApplyDarkScrollbars(scroll);
-
-        foreach (var page in Enum.GetValues<ToolRailPage>())
-        {
-            var host = CreateToolRailPage(page);
-            _toolRailPages.Add(page, host);
-            scroll.Controls.Add(host);
-        }
-
-        // Selection is the one page that owns two sections, so it needs a grid
-        // rather than a single docked child.
-        _railSelectionStack = new MeshEditorBufferedTableLayoutPanel
-        {
-            Name = "EditMeshToolRailSelectionStack",
-            Dock = DockStyle.Top,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            ColumnCount = 1,
-            RowCount = 2,
-            Margin = new Padding(0),
-            Padding = new Padding(0),
-            BackColor = ThemePanelBackground,
-        };
-        _railSelectionStack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        _railSelectionStack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        _railSelectionStack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        _toolRailPages[ToolRailPage.Selection].Controls.Add(_railSelectionStack);
-
-        panel.Controls.Add(_toolRailPanelHeader, 0, 0);
-        panel.Controls.Add(scroll, 0, 1);
-        return panel;
     }
 
     /// <summary>
@@ -478,16 +296,15 @@ internal sealed partial class ExperimentForm
             Name = "EditMeshSceneInspector",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = 1,
             Margin = new Padding(0),
             Padding = new Padding(0),
             BackColor = ThemePanelBackground,
         };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, ScaleToolPanelWidth(32)));
+        // No "SCENE" header: Parts, Action History and Viewport name themselves,
+        // so the band above them only cost height.
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        var header = CreateDockHeader("EditMeshSceneInspectorHeader", "SCENE");
 
         var scroll = new MeshEditorBufferedPanel
         {
@@ -519,26 +336,8 @@ internal sealed partial class ExperimentForm
         }
         scroll.Controls.Add(_sceneInspectorColumn);
 
-        panel.Controls.Add(header, 0, 0);
-        panel.Controls.Add(scroll, 0, 1);
+        panel.Controls.Add(scroll, 0, 0);
         return panel;
-    }
-
-    private Label CreateDockHeader(string name, string text)
-    {
-        return new Label
-        {
-            Name = name,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft,
-            UseMnemonic = false,
-            Margin = new Padding(0),
-            Padding = new Padding(12, 0, 12, 0),
-            ForeColor = ThemeMutedText,
-            BackColor = ThemeRailBackground,
-            Font = new Font(Font.FontFamily, Font.Size - 0.5f, FontStyle.Bold),
-            Text = text,
-        };
     }
 
     private static Panel CreateToolRailPage(ToolRailPage page)
@@ -645,8 +444,8 @@ internal sealed partial class ExperimentForm
             // deck. In a single tool column its stacked form is both correct
             // and already responsive, so unwind the grid here.
             ExitCompactMorphLayout();
-            // The dock header already names the tool, so the section's own
-            // collapse header would just repeat it.
+            // The list row that opened the page already names it, so the
+            // section's own collapse header would just repeat it.
             SetMorphCollapseHeaderVisible(false);
             HideRailToolSectionCaptions();
 
@@ -677,6 +476,9 @@ internal sealed partial class ExperimentForm
             _rightToolSplit.Panel2Collapsed = false;
             _viewportWorkspaceSplit.Panel2Collapsed = true;
             _toolRailLayoutActive = true;
+            // Entering lands on the saved placement widths.
+            _appliedToolDockWidth = -1;
+            _appliedInspectorWidth = -1;
             ApplyToolRailSplitterLayout();
             if (!_toolRailPageSelected)
             {
@@ -958,12 +760,9 @@ internal sealed partial class ExperimentForm
         }
         // The tool buttons accent by the armed tool, not the visible page.
         RefreshToolButtonStates();
-        if (_toolRailPanelHeader is not null)
-        {
-            _toolRailPanelHeader.Text = page is null
-                ? string.Empty
-                : ToolRailPageTitle(page.Value).ToUpperInvariant();
-        }
+        // No dock header to retitle: the open row names the page, which is why
+        // the header could never disagree with the armed tool again.
+        ApplyToolListExpansion(page);
         // Selecting or clearing a page changes how wide the dock needs to be.
         if (IsToolRailActive)
         {
@@ -1006,7 +805,7 @@ internal sealed partial class ExperimentForm
                 ["children"] = ToolRailChildDiagnostics(page),
             });
             _statusLabel.Text =
-                $"The {(_selectedToolRailPage is null ? page.Name : ToolRailPageTitle(_selectedToolRailPage.Value))} panel could not be shown "
+                $"The {ToolListPageDisplayName(page, _selectedToolRailPage)} panel could not be shown "
                 + $"(Win32 {ex.NativeErrorCode}). The rail stays on the previous tool.";
         }
     }
@@ -1078,6 +877,7 @@ internal sealed partial class ExperimentForm
         var page = ToolRailPageForActiveTool();
         if (page == _selectedToolRailPage)
         {
+            ReopenExpandedRowForActiveTool(page);
             return;
         }
         if (page is null)
@@ -1103,36 +903,50 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
+        // As wide as what is open and no wider, so closing a tool hands the
+        // width back to the viewport instead of a full-height empty panel.
+        var inspectorWidth = MeasureInspectorWidth();
+        var toolDockWidth = ScaleToolPanelWidth(MeasureToolColumnWidth());
+        // Nothing to move. Laying the splitter out anyway resizes the D3D11
+        // swap chain beside it, which reads as the preview flickering.
+        // Keyed on DPI too: the applied width is in device pixels, so a stale
+        // match on another monitor would skip the pass that resizes it.
+        if (_appliedToolDockWidth == toolDockWidth
+            && _appliedInspectorWidth == inspectorWidth
+            && _appliedLayoutDpi == DeviceDpi)
+        {
+            return;
+        }
         _applyingToolRailSplitterLayout = true;
+        // Freezing the window here is what makes opening a tool one step rather
+        // than a visible sequence: without it the reader sees the splitter move,
+        // then the column re-lay out, then the page paint into it.
+        using var redraw = BeginRedrawBatch();
         try
         {
             _editMeshLayoutHost?.PerformLayout();
             _leftToolSplit.PerformLayout();
             _rightToolSplit.PerformLayout();
 
-            // With no tool armed the property column has nothing to show, and a
-            // full-height empty panel beside the rail reads as a failed load.
-            // The rail alone is the honest opening state.
-            var toolDockWidth = ScaleToolPanelWidth(
-                _selectedToolRailPage is null
-                    ? ToolRailWidth
-                    : ToolRailWidth + ToolPropertyWidth);
             ApplySplitterDistance(
                 _leftToolSplit,
                 toolDockWidth,
                 toolDockWidth,
-                ScaleToolPanelWidth(MinimumViewportWidth + SceneInspectorWidth),
+                ScaleToolPanelWidth(MinimumViewportWidth + inspectorWidth),
                 prioritizePanelOne: true);
             _leftToolSplit.PerformLayout();
             EditMeshLayoutContracts.ApplyPanelTwoSize(
                 _rightToolSplit,
-                ScaleToolPanelWidth(SceneInspectorWidth),
+                ScaleToolPanelWidth(inspectorWidth),
                 ScaleToolPanelWidth(MinimumViewportWidth),
-                ScaleToolPanelWidth(280));
+                ScaleToolPanelWidth(EditMeshToolColumnMetrics.InspectorFloor));
             // Selecting a tool widens this dock and clearing it narrows it. The
             // strip of flank that the property column vacates keeps whatever was
             // painted there until something asks for it back.
             _leftToolSplit.Panel1.Invalidate(invalidateChildren: true);
+            _appliedToolDockWidth = toolDockWidth;
+            _appliedInspectorWidth = inspectorWidth;
+            _appliedLayoutDpi = DeviceDpi;
         }
         finally
         {
@@ -1164,11 +978,10 @@ internal sealed partial class ExperimentForm
     }
 
     /// <summary>
-    /// Blanks the caption of the section a rail page is built around, because
-    /// the dock header above it already names that page: the Move page read
-    /// "MOVE" over a "TRANSFORM" box, and every other page repeated itself
-    /// outright. Part Pick keeps its caption — it is the second box on the
-    /// Selection page — as do the scene groups, which have no header at all.
+    /// Blanks the caption of the section a page is built around, because the
+    /// list row that opened it already names it. Part Pick keeps its caption —
+    /// it is the second box on the Selection page — as do the scene groups,
+    /// which have no row at all.
     /// </summary>
     private void HideRailToolSectionCaptions()
     {

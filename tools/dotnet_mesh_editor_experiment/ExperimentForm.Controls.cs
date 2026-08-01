@@ -184,6 +184,11 @@ internal sealed partial class ExperimentForm
                 }
                 _xray.Checked = _viewport.ShowXRay;
                 _statusLabel.Text = $"Preview mode: {_previewMode.SelectedItem}.";
+                // Tell the host every time, not only when textures still have to
+                // be resolved. The host republishes a presentation snapshot after
+                // every accepted scene frame, so a pick it never heard about is
+                // overwritten by the next frame that happens to land.
+                RequestResidentViewportDisplay(mode);
             }
             else
             {
@@ -317,10 +322,12 @@ internal sealed partial class ExperimentForm
         // Each of these rows owns the section's full width. Nesting them under a
         // shared "Topology appearance" label pushed the sizing row past the
         // inspector edge, which clipped the vertex-size control out of reach.
+        // The two sizes share a row: a row each pushed the presets below the fold.
         return StackControls(
             ButtonRow(_wireColorButton, _vertexColorButton, reset),
-            LabeledControl("Wire width (px)", _wireOverlayWidth),
-            LabeledControl("Vertex size (px)", _vertexMarkerSize));
+            ButtonRow(
+                LabeledControl("Wire px", _wireOverlayWidth),
+                LabeledControl("Vertex px", _vertexMarkerSize)));
     }
 
     private Button OverlayColorButton(string label, bool wire)
@@ -529,13 +536,7 @@ internal sealed partial class ExperimentForm
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink
         };
-        void FitTitleHeight() => group.Padding = new Padding(
-            group.Padding.Left,
-            Math.Max(24, group.Font.Height + 9),
-            group.Padding.Right,
-            group.Padding.Bottom);
-        group.FontChanged += (_, _) => FitTitleHeight();
-        FitTitleHeight();
+        group.FitCaptionHeight();
         var body = new TableLayoutPanel
         {
             ColumnCount = 1,
@@ -564,38 +565,12 @@ internal sealed partial class ExperimentForm
         out Control helpMarker,
         params Control[] controls)
     {
+        // No "?" badge: pinned into the caption row, it made every section
+        // reserve that row's height even blanked. Help moves onto the section.
         var group = AddSection(stack, title, controls);
-        var marker = new Label
-        {
-            Name = $"DotNetMeshEditor{title.Replace(" ", string.Empty)}Help",
-            Text = "?",
-            AutoSize = true,
-            ForeColor = ThemeAccent,
-            BackColor = ThemeSectionBackground,
-            Cursor = Cursors.Help,
-            TabStop = false,
-            TextAlign = ContentAlignment.MiddleCenter,
-            AccessibleName = $"{title} help",
-            AccessibleDescription = helpText,
-            Margin = new Padding(0),
-            Padding = new Padding(3, 0, 3, 0),
-        };
-        _helpToolTip.SetToolTip(marker, helpText);
-        marker.Click += (_, _) => _helpToolTip.Show(
-            marker.AccessibleDescription ?? helpText,
-            marker,
-            0,
-            marker.Height,
-            12000);
-        group.Controls.Add(marker);
-        marker.BringToFront();
-        void PlaceMarker() => marker.Location = new Point(
-            Math.Max(group.Padding.Left, group.ClientSize.Width - group.Padding.Right - marker.Width),
-            1);
-        group.SizeChanged += (_, _) => PlaceMarker();
-        marker.SizeChanged += (_, _) => PlaceMarker();
-        PlaceMarker();
-        helpMarker = marker;
+        group.AccessibleName = title;
+        SetHelpText(group, helpText);
+        helpMarker = group;
         return group;
     }
 
@@ -793,17 +768,33 @@ internal sealed partial class ExperimentForm
     {
         var button = StyledButton(text);
         _toolButtons[tool] = button;
-        button.Click += (_, _) => ActivateTool(tool, text);
+        button.Click += (_, _) => ActivateTool(tool, text, announce: true);
         return button;
     }
 
-    private void ActivateTool(string tool, string text)
+    /// <summary>
+    /// Arms a tool. <paramref name="announce"/> is true when a reader chose it
+    /// here, which is the only case the host has to be told about: it keeps its
+    /// own notion of the tool and re-publishes it on every control refresh, so
+    /// without this the next refresh replaces the reader's choice with Select.
+    /// </summary>
+    private void ActivateTool(string tool, string text, bool announce = false)
     {
         SetActiveTool(tool);
         _statusLabel.Text = tool is "grab" or "smooth" or "inflate" or "pinch"
             ? $"{text} active: left-drag inside the brush circle."
             : $"Tool: {text}";
         UpdateViewportControlsHint();
+        if (announce)
+        {
+            // Sent even when the tool did not change here: that is exactly the
+            // case where the host is the one holding a stale value.
+            WriteProtocolEvent("tool_changed", new Dictionary<string, object?>
+            {
+                ["tool"] = (tool ?? string.Empty).Trim().ToLowerInvariant(),
+                ["target_mode"] = _viewport.CurrentTargetMode(),
+            });
+        }
     }
 
     private void SetActiveTool(string tool)
@@ -993,9 +984,24 @@ internal sealed partial class ExperimentForm
             if (enteringMeshEdit)
             {
                 _viewport.SuppressPlacementGizmoInteraction();
+                // Applied without announcing it: this is the entry default, and
+                // the host's own snapshot arrives immediately after with either
+                // the same default or the mode the reader last chose in Edit
+                // Mesh. Announcing here would overwrite that remembered mode
+                // with the default before it could be applied.
                 if (_previewMode.SelectedIndex != 6)
                 {
-                    _previewMode.SelectedIndex = 6;
+                    var syncing = _syncingPreviewModeSelection;
+                    _syncingPreviewModeSelection = true;
+                    try
+                    {
+                        _previewMode.SelectedIndex = 6;
+                    }
+                    finally
+                    {
+                        _syncingPreviewModeSelection = syncing;
+                    }
+                    _ = _viewport.TrySetDisplayMode("wire_vertices", out _);
                 }
                 else if (_viewport.TrySetDisplayMode("wire_vertices", out var error))
                 {
@@ -1290,6 +1296,36 @@ internal sealed partial class ExperimentForm
         {
             ResizeRedraw = true;
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        }
+
+        [System.Diagnostics.CodeAnalysis.AllowNull]
+        public override string Text
+        {
+            get => base.Text;
+            set
+            {
+                base.Text = value;
+                FitCaptionHeight();
+            }
+        }
+
+        protected override void OnFontChanged(EventArgs e)
+        {
+            base.OnFontChanged(e);
+            FitCaptionHeight();
+        }
+
+        /// <summary>
+        /// Reserve the caption row only when there is a caption: a section named
+        /// by the tool-list row above it has its own caption blanked.
+        /// </summary>
+        public void FitCaptionHeight()
+        {
+            var top = string.IsNullOrEmpty(base.Text) ? 8 : Math.Max(24, Font.Height + 9);
+            if (Padding.Top != top)
+            {
+                Padding = new Padding(Padding.Left, top, Padding.Right, Padding.Bottom);
+            }
         }
 
         protected override void OnPaint(PaintEventArgs e)

@@ -5,6 +5,11 @@ from __future__ import annotations
 
 MESH_PREVIEW_DEFAULT_DISPLAY_MODE = "untextured_wire"
 
+# What Edit Mesh opens on when the reader has not chosen anything else in it.
+# Topology work wants the wireframe and the vertices; a mode picked inside Edit
+# Mesh replaces this for the rest of the session rather than being overwritten.
+MESH_EDIT_DEFAULT_DISPLAY_MODE = "wire_vertices"
+
 MESH_PREVIEW_DISPLAY_MODE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Solid (Textured)", "textured"),
     ("Faces (No Textures)", "untextured_faces"),
