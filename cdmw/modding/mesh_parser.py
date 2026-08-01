@@ -55,27 +55,50 @@ PAMLOD_BBOX_MIN = 0x10
 PAMLOD_BBOX_MAX = 0x1C
 PAMLOD_ENTRY_TABLE = 0x50
 
-# PAC skin influences inside the 40-byte vertex record: four influence slots
-# at byte 20, then their four u8 weights at byte 28. Measured across every
-# submesh of the vanilla 1_pc bodies: weights are sorted descending, sum to 255
-# (+/- u8 rounding), and the primary carries 68% on average.
+# PAC skin influences inside the 40-byte vertex record: SIX influences, not four.
 #
-# A slot is NOT a skeleton bone index. It indexes the .pac's own bone palette —
-# a u16 count followed by that many u32 .pab bone-name hashes, near the start of
-# the file (see pac_bone_palette_candidates). Resolving slot 0 that way was
-# verified against real geometry: 22 of 24 single-influence slots land within
-# 10cm of their bone, with exact left/right symmetry.
+#   bytes 20-23  u32 little-endian, three 10-bit palette slots (influences 0,1,2)
+#   bytes 24-27  u32 little-endian, three 10-bit palette slots (influences 3,4,5)
+#   bytes 28-33  six u8 weights, sorted descending, summing to 255 (+/- u8 rounding)
 #
-# Only slot 0 decodes. Bytes 21-23 are a packed field, not plain slots: byte 21
-# is always a multiple of 4 with just 64 distinct values and byte 23 never
-# exceeds 12, and no byte in the record holds influence #1 as an index. Decoding
-# them as slots yields impossible pairings (a forehead bone blended with a
-# forearm on one vertex), so consumers that need named bones must use the
-# primary influence only. The raw bytes still round-trip verbatim, which is what
-# the replacement path needs.
+# The top two bits of each u32 are unused. This is the same packing the vertex normal uses at
+# byte 16, which is what the layout was hiding behind.
+#
+# A slot is NOT a skeleton bone index. It indexes the .pac's own bone palette -- a u16 count
+# followed by that many u32 .pab bone-name hashes near the start of the file, see
+# pac_bone_palette_candidates and resolve_pac_bone_palette.
+#
+# An earlier reading took bytes 20-23 as four u8 slots and concluded that only the first decoded,
+# because the rest produced impossible pairings such as a forehead bone blended with a forearm.
+# The packing explains every anomaly that reading ran into. Byte 21 is always a multiple of four
+# because slot 0 never exceeds 255, so the two bits it contributes to byte 21 are always clear.
+# Byte 23 never exceeds 12 because it carries only the top six bits of slot 2. And no byte holds
+# influence 1 as an index because that index straddles bytes 21 and 22.
+#
+# Measured on cd_phw_00_nude_00_0001_damian.pac against phw_01.pab (448 bones, 206-entry palette),
+# 13,740 vertices over three submeshes:
+#   - weights sum to 255 +/- 2 on 13,740 of 13,740 records across six bytes; four bytes manages
+#     only 1,365 of 2,078 on the head alone
+#   - all six weight bytes are in descending order on every record
+#   - every decoded slot lands inside the 206-entry palette; the four-u8 reading puts 3,672 of
+#     them outside it
+#   - each vertex sits a median 0.021-0.077 from the weighted centroid of its own bones, and
+#     secondary bones are as close as the primary (median 0.088) where the four-u8 reading puts
+#     them at a median of 0.532 on a 1.8-unit-tall figure
+#   - 94.97% of sided influences on off-midline vertices name a bone on that vertex's own side
+#   - exported as a rigged glTF and posed in Blender, bending the right upper arm moves 1,100 of
+#     7,806 vertices, mean distance 0.266 from that bone against 0.847 for the vertices that stay
+#     put; the hand moves 55, all within 0.036
+#
+# Not yet generalised: resolve_pac_bone_palette finds no palette for some non-body PACs (a 1_phm
+# accessory and a 2_mon monster both returned nothing against their own skeletons), so palette
+# recovery, not this decoding, is the remaining gap.
 PAC_SKIN_INDEX_OFFSET = 20
+PAC_SKIN_SLOT_GROUPS = (20, 24)      # two u32 groups, three 10-bit slots each
+PAC_SKIN_SLOT_BITS = 10
+PAC_SKIN_INFLUENCES = 6
 PAC_SKIN_WEIGHT_OFFSET = 28
-PAC_SKIN_RECORD_END = PAC_SKIN_WEIGHT_OFFSET + 4
+PAC_SKIN_RECORD_END = PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_INFLUENCES
 PAC_SKIN_UNUSED_SLOT = 0xFF
 PAC_SKIN_MAX_BONE_INDEX = PAC_SKIN_UNUSED_SLOT - 1
 PAC_SKIN_WEIGHT_LAYOUT = "pac_slot_u8x4"
