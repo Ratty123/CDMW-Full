@@ -182,7 +182,11 @@ internal sealed partial class ExperimentForm
                 "The permanent Edit Mesh tool hosts require the placement tool panels.");
         }
 
-        _leftToolModeHost = new MeshEditorBufferedPanel
+        // Composited, not merely double buffered: this subtree is the tool list,
+        // its rows and every tool's settings, and each of them is its own HWND.
+        // See MeshEditorCompositedPanel for why the flanks get this and the form
+        // must not.
+        _leftToolModeHost = new MeshEditorCompositedPanel
         {
             Name = "DotNetMeshEditorLeftToolModeHost",
             Dock = DockStyle.Fill,
@@ -197,7 +201,9 @@ internal sealed partial class ExperimentForm
         _leftToolModeHost.Controls.Add(toolDock);
         _leftToolSplit.Panel1.Controls.Add(_leftToolModeHost);
 
-        _rightToolModeHost = new MeshEditorBufferedPanel
+        // The Parts list, Action History and Viewport groups: selecting a part
+        // repainted this column one child window at a time.
+        _rightToolModeHost = new MeshEditorCompositedPanel
         {
             Name = "DotNetMeshEditorRightToolModeHost",
             Dock = DockStyle.Fill,
@@ -215,6 +221,16 @@ internal sealed partial class ExperimentForm
 
     private Control BuildCompactSessionBar()
     {
+        // The session commands scroll in a flow panel and the finish button is
+        // accented on state changes, so this row repaints on its own schedule.
+        var barHost = new MeshEditorCompositedPanel
+        {
+            Name = "EditMeshSessionBarHost",
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+            BackColor = ThemePanelBackground,
+        };
         var bar = new MeshEditorBufferedTableLayoutPanel
         {
             Name = "EditMeshSessionBar",
@@ -269,7 +285,8 @@ internal sealed partial class ExperimentForm
         bar.Controls.Add(title, 0, 0);
         bar.Controls.Add(_compactSessionCommandHost, 1, 0);
         bar.Controls.Add(_compactSessionFinishHost, 2, 0);
-        return bar;
+        barHost.Controls.Add(bar);
+        return barHost;
     }
 
     /// <summary>

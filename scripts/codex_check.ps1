@@ -98,6 +98,7 @@ $TestsByArea = @{
         "tests/test_mesh_editor_presentation_republish.py",
         "tests/test_mesh_editor_scene_mode_reads.py",
         "tests/test_mesh_editor_host_window_reparent.py",
+        "tests/test_mesh_preview_stale_package_reveal.py",
         "tests/test_mesh_harness_performance_contract.py",
         "tests/test_mesh_harness_scenario_registry.py",
         "tests/test_mesh_harness_real_dotnet_evidence.py",
