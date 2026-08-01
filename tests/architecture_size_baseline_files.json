@@ -39,7 +39,7 @@
     "cdmw/modding/material_texture_routing.py": 1971,
     "cdmw/modding/mesh_deformer.py": 1602,
     "cdmw/modding/mesh_edit_ops.py": 3768,
-    "cdmw/modding/mesh_exporter.py": 1336,
+    "cdmw/modding/mesh_exporter.py": 1344,
     "cdmw/modding/mesh_obj_importer.py": 1044,
     "cdmw/modding/mesh_parser.py": 2364,
     "cdmw/modding/pac_xml_profiles.py": 2771,
