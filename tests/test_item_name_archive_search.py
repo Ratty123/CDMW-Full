@@ -1758,6 +1758,36 @@ class ItemInfoRowParsingTests(unittest.TestCase):
 
 
 @pytest.mark.real_game
+class ShippedLocalizationTableTests(unittest.TestCase):
+    """The item index reads `.paloc` through its owner, so nothing is filtered out."""
+
+    def test_every_shipped_string_is_loaded_including_non_numeric_keys(self) -> None:
+        from tools.placement_studio import corpus
+        from cdmw.core.item_index import _parse_archive_localization_entry
+
+        if not corpus.game_root().is_dir():
+            self.skipTest("needs the installed game")
+        entry = None
+        for _package, candidate in corpus._iter_archive_entries(corpus.game_root()):
+            if "localizationstring_eng" in corpus.normalize_game_path(candidate.path).lower():
+                entry = candidate
+                break
+        if entry is None:
+            self.skipTest("no English string table in the archives")
+
+        table = _parse_archive_localization_entry(entry)
+
+        self.assertEqual(len(table), 187_521, "the shipped table holds every line in the game")
+        non_numeric = [key for key in table if not key.isdigit()]
+        self.assertGreater(
+            len(non_numeric),
+            50_000,
+            "the byte scan this replaced accepted only 6-to-20 digit keys",
+        )
+        self.assertTrue(any(key.startswith("questdialog") for key in non_numeric))
+
+
+@pytest.mark.real_game
 class ShippedItemInfoRowCountTests(unittest.TestCase):
     """The invariant that would have caught the marker scan losing a third of the rows."""
 
