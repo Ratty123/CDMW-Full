@@ -83,9 +83,10 @@ TABLE_SPECS: Tuple[TableSpec, ...] = (
         "ItemInfo",
         parser_status="T0",
         fields=(
-            _field("_key", "item_id", "id", confidence="table_iteminfo_row_scan"),
-            _field("_stringKey", "item_internal_name", "name", confidence="table_iteminfo_row_scan"),
+            _field("_key", "item_id", "id", confidence="table_row_directory"),
+            _field("_stringKey", "item_internal_name", "name", confidence="table_row_directory"),
             _field("_itemName", "localized_display_name", "localized_name", confidence="table_localization_join"),
+            _field("_itemDesc", "localized_description", "localized_name", confidence="table_localization_join"),
             _field("_itemIconList", "ui_icon_path", "texture", texture_role="ui_icon"),
             _field("_mapIconPath", "map_icon_path", "texture", texture_role="ui_map_icon"),
             _field("_moneyIconPath", "money_icon_path", "texture", texture_role="ui_icon"),
@@ -124,8 +125,26 @@ TABLE_SPECS: Tuple[TableSpec, ...] = (
     TableSpec(
         "EquipTypeInfo",
         parser_status="T0",
+        # Proven against the shipped table: the row directory gives all 113 rows
+        # exact boundaries, each row opens with its own hash key and a
+        # length-prefixed name, and all 113 names are distinct. The rest of the
+        # row stays unmodelled, so only these two fields are runtime-usable.
+        runtime_usable=True,
         fields=(
-            _field("_equipTypeName", "equip_type_name", "compatibility"),
+            _field(
+                "_key",
+                "equip_type_id",
+                "id",
+                confidence="table_row_directory",
+                note="primary key, repeated inline at the start of the row",
+            ),
+            _field(
+                "_equipTypeName",
+                "equip_type_name",
+                "compatibility",
+                confidence="table_row_directory",
+                note="length-prefixed name at row+4; 113 rows, 113 distinct names",
+            ),
             _field("_equipAbleHashList", "equip_able_hash_list", "compatibility"),
         ),
     ),
@@ -417,6 +436,8 @@ def build_item_table_evidence(
     prefab_hashes: Sequence[int] = (),
     model_stems: Sequence[str] = (),
     icon_paths: Sequence[str] = (),
+    description: str = "",
+    equip_type: str = "",
 ) -> Tuple[TableEvidenceRecord, ...]:
     records: List[TableEvidenceRecord] = []
     if int(item_id or 0) > 0:
@@ -426,7 +447,7 @@ def build_item_table_evidence(
                 "_key",
                 str(int(item_id)),
                 "item_id",
-                confidence="table_iteminfo_row_scan",
+                confidence="table_row_directory",
             )
         )
     if str(internal_name or "").strip():
@@ -436,7 +457,7 @@ def build_item_table_evidence(
                 "_stringKey",
                 str(internal_name).strip(),
                 "item_internal_name",
-                confidence="table_iteminfo_row_scan",
+                confidence="table_row_directory",
             )
         )
     display_target = str(display_name or "").strip() or next((str(value).strip() for value in localized_names if str(value).strip()), "")
@@ -448,6 +469,27 @@ def build_item_table_evidence(
                 display_target,
                 "localized_display_name",
                 confidence="table_localization_join",
+            )
+        )
+    if str(description or "").strip():
+        records.append(
+            TableEvidenceRecord(
+                "ItemInfo",
+                "_itemDesc",
+                str(description).strip(),
+                "localized_description",
+                confidence="table_localization_join",
+            )
+        )
+    if str(equip_type or "").strip():
+        records.append(
+            TableEvidenceRecord(
+                "EquipTypeInfo",
+                "_equipTypeName",
+                str(equip_type).strip(),
+                "equip_type",
+                confidence="table_row_key_join",
+                note="the item row names exactly one EquipTypeInfo key",
             )
         )
     for prefab_hash in prefab_hashes:

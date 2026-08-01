@@ -1821,6 +1821,58 @@ class ShippedItemInfoRowCountTests(unittest.TestCase):
         self.assertEqual(len(records), len(table.rows), "every directory row must yield a record")
         self.assertTrue(all(record.internal_name for record in records))
 
+    def test_equip_types_resolve_by_row_key_without_collisions(self) -> None:
+        """EquipTypeInfo keys are large hashes, which is what makes a match a fact."""
+
+        from cdmw.core.archive_extraction import read_archive_entry_data
+        from cdmw.core.item_index import _parse_equip_type_names
+
+        pairs = self._pairs()
+        stem = next((s for s in pairs if s.rsplit("/", 1)[-1] == "equiptypeinfo"), None)
+        if stem is None:
+            self.skipTest("no equiptypeinfo pair in the archives")
+        payload, _decompressed, _note = read_archive_entry_data(pairs[stem]["pabgb"])
+        header, _decompressed, _note = read_archive_entry_data(pairs[stem]["pabgh"])
+
+        names = _parse_equip_type_names(payload, header)
+
+        self.assertEqual(len(names), 113, "the shipped equip-type table holds 113 rows")
+        self.assertEqual(len(set(names.values())), 113, "every row names a distinct slot")
+        self.assertGreater(
+            min(names),
+            1 << 24,
+            "a key small enough to collide with an ordinary integer would make matches unsafe",
+        )
+        self.assertIn("Helm", names.values())
+
+    def test_shipped_armour_rows_resolve_to_one_equip_slot(self) -> None:
+        from cdmw.core.archive_extraction import read_archive_entry_data
+        from cdmw.core.item_index import _parse_equip_type_names, _parse_archive_iteminfo_rows
+
+        pairs = self._pairs()
+        item_stem = next((s for s in pairs if s.rsplit("/", 1)[-1] == "iteminfo"), None)
+        equip_stem = next((s for s in pairs if s.rsplit("/", 1)[-1] == "equiptypeinfo"), None)
+        if item_stem is None or equip_stem is None:
+            self.skipTest("needs both the item and equip-type pairs")
+        equip_payload, _d, _n = read_archive_entry_data(pairs[equip_stem]["pabgb"])
+        equip_header, _d, _n = read_archive_entry_data(pairs[equip_stem]["pabgh"])
+        payload, _d, _n = read_archive_entry_data(pairs[item_stem]["pabgb"])
+        header, _d, _n = read_archive_entry_data(pairs[item_stem]["pabgh"])
+
+        names = _parse_equip_type_names(equip_payload, equip_header)
+        records = _parse_archive_iteminfo_rows(payload, header, {}, equip_type_names=names)
+
+        equipped = [record for record in records if record.equip_type]
+        self.assertGreater(len(equipped), 3_000, "most equipment rows name their slot")
+        self.assertLess(
+            len(equipped),
+            len(records),
+            "consumables and quest items have no slot, and must not be given one",
+        )
+        by_internal = {record.internal_name: record.equip_type for record in records}
+        boots = [slot for name, slot in by_internal.items() if name.endswith("_Boots") and slot]
+        self.assertTrue(boots and set(boots) == {"Foot"}, f"boots must equip to Foot, got {set(boots)}")
+
     def test_every_shipped_table_resolves_against_its_payload(self) -> None:
         from cdmw.core.archive_extraction import read_archive_entry_data
 

@@ -256,6 +256,8 @@ class RemoteArchiveFinderDialog(QDialog):
         self._detail_category_evidence = self._detail_label("")
         detail_body_layout.addWidget(self._detail_evidence)
         detail_body_layout.addWidget(self._detail_category_evidence)
+        self._detail_stats = self._add_detail_section(detail_body_layout, "Stats")
+        self._detail_description = self._add_detail_section(detail_body_layout, "Description")
         self._detail_localized = self._add_detail_section(detail_body_layout, "Localized names")
         self._detail_materials = self._add_detail_section(detail_body_layout, "Materials")
         self._detail_models = self._add_detail_section(detail_body_layout, "Models and PAC links")
@@ -594,7 +596,14 @@ class RemoteArchiveFinderDialog(QDialog):
             self._detail_summary.clear()
             self._detail_evidence.setText("Select an item to inspect its recovered evidence.")
             self._detail_category_evidence.clear()
-            for label in (self._detail_localized, self._detail_materials, self._detail_models, self._detail_icons):
+            for label in (
+                self._detail_stats,
+                self._detail_description,
+                self._detail_localized,
+                self._detail_materials,
+                self._detail_models,
+                self._detail_icons,
+            ):
                 label.setText("None")
             self._update_buttons()
             return
@@ -616,6 +625,14 @@ class RemoteArchiveFinderDialog(QDialog):
         self._detail_category_evidence.setText(
             f"Category evidence: {row.category_evidence}" if row.category_evidence else ""
         )
+        stat_lines = []
+        if row.equip_type:
+            stat_lines.append(f"Equip type: {row.equip_type}")
+        # An item that equips to nothing is ordinary -- consumables and quest
+        # items have no slot -- so say that rather than leaving the reader to
+        # wonder whether the value failed to decode.
+        self._detail_stats.setText("\n".join(stat_lines) or "No equip slot; this item is not worn or wielded.")
+        self._detail_description.setText(row.description or "None")
         self._detail_localized.setText(", ".join(row.localized_names) or "None")
         self._detail_materials.setText(", ".join(row.material_tags) or "None")
         model_lines = [*(f"PAC: {value}" for value in row.pac_files), *(f"Model: {value}" for value in row.model_stems)]

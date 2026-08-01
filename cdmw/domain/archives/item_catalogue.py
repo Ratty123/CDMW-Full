@@ -126,6 +126,9 @@ class ItemCatalogRow:
     material_tags: tuple[str, ...]
     variant_count: int
     evidence: str
+    #: Defaulted so a worker built before these fields still satisfies the contract.
+    description: str = ""
+    equip_type: str = ""
 
     @classmethod
     def from_wire(cls, value: object) -> "ItemCatalogRow":
@@ -144,6 +147,8 @@ class ItemCatalogRow:
             material_tags=read_string_tuple(payload, "material_tags"),
             variant_count=read_int(payload, "variant_count"),
             evidence=read_string(payload, "evidence"),
+            description=read_string(payload, "description", default=""),
+            equip_type=read_string(payload, "equip_type", default=""),
         )
 
 

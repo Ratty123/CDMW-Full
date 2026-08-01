@@ -44,7 +44,9 @@ public sealed record ItemCatalogRow(
     IReadOnlyList<string> LocalizedNames,
     IReadOnlyList<string> MaterialTags,
     int VariantCount,
-    string Evidence);
+    string Evidence,
+    string Description = "",
+    string EquipType = "");
 
 public sealed record ItemCatalogCategoryFacet(string Category, string Group, long Count);
 
