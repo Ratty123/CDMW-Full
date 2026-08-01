@@ -220,7 +220,7 @@ class _FlakyStandaloneNativePickHost(_StandaloneNativePickHost):
 
 
 class _EmbeddedMeshBuilder(QFrame):
-    def __init__(self) -> None:
+    def __init__(self, session_id: str = "embedded-builder") -> None:
         super().__init__()
         layout = QVBoxLayout(self)
         self.dotnet_button = QPushButton(".NET", self)
@@ -233,7 +233,7 @@ class _EmbeddedMeshBuilder(QFrame):
             self.tabs.addTab(QFrame(self.tabs), title)
         layout.addWidget(self.tabs)
         self.controller = MeshEditorController()
-        self.controller.open_mesh(_build_two_part_synthetic_mesh(), session_id="embedded-builder", mode="edit")
+        self.controller.open_mesh(_build_two_part_synthetic_mesh(), session_id=str(session_id), mode="edit")
         self.part_actions: list[tuple[str, tuple[int, ...]]] = []
         self.skeleton_bones: list[int] = []
         self.replaced_meshes: list[object] = []
@@ -278,6 +278,20 @@ class _FakeSignal:
     def emit(self, *args: object) -> None:
         for callback in tuple(self.callbacks):
             callback(*args)  # type: ignore[misc]
+
+
+class _FakeSharedDotNetController:
+    """Just enough resident controller for the tab's signal wiring."""
+
+    def __init__(self) -> None:
+        self.protocol_event = _FakeSignal()
+        self.state_changed = _FakeSignal()
+        self.package_applied = _FakeSignal()
+        self.package_failed = _FakeSignal()
+        self.rehydrators: list[object] = []
+
+    def set_authoring_rehydrator(self, callback: object) -> None:
+        self.rehydrators.append(callback)
 
 
 class _FakeProcess:
@@ -376,6 +390,7 @@ def _install_shared_dotnet_test_process(
     *,
     generation: int = 1,
     capabilities: tuple[str, ...] = (),
+    session_id: str = "",
 ) -> object:
     """Attach a fake process to the canonical shared host used by the tab."""
     host = (
@@ -390,6 +405,13 @@ def _install_shared_dotnet_test_process(
     controller._renderer_ready = True
     controller._session_established = True
     controller._capabilities.update(capabilities)
+    if session_id:
+        # A real launch binds the edit session before the helper handshakes, so
+        # the two agree from the start. Setting `_session_established` first and
+        # binding after would make the controller refuse its own session.
+        controller._session_established = False
+        controller.set_authoritative_session_id(str(session_id))
+        controller._session_established = True
     tab.standalone_dotnet_editor_process = process
     tab.standalone_dotnet_process_generation = int(generation)
     tab.standalone_dotnet_capabilities.update(capabilities)
@@ -572,6 +594,47 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
         self.assertFalse(tab.action_bar.button_for_key("extrude").isEnabled())
         self.assertEqual(["mode_edit"], [getattr(action, "key", "") for action in emitted])
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_a_controller_at_a_recycled_address_is_still_wired(self) -> None:
+        """Wiring was remembered as a set of `id()` values that outlive the object.
+
+        Every builder swap brings a new preview host and a new resident
+        controller, and leaves the old addresses in the set; CPython hands those
+        addresses straight back to later allocations of the same size. The tab
+        then took a live controller for one it had already wired and connected
+        nothing to it -- no ready, no package_applied, no failure -- so the mesh
+        loaded into a helper the tab never heard from again. The mark now lives
+        on the object, so it dies with it.
+        """
+
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorWiringIdentity"))
+
+        first = SimpleNamespace(controller=_FakeSharedDotNetController())
+        # The second controller reports the address the first one had, which is
+        # exactly what the allocator produces once the first host is deleted.
+        recycled = SimpleNamespace(controller=_FakeSharedDotNetController())
+        shared_address = id(first.controller)
+        with patch(
+            "cdmw.ui.mesh_editor.tab_shell.id",
+            lambda value: (
+                shared_address
+                if value in (first.controller, recycled.controller)
+                else id(value)
+            ),
+            create=True,
+        ):
+            tab._wire_shared_dotnet_controller(first)
+            self.assertTrue(first.controller.protocol_event.callbacks)
+            tab._wire_shared_dotnet_controller(recycled)
+
+        self.assertTrue(
+            recycled.controller.protocol_event.callbacks,
+            "a new controller must be wired even at an address the tab has seen",
+        )
+        self.assertTrue(recycled.controller.rehydrators)
         app.processEvents()
         tab.deleteLater()
 
@@ -4167,6 +4230,88 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 "a helper holding the cached scene must be reused in place",
             )
             self.assertIs(process, tab.standalone_dotnet_editor_process)
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_tab_loads_a_second_mesh_into_a_released_resident_helper(self) -> None:
+        """A second mesh must open in a Mesh Editor that already showed one.
+
+        The resident helper is claimed by the edit session that opens it, and
+        nothing released that claim when the session ended: closing a mesh drops
+        the package, the leases and the viewport but deliberately leaves the
+        process warm for the next one. The warm process therefore stayed bound
+        to a session that no longer existed, the next Modify Original could
+        never bind, and its package was refused with "Close the current editor
+        before opening another mesh" -- about an editor that was already closed.
+        Only shutting the Mesh Editor down entirely, which kills the helper,
+        cleared it, so the second mesh never loaded.
+        """
+
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorSecondMeshHandoff"))
+        first_builder = _EmbeddedMeshBuilder(session_id="edit-session-a")
+        tab.mount_embedded_builder(first_builder)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            executable = root / "cdmw-mesh-dotnet-editor.exe"
+            executable.write_bytes(b"helper")
+            first_package = _dotnet_test_package(root / "first")
+            second_package = _dotnet_test_package(root / "second")
+            process = _FakeProcess(tab)
+            process._state = process.Running
+            tab.standalone_dotnet_target_embedded = True
+            tab.standalone_dotnet_target_controller = first_builder.controller
+            controller = _install_shared_dotnet_test_process(
+                tab,
+                process,
+                capabilities=("resident_material_updates_v2", "authoring_session_handoff_v1"),
+                session_id="edit-session-a",
+            )
+
+            with patch.object(tab, "_dotnet_editor_executable_path", return_value=executable):
+                self.assertTrue(tab._launch_standalone_dotnet_editor_package(first_package))
+
+                # The first mesh is closed. `close_standalone_session` is the
+                # path both a new builder and an emptied tab take, and it keeps
+                # the helper warm on purpose.
+                tab.close_standalone_session()
+                self.assertTrue(controller.is_running)
+
+                second_builder = _EmbeddedMeshBuilder(session_id="edit-session-b")
+                tab.mount_embedded_builder(second_builder)
+                tab.standalone_dotnet_target_embedded = True
+                tab.standalone_dotnet_target_controller = second_builder.controller
+
+                statuses: list[tuple[str, bool]] = []
+                tab.status_message_requested.connect(
+                    lambda text, error: statuses.append((str(text), bool(error)))
+                )
+                launched = tab._launch_standalone_dotnet_editor_package(second_package)
+
+            self.assertTrue(
+                launched,
+                "a released resident helper must accept the next mesh's package: "
+                f"{[text for text, error in statuses if error]}",
+            )
+            self.assertEqual(
+                [],
+                [text for text, error in statuses if error],
+                "loading a second mesh must not report an error",
+            )
+            self.assertIs(process, tab.standalone_dotnet_editor_process)
+            rebind = [
+                json.loads(bytes(write).decode("utf-8"))
+                for write in process.stdin_writes
+                if b'"session_release"' in write or b'"session_state"' in write
+            ]
+            self.assertEqual(
+                ["session_release", "session_state"],
+                [str(payload.get("event", "")) for payload in rebind[-2:]],
+                "the helper must be told the old session let go before the new one binds",
+            )
+            self.assertEqual("edit-session-a", rebind[-2].get("session_id"))
+            self.assertEqual("edit-session-b", rebind[-1].get("session_id"))
         app.processEvents()
         tab.deleteLater()
 
