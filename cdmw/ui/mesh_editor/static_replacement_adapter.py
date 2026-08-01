@@ -118,6 +118,21 @@ class StaticReplacementMeshEditSession:
         before = self.submesh_counts
         return self._result(self.controller.redo(), before=before, selection=MeshEditSelection())
 
+    # Changing what is selected does not change the mesh, so the native editor
+    # has no submesh counts to report and correctly reports none. Requiring
+    # them from every result made Select and Clear Selection raise on a healthy
+    # session: every action the reader took was rejected, and Finish Edit Mesh
+    # then had nothing to commit and could not close.
+    #
+    # This is a named set rather than a check on `topology_changed` or
+    # `submesh_count_delta`, because a transform moves vertices without
+    # changing either, and a transform that omits its counts really is the
+    # broken hydration contract the guard exists to catch. The service draws
+    # the same line: `_apply_selection_command` records these as
+    # `selection_only` history, and restoring one carries the previous counts
+    # forward exactly as this does.
+    _SELECTION_ONLY_ACTIONS = frozenset({"select", "clear_selection"})
+
     def _result(
         self,
         edit_result: MeshEditResult,
@@ -126,15 +141,21 @@ class StaticReplacementMeshEditSession:
         selection: MeshEditSelection,
     ) -> StaticReplacementMeshEditResult:
         native_update = self.controller.native_update_for_result(edit_result)
-        if not edit_result.submesh_counts:
-            raise RuntimeError(
-                f"native {edit_result.action} result did not include submesh counts; "
-                "Python working mesh hydration is disabled"
-            )
+        after = edit_result.submesh_counts
+        if not after:
+            if str(edit_result.action or "").strip().lower() not in self._SELECTION_ONLY_ACTIONS:
+                # Wording unchanged deliberately: it is a translated UI string
+                # in fourteen catalogs, and it is still exactly right for every
+                # case that reaches here -- a result that touched geometry and
+                # failed to say how.
+                raise RuntimeError(
+                    f"native {edit_result.action} result did not include submesh counts; "
+                    "Python working mesh hydration is disabled"
+                )
+            after = before
         mesh = self.mesh
         if mesh is None:
             raise RuntimeError("static replacement edit session has no compatibility mesh; Python working mesh hydration is disabled")
-        after = edit_result.submesh_counts
         self.submesh_counts = after
         return _static_result(
             mesh,
