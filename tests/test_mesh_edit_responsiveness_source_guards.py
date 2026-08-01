@@ -1361,9 +1361,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
         skeleton_start = exporter_source.index("def export_fbx_with_skeleton(")
         skeleton_body = exporter_source[skeleton_start:]
-        self.assertIn("_export_fbx_native(mesh, fbx_path, base, scale, skeleton=skeleton)", skeleton_body)
+        # Matched without its closing paren: what this pins is that the native writer is
+        # asked first, not the exact keyword list, which grows as the export learns to
+        # carry more of the asset.
+        native_call = "_export_fbx_native(mesh, fbx_path, base, scale, skeleton=skeleton"
+        self.assertIn(native_call, skeleton_body)
         self.assertLess(
-            skeleton_body.index("_export_fbx_native(mesh, fbx_path, base, scale, skeleton=skeleton)"),
+            skeleton_body.index(native_call),
             skeleton_body.index("buf = io.BytesIO()"),
         )
         self.assertIn("native_geometry = _fbx_geometry_native(mesh, scale=scale, require_vertex_aligned_uvs=True)", skeleton_body)
@@ -1387,8 +1391,15 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
         self.assertIn("def export_native_fbx(", bridge_source)
         self.assertIn('"fbx-export-json"', bridge_source)
-        self.assertIn('"bones": _native_fbx_bone_payloads(skeleton)', bridge_source)
+        # The bone list is built from the skeleton and reaches the job. It is bound to a
+        # local first because the skin payload has to know whether there are any bones
+        # to bind to, so the two are asserted separately rather than as one expression.
+        self.assertIn("bone_payloads = _native_fbx_bone_payloads(skeleton)", bridge_source)
+        self.assertIn('"bones": bone_payloads', bridge_source)
         self.assertIn("def _native_fbx_bone_payloads(", bridge_source)
+        # Skin rows travel beside the geometry, or the rig arrives with no binding.
+        self.assertIn("def _fbx_skin_rows(", bridge_source)
+        self.assertIn("_write_bone_binary_payloads(prefix, skin_rows[0], skin_rows[1])", bridge_source)
         self.assertIn("def build_native_fbx_geometry_arrays(", bridge_source)
         self.assertIn('"fbx-geometry-json"', bridge_source)
         self.assertIn('"vertices_output_path"', bridge_source)

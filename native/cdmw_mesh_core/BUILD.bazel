@@ -1,7 +1,7 @@
 """Mesh core helper. Mirrors native/cdmw_mesh_core/CMakeLists.txt.
 
 Two things differ structurally from the other helpers:
-  * the 48 owner sources are one unity translation unit (see //build_defs:unity.bzl)
+  * the 49 owner sources are one unity translation unit (see //build_defs:unity.bzl)
   * the vendored third-party code mixes C (mikktspace, ufbx) and C++
     (meshoptimizer, xatlas), so its defines have to be local_defines rather than
     a global --cxxopt, which would not reach the C sources.
@@ -31,6 +31,10 @@ MESH_CORE_OWNER_SOURCES = [
     "src/owners/edit_topology_08.cpp",
     "src/owners/edit_topology_09.cpp",
     "src/owners/interchange_01.cpp",
+    # The FBX byte primitives sit between the unit that defines NativeFbxProperty
+    # and the one that writes the document: this is a unity build, so the order
+    # listed here is definition order.
+    "src/owners/interchange_fbx_nodes.cpp",
     "src/owners/interchange_02.cpp",
     "src/owners/interchange_03.cpp",
     "src/owners/reports_01.cpp",
