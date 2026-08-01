@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 from cdmw.core.archive import (
     active_archive_entry_for_virtual_path,
     archive_entry_item_name_match,
@@ -24,11 +26,13 @@ from cdmw.core.item_index import (
     _build_archive_model_hash_table_from_entries,
     _collect_archive_item_index_sources,
     _item_icon_model_reference_is_compatible,
-    _parse_archive_iteminfo_data,
+    _parse_archive_iteminfo_data_by_marker,
+    _parse_archive_iteminfo_rows,
     _parse_part_prefab_dye_slot_material_index_data,
     _parse_stringinfo_model_icon_hashes_from_data,
     _strip_archive_model_variant_suffix,
 )
+from cdmw.core.structured_binary_editor import parse_pabgh_table
 from cdmw.core.table_catalog import summarize_table_evidence
 from cdmw.models import ArchiveEntry
 
@@ -748,7 +752,7 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
             + b"\x00" * 32
         )
 
-        records = _parse_archive_iteminfo_data(
+        records = _parse_archive_iteminfo_data_by_marker(
             iteminfo_data,
             {"eng": {loc_id.decode("ascii"): "Sword of the Lord"}},
             icon_model_hashes=icon_hashes,
@@ -785,7 +789,7 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
             + b"\x00" * 24
         )
 
-        records = _parse_archive_iteminfo_data(
+        records = _parse_archive_iteminfo_data_by_marker(
             iteminfo_data,
             {"eng": {loc_id.decode("ascii"): "Marni Laser Helm"}},
             icon_model_hashes=icon_hashes,
@@ -813,7 +817,7 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
             + b"\x00" * 16
         )
 
-        records = _parse_archive_iteminfo_data(
+        records = _parse_archive_iteminfo_data_by_marker(
             iteminfo_data,
             {"eng": {loc_id.decode("ascii"): "Recovered Name"}},
         )
@@ -835,7 +839,7 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
             + b"\x00" * 16
         )
 
-        records = _parse_archive_iteminfo_data(iteminfo_data, {"eng": {}})
+        records = _parse_archive_iteminfo_data_by_marker(iteminfo_data, {"eng": {}})
 
         self.assertEqual(records[0].prefab_hashes, prefab_hashes)
 
@@ -858,7 +862,7 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
             + b"\x00" * 16
         )
 
-        records = _parse_archive_iteminfo_data(iteminfo_data, {"eng": {}})
+        records = _parse_archive_iteminfo_data_by_marker(iteminfo_data, {"eng": {}})
 
         self.assertEqual(records[0].prefab_hashes, prefab_hashes)
 
@@ -877,7 +881,7 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
             + b"\x00" * 32
         )
 
-        records = _parse_archive_iteminfo_data(iteminfo_data, {"eng": {}})
+        records = _parse_archive_iteminfo_data_by_marker(iteminfo_data, {"eng": {}})
 
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0].prefab_hashes, [prefab_hash])
@@ -904,7 +908,7 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
             + sheath_hash.to_bytes(4, "little")
         )
 
-        records = _parse_archive_iteminfo_data(
+        records = _parse_archive_iteminfo_data_by_marker(
             iteminfo_data,
             {"eng": {loc_id.decode("ascii"): "Hwando"}},
         )
@@ -1628,6 +1632,182 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
         )
 
         self.assertEqual([entry.path for entry in filtered], ["character/model/cd_phm_01_sword_0166.pac"])
+
+
+def _iteminfo_row(item_id: int, name: str, name_key: str, description_key: str) -> bytes:
+    """One `.pabgb` row: repeated key, length-prefixed name, then the key sub-records."""
+
+    row = struct.pack("<I", item_id)
+    row += struct.pack("<I", len(name)) + name.encode("ascii")
+    for tag, key in ((b"\x07\x70\x00\x00\x00", name_key), (b"\x07\x71\x00\x00\x00", description_key)):
+        row += tag + struct.pack("<II", item_id, len(key)) + key.encode("ascii")
+    return row
+
+
+def _iteminfo_pair(rows: list[bytes], *, key_width: int = 4, count_width: int = 2) -> tuple[bytes, bytes]:
+    """Build a `.pabgb` payload and the `.pabgh` directory that describes it."""
+
+    payload = b"".join(rows)
+    header = int(len(rows)).to_bytes(count_width, "little")
+    offset = 0
+    for row in rows:
+        header += payload[offset : offset + key_width] + struct.pack("<I", offset)
+        offset += len(row)
+    return payload, header
+
+
+class PabghRowDirectoryTests(unittest.TestCase):
+    def test_row_spans_run_to_the_next_offset(self) -> None:
+        rows = [
+            _iteminfo_row(2200, "Pyeonjeon_Arrow", "9448928051312", "9448928051313"),
+            _iteminfo_row(50001, "Arrow", "214752659767408", "214752659767409"),
+        ]
+        payload, header = _iteminfo_pair(rows)
+
+        table = parse_pabgh_table(header, payload=payload)
+        spans = table.row_spans(len(payload))
+
+        self.assertEqual([(start, end) for _row, start, end in spans], [(0, len(rows[0])), (len(rows[0]), len(payload))])
+
+    def test_a_composite_key_table_resolves(self) -> None:
+        """`aieventtableinfo` uses a 12-byte key, so a 1/2/4-only reader drops it."""
+
+        payload = b"".join(bytes(range(12)) + b"\x00" * 8 for _ in range(2))
+        header = struct.pack("<H", 2)
+        header += payload[0:12] + struct.pack("<I", 0)
+        header += payload[20:32] + struct.pack("<I", 20)
+
+        table = parse_pabgh_table(header, payload=payload)
+
+        self.assertEqual(table.key_width, 12)
+        self.assertEqual([row.offset for row in table.rows], [0, 20])
+
+    def test_a_single_row_table_is_decided_by_the_inline_key(self) -> None:
+        """One row fits several widths arithmetically; only the payload separates them."""
+
+        payload = b"\x40" + b"rest-of-the-row"
+        header = struct.pack("<H", 1) + b"\x40" + struct.pack("<I", 0)
+
+        table = parse_pabgh_table(header, payload=payload)
+
+        self.assertEqual(table.key_width, 1)
+        self.assertEqual(table.rows[0].offset, 0)
+
+    def test_a_directory_that_does_not_describe_the_payload_is_not_accepted(self) -> None:
+        """Inline keys that disagree mean this header is not this payload's directory.
+
+        The legacy row-flavor guess still returns something, because the structured
+        sidecar editor has always depended on it. What must not happen is the width
+        search claiming a composite-key layout it cannot back with the payload.
+        """
+
+        payload = b"\x99" * 40
+        header = struct.pack("<H", 2)
+        header += bytes(range(12)) + struct.pack("<I", 0)
+        header += bytes(range(12)) + struct.pack("<I", 20)
+
+        table = parse_pabgh_table(header, payload=payload)
+
+        self.assertNotEqual(table.key_width, 12, "the inline-key check must reject this layout")
+
+
+class ItemInfoRowParsingTests(unittest.TestCase):
+    def test_rows_the_marker_scan_cannot_see_are_recovered(self) -> None:
+        """The marker is a fragment of the name sub-record, not a record header."""
+
+        rows = [
+            _iteminfo_row(2200, "Pyeonjeon_Arrow", "9448928051312", "9448928051313"),
+            _iteminfo_row(50001, "Arrow", "214752659767408", "214752659767409"),
+        ]
+        payload, header = _iteminfo_pair(rows)
+        loc_tables = {
+            "eng": {
+                "9448928051312": "Stub Arrow",
+                "9448928051313": "A special arrow.",
+                "214752659767408": "Arrow",
+                "214752659767409": "Used with a bow.",
+            }
+        }
+
+        by_marker = _parse_archive_iteminfo_data_by_marker(payload, loc_tables)
+        by_directory = _parse_archive_iteminfo_rows(payload, header, loc_tables)
+
+        self.assertEqual([record.item_id for record in by_directory], [2200, 50001])
+        self.assertLess(len(by_marker), len(by_directory))
+
+    def test_a_row_carries_its_display_name_and_description(self) -> None:
+        payload, header = _iteminfo_pair(
+            [_iteminfo_row(2200, "Pyeonjeon_Arrow", "9448928051312", "9448928051313")]
+        )
+        loc_tables = {"eng": {"9448928051312": "Stub Arrow", "9448928051313": "A special arrow."}}
+
+        record = _parse_archive_iteminfo_rows(payload, header, loc_tables)[0]
+
+        self.assertEqual(record.internal_name, "Pyeonjeon_Arrow")
+        self.assertEqual(record.display_name, "Stub Arrow")
+        self.assertEqual(record.description, "A special arrow.")
+
+    def test_a_nul_padded_name_field_is_trimmed(self) -> None:
+        row = struct.pack("<I", 2200) + struct.pack("<I", 16) + b"Goblin_Fabric\x00\x00\x00"
+        row += b"\x07\x70\x00\x00\x00" + struct.pack("<II", 2200, 3) + b"123"
+        payload, header = _iteminfo_pair([row])
+
+        record = _parse_archive_iteminfo_rows(payload, header, {})
+
+        self.assertEqual(record[0].internal_name, "Goblin_Fabric")
+
+
+@pytest.mark.real_game
+class ShippedItemInfoRowCountTests(unittest.TestCase):
+    """The invariant that would have caught the marker scan losing a third of the rows."""
+
+    def _pairs(self):
+        from tools.placement_studio import corpus
+
+        if not corpus.game_root().is_dir():
+            self.skipTest("needs the installed game")
+        pairs: dict[str, dict[str, object]] = {}
+        for _package, entry in corpus._iter_archive_entries(corpus.game_root()):
+            path = corpus.normalize_game_path(entry.path).lower()
+            if path.endswith((".pabgb", ".pabgh")):
+                stem, extension = path.rsplit(".", 1)
+                pairs.setdefault(stem, {})[extension] = entry
+        return {stem: pair for stem, pair in pairs.items() if len(pair) == 2}
+
+    def test_recovered_iteminfo_rows_equal_the_directory_count(self) -> None:
+        from cdmw.core.archive_extraction import read_archive_entry_data
+
+        pairs = self._pairs()
+        stem = next((stem for stem in pairs if stem.rsplit("/", 1)[-1] == "iteminfo"), None)
+        if stem is None:
+            self.skipTest("no iteminfo pair in the archives")
+        header, _decompressed, _note = read_archive_entry_data(pairs[stem]["pabgh"])
+        payload, _decompressed, _note = read_archive_entry_data(pairs[stem]["pabgb"])
+
+        table = parse_pabgh_table(header, payload=payload)
+        records = _parse_archive_iteminfo_rows(payload, header, {})
+
+        self.assertEqual(len(table.rows), 6508, "the shipped item table holds 6,508 rows")
+        self.assertEqual(len(records), len(table.rows), "every directory row must yield a record")
+        self.assertTrue(all(record.internal_name for record in records))
+
+    def test_every_shipped_table_resolves_against_its_payload(self) -> None:
+        from cdmw.core.archive_extraction import read_archive_entry_data
+
+        pairs = self._pairs()
+        if not pairs:
+            self.skipTest("no .pabgb/.pabgh pairs in the archives")
+        total_rows = 0
+        for stem, pair in pairs.items():
+            header, _decompressed, _note = read_archive_entry_data(pair["pabgh"])
+            payload, _decompressed, _note = read_archive_entry_data(pair["pabgb"])
+            table = parse_pabgh_table(header, payload=payload)
+            spans = table.row_spans(len(payload))
+            self.assertEqual(len(spans), len(table.rows), stem)
+            for row, start, _end in spans:
+                self.assertEqual(payload[start : start + table.key_width], row.key, stem)
+            total_rows += len(spans)
+        self.assertGreater(total_rows, 280_000, "the shipped package holds 283,076 rows")
 
 
 if __name__ == "__main__":
