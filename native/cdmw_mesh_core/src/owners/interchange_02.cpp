@@ -1,169 +1,9 @@
-NativeFbxProperty fbx_string(std::string value) {
-    NativeFbxProperty prop;
-    prop.kind = NativeFbxProperty::Kind::String;
-    prop.string_value = std::move(value);
-    return prop;
-}
-
-NativeFbxProperty fbx_f64_array(std::vector<double> values) {
-    NativeFbxProperty prop;
-    prop.kind = NativeFbxProperty::Kind::DoubleArray;
-    prop.double_values = std::move(values);
-    return prop;
-}
-
-NativeFbxProperty fbx_i32_array(std::vector<int> values) {
-    NativeFbxProperty prop;
-    prop.kind = NativeFbxProperty::Kind::IntArray;
-    prop.int_values = std::move(values);
-    return prop;
-}
-
-void fbx_append_u8(std::vector<char>& out, unsigned int value) {
-    out.push_back(static_cast<char>(value & 0xffU));
-}
-
-void fbx_append_u32(std::vector<char>& out, std::uint32_t value) {
-    for (int shift = 0; shift < 32; shift += 8) {
-        out.push_back(static_cast<char>((value >> shift) & 0xffU));
-    }
-}
-
-void fbx_patch_u32(std::vector<char>& out, std::size_t offset, std::uint32_t value) {
-    if (offset + 4 > out.size()) {
-        throw std::runtime_error("invalid FBX patch offset");
-    }
-    for (int shift = 0; shift < 32; shift += 8) {
-        out[offset + static_cast<std::size_t>(shift / 8)] = static_cast<char>((value >> shift) & 0xffU);
-    }
-}
-
-void fbx_append_i32(std::vector<char>& out, int value) {
-    fbx_append_u32(out, static_cast<std::uint32_t>(static_cast<std::int32_t>(value)));
-}
-
-void fbx_append_i64(std::vector<char>& out, long long value) {
-    const std::uint64_t raw = static_cast<std::uint64_t>(static_cast<std::int64_t>(value));
-    for (int shift = 0; shift < 64; shift += 8) {
-        out.push_back(static_cast<char>((raw >> shift) & 0xffULL));
-    }
-}
-
-void fbx_append_double(std::vector<char>& out, double value) {
-    std::uint64_t raw = 0;
-    std::memcpy(&raw, &value, sizeof(raw));
-    for (int shift = 0; shift < 64; shift += 8) {
-        out.push_back(static_cast<char>((raw >> shift) & 0xffULL));
-    }
-}
-
-void fbx_append_bytes(std::vector<char>& out, const char* data, std::size_t size) {
-    out.insert(out.end(), data, data + size);
-}
-
-void fbx_append_string_bytes(std::vector<char>& out, const std::string& value) {
-    if (value.size() > static_cast<std::size_t>(UINT_MAX)) {
-        throw std::runtime_error("FBX string too large");
-    }
-    fbx_append_u32(out, static_cast<std::uint32_t>(value.size()));
-    fbx_append_bytes(out, value.data(), value.size());
-}
-
-void fbx_append_property(std::vector<char>& out, const NativeFbxProperty& prop) {
-    switch (prop.kind) {
-    case NativeFbxProperty::Kind::Int32:
-        fbx_append_u8(out, 'I');
-        fbx_append_i32(out, prop.int_value);
-        break;
-    case NativeFbxProperty::Kind::Int64:
-        fbx_append_u8(out, 'L');
-        fbx_append_i64(out, prop.long_value);
-        break;
-    case NativeFbxProperty::Kind::Double:
-        fbx_append_u8(out, 'D');
-        fbx_append_double(out, prop.double_value);
-        break;
-    case NativeFbxProperty::Kind::String:
-        fbx_append_u8(out, 'S');
-        fbx_append_string_bytes(out, prop.string_value);
-        break;
-    case NativeFbxProperty::Kind::DoubleArray: {
-        const std::size_t raw_size = prop.double_values.size() * sizeof(double);
-        if (prop.double_values.size() > static_cast<std::size_t>(UINT_MAX) || raw_size > static_cast<std::size_t>(UINT_MAX)) {
-            throw std::runtime_error("FBX double array too large");
-        }
-        fbx_append_u8(out, 'd');
-        fbx_append_u32(out, static_cast<std::uint32_t>(prop.double_values.size()));
-        fbx_append_u32(out, 0);
-        fbx_append_u32(out, static_cast<std::uint32_t>(raw_size));
-        for (const double value : prop.double_values) {
-            fbx_append_double(out, value);
-        }
-        break;
-    }
-    case NativeFbxProperty::Kind::IntArray: {
-        const std::size_t raw_size = prop.int_values.size() * sizeof(std::int32_t);
-        if (prop.int_values.size() > static_cast<std::size_t>(UINT_MAX) || raw_size > static_cast<std::size_t>(UINT_MAX)) {
-            throw std::runtime_error("FBX int array too large");
-        }
-        fbx_append_u8(out, 'i');
-        fbx_append_u32(out, static_cast<std::uint32_t>(prop.int_values.size()));
-        fbx_append_u32(out, 0);
-        fbx_append_u32(out, static_cast<std::uint32_t>(raw_size));
-        for (const int value : prop.int_values) {
-            fbx_append_i32(out, value);
-        }
-        break;
-    }
-    }
-}
-
-using FbxChildWriter = std::function<void(std::vector<char>&)>;
-
-void fbx_node(
-    std::vector<char>& out,
-    const std::string& name,
-    const std::vector<NativeFbxProperty>& props = {},
-    const std::vector<FbxChildWriter>& children = {}
-) {
-    if (name.size() > 255) {
-        throw std::runtime_error("FBX node name too long");
-    }
-    std::vector<char> prop_bytes;
-    for (const NativeFbxProperty& prop : props) {
-        fbx_append_property(prop_bytes, prop);
-    }
-    if (out.size() > static_cast<std::size_t>(UINT_MAX) || prop_bytes.size() > static_cast<std::size_t>(UINT_MAX)) {
-        throw std::runtime_error("FBX buffer too large");
-    }
-    const std::size_t end_offset_position = out.size();
-    fbx_append_u32(out, 0);
-    fbx_append_u32(out, static_cast<std::uint32_t>(props.size()));
-    fbx_append_u32(out, static_cast<std::uint32_t>(prop_bytes.size()));
-    fbx_append_u8(out, static_cast<unsigned int>(name.size()));
-    fbx_append_bytes(out, name.data(), name.size());
-    if (!prop_bytes.empty()) {
-        fbx_append_bytes(out, prop_bytes.data(), prop_bytes.size());
-    }
-    for (const FbxChildWriter& child : children) {
-        child(out);
-    }
-    if (!children.empty()) {
-        out.insert(out.end(), 13, '\0');
-    }
-    if (out.size() > static_cast<std::size_t>(UINT_MAX)) {
-        throw std::runtime_error("FBX file too large");
-    }
-    fbx_patch_u32(out, end_offset_position, static_cast<std::uint32_t>(out.size()));
-}
-
-std::string fbx_object_name(const std::string& name, const std::string& suffix) {
-    std::string result = name;
-    result.push_back('\0');
-    result.push_back('\1');
-    result += suffix;
-    return result;
-}
+// One bone's share of a submesh: which vertices it drives and how strongly.
+struct NativeFbxCluster {
+    int bone_index = -1;
+    std::vector<int> vertex_indices;
+    std::vector<double> weights;
+};
 
 struct NativeFbxSubmesh {
     std::string name;
@@ -172,6 +12,7 @@ struct NativeFbxSubmesh {
     std::vector<int> indices_flat;
     std::vector<double> normals_flat;
     std::vector<double> uvs_flat;
+    std::vector<NativeFbxCluster> clusters;
     int vertex_count = 0;
     int face_count = 0;
 };
@@ -181,8 +22,74 @@ struct NativeFbxBone {
     int parent_index = -1;
     std::string name;
     Vec3 position{0.0, 0.0, 0.0};
+    Vec3 rotation{0.0, 0.0, 0.0};
+    std::vector<double> bind_matrix;  // 16, row-vector convention; empty when unknown
     double visual_size = 0.02;
 };
+
+// Group a submesh's per-vertex influences by bone, which is the shape an FBX
+// Cluster wants. Rows are variable width: a vertex carries one to six bones.
+std::vector<NativeFbxCluster> native_fbx_clusters_from_bones(
+    const BoneAssignments& bones,
+    std::size_t vertex_count
+) {
+    if (bones.indices.size() != vertex_count || bones.weights.size() != vertex_count) {
+        return {};
+    }
+    std::map<int, NativeFbxCluster> by_bone;
+    for (std::size_t vertex = 0; vertex < vertex_count; ++vertex) {
+        const std::vector<int>& row_indices = bones.indices[vertex];
+        const std::vector<double>& row_weights = bones.weights[vertex];
+        if (row_indices.size() != row_weights.size()) {
+            return {};
+        }
+        for (std::size_t slot = 0; slot < row_indices.size(); ++slot) {
+            const int bone = row_indices[slot];
+            const double weight = row_weights[slot];
+            if (bone < 0 || !std::isfinite(weight) || weight <= 0.0) {
+                continue;
+            }
+            NativeFbxCluster& cluster = by_bone[bone];
+            cluster.bone_index = bone;
+            cluster.vertex_indices.push_back(static_cast<int>(vertex));
+            cluster.weights.push_back(weight);
+        }
+    }
+    std::vector<NativeFbxCluster> result;
+    result.reserve(by_bone.size());
+    for (auto& entry : by_bone) {
+        result.push_back(std::move(entry.second));
+    }
+    return result;
+}
+
+// Inverse of a rotation-plus-translation matrix held in row-vector form.
+std::vector<double> native_fbx_invert_bind(const std::vector<double>& bind) {
+    if (bind.size() != 16) {
+        return {};
+    }
+    std::vector<double> result(16, 0.0);
+    for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column < 3; ++column) {
+            result[static_cast<std::size_t>(row * 4 + column)] = bind[static_cast<std::size_t>(column * 4 + row)];
+        }
+    }
+    for (int column = 0; column < 3; ++column) {
+        double moved = 0.0;
+        for (int k = 0; k < 3; ++k) {
+            moved -= bind[static_cast<std::size_t>(12 + k)] * result[static_cast<std::size_t>(k * 4 + column)];
+        }
+        result[static_cast<std::size_t>(12 + column)] = moved;
+    }
+    result[15] = 1.0;
+    return result;
+}
+
+std::vector<double> native_fbx_identity_matrix() {
+    std::vector<double> result(16, 0.0);
+    result[0] = result[5] = result[10] = result[15] = 1.0;
+    return result;
+}
 
 std::vector<NativeFbxSubmesh> native_fbx_submeshes_from_json(const JsonValue& root) {
     const JsonValue* submeshes = root.get("submeshes");
@@ -217,6 +124,9 @@ std::vector<NativeFbxSubmesh> native_fbx_submeshes_from_json(const JsonValue& ro
         submesh.indices_flat = flatten_fbx_polygon_indices(faces);
         submesh.normals_flat = flatten_fbx_normals(normals);
         submesh.uvs_flat = flatten_fbx_uvs(uvs);
+        // Read the skin only from the explicit payload, never from a stored session:
+        // a session holds raw palette slots, and a cluster needs skeleton bone indices.
+        submesh.clusters = native_fbx_clusters_from_bones(bone_assignments_from_binary(item), vertices.size());
         submesh.vertex_count = static_cast<int>(vertices.size());
         submesh.face_count = static_cast<int>(faces.size());
         result.push_back(std::move(submesh));
@@ -245,6 +155,14 @@ std::vector<NativeFbxBone> native_fbx_bones_from_json(const JsonValue& root) {
             bone.name = std::string("Bone_") + std::to_string(bone.index);
         }
         bone.position = vec3_or(item.get("position"), {0.0, 0.0, 0.0});
+        bone.rotation = vec3_or(item.get("rotation"), {0.0, 0.0, 0.0});
+        const JsonValue* bind = item.get("bind_matrix");
+        if (bind != nullptr && bind->type == JsonValue::Type::Array && bind->array_value.size() == 16) {
+            bone.bind_matrix.reserve(16);
+            for (const JsonValue& component : bind->array_value) {
+                bone.bind_matrix.push_back(number_or(&component, 0.0));
+            }
+        }
         bones.push_back(std::move(bone));
     }
 
@@ -258,12 +176,16 @@ std::vector<NativeFbxBone> native_fbx_bones_from_json(const JsonValue& root) {
     }
 
     const double default_leaf_size = 0.02 * abs_scale;
+    const Vec3 origin{0.0, 0.0, 0.0};
     for (NativeFbxBone& bone : bones) {
         double best_distance = 0.0;
         const auto found_children = children_by_parent.find(bone.index);
         if (found_children != children_by_parent.end()) {
             for (const NativeFbxBone* child : found_children->second) {
-                const double distance = std::sqrt(distance_squared_vec3(child->position, bone.position));
+                // A child's position is already relative to this bone, so its length is
+                // the bone's length. Measuring between the two positions instead compared
+                // one local offset against another and sized most bones wrongly.
+                const double distance = std::sqrt(distance_squared_vec3(child->position, origin));
                 if (distance > best_distance) {
                     best_distance = distance;
                 }
@@ -279,6 +201,13 @@ std::vector<NativeFbxBone> native_fbx_bones_from_json(const JsonValue& root) {
     }
     for (NativeFbxBone& bone : bones) {
         bone.position = {bone.position[0] * scale, bone.position[1] * scale, bone.position[2] * scale};
+        // The bind pose has to move with the geometry, so only its translation scales;
+        // the rotation must stay a rotation or the inverse-bind stops being one.
+        if (bone.bind_matrix.size() == 16) {
+            bone.bind_matrix[12] *= scale;
+            bone.bind_matrix[13] *= scale;
+            bone.bind_matrix[14] *= scale;
+        }
     }
     return bones;
 }
@@ -464,6 +393,21 @@ fbx_node(
                             }
                         );
                     },
+                    [&bone](std::vector<char>& props_out) {
+                        fbx_node(
+                            props_out,
+                            "P",
+                            {
+                                fbx_string("Lcl Rotation"),
+                                fbx_string("Lcl Rotation"),
+                                fbx_string(""),
+                                fbx_string("A"),
+                                fbx_f64(bone.rotation[0]),
+                                fbx_f64(bone.rotation[1]),
+                                fbx_f64(bone.rotation[2]),
+                            }
+                        );
+                    },
                 }
             );
         },
@@ -471,39 +415,129 @@ fbx_node(
 );
 }
 
-FbxExportResult run_fbx_export(const JsonValue& root) {
-    const std::string output_path = string_or(root.get("output_path"), "");
-    if (output_path.empty()) {
-        throw std::runtime_error("missing output_path");
+// A Skin deformer over the geometry, and one Cluster per bone that drives it.
+//
+// Transform and TransformLink are what make the bind pose agree with the rest pose:
+// TransformLink is the bone's global bind, Transform its inverse times the mesh's
+// global transform, which is identity here. Get them inconsistent and the mesh
+// arrives pre-deformed.
+void write_native_fbx_skin_objects(
+    std::vector<char>& objects_out,
+    const NativeFbxSubmesh& submesh,
+    long long skin_id,
+    const std::map<int, long long>& cluster_ids,
+    const std::map<int, std::vector<double>>& bone_binds
+) {
+fbx_node(
+    objects_out,
+    "Deformer",
+    {fbx_i64(skin_id), fbx_string(fbx_object_name(submesh.name, "Deformer")), fbx_string("Skin")},
+    {
+        [](std::vector<char>& skin_out) { fbx_node(skin_out, "Version", {fbx_i32(101)}); },
+        [](std::vector<char>& skin_out) { fbx_node(skin_out, "Link_DeformAcuracy", {fbx_f64(50.0)}); },
     }
-    std::vector<NativeFbxSubmesh> submeshes = native_fbx_submeshes_from_json(root);
-    std::vector<NativeFbxBone> bones = native_fbx_bones_from_json(root);
+);
+for (const NativeFbxCluster& cluster : submesh.clusters) {
+    const auto id_found = cluster_ids.find(cluster.bone_index);
+    if (id_found == cluster_ids.end()) {
+        continue;
+    }
+    const auto bind_found = bone_binds.find(cluster.bone_index);
+    const std::vector<double> transform_link =
+        bind_found != bone_binds.end() && bind_found->second.size() == 16
+            ? bind_found->second
+            : native_fbx_identity_matrix();
+    const std::vector<double> transform = native_fbx_invert_bind(transform_link);
+    fbx_node(
+        objects_out,
+        "Deformer",
+        {
+            fbx_i64(id_found->second),
+            fbx_string(fbx_object_name(submesh.name + "_" + std::to_string(cluster.bone_index), "SubDeformer")),
+            fbx_string("Cluster"),
+        },
+        {
+            [](std::vector<char>& cluster_out) { fbx_node(cluster_out, "Version", {fbx_i32(100)}); },
+            [](std::vector<char>& cluster_out) { fbx_node(cluster_out, "UserData", {fbx_string(""), fbx_string("")}); },
+            [&cluster](std::vector<char>& cluster_out) { fbx_node(cluster_out, "Indexes", {fbx_i32_array(cluster.vertex_indices)}); },
+            [&cluster](std::vector<char>& cluster_out) { fbx_node(cluster_out, "Weights", {fbx_f64_array(cluster.weights)}); },
+            [&transform](std::vector<char>& cluster_out) { fbx_node(cluster_out, "Transform", {fbx_f64_array(transform)}); },
+            [&transform_link](std::vector<char>& cluster_out) { fbx_node(cluster_out, "TransformLink", {fbx_f64_array(transform_link)}); },
+        }
+    );
+}
+}
 
+// Every object id the document refers to, allocated once up front because FBX
+// connections name ids that have to exist before either block is written.
+struct NativeFbxIds {
     std::vector<long long> mesh_ids;
     std::vector<long long> model_ids;
     std::vector<long long> mat_ids;
     std::map<int, long long> bone_model_ids;
     std::map<int, long long> bone_attr_ids;
-    mesh_ids.reserve(submeshes.size());
-    model_ids.reserve(submeshes.size());
-    mat_ids.reserve(submeshes.size());
+    std::map<int, std::vector<double>> bone_binds;
+    std::vector<long long> skin_ids;                        // 0 where a submesh has no skin
+    std::vector<std::map<int, long long>> cluster_ids;
+};
+
+NativeFbxIds assign_native_fbx_ids(
+    std::vector<NativeFbxSubmesh>& submeshes,
+    const std::vector<NativeFbxBone>& bones
+) {
+    NativeFbxIds ids;
+    ids.mesh_ids.reserve(submeshes.size());
+    ids.model_ids.reserve(submeshes.size());
+    ids.mat_ids.reserve(submeshes.size());
     long long id_ctr = 3000000000LL;
     const auto uid = [&id_ctr]() -> long long {
         id_ctr += 1;
         return id_ctr;
     };
     for (std::size_t index = 0; index < submeshes.size(); ++index) {
-        mesh_ids.push_back(uid());
-        model_ids.push_back(uid());
-        mat_ids.push_back(uid());
+        ids.mesh_ids.push_back(uid());
+        ids.model_ids.push_back(uid());
+        ids.mat_ids.push_back(uid());
     }
     for (const NativeFbxBone& bone : bones) {
-        bone_model_ids[bone.index] = uid();
-        bone_attr_ids[bone.index] = uid();
+        ids.bone_model_ids[bone.index] = uid();
+        ids.bone_attr_ids[bone.index] = uid();
     }
     (void)uid();
 
-    std::vector<char> out;
+    for (const NativeFbxBone& bone : bones) {
+        if (bone.bind_matrix.size() == 16) {
+            ids.bone_binds[bone.index] = bone.bind_matrix;
+        }
+    }
+    // A cluster can only bind to a bone that exists, so drop any influence naming
+    // a bone this skeleton does not have rather than emitting a dangling link.
+    for (NativeFbxSubmesh& submesh : submeshes) {
+        std::vector<NativeFbxCluster> kept;
+        kept.reserve(submesh.clusters.size());
+        for (NativeFbxCluster& cluster : submesh.clusters) {
+            if (ids.bone_model_ids.find(cluster.bone_index) != ids.bone_model_ids.end()) {
+                kept.push_back(std::move(cluster));
+            }
+        }
+        submesh.clusters = std::move(kept);
+    }
+
+    ids.skin_ids.assign(submeshes.size(), 0);
+    ids.cluster_ids.resize(submeshes.size());
+    for (std::size_t index = 0; index < submeshes.size(); ++index) {
+        if (submeshes[index].clusters.empty()) {
+            continue;
+        }
+        ids.skin_ids[index] = uid();
+        for (const NativeFbxCluster& cluster : submeshes[index].clusters) {
+            ids.cluster_ids[index][cluster.bone_index] = uid();
+        }
+    }
+    return ids;
+}
+
+void write_native_fbx_preamble(std::vector<char>& out) {
     const char header[] = "Kaydara FBX Binary  ";
     fbx_append_bytes(out, header, sizeof(header));
     fbx_append_u8(out, 0x1a);
@@ -544,58 +578,9 @@ FbxExportResult run_fbx_export(const JsonValue& root) {
             },
         }
     );
+}
 
-    fbx_node(
-        out,
-        "Objects",
-        {},
-        {
-            [&submeshes, &bones, &mesh_ids, &model_ids, &mat_ids, &bone_model_ids, &bone_attr_ids](std::vector<char>& objects_out) {
-                for (std::size_t index = 0; index < submeshes.size(); ++index) {
-                    write_native_fbx_submesh_object(
-                        objects_out, submeshes[index], mesh_ids[index], model_ids[index], mat_ids[index]
-                    );
-                }
-                for (const NativeFbxBone& bone : bones) {
-                    write_native_fbx_bone_object(objects_out, bone, bone_model_ids, bone_attr_ids);
-                }
-            },
-        }
-    );
-
-    fbx_node(
-        out,
-        "Connections",
-        {},
-        {
-            [&submeshes, &bones, &mesh_ids, &model_ids, &mat_ids, &bone_model_ids, &bone_attr_ids](std::vector<char>& connections_out) {
-                for (std::size_t index = 0; index < submeshes.size(); ++index) {
-                    fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(model_ids[index]), fbx_i64(0)});
-                    fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(mesh_ids[index]), fbx_i64(model_ids[index])});
-                    fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(mat_ids[index]), fbx_i64(model_ids[index])});
-                }
-                for (const NativeFbxBone& bone : bones) {
-                    const auto attr_found = bone_attr_ids.find(bone.index);
-                    const auto model_found = bone_model_ids.find(bone.index);
-                    if (attr_found == bone_attr_ids.end() || model_found == bone_model_ids.end()) {
-                        continue;
-                    }
-                    fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(attr_found->second), fbx_i64(model_found->second)});
-                    const auto parent_model = bone_model_ids.find(bone.parent_index);
-                    fbx_node(
-                        connections_out,
-                        "C",
-                        {
-                            fbx_string("OO"),
-                            fbx_i64(model_found->second),
-                            fbx_i64(parent_model != bone_model_ids.end() ? parent_model->second : 0),
-                        }
-                    );
-                }
-            },
-        }
-    );
-
+void write_native_fbx_trailer(std::vector<char>& out) {
     out.insert(out.end(), 13, '\0');
     const unsigned char padding[] = {0xfa, 0xbc, 0xab, 0x09, 0xd0, 0xc8, 0xd4, 0x66, 0xb1, 0x76, 0xfb, 0x83, 0x1c, 0xf7, 0x26, 0x7e};
     for (const unsigned char value : padding) {
@@ -608,7 +593,104 @@ FbxExportResult run_fbx_export(const JsonValue& root) {
     for (const unsigned char value : footer) {
         fbx_append_u8(out, value);
     }
+}
 
+void write_native_fbx_connection_rows(
+    std::vector<char>& connections_out,
+    const std::vector<NativeFbxSubmesh>& submeshes,
+    const std::vector<NativeFbxBone>& bones,
+    const NativeFbxIds& ids
+) {
+    for (std::size_t index = 0; index < submeshes.size(); ++index) {
+        fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(ids.model_ids[index]), fbx_i64(0)});
+        fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(ids.mesh_ids[index]), fbx_i64(ids.model_ids[index])});
+        fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(ids.mat_ids[index]), fbx_i64(ids.model_ids[index])});
+        if (ids.skin_ids[index] == 0) {
+            continue;
+        }
+        // Skin hangs off the geometry, each cluster off the skin, and each bone off
+        // its own cluster. That chain is what an importer walks to find the rig.
+        fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(ids.skin_ids[index]), fbx_i64(ids.mesh_ids[index])});
+        for (const NativeFbxCluster& cluster : submeshes[index].clusters) {
+            const auto cluster_found = ids.cluster_ids[index].find(cluster.bone_index);
+            const auto bone_found = ids.bone_model_ids.find(cluster.bone_index);
+            if (cluster_found == ids.cluster_ids[index].end() || bone_found == ids.bone_model_ids.end()) {
+                continue;
+            }
+            fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(cluster_found->second), fbx_i64(ids.skin_ids[index])});
+            fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(bone_found->second), fbx_i64(cluster_found->second)});
+        }
+    }
+    for (const NativeFbxBone& bone : bones) {
+        const auto attr_found = ids.bone_attr_ids.find(bone.index);
+        const auto model_found = ids.bone_model_ids.find(bone.index);
+        if (attr_found == ids.bone_attr_ids.end() || model_found == ids.bone_model_ids.end()) {
+            continue;
+        }
+        fbx_node(connections_out, "C", {fbx_string("OO"), fbx_i64(attr_found->second), fbx_i64(model_found->second)});
+        const auto parent_model = ids.bone_model_ids.find(bone.parent_index);
+        fbx_node(
+            connections_out,
+            "C",
+            {
+                fbx_string("OO"),
+                fbx_i64(model_found->second),
+                fbx_i64(parent_model != ids.bone_model_ids.end() ? parent_model->second : 0),
+            }
+        );
+    }
+}
+
+FbxExportResult run_fbx_export(const JsonValue& root) {
+    const std::string output_path = string_or(root.get("output_path"), "");
+    if (output_path.empty()) {
+        throw std::runtime_error("missing output_path");
+    }
+    std::vector<NativeFbxSubmesh> submeshes = native_fbx_submeshes_from_json(root);
+    std::vector<NativeFbxBone> bones = native_fbx_bones_from_json(root);
+    const NativeFbxIds ids = assign_native_fbx_ids(submeshes, bones);
+
+    std::vector<char> out;
+    write_native_fbx_preamble(out);
+
+    fbx_node(
+        out,
+        "Objects",
+        {},
+        {
+            [&submeshes, &bones, &ids](std::vector<char>& objects_out) {
+                for (std::size_t index = 0; index < submeshes.size(); ++index) {
+                    write_native_fbx_submesh_object(
+                        objects_out, submeshes[index], ids.mesh_ids[index], ids.model_ids[index], ids.mat_ids[index]
+                    );
+                }
+                for (const NativeFbxBone& bone : bones) {
+                    write_native_fbx_bone_object(objects_out, bone, ids.bone_model_ids, ids.bone_attr_ids);
+                }
+                for (std::size_t index = 0; index < submeshes.size(); ++index) {
+                    if (ids.skin_ids[index] == 0) {
+                        continue;
+                    }
+                    write_native_fbx_skin_objects(
+                        objects_out, submeshes[index], ids.skin_ids[index], ids.cluster_ids[index], ids.bone_binds
+                    );
+                }
+            },
+        }
+    );
+
+    fbx_node(
+        out,
+        "Connections",
+        {},
+        {
+            [&submeshes, &bones, &ids](std::vector<char>& connections_out) {
+                write_native_fbx_connection_rows(connections_out, submeshes, bones, ids);
+            },
+        }
+    );
+
+    write_native_fbx_trailer(out);
     write_binary_file(output_path, out, false);
 
     FbxExportResult result;

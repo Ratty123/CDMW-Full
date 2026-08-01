@@ -52,6 +52,7 @@ _put_source_face_indices_payload = _proxy("_put_source_face_indices_payload")
 _put_source_vertex_indices_payload = _proxy("_put_source_vertex_indices_payload")
 _put_source_vertex_map_payload = _proxy("_put_source_vertex_map_payload")
 _run_native_mesh_core_job = _proxy("_run_native_mesh_core_job")
+_write_bone_binary_payloads = _proxy("_write_bone_binary_payloads")
 _write_face_binary_payload = _proxy("_write_face_binary_payload")
 _write_int_binary_payload = _proxy("_write_int_binary_payload")
 _write_vec2_binary_payload = _proxy("_write_vec2_binary_payload")
@@ -537,6 +538,63 @@ def build_native_fbx_geometry_arrays(
     finally:
         shutil.rmtree(sidecar_root, ignore_errors=True)
 
+def _fbx_skin_rows(submesh: object, bone_palette: Sequence[int] | None) -> tuple[list, list] | None:
+    """A submesh's influences in skeleton-bone space, or None if it cannot bind.
+
+    A PAC influence slot is a per-mesh palette token, not a bone index, so it
+    only becomes one through ``bone_palette``, following the same contract as
+    ``build_body_region_map``: ``None`` means the slots already are bone indices,
+    and an empty sequence means a palette was wanted but did not resolve. The
+    second case is a rigidly bound mesh, whose driving bone is recorded nowhere
+    in the file -- it exports unskinned, because a cluster on a guessed bone is
+    worse than no cluster.
+
+    Rows come out normalized. The file stores u8 weights summing to 255 give or
+    take a count or two, so a decoded row can sum to 1.0 +/- 2/255; that is
+    quantization noise rather than intent, and an interchange rig is expected to
+    sum to one. The decoded rows themselves are left alone.
+    """
+
+    if bone_palette is not None and not len(bone_palette):
+        return None
+    vertices = tuple(getattr(submesh, "vertices", ()) or ())
+    raw_indices = tuple(getattr(submesh, "bone_indices", ()) or ())
+    raw_weights = tuple(getattr(submesh, "bone_weights", ()) or ())
+    if not vertices or len(raw_indices) != len(vertices) or len(raw_weights) != len(vertices):
+        return None
+    palette = tuple(bone_palette or ())
+
+    out_indices: list[tuple[int, ...]] = []
+    out_weights: list[tuple[float, ...]] = []
+    for row_indices, row_weights in zip(raw_indices, raw_weights):
+        slots = tuple(row_indices or ())
+        values = tuple(row_weights or ())
+        if len(slots) != len(values):
+            return None
+        mapped: list[tuple[int, float]] = []
+        for raw_slot, raw_weight in zip(slots, values):
+            try:
+                slot, weight = int(raw_slot), float(raw_weight)
+            except (TypeError, ValueError, OverflowError):
+                return None
+            if palette:
+                if not 0 <= slot < len(palette):
+                    return None
+                slot = int(palette[slot])
+            if slot < 0 or not math.isfinite(weight) or weight <= 0.0:
+                continue
+            mapped.append((slot, weight))
+        total = sum(weight for _bone, weight in mapped)
+        if total <= 0.0:
+            mapped = []
+            total = 1.0
+        out_indices.append(tuple(bone for bone, _weight in mapped))
+        out_weights.append(tuple(weight / total for _bone, weight in mapped))
+    if not any(out_indices):
+        return None
+    return out_indices, out_weights
+
+
 def export_native_fbx(
     mesh: ParsedMesh,
     fbx_path: str | Path,
@@ -544,6 +602,7 @@ def export_native_fbx(
     base_name: str,
     scale: float = 1.0,
     skeleton: object = None,
+    bone_palette: Sequence[int] | None = None,
     timeout_seconds: float = 20.0,
 ) -> bool:
     if os.environ.get("CDMW_DISABLE_NATIVE_MESH_CORE", "").strip():
@@ -559,6 +618,7 @@ def export_native_fbx(
         return False
     sidecar_root = Path(tempfile.mkdtemp(prefix="cdmw_mesh_core_fbx_export_"))
     try:
+        bone_payloads = _native_fbx_bone_payloads(skeleton)
         submeshes: list[dict[str, object]] = []
         raw_submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
         for submesh_index, submesh in enumerate(raw_submeshes):
@@ -568,6 +628,13 @@ def export_native_fbx(
                 "name": str(getattr(submesh, "name", "") or f"part_{submesh_index}"),
                 "material": str(getattr(submesh, "material", "") or getattr(submesh, "name", "") or f"part_{submesh_index}"),
             }
+            # The skin lives beside the geometry rather than inside the session, because a
+            # session stores raw palette slots and the writer needs skeleton bone indices.
+            skin_rows = _fbx_skin_rows(submesh, bone_palette) if bone_payloads else None
+            if skin_rows is not None:
+                skin_payload = _write_bone_binary_payloads(prefix, skin_rows[0], skin_rows[1])
+                if skin_payload is not None:
+                    item.update(skin_payload)
             session_id = _ensure_native_mesh_session_submesh(
                 binary,
                 mesh,
@@ -603,7 +670,7 @@ def export_native_fbx(
                 "base_name": str(base_name or path.stem),
                 "scale": _finite_float(scale, 1.0),
                 "submeshes": submeshes,
-                "bones": _native_fbx_bone_payloads(skeleton),
+                "bones": bone_payloads,
             },
             timeout_seconds=timeout_seconds,
         )

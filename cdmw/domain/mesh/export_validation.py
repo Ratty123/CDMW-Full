@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import PurePath
 
 from .operations import validate_mesh_edit_operation_coverage, validate_mesh_edit_operations
+from .skeleton import MAX_SKIN_INFLUENCES
 
 
 SUPPORTED_GAME_MESH_FORMATS = frozenset({"pac", "pam", "pamlod"})
@@ -460,16 +461,16 @@ def _validate_skinning(
                 actual=len(weight_row),
             )
             continue
-        if len(index_row) > 4:
+        if len(index_row) > MAX_SKIN_INFLUENCES:
             _add(
                 issues,
                 "blocker",
                 "too_many_bone_influences",
-                "Vertex has more than four bone influences.",
+                f"Vertex has more than {MAX_SKIN_INFLUENCES} bone influences.",
                 "skeleton",
                 submesh_index=submesh_index,
                 vertex_index=vertex_index,
-                expected="<=4",
+                expected=f"<={MAX_SKIN_INFLUENCES}",
                 actual=len(index_row),
             )
         clean_weights: list[float] = []

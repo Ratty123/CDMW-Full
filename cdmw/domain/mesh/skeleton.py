@@ -10,6 +10,12 @@ from .editing import MeshEditSelection
 
 _TIMING_CONFIDENCE_LABELS = {"proven", "inferred", "unknown", "blocked"}
 
+#: How many bones may drive one vertex. A PAC vertex record holds six influences
+#: (two u32 of three 10-bit palette slots, then six u8 weights), and real bodies
+#: use every one of them. Kept here rather than imported from the parser because
+#: this layer stays free of format code.
+MAX_SKIN_INFLUENCES = 6
+
 
 @dataclass(frozen=True, slots=True)
 class MeshSkeletonBoneSummary:
@@ -820,7 +826,7 @@ def _part_summary(
             continue
         index_row = _row_tuple(bone_indices[vertex_index])
         weight_row = _row_tuple(bone_weights[vertex_index])
-        row_invalid = len(index_row) != len(weight_row) or len(index_row) > 4
+        row_invalid = len(index_row) != len(weight_row) or len(index_row) > MAX_SKIN_INFLUENCES
         max_influences = max(max_influences, len(index_row), len(weight_row))
         clean_weights: list[float] = []
         has_weight = False
@@ -955,7 +961,7 @@ def _selected_vertex_weights(
             index_row = _row_tuple(bone_indices[vertex_index]) if vertex_index < len(bone_indices) else ()
             weight_row = _row_tuple(bone_weights[vertex_index]) if vertex_index < len(bone_weights) else ()
             influences: list[tuple[int, float]] = []
-            invalid = len(index_row) != len(weight_row) or len(index_row) > 4
+            invalid = len(index_row) != len(weight_row) or len(index_row) > MAX_SKIN_INFLUENCES
             for raw_index, raw_weight in zip(index_row, weight_row):
                 bone_index = _coerce_index(raw_index)
                 weight = _coerce_float(raw_weight)

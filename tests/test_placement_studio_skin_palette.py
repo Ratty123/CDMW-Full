@@ -190,49 +190,54 @@ class BlendAdjacencyTests(unittest.TestCase):
 
 
 class SecondInfluenceTests(unittest.TestCase):
-    """Byte 24 is the second bone; bytes 28 and 29 are the two weights it shares."""
+    """The second of the six influences the parser decodes, heaviest first.
+
+    This used to read byte 24 of the vertex record, which measured as landing inside the
+    palette 99.3% of the time and was a coincidence of the real layout: byte 24 is the low
+    eight bits of influence 3's ten-bit slot, and the second influence's index straddles
+    bytes 21 and 22, so it was never readable as a byte at all.
+    """
 
     def setUp(self) -> None:
         from tools.placement_studio.skinning import _second_influence
 
         self.second = _second_influence
 
-    @staticmethod
-    def _record(slot: int, first: int, other: int) -> bytes:
-        rec = bytearray(b"\x00" * 40)
-        rec[24] = slot
-        rec[28] = first
-        rec[29] = other
-        return bytes(rec)
+    def test_the_second_influence_is_taken_as_decoded(self) -> None:
+        """Out of the whole, not renormalised against the primary.
 
-    def test_the_share_is_the_second_weight_out_of_the_whole(self) -> None:
-        """Out of 255, not out of the two that were decoded.
-
-        Renormalising against the primary hands the second bone the weight the two undecoded
-        influences were carrying, which over-rotates the vertex: across six poses on both
-        characters it raised the badly-stretched face count on five, worse than the rigid skin
-        it replaced. Influences three and four sit near the primary, so leaving their weight
-        there is the better approximation.
+        Renormalising hands the second bone the weight the remaining influences carry, which
+        over-rotates the vertex: across six poses on both characters it raised the
+        badly-stretched face count on five, worse than the rigid skin it replaced.
         """
 
-        slot, share = self.second(self._record(7, 128, 64), 0)
+        slot, share = self.second((3, 7, 9), (128 / 255, 64 / 255, 63 / 255))
 
         self.assertEqual(slot, 7)
         self.assertAlmostEqual(share, 64 / 255)
 
-    def test_the_primary_keeps_the_undecoded_weight(self) -> None:
-        _slot, share = self.second(self._record(7, 100, 50), 0)
+    def test_the_primary_keeps_the_remaining_weight(self) -> None:
+        _slot, share = self.second((3, 7, 9, 11), (0.4, 0.3, 0.2, 0.1))
 
-        self.assertLess(share, 50 / 150, "renormalising would inflate the second bone")
+        self.assertAlmostEqual(share, 0.3)
+        self.assertLess(share, 0.3 / 0.7, "renormalising over the first two would inflate it")
 
-    def test_no_second_weight_means_no_second_bone(self) -> None:
-        self.assertEqual(self.second(self._record(7, 255, 0), 0), (0, 0.0))
+    def test_a_single_influence_means_no_second_bone(self) -> None:
+        self.assertEqual(self.second((7,), (1.0,)), (0, 0.0))
+
+    def test_a_zero_second_weight_means_no_second_bone(self) -> None:
+        self.assertEqual(self.second((7, 9), (1.0, 0.0)), (0, 0.0))
 
     def test_slot_zero_is_treated_as_absent(self) -> None:
         """It is a real palette entry, but including it drops adjacency from 74% to 50%."""
 
-        self.assertEqual(self.second(self._record(0, 192, 64), 0), (0, 0.0))
+        self.assertEqual(self.second((7, 0), (0.75, 0.25)), (0, 0.0))
 
-    def test_a_truncated_record_is_not_read_off_the_end(self) -> None:
-        self.assertEqual(self.second(b"\x00" * 8, 0), (0, 0.0))
-        self.assertEqual(self.second(self._record(7, 192, 64), -1), (0, 0.0))
+    def test_all_six_influences_are_accepted_without_reading_past_the_second(self) -> None:
+        slot, share = self.second((1, 2, 3, 4, 5, 6), (0.3, 0.25, 0.2, 0.1, 0.1, 0.05))
+
+        self.assertEqual((slot, round(share, 6)), (2, 0.25))
+
+    def test_an_empty_row_is_not_indexed_off_the_end(self) -> None:
+        self.assertEqual(self.second((), ()), (0, 0.0))
+        self.assertEqual(self.second((7,), ()), (0, 0.0))

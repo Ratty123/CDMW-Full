@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from cdmw.modding.mesh_native_core_payload_helpers import _finite_float, _index
+from cdmw.modding.mesh_parser import PAC_SKIN_INFLUENCES
 
 
 def _apply_vertex_aligned_topology_result(
@@ -185,7 +186,7 @@ def _blend_bone_assignment(
             weights_by_bone[bone] = weights_by_bone.get(bone, 0.0) + weight * factor
     if not weights_by_bone:
         return (), ()
-    strongest = sorted(weights_by_bone.items(), key=lambda item: (-item[1], item[0]))[:4]
+    strongest = sorted(weights_by_bone.items(), key=lambda item: (-item[1], item[0]))[:PAC_SKIN_INFLUENCES]
     total = sum(weight for _bone, weight in strongest)
     if total <= 0.0:
         return (), ()

@@ -22,6 +22,10 @@ set(MESH_CORE_OWNER_SOURCES
     src/owners/edit_topology_08.cpp
     src/owners/edit_topology_09.cpp
     src/owners/interchange_01.cpp
+    # The FBX byte primitives sit between the unit that defines NativeFbxProperty
+    # and the one that writes the document: this is a unity build, so the order
+    # listed here is definition order.
+    src/owners/interchange_fbx_nodes.cpp
     src/owners/interchange_02.cpp
     src/owners/interchange_03.cpp
     src/owners/reports_01.cpp

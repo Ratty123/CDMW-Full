@@ -35,24 +35,28 @@ mesh tore itself apart the moment a pose moved. `derive_bone_map` survives as th
 a file whose palette will not resolve, guarded by `MAX_DRIFT` — but note that drift is *its*
 metric, which it minimises by construction, so it is not applied to an exact palette.
 
-**Two of the four influences are usable, so joints bend rather than crease.**
+**The heaviest two of the six influences are used, so joints bend rather than crease.**
 
 The skin used to be rigid — one bone per vertex — and it looked it: an elbow's vertices snapped
 to either the upper arm or the forearm with nothing between them, so every joint tore open
-instead of bending. The file has four weights, descending and summing to 255, and the second
-bone is at byte 24 of the vertex record. It is a real bone: where the second weight is zero,
-byte 24 is zero 99.3% of the time, and where it is set it resolves to a bone a median 0.15 m
-from the primary against 0.65 m for a random one.
+instead of bending. A vertex carries six influences, descending and summing to 255, and the
+parser decodes every one; this takes the first two.
 
-Bytes 32 and 33 track the third and fourth weights just as tightly but are *not* bone indices —
-read as palette slots they land 0.44 m away, worse than chance — so influences 3 and 4 are
-left undecoded rather than guessed at. A two-bone blend is not the game's four-bone one, and
-tight creases will still be shallower here than in game.
+An earlier version read the second bone out of byte 24 of the vertex record, and measured that
+byte as landing inside the palette 99.3% of the time. It was a coincidence of the real layout:
+the slots are two u32 of three 10-bit fields, so byte 24 is the low eight bits of influence 3's
+slot, and the second influence's index straddles bytes 21 and 22 where no byte could reach it.
+Reading the decoded pair instead halves the distance between the two bones — median 0.076 m
+against 0.15 m, with 89% inside 20 cm against 74% — which is what a correct second bone should
+look like. A two-bone blend is still not the game's six-bone one, so tight creases remain
+shallower here than in game.
 
 A blend is only taken between bones that are near each other; see `_neighbouring`. Without any
 gate the far pairs stretch their triangles into slivers, which showed up as fresh tearing across
 a coat's shoulder. Gating on the *hierarchy* alone was the opposite error — it kept only 15.8%
 of the vertices the file offers a second bone for, so joints stayed nearly as stiff as before.
+On the corrected reading the gate now admits 90.9% of the pairs offered, against the roughly
+80% it passed when the second bone was a misread byte.
 
 The second bone keeps its true share of 255 rather than being renormalised against the primary;
 `_second_influence` records what that measured.
@@ -112,9 +116,6 @@ def _matrix_array(matrices: Sequence[Sequence[float]]) -> np.ndarray:
 #: Refuse a mesh whose slots cannot be placed this close to a bone. Correct mappings sit at a
 #: few centimetres; a wrong one is half the height of the character.
 MAX_DRIFT = 0.18
-
-#: The record's marker for an influence slot that is not used.
-PAC_UNUSED_SLOT = 0xFF
 
 #: How far apart two bones may sit and still be blended between, in metres. Bones that meet at
 #: a joint are accepted whatever their length; this only widens that to the helper bones packed
@@ -187,57 +188,46 @@ def _resolved_palette(data: bytes, skeleton) -> tuple:
     return best
 
 
-#: Where the second influence lives in the 40-byte PAC vertex record, and where the four
-#: weights live. Byte 20 is the primary bone, byte 24 the second; both index the file's palette.
-_SECOND_BONE = 24
-_WEIGHTS = 28
-
-
-def _second_influence(data: bytes, offset: int):
+def _second_influence(slots: Sequence[int], weights: Sequence[float]):
     """The second bone driving a vertex, and how much of it, as a palette slot and 0..1 share.
 
-    A vertex carries four weights — they descend, they sum to 255, and the primary averages
-    68% — but the file was being read as though only one bone existed, which is why every joint
-    creased instead of bending: an elbow's vertices snapped rigidly to either the upper arm or
-    the forearm with nothing in between.
+    A vertex carries six influences, sorted by descending weight, and the parser decodes every
+    one of them (see `PAC_SKIN_SLOT_GROUPS`). This takes the second, which is what turns a rigid
+    skin into a bending one: before any second bone was read, an elbow's vertices snapped to
+    either the upper arm or the forearm with nothing in between, so every joint tore open.
 
-    Only two of the four influences are actually indexable. Byte 20 and byte 24 both land inside
-    the palette and behave like bones: when the second weight is zero, byte 24 is zero 99.3% of
-    the time, and where it is set it resolves to a bone a median 0.15 m from the primary, with
-    74% inside 20 cm — against 0.65 m and 6% for a random bone. Bytes 32 and 33 track the third
-    and fourth weights just as tightly but are *not* bones: read as palette slots they sit
-    0.44 m away, worse than chance. So they are left alone rather than guessed at.
+    An earlier version read byte 24 of the record for this and measured it as landing inside the
+    palette 99.3% of the time. That was a coincidence of the real layout, where byte 24 is the
+    low eight bits of influence 3's ten-bit slot; the second influence's index actually straddles
+    bytes 21 and 22 and could not be read as a byte at all.
 
     A zero slot is treated as absent. It is legitimately palette entry 0, but including those
     vertices drops the adjacency from 74% to 50% — the blend they would produce reaches across
     the body, so a rigid vertex is the better error.
     """
 
-    if offset < 0 or offset + _WEIGHTS + 2 > len(data):
+    if len(slots) < 2 or len(weights) < 2:
         return 0, 0.0
-    slot = data[offset + _SECOND_BONE]
-    if slot == 0 or slot == PAC_UNUSED_SLOT:
+    slot = int(slots[1])
+    weight = float(weights[1])
+    if slot == 0 or weight <= 0.0:
         return 0, 0.0
-    second = data[offset + _WEIGHTS + 1]
-    if second == 0:
-        return 0, 0.0
-    # The second bone keeps its true share of the whole 255, and what the two undecoded
-    # influences were carrying stays on the primary. Renormalising over w0+w1 instead — giving
-    # the second bone the missing weight in proportion — over-rotates the vertex: measured
-    # across six poses on both characters it raised the badly-stretched face count on five of
-    # them, worse than the rigid skin it replaced, while this reduced peak stretch on all six.
-    # It is the better approximation because influences three and four sit near the primary.
-    return int(slot), second / 255.0
+    # The second bone keeps its true share of the whole 255, and what the remaining influences
+    # were carrying stays on the primary. Renormalising over w0+w1 instead — giving the second
+    # bone the missing weight in proportion — over-rotates the vertex: measured across six poses
+    # on both characters it raised the badly-stretched face count on five of them, worse than
+    # the rigid skin it replaced, while this reduced peak stretch on all six.
+    return slot, weight
 
 
 def _neighbouring(skeleton, first: np.ndarray, second: np.ndarray) -> np.ndarray:
     """Whether two bones are joined in the rig — parent, child, or sharing a parent.
 
     A blend is only meaningful between bones that meet at a joint. Most pairs in the file are:
-    the second bone sits a median 0.15 m from the primary, 74% of them within 20 cm. The rest
-    are not, and blending a vertex towards a bone on the other side of the body stretches its
-    triangles into long slivers — which is what showed up as fresh tearing across a coat's
-    shoulder the first time both influences were used.
+    the second bone sits a median 0.076 m from the primary, 89% of them within 20 cm, and this
+    gate admits 90.9% of them. The rest are not, and blending a vertex towards a bone on the
+    other side of the body stretches its triangles into long slivers — which is what showed up
+    as fresh tearing across a coat's shoulder the first time both influences were used.
 
     Hierarchy alone is too strict to use by itself. This rig has 434 bones, most of them
     helpers — roll bones, `_sub` twins — sitting between the ones an animator would name, so a
@@ -323,17 +313,14 @@ def load_skinned(data: bytes, path: str, skeleton) -> Optional[SkinnedMesh]:
         if not submesh.vertices or not submesh.faces:
             continue
         count = len(submesh.vertices)
-        offsets = getattr(submesh, "source_vertex_offsets", None) or ()
         for index in range(count):
             x, y, z = submesh.vertices[index]
             rest.append((x, y, z, 1.0))
             slots = submesh.bone_indices[index] if index < len(submesh.bone_indices) else ()
-            # The parser's tuple is bytes 20-23 of the record, and only the first of those is a
-            # bone. The *second* bone is at byte 24 — see `_second_influence`.
+            row_weights = submesh.bone_weights[index] if index < len(submesh.bone_weights) else ()
+            # Six influences, heaviest first. This takes the first two — see `_second_influence`.
             primary.append(int(slots[0]) if slots else 0)
-            slot, weight = _second_influence(
-                data, offsets[index] if index < len(offsets) else -1
-            )
+            slot, weight = _second_influence(slots, row_weights)
             secondary.append(slot)
             blend.append(weight)
         for a, b, c in submesh.faces:

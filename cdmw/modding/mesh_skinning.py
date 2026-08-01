@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import math
+import struct
 from typing import Sequence
 
 from .mesh_parser import (
-    PAC_SKIN_INDEX_OFFSET,
+    PAC_SKIN_INFLUENCES,
     PAC_SKIN_MAX_BONE_INDEX,
-    PAC_SKIN_UNUSED_SLOT,
+    PAC_SKIN_SLOT_BITS,
+    PAC_SKIN_SLOT_GROUPS,
+    PAC_SKIN_SLOTS_PER_GROUP,
     PAC_SKIN_WEIGHT_LAYOUT,
     PAC_SKIN_WEIGHT_OFFSET,
     ParsedMesh,
     SubMesh,
+    _decode_pac_skin_influences,
 )
 
 
@@ -85,7 +89,7 @@ def has_valid_target_skin_weights(submesh: SubMesh) -> bool:
             values = tuple(float(value) for value in tuple(weights or ()))
         except (TypeError, ValueError, OverflowError):
             return False
-        if not 1 <= len(bones) == len(values) <= 4:
+        if not 1 <= len(bones) == len(values) <= PAC_SKIN_INFLUENCES:
             return False
         if any(bone < 0 or bone > PAC_SKIN_MAX_BONE_INDEX for bone in bones):
             return False
@@ -167,7 +171,12 @@ def pack_pac_skin_weights(
     *,
     context: str,
 ) -> None:
-    """Encode up to four influences into a PAC vertex record, in place.
+    """Encode up to six influences into a PAC vertex record, in place.
+
+    Writes the layout the reader decodes: two u32 of three 10-bit palette slots
+    each, then six u8 weights in descending order summing to 255. An unused
+    influence is a zero weight, not a reserved slot value, because slot 0 is a
+    real palette entry.
 
     Slot values are written verbatim. They are per-mesh palette tokens, not
     skeleton bone indices, so writing back what the reader decoded round-trips
@@ -184,14 +193,14 @@ def pack_pac_skin_weights(
             continue
         if bone >= 0 and math.isfinite(weight) and weight > 0.0:
             merged[bone] = merged.get(bone, 0.0) + weight
-    strongest = sorted(merged.items(), key=lambda item: (-item[1], item[0]))[:4]
+    strongest = sorted(merged.items(), key=lambda item: (-item[1], item[0]))[:PAC_SKIN_INFLUENCES]
     if not strongest:
         raise ValueError(f"Cannot encode {context}: skin-weight row is empty or invalid.")
     out_of_range = [bone for bone, _weight in strongest if bone > PAC_SKIN_MAX_BONE_INDEX]
     if out_of_range:
         raise ValueError(
             f"Cannot encode {context}: bone index(es) {out_of_range} exceed the PAC limit of "
-            f"{PAC_SKIN_MAX_BONE_INDEX} ({PAC_SKIN_UNUSED_SLOT:#x} marks an unused slot)."
+            f"{PAC_SKIN_MAX_BONE_INDEX}, the widest value a {PAC_SKIN_SLOT_BITS}-bit slot holds."
         )
     total = sum(weight for _bone, weight in strongest)
     available = 255 - len(strongest)
@@ -202,10 +211,18 @@ def pack_pac_skin_weights(
     for index in order[:remainder]:
         packed_weights[index] += 1
     slots = [bone for bone, _weight in strongest]
-    slots.extend([PAC_SKIN_UNUSED_SLOT] * (4 - len(slots)))
-    packed_weights.extend([0] * (4 - len(packed_weights)))
-    record[PAC_SKIN_INDEX_OFFSET:PAC_SKIN_INDEX_OFFSET + 4] = bytes(slots)
-    record[PAC_SKIN_WEIGHT_OFFSET:PAC_SKIN_WEIGHT_OFFSET + 4] = bytes(packed_weights)
+    slots.extend([0] * (PAC_SKIN_INFLUENCES - len(slots)))
+    packed_weights.extend([0] * (PAC_SKIN_INFLUENCES - len(packed_weights)))
+
+    for group, group_offset in enumerate(PAC_SKIN_SLOT_GROUPS):
+        # The top two bits of each group carry no meaning we have proven, so a patch
+        # leaves whatever the donor record held rather than clearing it.
+        packed_group = struct.unpack_from("<I", record, group_offset)[0] & ~0x3FFFFFFF
+        for position in range(PAC_SKIN_SLOTS_PER_GROUP):
+            slot = slots[group * PAC_SKIN_SLOTS_PER_GROUP + position]
+            packed_group |= slot << (PAC_SKIN_SLOT_BITS * position)
+        struct.pack_into("<I", record, group_offset, packed_group)
+    record[PAC_SKIN_WEIGHT_OFFSET:PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_INFLUENCES] = bytes(packed_weights)
 
 
 def pac_skin_weights_changed(original: SubMesh, updated: SubMesh) -> bool:
@@ -242,10 +259,18 @@ def patch_pac_vertex_skin(
 ) -> None:
     if not 0 <= vertex_index < len(submesh.vertices):
         raise ValueError(f"PAC submesh {submesh_index} LOD skin-weight lineage is out of range.")
+    bones = tuple(submesh.bone_indices[vertex_index] or ())
+    weights = tuple(submesh.bone_weights[vertex_index] or ())
+    # Leave a record that already carries these influences exactly as it is. Encoding is not a
+    # bit-exact inverse of decoding -- u8 weights requantize by a count or two, and a slot left
+    # behind a zero weight would be cleared -- and the replacement path depends on an untouched
+    # row surviving byte for byte.
+    if (bones, weights) == _decode_pac_skin_influences(bytes(record), 0):
+        return
     pack_pac_skin_weights(
         record,
-        submesh.bone_indices[vertex_index],
-        submesh.bone_weights[vertex_index],
+        bones,
+        weights,
         context=f"PAC submesh {submesh_index} vertex {vertex_index}",
     )
 

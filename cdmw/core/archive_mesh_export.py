@@ -362,7 +362,25 @@ def export_archive_mesh(
                     confirmation_message=confirmation_message,
                 )
         if skeleton is not None and skeleton.bones:
-            output_paths.append(Path(export_fbx_with_skeleton(parsed_mesh, skeleton, str(output_dir), basename)))
+            # A PAC's influence slots index the file's own bone palette, so the skin can
+            # only be bound once that palette is resolved against this skeleton. An empty
+            # palette says so, and the export falls back to armature without binding.
+            bone_palette: Optional[Sequence[int]] = None
+            if entry.extension == ".pac":
+                from cdmw.modding.mesh_parser import resolve_pac_bone_palette
+
+                bone_palette = resolve_pac_bone_palette(
+                    getattr(parsed_mesh, "_cdmw_original_data", b"") or b"", skeleton
+                )
+                if not bone_palette:
+                    _safe_log(
+                        on_log,
+                        f"{entry.path}: no bone palette resolved against {skeleton_entry.path if skeleton_entry else 'the skeleton'}; "
+                        "exporting the armature without skin binding.",
+                    )
+            output_paths.append(Path(export_fbx_with_skeleton(
+                parsed_mesh, skeleton, str(output_dir), basename, bone_palette=bone_palette
+            )))
         else:
             output_paths.append(Path(export_fbx(parsed_mesh, str(output_dir), basename)))
 

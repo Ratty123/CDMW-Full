@@ -62,9 +62,105 @@ _write_vec3_binary_payload = _proxy("_write_vec3_binary_payload")
 find_native_mesh_core_binary = _proxy("find_native_mesh_core_binary")
 
 
+def _matrix4_rows(value: object) -> list[list[float]] | None:
+    """A .pab bind matrix as 4 rows, or None.
+
+    The format is row-major with the translation in row 3, the same row-vector
+    convention FBX uses, so the 16 values map across without transposition.
+    """
+
+    try:
+        values = [float(component) for component in tuple(value or ())]
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if len(values) != 16 or not all(math.isfinite(component) for component in values):
+        return None
+    return [values[row * 4:row * 4 + 4] for row in range(4)]
+
+
+def _orthonormal_bind(rows: list[list[float]]) -> list[list[float]]:
+    """The same bind pose with its 3x3 reduced to a pure rotation.
+
+    Real rig bones carry scale -- determinants run 0.65 to 1.25 on the phw rig --
+    and a skeleton bone cannot hold scale in a rest pose, so the scale is dropped
+    here rather than left to be dropped inconsistently downstream. The mesh still
+    renders undeformed at rest because the cluster's inverse-bind is taken from
+    this same matrix.
+    """
+
+    basis = [row[:3] for row in rows[:3]]
+    result: list[list[float]] = []
+    for axis in range(3):
+        vector = list(basis[axis])
+        for done in result:  # Gram-Schmidt against the axes already fixed
+            projection = sum(vector[i] * done[i] for i in range(3))
+            vector = [vector[i] - projection * done[i] for i in range(3)]
+        length = math.sqrt(sum(component * component for component in vector))
+        if length <= 1e-9:
+            vector = [1.0 if i == axis else 0.0 for i in range(3)]
+            length = 1.0
+        result.append([component / length for component in vector])
+    return [
+        result[0] + [0.0],
+        result[1] + [0.0],
+        result[2] + [0.0],
+        list(rows[3][:3]) + [1.0],
+    ]
+
+
+def _multiply4(left: list[list[float]], right: list[list[float]]) -> list[list[float]]:
+    return [
+        [sum(left[row][k] * right[k][column] for k in range(4)) for column in range(4)]
+        for row in range(4)
+    ]
+
+
+def _invert_rigid(rows: list[list[float]]) -> list[list[float]]:
+    """Inverse of a rotation-plus-translation matrix in row-vector form."""
+
+    rotation = [[rows[row][column] for column in range(3)] for row in range(3)]
+    translation = rows[3][:3]
+    transposed = [[rotation[column][row] for column in range(3)] for row in range(3)]
+    moved = [-sum(translation[k] * transposed[k][column] for k in range(3)) for column in range(3)]
+    return [
+        transposed[0] + [0.0],
+        transposed[1] + [0.0],
+        transposed[2] + [0.0],
+        moved + [1.0],
+    ]
+
+
+def _euler_xyz_degrees(rows: list[list[float]]) -> list[float]:
+    """FBX eEulerXYZ angles for a row-vector rotation matrix."""
+
+    # Column-vector form, where the standard R = Rz * Ry * Rx extraction applies.
+    m = [[rows[column][row] for column in range(3)] for row in range(3)]
+    sy = max(-1.0, min(1.0, -m[2][0]))
+    y = math.asin(sy)
+    if abs(m[2][0]) < 1.0 - 1e-9:
+        x = math.atan2(m[2][1], m[2][2])
+        z = math.atan2(m[1][0], m[0][0])
+    else:  # gimbal lock: fold the free angle into x
+        x = math.atan2(-m[1][2], m[1][1])
+        z = 0.0
+    return [math.degrees(x), math.degrees(y), math.degrees(z)]
+
+
 def _native_fbx_bone_payloads(skeleton: object) -> list[dict[str, object]]:
     raw_bones = tuple(getattr(skeleton, "bones", ()) or ())
     result: list[dict[str, object]] = []
+
+    # Global bind poses first, so a bone's local transform can be taken against
+    # its parent's. Bones whose matrix will not parse simply carry no bind.
+    binds: dict[int, list[list[float]]] = {}
+    for fallback_index, bone in enumerate(raw_bones):
+        index = _index(getattr(bone, "index", fallback_index))
+        if index is None:
+            index = fallback_index
+        rows = _matrix4_rows(getattr(bone, "bind_matrix", ()))
+        if rows is not None:
+            binds[index] = _orthonormal_bind(rows)
+
     for fallback_index, bone in enumerate(raw_bones):
         index = _index(getattr(bone, "index", fallback_index))
         if index is None:
@@ -72,14 +168,19 @@ def _native_fbx_bone_payloads(skeleton: object) -> list[dict[str, object]]:
         parent_index = _index(getattr(bone, "parent_index", -1))
         if parent_index is None:
             parent_index = -1
-        result.append(
-            {
-                "index": index,
-                "name": str(getattr(bone, "name", "") or f"Bone_{index}"),
-                "parent_index": parent_index,
-                "position": list(_vec3(getattr(bone, "position", (0.0, 0.0, 0.0)), fallback=0.0)),
-            }
-        )
+        item: dict[str, object] = {
+            "index": index,
+            "name": str(getattr(bone, "name", "") or f"Bone_{index}"),
+            "parent_index": parent_index,
+            "position": list(_vec3(getattr(bone, "position", (0.0, 0.0, 0.0)), fallback=0.0)),
+        }
+        bind = binds.get(index)
+        if bind is not None:
+            local = _multiply4(bind, _invert_rigid(binds[parent_index])) if parent_index in binds else bind
+            item["position"] = [local[3][0], local[3][1], local[3][2]]
+            item["rotation"] = _euler_xyz_degrees(local)
+            item["bind_matrix"] = [component for row in bind for component in row]
+        result.append(item)
     return result
 
 def build_native_preview_model_in_original_frame(

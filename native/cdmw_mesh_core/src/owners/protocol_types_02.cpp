@@ -160,6 +160,11 @@ std::map<std::string, MeshEditorSession> g_mesh_editor_sessions;
 constexpr std::size_t MESH_EDITOR_HISTORY_MAX_OPERATIONS = 64;
 constexpr std::size_t MESH_EDITOR_HISTORY_MAX_BYTES = 256ULL * 1024ULL * 1024ULL;
 
+// How many bones may drive one vertex. A PAC vertex record holds six influences, and real
+// bodies use every one, so blending down to four here would throw away weights the file can
+// carry. Mirrors PAC_SKIN_INFLUENCES on the Python side.
+constexpr std::size_t MESH_MAX_SKIN_INFLUENCES = 6;
+
 std::map<int, MeshSessionSubmesh>& mesh_editor_submeshes(MeshEditorSession& session) {
     const auto found = g_mesh_sessions.find(session.native_session_id);
     if (found == g_mesh_sessions.end()) {

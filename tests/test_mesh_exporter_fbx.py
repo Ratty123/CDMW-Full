@@ -150,7 +150,7 @@ class FbxExporterTests(unittest.TestCase):
         )
         skeleton = Skeleton(path="character/native.pab", bones=[Bone(index=0, name="Root", parent_index=-1, position=(0.0, 0.0, 0.0))])
 
-        def fake_native(_mesh, fbx_path, _base, _scale, *, skeleton=None):
+        def fake_native(_mesh, fbx_path, _base, _scale, *, skeleton=None, bone_palette=None):
             self.assertIsNotNone(skeleton)
             Path(fbx_path).write_bytes(b"native skeleton fbx")
             return True
@@ -218,6 +218,165 @@ class FbxExporterTests(unittest.TestCase):
         self.assertIn(b"LayerElementUV", payload)
         self.assertIn(b"UVMap", payload)
         self.assertIn(b"Size", payload)
+
+
+def _skinned_export_mesh() -> ParsedMesh:
+    """Three vertices, each riding a different influence slot."""
+
+    submesh = SubMesh(
+        name="Body",
+        material="BodyMat",
+        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+        uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+        normals=[(0.0, 0.0, 1.0)] * 3,
+        faces=[(0, 1, 2)],
+        bone_indices=[(0,), (1,), (0, 1)],
+        bone_weights=[(1.0,), (1.0,), (0.5, 0.5)],
+        vertex_count=3,
+        face_count=1,
+    )
+    return ParsedMesh(
+        path="character/skinned.pac",
+        format="pac",
+        submeshes=[submesh],
+        total_vertices=3,
+        total_faces=1,
+        has_uvs=True,
+        has_bones=True,
+    )
+
+
+def _two_bone_skeleton() -> Skeleton:
+    return Skeleton(
+        path="character/skinned.pab",
+        bones=[
+            Bone(index=0, name="Root", parent_index=-1, position=(0.0, 0.0, 0.0),
+                 bind_matrix=(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)),
+            Bone(index=1, name="Child", parent_index=0, position=(0.0, 2.0, 0.0),
+                 bind_matrix=(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 2, 0, 1)),
+        ],
+        bone_count=2,
+    )
+
+
+class FbxSkinRowTests(unittest.TestCase):
+    """The slot-to-bone mapping that stands between a PAC and a usable rig."""
+
+    def test_palette_maps_slots_onto_skeleton_bones(self) -> None:
+        from cdmw.modding.mesh_native_core import _fbx_skin_rows
+
+        submesh = _skinned_export_mesh().submeshes[0]
+        indices, weights = _fbx_skin_rows(submesh, (17, 42))
+
+        self.assertEqual(indices, [(17,), (42,), (17, 42)])
+        self.assertEqual(weights, [(1.0,), (1.0,), (0.5, 0.5)])
+
+    def test_missing_palette_takes_slots_as_bone_indices(self) -> None:
+        from cdmw.modding.mesh_native_core import _fbx_skin_rows
+
+        submesh = _skinned_export_mesh().submeshes[0]
+        indices, _weights = _fbx_skin_rows(submesh, None)
+
+        self.assertEqual(indices, [(0,), (1,), (0, 1)])
+
+    def test_unresolved_palette_refuses_to_bind(self) -> None:
+        """A rigid mesh names its bone nowhere, so guessing one is not allowed."""
+
+        from cdmw.modding.mesh_native_core import _fbx_skin_rows
+
+        self.assertIsNone(_fbx_skin_rows(_skinned_export_mesh().submeshes[0], ()))
+
+    def test_a_slot_outside_the_palette_refuses_to_bind(self) -> None:
+        from cdmw.modding.mesh_native_core import _fbx_skin_rows
+
+        self.assertIsNone(_fbx_skin_rows(_skinned_export_mesh().submeshes[0], (17,)))
+
+    def test_rows_are_normalized_against_u8_quantization(self) -> None:
+        from cdmw.modding.mesh_native_core import _fbx_skin_rows
+
+        submesh = _skinned_export_mesh().submeshes[0]
+        # A row as the file stores it: six u8 weights summing to 253, not 255.
+        submesh.bone_indices = [(0,), (1,), (0, 1)]
+        submesh.bone_weights = [(1.0,), (1.0,), (127 / 255.0, 126 / 255.0)]
+
+        _indices, weights = _fbx_skin_rows(submesh, (0, 1))
+
+        self.assertAlmostEqual(sum(weights[2]), 1.0, places=12)
+
+
+class FbxSkinExportTests(unittest.TestCase):
+    """The native writer must bind the mesh, not merely ship a loose armature."""
+
+    def setUp(self) -> None:
+        from cdmw.modding.mesh_native_core import find_native_mesh_core_binary
+
+        if find_native_mesh_core_binary() is None:
+            self.skipTest("cdmw_mesh_core is not built")
+
+    def test_skinned_export_writes_deformer_and_cluster_nodes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fbx_path = Path(export_fbx_with_skeleton(
+                _skinned_export_mesh(), _two_bone_skeleton(), temp_dir,
+                name="skinned", bone_palette=(0, 1),
+            ))
+            payload = fbx_path.read_bytes()
+
+        for node in (b"Deformer", b"Skin", b"Cluster", b"Indexes", b"Weights", b"TransformLink", b"LimbNode"):
+            self.assertIn(node, payload, f"{node!r} missing from the skinned FBX")
+
+    def test_unresolved_palette_exports_an_armature_without_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fbx_path = Path(export_fbx_with_skeleton(
+                _skinned_export_mesh(), _two_bone_skeleton(), temp_dir,
+                name="rigid", bone_palette=(),
+            ))
+            payload = fbx_path.read_bytes()
+
+        self.assertIn(b"LimbNode", payload)
+        self.assertNotIn(b"Cluster", payload)
+        self.assertNotIn(b"TransformLink", payload)
+
+    def test_mesh_without_a_skeleton_stays_unbound(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fbx_path = Path(export_fbx(_skinned_export_mesh(), temp_dir, name="plain"))
+            payload = fbx_path.read_bytes()
+
+        self.assertNotIn(b"Cluster", payload)
+        self.assertNotIn(b"LimbNode", payload)
+
+
+class FbxBonePayloadTests(unittest.TestCase):
+    """Bind matrices decide whether the mesh arrives at rest or pre-deformed."""
+
+    def test_bone_payload_carries_a_local_transform_and_a_global_bind(self) -> None:
+        from cdmw.modding.mesh_native_core import _native_fbx_bone_payloads
+
+        payloads = _native_fbx_bone_payloads(_two_bone_skeleton())
+
+        self.assertEqual(len(payloads), 2)
+        child = payloads[1]
+        # The bind matrix is global; the position it reports is local to the parent.
+        self.assertEqual(child["bind_matrix"][12:15], [0.0, 2.0, 0.0])
+        for value, expected in zip(child["position"], (0.0, 2.0, 0.0)):
+            self.assertAlmostEqual(value, expected, places=9)
+
+    def test_bone_payload_drops_scale_from_the_bind_basis(self) -> None:
+        """A rest-pose bone cannot hold scale, so it is removed predictably."""
+
+        from cdmw.modding.mesh_native_core import _native_fbx_bone_payloads
+
+        scaled = Skeleton(
+            path="character/scaled.pab",
+            bones=[Bone(index=0, name="Root", parent_index=-1, position=(0.0, 0.0, 0.0),
+                        bind_matrix=(3, 0, 0, 0, 0, 3, 0, 0, 0, 0, 3, 0, 1, 2, 3, 1))],
+            bone_count=1,
+        )
+        bind = _native_fbx_bone_payloads(scaled)[0]["bind_matrix"]
+
+        for row in range(3):
+            length = sum(bind[row * 4 + column] ** 2 for column in range(3)) ** 0.5
+            self.assertAlmostEqual(length, 1.0, places=9)
+        self.assertEqual(bind[12:15], [1.0, 2.0, 3.0])
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ void pack_weight_pairs_native(
         out_weights.clear();
         return;
     }
-    if (positive.size() > 4) {
+    if (positive.size() > MESH_MAX_SKIN_INFLUENCES) {
         std::vector<std::pair<int, double>> selected;
         for (const auto& item : positive) {
             if (item.first == preferred_bone) {
@@ -37,7 +37,7 @@ void pack_weight_pairs_native(
             return left.first < right.first;
         });
         for (const auto& item : others) {
-            if (selected.size() >= 4) {
+            if (selected.size() >= MESH_MAX_SKIN_INFLUENCES) {
                 break;
             }
             selected.push_back(item);
