@@ -170,6 +170,12 @@ internal sealed partial class ExperimentForm
     {
         var wanted = indices.ToHashSet();
         _syncingSubmeshListSelection = true;
+        // Each SetSelected repaints the list on its own, so Select All, Invert
+        // and Clear cost one repaint per part -- which on a mesh with any real
+        // number of them is seen as the Parts list flashing through the change
+        // rather than making it. The list is repopulated under the same pair in
+        // RefreshSubmeshList; a selection sweep is no different.
+        _submeshList.BeginUpdate();
         try
         {
             for (var index = 0; index < _submeshList.Items.Count; index++)
@@ -179,6 +185,7 @@ internal sealed partial class ExperimentForm
         }
         finally
         {
+            _submeshList.EndUpdate();
             _syncingSubmeshListSelection = false;
         }
         _viewport.SelectPartsFromList(_submeshList.SelectedIndices.Cast<int>());
