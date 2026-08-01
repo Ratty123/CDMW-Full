@@ -83,6 +83,11 @@ native/**/target/
 native/**/Cargo.lock
 native/**/build/
 
+# The Qt SDK the Qt Quick RHI plugin is compiled against. Fetched, not
+# committed: it is ~2 GB and it is reproducible from the version PySide6
+# already pins. See scripts/vendor_qt_sdk.py.
+third_party/qt/
+
 .DS_Store
 Thumbs.db
 tools/dotnet_mesh_editor_experiment/bin/
