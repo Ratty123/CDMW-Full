@@ -7,6 +7,17 @@ from typing import Dict, Mapping, Sequence, Tuple
 
 CRIMSON_SHADER_REGISTRY_SCHEMA_VERSION = 1
 
+# The surface scalars a preview states when the material itself declares none.
+#
+# Both routes into the resident renderer have to state them, and state the same
+# thing. Without an explicit scalar the shader falls back to its own constant
+# (0.45 roughness), while a route that states 0.5 lands rougher -- so the same
+# skin rendered glossier in the Mesh Editor than in the Archive Browser preview
+# it is meant to match. These live here so neither route can drift from the
+# other by editing a literal in its own file.
+PREVIEW_DEFAULT_ROUGHNESS = 0.5
+PREVIEW_DEFAULT_METALNESS = 0.0
+
 AUTHORITY_AUTHORITATIVE = "authoritative"
 AUTHORITY_SIDECAR = "sidecar"
 AUTHORITY_CAPTURE_INFERRED = "capture_inferred"

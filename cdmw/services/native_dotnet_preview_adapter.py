@@ -12,6 +12,10 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from cdmw.domain.cancellation import RunCancelled
+from cdmw.rendering.crimson_shader_registry import (
+    PREVIEW_DEFAULT_METALNESS,
+    PREVIEW_DEFAULT_ROUGHNESS,
+)
 from cdmw.services.atomic_file_service import atomic_write_text
 
 
@@ -290,8 +294,8 @@ def _material_parameters(batch: Mapping[str, object], channels: Mapping[str, str
         "base_tint_metallic": category.casefold() == "metal",
         "material_role": category,
     }
-    roughness = max(0.0, min(1.0, _safe_float(batch.get("roughness"), 0.5)))
-    metalness = max(0.0, min(1.0, _safe_float(batch.get("metalness"), 0.0)))
+    roughness = max(0.0, min(1.0, _safe_float(batch.get("roughness"), PREVIEW_DEFAULT_ROUGHNESS)))
+    metalness = max(0.0, min(1.0, _safe_float(batch.get("metalness"), PREVIEW_DEFAULT_METALNESS)))
     result["roughness_scale" if "roughness" in channels else "roughness"] = roughness
     result["metalness_scale" if "metallic" in channels else "metalness"] = metalness
     if "emissive" in channels or _safe_float(batch.get("emissive_intensity"), 0.0) > 0.0:

@@ -376,3 +376,53 @@ def test_parameter_dispatch_stays_queued_and_under_ui_budget(
         timings.append((time.perf_counter() - started) * 1000.0)
     tab.standalone_dotnet_material_parameter_timer.stop()
     assert sorted(timings)[94] < 50.0
+
+
+def test_both_preview_routes_state_the_same_surface_scalars() -> None:
+    """The Mesh Editor and the Archive Browser must ask for the same surface.
+
+    Neither route is obliged to have a roughness value in the asset, and when
+    neither states one the shader falls back to its own 0.45 constant. The
+    archive route always stated 0.5, so the same skin came out glossier in the
+    Mesh Editor than in the preview it is meant to match -- read as "wet". Both
+    now read the defaults from one place.
+    """
+    from cdmw.rendering.crimson_shader_registry import (
+        PREVIEW_DEFAULT_METALNESS,
+        PREVIEW_DEFAULT_ROUGHNESS,
+    )
+    from cdmw.services.mesh_dotnet_material_channels import (
+        _dotnet_initial_material_parameters,
+    )
+    from cdmw.services.native_dotnet_preview_adapter import _material_parameters
+
+    # A material that declares nothing: no overrides, no glTF factors, no maps.
+    class _BareSource:
+        preview_color = ()
+        preview_native_material_overrides: dict[str, object] = {}
+        preview_material_parameters: tuple[object, ...] = ()
+        preview_source_asset_path = ""
+
+    mesh_editor = _dotnet_initial_material_parameters(_BareSource(), {})
+    archive = _material_parameters({}, {})
+
+    assert mesh_editor["roughness"] == archive["roughness"] == PREVIEW_DEFAULT_ROUGHNESS
+    assert mesh_editor["metalness"] == archive["metalness"] == PREVIEW_DEFAULT_METALNESS
+
+
+def test_a_declared_surface_value_still_wins_over_the_shared_default() -> None:
+    """The default fills a gap; it never overrides what the asset declares."""
+    from cdmw.services.mesh_dotnet_material_channels import (
+        _dotnet_initial_material_parameters,
+    )
+
+    class _DeclaredSource:
+        preview_color = ()
+        preview_native_material_overrides = {"roughness": 0.82, "metalness": 0.4}
+        preview_material_parameters: tuple[object, ...] = ()
+        preview_source_asset_path = ""
+
+    parameters = _dotnet_initial_material_parameters(_DeclaredSource(), {})
+
+    assert parameters["roughness"] == pytest.approx(0.82)
+    assert parameters["metalness"] == pytest.approx(0.4)
