@@ -66,20 +66,25 @@ def _matches(name: str, hints: tuple[str, ...]) -> bool:
     return any(hint in lowered for hint in hints)
 
 
-def _snapshot_processes() -> dict[int, dict]:
+def _snapshot_processes(launched_pid: int | None = None) -> dict[int, dict]:
     if psutil is None:
         return {}
     found: dict[int, dict] = {}
     for proc in psutil.process_iter(["pid", "name", "memory_info", "cpu_percent"]):
         try:
             name = proc.info.get("name") or ""
-            if not (_matches(name, APP_HINTS) or _matches(name, HELPER_HINTS)):
+            # A source run is a plain python.exe, so it is recognised by pid
+            # rather than by name.
+            is_launched = launched_pid is not None and proc.info["pid"] == launched_pid
+            if not (is_launched or _matches(name, APP_HINTS) or _matches(name, HELPER_HINTS)):
                 continue
             memory = proc.info.get("memory_info")
             found[proc.info["pid"]] = {
                 "pid": proc.info["pid"],
                 "name": name,
-                "kind": "helper" if _matches(name, HELPER_HINTS) else "app",
+                "kind": "helper"
+                if (_matches(name, HELPER_HINTS) and not is_launched)
+                else "app",
                 "rss_mb": round(memory.rss / 1048576, 1) if memory else 0.0,
                 "private_mb": round(getattr(memory, "private", 0) / 1048576, 1)
                 if memory
@@ -131,24 +136,37 @@ def _scan_dir(root: Path, seen: set[str]) -> list[Path]:
     return fresh
 
 
-def monitor(dist: Path, launch: bool, idle_timeout: float) -> Session:
+def monitor(dist: Path, launch: str, idle_timeout: float) -> Session:
     session = Session(started_at=time.time(), dist=dist)
-    logs = dist / "workspace" / "logs"
+    # A source run writes into the repo's own workspace, not the packaged one.
+    workspace = (REPO_ROOT if launch == "source" else dist) / "workspace"
+    logs = workspace / "logs"
     diagnostics = logs / "diagnostics_current.jsonl"
-    packages = dist / "workspace" / "cache" / "preview" / "models" / "dotnet_vortice" / "packages"
+    packages = workspace / "cache" / "preview" / "models" / "dotnet_vortice" / "packages"
+    print(f"watching {workspace}")
 
     offset = diagnostics.stat().st_size if diagnostics.is_file() else 0
     seen_reports = {p.name for p in logs.glob("*.log")} if logs.is_dir() else set()
     seen_packages = {p.name for p in packages.iterdir()} if packages.is_dir() else set()
 
     process = None
-    if launch:
+    if launch == "packaged":
         candidates = sorted(dist.glob("*.exe"))
         if not candidates:
             raise SystemExit(f"No .exe found in {dist}")
         target = candidates[0]
         print(f"launching {target.name}")
         process = subprocess.Popen([str(target)], cwd=str(dist))
+    elif launch == "source":
+        entry = REPO_ROOT / "cdmw_app.py"
+        python = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
+        if not entry.is_file():
+            raise SystemExit(f"No entry script at {entry}")
+        print(f"launching {entry.name} from source ({python.name})")
+        process = subprocess.Popen(
+            [str(python if python.is_file() else sys.executable), "-u", str(entry)],
+            cwd=str(REPO_ROOT),
+        )
 
     print("monitoring; close the app when you are done (Ctrl+C also stops)")
     known: dict[int, dict] = {}
@@ -178,7 +196,7 @@ def monitor(dist: Path, launch: bool, idle_timeout: float) -> Session:
                 session.packages.append({"t": session.stamp(), "name": package.name})
                 print(f"  [{session.stamp():>7.2f}s] preview package built: {package.name[:16]}...")
 
-            current = _snapshot_processes()
+            current = _snapshot_processes(process.pid if process is not None else None)
             for pid, info in current.items():
                 if pid not in known:
                     known[pid] = info
@@ -201,10 +219,16 @@ def monitor(dist: Path, launch: bool, idle_timeout: float) -> Session:
             if saw_app and not any(i["kind"] == "app" for i in current.values()):
                 print("app exited")
                 break
-            if not saw_app and (now - last_seen_app) > idle_timeout:
-                print(f"no app seen within {idle_timeout:.0f}s; stopping")
+            # A source run is a plain python.exe, so it never shows up in the
+            # name-matched process scan; the launched process is the signal.
+            if process is not None and process.poll() is not None:
+                print("app exited")
                 break
-            if process is not None and process.poll() is not None and not current:
+            # The idle timeout only guards an attach, where nothing else says
+            # whether an app is ever going to turn up. When we launched it
+            # ourselves the process is the signal, above.
+            if process is None and not saw_app and (now - last_seen_app) > idle_timeout:
+                print(f"no app seen within {idle_timeout:.0f}s; stopping")
                 break
 
             time.sleep(SAMPLE_SECONDS)
@@ -333,7 +357,15 @@ def write_report(session: Session, out_root: Path) -> Path:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dist", default=str(DEFAULT_DIST))
-    parser.add_argument("--launch", action="store_true", help="Start the portable build too.")
+    parser.add_argument(
+        "--launch",
+        nargs="?",
+        const="packaged",
+        choices=["packaged", "source"],
+        default="",
+        help="Start the app too: 'packaged' runs dist\\*.exe, 'source' runs "
+        "cdmw_app.py from the repo, which picks up code changes with no rebuild.",
+    )
     parser.add_argument("--idle-timeout", type=float, default=180.0)
     parser.add_argument(
         "--out",
