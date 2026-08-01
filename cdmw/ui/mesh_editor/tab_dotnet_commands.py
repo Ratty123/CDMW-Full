@@ -711,9 +711,23 @@ class MeshEditorDotNetCommandMixin:
         self,
         request_payload: Mapping[str, object] | None = None,
     ) -> bool:
+        # Finish Edit Mesh has six ways to give up and, until now, only the
+        # success path said anything a session capture could see. A reader whose
+        # editor would not close left a trail that simply stopped, so every exit
+        # names itself here.
+        def _blocked(reason: str, **detail: object) -> None:
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_edit_mode_finish_blocked",
+                reason=reason,
+                process_generation=self.standalone_dotnet_process_generation,
+                **detail,
+            )
+
         if not self.standalone_dotnet_target_embedded:
+            _blocked("not_embedded")
             return False
         if self._reject_dotnet_mutation_while_busy("save_request", request_payload):
+            _blocked("mutation_busy")
             return True
         live_stroke_busy = bool(
             str(self.standalone_native_mesh_edit_stroke_id or "").strip()
@@ -729,6 +743,10 @@ class MeshEditorDotNetCommandMixin:
                 for key in ("active", "control_depth", "queue_depth")
             )
         if live_stroke_busy:
+            _blocked(
+                "live_stroke_busy",
+                stroke_id=str(self.standalone_native_mesh_edit_stroke_id or ""),
+            )
             self._send_dotnet_command_result(
                 "save_request",
                 ok=False,

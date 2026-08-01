@@ -37,6 +37,66 @@ _SHARED_CONTROLLER_LIFECYCLE_EVENTS = frozenset(
 )
 
 
+_PROTOCOL_TRAIL_MAX_BYTES = 24 * 1024 * 1024
+_PROTOCOL_TRAIL_STATE: dict[str, object] = {"path": None, "resolved": False, "bytes": 0}
+
+
+def _dotnet_protocol_trail_path() -> "object | None":
+    """Where to write the helper's protocol events, resolved once per process.
+
+    These events are the only record of what the resident editor is actually
+    doing -- package loads, presentation updates, scene frames, reveals -- and
+    they have only ever existed in a bounded in-memory list. A session where the
+    preview appeared to reload at random therefore left nothing behind to read,
+    because every host-side diagnostic said the pipeline had done its work once
+    and stopped.
+    """
+
+    if _PROTOCOL_TRAIL_STATE["resolved"]:
+        return _PROTOCOL_TRAIL_STATE["path"]
+    _PROTOCOL_TRAIL_STATE["resolved"] = True
+    try:
+        from pathlib import Path
+
+        from cdmw.ui.shell.app_window import crash_reports_dir
+
+        directory = Path(str(crash_reports_dir))
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / "dotnet_protocol_current.jsonl"
+        # Truncated per process so a capture is one session, not a pile of them.
+        path.write_text("", encoding="utf-8")
+        _PROTOCOL_TRAIL_STATE["path"] = path
+    except Exception:
+        _PROTOCOL_TRAIL_STATE["path"] = None
+    return _PROTOCOL_TRAIL_STATE["path"]
+
+
+def _write_dotnet_protocol_trail(payload: Mapping[str, object]) -> None:
+    """Append one protocol event. Never allowed to disturb the editor."""
+
+    path = _dotnet_protocol_trail_path()
+    if path is None:
+        return
+    written = int(_PROTOCOL_TRAIL_STATE.get("bytes", 0) or 0)
+    if written >= _PROTOCOL_TRAIL_MAX_BYTES:
+        return
+    try:
+        import time as _time
+
+        line = json.dumps(
+            {"t": round(_time.time(), 3), **{str(k): v for k, v in payload.items()}},
+            default=str,
+        )
+    except Exception:
+        return
+    try:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+        _PROTOCOL_TRAIL_STATE["bytes"] = written + len(line) + 1
+    except OSError:
+        _PROTOCOL_TRAIL_STATE["path"] = None
+
+
 def _dotnet_event_requires_correlation(event: str, payload: Mapping[str, object]) -> bool:
     # The shared resident controller owns request/generation correlation for
     # package lifecycle events before forwarding them to Mesh Editor consumers.
@@ -53,6 +113,7 @@ class MeshEditorDotNetProtocolMixin(
         self.standalone_dotnet_protocol_events.append(dict(payload))
         if len(self.standalone_dotnet_protocol_events) > DOTNET_PROTOCOL_EVENT_LIMIT:
             del self.standalone_dotnet_protocol_events[:-DOTNET_PROTOCOL_EVENT_LIMIT]
+        _write_dotnet_protocol_trail(payload)
 
     def _connect_dotnet_protocol(self, process: _tab.QProcess) -> None:
         self.standalone_dotnet_update_ack_timer.stop()
