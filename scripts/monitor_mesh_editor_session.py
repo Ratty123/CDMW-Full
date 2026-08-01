@@ -56,6 +56,7 @@ class Session:
     helper_stops: list[dict] = field(default_factory=list)
     packages: list[dict] = field(default_factory=list)
     reports: list[dict] = field(default_factory=list)
+    protocol: list[dict] = field(default_factory=list)
 
     def stamp(self, when: float | None = None) -> float:
         return round((when if when is not None else time.time()) - self.started_at, 3)
@@ -142,10 +143,12 @@ def monitor(dist: Path, launch: str, idle_timeout: float) -> Session:
     workspace = (REPO_ROOT if launch == "source" else dist) / "workspace"
     logs = workspace / "logs"
     diagnostics = logs / "diagnostics_current.jsonl"
+    protocol = logs / "dotnet_protocol_current.jsonl"
     packages = workspace / "cache" / "preview" / "models" / "dotnet_vortice" / "packages"
     print(f"watching {workspace}")
 
     offset = diagnostics.stat().st_size if diagnostics.is_file() else 0
+    protocol_offset = 0
     seen_reports = {p.name for p in logs.glob("*.log")} if logs.is_dir() else set()
     seen_packages = {p.name for p in packages.iterdir()} if packages.is_dir() else set()
 
@@ -184,6 +187,11 @@ def monitor(dist: Path, launch: str, idle_timeout: float) -> Session:
                 label = row.get("event", "?")
                 extra = row.get("operation") or ""
                 print(f"  [{row['_t']:>7.2f}s] {label} {extra}".rstrip())
+
+            protocol_rows, protocol_offset = _follow_jsonl(protocol, protocol_offset)
+            for row in protocol_rows:
+                row["_t"] = session.stamp()
+                session.protocol.append(row)
 
             for report in _scan_dir(logs, seen_reports):
                 if report.suffix == ".log":
@@ -312,6 +320,43 @@ def write_report(session: Session, out_root: Path) -> Path:
         lines.append(
             "- not recorded; this build predates the origin field. Rebuild the "
             "portable app to capture it."
+        )
+    lines.append("")
+
+    # What the resident editor itself was doing. This is the trail that shows a
+    # preview reloading, because a reload is package_load/activate/presentation
+    # traffic that never reaches the host's own diagnostics.
+    lines.append("## Resident editor protocol traffic")
+    lines.append("")
+    if session.protocol:
+        kinds = Counter(
+            str(row.get("event") or row.get("type") or "?") for row in session.protocol
+        )
+        lines.append(f"- {len(session.protocol)} events")
+        for kind, count in kinds.most_common(25):
+            lines.append(f"  - {count:>4}  {kind}")
+        reload_shaped = [
+            row
+            for row in session.protocol
+            if str(row.get("event") or "")
+            in {
+                "package_load_started",
+                "package_load_applied",
+                "activated",
+                "deactivated",
+                "embedded_window_revealed",
+                "ready",
+            }
+        ]
+        if reload_shaped:
+            lines.append("")
+            lines.append("- reload-shaped events, in order:")
+            for row in reload_shaped:
+                lines.append(f"    {row['_t']:>8.2f}s  {row.get('event')}")
+    else:
+        lines.append(
+            "- none captured; this build predates the protocol trail, or the "
+            "editor was never opened."
         )
     lines.append("")
 
