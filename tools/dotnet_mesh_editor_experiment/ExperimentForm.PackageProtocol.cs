@@ -300,13 +300,23 @@ internal sealed partial class ExperimentForm
     private void ReassertInteractionModeControls()
     {
         var meshEdit = string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase);
-        if (!meshEdit && meshEdit == _meshEditInteractionActive)
+        if (meshEdit == _meshEditInteractionActive)
         {
-            // Placement on both sides: nothing to re-assert, and the placement
-            // restore re-parents live sections inside a redraw batch. Running
-            // it per package swap gains nothing visible; running it per scene
-            // frame tears the window apart, because a gizmo drag publishes one
-            // authoritative frame per pointer sample.
+            // The two sides already agree, in either direction: this is not a
+            // transition and there is nothing to re-assert.
+            //
+            // The guard used to cover only placement-on-both-sides, so every
+            // accepted frame while mesh edit was active ran the whole
+            // interaction-mode pass -- section visibility over two lists, both
+            // splitter collapses, a layout on each split, the dock width, and
+            // the presentation view. A frame is published per pointer sample of
+            // a brush stroke and after every selection change, so that pass ran
+            // continuously while the reader worked. It is what made clicking a
+            // tool or a part flicker the panels, flash a different display mode
+            // on the way through, and occasionally drop the grid; a resize
+            // landing on one of those passes is what briefly revealed the
+            // placement flank behind the dock. The same reasoning the placement
+            // half already carried applies to this half.
             return;
         }
         ApplyInteractionModeControls();
