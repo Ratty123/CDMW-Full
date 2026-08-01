@@ -641,6 +641,25 @@ class DotNetPreviewSessionController(QObject):
         self._set_state("empty", "Select a model to open .NET/Vortice Preview.")
         return True
 
+    def reembed(self, parent_hwnd: int) -> bool:
+        """Move a running helper into a replacement host window.
+
+        The parent HWND is passed on the helper's command line at launch and was
+        never re-read, so when Qt destroyed and recreated the host widget's
+        native window -- which it does on a move to a screen at a different
+        scale -- the helper stayed a child of a window that was no longer the
+        one on screen. A relaunch would be the alternative, and it would drop
+        the resident scene and the edit session with it.
+        """
+
+        try:
+            hwnd = max(0, int(parent_hwnd or 0))
+        except (TypeError, ValueError):
+            return False
+        if self._closed or hwnd <= 0 or not self._can_send_protocol():
+            return False
+        return bool(self._send_json({"event": "reembed_request", "parent_hwnd": hwnd}))
+
     def set_visible(self, visible: bool) -> None:
         self._visible = bool(visible)
         if self._closed:

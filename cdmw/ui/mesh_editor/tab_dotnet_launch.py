@@ -468,6 +468,24 @@ class MeshEditorDotNetLaunchMixin:
             return None
 
     def _dotnet_initial_scene_modes(self, *, embedded: bool) -> tuple[str, str]:
+        """The modes to publish, falling back to the last authoritative pair.
+
+        Both modes are read out of live builder widgets. A read that fails has
+        learned nothing about what mode the reader is in, so it must not answer
+        with one: these values are published as an authoritative scene frame,
+        and a frame naming ``placement`` while the reader is inside Edit Mesh is
+        a real transition on the helper's side. It runs the full interaction-mode
+        pass, which returns the placement sections to the flanks, un-collapses
+        both splitters and reveals the placement panels -- and the next correct
+        frame puts the rail back. That is the placement side panel appearing
+        behind the tool dock, and the literal ``placement`` written here on any
+        transient read failure is what could manufacture it out of nothing.
+
+        The last published mode is the only honest answer to "I could not read
+        it": it says the mode has not changed, which is what an exception here
+        actually means.
+        """
+
         if not embedded:
             comparison = {"source": "original_only", "ghost": "overlay"}.get(
                 str(self.standalone_compare_mode or "edited"),
@@ -477,14 +495,32 @@ class MeshEditorDotNetLaunchMixin:
         builder = self.active_builder()
         comparison_getter = getattr(builder, "_mesh_editor_embedded_comparison_mode", None)
         interaction_getter = getattr(builder, "_mesh_editor_embedded_interaction_mode", None)
+        # getattr: this mixin is composed into hosts that do not run the tab's
+        # runtime initialiser, and the retained mode is a fallback path, so it
+        # must not be the thing that raises.
+        desired = getattr(self, "standalone_dotnet_scene_desired", None) or {}
         try:
-            comparison = str(comparison_getter() if callable(comparison_getter) else "side_by_side")
-        except Exception:
-            comparison = "side_by_side"
+            comparison = str(
+                comparison_getter() if callable(comparison_getter) else "side_by_side"
+            )
+        except Exception as exc:
+            comparison = str(desired.get("comparison_mode", "side_by_side"))
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_comparison_mode_read_failed",
+                error=str(exc),
+                retained_mode=comparison,
+            )
         try:
-            interaction = str(interaction_getter() if callable(interaction_getter) else "placement")
-        except Exception:
-            interaction = "placement"
+            interaction = str(
+                interaction_getter() if callable(interaction_getter) else "placement"
+            )
+        except Exception as exc:
+            interaction = str(desired.get("interaction_mode", "placement"))
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_interaction_mode_read_failed",
+                error=str(exc),
+                retained_mode=interaction,
+            )
         return comparison, interaction
 
     def _dotnet_current_placement_state(self, *, embedded: bool) -> Mapping[str, object] | None:

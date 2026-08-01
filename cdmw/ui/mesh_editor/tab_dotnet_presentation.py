@@ -73,6 +73,27 @@ class MeshEditorDotNetPresentationMixin:
         controller = self._dotnet_target_controller()
         if controller is None or not self.standalone_dotnet_presentation_desired:
             return False
+        # Presentation state is replayable desired state, not a command. A
+        # payload the helper is already holding makes it re-apply the display
+        # mode, the overlays and the role view it is already showing, and every
+        # accepted scene frame republishes this snapshot -- one per brush
+        # pointer sample and one after every selection change. That put a full
+        # presentation re-application behind every stroke sample and every part
+        # click: the preview flashing a different mode before it settled, the
+        # grid going out and coming back, and the whole right column repainting.
+        # Skipping an unchanged payload is what makes those interactions cost
+        # nothing rather than what hides the cost.
+        #
+        # The record is what the helper is *holding*, so the paths that reset
+        # the helper clear it rather than forcing a publish past it: a package
+        # apply empties the viewport's presentation contexts, and a new process
+        # starts with none.
+        # Read through getattr: this mixin is also composed into hosts that do
+        # not run the tab's runtime initialiser, and an attribute that only
+        # exists on some of them would fail at the callsite rather than here.
+        published = getattr(self, "standalone_dotnet_presentation_published_content", None)
+        if published is not None and published == self.standalone_dotnet_presentation_desired:
+            return True
         try:
             view = controller.session_view()
         except (AttributeError, RuntimeError, TypeError, ValueError):
@@ -93,6 +114,9 @@ class MeshEditorDotNetPresentationMixin:
         )
         if not self._send_dotnet_protocol_message(payload):
             return False
+        self.standalone_dotnet_presentation_published_content = deepcopy(
+            self.standalone_dotnet_presentation_desired
+        )
         self.standalone_dotnet_presentation_pending = {
             "session_id": str(view.session_id),
             "request_id": self.standalone_dotnet_presentation_request_id,

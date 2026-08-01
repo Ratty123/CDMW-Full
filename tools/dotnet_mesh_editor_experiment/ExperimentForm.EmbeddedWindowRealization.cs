@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Windows.Forms;
 
 namespace Cdmw.MeshEditorExperiment;
@@ -152,6 +153,79 @@ internal sealed partial class ExperimentForm
             ["client_width"] = ClientSize.Width,
             ["client_height"] = ClientSize.Height,
         });
+    }
+
+    /// <summary>
+    /// Moves this window into a replacement host window.
+    /// </summary>
+    /// <remarks>
+    /// The host names its window as a raw HWND once, on the command line, and
+    /// Qt destroys and recreates that native window when the application moves
+    /// to a screen at a different scale. The child this form created inside it
+    /// survives the recreation parented to a window that is no longer the one
+    /// on screen, which is the builder panel left behind after a drag to a
+    /// second monitor. Nothing in the protocol could correct it before, because
+    /// the parent HWND was only ever read at launch.
+    /// </remarks>
+    private void HandleReembedRequest(JsonElement root)
+    {
+        var requested = JsonLongValue(root, "parent_hwnd");
+        var previous = _options.ParentHwnd;
+        if (requested <= 0)
+        {
+            WriteProtocolEvent("reembed_ack", new Dictionary<string, object?>
+            {
+                ["status"] = "rejected",
+                ["reason"] = "missing_parent_hwnd",
+                ["parent_hwnd"] = requested,
+                ["previous_parent_hwnd"] = previous,
+            });
+            return;
+        }
+        var currentParent = IsHandleCreated ? NativeWindowHost.ParentOf(Handle) : 0L;
+        if (requested == previous && currentParent == requested)
+        {
+            // The host re-asserts on every handle change it sees, and most of
+            // them do not move this window.
+            WriteProtocolEvent("reembed_ack", new Dictionary<string, object?>
+            {
+                ["status"] = "unchanged",
+                ["parent_hwnd"] = requested,
+            });
+            return;
+        }
+        // Both, and before the embed. CreateParams reads the record if the
+        // handle has to be recreated, and the frame timer's host maintenance
+        // resizes this window against _embeddedParentHwnd every 8ms -- left on
+        // the destroyed window it would go on sizing the editor to a parent
+        // that no longer exists, which is the misplacement this is here to fix.
+        _options = _options with { ParentHwnd = requested };
+        _embeddedParentHwnd = requested;
+        var embedded = NativeWindowHost.Embed(
+            this,
+            new IntPtr(requested),
+            reveal: _embeddedWindowRevealed);
+        WriteProtocolEvent("reembed_ack", new Dictionary<string, object?>
+        {
+            ["status"] = embedded ? "applied" : "rejected",
+            ["reason"] = embedded ? string.Empty : "set_parent_failed",
+            ["parent_hwnd"] = requested,
+            ["previous_parent_hwnd"] = previous,
+            ["form_hwnd"] = IsHandleCreated ? Handle.ToInt64() : 0L,
+            ["form_parent_hwnd"] = IsHandleCreated ? NativeWindowHost.ParentOf(Handle) : 0L,
+            ["embedded_window_revealed"] = _embeddedWindowRevealed,
+        });
+        if (!embedded)
+        {
+            return;
+        }
+        // The measured widths are in device pixels, so they belong to the screen
+        // the old host window was on.
+        InvalidateToolColumnWidths();
+        if (IsToolRailActive)
+        {
+            ApplyToolRailSplitterLayout();
+        }
     }
 
     /// <summary>

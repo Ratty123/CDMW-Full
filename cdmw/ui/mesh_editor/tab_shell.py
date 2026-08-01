@@ -778,6 +778,10 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
             return False
         self._sync_shared_dotnet_process_identity(controller)
         self.standalone_dotnet_capabilities.update(getattr(controller, "capabilities", ()) or ())
+        # Applying a package empties the viewport's presentation contexts, so
+        # whatever the helper was holding is gone and the snapshot below has to
+        # go out even when nothing the reader can see has changed.
+        self.standalone_dotnet_presentation_published_content = None
         sent = self._send_dotnet_session_state()
         self._send_dotnet_scene_state()
         self._send_dotnet_presentation_state()

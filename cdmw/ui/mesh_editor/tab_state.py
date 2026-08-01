@@ -915,6 +915,13 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
         sent = self._send_dotnet_protocol_message(payload)
         if not sent:
             self.status_message_requested.emit("Could not update embedded .NET viewport display mode.", True)
+            return sent
+        # The display mode is part of the presentation snapshot, and this is the
+        # other channel that changes it. The record of what the helper is
+        # holding no longer describes it, so it must not be used to skip a later
+        # presentation publish as already-applied -- that would leave the helper
+        # on the mode this message set with no way to move it back.
+        self.standalone_dotnet_presentation_published_content = None
         return sent
     def _handle_embedded_skeleton_pose_request(self, command: str, payload: object) -> bool:
         normalized = str(command or "").strip().lower()
