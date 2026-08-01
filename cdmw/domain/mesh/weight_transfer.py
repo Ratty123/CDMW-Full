@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import math
 from typing import Iterable, Sequence
 
+from .skeleton import MAX_SKIN_INFLUENCES
+
 
 @dataclass(frozen=True, slots=True)
 class WeightTransferSample:
@@ -115,7 +117,7 @@ def _pack_pairs(pairs: Iterable[tuple[int, float]]) -> tuple[tuple[int, ...], tu
         ((int(index), float(weight)) for index, weight in pairs if int(index) >= 0 and float(weight) > 0.0),
         key=lambda item: item[1],
         reverse=True,
-    )[:4]
+    )[:MAX_SKIN_INFLUENCES]
     total = sum(weight for _index, weight in strongest)
     if total <= 0.0:
         return (), ()

@@ -663,8 +663,8 @@ bool blended_bone_assignment(
         }
         return left_item.first < right_item.first;
     });
-    if (strongest.size() > 4) {
-        strongest.resize(4);
+    if (strongest.size() > MESH_MAX_SKIN_INFLUENCES) {
+        strongest.resize(MESH_MAX_SKIN_INFLUENCES);
     }
     double total = 0.0;
     for (const auto& item : strongest) {
