@@ -737,6 +737,18 @@ def test_dotnet_provisional_picking_and_mutation_responses_are_authority_safe() 
     assert "ApplyInteractionModeControls();" not in protocol
     assert "ReassertInteractionModeControls();" in protocol
 
+    # The re-assert is a transition, not a per-frame refresh, and the guard has
+    # to say so in both directions. Covering only placement-on-both-sides meant
+    # every accepted frame during mesh edit ran the whole interaction-mode pass
+    # -- section visibility, both splitter collapses, a layout on each split and
+    # the presentation view -- which is what made clicking a tool or a part
+    # flicker the panels and flash a different display mode on the way through.
+    package_protocol = _source("ExperimentForm.PackageProtocol.cs")
+    reassert = package_protocol.split("private void ReassertInteractionModeControls()", 1)[1]
+    reassert = reassert.split("private void PublishResidentPackageLoadFailure", 1)[0]
+    assert "if (meshEdit == _meshEditInteractionActive)" in reassert
+    assert "if (!meshEdit && meshEdit == _meshEditInteractionActive)" not in reassert
+
 
 def test_dotnet_texture_decode_cache_singleflights_and_prunes_inactive_entries() -> None:
     texture_source = "\n".join(
