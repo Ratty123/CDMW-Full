@@ -234,6 +234,32 @@ class MeshEditorDotNetResourceProtocolMixin(
                     combo.blockSignals(False)
             except RuntimeError:
                 continue
+        self._remember_mesh_edit_display_mode(normalized)
+
+    def _remember_mesh_edit_display_mode(self, mode: object) -> None:
+        """Keep a mode chosen inside Edit Mesh, so the next snapshot republishes it.
+
+        The builder rebuilds its presentation snapshot after every accepted scene
+        frame. Without a remembered slot that snapshot answered with the Edit
+        Mesh default every time, so a mode picked here survived only until the
+        next frame landed -- which is why it looked like it stuck at random.
+        """
+        builder = self.active_builder()
+        if builder is None:
+            return
+        interaction = getattr(builder, "_mesh_editor_embedded_interaction_mode", None)
+        try:
+            if not callable(interaction) or str(interaction() or "") != "mesh_edit":
+                return
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return
+        remember = getattr(builder, "_mesh_editor_remember_mesh_edit_display_mode", None)
+        if not callable(remember):
+            return
+        try:
+            remember(mode)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return
 
     def _handle_embedded_texture_request_failed(self, message: str) -> None:
         self._finish_pending_textured_view(

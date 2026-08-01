@@ -1171,7 +1171,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 824,
+          "line": 809,
           "sink": "csharp:.Text="
         }
       ]
@@ -1311,7 +1311,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 968,
+          "line": 971,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -1871,7 +1871,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 965,
+          "line": 968,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -5383,6 +5383,11 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 1019,
           "sink": "QPushButton"
+        },
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 52,
+          "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
     },
@@ -5466,12 +5471,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 130,
+          "line": 129,
           "sink": "addItem"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 654,
+          "line": 639,
           "sink": "addItem"
         }
       ]
@@ -5653,21 +5658,6 @@
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
           "line": 249,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "All materials",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 132,
-          "sink": "addItem"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 661,
-          "sink": "addItem"
         }
       ]
     },
@@ -11221,7 +11211,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 787,
+          "line": 789,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -12166,7 +12156,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 787,
+          "line": 790,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -12401,7 +12391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 119,
+          "line": 118,
           "sink": "QLabel"
         }
       ]
@@ -14191,7 +14181,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 226,
+          "line": 230,
           "sink": "csharp:Text="
         }
       ]
@@ -14916,7 +14906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 153,
+          "line": 149,
           "sink": "QPushButton"
         }
       ]
@@ -15331,7 +15321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 499,
+          "line": 488,
           "sink": "setText"
         }
       ]
@@ -15341,7 +15331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 438,
+          "line": 427,
           "sink": "setText"
         }
       ]
@@ -15436,12 +15426,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 675,
+          "line": 658,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 625,
+          "line": 613,
           "sink": "setText"
         }
       ]
@@ -15496,7 +15486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 495,
+          "line": 488,
           "sink": "setToolTip"
         }
       ]
@@ -17706,7 +17696,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 134,
+          "line": 131,
           "sink": "QPushButton"
         },
         {
@@ -17716,7 +17706,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py",
-          "line": 553,
+          "line": 584,
           "sink": "QPushButton"
         },
         {
@@ -17743,11 +17733,6 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 755,
           "sink": "QPushButton"
-        },
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 44,
-          "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
     },
@@ -18486,7 +18471,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 154,
+          "line": 150,
           "sink": "QPushButton"
         },
         {
@@ -18986,7 +18971,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 150,
+          "line": 154,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -19391,7 +19376,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1120,
+          "line": 1141,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -19416,7 +19401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 495,
+          "line": 488,
           "sink": "setToolTip"
         },
         {
@@ -21001,7 +20986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 516,
+          "line": 542,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -21071,7 +21056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 486,
+          "line": 475,
           "sink": "_show_error"
         }
       ]
@@ -21671,7 +21656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 492,
+          "line": 518,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -21681,7 +21666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 459,
+          "line": 485,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -23711,7 +23696,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 166,
+          "line": 170,
           "sink": "csharp:csharp-return:ToolListRowDescription"
         }
       ]
@@ -24201,7 +24186,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 260,
+          "line": 255,
           "sink": "_add_detail_section"
         },
         {
@@ -24611,7 +24596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 629,
+          "line": 655,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -24926,7 +24911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 495,
+          "line": 488,
           "sink": "setToolTip"
         }
       ]
@@ -25551,7 +25536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py",
-          "line": 537,
+          "line": 568,
           "sink": "QCheckBox"
         }
       ]
@@ -27011,7 +26996,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 224,
+          "line": 225,
           "sink": "csharp:newLabel{"
         }
       ]
@@ -27976,7 +27961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 634,
+          "line": 622,
           "sink": "setText"
         }
       ]
@@ -28201,7 +28186,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 254,
+          "line": 249,
           "sink": "_section_label"
         }
       ]
@@ -28211,7 +28196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 495,
+          "line": 488,
           "sink": "setToolTip"
         },
         {
@@ -31316,7 +31301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py",
-          "line": 547,
+          "line": 578,
           "sink": "QLabel"
         },
         {
@@ -31481,7 +31466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py",
-          "line": 556,
+          "line": 587,
           "sink": "QPushButton"
         },
         {
@@ -32988,6 +32973,11 @@
           "path": "cdmw/ui/texture_workflow/compare_preview.py",
           "line": 42,
           "sink": "setText"
+        },
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
+          "line": 791,
+          "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
     },
@@ -33361,7 +33351,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1091,
+          "line": 1112,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -33371,7 +33361,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1091,
+          "line": 1112,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -34066,7 +34056,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 786,
+          "line": 789,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -35011,7 +35001,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 145,
+          "line": 149,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -35221,7 +35211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py",
-          "line": 554,
+          "line": 585,
           "sink": "QPushButton"
         },
         {
@@ -36362,12 +36352,27 @@
       ]
     },
     {
+      "key": "Hidden",
+      "origins": [
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 132,
+          "sink": "csharp:csharp-return:DescribeSubmeshRouting"
+        }
+      ]
+    },
+    {
       "key": "Hide",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_placement_part_01.py",
           "line": 194,
           "sink": "QPushButton"
+        },
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 56,
+          "sink": "csharp:csharp-wrapper:CommandButton[0]"
         }
       ]
     },
@@ -36996,7 +37001,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 632,
+          "line": 625,
           "sink": "setText"
         },
         {
@@ -37156,7 +37161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 706,
+          "line": 688,
           "sink": "setToolTip"
         },
         {
@@ -37201,12 +37206,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 679,
+          "line": 662,
           "sink": "_add_link_group"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 264,
+          "line": 258,
           "sink": "_add_detail_section"
         }
       ]
@@ -37216,7 +37221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 495,
+          "line": 488,
           "sink": "setToolTip"
         }
       ]
@@ -39386,7 +39391,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 147,
+          "line": 151,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -39761,7 +39766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 675,
+          "line": 658,
           "sink": "setText"
         }
       ]
@@ -39771,7 +39776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 495,
+          "line": 488,
           "sink": "setToolTip"
         },
         {
@@ -39841,7 +39846,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 45,
+          "line": 54,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         },
         {
@@ -40036,17 +40041,17 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 756,
+          "line": 738,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 767,
+          "line": 749,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 806,
+          "line": 788,
           "sink": "information"
         },
         {
@@ -40071,7 +40076,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 112,
+          "line": 111,
           "sink": "setWindowTitle"
         },
         {
@@ -40111,7 +40116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 815,
+          "line": 797,
           "sink": "_apply_archive_direct_scope"
         }
       ]
@@ -40121,7 +40126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 815,
+          "line": 797,
           "sink": "_apply_archive_direct_scope"
         }
       ]
@@ -40131,7 +40136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 815,
+          "line": 797,
           "sink": "_apply_archive_direct_scope"
         }
       ]
@@ -40171,7 +40176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 815,
+          "line": 797,
           "sink": "_apply_archive_direct_scope"
         }
       ]
@@ -40476,7 +40481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 617,
+          "line": 605,
           "sink": "setText"
         }
       ]
@@ -41881,12 +41886,12 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 586,
+          "line": 592,
           "sink": "csharp:AccessibleName="
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 786,
+          "line": 790,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -41906,7 +41911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py",
-          "line": 687,
+          "line": 718,
           "sink": "CollapsibleSection"
         }
       ]
@@ -42961,7 +42966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 602,
+          "line": 595,
           "sink": "setText"
         },
         {
@@ -42976,7 +42981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 573,
+          "line": 566,
           "sink": "setText"
         },
         {
@@ -43121,12 +43126,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 145,
+          "line": 141,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 418,
+          "line": 407,
           "sink": "setText"
         }
       ]
@@ -43296,7 +43301,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 229,
+          "line": 234,
           "sink": "csharp:.Text="
         },
         {
@@ -43581,7 +43586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 261,
+          "line": 256,
           "sink": "_add_detail_section"
         }
       ]
@@ -44317,6 +44322,16 @@
       ]
     },
     {
+      "key": "Mat  {value_0}",
+      "origins": [
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 136,
+          "sink": "csharp:csharp-return:DescribeSubmeshRouting"
+        }
+      ]
+    },
+    {
       "key": "Match",
       "origins": [
         {
@@ -44688,16 +44703,6 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 630,
           "sink": "_part_tree"
-        }
-      ]
-    },
-    {
-      "key": "Material  {value_0}",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 112,
-          "sink": "csharp:csharp-return:DescribeSubmeshRouting"
         }
       ]
     },
@@ -45137,16 +45142,6 @@
       ]
     },
     {
-      "key": "Material evidence: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 675,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "Material family: {value_0}",
       "origins": [
         {
@@ -45452,31 +45447,6 @@
       "manual": true
     },
     {
-      "key": "Material tags",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 680,
-          "sink": "_add_link_group"
-        }
-      ]
-    },
-    {
-      "key": "Material tags: {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 495,
-          "sink": "setToolTip"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 675,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "Material texture validation cancelled.",
       "origins": [
         {
@@ -45554,11 +45524,6 @@
     {
       "key": "Materials",
       "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 262,
-          "sink": "_add_detail_section"
-        },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 302,
@@ -45766,7 +45731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 811,
+          "line": 812,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -45836,7 +45801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 292,
+          "line": 318,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46191,7 +46156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 273,
+          "line": 299,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46286,7 +46251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 368,
+          "line": 394,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46316,12 +46281,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 877,
+          "line": 878,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 891,
+          "line": 892,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46331,7 +46296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 827,
+          "line": 828,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46446,12 +46411,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 877,
+          "line": 878,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 891,
+          "line": 892,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46591,7 +46556,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 225,
+          "line": 226,
           "sink": "csharp:Text="
         }
       ]
@@ -46601,7 +46566,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 233,
+          "line": 234,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -47221,7 +47186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 243,
+          "line": 269,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -47766,7 +47731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_viewport_display_modes.py",
-          "line": 40,
+          "line": 45,
           "sink": "RuntimeError"
         }
       ]
@@ -48296,7 +48261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py",
-          "line": 536,
+          "line": 567,
           "sink": "QCheckBox"
         }
       ]
@@ -49266,7 +49231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 678,
+          "line": 661,
           "sink": "_add_link_group"
         }
       ]
@@ -49291,7 +49256,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 677,
+          "line": 660,
           "sink": "_add_link_group"
         }
       ]
@@ -49301,7 +49266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 263,
+          "line": 257,
           "sink": "_add_detail_section"
         }
       ]
@@ -49311,7 +49276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 495,
+          "line": 488,
           "sink": "setToolTip"
         }
       ]
@@ -49536,7 +49501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 624,
+          "line": 617,
           "sink": "setText"
         }
       ]
@@ -49556,7 +49521,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 151,
+          "line": 155,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -49651,7 +49616,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 144,
+          "line": 148,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         },
         {
@@ -49761,7 +49726,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 973,
+          "line": 976,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -49771,7 +49736,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 972,
+          "line": 975,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -50241,7 +50206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 675,
+          "line": 658,
           "sink": "setText"
         }
       ]
@@ -50956,7 +50921,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 150,
+          "line": 146,
           "sink": "QPushButton"
         },
         {
@@ -51606,7 +51571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 539,
+          "line": 528,
           "sink": "setText"
         }
       ]
@@ -51881,7 +51846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 683,
+          "line": 665,
           "sink": "setText"
         }
       ]
@@ -52011,7 +51976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 634,
+          "line": 622,
           "sink": "setText"
         }
       ]
@@ -52461,7 +52426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 806,
+          "line": 788,
           "sink": "information"
         }
       ]
@@ -53261,7 +53226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 767,
+          "line": 749,
           "sink": "information"
         }
       ]
@@ -53271,7 +53236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 720,
+          "line": 702,
           "sink": "setToolTip"
         }
       ]
@@ -54161,43 +54126,43 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 309,
+          "line": 303,
           "sink": "_detail_label"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 607,
+          "line": 595,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 635,
+          "line": 623,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 636,
+          "line": 624,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 637,
+          "line": 626,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 639,
-          "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 640,
+          "line": 627,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
           "line": 329,
           "sink": "_add_combo_choice"
+        },
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 53,
+          "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
     },
@@ -57441,7 +57406,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 789,
+          "line": 792,
           "sink": "csharp:csharp-wrapper:ToolButton[0]"
         }
       ]
@@ -58101,7 +58066,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1091,
+          "line": 1112,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -59471,7 +59436,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 39,
+          "line": 45,
           "sink": "csharp:csharp-wrapper:AddSection[1]"
         }
       ]
@@ -60591,7 +60556,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 165,
+          "line": 169,
           "sink": "csharp:csharp-return:ToolListRowDescription"
         }
       ]
@@ -60906,7 +60871,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 148,
+          "line": 152,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -61226,7 +61191,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 850,
+          "line": 853,
           "sink": "csharp:.Text="
         }
       ]
@@ -61236,7 +61201,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 918,
+          "line": 921,
           "sink": "csharp:.Text="
         }
       ]
@@ -64151,12 +64116,12 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 988,
+          "line": 1009,
           "sink": "csharp:.Text="
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1012,
+          "line": 1033,
           "sink": "csharp:.Text="
         }
       ]
@@ -64866,7 +64831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 149,
+          "line": 145,
           "sink": "QPushButton"
         },
         {
@@ -65791,7 +65756,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py",
-          "line": 543,
+          "line": 574,
           "sink": "QLabel"
         },
         {
@@ -68021,12 +67986,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 243,
+          "line": 238,
           "sink": "_detail_label"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 594,
+          "line": 583,
           "sink": "setText"
         }
       ]
@@ -68036,7 +68001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 716,
+          "line": 698,
           "sink": "setToolTip"
         }
       ]
@@ -68046,7 +68011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 624,
+          "line": 612,
           "sink": "setText"
         }
       ]
@@ -68061,7 +68026,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 634,
+          "line": 627,
           "sink": "setText"
         }
       ]
@@ -70376,7 +70341,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 316,
+          "line": 321,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         },
         {
@@ -70551,7 +70516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py",
-          "line": 557,
+          "line": 588,
           "sink": "QPushButton"
         }
       ]
@@ -70771,7 +70736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 783,
+          "line": 784,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -70881,7 +70846,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 587,
+          "line": 593,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -70891,7 +70856,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 588,
+          "line": 594,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -71116,7 +71081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 715,
+          "line": 693,
           "sink": "setText"
         }
       ]
@@ -71646,7 +71611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 151,
+          "line": 147,
           "sink": "QPushButton"
         },
         {
@@ -72176,7 +72141,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 786,
+          "line": 790,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -73083,16 +73048,6 @@
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
           "line": 344,
           "sink": "on_log"
-        }
-      ]
-    },
-    {
-      "key": "SCENE",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 307,
-          "sink": "csharp:csharp-wrapper:CreateDockHeader[1]"
         }
       ]
     },
@@ -74452,6 +74407,16 @@
       ]
     },
     {
+      "key": "Scene update rejected: {value_0}.",
+      "origins": [
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs",
+          "line": 1212,
+          "sink": "csharp:.Text="
+        }
+      ]
+    },
+    {
       "key": "Scheduling column sizing",
       "origins": [
         {
@@ -74506,7 +74471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 736,
+          "line": 714,
           "sink": "setText"
         }
       ]
@@ -74556,7 +74521,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 133,
+          "line": 130,
           "sink": "QPushButton"
         },
         {
@@ -74727,17 +74692,17 @@
       ]
     },
     {
-      "key": "Search item name, ID, model stem, category, material tag, or icon path",
+      "key": "Search item name, ID, model stem, category, or icon path",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 128,
+          "line": 127,
           "sink": "setPlaceholderText"
         }
       ]
     },
     {
-      "key": "Search item name, internal ID, model stem, category, material tag, texture, or icon path",
+      "key": "Search item name, internal ID, model stem, category, texture, or icon path",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
@@ -74931,7 +74896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 418,
+          "line": 407,
           "sink": "setText"
         }
       ]
@@ -75031,7 +74996,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 143,
+          "line": 147,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -75073,11 +75038,6 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 964,
           "sink": "QPushButton"
-        },
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 43,
-          "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
@@ -76986,7 +76946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 756,
+          "line": 738,
           "sink": "information"
         }
       ]
@@ -77071,17 +77031,17 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 633,
+          "line": 626,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 242,
+          "line": 237,
           "sink": "_detail_label"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 593,
+          "line": 582,
           "sink": "setText"
         }
       ]
@@ -77101,12 +77061,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 255,
+          "line": 250,
           "sink": "_detail_label"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 597,
+          "line": 586,
           "sink": "setText"
         }
       ]
@@ -77181,7 +77141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 700,
+          "line": 678,
           "sink": "information"
         }
       ]
@@ -77931,7 +77891,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 35,
+          "line": 41,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -78046,7 +78006,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 77,
+          "line": 86,
           "sink": "csharp:csharp-return:PartDetailText"
         }
       ]
@@ -79302,16 +79262,6 @@
       ]
     },
     {
-      "key": "Show / Hide",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 47,
-          "sink": "csharp:csharp-wrapper:CommandButton[0]"
-        }
-      ]
-    },
-    {
       "key": "Show 3D",
       "origins": [
         {
@@ -79381,7 +79331,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 269,
+          "line": 263,
           "sink": "QPushButton"
         }
       ]
@@ -79506,7 +79456,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 271,
+          "line": 265,
           "sink": "QPushButton"
         }
       ]
@@ -79666,7 +79616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 272,
+          "line": 266,
           "sink": "setToolTip"
         }
       ]
@@ -79736,7 +79686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 270,
+          "line": 264,
           "sink": "setToolTip"
         }
       ]
@@ -80161,7 +80111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 541,
+          "line": 530,
           "sink": "setText"
         }
       ]
@@ -80256,7 +80206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py",
-          "line": 555,
+          "line": 586,
           "sink": "QPushButton"
         },
         {
@@ -81316,7 +81266,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 146,
+          "line": 150,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         }
       ]
@@ -81326,7 +81276,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 163,
+          "line": 167,
           "sink": "csharp:csharp-return:ToolListRowDescription"
         }
       ]
@@ -83636,7 +83586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 259,
+          "line": 254,
           "sink": "_add_detail_section"
         }
       ]
@@ -84146,7 +84096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py",
-          "line": 545,
+          "line": 576,
           "sink": "QLabel"
         },
         {
@@ -84411,7 +84361,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 164,
+          "line": 168,
           "sink": "csharp:csharp-return:ToolListRowDescription"
         }
       ]
@@ -84936,7 +84886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 495,
+          "line": 488,
           "sink": "setToolTip"
         },
         {
@@ -85872,6 +85822,16 @@
       ]
     },
     {
+      "key": "Tex  {value_0}",
+      "origins": [
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 142,
+          "sink": "csharp:csharp-return:DescribeSubmeshRouting"
+        }
+      ]
+    },
+    {
       "key": "Text",
       "origins": [
         {
@@ -86043,16 +86003,6 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 500,
           "sink": "setHeaderLabels"
-        }
-      ]
-    },
-    {
-      "key": "Texture  {value_0}",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 116,
-          "sink": "csharp:csharp-return:DescribeSubmeshRouting"
         }
       ]
     },
@@ -87346,7 +87296,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 217,
+          "line": 222,
           "sink": "csharp:.Text="
         }
       ]
@@ -87436,7 +87386,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 427,
+          "line": 409,
           "sink": "csharp:.Text="
         }
       ]
@@ -87596,7 +87546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 404,
+          "line": 394,
           "sink": "_show_error"
         }
       ]
@@ -88191,7 +88141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 730,
+          "line": 708,
           "sink": "setText"
         }
       ]
@@ -88446,7 +88396,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.EditMeshLayouts.cs",
-          "line": 823,
+          "line": 808,
           "sink": "csharp:.Text="
         }
       ]
@@ -88831,7 +88781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 684,
+          "line": 666,
           "sink": "setText"
         }
       ]
@@ -89441,7 +89391,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 780,
+          "line": 786,
           "sink": "csharp:.Text="
         }
       ]
@@ -89476,7 +89426,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 787,
+          "line": 789,
           "sink": "csharp:csharp-wrapper:CameraButton[0]"
         }
       ]
@@ -89501,7 +89451,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 149,
+          "line": 153,
           "sink": "csharp:csharp-return:ToolListRowCaption"
         },
         {
@@ -89751,7 +89701,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 161,
+          "line": 165,
           "sink": "csharp:csharp-return:ToolListRowDescription"
         }
       ]
@@ -90081,7 +90031,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1091,
+          "line": 1112,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -93076,7 +93026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 495,
+          "line": 488,
           "sink": "setToolTip"
         }
       ]
@@ -93207,11 +93157,11 @@
       ]
     },
     {
-      "key": "Vertex size (px)",
+      "key": "Vertex px",
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 323,
+          "line": 330,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -93221,7 +93171,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 311,
+          "line": 316,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -93241,7 +93191,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 160,
+          "line": 164,
           "sink": "csharp:csharp-return:ToolListRowDescription"
         }
       ]
@@ -93276,12 +93226,12 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 293,
+          "line": 298,
           "sink": "csharp:csharp-wrapper:OverlayColorButton[0]"
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 390,
+          "line": 397,
           "sink": "csharp:csharp-wrapper:ApplyOverlayColorButtonStyle[1]"
         }
       ]
@@ -93401,7 +93351,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1118,
+          "line": 1139,
           "sink": "csharp:.Text="
         }
       ]
@@ -95446,22 +95396,22 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 292,
+          "line": 297,
           "sink": "csharp:csharp-wrapper:OverlayColorButton[0]"
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 386,
+          "line": 393,
           "sink": "csharp:csharp-wrapper:ApplyOverlayColorButtonStyle[1]"
         }
       ]
     },
     {
-      "key": "Wire width (px)",
+      "key": "Wire px",
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 322,
+          "line": 329,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -95471,7 +95421,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 309,
+          "line": 314,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -101801,7 +101751,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 783,
+          "line": 784,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -102901,12 +102851,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 463,
+          "line": 462,
           "sink": "setData"
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 742,
+          "line": 724,
           "sink": "setData"
         },
         {
@@ -103806,7 +103756,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 778,
+          "line": 784,
           "sink": "csharp:.Text="
         }
       ]
@@ -104596,7 +104546,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 778,
+          "line": 784,
           "sink": "csharp:.Text="
         }
       ]
@@ -109421,7 +109371,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 778,
+          "line": 784,
           "sink": "csharp:.Text="
         }
       ]
@@ -112301,7 +112251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 799,
+          "line": 800,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -187126,7 +187076,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 778,
+          "line": 784,
           "sink": "csharp:.Text="
         }
       ]
@@ -190511,7 +190461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 519,
+          "line": 508,
           "sink": "QListWidgetItem"
         }
       ]
@@ -190531,7 +190481,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 901,
+          "line": 907,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -190547,32 +190497,12 @@
       ]
     },
     {
-      "key": "{value_0}   (hidden)",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 131,
-          "sink": "csharp:csharp-return:DescribePartRow"
-        }
-      ]
-    },
-    {
       "key": "{value_0}   ({value_1})",
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
           "line": 422,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "{value_0}   {value_1} v",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 130,
-          "sink": "csharp:csharp-return:DescribePartRow"
         }
       ]
     },
@@ -190741,7 +190671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 618,
+          "line": 606,
           "sink": "setText"
         }
       ]
@@ -190751,7 +190681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 523,
+          "line": 512,
           "sink": "setToolTip"
         }
       ]
@@ -190881,7 +190811,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 616,
+          "line": 609,
           "sink": "setText"
         },
         {
@@ -190928,11 +190858,6 @@
           "path": "cdmw/ui/archive_browser/reference_preview.py",
           "line": 295,
           "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 663,
-          "sink": "addItem"
         },
         {
           "path": "cdmw/ui/research/models.py",
@@ -191166,7 +191091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 464,
+          "line": 463,
           "sink": "setData"
         },
         {
@@ -191176,7 +191101,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 619,
+          "line": 607,
           "sink": "setText"
         },
         {
@@ -191256,7 +191181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 655,
+          "line": 646,
           "sink": "setText"
         }
       ]
@@ -191266,7 +191191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 656,
+          "line": 641,
           "sink": "addItem"
         }
       ]
@@ -191451,7 +191376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 620,
+          "line": 608,
           "sink": "setText"
         }
       ]
@@ -191461,7 +191386,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 404,
+          "line": 411,
           "sink": "csharp:.Text="
         }
       ]
@@ -191581,7 +191506,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 779,
+          "line": 785,
           "sink": "csharp:.Text="
         }
       ]
@@ -191911,7 +191836,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 187,
+          "line": 191,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -192581,7 +192506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 625,
+          "line": 618,
           "sink": "setText"
         }
       ]
@@ -193081,7 +193006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/asset_catalog_dialog.py",
-          "line": 507,
+          "line": 500,
           "sink": "setText"
         }
       ]
@@ -193201,7 +193126,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
-          "line": 177,
+          "line": 181,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -193267,22 +193192,22 @@
       ]
     },
     {
+      "key": "{value_0} v · {value_1} tri",
+      "origins": [
+        {
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
+          "line": 101,
+          "sink": "csharp:csharp-return:PartDetailText"
+        }
+      ]
+    },
+    {
       "key": "{value_0} vertices",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
           "line": 251,
           "sink": "_chip"
-        }
-      ]
-    },
-    {
-      "key": "{value_0} vertices, {value_1} triangles",
-      "origins": [
-        {
-          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PartsSection.cs",
-          "line": 92,
-          "sink": "csharp:csharp-return:PartDetailText"
         }
       ]
     },
@@ -194041,7 +193966,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 465,
+          "line": 454,
           "sink": "setText"
         },
         {
@@ -194701,7 +194626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
-          "line": 465,
+          "line": 454,
           "sink": "setText"
         },
         {

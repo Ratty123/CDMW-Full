@@ -266,6 +266,7 @@ def _setup_options_transform_step_016(_state):
     _state.alignment_d3d11_preview_host.mesh_edit_stroke_finished.connect(lambda payload: _state._mesh_edit_finish_stroke(payload))
     _state.alignment_d3d11_preview_host.mesh_edit_stroke_cancelled.connect(lambda payload: _state._mesh_edit_cancel_stroke(payload))
     _state.alignment_d3d11_preview_host.mesh_edit_selection_changed.connect(lambda payload: _state._mesh_edit_selection_changed(payload))
+    _state.alignment_d3d11_preview_host.mesh_edit_tool_changed.connect(lambda payload: _state._mesh_editor_dotnet_tool_changed(payload))
     _state.alignment_d3d11_preview_host.alignment_drag_started.connect(_state._prepare_alignment_d3d11_preview_drag)
     _state.alignment_d3d11_preview_host.alignment_drag_changed.connect(_state._apply_alignment_d3d11_translation_total)
     _state.alignment_d3d11_preview_host.alignment_drag_finished.connect(_state._finish_alignment_d3d11_translation)

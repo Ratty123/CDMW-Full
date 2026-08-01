@@ -2873,7 +2873,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_state.mesh_edit_enabled_checkbox.setChecked(False)", finalize_body)
         self.assertIn("_callbacks._mesh_editor_sync_static_replacement_session_to_working_mesh", finalize_body)
         self.assertIn("_state._mesh_edit_apply_preview_mode_transition", post_exit_body)
-        self.assertIn("_callbacks._mesh_editor_queue_post_edit_textured_preview_rebuild", finalize_body)
+        # The repaint runs from the exit's tail helper, which reports a failing
+        # step instead of raising it into the caller. A raise there used to be
+        # read as "finish failed" and re-armed mesh edit after the builder had
+        # already left it, which is what made Finish Edit Mesh do nothing.
+        tail_body = _function_source(source, "_mesh_editor_report_exit_tail")
+        self.assertIn("_mesh_editor_report_exit_tail(", finalize_body)
+        self.assertIn("_mesh_editor_queue_post_edit_textured_preview_rebuild", tail_body)
+        self.assertIn("_record_mesh_edit_event", tail_body)
         self.assertIn("if not edit_enabled:", toggle_body)
         self.assertIn('_callbacks._mesh_editor_finalize_edit_mode_exit("mesh_edit_toggle", mesh_changed=True)', toggle_body)
         self.assertNotIn("_queue_texture_preview_refresh()", post_exit_body)

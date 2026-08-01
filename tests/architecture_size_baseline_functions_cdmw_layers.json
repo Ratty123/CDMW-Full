@@ -40,7 +40,7 @@
     "cdmw/rendering/model_preview_prepare.py::prepare_model_preview": 167,
     "cdmw/rendering/native_preview_core.py::run_native_preview_core_preview_job": 159,
     "cdmw/rendering/native_preview_material_contract.py::_resolved_batch_material_category": 205,
-    "cdmw/rendering/native_preview_package_writer.py::write_isolated_d3d11_preview_package": 714,
+    "cdmw/rendering/native_preview_package_writer.py::write_isolated_d3d11_preview_package": 720,
     "cdmw/rendering/native_preview_texture_sources.py::_filter_dds_textures_for_preview_settings": 152,
     "cdmw/rendering/native_preview_texture_sources.py::_texture_sources_for_batch": 725,
     "cdmw/rendering/native_preview_texture_sources.py::_texture_sources_for_batch.assign_kind": 269,

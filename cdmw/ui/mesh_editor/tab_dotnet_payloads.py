@@ -388,6 +388,39 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
         depth_mode = str(payload.get("selection_depth_mode", "visible") or "visible").strip().lower()
         screen_payload["selection_depth_mode"] = "xray" if depth_mode == "xray" else "visible"
         return screen_payload
+    def _commit_embedded_edit_result(
+        self,
+        result: _tab.MeshEditResult,
+        *,
+        command_name: str = "",
+        request_payload: object = None,
+    ) -> bool:
+        """Let the builder record an edit the embedded editor raised itself.
+
+        Applying the native update only repaints the preview. Without this the
+        builder's own mesh, totals, part rows and revision keep describing the
+        mesh as it was before the edit, and a duplicated part never becomes a
+        routable source.
+        """
+        builder = self.active_builder()
+        commit = getattr(builder, "_mesh_editor_commit_dotnet_edit_result", None) if builder is not None else None
+        if not callable(commit):
+            return False
+        selection = None
+        if isinstance(request_payload, Mapping):
+            try:
+                selection = self._dotnet_local_selection_payload_to_selection(request_payload)
+            except (AttributeError, TypeError, ValueError):
+                selection = None
+        action = str(command_name or getattr(result, "action", "") or "")
+        try:
+            return bool(
+                commit(result, action_key=action, action_text=action or "edit", selection=selection)
+            )
+        except Exception as exc:
+            self._record_runtime_event("mesh_editor_embedded_commit_failed", error=str(exc))
+            return False
+
     def _apply_dotnet_result_update(
         self,
         controller: _tab.MeshEditorController,
@@ -410,6 +443,11 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             return False
         if self.standalone_dotnet_target_embedded:
             self._apply_embedded_native_update(update)
+            self._commit_embedded_edit_result(
+                result,
+                command_name=command_name,
+                request_payload=request_payload,
+            )
             self._refresh_embedded_workspace_from_builder()
         elif (
             update.vertex_groups

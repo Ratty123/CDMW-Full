@@ -363,6 +363,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
             None,
         )
         _mesh_edit_selection_changed = alignment_mesh_geometry_preview_section._mesh_edit_selection_changed
+        _mesh_editor_dotnet_tool_changed = alignment_mesh_geometry_preview_section._mesh_editor_dotnet_tool_changed
         _mesh_edit_update_live_preview = alignment_mesh_geometry_preview_section._mesh_edit_update_live_preview
         _morph_slider_refresh_controls = alignment_mesh_geometry_preview_section._morph_slider_refresh_controls
         _morph_slider_reload_profiles = alignment_mesh_geometry_preview_section._morph_slider_reload_profiles

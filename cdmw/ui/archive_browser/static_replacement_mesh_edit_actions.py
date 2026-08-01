@@ -11,6 +11,20 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_material_bridge import (
 )
 
 
+# The editor names every armable tool; this side names six combo entries and
+# folds Move and Grab onto one of them, telling them apart by action key. Both
+# halves have to agree or the tool the reader picked in the editor is not the
+# tool this side publishes back to it.
+_DOTNET_TOOL_TO_DIALOG_TOOL: dict[str, tuple[str, str]] = {
+    "select": ("vertex", ""),
+    "move": ("grab", "transform_move"),
+    "grab": ("grab", "brush_grab"),
+    "smooth": ("smooth", "brush_smooth"),
+    "inflate": ("inflate", "brush_inflate"),
+    "pinch": ("pinch", "brush_pinch"),
+}
+
+
 def create_actions_callbacks(state: SimpleNamespace, callbacks: SimpleNamespace) -> SimpleNamespace:
     result = SimpleNamespace()
     for function in _CALLBACKS:
@@ -60,6 +74,38 @@ def _select_mesh_edit_tool(_state, _callbacks, tool: str, *, active_action_key: 
     _callbacks._refresh_mesh_edit_controls()
     _callbacks._sync_mesh_edit_preview_settings()
     return True
+
+def _mesh_edit_protocol_tool(_state, _callbacks, tool: str) -> str:
+    """The name the embedded editor knows this tool by.
+
+    This side folds Move and Grab onto one combo entry and tells them apart by
+    the active action key; the editor has a separate tool for each. Publishing
+    the combo value alone would answer a reader who picked Move with Grab.
+    """
+    normalized = str(tool or "").strip().lower()
+    if normalized != "grab":
+        return normalized
+    active_key = str(_state.mesh_editor_action_bar_active_tool_key.get("value") or "")
+    return "move" if active_key == "transform_move" else "grab"
+
+def _mesh_editor_dotnet_tool_changed(_state, _callbacks, payload: object) -> bool:
+    """Adopt the tool a reader armed on the embedded editor's tool rail.
+
+    The rail is the only tool picker visible in Edit Mesh -- this side's combo is
+    hidden -- so without this the next control refresh republishes the stale
+    combo value and takes their tool away again. The echo that refresh sends is
+    harmless: the editor ignores a tool it already has.
+    """
+    if not isinstance(payload, _state.Mapping):
+        return False
+    tool = str(payload.get("tool", "") or "").strip().lower()
+    mapped = _DOTNET_TOOL_TO_DIALOG_TOOL.get(tool)
+    if mapped is None:
+        # orbit, or a tool this side has no entry for. Leave the combo alone
+        # rather than guessing; the camera is not one of its options.
+        return False
+    dialog_tool, active_action_key = mapped
+    return bool(_callbacks._select_mesh_edit_tool(dialog_tool, active_action_key=active_action_key))
 
 def _mesh_editor_action_selection(_state, _callbacks, ) -> tuple[dict[int, set[int]], dict[int, set[int]]]:
     if _state._mesh_edit_state.replacement_mesh_for_mapping is None:
@@ -259,6 +305,7 @@ def _mesh_editor_commit_action_bar_service_result(_state, _callbacks,
         action_key: str,
         action_text: str,
         topology_action: bool,
+        native_update_already_applied: bool = False,
     ) -> bool:
     if not _callbacks._mesh_editor_action_result_changed(result):
         _callbacks._mesh_edit_pop_undo_snapshot()
@@ -283,9 +330,14 @@ def _mesh_editor_commit_action_bar_service_result(_state, _callbacks,
             _state._mesh_edit_topology_changed_status_helper(action_key) or _state._morph_slider_topology_changed_reason_text_helper()
         )
         _callbacks._mesh_edit_clear_topology_selection()
-    native_update_applied = _callbacks._mesh_editor_send_embedded_dotnet_update(
-        getattr(result, "native_update", None)
-    )
+    # A command the editor itself raised has already had its preview payload
+    # pushed on the way back through the protocol; sending it again would only
+    # repaint what is already on screen.
+    native_update_applied = bool(native_update_already_applied)
+    if not native_update_applied:
+        native_update_applied = _callbacks._mesh_editor_send_embedded_dotnet_update(
+            getattr(result, "native_update", None)
+        )
     if not native_update_applied:
         native_update_applied = _callbacks._mesh_editor_apply_result_native_update(result)
     _callbacks._mesh_edit_update_mesh_totals()
@@ -316,6 +368,59 @@ def _mesh_editor_commit_action_bar_service_result(_state, _callbacks,
         _callbacks._mesh_edit_replace_live_triangles_or_queue_rebuild(getattr(result, "affected_submesh_indices", ()))
     _state.self.set_status_message(f"Mesh Editor action applied: {action_text}.")
     return True
+
+def _mesh_editor_commit_dotnet_edit_result(_state, _callbacks,
+        edit_result: object,
+        *,
+        action_key: str = "",
+        action_text: str = "",
+        selection: object = None,
+    ) -> bool:
+    """Run the commit sequence for an edit the embedded editor raised itself.
+
+    A command or stroke that starts on the .NET side reaches the mesh service
+    directly, so the session's working mesh changes but nothing on this side
+    hears about it: the mesh totals, the part rows, the revision and the undo
+    stack all keep describing the mesh as it was, and a duplicated part never
+    becomes a routable source. This is the same sequence the action bar runs.
+
+    Idempotent per service revision, because more than one transport can carry
+    the same completed edit back here.
+    """
+    session = _callbacks._mesh_editor_fresh_static_replacement_session()
+    if not isinstance(session, _state.StaticReplacementMeshEditSession):
+        return False
+    revision = -1
+    try:
+        revision = int(getattr(edit_result, "revision", -1) or -1)
+    except (TypeError, ValueError):
+        revision = -1
+    committed = _state.mesh_editor_static_replacement_session_state.get("dotnet_committed_revision")
+    if revision >= 0 and committed == revision:
+        return True
+    before = tuple(session.submesh_counts or ())
+    edit_selection = selection if isinstance(selection, _state.MeshEditSelection) else _state.MeshEditSelection()
+    try:
+        result = session._result(edit_result, before=before, selection=edit_selection)
+    except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        _callbacks._record_mesh_edit_event(
+            "mesh_edit_dotnet_commit_failed",
+            action=str(action_key or ""),
+            message=str(exc),
+        )
+        return False
+    _state.mesh_editor_static_replacement_session_state["dotnet_committed_revision"] = revision
+    normalized_key = str(action_key or getattr(edit_result, "action", "") or "").strip().lower()
+    _callbacks._mesh_edit_record_snapshot()
+    return bool(
+        _callbacks._mesh_editor_commit_action_bar_service_result(
+            result,
+            action_key=normalized_key,
+            action_text=str(action_text or normalized_key or "edit"),
+            topology_action=normalized_key in {"delete", "duplicate", "subdivide", "refine_smooth", "split", "separate"},
+            native_update_already_applied=True,
+        )
+    )
 
 def _mesh_editor_embedded_controller(_state, _callbacks, ):
     session = _callbacks._mesh_editor_ensure_static_replacement_session()
@@ -417,6 +522,8 @@ _CALLBACKS = (
     _mesh_editor_active_tool_action_key,
     _set_mesh_edit_enabled,
     _select_mesh_edit_tool,
+    _mesh_edit_protocol_tool,
+    _mesh_editor_dotnet_tool_changed,
     _mesh_editor_action_selection,
     _mesh_editor_action_source_indices,
     _mesh_editor_edge_selection,
@@ -426,6 +533,7 @@ _CALLBACKS = (
     _mesh_editor_sync_new_source_part,
     _mesh_editor_send_embedded_dotnet_update,
     _mesh_editor_commit_action_bar_service_result,
+    _mesh_editor_commit_dotnet_edit_result,
     _mesh_editor_embedded_controller,
     _mesh_editor_embedded_placement_state,
     _mesh_editor_embedded_apply_native_update,

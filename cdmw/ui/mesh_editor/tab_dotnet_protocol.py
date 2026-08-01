@@ -233,6 +233,18 @@ class MeshEditorDotNetProtocolMixin(
             return self._handle_dotnet_stroke_event(payload, event.removeprefix("stroke_"))
         if event in {"command_request", "command_requested"}:
             return self._handle_dotnet_command_request(payload)
+        if event == "tool_changed":
+            # The editor's tool rail is the only tool picker visible in Edit
+            # Mesh. Unless the builder adopts what it armed, the next control
+            # refresh republishes the builder's own tool and undoes the choice.
+            adopt = getattr(self.active_builder(), "_mesh_editor_dotnet_tool_changed", None)
+            if not callable(adopt):
+                return False
+            try:
+                return bool(adopt(dict(payload)))
+            except Exception as exc:
+                self._record_runtime_event("mesh_editor_dotnet_tool_changed_failed", error=str(exc))
+                return False
         if event == "viewport_display_request":
             return self._handle_embedded_viewport_display_mode(
                 str(payload.get("mode", "") or "")

@@ -27,6 +27,7 @@ internal sealed partial class ExperimentForm
     private Button? _partEmissiveButton;
     private NumericUpDown? _partEmissiveStrength;
     private Button? _partColourResetButton;
+    private Button? _partColourSplitButton;
     private Label? _partColourStatus;
     private System.Windows.Forms.Timer? _partColourAuthorityTimer;
     private Dictionary<string, object?>? _pendingPartColourEdit;
@@ -50,11 +51,29 @@ internal sealed partial class ExperimentForm
         _partColourResetButton.Name = "DotNetMeshEditorPartColourResetButton";
         _partColourResetButton.Click += (_, _) => QueuePartColourEdit(
             new Dictionary<string, object?> { ["reset"] = true });
+        // Colour is stored per part, so narrowing an edit to a sub-region means
+        // making that region a part. That is a topology change, so it is a
+        // button the reader presses rather than something a slider drag does.
+        _partColourSplitButton = StyledButton("Split Selection Into Part");
+        _partColourSplitButton.Name = "DotNetMeshEditorPartColourSplitButton";
+        _partColourSplitButton.Visible = false;
+        // One literal, not a concatenation: the manifest generator keys adjacent
+        // string literals separately, and half a sentence is not translatable.
+        SetHelpText(
+            _partColourSplitButton,
+            "Move the selected faces into a part of their own, so colour applies to just them.");
+        // "separate", not "split": split is a no-op in the service, and separate
+        // is what moves the selected faces into a submesh of their own. It only
+        // does that while no whole part is selected -- a part-level selection in
+        // the same request makes it move the entire part -- which is exactly the
+        // condition this button appears under.
+        _partColourSplitButton.Click += (_, _) => WriteCommandRequest("separate");
+        RegisterTopologyMutationButton(_partColourSplitButton);
         _partColourStatus = new Label
         {
             Name = "DotNetMeshEditorPartColourStatus",
             AutoSize = true,
-            MaximumSize = new Size(ScaleToolPanelWidth(ToolPropertyWidth - 40), 0),
+            MaximumSize = new Size(ScaleToolPanelWidth(EditMeshToolColumnMetrics.WrappedStatusWidth), 0),
             ForeColor = ThemeMutedText,
             BackColor = ThemeSectionBackground,
             Text = string.Empty,
@@ -74,6 +93,7 @@ internal sealed partial class ExperimentForm
             _partEmissiveCheck!,
             ButtonRow(_partEmissiveButton!, _partEmissiveStrength!),
             ButtonRow(_partColourResetButton),
+            ButtonRow(_partColourSplitButton),
             _partColourStatus);
         section.Name = "CompactColourSection";
         _colourSection = section;

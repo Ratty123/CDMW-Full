@@ -493,3 +493,88 @@ def test_finish_edit_restores_builder_controls_and_resident_placement_presentati
     assert visibility == [True]
     assert presentations == [placement_presentation]
     assert queued == ["dotnet_finish_edit"]
+
+
+def test_exit_survives_a_failing_repaint_and_stays_out_of_mesh_edit() -> None:
+    """A repaint failure must not take the mode transition back.
+
+    The exit unticks the checkbox and syncs the session before it repaints. When
+    a tail step raised, the exception escaped into the caller, which reported the
+    finish as failed and re-armed ``mesh_edit`` on a helper whose builder had
+    already left it. Finish Edit Mesh then did nothing, identically, forever.
+    """
+
+    class _Checkbox:
+        def __init__(self) -> None:
+            self.checked = True
+
+        def isChecked(self) -> bool:
+            return self.checked
+
+        def setChecked(self, value: bool) -> None:
+            self.checked = bool(value)
+
+        def blockSignals(self, _blocked: bool) -> bool:
+            return False
+
+    events: list[tuple[str, dict[str, object]]] = []
+    checkbox = _Checkbox()
+
+    def _boom_presentation() -> dict[str, object]:
+        raise RuntimeError("resident presentation refresh exploded")
+
+    state = SimpleNamespace(
+        dialog=SimpleNamespace(
+            _mesh_editor_embedded_dotnet_active=True,
+            _mesh_editor_embedded_presentation_state=_boom_presentation,
+        ),
+        mesh_edit_enabled_checkbox=checkbox,
+        controls_panel=SimpleNamespace(setVisible=lambda _value: None),
+        mesh_edit_preview_model_dirty={"value": False},
+    )
+
+    def _boom_rebuild(_reason: str) -> None:
+        raise RuntimeError("preview model rebuild exploded")
+
+    def _boom_controls() -> None:
+        raise RuntimeError("controls refresh exploded")
+
+    callbacks = SimpleNamespace(
+        _mesh_editor_sync_static_replacement_session_to_working_mesh=lambda _reason: True,
+        _mesh_editor_queue_post_edit_textured_preview_rebuild=_boom_rebuild,
+        _refresh_mesh_edit_controls=_boom_controls,
+        _record_mesh_edit_event=lambda name, **fields: events.append((name, dict(fields))),
+    )
+
+    # Every tail step fails, and the exit still reports success.
+    assert _mesh_editor_finalize_edit_mode_exit(state, callbacks, "dotnet_finish_edit") is True
+    # The mode really left mesh edit rather than being rolled back.
+    assert checkbox.isChecked() is False
+    # And each failure was reported rather than swallowed or raised.
+    reported = {name for name, _fields in events}
+    assert reported == {
+        "mesh_edit_exit_presentation_refresh_failed",
+        "mesh_edit_exit_preview_rebuild_failed",
+        "mesh_edit_exit_controls_refresh_failed",
+    }
+    assert state.mesh_edit_preview_model_dirty["value"] is True
+
+
+def test_finish_edit_mesh_never_rearms_mesh_edit_after_a_failed_finalize() -> None:
+    """The failure path must not put the helper back into a mode the builder left."""
+    commands = (
+        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_commands.py"
+    ).read_text(encoding="utf-8")
+    tree = ast.parse(commands)
+    node = next(
+        candidate
+        for candidate in ast.walk(tree)
+        if isinstance(candidate, ast.FunctionDef)
+        and candidate.name == "_finish_embedded_dotnet_edit_mode"
+    )
+    body = ast.get_source_segment(commands, node) or ""
+
+    assert "_finalize_embedded_dotnet_import" in body
+    # Placement is published once, on the way out.
+    assert body.count('interaction_mode="placement"') == 1
+    assert 'interaction_mode="mesh_edit"' not in body

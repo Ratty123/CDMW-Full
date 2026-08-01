@@ -1247,8 +1247,7 @@ def test_generated_manifest_and_catalog_validation_are_current() -> None:
         "Bottom",
         "Orbit",
         "Morph & Refit",
-        "SCENE",
-        "SELECTION",
+        "COMMANDS",  # replaced the "SCENE"/"SELECTION" dock headers, now gone.
         "DDS",
         "X",
         "Archive Mod Sources",

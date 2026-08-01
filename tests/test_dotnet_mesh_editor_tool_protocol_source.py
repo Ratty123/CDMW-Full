@@ -148,6 +148,17 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert 'WriteProtocolEvent("material_state_failed"' in material_protocol_source
     failed_source = material_protocol_source.split('WriteProtocolEvent("material_state_failed"', maxsplit=1)[1]
     assert failed_source.index("_activateAfterMaterialSync") < failed_source.index("ActivateResidentViewport")
+    # Activation reveals whatever scene is resident, and a prewarm launch is
+    # holding a placeholder nobody asked to see. The check has to come before the
+    # reveal, and covers all three callers by living in the one method they share.
+    activate_source = material_protocol_source.split(
+        "private bool ActivateResidentViewport()", maxsplit=1
+    )[1].split("private void HandleMaterialStateUpdate", maxsplit=1)[0]
+    assert activate_source.index(
+        "ResidentActivationContract.ShouldDeferActivation"
+    ) < activate_source.index("EnsureEmbeddedWindowRevealed")
+    assert '"activation_declined"' in activate_source
+    assert "Interlocked.Read(ref _residentPackageLoadCount)" in activate_source
     assert '"resident_material_updates_v2"' in all_source
     assert "material_reload_required" not in all_source
     for counter in (
@@ -216,9 +227,19 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     # instead of dropping back to orbit, which read as the tool switching itself
     # off. Orbit stays one click away on its own button.
     assert "private void ToggleTool" not in controls_source
-    assert 'button.Click += (_, _) => ActivateTool(tool, text);' in controls_source
+    # A tool the reader picked here is announced to the host, which keeps its own
+    # copy of "the tool" and republishes it on every control refresh.
+    assert 'button.Click += (_, _) => ActivateTool(tool, text, announce: true);' in controls_source
+    assert 'WriteProtocolEvent("tool_changed"' in controls_source
     assert 'ToolButton("Orbit", "orbit")' in program_source
+    # The host asserting a tool the viewport already has is not a no-op -- it
+    # runs the rail page sync and closes whichever page is open -- so the
+    # re-assert is guarded rather than unconditional.
     assert "ActivateTool(tool, tool[..1].ToUpperInvariant() + tool[1..]);" in host_state_source
+    assert (
+        'if (!string.Equals(tool, _viewport.ActiveTool, StringComparison.OrdinalIgnoreCase))'
+        in host_state_source
+    )
 
 
 def test_dotnet_mesh_edit_history_and_selection_navigation_are_visible_and_shortcut_driven() -> None:
@@ -814,7 +835,10 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     assert '"DotNetMeshEditorRightToolScroll"' in program_source
     assert 'SetWindowTheme(control.Handle, "DarkMode_Explorer", null)' in program_source
     assert "ApplyDarkScrollbars(_submeshList);" in program_source
-    assert 'CommandButton("Show / Hide", "toggle_visibility")' in program_source
+    # The Parts group builds through its own owner, which also carries the
+    # selected-part detail; the whole-part commands stay exactly as they were.
+    parts_source = _source("ExperimentForm.PartsSection.cs")
+    assert 'CommandButton("Hide", "toggle_visibility")' in parts_source
     assert 'CommandButton("Duplicate", "duplicate")' in program_source
     assert 'CommandButton("Delete", "delete")' in program_source
     assert '"Finish Edit Mesh"' in program_source

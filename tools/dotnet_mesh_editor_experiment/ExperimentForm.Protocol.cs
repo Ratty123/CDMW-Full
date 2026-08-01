@@ -1204,6 +1204,13 @@ internal sealed partial class ExperimentForm
             _viewport.ApplySceneState();
             RefreshSubmeshList();
         }
+        else if (!string.IsNullOrEmpty(rejectionReason))
+        {
+            // A rejected mode change is the reader's click going nowhere. The
+            // acknowledgement below tells the host, which is no help to someone
+            // watching the viewport wondering why Finish Edit Mesh did nothing.
+            _statusLabel.Text = $"Scene update rejected: {rejectionReason}.";
+        }
         var payload = new Dictionary<string, object?>
         {
             ["status"] = applied ? "applied" : "rejected",

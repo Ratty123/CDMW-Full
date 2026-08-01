@@ -6,7 +6,7 @@
     "cdmw/ui/model_library/panels.py::build_controls_panel": 240,
     "cdmw/ui/model_library/panels.py::build_results_panel": 164,
     "cdmw/ui/model_library/preview.py::ModelLibraryInlinePreviewMixin._load_inline_model_preview": 160,
-    "cdmw/ui/model_preview_settings_dialog.py::ModelPreviewSettingsDialog.__init__": 649,
+    "cdmw/ui/model_preview_settings_dialog.py::ModelPreviewSettingsDialog.__init__": 664,
     "cdmw/ui/model_preview_settings_visibility.py::sync_renderer_specific_controls": 170,
     "cdmw/ui/replace_assistant_tab.py::ReplaceAssistantTab.__init__": 531,
     "cdmw/ui/research/tab.py::ResearchTab.__init__": 214,

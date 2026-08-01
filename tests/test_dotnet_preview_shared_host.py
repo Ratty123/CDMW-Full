@@ -1303,3 +1303,37 @@ def test_a_pending_real_package_never_activates_the_prewarm_placeholder(tmp_path
     controller.shutdown()
     owner.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_serving_prewarm_placeholder_reports_what_the_helper_is_holding(tmp_path: Path) -> None:
+    """Callers outside the controller need to know a resident scene is real.
+
+    The Mesh Editor tab reuses a running helper by activating it in place, which
+    reveals whatever it holds. It cannot tell a warm process apart from a loaded
+    one by looking at its own cached package, so the controller answers instead.
+    `_launch_is_prewarm` is not that answer: it is cleared as soon as the
+    renderer reports ready, which can happen before any package is applied.
+    """
+
+    owner = QObject()
+    controller = DotNetPreviewSessionController(host_hwnd=lambda: 0, parent=owner)
+
+    assert not controller.serving_prewarm_placeholder
+
+    controller._prewarm_package = _package(tmp_path, "warm")
+    controller._launch_is_prewarm = True
+    assert controller.serving_prewarm_placeholder
+
+    # Ready arrives before any package load and clears the launch flag; the
+    # helper is still holding nothing but the placeholder.
+    controller._launch_is_prewarm = False
+    assert controller.serving_prewarm_placeholder
+
+    # A real package applied into that same warm process is a resident scene.
+    real_package = _package(tmp_path, "real")
+    controller._applied_package_path = str(real_package.package_dir)
+    assert not controller.serving_prewarm_placeholder
+
+    controller.shutdown()
+    owner.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)

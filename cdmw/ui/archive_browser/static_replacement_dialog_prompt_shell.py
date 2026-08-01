@@ -154,6 +154,9 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
     def _mesh_edit_selection_changed(_payload: object) -> None:
         return None
 
+    def _mesh_editor_dotnet_tool_changed(_payload: object) -> bool:
+        return False
+
     alignment_texture_lookup_cache: Dict[str, object] = {
         "path": prompt_preflight.texture_entries_by_normalized_path,
         "basename": prompt_preflight.texture_entries_by_basename,
@@ -352,6 +355,7 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
         _mesh_edit_finish_stroke=_mesh_edit_finish_stroke,
         _mesh_edit_cancel_stroke=_mesh_edit_cancel_stroke,
         _mesh_edit_selection_changed=_mesh_edit_selection_changed,
+        _mesh_editor_dotnet_tool_changed=_mesh_editor_dotnet_tool_changed,
         alignment_texture_lookup_cache=alignment_texture_lookup_cache,
         _alignment_texture_lookup_indexes=_alignment_texture_lookup_indexes,
     )

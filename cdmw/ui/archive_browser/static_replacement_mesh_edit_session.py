@@ -337,6 +337,23 @@ def _mesh_editor_finalize_edit_mode_exit(_state, _callbacks, reason: str, mesh_c
             _state.mesh_edit_enabled_checkbox.blockSignals(was_blocked)
     if getattr(_state, "controls_panel", None) is not None:
         _state.controls_panel.setVisible(True)
+    # The mode has now left mesh edit: the checkbox is off and the session holds
+    # the working mesh. Everything below repaints what that change produced, and
+    # none of it may take the exit back. A repaint that throws used to escape
+    # into the caller, which reported the finish as failed and re-armed mesh edit
+    # on a helper whose checkbox was already off -- so the button did nothing,
+    # every time, with the two sides disagreeing about the mode.
+    _mesh_editor_report_exit_tail(
+        _state,
+        _callbacks,
+        str(reason or "mesh_edit.finalize"),
+        mesh_changed=bool(mesh_changed),
+    )
+    return True
+
+
+def _mesh_editor_report_exit_tail(_state, _callbacks, reason: str, *, mesh_changed: bool) -> None:
+    """Repaint after a mesh-edit exit, reporting failures instead of raising."""
     presentation_getter = getattr(
         _state.dialog,
         "_mesh_editor_embedded_presentation_state",
@@ -345,15 +362,29 @@ def _mesh_editor_finalize_edit_mode_exit(_state, _callbacks, reason: str, mesh_c
     if callable(presentation_getter):
         try:
             presentation_state = presentation_getter()
-        except (AttributeError, RuntimeError, TypeError, ValueError):
-            presentation_state = None
-        if isinstance(presentation_state, Mapping):
-            send_resident_presentation_state(_state.dialog, presentation_state)
-    if bool(mesh_changed):
+            if isinstance(presentation_state, Mapping):
+                send_resident_presentation_state(_state.dialog, presentation_state)
+        except Exception as exc:
+            _callbacks._record_mesh_edit_event(
+                "mesh_edit_exit_presentation_refresh_failed",
+                reason=reason,
+                message=str(exc),
+            )
+    if mesh_changed:
         _state.mesh_edit_preview_model_dirty["value"] = True
-    _callbacks._mesh_editor_queue_post_edit_textured_preview_rebuild(str(reason or "mesh_edit.finalize"))
-    _callbacks._refresh_mesh_edit_controls()
-    return True
+    for step, label in (
+        (_callbacks._mesh_editor_queue_post_edit_textured_preview_rebuild, "preview_rebuild"),
+        (_callbacks._refresh_mesh_edit_controls, "controls_refresh"),
+    ):
+        try:
+            step(reason) if label == "preview_rebuild" else step()
+        except Exception as exc:
+            _state.mesh_edit_preview_model_dirty["value"] = True
+            _callbacks._record_mesh_edit_event(
+                f"mesh_edit_exit_{label}_failed",
+                reason=reason,
+                message=str(exc),
+            )
 
 def _mesh_editor_embedded_finalize_dotnet_import(_state, _callbacks, reason: str) -> bool:
     return _callbacks._mesh_editor_finalize_edit_mode_exit(str(reason or "dotnet_import"), mesh_changed=True)

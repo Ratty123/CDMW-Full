@@ -68,6 +68,7 @@ $TestsByArea = @{
         "tests/test_mesh_dotnet_material_package.py",
         "tests/test_mesh_dotnet_material_dds_synthesis.py",
         "tests/test_mesh_dotnet_material_parameters.py",
+        "tests/test_mesh_dotnet_resident_material_ui.py",
         "tests/test_mesh_visual_audit_harness.py",
         "tests/test_mesh_visual_audit_integrity.py",
         "tests/test_mesh_visual_audit_package.py",

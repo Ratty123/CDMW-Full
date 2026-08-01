@@ -61,7 +61,7 @@ def _sync_mesh_edit_preview_settings(_state, _callbacks, ) -> None:
             scope_mode=_state._mesh_edit_scope_mode(),
             source_submesh_indices=allowed_indices,
             target_mode=target_mode,
-            tool=tool,
+            tool=_callbacks._mesh_edit_protocol_tool(tool),
             delete_mode=delete_mode,
             radius_pixels=float(_state.mesh_edit_radius_spin.value()),
             strength=float(_state.mesh_edit_strength_spin.value()) / 100.0,

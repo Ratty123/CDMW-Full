@@ -5,7 +5,7 @@ Updated: 2026-07-23
 Status: IMPLEMENTED - SYNTHETIC FULL/LITE GATES PASS; REAL-CORPUS, VISIBLE, AND RELEASE GATES DEFERRED
 
 Repositories: this full-workbench repository and the independent sibling
-`D:\Byggverkstaden\CDMW Lite` repository.
+CDMW Lite repository, checked out beside this one at `D:\CLAUDETEST\CDMW Lite`.
 
 Relocation note (2026-07-21): Archive Lite, its tests, and its complete build
 dependency closure moved to the independent repository. The Lite repository
@@ -13,6 +13,12 @@ owns committed snapshots of the semantic library, schema, native helpers, and
 .NET/Vortice renderer and rejects references back to this checkout. The two
 products no longer share a worktree or source reference; future parity changes
 must update both versioned contracts deliberately.
+
+Checkout-path note (2026-08-01): both repositories now live under
+`D:\CLAUDETEST\`. Dated evidence further down records the checkout paths that
+were current when each run happened, including a `D:\Byggverkstaden\` root that
+is being archived. Those recorded paths are left as captured and are not where
+either repository lives now.
 
 ## Implementation outcome
 
@@ -709,7 +715,8 @@ transition, rapid changes, session invalidation, and dialog close.
 .\scripts\codex_check.ps1 -Area archive
 ```
 
-Run the independent Lite product gate from `D:\Byggverkstaden\CDMW Lite`:
+Run the independent Lite product gate from the sibling Lite checkout
+(`D:\CLAUDETEST\CDMW Lite`):
 
 ```powershell
 .\scripts\test_archive_lite.ps1 -Configuration Debug

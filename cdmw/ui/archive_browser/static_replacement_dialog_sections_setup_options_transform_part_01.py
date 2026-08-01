@@ -82,6 +82,7 @@ def _setup_options_transform_step_001(_state):
     _state._mesh_edit_cancel_stroke = _state.context.get('_mesh_edit_cancel_stroke')
     _state._mesh_edit_finish_stroke = _state.context.get('_mesh_edit_finish_stroke')
     _state._mesh_edit_selection_changed = _state.context.get('_mesh_edit_selection_changed')
+    _state._mesh_editor_dotnet_tool_changed = _state.context.get('_mesh_editor_dotnet_tool_changed')
     _state._pick_selected_source_glow_color = _state.context.get('_pick_selected_source_glow_color')
     _state._populate_combo_options_helper = _state.context.get('_populate_combo_options_helper')
     _state._queue_texture_preview_refresh = _state.context.get('_queue_texture_preview_refresh')

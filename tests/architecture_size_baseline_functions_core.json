@@ -26,7 +26,7 @@
     "cdmw/core/archive_scan_cache.py::load_or_update_archive_scan_shards": 340,
     "cdmw/core/archive_sidecar_cache.py::load_archive_texture_sidecar_cache_rows": 224,
     "cdmw/core/archive_structured_preview.py::build_par_structured_preview": 537,
-    "cdmw/core/archive_structured_preview.py::build_structured_asset_preview": 224,
+    "cdmw/core/archive_structured_preview.py::build_structured_asset_preview": 225,
     "cdmw/core/chainner.py::run_chainner_stage": 182,
     "cdmw/core/external_model_audit.py::_audit_external_model_file": 152,
     "cdmw/core/external_model_audit.py::_external_catalogue_summary": 216,

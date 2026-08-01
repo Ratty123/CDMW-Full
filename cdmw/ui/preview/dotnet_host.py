@@ -146,6 +146,7 @@ class DotNetPreviewHostFrame(QFrame):
     mesh_edit_stroke_finished = Signal(object)
     mesh_edit_stroke_cancelled = Signal(object)
     mesh_edit_selection_changed = Signal(object)
+    mesh_edit_tool_changed = Signal(object)
     _DEFAULT_YAW = -35.0
     _DEFAULT_PITCH = 20.0
 
@@ -984,6 +985,11 @@ class DotNetPreviewHostFrame(QFrame):
             self.mesh_edit_stroke_cancelled.emit(dict(payload))
         elif event in {"select_request", "selection_request"}:
             self.mesh_edit_selection_changed.emit(dict(payload))
+        elif event == "tool_changed":
+            # The editor's own tool rail is the only tool picker a reader can
+            # see in Edit Mesh. Without this the host keeps publishing its own
+            # (hidden, unchanged) tool and overwrites their choice.
+            self.mesh_edit_tool_changed.emit(dict(payload))
         elif event not in {"metrics", "view_state_changed"}:
             self.debug_details_changed.emit(json.dumps(dict(payload), separators=(",", ":"), default=str))
 
