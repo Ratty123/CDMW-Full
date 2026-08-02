@@ -53,6 +53,8 @@ from cdmw.modding.mesh_edit_ops import (
 from cdmw.modding.mesh_native_core import (
     NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR,
     apply_native_mesh_editor_session,
+    last_native_mesh_core_job_error,
+    last_native_mesh_editor_apply_error,
     apply_native_mesh_pose_preview,
     apply_native_mesh_recalculate_normals,
     apply_native_mesh_selection,
@@ -941,9 +943,18 @@ class MeshService(
             if result is not None:
                 self._accept_native_geometry_result(execution, result)
             elif require_native:
-                raise RuntimeError(
+                # Say which of the six refusal branches this was. Without it the
+                # reader gets one sentence for six causes, and a session where
+                # every stroke, Clear Selection and Finish Edit Mesh failed
+                # cannot be told apart from a missing native module.
+                refusal = str(getattr(execution.session, "native_editor_last_refusal", "") or "unrecorded")
+                # The sentence itself is a translated key, so it stays exactly as
+                # it shipped; the branch name is appended outside it rather than
+                # folded in, which would orphan the key in all fourteen catalogs.
+                message = (
                     f"native mesh editor session failed for {execution.action}; Python mesh-edit fallback is disabled"
                 )
+                raise RuntimeError(f"{message} [{refusal}]")
             elif execution.action not in _LEGACY_DISPLAY_CLEANUP_ACTIONS:
                 raise RuntimeError(f"unsupported non-native mesh edit action: {execution.action}")
             else:
@@ -1736,16 +1747,42 @@ def _refresh_native_editor_session_if_mesh_changed(session: _MeshEditSession) ->
 
 
 
+def _abandon_lost_native_editor_session(session: _MeshEditSession) -> bool:
+    """Return the working mesh to its last exported state and carry on.
+
+    A resident session that has died while holding edits this side never
+    received takes those edits with it; nothing here can get them back. What
+    this repairs is the aftermath. `native_editor_mesh_dirty` stayed true with
+    no session able to clear it, so every read of the working mesh raised and
+    every apply was refused -- one failed stroke turned the whole editor dead,
+    permanently, and the reader saw Move, then Clear Selection, then Finish Edit
+    Mesh stop working in sequence with an endless RuntimeError behind each.
+
+    Only `total_vertices` and `total_faces` were ever moved ahead of the real
+    geometry, by `_apply_native_editor_dirty_counts`, so recomputing the totals
+    puts the mesh back in agreement with itself. The next apply reopens the
+    resident session from it.
+    """
+
+    session.native_editor_session_ready = False
+    session.native_editor_selection_signature = ()
+    session.native_editor_active_stroke_id = ""
+    session.native_editor_mesh_dirty = False
+    session.native_editor_mesh_dirty_counts = ()
+    session.native_editor_lost_recoveries += 1
+    refresh_mesh_totals(session.working_mesh)
+    session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+    session.native_editor_mesh_signature = _native_editor_mesh_storage_signature(session.working_mesh)
+    return True
+
+
 def _sync_native_editor_session_to_working_mesh(session: _MeshEditSession) -> bool:
     if not session.native_editor_mesh_dirty:
         return True
     if not session.native_editor_session_ready:
-        return False
+        return _abandon_lost_native_editor_session(session)
     if not export_native_mesh_editor_session_to_mesh(session.working_mesh, session.session_id, timeout_seconds=20.0):
-        session.native_editor_session_ready = False
-        session.native_editor_selection_signature = ()
-        session.native_editor_active_stroke_id = ""
-        return False
+        return _abandon_lost_native_editor_session(session)
     refresh_mesh_totals(session.working_mesh)
     session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
     session.native_editor_mesh_signature = _native_editor_mesh_storage_signature(session.working_mesh)
@@ -1836,6 +1873,23 @@ def _apply_native_editor_session_selection_operation(
 
 
 
+def _native_editor_refusal(session: _MeshEditSession, action: str, reason: str, **detail: object) -> None:
+    """Name which of the six ways this gave up.
+
+    Every one of them returned a bare `None` that the caller turned into the
+    same sentence: "native mesh editor session failed for <action>". A session
+    where every stroke, Clear Selection and Finish Edit Mesh was refused
+    therefore said only that something native had failed, six different causes
+    wearing one message, and no capture could tell them apart.
+    """
+
+    if detail:
+        described = ", ".join(f"{key}={value!r}" for key, value in sorted(detail.items()))
+        session.native_editor_last_refusal = f"{reason} ({described})"
+    else:
+        session.native_editor_last_refusal = reason
+
+
 def _apply_native_editor_session_geometry_action(
     session: _MeshEditSession,
     command: MeshEditCommand,
@@ -1843,16 +1897,51 @@ def _apply_native_editor_session_geometry_action(
 ) -> _NativeEditorApplyResult | None:
     action = command.action.strip().lower()
     if action not in _NATIVE_EDITOR_SESSION_ACTIONS:
+        _native_editor_refusal(session, action, "action_not_native")
         return None
     if not native_mesh_core_available():
+        _native_editor_refusal(session, action, "native_mesh_core_unavailable")
         return None
     params = dict(command.params or {})
     stop_event = _stop_event_from_params(params)
     dirty_at_start = session.native_editor_mesh_dirty
-    if dirty_at_start and (not session.native_editor_session_ready or (action == "delete" and _truthy(params.get("delete_parts")))):
+    if dirty_at_start and not session.native_editor_session_ready:
+        # The resident session died holding edits this side never received.
+        # Refusing here is what made one failed stroke permanent: the dirty flag
+        # had no owner left to clear it, so every later apply hit this branch
+        # too. Abandon to the last exported state and let this apply open a
+        # fresh session instead.
+        _abandon_lost_native_editor_session(session)
+        dirty_at_start = False
+    if dirty_at_start and action == "delete" and _truthy(params.get("delete_parts")):
+        _native_editor_refusal(session, action, "delete_parts_while_mesh_dirty")
         return None
     stroke_phase = _native_editor_stroke_phase(params)
     stroke_id = _native_editor_stroke_id(params)
+    # A stroke whose session was abandoned underneath it cannot be continued.
+    # Sending the rest of it anyway is what turned one refusal into a run of
+    # them: the recovery reopens a session, the next `update` arrives at a
+    # session that never saw a `begin`, the native guard rejects it, and that
+    # rejection triggers another recovery. Every line after the first then
+    # describes the cascade rather than the cause. Refusing here names it and
+    # stops the loop -- deliberately without reinterpreting the orphan as a new
+    # `begin`, which would hide the lifecycle defect and corrupt stroke history.
+    if (
+        stroke_phase in {"update", "end"}
+        and bool(stroke_id)
+        and session.native_editor_lost_recoveries
+        and stroke_id != session.native_editor_active_stroke_id
+    ):
+        _native_editor_refusal(
+            session,
+            action,
+            "stroke_orphaned_by_session_loss",
+            stroke_phase=str(stroke_phase),
+            stroke_id=str(stroke_id),
+            host_active_stroke_id=str(session.native_editor_active_stroke_id or ""),
+            lost_recoveries=int(session.native_editor_lost_recoveries),
+        )
+        return None
     reuse_selection = (
         stroke_phase in {"update", "end", "cancel"}
         and not isinstance(params.get("_native_selection_payload"), Mapping)
@@ -1891,6 +1980,12 @@ def _apply_native_editor_session_geometry_action(
             )
             open_roundtrip_ms = max(0.0, (time.perf_counter() - open_started) * 1000.0)
             if opened is None:
+                _native_editor_refusal(
+                    session,
+                    action,
+                    "open_session_failed",
+                    open_roundtrip_ms=round(open_roundtrip_ms, 2),
+                )
                 return None
             session.native_editor_session_ready = True
             session.native_editor_selection_signature = ()
@@ -1930,6 +2025,37 @@ def _apply_native_editor_session_geometry_action(
         native_apply_roundtrip_ms = max(0.0, (time.perf_counter() - native_apply_started) * 1000.0)
         if report is None:
             session.native_editor_session_ready = False
+            _native_editor_refusal(
+                session,
+                action,
+                "native_apply_returned_no_report",
+                stroke_phase=str(stroke_phase),
+                stroke_id=str(stroke_id),
+                reuse_selection=bool(reuse_selection),
+                roundtrip_ms=round(native_apply_roundtrip_ms, 2),
+                # The apply swallows four exception types to honour its
+                # None-on-failure contract; this is the text it swallowed.
+                native_error=last_native_mesh_editor_apply_error() or "none recorded",
+                # And this is what the native core itself said before any of
+                # that, which is the only account of why it refused.
+                native_job_error=last_native_mesh_core_job_error() or "none recorded",
+                # Only the *first* refused update carries information. After it,
+                # the session is abandoned and reopened, so every later update
+                # is submitted to a session that never saw a begin -- the
+                # cascade, not the cause. These are the fields that separate the
+                # three candidates: a session the core does not have, a stroke
+                # id it does not match, or a selection payload that forced the
+                # reuse path off before either was consulted.
+                first_refusal=not bool(session.native_editor_last_refusal),
+                had_inline_selection_payload=isinstance(
+                    params.get("_native_selection_payload"), Mapping
+                ),
+                host_active_stroke_id=str(session.native_editor_active_stroke_id or ""),
+                session_ready=bool(session.native_editor_session_ready),
+                selection_signature_len=len(session.native_editor_selection_signature or ()),
+                mesh_dirty=bool(session.native_editor_mesh_dirty),
+                lost_recoveries=int(session.native_editor_lost_recoveries),
+            )
             return None
         native_preview_vertex_update_groups = native_mesh_editor_session_preview_vertex_update_groups(report)
         native_preview_triangle_groups = native_mesh_editor_session_preview_triangle_groups(report)
@@ -1955,6 +2081,17 @@ def _apply_native_editor_session_geometry_action(
             )
         else:
             session.native_editor_session_ready = False
+            # The native side answered, and said nothing changed. For a stroke
+            # that is a refusal the reader sees as the tool doing nothing.
+            _native_editor_refusal(
+                session,
+                action,
+                "native_report_had_no_dirty_counts",
+                stroke_phase=str(stroke_phase),
+                stroke_id=str(stroke_id),
+                submesh_count=report_submesh_count,
+                report_keys=sorted(str(key) for key in report)[:12],
+            )
             return None
         python_apply_ms = max(0.0, (time.perf_counter() - apply_started) * 1000.0)
         if not session.native_editor_mesh_dirty:

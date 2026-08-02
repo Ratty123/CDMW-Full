@@ -330,6 +330,12 @@ class ModelLibraryShellBridgeMixin:
         request_id = self.archive_preview_request_id + 1
         self.archive_preview_request_id = request_id
         self.archive_preview_requested_loose = False
+        # This paints the shared preview surface without going through the
+        # archive loading state, so it has to give up that surface's identity
+        # too. Left standing, a later request for the archive entry that was
+        # previewed before this model would recognise its own name, keep the
+        # model on screen and load behind it.
+        self.archive_preview_surface_identity_shown = ""
         self.archive_preview_title_label.setText(model_name)
         self.archive_preview_meta_label.setText("Preparing model library preview...")
         self.archive_preview_role_badge.setText("Model Library")

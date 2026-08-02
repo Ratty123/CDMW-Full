@@ -53,8 +53,10 @@ detail before smoothing the affected area for less pointy surfaces.
 Normal tools include service-routed recalc, tangent generation, flip,
 sharpen/soften, weighted normals, and source-normal copy commands; cleanup
 tools include remove doubles, delete loose vertices, compact orphans, winding
-repair, hole fill, and display triangulate/quadrangulate helpers. Widgets only
-emit descriptors.
+repair, and hole fill. Widgets only emit descriptors. `triangulate_display` and
+`quadrangulate_display` are deliberately not among them: the service refuses
+both unless the caller passes `allow_legacy_display_cleanup=True`, so they are
+legacy/archive-path helpers rather than tools the rail may offer.
 `MeshEditorTab.update_editor_session_state()`,
 `MeshEditorTab.update_editor_action_state()`, and
 `MeshEditorTab.set_active_tool_state()` keep tool enablement and active mode
@@ -227,7 +229,22 @@ host.
 Standalone D3D11 rectangle/lasso selection events now send `screen_region`
 with D3D11 start/end coordinates, optional lasso points, source-submesh filter,
 viewport, and world-view-projection matrices instead of expanding selection
-candidates in the host. The old D3D11 vertex/edge/face hover
+candidates in the host.
+The builder's Selection combo (Brush/Lasso/Rectangle) is honored by the
+resident editor: a brush-mode Select drag paints throttled add/subtract
+`screen_brush` dabs that native unions over the swept path (Replace starts the
+new selection on the first dab; Subtract erases; a plain click keeps the
+precise 14px click pick), and a cursor step longer than the brush radius is
+sent as a swept-segment `screen_region` quad instead of a disc, so the painted
+band has no holes at any cursor speed — the 30ms cadence bounds message rate,
+never coverage. A lasso-mode drag draws the polygon actually swept in the
+overlay and sends it as `screen_region` mode "lasso" with rectangle endpoints
+kept as the older-core fallback. Helper-raised screen selections have exactly
+one native authority: the tab's protocol handler applies them, answers the
+helper's pending request, and commits the result back through the builder;
+the builder's own screen-selection route is legacy-panel-only. Intermediate
+paint dabs apply inline off the action-worker path; the final dab records the
+one selection-history unit for the drag. The old D3D11 vertex/edge/face hover
 candidate projectors are removed; Mesh Edit overlay drawing keeps the cursor
 ring and selected geometry while hit resolution stays in native screen
 selection.

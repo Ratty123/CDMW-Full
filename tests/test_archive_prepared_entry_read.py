@@ -80,3 +80,74 @@ def test_prepared_archive_entry_honors_cancellation_before_read(tmp_path: Path) 
 
     with pytest.raises(RunCancelled):
         read_archive_entry_data(entry, stop_event=stop_event)
+
+
+def _raw_entry(paz_file: Path, payload: bytes, *, flags: int = 0, orig_size: int | None = None) -> ArchiveEntry:
+    return ArchiveEntry(
+        path="text/raw_note.txt",
+        pamt_path=paz_file.parent / "raw.pamt",
+        paz_file=paz_file,
+        offset=0,
+        comp_size=len(payload),
+        orig_size=len(payload) if orig_size is None else orig_size,
+        flags=flags,
+        paz_index=0,
+    )
+
+
+def test_raw_archive_entry_read_decodes_in_process_without_native_accelerator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A payload this process can decode never pays the accelerator round trip."""
+    from cdmw.core import archive_accelerator
+
+    paz = tmp_path / "raw.paz"
+    paz.write_bytes(b"plain payload")
+
+    def _fail_if_called(*_args, **_kwargs):
+        raise AssertionError("The native accelerator must not run for an in-process decodable entry.")
+
+    monkeypatch.setattr(archive_accelerator, "read_archive_entry_data_native", _fail_if_called)
+
+    data, decompressed, note = read_archive_entry_data(_raw_entry(paz, b"plain payload"))
+
+    assert data == b"plain payload"
+    assert not decompressed
+    assert note == ""
+
+
+def test_raw_archive_entry_read_falls_back_to_native_for_undecodable_payloads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cdmw.core import archive_accelerator
+
+    paz = tmp_path / "raw.paz"
+    paz.write_bytes(b"opaque")
+    entry = _raw_entry(paz, b"opaque", flags=0x0F, orig_size=32)  # unsupported compression type
+
+    monkeypatch.setattr(
+        archive_accelerator,
+        "read_archive_entry_data_native",
+        lambda *_args, **_kwargs: (b"native bytes", True, "NativeRaw"),
+    )
+
+    assert read_archive_entry_data(entry) == (b"native bytes", True, "NativeRaw")
+
+
+def test_raw_archive_entry_read_raises_the_in_process_error_when_native_cannot_help(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cdmw.core import archive_accelerator
+
+    paz = tmp_path / "raw.paz"
+    paz.write_bytes(b"opaque")
+    entry = _raw_entry(paz, b"opaque", flags=0x0F, orig_size=32)
+
+    monkeypatch.setattr(
+        archive_accelerator,
+        "read_archive_entry_data_native",
+        lambda *_args, **_kwargs: None,
+    )
+
+    with pytest.raises(ValueError, match="Unsupported archive compression type"):
+        read_archive_entry_data(entry)

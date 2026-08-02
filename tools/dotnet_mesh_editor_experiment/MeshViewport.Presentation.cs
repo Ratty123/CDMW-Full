@@ -151,8 +151,13 @@ internal sealed partial class MeshViewport
         _panX = context.PanX;
         _panY = context.PanY;
         MaterialDebugMode = context.MaterialDebugMode;
-        _presentationGridVisible = context.GridVisible;
-        _presentationGizmoVisible = context.GizmoVisible;
+        // Grid and gizmo visibility are host-owned display toggles, one flag
+        // for the whole viewport. They are deliberately NOT restored from the
+        // context: display updates only ever write the active context, so the
+        // inactive pane kept a stale copy, and focusing that pane -- which a
+        // click on empty space does -- silently switched the grid off until
+        // the next display update. The current global flags stay in force
+        // across every context switch.
         PartPickEnabled = context.PartPickEnabled;
         _scene.SetPresentationOverlayVisibility(
             _presentationGridVisible,

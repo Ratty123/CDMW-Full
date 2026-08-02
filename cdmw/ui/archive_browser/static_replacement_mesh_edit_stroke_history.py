@@ -18,6 +18,15 @@ def create_stroke_history_callbacks(state: SimpleNamespace, callbacks: SimpleNam
 
 
 def _mesh_edit_begin_stroke(_state, _callbacks, payload: object) -> None:
+    if isinstance(payload, _state.Mapping) and str(payload.get("event", "") or "").startswith("stroke_"):
+        # A stroke raised by the resident editor: the tab's live-stroke
+        # dispatcher is the single native authority for it. Handling it here
+        # too opened the same native stroke twice -- the second begin was
+        # refused with "mesh editor stroke is already active", raised
+        # unhandled, and abandoned the session (live evidence, 2026-08-02
+        # 12:18). Legacy preview-panel strokes carry no protocol event and
+        # keep this path.
+        return
     if _state._mesh_edit_state.replacement_mesh_for_mapping is None or not isinstance(payload, _state.Mapping):
         return
     if _callbacks._mesh_edit_worker_active():

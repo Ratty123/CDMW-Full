@@ -145,14 +145,27 @@ class ArchiveProgressMixin:
         self._archive_load_progress_percent = percent_value
         self._archive_load_progress_detail = detail_text
         if hasattr(self, "archive_scan_progress_bar"):
+            # Write-on-change only. Every one of these calls walks Qt's native
+            # style/paint machinery even when the value is identical, this
+            # setter is called at progress-callback cadence, and the one
+            # recorded full freeze wedged the main thread inside
+            # QProgressBar.setValue with no Python frames below it. Skipping
+            # redundant writes narrows that exposure and stops the busy-bar
+            # re-arming its indeterminate animation on every callback.
+            bar = self.archive_scan_progress_bar
             if indeterminate:
-                self.archive_scan_progress_bar.setRange(0, 0)
-                self.archive_scan_progress_bar.setFormat("")
+                if bar.maximum() != 0:
+                    bar.setRange(0, 0)
+                    bar.setFormat("")
             else:
-                self.archive_scan_progress_bar.setRange(0, 100)
-                self.archive_scan_progress_bar.setValue(percent_value)
-                self.archive_scan_progress_bar.setFormat(f"{percent_value}%")
-            self.archive_scan_progress_bar.setToolTip(detail_text)
+                left_indeterminate = bar.maximum() != 100
+                if left_indeterminate:
+                    bar.setRange(0, 100)
+                if left_indeterminate or bar.value() != percent_value:
+                    bar.setValue(percent_value)
+                    bar.setFormat(f"{percent_value}%")
+            if bar.toolTip() != detail_text:
+                bar.setToolTip(detail_text)
         if hasattr(self, "archive_scan_progress_label"):
             self.archive_scan_progress_label.setText(phase_text)
             self.archive_scan_progress_label.setToolTip(detail_text)

@@ -115,25 +115,40 @@ def _setup_options_transform_step_015(_state):
     _state.scale_link_checkbox.setChecked(True)
     _state.transform_layout.addWidget(_state.scale_link_checkbox, 4, 2)
     _state.reset_buttons_by_key = {str(spec['key']): _state.QPushButton(_state.alignment_transform_control_text[str(spec['text_key'])]) for spec in _state._alignment_global_transform_reset_button_specs_helper()}
+    # setMinimumWidth(0) is not a no-op: an explicit minimum overrides the
+    # button's text-based minimumSizeHint, so the row squeezed each button
+    # below its caption and QPushButton clipped the centred text at both ends
+    # ("eset Placemer"). A positive spec still applies; zero leaves the hint.
+    # The hint alone is not enough either: the embedded setup page carries
+    # QSizePolicy.Ignored, so a single overlong row is squeezed below its
+    # minimum regardless. Two buttons per row is the half that always fits.
     for _state.reset_button in _state.reset_buttons_by_key.values():
-        _state.reset_button.setMinimumWidth(int(_state.transform_layout_specs['reset_button_minimum_width']))
-    _state.reset_buttons = _state.QHBoxLayout()
-    for _state.spec in _state._alignment_global_transform_reset_button_specs_helper():
-        _state.reset_buttons.addWidget(_state.reset_buttons_by_key[str(_state.spec['key'])])
+        if int(_state.transform_layout_specs['reset_button_minimum_width']) > 0:
+            _state.reset_button.setMinimumWidth(int(_state.transform_layout_specs['reset_button_minimum_width']))
+    _state.reset_buttons = _state.QGridLayout()
+    _state.reset_buttons.setContentsMargins(0, 0, 0, 0)
+    for _state.reset_index, _state.spec in enumerate(_state._alignment_global_transform_reset_button_specs_helper()):
+        _state.reset_buttons.addWidget(_state.reset_buttons_by_key[str(_state.spec['key'])], _state.reset_index // 2, _state.reset_index % 2)
     _state.transform_layout.addLayout(_state.reset_buttons, 5, 0, 1, 3)
     _state.tilt_step_spin = _state._make_double_spin_helper(**_state.transform_spin_specs['tilt_step'])
     _state.tilt_step_spin.setMinimumWidth(int(_state.transform_layout_specs['tilt_step_minimum_width']))
     _state.tilt_step_spin.setToolTip(_state.alignment_transform_control_text['tilt_step_tooltip'])
-    _state.tilt_button_row = _state.QHBoxLayout()
-    _state.tilt_button_row.addWidget(_state.QLabel(_state.alignment_transform_control_text['tilt_step_label']))
-    _state.tilt_button_row.addWidget(_state.tilt_step_spin)
+    # One axis per column, minus above plus, with the step control on its own
+    # row. The old single row put the label, the spin and six buttons side by
+    # side; the embedded setup page (QSizePolicy.Ignored) squeezed them below
+    # their captions and QPushButton clipped the centred text at both ends:
+    # "ilt X+", "urn Y", "oll Z". No explicit minimum either -- that would
+    # override the caption-based minimumSizeHint with something smaller.
+    _state.tilt_button_row = _state.QGridLayout()
+    _state.tilt_button_row.setContentsMargins(0, 0, 0, 0)
+    _state.tilt_button_row.addWidget(_state.QLabel(_state.alignment_transform_control_text['tilt_step_label']), 0, 0)
+    _state.tilt_button_row.addWidget(_state.tilt_step_spin, 0, 1, 1, 2)
     _state.tilt_buttons_by_key = {}
-    for _state.spec in _state._alignment_global_transform_tilt_button_specs_helper():
+    for _state.tilt_index, _state.spec in enumerate(_state._alignment_global_transform_tilt_button_specs_helper()):
         _state.tilt_button = _state.QPushButton(_state.alignment_transform_control_text[str(_state.spec['text_key'])])
-        _state.tilt_button.setMinimumWidth(0)
         _state.tilt_button.setToolTip(_state.alignment_transform_control_text[str(_state.spec['tooltip_key'])])
         _state.tilt_buttons_by_key[str(_state.spec['key'])] = _state.tilt_button
-        _state.tilt_button_row.addWidget(_state.tilt_button)
+        _state.tilt_button_row.addWidget(_state.tilt_button, 1 + _state.tilt_index % 2, _state.tilt_index // 2)
     _state.transform_layout.addLayout(_state.tilt_button_row, 6, 0, 1, 3)
 
 def _setup_options_transform_step_016(_state):

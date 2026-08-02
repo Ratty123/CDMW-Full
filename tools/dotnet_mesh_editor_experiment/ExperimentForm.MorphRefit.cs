@@ -32,6 +32,7 @@ internal sealed partial class ExperimentForm
     private TableLayoutPanel? _morphSectionLayout;
     private TableLayoutPanel? _morphSectionBody;
     private Button? _morphSectionHeader;
+    private Label? _morphWorkflowHint;
     private Control? _morphProfileControl;
     private Control? _morphProfileActions;
     private Control? _morphPresetControl;
@@ -60,6 +61,11 @@ internal sealed partial class ExperimentForm
     private long _morphFinishRequestId;
     private long _morphEndRequestId;
     private bool _morphFinishPending;
+    // Finish Edit Mesh must always finish. Every waiting branch below resumes
+    // when the state it waits for arrives -- and if that message is lost, this
+    // timer forces the save anyway rather than leaving the button dead.
+    private readonly System.Windows.Forms.Timer _morphFinishFallbackTimer = new() { Interval = 4000 };
+    private bool _morphFinishFallbackWired;
     private string _morphSessionId = string.Empty;
     private string _morphDefinitionSignature = string.Empty;
     private string _morphActiveChangeId = string.Empty;
@@ -125,6 +131,25 @@ internal sealed partial class ExperimentForm
         var clear = StyledActionButton("Clear Refit", () => WriteCommandRequest("morph_clear_refit"));
         var reset = StyledActionButton("Reset All", () => WriteCommandRequest("morph_reset"));
         var bake = StyledActionButton("Bake", () => WriteCommandRequest("morph_bake"));
+        // The five buttons whose captions alone do not say what happens next.
+        // The workflow hint below the header carries the order; these carry
+        // the consequence of each click.
+        _helpToolTip.SetToolTip(setDriver, "Make the selected parts the driver body that bound garments follow.");
+        _helpToolTip.SetToolTip(bind, "Refit the selected garment parts against the driver whenever a slider moves.");
+        _helpToolTip.SetToolTip(clear, "Unbind every refit garment.");
+        _helpToolTip.SetToolTip(reset, "Discard all live slider values.");
+        _helpToolTip.SetToolTip(bake, "Write the visible slider result permanently into the mesh topology.");
+        _morphWorkflowHint = new Label
+        {
+            AutoSize = true,
+            ForeColor = ThemeMutedText,
+            BackColor = ThemeSectionBackground,
+            Font = new Font(Font.FontFamily, 8f),
+            Margin = new Padding(2, 2, 2, 6),
+            UseMnemonic = false,
+            MaximumSize = new Size(ScaleToolPanelWidth(EditMeshToolColumnMetrics.WrappedStatusWidth), 0),
+        };
+        _morphWorkflowHint.Text = "Pick a profile, shape with the sliders, then Bake to keep the result. Sliders are non-destructive until baked.";
 
         _morphProfileControl = LabeledControl("Definition profile", _morphProfile);
         _morphProfileActions = ButtonRow(author, saveProfile, deleteProfile);
@@ -133,6 +158,7 @@ internal sealed partial class ExperimentForm
         _morphBindingActions = ButtonRow(setDriver, bind, clear);
         _morphCommitActions = ButtonRow(reset, bake);
         var body = (TableLayoutPanel)StackControls(
+            _morphWorkflowHint,
             _morphProfileControl,
             _morphProfileActions,
             _morphPresetControl,
@@ -388,6 +414,10 @@ internal sealed partial class ExperimentForm
             _morphSectionBody.ColumnCount = 1;
             _morphSectionBody.RowCount = 0;
             _morphSectionBody.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            if (_morphWorkflowHint is not null)
+            {
+                AddStackRow(_morphSectionBody, _morphWorkflowHint);
+            }
             AddStackRow(_morphSectionBody, _morphProfileControl);
             AddStackRow(_morphSectionBody, _morphProfileActions);
             AddStackRow(_morphSectionBody, _morphPresetControl);
@@ -553,6 +583,7 @@ internal sealed partial class ExperimentForm
         {
             RequestMorphStateRefresh();
             _statusLabel.Text = "Waiting for resident Morph & Refit state before Finish Edit Mesh...";
+            ArmMorphFinishFallback();
             return;
         }
         if (_morphActiveChangeId.Length > 0
@@ -563,9 +594,63 @@ internal sealed partial class ExperimentForm
                 && pending.Command != "morph_finish"))
         {
             _statusLabel.Text = "Waiting for the final Morph & Refit value before Finish Edit Mesh...";
+            ArmMorphFinishFallback();
             return;
         }
         BeginFinishCommitOrSave();
+    }
+
+    /// <summary>
+    /// Guarantees a pending Finish resolves even if the message it waits for
+    /// never arrives. Forcing the save skips at most an uncommitted procedural
+    /// morph value; a Finish button that stays dead skips the whole exit.
+    /// </summary>
+    private void ArmMorphFinishFallback()
+    {
+        if (!_morphFinishFallbackWired)
+        {
+            _morphFinishFallbackWired = true;
+            _morphFinishFallbackTimer.Tick += (_, _) =>
+            {
+                _morphFinishFallbackTimer.Stop();
+                if (!_morphFinishPending)
+                {
+                    return;
+                }
+                WriteProtocolEvent("morph_finish_fallback_forced", new Dictionary<string, object?>
+                {
+                    ["active_change_id"] = _morphActiveChangeId,
+                    ["end_request_id"] = _morphEndRequestId,
+                    ["busy"] = _morphBusy,
+                    ["unbaked"] = _morphUnbaked,
+                    ["pending_morph_commands"] = _pendingMutationRequests.Values
+                        .Count(pending => pending.Command.StartsWith("morph_", StringComparison.Ordinal)),
+                });
+                _morphFinishPending = false;
+                _morphFinishRequestId = 0;
+                WriteProtocolEvent("save_request");
+            };
+        }
+        _morphFinishFallbackTimer.Stop();
+        _morphFinishFallbackTimer.Start();
+    }
+
+    /// <summary>
+    /// A pending Finish resumes the moment its blockers clear, from whichever
+    /// message cleared them -- a morph state update or a command result.
+    /// </summary>
+    private void ResumePendingFinishIfClear()
+    {
+        if (_morphFinishPending
+            && _morphActiveChangeId.Length == 0
+            && _morphEndRequestId == 0
+            && !_morphBusy
+            && !_pendingMutationRequests.Values.Any(pending =>
+                pending.Command.StartsWith("morph_", StringComparison.Ordinal)
+                && pending.Command != "morph_finish"))
+        {
+            BeginFinishCommitOrSave();
+        }
     }
 
     private void BeginFinishCommitOrSave()
@@ -610,6 +695,10 @@ internal sealed partial class ExperimentForm
         }
         if (pending.Command != "morph_finish" || pending.RequestId != _morphFinishRequestId)
         {
+            // This result may have been the last blocker a pending Finish was
+            // waiting on; without this the finish only resumed from a fresh
+            // morph state update, which quiet sessions never send.
+            ResumePendingFinishIfClear();
             return;
         }
         _morphFinishRequestId = 0;
@@ -692,16 +781,7 @@ internal sealed partial class ExperimentForm
         };
         CopyMutationEnvelope(root, acknowledgement);
         WriteProtocolEvent("morph_state_update_ack", acknowledgement);
-        if (_morphFinishPending
-            && _morphActiveChangeId.Length == 0
-            && _morphEndRequestId == 0
-            && !_morphBusy
-            && !_pendingMutationRequests.Values.Any(pending =>
-                pending.Command.StartsWith("morph_", StringComparison.Ordinal)
-                && pending.Command != "morph_finish"))
-        {
-            BeginFinishCommitOrSave();
-        }
+        ResumePendingFinishIfClear();
     }
 
     private void ApplyMorphChoices(

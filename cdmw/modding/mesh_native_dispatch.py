@@ -119,14 +119,54 @@ def _run_native_mesh_core_service_inline_job(
             stop_event=stop_event,
         )
         report = response.get("inline_report")
-        if not isinstance(report, dict) or str(report.get("status") or "").lower() != "ok":
+        if not isinstance(report, dict):
+            # This is the path every live stroke takes, and it was the one layer
+            # with no account of itself: a refused stroke reported "native
+            # apply returned no report" with nothing behind it, because the
+            # instrumentation sat on the other runner.
+            _note_native_job_failure(
+                command,
+                f"inline response carried {type(report).__name__} instead of a report; "
+                f"keys={sorted(str(key) for key in response)[:8]}",
+            )
             return None
+        status = str(report.get("status") or "").lower()
+        if status != "ok":
+            detail = str(report.get("error") or report.get("message") or report.get("reason") or "").strip()
+            _note_native_job_failure(
+                command,
+                f"inline status {status or 'missing'}" + (f": {detail}" if detail else " with no message"),
+            )
+            return None
+        _LAST_NATIVE_JOB_ERROR[0] = ""
         return report
     except RunCancelled:
         raise
-    except Exception:
+    except Exception as exc:
+        _note_native_job_failure(command, f"inline {type(exc).__name__}: {exc}")
         shutdown_native_mesh_core_service()
         return None
+
+# Every native mesh job in the application funnels through the runner below, and
+# it answers None for five different reasons: the process failed, it wrote no
+# report, the report would not parse, the report said something other than ok, or
+# something else raised. Around a hundred callers turn that None into a falsy
+# result of their own, so by the time it reaches a user the only thing left is
+# that "something native failed". The reason is kept here instead. Native jobs
+# run one at a time per call, and this is diagnostic only, so a single slot is
+# enough; the alternative is threading an error out through a hundred signatures.
+_LAST_NATIVE_JOB_ERROR: list[str] = [""]
+
+
+def last_native_mesh_core_job_error() -> str:
+    """Why the most recent native mesh job answered None, if it did."""
+
+    return _LAST_NATIVE_JOB_ERROR[0]
+
+
+def _note_native_job_failure(command: str, reason: str) -> None:
+    _LAST_NATIVE_JOB_ERROR[0] = f"{command}: {reason}"
+
 
 def _run_native_mesh_core_job(
     binary: Path,
@@ -171,18 +211,37 @@ def _run_native_mesh_core_job(
                 stop_event=stop_event,
                 timeout_seconds=max(0.5, float(timeout_seconds)),
             )
-        if returncode != 0 or not report_path.is_file():
+        if returncode != 0:
+            _note_native_job_failure(command, f"native process exited {returncode}")
+            return None
+        if not report_path.is_file():
+            _note_native_job_failure(command, "native process wrote no report")
             return None
         try:
             report = json.loads(report_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as exc:
+            _note_native_job_failure(command, f"report unreadable: {type(exc).__name__}: {exc}")
             return None
-        if not isinstance(report, dict) or str(report.get("status") or "").lower() != "ok":
+        if not isinstance(report, dict):
+            _note_native_job_failure(command, f"report was {type(report).__name__}, not an object")
             return None
+        status = str(report.get("status") or "").lower()
+        if status != "ok":
+            # The native side says why it refused, in its own words, and this is
+            # the only place that text exists. Discarding it is what left a
+            # refused stroke describable only as "something native failed".
+            detail = str(report.get("error") or report.get("message") or report.get("reason") or "").strip()
+            _note_native_job_failure(
+                command,
+                f"native status {status or 'missing'}" + (f": {detail}" if detail else " with no message"),
+            )
+            return None
+        _LAST_NATIVE_JOB_ERROR[0] = ""
         return report
     except RunCancelled:
         raise
-    except Exception:
+    except Exception as exc:
+        _note_native_job_failure(command, f"{type(exc).__name__}: {exc}")
         return None
     finally:
         shutil.rmtree(job_root, ignore_errors=True)

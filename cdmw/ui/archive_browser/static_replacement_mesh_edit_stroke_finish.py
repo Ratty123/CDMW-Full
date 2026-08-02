@@ -18,6 +18,10 @@ def create_stroke_finish_callbacks(state: SimpleNamespace, callbacks: SimpleName
 
 
 def _mesh_edit_finish_stroke(_state, _callbacks, payload: object) -> None:
+    if isinstance(payload, _state.Mapping) and str(payload.get("event", "") or "").startswith("stroke_"):
+        # Resident-editor strokes belong to the tab's live-stroke dispatcher;
+        # see _mesh_edit_begin_stroke for the single-authority rule.
+        return
     stroke_id = _state._mesh_edit_stroke_id(payload)
     if stroke_id <= 0 or int(_state.mesh_edit_active_stroke.get("id", 0) or 0) != stroke_id:
         return

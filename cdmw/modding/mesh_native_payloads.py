@@ -20,6 +20,15 @@ def _write_int_binary_payload(path: Path, values: object) -> dict[str, object]:
     return _facade_attr("_write_int_binary_payload")(path, values)
 
 
+def _int_list(value: object) -> list[int]:
+    # Called twice below and never defined here: the restructure that split this
+    # module out left the name behind on the core facade without a wrapper, so
+    # both call sites raised NameError on the JSON fallback path -- reached only
+    # when a native report carries source_vertex_map or source_vertex_offsets as
+    # a plain list rather than the binary or range form.
+    return _facade_attr("_int_list")(value)
+
+
 def _contiguous_i32_range(values: Sequence[int], max_count: int | None = None) -> tuple[int, int] | None:
     if isinstance(values, range):
         if values.step != 1 or not values:

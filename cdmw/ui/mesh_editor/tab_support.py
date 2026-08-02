@@ -8,6 +8,19 @@ from PySide6.QtWidgets import QTabWidget
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
+#: Rail action key -> (native tool, target mode, edit mode) for the tools that
+#: open a native stroke. One copy on purpose: tab_shell uses it to decide
+#: whether the armed action has native tool state at all, and tab_actions uses
+#: it to decide whether an action arms a tool -- three drifting literals would
+#: let a new tool arm on one path and be refused on the other.
+STANDALONE_NATIVE_TOOL_STATE: dict[str, tuple[str, str, str]] = {
+    "transform_move": ("move", "selection", "edit"),
+    "brush_grab": ("grab", "selection", "sculpt"),
+    "brush_smooth": ("smooth", "selection", "sculpt"),
+    "brush_inflate": ("inflate", "selection", "sculpt"),
+    "brush_pinch": ("pinch", "selection", "sculpt"),
+}
+
 
 def _native_update_has_payload(update: object) -> bool:
     if not isinstance(update, _tab.MeshEditorNativeUpdate):

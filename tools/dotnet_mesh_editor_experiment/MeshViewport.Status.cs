@@ -247,17 +247,6 @@ internal sealed partial class MeshViewport
         };
     }
 
-    private void NotifyLocalSelectionChanged()
-    {
-        EditorEventRequested?.Invoke("selection_request", new Dictionary<string, object?>
-        {
-            ["operation"] = "replace",
-            ["target_mode"] = CurrentTargetMode(),
-            ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
-            ["local_selection"] = SelectionSnapshotPayload(),
-        });
-    }
-
     public bool TryHandleLocalCommand(string command, string targetMode)
     {
         _ = command;

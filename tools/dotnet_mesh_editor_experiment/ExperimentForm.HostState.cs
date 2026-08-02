@@ -45,12 +45,32 @@ internal sealed partial class ExperimentForm
             });
             return;
         }
-        var target = JsonString(root, "target_mode").Trim();
-        var targetItem = _selectionTarget.Items.Cast<object>()
-            .FirstOrDefault(item => string.Equals(Convert.ToString(item), target, StringComparison.OrdinalIgnoreCase));
-        if (targetItem is not null)
+        // The host's tool_state carries a target_mode, but it names how a stroke
+        // applies ("vertex" for the select cursor, "brush"/"selection" for
+        // sculpt), not what the Selection target combo should show. The host
+        // republishes this state on every control refresh, and "vertex" is the
+        // one value that happens to match a combo item -- so writing it here
+        // reset a reader's Face/Edge/Part choice back to Vertex after every
+        // selection. The combo belongs to this editor; the host never has an
+        // authoritative vertex/face/edge/part choice to push.
+        // The Select drag mode (brush/lasso/rectangle) IS host state: the
+        // builder's Selection combo publishes it, and the viewport only
+        // accepts those three values, so a host that publishes something else
+        // in this field cannot reset the choice. Adopted only when the host
+        // value changes: the host republishes tool_state on every control
+        // refresh, and re-applying the same combo value would stomp a mode
+        // picked on this side between refreshes.
+        var selectionDragMode = JsonString(root, "selection_mode");
+        if (!string.Equals(selectionDragMode, _lastHostSelectionDragMode, StringComparison.OrdinalIgnoreCase))
         {
-            _selectionTarget.SelectedItem = targetItem;
+            _lastHostSelectionDragMode = selectionDragMode;
+            _viewport.SetSelectionDragMode(selectionDragMode);
+            var shapeItem = _selectionShape.Items.Cast<object>()
+                .FirstOrDefault(item => string.Equals(Convert.ToString(item), selectionDragMode, StringComparison.OrdinalIgnoreCase));
+            if (shapeItem is not null)
+            {
+                _selectionShape.SelectedItem = shapeItem;
+            }
         }
         // Re-asserting the tool the viewport already has is not a no-op: it runs
         // SyncToolRailPageToActiveTool, which closes whichever rail page is open.

@@ -478,10 +478,22 @@ class DotNetPreviewSessionController(QObject):
         resident scene any caller may present: activating it reveals the
         placeholder. `_launch_is_prewarm` alone does not answer this, because it
         is cleared as soon as the renderer reports ready, which can happen before
-        any package load. The prewarm package plus an empty applied path does.
+        any package load.
+
+        An empty applied path is not the whole answer either, and that was the
+        gap the reader saw as a triangle in a fresh Mesh Editor. The helper does
+        apply the prewarm package, and from that moment the applied path is not
+        empty -- so this said "no placeholder" precisely while the procedural
+        warm-up triangle was the thing on screen, and `_activate_applied`, which
+        asks only for an applied path, revealed it.
         """
 
-        return self._prewarm_package is not None and not self._applied_package_path
+        if self._prewarm_package is None:
+            return False
+        applied = str(self._applied_package_path or "")
+        if not applied:
+            return True
+        return applied == str(getattr(self._prewarm_package, "package_dir", "") or "")
 
     @property
     def last_event(self) -> Mapping[str, object]:
@@ -1535,7 +1547,10 @@ class DotNetPreviewSessionController(QObject):
         )
 
     def _activate_applied(self) -> bool:
-        if not self._visible or not self._applied_package_path:
+        # Activating reveals whatever the helper currently holds. If that is
+        # still the procedural warm-up triangle, revealing it shows the reader a
+        # model nobody asked for in place of the one they opened.
+        if not self._visible or not self._applied_package_path or self.serving_prewarm_placeholder:
             return False
         return self._send_json(
             {
