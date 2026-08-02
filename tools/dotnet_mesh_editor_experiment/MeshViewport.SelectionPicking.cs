@@ -7,6 +7,209 @@ internal sealed partial class MeshViewport
 {
     private const double SelectionClickRadiusPixels = 14.0;
     private const int SelectionRegionTolerancePixels = 6;
+    private const double SelectionPaintSampleIntervalMs = 30.0;
+    private const int SelectionPaintSampleMinimumStepPixels = 3;
+
+    /// <summary>
+    /// One sample of a brush-select drag, throttled to the stroke protocol
+    /// cadence and a minimum step. A short step is an add/subtract
+    /// `screen_brush` dab at the cursor; a step longer than the brush radius
+    /// becomes a `screen_region` quad covering the swept segment (extended a
+    /// radius past both ends so consecutive quads overlap their joints), so
+    /// the painted band unions without holes at any cursor speed -- the
+    /// cadence bounds message rate, not coverage. The quad's square ends can
+    /// reach slightly outside the round brush tip; a paint sweep is area
+    /// coverage, not a precision pick, and the plain click keeps the precise
+    /// pick path. The first sample carries the combo operation (replace
+    /// starts the new selection); every later one adds or subtracts.
+    /// </summary>
+    private void MaybeEmitSelectionPaintSample(Point point, bool final = false)
+    {
+        var now = Environment.TickCount64;
+        if (!final && _selectionPaintPainted)
+        {
+            if (now - _selectionPaintLastSampleTicks < (long)SelectionPaintSampleIntervalMs)
+            {
+                return;
+            }
+            if (Math.Abs(point.X - _selectionPaintLastSample.X)
+                + Math.Abs(point.Y - _selectionPaintLastSample.Y)
+                < SelectionPaintSampleMinimumStepPixels)
+            {
+                return;
+            }
+        }
+        if (final && _selectionPaintPainted && point == _selectionPaintLastSample)
+        {
+            return;
+        }
+        var radius = SelectionPaintRadiusPixels();
+        var operation = _selectionPaintPainted ? _selectionPaintOperation : _selectionPaintFirstOperation;
+        var previous = _selectionPaintLastSample;
+        var stepX = (double)(point.X - previous.X);
+        var stepY = (double)(point.Y - previous.Y);
+        var stepLength = Math.Sqrt(stepX * stepX + stepY * stepY);
+        if (!_selectionPaintPainted && operation == "replace")
+        {
+            _provisionalSelectedVertices.Clear();
+        }
+        UpdateProvisionalPaintHits(
+            _selectionPaintPainted ? previous : point,
+            point,
+            radius,
+            operation);
+        if (_selectionPaintPainted && stepLength > radius)
+        {
+            EmitSelectionSweepQuad(previous, point, radius, operation, stepX / stepLength, stepY / stepLength);
+            // The quad covers the segment; the trailing dab below keeps the
+            // round tip at the cursor so the visible ring and the selection
+            // agree at the stroke's leading edge.
+        }
+        var payload = new Dictionary<string, object?>
+        {
+            ["operation"] = operation,
+            ["target_mode"] = _selectionDragTargetMode,
+            ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
+            ["paint_sample"] = true,
+            ["paint_final"] = final,
+            ["screen_brush"] = ScreenPayload(point, radius),
+        };
+        EditorEventRequested?.Invoke("select_request", payload);
+        _selectionPaintPainted = true;
+        _selectionPaintLastSample = point;
+        _selectionPaintLastSampleTicks = now;
+    }
+
+    private void EmitSelectionSweepQuad(
+        Point start,
+        Point end,
+        double radius,
+        string operation,
+        double directionX,
+        double directionY)
+    {
+        var extendedStartX = start.X - directionX * radius;
+        var extendedStartY = start.Y - directionY * radius;
+        var extendedEndX = end.X + directionX * radius;
+        var extendedEndY = end.Y + directionY * radius;
+        var normalX = -directionY * radius;
+        var normalY = directionX * radius;
+        var region = ScreenDragPayload(start, end);
+        region["mode"] = "lasso";
+        region["points"] = new[]
+        {
+            new[] { extendedStartX + normalX, extendedStartY + normalY },
+            new[] { extendedEndX + normalX, extendedEndY + normalY },
+            new[] { extendedEndX - normalX, extendedEndY - normalY },
+            new[] { extendedStartX - normalX, extendedStartY - normalY },
+        };
+        EditorEventRequested?.Invoke("select_request", new Dictionary<string, object?>
+        {
+            ["operation"] = operation,
+            ["target_mode"] = _selectionDragTargetMode,
+            ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
+            ["paint_sample"] = true,
+            ["paint_final"] = false,
+            ["screen_region"] = region,
+        });
+    }
+
+    private double SelectionPaintRadiusPixels()
+    {
+        var options = ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>();
+        return Math.Clamp(NumberOption(options, "radius", 24.0), 2.0, 256.0);
+    }
+
+    private const int ProvisionalSelectionVertexBudget = 200_000;
+
+    private bool ProvisionalSelectionAffordable()
+    {
+        var total = 0;
+        for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount && submeshIndex < _document.Submeshes.Count; submeshIndex++)
+        {
+            total += _document.Submeshes[submeshIndex].Vertices.Count;
+            if (total > ProvisionalSelectionVertexBudget)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Instant local echo of one paint dab or sweep: the vertices the segment
+    /// from <paramref name="start"/> to <paramref name="end"/> (a point, for a
+    /// dab) covers are tinted immediately, then replaced when the
+    /// authoritative native result lands one round trip later. Skipped above
+    /// a vertex budget, where the projection walk would cost more than the
+    /// latency it hides.
+    /// </summary>
+    private void UpdateProvisionalPaintHits(Point start, Point end, double radius, string operation)
+    {
+        if (!ProvisionalSelectionAffordable())
+        {
+            return;
+        }
+        var camera = CurrentCamera();
+        var radiusSquared = radius * radius;
+        var segmentX = (double)(end.X - start.X);
+        var segmentY = (double)(end.Y - start.Y);
+        var segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
+        var subtract = operation == "subtract";
+        for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount && submeshIndex < _document.Submeshes.Count; submeshIndex++)
+        {
+            if (!IsSubmeshVisibleForViewportSelection(submeshIndex))
+            {
+                continue;
+            }
+            var submesh = _document.Submeshes[submeshIndex];
+            HashSet<int>? bucket = null;
+            for (var vertexIndex = 0; vertexIndex < submesh.Vertices.Count; vertexIndex++)
+            {
+                var projected = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
+                double deltaX;
+                double deltaY;
+                if (segmentLengthSquared <= 0.0001)
+                {
+                    deltaX = projected.X - start.X;
+                    deltaY = projected.Y - start.Y;
+                }
+                else
+                {
+                    var t = Math.Clamp(
+                        ((projected.X - start.X) * segmentX + (projected.Y - start.Y) * segmentY) / segmentLengthSquared,
+                        0.0,
+                        1.0);
+                    deltaX = projected.X - (start.X + t * segmentX);
+                    deltaY = projected.Y - (start.Y + t * segmentY);
+                }
+                if (deltaX * deltaX + deltaY * deltaY > radiusSquared)
+                {
+                    continue;
+                }
+                if (!ShowXRay && !IsVertexFrontFacing(submeshIndex, vertexIndex, camera))
+                {
+                    continue;
+                }
+                if (subtract)
+                {
+                    if (_provisionalSelectedVertices.TryGetValue(submeshIndex, out var existing))
+                    {
+                        existing.Remove(vertexIndex);
+                    }
+                }
+                else
+                {
+                    bucket ??= _provisionalSelectedVertices.TryGetValue(submeshIndex, out var current)
+                        ? current
+                        : _provisionalSelectedVertices[submeshIndex] = new HashSet<int>();
+                    bucket.Add(vertexIndex);
+                }
+            }
+        }
+        UpdateGpuViewport();
+        Invalidate();
+    }
 
     private (int SubmeshIndex, int ItemIndex)? PickVertexAt(Point point)
     {
@@ -136,6 +339,25 @@ internal sealed partial class MeshViewport
         var rectangle = EdgeDragRectangle();
         var targetMode = _selectionDragTargetMode;
         _edgeDragActive = false;
+        var paintActive = _selectionPaintActive;
+        var paintPainted = _selectionPaintPainted;
+        _selectionPaintActive = false;
+        var lassoPoints = _selectionLassoPoints.Count >= 3
+            ? _selectionLassoPoints.ToArray()
+            : null;
+        _selectionLassoPoints.Clear();
+        var draggedBeyondClick = rectangle.Width >= 4 || rectangle.Height >= 4;
+        if (paintActive && (paintPainted || draggedBeyondClick))
+        {
+            // The drag painted (or moved far enough that it should have): the
+            // final dab closes the sweep. A plain click falls through to the
+            // precise 14px click pick below instead of a full-radius dab.
+            MaybeEmitSelectionPaintSample(point, final: true);
+            StatusRequested?.Invoke($"{targetMode} selection awaiting authoritative depth-resolved result.");
+            UpdateGpuViewport();
+            Invalidate();
+            return;
+        }
         var payload = new Dictionary<string, object?>
         {
             ["operation"] = CurrentSelectionOperation(),
@@ -168,6 +390,12 @@ internal sealed partial class MeshViewport
         }
         if (rectangle.Width < 4 && rectangle.Height < 4)
         {
+            var clickOperation = CurrentSelectionOperation();
+            if (clickOperation == "replace")
+            {
+                _provisionalSelectedVertices.Clear();
+            }
+            UpdateProvisionalPaintHits(point, point, SelectionClickRadiusPixels, clickOperation);
             payload["screen_brush"] = ScreenPayload(point, SelectionClickRadiusPixels);
             EditorEventRequested?.Invoke("select_request", payload);
             StatusRequested?.Invoke($"{targetMode} selection awaiting authoritative depth-resolved result.");
@@ -175,7 +403,21 @@ internal sealed partial class MeshViewport
             Invalidate();
             return;
         }
-        payload["screen_region"] = ScreenDragPayload(_edgeDragStart, point);
+        var region = ScreenDragPayload(_edgeDragStart, point);
+        if (lassoPoints is not null)
+        {
+            // Native screen selection reads mode "lasso" plus the swept
+            // polygon; the rectangle endpoints stay in the payload as the
+            // fallback older cores use.
+            region["mode"] = "lasso";
+            // Both spellings: the native reader accepts either key, and the
+            // redundancy survives any intermediate that strips one of them.
+            region["selection_mode"] = "lasso";
+            region["points"] = lassoPoints
+                .Select(lassoPoint => new[] { (double)lassoPoint.X, (double)lassoPoint.Y })
+                .ToArray();
+        }
+        payload["screen_region"] = region;
         EditorEventRequested?.Invoke("select_request", payload);
         StatusRequested?.Invoke($"{targetMode} region selection awaiting authoritative depth-resolved result.");
         _hoverEdgeId = -1;
@@ -317,30 +559,6 @@ internal sealed partial class MeshViewport
         return result.OrderBy(edgeId => edgeId).ToArray();
     }
 
-    private void SelectEdgeAt(Point point)
-    {
-        var edgeId = PickEdgeAt(point);
-        if (edgeId < 0)
-        {
-            if (string.Equals(CurrentSelectionOperation(), "replace", StringComparison.OrdinalIgnoreCase))
-            {
-                _selectedEdges.Clear();
-            }
-            _hoverEdgeId = -1;
-            StatusRequested?.Invoke($"Edge mode: selected={_selectedEdges.Count} hover=0 xray={(ShowXRay ? "on" : "off")}");
-            NotifyLocalSelectionChanged();
-            UpdateGpuViewport();
-            Invalidate();
-            return;
-        }
-        ApplyEdgeSelectionOperation(edgeId, CurrentSelectionOperation());
-        _hoverEdgeId = edgeId;
-        StatusRequested?.Invoke($"Edge mode: selected={_selectedEdges.Count} hover=1 xray={(ShowXRay ? "on" : "off")}");
-        NotifyLocalSelectionChanged();
-        UpdateGpuViewport();
-        Invalidate();
-    }
-
     private void UpdateHoverEdge(Point point)
     {
         var edgeId = PickEdgeAt(point);
@@ -352,69 +570,6 @@ internal sealed partial class MeshViewport
         StatusRequested?.Invoke($"Edge mode: selected={_selectedEdges.Count} hover={(edgeId >= 0 ? 1 : 0)} xray={(ShowXRay ? "on" : "off")}");
         UpdateGpuViewport();
         Invalidate();
-    }
-
-    private void ApplyEdgeSelectionOperation(IEnumerable<int> edgeIds, string operation)
-    {
-        var ids = edgeIds.Where(_edgeTopology.Contains).Distinct().ToArray();
-        var normalized = (operation ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized == "add")
-        {
-            foreach (var edgeId in ids)
-            {
-                _selectedEdges.Add(edgeId);
-            }
-        }
-        else if (normalized == "subtract")
-        {
-            foreach (var edgeId in ids)
-            {
-                _selectedEdges.Remove(edgeId);
-            }
-        }
-        else if (normalized == "toggle")
-        {
-            foreach (var edgeId in ids)
-            {
-                if (!_selectedEdges.Remove(edgeId))
-                {
-                    _selectedEdges.Add(edgeId);
-                }
-            }
-        }
-        else
-        {
-            _selectedEdges.Clear();
-            foreach (var edgeId in ids)
-            {
-                _selectedEdges.Add(edgeId);
-            }
-        }
-    }
-
-    private void ApplyEdgeSelectionOperation(int edgeId, string operation)
-    {
-        var normalized = (operation ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized == "add")
-        {
-            _selectedEdges.Add(edgeId);
-        }
-        else if (normalized == "subtract")
-        {
-            _selectedEdges.Remove(edgeId);
-        }
-        else if (normalized == "toggle")
-        {
-            if (!_selectedEdges.Remove(edgeId))
-            {
-                _selectedEdges.Add(edgeId);
-            }
-        }
-        else
-        {
-            _selectedEdges.Clear();
-            _selectedEdges.Add(edgeId);
-        }
     }
 
     private int PickEdgeAt(Point point)

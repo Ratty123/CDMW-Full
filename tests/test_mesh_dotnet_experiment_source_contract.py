@@ -263,9 +263,10 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "ShowXRay" in source
     assert "ApplySelectionUpdate" in source
     assert "UpdateSelection" in source
-    assert "SelectVertexAt" in source
-    assert "SelectFaceAt" in source
-    assert "SelectPartAt" in source
+    # The local click pickers (SelectVertexAt and friends) and their
+    # Apply*Operation helpers are removed: hit resolution is native screen
+    # selection, and test_dotnet_mesh_editor_tool_protocol_source pins their
+    # absence by signature. The picking primitives below stay live.
     assert "PickVertexAt" in source
     assert "PickFaceAt" in source
     assert "PickPartAt" in source
@@ -274,8 +275,6 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "VertexIdsInRectangle" in source
     assert "FaceIdsInRectangle" in source
     assert "PartIdsInRectangle" in source
-    assert "ApplySelectionMapOperation" in source
-    assert "ApplyPartSelectionOperation" in source
     assert "SubmeshSelectedRequested" in source
     assert "TryHandleLocalCommand" in source
     assert "SelectionSnapshotPayload" in source
@@ -312,7 +311,6 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "DrawEdgeSelectionRectangle" in source
     assert "AddSelectionRectangle" in gpu_source
     assert "DrawSelectedEdges" in source
-    assert "ApplyEdgeSelectionOperation" in source
     assert "NetMaterialSet.Load" in source
     assert "NetTextureSet.Load" in source
     assert "TryDrawTexturedFace" in source

@@ -10,6 +10,56 @@ from typing import List, Optional, Sequence, Tuple
 from cdmw.core.common import raise_if_cancelled
 from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewMesh, RunCancelled
 
+_NUMPY = None
+_NUMPY_CHECKED = False
+
+
+def _np_module():
+    """numpy, or None where it is unavailable; scalar loops stay authoritative."""
+    global _NUMPY, _NUMPY_CHECKED
+    if not _NUMPY_CHECKED:
+        try:
+            import numpy
+        except Exception:
+            numpy = None
+        _NUMPY = numpy
+        _NUMPY_CHECKED = True
+    return _NUMPY
+
+
+def _triangle_geometry_arrays(np, positions, indices):
+    """Valid triangle index rows plus their unnormalized face normals.
+
+    Mirrors the scalar loops: triple order preserved, out-of-range triples
+    dropped, cross product computed with the exact same component formulas.
+    Returns None when the inputs cannot be represented as clean numeric arrays.
+    """
+
+    triple_count = len(indices) // 3
+    if triple_count <= 0:
+        return None
+    try:
+        index_array = np.asarray(indices[: triple_count * 3], dtype=np.int64).reshape(-1, 3)
+        position_array = np.asarray(positions, dtype=np.float64)
+    except (TypeError, ValueError):
+        return None
+    if position_array.ndim != 2 or position_array.shape[1] != 3:
+        return None
+    valid = (index_array >= 0).all(axis=1) & (index_array < len(positions)).all(axis=1)
+    triangles = index_array[valid]
+    if not len(triangles):
+        return triangles, np.empty((0, 3), dtype=np.float64)
+    corner_a = position_array[triangles[:, 0]]
+    corner_b = position_array[triangles[:, 1]]
+    corner_c = position_array[triangles[:, 2]]
+    ab = corner_b - corner_a
+    ac = corner_c - corner_a
+    normals = np.empty_like(ab)
+    normals[:, 0] = ab[:, 1] * ac[:, 2] - ab[:, 2] * ac[:, 1]
+    normals[:, 1] = ab[:, 2] * ac[:, 0] - ab[:, 0] * ac[:, 2]
+    normals[:, 2] = ab[:, 0] * ac[:, 1] - ab[:, 1] * ac[:, 0]
+    return triangles, normals
+
 _PAM_SUBMESH_TABLE_OFFSET = 1040
 _PAM_SUBMESH_STRIDE = 536
 _PAM_HEADER_MESH_COUNT_OFFSET = 16
@@ -1109,6 +1159,20 @@ def _count_non_degenerate_triangles(
     *,
     stop_event: Optional[threading.Event] = None,
 ) -> int:
+    np = _np_module()
+    if np is not None:
+        geometry = _triangle_geometry_arrays(np, positions, indices)
+        if geometry is not None:
+            raise_if_cancelled(stop_event)
+            _triangles, normals = geometry
+            if not len(normals):
+                return 0
+            squared = (
+                normals[:, 0] * normals[:, 0]
+                + normals[:, 1] * normals[:, 1]
+                + normals[:, 2] * normals[:, 2]
+            )
+            return int((squared > 1e-18).sum())
     count = 0
     for index in range(0, len(indices) - 2, 3):
         if (index % 768) == 0:
@@ -1139,6 +1203,46 @@ def _count_non_degenerate_triangles(
 
 
 def _normalize_model_meshes(meshes: Sequence[ModelPreviewMesh]) -> Tuple[Tuple[float, float, float], float]:
+    np = _np_module()
+    if np is not None:
+        arrays = []
+        for mesh in meshes:
+            if not mesh.positions:
+                arrays.append(None)
+                continue
+            try:
+                array = np.asarray(mesh.positions, dtype=np.float64)
+            except (TypeError, ValueError):
+                arrays = None
+                break
+            if array.ndim != 2 or array.shape[1] != 3 or np.isnan(array).any():
+                arrays = None
+                break
+            arrays.append(array)
+        if arrays is not None:
+            stacked = [array for array in arrays if array is not None]
+            if not stacked:
+                return (0.0, 0.0, 0.0), 1.0
+            minimums = np.min([array.min(axis=0) for array in stacked], axis=0)
+            maximums = np.max([array.max(axis=0) for array in stacked], axis=0)
+            center_x = (float(minimums[0]) + float(maximums[0])) * 0.5
+            center_y = (float(minimums[1]) + float(maximums[1])) * 0.5
+            center_z = (float(minimums[2]) + float(maximums[2])) * 0.5
+            max_dimension = max(
+                float(maximums[0]) - float(minimums[0]),
+                float(maximums[1]) - float(minimums[1]),
+                float(maximums[2]) - float(minimums[2]),
+            )
+            if max_dimension <= 1e-6:
+                return (center_x, center_y, center_z), 1.0
+            scale = 2.0 / max_dimension
+            center = np.array([center_x, center_y, center_z], dtype=np.float64)
+            for mesh, array in zip(meshes, arrays):
+                if array is None:
+                    continue
+                moved = (array - center) * scale
+                mesh.positions = list(map(tuple, moved.tolist()))
+            return (center_x, center_y, center_z), scale
     all_positions = [position for mesh in meshes for position in mesh.positions]
     if not all_positions:
         return (0.0, 0.0, 0.0), 1.0
@@ -1173,6 +1277,36 @@ def _build_vertex_normals(
     *,
     stop_event: Optional[threading.Event] = None,
 ) -> List[Tuple[float, float, float]]:
+    np = _np_module()
+    if np is not None:
+        geometry = _triangle_geometry_arrays(np, positions, indices)
+        if geometry is not None:
+            raise_if_cancelled(stop_event)
+            triangles, face_normals = geometry
+            accumulated = np.zeros((len(positions), 3), dtype=np.float64)
+            if len(face_normals):
+                squared = (
+                    face_normals[:, 0] * face_normals[:, 0]
+                    + face_normals[:, 1] * face_normals[:, 1]
+                    + face_normals[:, 2] * face_normals[:, 2]
+                )
+                lengths = np.sqrt(squared)
+                keep = lengths > 1e-12
+                unit = face_normals[keep] / lengths[keep, None]
+                # Flattened (a, b, c) per triangle keeps the accumulation order
+                # of the scalar loop, so float sums stay bit-identical.
+                np.add.at(accumulated, triangles[keep].reshape(-1), np.repeat(unit, 3, axis=0))
+            vertex_squared = (
+                accumulated[:, 0] * accumulated[:, 0]
+                + accumulated[:, 1] * accumulated[:, 1]
+                + accumulated[:, 2] * accumulated[:, 2]
+            )
+            vertex_lengths = np.sqrt(vertex_squared)
+            valid = vertex_lengths > 1e-12
+            output = np.empty_like(accumulated)
+            output[valid] = accumulated[valid] / vertex_lengths[valid, None]
+            output[~valid] = (0.0, 0.0, 1.0)
+            return list(map(tuple, output.tolist()))
     normals = [[0.0, 0.0, 0.0] for _ in range(len(positions))]
     for index in range(0, len(indices) - 2, 3):
         if (index % 768) == 0:

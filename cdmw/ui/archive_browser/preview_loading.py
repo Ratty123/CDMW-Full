@@ -68,7 +68,49 @@ class ArchivePreviewLoadingMixin:
             sidecar_generation=self.archive_sidecar_generation,
         )
 
+    def _archive_preview_surface_identity(self, entry: Optional[ArchiveEntry]) -> str:
+        """Name what the preview surface is currently showing.
+
+        The loose and packed views of one path are different pictures, so the
+        flag belongs in the identity alongside the entry itself.
+        """
+
+        if entry is None:
+            return ""
+        return "|".join(
+            (
+                str(getattr(entry, "path", "") or ""),
+                str(getattr(entry, "package_label", "") or ""),
+                "loose" if bool(getattr(self, "archive_preview_requested_loose", False)) else "packed",
+            )
+        )
+
     def _show_archive_preview_loading_state(self, entry: Optional[ArchiveEntry]) -> None:
+        # Re-requesting the asset already on screen used to blank it. The
+        # metadata, the warning badges, the texture reference views and the
+        # Asset Family pane all went, the Details tab jumped back to Preview,
+        # and the whole panel repopulated milliseconds later when the cache
+        # answered -- a dozen call sites ask for a preview and several fire for
+        # one user action, so this ran two or three times per asset. Nothing on
+        # the surface is wrong while the asset is unchanged, so it stays up and
+        # the result replaces it in one repaint. Hiding the Asset Family pane
+        # also collapsed the splitter, which resized the embedded viewport, so
+        # a repeat request used to move the 3D view as well.
+        identity = self._archive_preview_surface_identity(entry)
+        reuses_surface = bool(
+            identity
+            and identity == str(getattr(self, "archive_preview_surface_identity_shown", "") or "")
+            and self.current_archive_preview_result is not None
+        )
+        self.archive_preview_surface_identity_shown = identity
+        self.archive_preview_loading_reuses_surface = reuses_surface
+        self.archive_preview_title_label.setText(entry.basename if entry is not None else "Select an archive file")
+        role_label = self._archive_entry_role_label(entry)
+        self.archive_preview_role_badge.setText(role_label)
+        self.archive_preview_role_badge.setVisible(bool(entry))
+        if reuses_surface:
+            self._start_archive_preview_loading_indicator(entry)
+            return
         host = getattr(self, "archive_d3d11_preview_host", None)
         controller = getattr(host, "controller", None)
         keep_d3d11_visible = bool(
@@ -76,11 +118,7 @@ class ArchivePreviewLoadingMixin:
             and controller is not None
             and getattr(controller, "applied_package_path", "")
         )
-        self.archive_preview_title_label.setText(entry.basename if entry is not None else "Select an archive file")
         self.archive_preview_meta_label.setText("Loading preview...")
-        role_label = self._archive_entry_role_label(entry)
-        self.archive_preview_role_badge.setText(role_label)
-        self.archive_preview_role_badge.setVisible(bool(entry))
         self._set_archive_preview_health_message(
             f"Loading {role_label.lower()} preview...",
             visible=bool(entry),
@@ -137,16 +175,23 @@ class ArchivePreviewLoadingMixin:
         prefix = "Loading loose-file preview" if self.archive_preview_loading_loose else "Loading preview"
         detail = f"{prefix} for {self.archive_preview_loading_entry_name}... {elapsed:.1f}s"
         self.archive_preview_meta_label.setToolTip(detail)
-        if not self.archive_preview_quick_result_active:
+        # A quick result and a retained surface are both real content the user
+        # is reading. Progress text belongs in the tooltip and the status bar
+        # until there is nothing better to show.
+        keeps_visible_result = bool(
+            self.archive_preview_quick_result_active
+            or getattr(self, "archive_preview_loading_reuses_surface", False)
+        )
+        if not keeps_visible_result:
             self.archive_preview_meta_label.setText(f"{prefix}... {elapsed:.1f}s")
         loading_text = (
             f"{detail}\n\n"
             "Large .pam/.pamlod files and textured model previews can take a few seconds. "
             "The preview worker is still running."
         )
-        if self.archive_preview_stack.currentWidget() is self.archive_preview_info_edit and not self.archive_preview_quick_result_active:
+        if self.archive_preview_stack.currentWidget() is self.archive_preview_info_edit and not keeps_visible_result:
             self.archive_preview_info_edit.setPlainText(loading_text)
-        if not self.archive_preview_quick_result_active:
+        if not keeps_visible_result:
             self._set_archive_preview_base_detail_text(loading_text, include_current_model_debug=False)
 
     def _handle_archive_preview_loading_stall(self, elapsed: float) -> None:
@@ -197,6 +242,7 @@ class ArchivePreviewLoadingMixin:
         self.archive_preview_loading_entry_name = ""
         self.archive_preview_loading_loose = False
         self.archive_preview_quick_result_active = False
+        self.archive_preview_loading_reuses_surface = False
         if has_fast_result:
             message = "Fast preview remains visible; full preview timed out and was stopped."
             self._set_archive_preview_health_message(message, visible=True)
@@ -219,6 +265,7 @@ class ArchivePreviewLoadingMixin:
         self.archive_preview_loading_entry_name = ""
         self.archive_preview_loading_loose = False
         self.archive_preview_quick_result_active = False
+        self.archive_preview_loading_reuses_surface = False
         if success is None:
             return
         if success:

@@ -479,7 +479,10 @@ internal sealed partial class ExperimentForm
             // Left: the tool and command sections swap with the rail. Selection
             // owns two sections, so it gets a grid; the rest own one page each.
             AddRailSection(_railSelectionStack, _selectionSection, row: 0);
-            AddRailSection(_railSelectionStack, _partPickSection, row: 1);
+            if (_partPickSection is not null)
+            {
+                AddRailSection(_railSelectionStack, _partPickSection, row: 1);
+            }
             AddRailSection(_toolRailPages[ToolRailPage.Transform], _transformSection);
             AddRailSection(_toolRailPages[ToolRailPage.Brush], _brushSection);
             AddRailSection(_toolRailPages[ToolRailPage.Topology], _topologySection);

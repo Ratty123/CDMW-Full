@@ -28,6 +28,9 @@ internal sealed partial class D3D11MaterialViewport
         {
             RebuildGeometry();
             ResidentSceneLoadCount++;
+            // The first real package ends the placeholder's tenure; from here
+            // every frame draws the scene someone actually asked for.
+            ScenePresentationSuppressed = false;
             LastError = string.Empty;
             Invalidate();
         }

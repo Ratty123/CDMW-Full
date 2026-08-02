@@ -189,6 +189,13 @@ class _MeshEditSession:
     native_editor_mesh_signature: tuple[object, ...] = ()
     native_editor_mesh_dirty: bool = False
     native_editor_mesh_dirty_counts: tuple[tuple[int, int], ...] = ()
+    # Why the last native geometry apply gave up. Six branches used to return a
+    # bare None that the caller reported as one sentence, so a session where
+    # every stroke was refused could not say which of the six it hit.
+    native_editor_last_refusal: str = ""
+    # How many times the resident session died holding edits this side never
+    # received, and had to be abandoned back to the last exported state.
+    native_editor_lost_recoveries: int = 0
     undo_stack: list[_MeshHistorySnapshot] = field(default_factory=list)
     redo_stack: list[_MeshHistorySnapshot] = field(default_factory=list)
     native_history_undo_count: int = 0

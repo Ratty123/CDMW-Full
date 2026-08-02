@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import fnmatch
 import re
+from functools import lru_cache
 from pathlib import PurePosixPath
 from typing import (
     List,
@@ -42,6 +43,7 @@ def _iter_parsed_model_submeshes(parsed_mesh: Optional[object]) -> List[object]:
     return list(getattr(parsed_mesh, "submeshes", ()) or [])
 
 
+@lru_cache(maxsize=16384)
 def _normalize_model_submesh_exact_reference(value: str) -> str:
     raw_text = str(value or "").replace("\\", "/").strip().lower()
     if not raw_text:
@@ -49,6 +51,7 @@ def _normalize_model_submesh_exact_reference(value: str) -> str:
     return (PurePosixPath(raw_text).name or raw_text).strip().lower()
 
 
+@lru_cache(maxsize=8192)
 def _iter_model_submesh_exact_reference_candidates(*values: str) -> Tuple[str, ...]:
     ordered_candidates: List[str] = []
     seen: set[str] = set()
@@ -75,6 +78,7 @@ def _iter_model_submesh_exact_reference_candidates(*values: str) -> Tuple[str, .
     return tuple(ordered_candidates)
 
 
+@lru_cache(maxsize=8192)
 def _iter_model_submesh_reference_candidates(*values: str) -> Tuple[str, ...]:
     ordered_candidates: List[str] = []
     seen: set[str] = set()

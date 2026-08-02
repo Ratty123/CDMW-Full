@@ -946,11 +946,24 @@ def start_hang_watchdog(
     format_thread_dump_fn: Callable[[], str] = format_thread_dump,
 ) -> threading.Thread:
     def _watchdog() -> None:
-        reported_stale = False
+        # The threshold this has already reported at. Latching a bare boolean
+        # *before* attempting the write meant one failed or missed report
+        # silenced the watchdog for the rest of the session, and a stall that
+        # never recovered was only ever described once however long it lasted.
+        # A six-minute freeze went unreported behind exactly that.
+        reported_at = 0.0
         while not stop_event.wait(max(0.001, float(interval_seconds))):
             age_s = time.time() - float(last_heartbeat_written_at_fn())
-            if age_s >= stale_seconds and not reported_stale:
-                reported_stale = True
+            if age_s < recovered_seconds:
+                reported_at = 0.0
+                continue
+            if age_s < stale_seconds:
+                continue
+            # Report on first crossing, then again each time the stall has
+            # doubled, so a wedged UI keeps saying so instead of falling silent.
+            if reported_at and age_s < reported_at * 2.0:
+                continue
+            try:
                 write_crash_report_fn(
                     "app_hang_detected",
                     "GUI heartbeat stalled",
@@ -964,8 +977,11 @@ def start_hang_watchdog(
                     },
                     force=True,
                 )
-            elif age_s < recovered_seconds:
-                reported_stale = False
+            except Exception:
+                # A report that could not be written must not be recorded as
+                # written; the next cycle tries again.
+                continue
+            reported_at = age_s
 
     thread = threading.Thread(target=_watchdog, name=thread_name, daemon=True)
     thread.start()

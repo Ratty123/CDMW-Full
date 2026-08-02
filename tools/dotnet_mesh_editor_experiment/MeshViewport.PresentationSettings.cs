@@ -87,6 +87,11 @@ internal sealed partial class MeshViewport
                 JsonText(quality, "camera_right_drag", defaults.CameraRightDrag),
                 defaults.CameraRightDrag),
             BackgroundColor = PresentationBackgroundColor(quality, defaults.BackgroundColor),
+            GridColor = PresentationSrgbColor(quality, "d3d11_grid_color", defaults.GridColor),
+            GridSpacingScale = Math.Clamp(
+                JsonFloat(quality, "d3d11_grid_spacing_scale", defaults.GridSpacingScale), 0.1f, 10.0f),
+            GridLineCount = Math.Clamp(
+                JsonInt(quality, "d3d11_grid_line_count", defaults.GridLineCount), 4, 40),
             UvScale = new Vector2(
                 SafeNonZero(JsonFloat(uv, "scale_u", defaults.UvScale.X)),
                 SafeNonZero(JsonFloat(uv, "scale_v", defaults.UvScale.Y))),
@@ -137,6 +142,14 @@ internal sealed partial class MeshViewport
             return false;
         }
         SynchronizePresentationDisplaySettings();
+        // TrySetDisplayMode already rebuilt the pane records, but it ran before
+        // the contexts above adopted the new mode, so those records still carry
+        // the old per-pane display state. Without this rebuild the viewport
+        // keeps drawing the previous mode until something else -- a camera
+        // move, a resize -- pushes fresh panes, which is exactly the "textures
+        // only show up when I move the camera" report.
+        UpdateGpuViewport();
+        Invalidate();
         return true;
     }
 
@@ -237,6 +250,32 @@ internal sealed partial class MeshViewport
             SrgbToLinear(((packed >> 16) & 0xFF) / 255.0f),
             SrgbToLinear(((packed >> 8) & 0xFF) / 255.0f),
             SrgbToLinear((packed & 0xFF) / 255.0f));
+    }
+
+    /// <summary>
+    /// Reads an #RRGGBB colour that stays in sRGB, for overlay draws that take
+    /// their colours as plain bytes. Absent or malformed keeps the fallback.
+    /// </summary>
+    private static Vector3 PresentationSrgbColor(JsonElement quality, string name, Vector3 fallback)
+    {
+        var text = JsonText(quality, name, string.Empty);
+        if (text.StartsWith('#'))
+        {
+            text = text[1..];
+        }
+        if (text.Length != 6
+            || !uint.TryParse(
+                text,
+                System.Globalization.NumberStyles.HexNumber,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var packed))
+        {
+            return fallback;
+        }
+        return new Vector3(
+            ((packed >> 16) & 0xFF) / 255.0f,
+            ((packed >> 8) & 0xFF) / 255.0f,
+            (packed & 0xFF) / 255.0f);
     }
 
     private static float SrgbToLinear(float channel) =>

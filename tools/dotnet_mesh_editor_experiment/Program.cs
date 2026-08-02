@@ -46,6 +46,7 @@ internal sealed partial class ExperimentForm : Form
     private readonly NumericUpDown _translateStep = new();
     private readonly ComboBox _selectionTarget = new();
     private readonly ComboBox _selectionOperation = new();
+    private readonly ComboBox _selectionShape = new();
     private readonly ComboBox _previewMode = new();
     private bool _syncingPreviewModeSelection;
     private string _placementPreviewMode = "untextured_wire";
@@ -107,6 +108,7 @@ internal sealed partial class ExperimentForm : Form
     private DateTime _lastMetricsProtocolUtc = DateTime.MinValue;
     private string _lastMetricsUiText = string.Empty;
     private bool _meshEditInteractionActive;
+    private string _lastHostSelectionDragMode = "";
     private bool _syncingOverlayAppearanceControls;
     private bool _applyingToolPanelLayout;
     private MeshOverlaySettings _overlaySettings = MeshOverlayPreferences.Load();
@@ -174,7 +176,8 @@ internal sealed partial class ExperimentForm : Form
         _actionHistoryList.Height = 150;
         _actionHistoryList.IntegralHeight = false;
         _submeshList.HorizontalScrollbar = true;
-        _submeshList.SelectionMode = SelectionMode.MultiExtended;
+        // MultiSimple: a click toggles a part rather than replacing the selection.
+        _submeshList.SelectionMode = SelectionMode.MultiSimple;
         RefreshSubmeshList();
         _submeshList.SelectedIndexChanged += (_, _) =>
         {
@@ -198,6 +201,15 @@ internal sealed partial class ExperimentForm : Form
         ConfigureNumeric(_translateStep, decimalPlaces: 4, minimum: -10, maximum: 10, value: 0.0100M, increment: 0.0100M);
         ConfigureCombo(_selectionTarget, new object[] { "Vertex", "Face", "Edge", "Part" }, selectedIndex: 0);
         ConfigureCombo(_selectionOperation, new object[] { "Replace", "Add", "Subtract", "Toggle" }, selectedIndex: 0);
+        // Brush is the drag-shape default, matching the host combo's default;
+        // picking here drives the viewport directly, and the host's tool_state
+        // only re-adopts the value when its own combo actually changes.
+        ConfigureCombo(_selectionShape, new object[] { "Brush", "Rectangle", "Lasso" }, selectedIndex: 0);
+        _selectionShape.SelectedIndexChanged += (_, _) =>
+        {
+            _viewport.SetSelectionDragMode(SelectionText(_selectionShape, "brush"));
+            UpdateViewportControlsHint();
+        };
         _selectionTarget.SelectedIndexChanged += (_, _) => UpdateViewportControlsHint();
         _selectionOperation.SelectedIndexChanged += (_, _) => UpdateViewportControlsHint();
         ConfigureCheckBox(_xray, "X-Ray", isChecked: false);
@@ -704,8 +716,12 @@ internal sealed partial class ExperimentForm : Form
         _actionHistorySection.Name = "CompactActionHistorySection";
         _meshEditOnlySections.Add(_actionHistorySection);
         _morphRefitSection = BuildMorphRefitSection(rightStack);
-        _partPickSection = AddSection(leftStack, "Part Pick", _partPick);
-        _partPickSection.Name = "CompactPartPickSection";
+        // The Part Pick section is gone: the Parts panel on the right is the
+        // part-selection surface, and part picking itself is always available
+        // (the host publishes part_pick_enabled with every display update).
+        // The hidden checkbox stays because the pick paths read its state.
+        _partPick.Visible = false;
+        _partPickSection = null;
         var duplicatePartButton = CommandButton("Duplicate", "duplicate");
         var deletePartButton = CommandButton("Delete", "delete");
         RegisterTopologyMutationButton(duplicatePartButton);
@@ -719,6 +735,7 @@ internal sealed partial class ExperimentForm : Form
             "Choose Vertex, Edge, Face, or Part; then click the mesh or drag a selection box. X-Ray selects through the mesh.",
             out _,
             LabeledControl("Selection target", _selectionTarget),
+            LabeledControl("Select shape", _selectionShape),
             LabeledControl("Selection mode", _selectionOperation),
             _xray,
             // No Select button: its list row arms the tool. Grow and Shrink are commands, so they stay.
@@ -771,7 +788,8 @@ internal sealed partial class ExperimentForm : Form
             leftStack,
             "Topology",
             "Acts on the current Selection target. Delete and Duplicate remove or copy the selected "
-            + "vertices, edges, faces or parts; Subdivide and Refine Smooth add density.",
+            + "vertices, edges, faces or parts; Subdivide and Refine Smooth add density to the "
+            + "selection, to the selected parts, or to the whole mesh when nothing is selected.",
             out _,
             ButtonRow(deleteSelectionButton, duplicateSelectionButton),
             ButtonRow(subdivideButton, refineButton));
@@ -1085,6 +1103,19 @@ internal sealed partial class MeshViewport : Control
     private bool _edgeDragActive;
     private bool _placementDragActive;
     private string _selectionDragTargetMode = "edge";
+    // How a Select drag resolves: rectangle (default), brush paint, or lasso.
+    // Host state from the builder's Selection combo via tool_state.
+    private string _selectionDragMode = "rectangle";
+    // Instant local echo of a paint/click selection, drawn until the
+    // authoritative native result lands (~one protocol round trip later).
+    private readonly Dictionary<int, HashSet<int>> _provisionalSelectedVertices = new();
+    private bool _selectionPaintActive;
+    private bool _selectionPaintPainted;
+    private string _selectionPaintFirstOperation = "add";
+    private string _selectionPaintOperation = "add";
+    private Point _selectionPaintLastSample;
+    private long _selectionPaintLastSampleTicks;
+    private readonly List<Point> _selectionLassoPoints = new();
     private Point _edgeDragStart;
     private Point _edgeDragCurrent;
     private D3D11MaterialViewport? _d3d11Viewport;

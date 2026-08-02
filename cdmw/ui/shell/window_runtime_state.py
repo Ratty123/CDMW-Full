@@ -318,6 +318,8 @@ class ShellWindowRuntimeStateMixin:
         self.archive_preview_loading_entry_name = ""
         self.archive_preview_loading_loose = False
         self.archive_preview_quick_result_active = False
+        self.archive_preview_loading_reuses_surface = False
+        self.archive_preview_surface_identity_shown = ""
         self.pending_archive_texture_reference_update: Optional[
             Tuple[int, Tuple[ArchiveModelTextureReference, ...], Optional[AssetFamilyGraph]]
         ] = None

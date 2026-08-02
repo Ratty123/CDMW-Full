@@ -496,18 +496,29 @@ def read_archive_entry_data(
             if part
         )
         return data, bool(entry.compressed), note
+    # In-process decode goes first. The accelerator's entry-read spawns a
+    # process per entry (measured 25-45ms of overhead against sub-millisecond
+    # in-process decodes) and reports encrypted entries as unsupported, so as
+    # the primary path it charged every legacy read the round trip and then
+    # decoded here anyway. It remains the fallback for payloads this process
+    # cannot decode, such as a missing lz4 or cryptography package.
     try:
-        from cdmw.core.archive_accelerator import read_archive_entry_data_native
-
-        native_result = read_archive_entry_data_native(entry, stop_event=stop_event)
-        if native_result is not None:
-            return native_result
+        data = read_archive_entry_raw_data(entry, stop_event=stop_event)
+        return _decode_archive_entry_data(entry, data, stop_event=stop_event)
     except RunCancelled:
         raise
     except Exception:
-        pass
-    data = read_archive_entry_raw_data(entry, stop_event=stop_event)
-    return _decode_archive_entry_data(entry, data, stop_event=stop_event)
+        try:
+            from cdmw.core.archive_accelerator import read_archive_entry_data_native
+
+            native_result = read_archive_entry_data_native(entry, stop_event=stop_event)
+        except RunCancelled:
+            raise
+        except Exception:
+            native_result = None
+        if native_result is not None:
+            return native_result
+        raise
 
 
 def _read_archive_entry_data_from_handle(

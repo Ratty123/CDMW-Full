@@ -114,8 +114,22 @@ std::string mesh_editor_apply_session_report(
         && mesh_editor_apply_needs_topology_history(session, state)) {
         throw std::runtime_error("Bake or Reset active procedural sliders before a topology edit");
     }
-    mesh_editor_execute_apply_operation(session, *edit, native_session, state);
-    mesh_editor_commit_apply_results(session, native_session, state);
+    // An "end" releases the stroke slot whether or not the edit it carries
+    // succeeds. Clearing only on the success path below left a failed end
+    // holding the slot for the life of the session, so every later stroke was
+    // refused at the "mesh editor stroke is already active" guard -- one failed
+    // end permanently disabled Move, Grab, Smooth, Inflate and Pinch together,
+    // and nothing but an explicit cancel could ever release it again.
+    try {
+        mesh_editor_execute_apply_operation(session, *edit, native_session, state);
+        mesh_editor_commit_apply_results(session, native_session, state);
+    } catch (...) {
+        if (state.stroke_phase == "end") {
+            session.active_stroke = MeshEditorStroke{};
+            ++session.stroke_revision;
+        }
+        throw;
+    }
     bool response_stroke_active = session.active_stroke.active;
     if (state.stroke_phase == "end") {
         session.active_stroke = MeshEditorStroke{};

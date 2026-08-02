@@ -895,7 +895,21 @@ def test_dotnet_editor_starts_and_can_return_to_no_part_selection() -> None:
     assert '["local_selection"] = _viewport.SelectionSnapshotPayload()' in program_source
     assert "_submeshList.IndexFromPoint(eventArgs.Location) == ListBox.NoMatches" in program_source
     assert "_viewport.SelectPartsFromList(_submeshList.SelectedIndices.Cast<int>());" in program_source
-    assert "_submeshList.SelectionMode = SelectionMode.MultiExtended;" in program_source
+    # MultiSimple: a plain click toggles the part under the cursor and keeps
+    # the rest of the selection. MultiExtended replaced the selection on every
+    # unmodified click, so a selected part could not be deselected by clicking
+    # it again -- only the None button could.
+    assert "_submeshList.SelectionMode = SelectionMode.MultiSimple;" in program_source
+    assert "_submeshList.SelectionMode = SelectionMode.MultiExtended;" not in program_source
+    # A Parts-list click replaces only the part channel: the request carries
+    # the current vertex/face/edge snapshot, so accepting it cannot wipe the
+    # geometry selection the reader had in the viewport.
+    parts_request = selection_source.split(
+        "public void SelectPartsFromList(IEnumerable<int> submeshIndices)", maxsplit=1
+    )[1].split("private void SyncSelectedPartFocus()", maxsplit=1)[0]
+    assert "var selection = SelectionSnapshotPayload();" in parts_request
+    assert 'selection["source_indices"] = requestedSources;' in parts_request
+    assert '["vertices_by_submesh"] = new Dictionary<string, int[]>()' not in parts_request
     assert "public int[] SelectedSubmeshIndices" in program_source
     assert "public void SelectPartFromList(int submeshIndex)" in selection_source
     assert "public void SelectPartsFromList(IEnumerable<int> submeshIndices)" in selection_source
@@ -1043,6 +1057,158 @@ def test_a_resident_package_swap_keeps_the_host_overlay_choice() -> None:
     )
 
 
+def test_pane_focus_and_pane_render_never_read_stored_overlay_visibility() -> None:
+    """Grid/gizmo visibility is one host flag for the whole viewport.
+
+    Display updates only write the active context, so a pane's stored copy can
+    go stale. Restoring it on `LoadPresentationContext` -- which a click on
+    empty space reaches through pane focus -- switched the grid off with no
+    host request, and reading `context.GridVisible` at render time showed a
+    stale grid in whichever pane was not active when the toggle last changed.
+    """
+    presentation_source = _source("MeshViewport.Presentation.cs")
+    load_context = presentation_source.split(
+        "private void LoadPresentationContext(string contextId)", maxsplit=1
+    )[1].split("public void ActivatePresentationView", maxsplit=1)[0]
+    assert "_presentationGridVisible = context.GridVisible;" not in load_context
+    assert "_presentationGizmoVisible = context.GizmoVisible;" not in load_context
+    assert (
+        "_scene.SetPresentationOverlayVisibility(" in load_context
+    ), "context switches must keep asserting the current global overlay flags"
+
+    split_source = _source("MeshViewport.SplitView.cs")
+    render_pane = split_source.split(
+        "private D3D11RenderPane RenderPane(", maxsplit=1
+    )[1].split("private Dictionary<string, object?> PaneRectangleStatusPayload()", maxsplit=1)[0]
+    assert "context.GridVisible" not in render_pane
+    assert "_presentationGridVisible," in render_pane
+    assert '_presentationGizmoVisible && role != "reference"' in render_pane
+
+
+def test_host_tool_state_cannot_rewrite_the_selection_target_combo() -> None:
+    """The host's tool_state names how a stroke applies, not the combo value.
+
+    The host republishes tool_state on every control refresh, and "vertex" is
+    the one target_mode value that matches a combo item -- so writing it into
+    the combo reset a reader's Face/Edge/Part choice back to Vertex after
+    every selection. The combo belongs to the editor.
+    """
+    host_state_source = _source("ExperimentForm.HostState.cs")
+    assert "_selectionTarget" not in host_state_source
+
+
+def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
+    """The Selection combo's Brush/Lasso/Rectangle promise is real now.
+
+    The combo published `selection_mode` to the helper for as long as it has
+    existed, and the helper ignored it: every Select drag was a rectangle.
+    Brush paints throttled add/subtract `screen_brush` dabs that native unions
+    over the sweep; lasso sends the swept polygon as `screen_region` mode
+    "lasso" with the rectangle endpoints kept as the older-core fallback; a
+    plain click keeps the precise 14px click pick in every mode.
+    """
+    host_state_source = _source("ExperimentForm.HostState.cs")
+    # Adopted only when the host value changes: the host republishes
+    # tool_state per control refresh, and re-applying the same combo value
+    # would stomp a drag mode picked on the editor side between refreshes.
+    assert "_viewport.SetSelectionDragMode(selectionDragMode);" in host_state_source
+    assert "_lastHostSelectionDragMode" in host_state_source
+
+    input_source = _source("MeshViewport.Input.cs")
+    set_mode = input_source.split("internal void SetSelectionDragMode(", maxsplit=1)[1].split(
+        "private void BeginSelectionDrag(", maxsplit=1
+    )[0]
+    # Only the three drag modes are accepted; the standalone host publishes
+    # its element mode in the same field and must not reset the choice.
+    assert 'is "brush" or "lasso" or "rectangle"' in set_mode
+    begin_drag = input_source.split("private void BeginSelectionDrag(", maxsplit=1)[1]
+    assert '"mesh_edit"' in begin_drag, "paint and lasso arm only inside Edit Mesh"
+
+    picking_source = _source("MeshViewport.SelectionPicking.cs")
+    assert "private void MaybeEmitSelectionPaintSample(Point point, bool final = false)" in picking_source
+    assert "SelectionPaintSampleIntervalMs" in picking_source
+    assert '["paint_sample"] = true' in picking_source
+    finish = picking_source.split("private void FinishEdgeDrag(Point point)", maxsplit=1)[1].split(
+        "private Rectangle EdgeDragRectangle", maxsplit=1
+    )[0]
+    # The paint branch closes the sweep before the rectangle payload can be
+    # built, and the lasso polygon rides the region payload.
+    assert finish.index("MaybeEmitSelectionPaintSample(point, final: true)") < finish.index(
+        '["screen_region"]'.replace("[", "[")
+    )
+    assert 'region["mode"] = "lasso";' in finish
+    assert 'region["points"]' in finish
+    # A step longer than the brush radius becomes a swept-segment quad, so the
+    # painted band has no holes at any cursor speed: the 30ms cadence bounds
+    # message rate, never coverage.
+    assert "private void EmitSelectionSweepQuad(" in picking_source
+    sampler = picking_source.split(
+        "private void MaybeEmitSelectionPaintSample(Point point, bool final = false)", maxsplit=1
+    )[1].split("private void EmitSelectionSweepQuad(", maxsplit=1)[0]
+    assert "stepLength > radius" in sampler
+    sweep = picking_source.split("private void EmitSelectionSweepQuad(", maxsplit=1)[1]
+    assert 'region["mode"] = "lasso";' in sweep
+    assert '["paint_sample"] = true' in sweep
+
+    renderer_source = _source("MeshViewport.Renderer.cs")
+    # Rectangle rubber-band belongs to rectangle mode alone; painting shows
+    # the brush ring and a lasso drag draws the polygon actually swept.
+    assert (
+        "_edgeDragActive && !_selectionPaintActive && lassoDragPath is null ? EdgeDragRectangle() : null"
+        in renderer_source
+    )
+    assert "(brushTool || selectPaint) && _pointerInside" in renderer_source
+    assert "(IReadOnlyList<Point>)_selectionLassoPoints" in renderer_source
+    overlay_source = _source("D3D11MaterialViewport.Overlay.cs")
+    assert "private void DrawSelectionLassoOverlay()" in overlay_source
+    assert "DrawSelectionLassoOverlay();" in overlay_source
+
+
+def test_the_local_click_selection_pickers_stay_removed() -> None:
+    """Hit resolution lives in native screen selection; the local pickers had
+    no callers left, and the `selection_request` echo they emitted was read by
+    the host as an authoritative empty selection -- the mirror wipe behind
+    "selecting a part cleared my selection". The SimplePreview part pick is
+    the one local fallback that stays.
+    """
+    all_source = "\n".join(
+        path.read_text(encoding="utf-8") for path in sorted(DOTNET_EDITOR.glob("*.cs"))
+    )
+    for method in (
+        "private void SelectVertexAt(",
+        "private void SelectFaceAt(",
+        "private void SelectPartAt(",
+        "private void SelectEdgeAt(",
+        "private void NotifyLocalSelectionChanged()",
+        "NotifyLocalSelectionChanged();",
+        "private void ApplySelectionMapOperation(",
+        "private void ApplyPartSelectionOperation(",
+        "private void ApplyEdgeSelectionOperation(",
+    ):
+        assert method not in all_source, method
+    assert "private int PickPartAt(Point point)" in _source("MeshViewport.SelectionActions.cs")
+
+
+def test_embedded_reveal_presents_the_resident_scene_before_ws_visible() -> None:
+    """The first composited frame must be the scene resident at reveal.
+
+    The swap chain still holds whatever was last presented while the window
+    was hidden -- the procedural prewarm triangle -- and revealing first let
+    DWM show that stale surface until the first post-reveal paint.
+    """
+    reveal_source = _source("ExperimentForm.EmbeddedWindowRealization.cs")
+    reveal = reveal_source.split("private void RevealEmbeddedWindow()", maxsplit=1)[1].split(
+        "WriteProtocolEvent(", maxsplit=1
+    )[0]
+    assert "_viewport.PresentFreshFrame();" in reveal
+    assert reveal.index("PresentFreshFrame") < reveal.index("Visible = true")
+
+    renderer_source = _source("MeshViewport.Renderer.cs")
+    assert "public bool PresentFreshFrame()" in renderer_source
+    viewport_source = _source("D3D11MaterialViewport.cs")
+    assert "public bool TryPresentCurrentScene()" in viewport_source
+
+
 def test_an_early_textured_display_request_is_replayed_when_the_session_arrives() -> None:
     """A textured mode picked before any resident session existed used to be
     dropped on the floor: the combo snapped back to the untextured fallback and
@@ -1075,7 +1241,9 @@ def test_the_overlay_comparison_pane_keeps_the_placement_gizmo() -> None:
     split_view = _source("MeshViewport.SplitView.cs")
     pane = split_view.split("private D3D11RenderPane RenderPane(", maxsplit=1)[1]
     pane = pane.split("private Dictionary<string, object?> PaneRectangleStatusPayload", maxsplit=1)[0]
-    assert 'context.GizmoVisible && role != "reference"' in pane
+    # The gizmo flag is the viewport-global host toggle, not the pane
+    # context's stored copy; only the locked reference pane hides it.
+    assert '_presentationGizmoVisible && role != "reference"' in pane
     assert 'role == "editable"' not in pane
 
 

@@ -76,6 +76,8 @@ internal sealed partial class MeshViewport
             new HashSet<int>(_selectedSources),
             Math.Max(0, requestId),
             Math.Max(0, revision));
+        // The authoritative selection replaces the instant local echo.
+        _provisionalSelectedVertices.Clear();
         if (requestId <= 0 || requestId == _provisionalSelectionRequestId)
         {
             _provisionalSelectionRequestId = 0;
@@ -90,6 +92,7 @@ internal sealed partial class MeshViewport
 
     private void RestoreAcknowledgedSelection()
     {
+        _provisionalSelectedVertices.Clear();
         ReplaceSelectionMap(_selectedVertices, _acknowledgedSelection.Vertices);
         ReplaceSelectionMap(_selectedFaces, _acknowledgedSelection.Faces);
         _selectedEdges.Clear();

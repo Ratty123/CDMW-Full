@@ -135,6 +135,11 @@ internal sealed partial class ExperimentForm
     private void RevealEmbeddedWindow()
     {
         _embeddedWindowRevealed = true;
+        // Present the scene that is resident *now* before the window can be
+        // composited. The swap chain still holds the last frame presented while
+        // hidden -- the procedural prewarm triangle -- and revealing first let
+        // DWM show that stale surface until the first post-reveal paint.
+        _viewport.PresentFreshFrame();
         Visible = true;
         NativeWindowHost.ResizeToParent(
             this,

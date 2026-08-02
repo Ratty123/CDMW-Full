@@ -289,6 +289,22 @@ class ArchivePreviewSettingsMixin:
                 ),
                 max_anisotropy=self._read_int("preview/max_anisotropy", defaults.max_anisotropy),
                 d3d11_mip_lod_bias=self._read_float("preview/d3d11_mip_lod_bias", defaults.d3d11_mip_lod_bias),
+                d3d11_background_color=str(
+                    self.settings.value("preview/d3d11_background_color", defaults.d3d11_background_color)
+                    or defaults.d3d11_background_color
+                ),
+                d3d11_grid_color=str(
+                    self.settings.value("preview/d3d11_grid_color", defaults.d3d11_grid_color)
+                    or defaults.d3d11_grid_color
+                ),
+                d3d11_grid_spacing_scale=self._read_float(
+                    "preview/d3d11_grid_spacing_scale",
+                    defaults.d3d11_grid_spacing_scale,
+                ),
+                d3d11_grid_line_count=self._read_int(
+                    "preview/d3d11_grid_line_count",
+                    defaults.d3d11_grid_line_count,
+                ),
                 ambient_strength=ambient_strength,
                 diffuse_wrap_bias=diffuse_wrap_bias,
                 diffuse_light_scale=diffuse_light_scale,

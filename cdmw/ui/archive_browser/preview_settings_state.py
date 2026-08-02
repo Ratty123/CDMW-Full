@@ -124,6 +124,10 @@ def model_preview_settings_change_flags(
     d3d11_render_tuning_changed = (
         previous_settings.max_anisotropy != preview_settings.max_anisotropy
         or previous_settings.d3d11_mip_lod_bias != preview_settings.d3d11_mip_lod_bias
+        or getattr(previous_settings, "d3d11_background_color", "") != getattr(preview_settings, "d3d11_background_color", "")
+        or getattr(previous_settings, "d3d11_grid_color", "") != getattr(preview_settings, "d3d11_grid_color", "")
+        or getattr(previous_settings, "d3d11_grid_spacing_scale", 1.0) != getattr(preview_settings, "d3d11_grid_spacing_scale", 1.0)
+        or getattr(previous_settings, "d3d11_grid_line_count", 10) != getattr(preview_settings, "d3d11_grid_line_count", 10)
         or previous_settings.d3d11_view_mode != preview_settings.d3d11_view_mode
         or previous_settings.d3d11_cull_back_faces != preview_settings.d3d11_cull_back_faces
         or previous_settings.d3d11_light_azimuth_degrees != preview_settings.d3d11_light_azimuth_degrees

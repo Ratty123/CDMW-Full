@@ -37,6 +37,7 @@ internal sealed partial class D3D11MaterialViewport
     private readonly D3D11WireOverlayCache _editableWireOverlayCache = new();
     private Vector3 _cachedGridOrigin;
     private float _cachedGridSpacing;
+    private int _cachedGridLineCount;
     private bool _gridGeometryValid;
     private D3D11OverlayGeometryGenerationKey _referenceOverlayGeneration;
     private bool _referenceOverlayValid;
@@ -140,6 +141,7 @@ internal sealed partial class D3D11MaterialViewport
             DrawSelectedFacesOverlay();
             DrawSelectedEdgesOverlay();
             DrawSelectedVerticesOverlay();
+            DrawProvisionalVerticesOverlay();
         }
 
         _context.OMSetDepthStencilState(_overlayNoDepthState);
@@ -155,10 +157,12 @@ internal sealed partial class D3D11MaterialViewport
             DrawSelectedFacesOverlay();
             DrawSelectedEdgesOverlay();
             DrawSelectedVerticesOverlay();
+            DrawProvisionalVerticesOverlay();
         }
         if (ActivePaneInteractionAllowed)
         {
             DrawSelectionRectangleOverlay();
+            DrawSelectionLassoOverlay();
             DrawBrushCursorOverlay();
         }
         if (_overlayShowXRay)
@@ -191,8 +195,13 @@ internal sealed partial class D3D11MaterialViewport
     {
         if (ActivePaneGridVisible)
         {
-            var spacing = Math.Max(0.0001f, _scene.GridSpacing);
-            if (!_gridGeometryValid || _cachedGridOrigin != _scene.GridOrigin || _cachedGridSpacing != spacing)
+            var spacing = Math.Max(
+                0.0001f,
+                _scene.GridSpacing * _presentationSettings.GridSpacingScale);
+            if (!_gridGeometryValid
+                || _cachedGridOrigin != _scene.GridOrigin
+                || _cachedGridSpacing != spacing
+                || _cachedGridLineCount != _presentationSettings.GridLineCount)
             {
                 RebuildGridGeometry(spacing);
             }
@@ -200,8 +209,22 @@ internal sealed partial class D3D11MaterialViewport
             {
                 _retainedOverlayCacheHitCount++;
             }
-            DrawOverlayPrimitive(PrimitiveTopology.LineList, _gridMinorVertices, OverlayColor(90, 105, 120, 75), _camera.WorldViewProjection);
-            DrawOverlayPrimitive(PrimitiveTopology.LineList, _gridMajorVertices, OverlayColor(125, 140, 155, 115), _camera.WorldViewProjection);
+            // Minor lines draw the configured colour; major lines a lightened
+            // variant of it, the same +35 step the fixed palette used.
+            var gridColor = _presentationSettings.GridColor;
+            var minorR = (byte)Math.Clamp((int)MathF.Round(gridColor.X * 255f), 0, 255);
+            var minorG = (byte)Math.Clamp((int)MathF.Round(gridColor.Y * 255f), 0, 255);
+            var minorB = (byte)Math.Clamp((int)MathF.Round(gridColor.Z * 255f), 0, 255);
+            DrawOverlayPrimitive(PrimitiveTopology.LineList, _gridMinorVertices, OverlayColor(minorR, minorG, minorB, 75), _camera.WorldViewProjection);
+            DrawOverlayPrimitive(
+                PrimitiveTopology.LineList,
+                _gridMajorVertices,
+                OverlayColor(
+                    (byte)Math.Min(255, minorR + 35),
+                    (byte)Math.Min(255, minorG + 35),
+                    (byte)Math.Min(255, minorB + 35),
+                    115),
+                _camera.WorldViewProjection);
         }
         if (_scene.ComparisonMode == "overlay")
         {
@@ -222,7 +245,7 @@ internal sealed partial class D3D11MaterialViewport
     {
         _gridMinorVertices.Clear();
         _gridMajorVertices.Clear();
-        const int halfLines = 10;
+        var halfLines = Math.Clamp(_presentationSettings.GridLineCount, 4, 40);
         for (var line = -halfLines; line <= halfLines; line++)
         {
             var target = line % 5 == 0 ? _gridMajorVertices : _gridMinorVertices;
@@ -234,6 +257,7 @@ internal sealed partial class D3D11MaterialViewport
         }
         _cachedGridOrigin = _scene.GridOrigin;
         _cachedGridSpacing = spacing;
+        _cachedGridLineCount = halfLines;
         _gridGeometryValid = true;
         _retainedOverlayRebuildCount++;
     }
@@ -466,6 +490,46 @@ internal sealed partial class D3D11MaterialViewport
         DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(255, 230, 88, 245), Matrix4x4.Identity);
     }
 
+    /// <summary>
+    /// The instant local echo of a paint or click selection, tinted cooler
+    /// and fainter than the authoritative gold so the two states read apart;
+    /// the authoritative result replaces it one round trip later.
+    /// </summary>
+    private void DrawProvisionalVerticesOverlay()
+    {
+        var provisional = _overlayProvisionalVertices;
+        if (provisional is null || provisional.Count == 0)
+        {
+            return;
+        }
+        var lines = ResetScratchA();
+        foreach (var pair in provisional)
+        {
+            if (pair.Key < 0 || pair.Key >= _document.Submeshes.Count)
+            {
+                continue;
+            }
+            if (!ActivePaneIncludes(pair.Key) || _materials.ParametersForSubmesh(pair.Key).Visible is false)
+            {
+                continue;
+            }
+            var submesh = _document.Submeshes[pair.Key];
+            foreach (var vertexIndex in pair.Value)
+            {
+                if (vertexIndex < 0 || vertexIndex >= submesh.Vertices.Count)
+                {
+                    continue;
+                }
+                var transformed = Vector3.Transform(new Vector3(submesh.Vertices[vertexIndex].X, submesh.Vertices[vertexIndex].Y, submesh.Vertices[vertexIndex].Z), ActivePaneModelMatrix(pair.Key));
+                AddScreenCross(
+                    _camera.Project(new Vec3(transformed.X, transformed.Y, transformed.Z)),
+                    SelectedVertexMarkerRadiusPixels,
+                    lines);
+            }
+        }
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(96, 202, 255, 180), Matrix4x4.Identity);
+    }
+
     private void DrawSelectionRectangleOverlay()
     {
         if (!_overlaySelectionRectangle.HasValue)
@@ -479,6 +543,32 @@ internal sealed partial class D3D11MaterialViewport
         var lines = ResetScratchA();
         AddScreenRectangle(rect.Left, rect.Top, rect.Right, rect.Bottom, lines);
         DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(96, 202, 255, 210), Matrix4x4.Identity);
+    }
+
+    /// <summary>
+    /// The lasso drag draws the path actually swept -- the polygon the native
+    /// side will test -- with a fainter closing segment back to the start,
+    /// the way Blender previews an unclosed lasso.
+    /// </summary>
+    private void DrawSelectionLassoOverlay()
+    {
+        var path = _overlayLassoPath;
+        if (path is null || path.Count < 2)
+        {
+            return;
+        }
+        var lines = ResetScratchA();
+        for (var index = 1; index < path.Count; index++)
+        {
+            AddScreenLine(path[index - 1].X, path[index - 1].Y, path[index].X, path[index].Y, lines);
+        }
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(96, 202, 255, 210), Matrix4x4.Identity);
+        if (path.Count >= 3)
+        {
+            var closing = ResetScratchA();
+            AddScreenLine(path[^1].X, path[^1].Y, path[0].X, path[0].Y, closing);
+            DrawOverlayPrimitive(PrimitiveTopology.LineList, closing, OverlayColor(96, 202, 255, 110), Matrix4x4.Identity);
+        }
     }
 
     private void DrawXRayOverlayMarker()

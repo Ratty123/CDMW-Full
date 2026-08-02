@@ -274,6 +274,21 @@ def native_mesh_editor_session_selection_groups_from_report(report: Mapping[str,
     return tuple(groups)
 
 
+# The apply below answers None for four different exception types, which is the
+# contract its callers rely on. That threw away the only description of what
+# actually went wrong: a session refusing every stroke reported "native mesh
+# editor session failed" and nothing else. The text is kept here so the caller
+# can name it without changing the contract. Applies are serialized under the
+# service lock, so one slot is enough.
+_LAST_APPLY_ERROR: list[str] = [""]
+
+
+def last_native_mesh_editor_apply_error() -> str:
+    """The exception that made the most recent apply answer None, if any."""
+
+    return _LAST_APPLY_ERROR[0]
+
+
 def apply_native_mesh_editor_session(
     session_id: str,
     edit: Mapping[str, object],
@@ -287,6 +302,7 @@ def apply_native_mesh_editor_session(
     stop_event: threading.Event | None = None,
     timeout_seconds: float = 10.0,
 ) -> dict[str, object] | None:
+    _LAST_APPLY_ERROR[0] = ""
     edit_payload = dict(edit)
     if stroke_phase is not None:
         edit_payload["stroke_phase"] = str(stroke_phase or "").strip().lower()
@@ -317,7 +333,8 @@ def apply_native_mesh_editor_session(
                 stop_event=stop_event,
                 timeout_seconds=timeout_seconds,
             )
-    except (OSError, OverflowError, RuntimeError, ValueError):
+    except (OSError, OverflowError, RuntimeError, ValueError) as exc:
+        _LAST_APPLY_ERROR[0] = f"{type(exc).__name__}: {exc}"
         return None
 
 

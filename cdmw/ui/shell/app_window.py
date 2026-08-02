@@ -545,8 +545,14 @@ def run_gui() -> int:
         from cdmw.ui.shell.startup_controller import queue_startup_archive_autoload
         from cdmw.ui.shell.startup_splash import create_startup_splash
 
+        from cdmw.ui.shell.session_recorder import install_session_recorder
+
         apply_windows_app_user_model_id()
         app = QApplication(sys.argv)
+        # Off unless CDMW_SESSION_RECORDER is set; installs nothing otherwise.
+        # Held on globals() for the same reason the filters below are: an event
+        # filter the interpreter collects stops filtering.
+        globals()["_cdmw_session_recorder_ref"] = install_session_recorder(app)
         nonlocal_heartbeat_timer = _start_heartbeat_timer(app)
         globals()["_cdmw_heartbeat_timer_ref"] = nonlocal_heartbeat_timer
         _write_heartbeat("settings")

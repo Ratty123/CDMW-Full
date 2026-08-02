@@ -18,6 +18,10 @@ def create_topology_callbacks(state: SimpleNamespace, callbacks: SimpleNamespace
 
 
 def _mesh_edit_cancel_stroke(_state, _callbacks, payload: object) -> None:
+    if isinstance(payload, _state.Mapping) and str(payload.get("event", "") or "").startswith("stroke_"):
+        # Resident-editor strokes belong to the tab's live-stroke dispatcher;
+        # see _mesh_edit_begin_stroke for the single-authority rule.
+        return
     if not _state.mesh_edit_active_stroke:
         return
     stroke_id = _state._mesh_edit_stroke_id(payload)
@@ -170,11 +174,20 @@ def _mesh_edit_subdivide_selection(_state, _callbacks, *, refine_smooth: bool = 
     selected_sources = _callbacks._mesh_editor_action_source_indices()
     selected_edges = _callbacks._mesh_editor_edge_selection(selected_vertices, selected_faces)
     if not selected_vertices and not selected_faces and not selected_edges and not selected_sources:
+        # Nothing selected means the whole editable mesh: Subdivide and Refine
+        # add density without destroying anything, so there is no selection to
+        # protect and no reason to stop the reader with a prompt.
+        selected_sources = tuple(sorted(allowed_indices))
+    if not selected_vertices and not selected_faces and not selected_edges and not selected_sources:
         mesh_edit_subdivide_text = _state._mesh_edit_subdivide_text_helper()
         _state.QMessageBox.information(_state.dialog, _state._mesh_edit_dialog_title_helper(), mesh_edit_subdivide_text["select_vertices"])
         return
     params = {
-        "max_faces_per_submesh": 512,
+        # The old cap of 512 silently truncated the split set, so subdividing
+        # a real game part (tens of thousands of faces) changed 512 of them --
+        # which on screen looked like the button doing nothing. The native
+        # subdivide is linear in faces; the cap now only guards runaway growth.
+        "max_faces_per_submesh": 200_000,
         "recompute_normals": True,
         "smooth_iterations": int(_state.mesh_edit_iterations_spin.value()) if refine_smooth else 2,
         "smooth_strength": (float(_state.mesh_edit_strength_spin.value()) / 100.0) if refine_smooth else 0.5,

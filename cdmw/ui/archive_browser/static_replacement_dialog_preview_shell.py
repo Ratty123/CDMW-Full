@@ -222,11 +222,12 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_gizmo_checkbox.setChecked(True)
     preview_gizmo_checkbox.setToolTip(alignment_preview_control_text["gizmo_tooltip"])
     preview_controls_row.addWidget(preview_gizmo_checkbox)
-    preview_part_pick_checkbox = QCheckBox(alignment_preview_control_text["part_pick"])
+    # Part picking is always on and its toolbar checkbox is gone; the hidden,
+    # checked widget stays because every presentation snapshot reads its state.
+    preview_part_pick_checkbox = QCheckBox(alignment_preview_control_text["part_pick"], preview_panel)
     preview_part_pick_checkbox.setObjectName("MeshAlignmentPartPickCheckbox")
-    preview_part_pick_checkbox.setChecked(False)
-    preview_part_pick_checkbox.setToolTip(alignment_preview_control_text["part_pick_tooltip"])
-    preview_controls_row.addWidget(preview_part_pick_checkbox)
+    preview_part_pick_checkbox.setChecked(True)
+    preview_part_pick_checkbox.setVisible(False)
     preview_mesh_edit_checkbox = QCheckBox("Edit Mesh")
     preview_mesh_edit_checkbox.setObjectName("MeshEditModeCheckbox")
     preview_mesh_edit_checkbox.setChecked(False)
@@ -429,14 +430,12 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_render_controls.addWidget(QLabel(alignment_preview_render_control_text["rough_label"]))
     preview_render_controls.addWidget(preview_rough_spin)
     preview_panel_layout.addWidget(preview_render_controls_widget)
-    classic_mesh_edit_toolbar = QFrame(preview_panel)
-    classic_mesh_edit_toolbar.setObjectName("ClassicMeshEditPreviewToolbar")
-    classic_mesh_edit_toolbar.setVisible(False)
-    classic_mesh_edit_toolbar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-    classic_mesh_edit_toolbar_layout = QVBoxLayout(classic_mesh_edit_toolbar)
-    classic_mesh_edit_toolbar_layout.setContentsMargins(4, 3, 4, 3)
-    classic_mesh_edit_toolbar_layout.setSpacing(3)
-    preview_panel_layout.addWidget(classic_mesh_edit_toolbar)
+    # The Classic side-panel Edit Mesh toolbar is gone: the .NET tool rail is
+    # the only Edit Mesh layout. Its visibility condition had in any case been
+    # "checked and not checked" -- provably never true -- so it was built,
+    # populated, mirrored and refreshed on every control pass without ever
+    # being shown. The context keys stay absent; every consumer already
+    # guards for None.
     preview_splitter = QSplitter(Qt.Horizontal, preview_panel)
     original_preview_container = QWidget(preview_splitter)
     original_preview_layout = QVBoxLayout(original_preview_container)

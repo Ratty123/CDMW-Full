@@ -126,6 +126,13 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.command_results.append((command, status))
         return True
 
+    def _send_dotnet_session_state(self) -> bool:
+        # The completion path publishes a session_state after end/cancel; the
+        # missing stub raised AttributeError out of the queued slot on every
+        # run -- a crash report per test while the assertions stayed green.
+        self.session_state_sends = getattr(self, "session_state_sends", 0) + 1
+        return True
+
     def _set_dotnet_status(self, message: str, *, error: bool = False) -> None:
         del error
         self.statuses.append(message)

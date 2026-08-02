@@ -152,3 +152,40 @@ def test_cumulative_summary_merges_chunk_reports(tmp_path: Path) -> None:
     assert summary["summary"]["issue_codes"] == {"empty_geometry": 1}
     assert summary["gate"]["all_entries_scanned"] is True
     assert summary["gate"]["all_scanned_entries_ok"] is False
+
+
+def test_validate_parsed_pac_mesh_accepts_six_wide_bone_influences() -> None:
+    """The PAC vertex record carries six packed influences; six is valid data."""
+    submesh = _valid_submesh()
+    submesh.bone_indices = [(0, 1, 2, 3, 4, 5)] * 3
+    submesh.bone_weights = [(0.4, 0.2, 0.15, 0.1, 0.1, 0.05)] * 3
+    mesh = ParsedMesh(
+        path="character/model/sample.pac",
+        format="pac",
+        submeshes=[submesh],
+        total_vertices=3,
+        total_faces=1,
+        has_bones=True,
+    )
+
+    issues = harness.validate_parsed_pac_mesh(mesh, data_size=200)
+
+    assert "bone_influence_width_too_large" not in {issue.code for issue in issues}
+
+
+def test_validate_parsed_pac_mesh_reports_bone_influences_wider_than_the_record() -> None:
+    submesh = _valid_submesh()
+    submesh.bone_indices = [(0, 1, 2, 3, 4, 5, 6)] * 3
+    submesh.bone_weights = [(0.2, 0.2, 0.15, 0.15, 0.1, 0.1, 0.1)] * 3
+    mesh = ParsedMesh(
+        path="character/model/sample.pac",
+        format="pac",
+        submeshes=[submesh],
+        total_vertices=3,
+        total_faces=1,
+        has_bones=True,
+    )
+
+    issues = harness.validate_parsed_pac_mesh(mesh, data_size=200)
+
+    assert "bone_influence_width_too_large" in {issue.code for issue in issues}

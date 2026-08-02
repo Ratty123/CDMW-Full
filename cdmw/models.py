@@ -1497,6 +1497,8 @@ MODEL_PREVIEW_RENDER_LIMITS: Dict[str, Tuple[float, float]] = {
     "low_quality_texture_max_dimension": (128.0, 4096.0),
     "max_anisotropy": (1.0, 16.0),
     "d3d11_mip_lod_bias": (-2.0, 1.0),
+    "d3d11_grid_spacing_scale": (0.1, 10.0),
+    "d3d11_grid_line_count": (4.0, 40.0),
     "ambient_strength": (0.35, 1.0),
     "diffuse_wrap_bias": (0.20, 1.0),
     "diffuse_light_scale": (0.05, 1.5),
@@ -1773,6 +1775,15 @@ class ModelPreviewRenderSettings:
     low_quality_texture_max_dimension: int = 2048
     max_anisotropy: int = 16
     d3d11_mip_lod_bias: float = -2.0
+    # "#RRGGBB" viewport background for the resident .NET preview. The default
+    # matches the renderer's built-in dark clear colour.
+    d3d11_background_color: str = "#3B3B3B"
+    # Resident viewport grid appearance: minor-line colour (major lines draw a
+    # lightened variant), a multiplier on the scene grid spacing, and lines
+    # each side of the origin. Defaults reproduce the fixed grid exactly.
+    d3d11_grid_color: str = "#5A6978"
+    d3d11_grid_spacing_scale: float = 1.0
+    d3d11_grid_line_count: int = 10
     d3d11_view_mode: str = "lit"
     d3d11_cull_back_faces: bool = False
     d3d11_light_azimuth_degrees: float = -10.0
@@ -1895,6 +1906,7 @@ def clamp_model_preview_render_settings(
         "preview_texture_max_dimension",
         "low_quality_texture_max_dimension",
         "max_anisotropy",
+        "d3d11_grid_line_count",
     }
     for field_name, (minimum, maximum) in MODEL_PREVIEW_RENDER_LIMITS.items():
         raw_value = getattr(value, field_name)
@@ -1914,6 +1926,8 @@ def clamp_model_preview_render_settings(
         "gizmo_z_axis_color",
         "gizmo_highlight_color",
         "gizmo_label_color",
+        "d3d11_background_color",
+        "d3d11_grid_color",
     ):
         fallback = str(getattr(defaults, field_name))
         candidate = str(getattr(value, field_name, fallback) or "").strip()

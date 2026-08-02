@@ -1624,6 +1624,29 @@ def _semantic_hint_from_sidecar_parameter(
     return None
 
 
+@lru_cache(maxsize=512)
+def _exact_sidecar_semantic_binding_rows(
+    sidecar_text: str,
+) -> Tuple[Tuple[str, str, Tuple[str, str, int, Tuple[str, ...], Tuple[str, ...]]], ...]:
+    """Pre-normalized (path, basename, hint) rows for one sidecar text.
+
+    A preview resolves semantics for every texture against the same few
+    sidecars, so the per-binding normalization work is done once per text
+    instead of once per texture-times-binding pair.
+    """
+
+    rows: List[Tuple[str, str, Tuple[str, str, int, Tuple[str, ...], Tuple[str, ...]]]] = []
+    for binding in parse_texture_sidecar_bindings(sidecar_text):
+        normalized_binding = normalize_texture_reference_for_sidecar_lookup(binding.texture_path)
+        if not normalized_binding:
+            continue
+        semantic_hint = _semantic_hint_from_sidecar_parameter(binding.parameter_name)
+        if semantic_hint is None:
+            continue
+        rows.append((normalized_binding, PurePosixPath(normalized_binding).name, semantic_hint))
+    return tuple(rows)
+
+
 def _select_exact_sidecar_semantic_hint(
     path_value: str | Path,
     sidecar_texts: Sequence[str],
@@ -1638,18 +1661,14 @@ def _select_exact_sidecar_semantic_hint(
     best_hint: Optional[Tuple[str, str, int, Tuple[str, ...], Tuple[str, ...]]] = None
     best_score: Tuple[int, int, int, int] = (-1, -1, -1, -1)
     for sidecar_text in sidecar_texts:
-        for binding in parse_texture_sidecar_bindings(sidecar_text):
-            normalized_binding = normalize_texture_reference_for_sidecar_lookup(binding.texture_path)
-            if not normalized_binding:
-                continue
+        for normalized_binding, binding_basename, semantic_hint in _exact_sidecar_semantic_binding_rows(
+            str(sidecar_text or "")
+        ):
             if normalized_binding == normalized_target:
                 path_score = 2
-            elif PurePosixPath(normalized_binding).name == target_basename:
+            elif binding_basename == target_basename:
                 path_score = 1
             else:
-                continue
-            semantic_hint = _semantic_hint_from_sidecar_parameter(binding.parameter_name)
-            if semantic_hint is None:
                 continue
             texture_type, semantic_subtype, confidence, evidence, packed_channels = semantic_hint
             candidate_score = (
@@ -1840,6 +1859,11 @@ def _infer_preview_semantics(
     return None
 
 
+@lru_cache(maxsize=64)
+def _combined_lowered_sidecar_text(sidecar_texts: Tuple[str, ...]) -> str:
+    return "\n".join(text.lower() for text in sidecar_texts if text).lower()
+
+
 def infer_texture_semantics(
     path_value: str | Path,
     *,
@@ -1858,7 +1882,7 @@ def infer_texture_semantics(
     alpha_mode = "present" if has_alpha else "none"
     packed_channels: List[str] = []
     evidence: List[str] = []
-    combined_sidecar_text = "\n".join(text.lower() for text in sidecar_texts if text).lower()
+    combined_sidecar_text = _combined_lowered_sidecar_text(tuple(sidecar_texts))
     original_upper = original_dds_format.strip().upper()
     exact_sidecar_hint = _select_exact_sidecar_semantic_hint(path_text, sidecar_texts)
 

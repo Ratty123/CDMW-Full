@@ -378,12 +378,16 @@ internal sealed partial class MeshViewport
             context.DisplayMode,
             context.MaterialDebugMode,
             context.TexturesEnabled,
-            context.GridVisible,
+            // Grid and gizmo visibility are the viewport-global host toggles,
+            // not per-pane camera state: display updates only write the active
+            // context, so reading the pane's stored copy showed a stale grid
+            // in whichever pane was not active when the toggle last changed.
+            _presentationGridVisible,
             // The reference pane's model is locked, so it alone hides the
             // gizmo. Demanding the editable role outright also hid it from the
             // Overlay view's single "comparison" pane, whose replacement is
             // exactly what the gizmo exists to move.
-            context.GizmoVisible && role != "reference",
+            _presentationGizmoVisible && role != "reference",
             context.XRay,
             interactionAllowed);
 

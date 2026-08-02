@@ -534,6 +534,10 @@ class DotNetPreviewHostFrame(QFrame):
         quality = {
             "max_anisotropy": int(getattr(settings, "max_anisotropy", 16) or 16),
             "d3d11_mip_lod_bias": float(getattr(settings, "d3d11_mip_lod_bias", -2.0)),
+            "d3d11_background_color": str(getattr(settings, "d3d11_background_color", "") or ""),
+            "d3d11_grid_color": str(getattr(settings, "d3d11_grid_color", "") or ""),
+            "d3d11_grid_spacing_scale": float(getattr(settings, "d3d11_grid_spacing_scale", 1.0) or 1.0),
+            "d3d11_grid_line_count": int(getattr(settings, "d3d11_grid_line_count", 10) or 10),
             "dotnet_view_mode": str(getattr(settings, "d3d11_view_mode", "lit") or "lit"),
             "d3d11_cull_back_faces": bool(getattr(settings, "d3d11_cull_back_faces", False)),
             "d3d11_light_azimuth_degrees": float(getattr(settings, "d3d11_light_azimuth_degrees", -10.0)),
@@ -600,7 +604,7 @@ class DotNetPreviewHostFrame(QFrame):
         highlights = dict(self._presentation_state.get("highlights", {}))
         highlights["source_indices"] = _indices(source_submesh_indices)
         self._presentation_state["highlights"] = highlights
-        return self._remember_presentation_state()
+        return self._remember_presentation_state_without_display()
 
     def set_highlighted_alignment_submeshes(
         self,
@@ -612,13 +616,13 @@ class DotNetPreviewHostFrame(QFrame):
         highlights["source_indices"] = _indices(replacement_submesh_indices)
         highlights["original_indices"] = _indices(original_submesh_indices)
         self._presentation_state["highlights"] = highlights
-        return self._remember_presentation_state()
+        return self._remember_presentation_state_without_display()
 
     def set_hidden_source_submeshes(self, source_submesh_indices: Sequence[int]) -> bool:
         self._presentation_state["visibility"] = {
             "hidden_submesh_indices": _indices(source_submesh_indices)
         }
-        return self._remember_presentation_state()
+        return self._remember_presentation_state_without_display()
 
     def set_texture_flip_vertical(
         self,
@@ -1016,6 +1020,23 @@ class DotNetPreviewHostFrame(QFrame):
             "presentation",
             "presentation_state_update",
             self._presentation_state,
+        )
+
+    def _remember_presentation_state_without_display(self) -> bool:
+        # Highlight and visibility setters must not carry the display block:
+        # this host's copy of it is not kept in sync with the dialog's Grid and
+        # Gizmo checkboxes, so republishing it here switched the grid off every
+        # time a part selection changed. The helper keeps its current display
+        # state whenever the key is absent.
+        payload = {
+            key: value
+            for key, value in self._presentation_state.items()
+            if key != "display"
+        }
+        return self.controller.remember_state(
+            "presentation",
+            "presentation_state_update",
+            payload,
         )
 
     def _load_scene_state(self, package_dir: Path) -> None:

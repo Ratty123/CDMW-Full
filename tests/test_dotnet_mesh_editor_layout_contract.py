@@ -52,7 +52,10 @@ def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
 
     # The placement stacks are the construction nursery for every section; the
     # session commands are built bare and adopted by the compact session bar.
-    assert _section_stack(program, "Part Pick") == "leftStack"
+    # The Part Pick section is removed outright: the Parts panel is the part
+    # surface, and picking is always available.
+    assert 'AddSection(leftStack, "Part Pick"' not in program
+    assert "_partPickSection = null;" in program
     assert _section_stack(program, "Selection") == "leftStack"
     assert _section_stack(program, "Transform") == "leftStack"
     assert _section_stack(program, "Brush Tools") == "leftStack"

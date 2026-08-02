@@ -2,8 +2,97 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping as _Mapping
 from functools import partial
 from types import SimpleNamespace
+
+
+def _resident_selection_snapshot(
+    payload: object,
+) -> tuple[dict[int, set[int]], dict[int, set[tuple[int, int]]], dict[int, set[int]], set[int]] | None:
+    """Parse the resident editor's `local_selection` snapshot, or None.
+
+    The resident helper publishes its whole selection as one snapshot --
+    `vertices_by_submesh`/`faces_by_submesh` as index lists keyed by submesh,
+    `edges_by_submesh` as `[a, b]` pairs, and `source_indices` -- which is a
+    different shape from the legacy preview widgets' candidate groups. A
+    payload without the snapshot answers None so the caller can fall back.
+    """
+    if not isinstance(payload, _Mapping):
+        return None
+    snapshot = payload.get("local_selection")
+    if not isinstance(snapshot, _Mapping):
+        return None
+
+    def _index_map(value: object) -> dict[int, set[int]]:
+        result: dict[int, set[int]] = {}
+        if not isinstance(value, _Mapping):
+            return result
+        for raw_submesh, raw_indices in value.items():
+            try:
+                submesh = int(raw_submesh)
+            except (TypeError, ValueError):
+                continue
+            indices: set[int] = set()
+            try:
+                iterator = iter(raw_indices or ())
+            except TypeError:
+                continue
+            for raw_index in iterator:
+                try:
+                    index = int(raw_index)
+                except (TypeError, ValueError):
+                    continue
+                if index >= 0:
+                    indices.add(index)
+            if indices:
+                result[submesh] = indices
+        return result
+
+    def _edge_map(value: object) -> dict[int, set[tuple[int, int]]]:
+        result: dict[int, set[tuple[int, int]]] = {}
+        if not isinstance(value, _Mapping):
+            return result
+        for raw_submesh, raw_pairs in value.items():
+            try:
+                submesh = int(raw_submesh)
+            except (TypeError, ValueError):
+                continue
+            edges: set[tuple[int, int]] = set()
+            try:
+                iterator = iter(raw_pairs or ())
+            except TypeError:
+                continue
+            for raw_pair in iterator:
+                try:
+                    first, second = int(raw_pair[0]), int(raw_pair[1])
+                except (IndexError, KeyError, TypeError, ValueError):
+                    continue
+                if first >= 0 and second >= 0:
+                    edges.add((first, second) if first <= second else (second, first))
+            if edges:
+                result[submesh] = edges
+        return result
+
+    sources: set[int] = set()
+    raw_sources = snapshot.get("source_indices", snapshot.get("sources", ()))
+    try:
+        source_iterator = iter(raw_sources or ())
+    except TypeError:
+        source_iterator = iter(())
+    for raw_source in source_iterator:
+        try:
+            source = int(raw_source)
+        except (TypeError, ValueError):
+            continue
+        if source >= 0:
+            sources.add(source)
+    return (
+        _index_map(snapshot.get("vertices_by_submesh")),
+        _edge_map(snapshot.get("edges_by_submesh")),
+        _index_map(snapshot.get("faces_by_submesh")),
+        sources,
+    )
 
 
 def create_selection_callbacks(state: SimpleNamespace, callbacks: SimpleNamespace) -> SimpleNamespace:
@@ -323,32 +412,75 @@ def _mesh_edit_selection_changed(_state, _callbacks, payload: object) -> None:
     native_screen_selection = False
     if isinstance(payload, _state.Mapping):
         screen_payload = _callbacks._mesh_edit_native_screen_selection_payload(payload)
+        if screen_payload and str(payload.get("event", "") or "").strip().lower() in {
+            "select_request",
+            "selection_request",
+        }:
+            # A screen selection raised by the resident editor: the tab's
+            # protocol handler is the single native authority for it -- it
+            # applies the select, answers the helper's pending request with a
+            # correlated command result, and commits the result back through
+            # this builder (mirrors, controls, workspace). Applying it here
+            # too ran every select twice: Toggle self-cancelled, and every
+            # brush-select dab paid double native cost.
+            return
         if screen_payload:
+            # Legacy preview-panel screen selections have no other native
+            # route; this stays their authority.
             if not _callbacks._mesh_edit_apply_native_screen_selection(payload, screen_payload):
                 _state.mesh_edit_status_label.setText(".NET/Vortice mesh selection failed.")
                 _callbacks._refresh_mesh_edit_controls()
                 return
             native_screen_selection = True
     if not native_screen_selection:
-        _callbacks._mesh_edit_set_selection_state(_state.MeshEditSelection())
-    if isinstance(payload, _state.Mapping) and not native_screen_selection:
-        _state._mesh_edit_merge_vertex_groups(_state.mesh_edit_selected_vertices_by_submesh, _state._mesh_edit_vertices_from_payload(payload))
-        _state.mesh_edit_selected_edges_by_submesh.update(_callbacks._mesh_edit_edges_from_payload(payload))
-        _state._mesh_edit_merge_face_groups(_state.mesh_edit_selected_faces_by_submesh, _state._mesh_edit_faces_from_payload(payload))
+        snapshot = _resident_selection_snapshot(payload)
+        if snapshot is not None:
+            # The resident editor publishes its whole selection at once, so all
+            # four channels are adopted exactly as sent -- including the part
+            # selection, which the old reset-and-merge dropped on the floor:
+            # every Parts-list click and every helper-side selection event
+            # wiped the mirror here, which is what "selecting a part cleared
+            # my selection" and the brush tools "randomly" losing a selection
+            # looked like from the reader's side.
+            vertices, edges, faces, sources = snapshot
+            allowed_sources = set(_state._mesh_edit_allowed_source_indices())
+            _state.mesh_edit_selected_vertices_by_submesh.clear()
+            _state.mesh_edit_selected_vertices_by_submesh.update(vertices)
+            _state.mesh_edit_selected_edges_by_submesh.clear()
+            _state.mesh_edit_selected_edges_by_submesh.update(edges)
+            _state.mesh_edit_selected_faces_by_submesh.clear()
+            _state.mesh_edit_selected_faces_by_submesh.update(faces)
+            _state.mesh_edit_selected_source_indices.clear()
+            _state.mesh_edit_selected_source_indices.update(sources & allowed_sources)
+        elif isinstance(payload, _state.Mapping):
+            legacy_vertices = _state._mesh_edit_vertices_from_payload(payload)
+            legacy_edges = _callbacks._mesh_edit_edges_from_payload(payload)
+            legacy_faces = _state._mesh_edit_faces_from_payload(payload)
+            if legacy_vertices or legacy_edges or legacy_faces:
+                _callbacks._mesh_edit_set_selection_state(_state.MeshEditSelection())
+                _state._mesh_edit_merge_vertex_groups(_state.mesh_edit_selected_vertices_by_submesh, legacy_vertices)
+                _state.mesh_edit_selected_edges_by_submesh.update(legacy_edges)
+                _state._mesh_edit_merge_face_groups(_state.mesh_edit_selected_faces_by_submesh, legacy_faces)
+            # A payload with neither the resident snapshot nor legacy groups
+            # carries no selection at all -- the legacy panels emit `{}` as an
+            # echo of a clear their caller already performed -- so it must not
+            # wipe a selection some other channel still owns.
     selected_count = _state._mesh_edit_index_group_count_helper(_state.mesh_edit_selected_vertices_by_submesh)
     selected_count += _callbacks._mesh_edit_selected_source_vertex_count()
     selected_face_count = _state._mesh_edit_index_group_count_helper(_state.mesh_edit_selected_faces_by_submesh)
     can_edit, reason = _callbacks._mesh_edit_can_edit_scope()
     if can_edit and _state.mesh_edit_enabled_checkbox.isChecked() and _state._mesh_edit_tab_active():
         revision_text = int(_state.mesh_edit_revision.get("value", 0) or 0)
-        _state.mesh_edit_status_label.setText(
-            _state._mesh_edit_selection_status_text_helper(
-                reason,
-                selected_count,
-                selected_face_count,
-                revision_text,
-            )
+        status_text = _state._mesh_edit_selection_status_text_helper(
+            reason,
+            selected_count,
+            selected_face_count,
+            revision_text,
         )
+        # QLabel.setText repaints even for identical text, and this handler
+        # runs per selection event; only a real change is worth the paint.
+        if _state.mesh_edit_status_label.text() != status_text:
+            _state.mesh_edit_status_label.setText(status_text)
     _callbacks._refresh_mesh_edit_controls()
 
 def _mesh_edit_surface_tab_active(_state, _callbacks, index: int | None = None) -> bool:

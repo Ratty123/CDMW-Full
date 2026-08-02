@@ -143,7 +143,11 @@ def _native_preview_delta_output_dir() -> str:
 
 
 def _cleanup_native_preview_delta_paths() -> None:
-    _native_mesh_core_temp_paths.cleanup_native_preview_delta_paths()
+    # Bounded on purpose: this runs from atexit on the GUI thread, and an
+    # unbounded walk over a whole session's delta payloads held the window
+    # "hung" for 46+ seconds (recorded 2026-08-02 15:12). Whatever the budget
+    # leaves behind, the stale sweep removes on the next run.
+    _native_mesh_core_temp_paths.cleanup_native_preview_delta_paths(time_budget_seconds=2.5)
 
 
 def dispose_native_mesh_history_delta(value: object) -> bool:
@@ -352,6 +356,7 @@ from cdmw.modding.mesh_native_session_api import native_mesh_editor_session_sele
 
 
 from cdmw.modding.mesh_native_session_api import apply_native_mesh_editor_session as apply_native_mesh_editor_session
+from cdmw.modding.mesh_native_session_api import last_native_mesh_editor_apply_error as last_native_mesh_editor_apply_error
 
 
 from cdmw.modding.mesh_native_session_api import native_mesh_editor_source_normals_payload as native_mesh_editor_source_normals_payload
@@ -546,6 +551,7 @@ from cdmw.modding.mesh_native_dispatch import (
     _run_native_mesh_core_service_job as _run_native_mesh_core_service_job,
     _run_native_mesh_core_service_inline_job as _run_native_mesh_core_service_inline_job,
     _run_native_mesh_core_job as _run_native_mesh_core_job,
+    last_native_mesh_core_job_error as last_native_mesh_core_job_error,
 )
 
 

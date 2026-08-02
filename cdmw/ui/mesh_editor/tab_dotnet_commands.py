@@ -96,6 +96,14 @@ class MeshEditorDotNetCommandMixin:
         if controller is None:
             self._reject_dotnet_request_without_session("select", payload)
             return False
+        if bool(payload.get("paint_sample")) and not bool(payload.get("paint_final")):
+            # An intermediate dab of a brush-select drag: applied inline, off
+            # the worker path. The worker's busy rejection would answer a
+            # command_result per dab and drop samples mid-flight, which reads
+            # as holes in the painted sweep; the native select is milliseconds
+            # and the drag's final dab still takes the worker path below, so
+            # one drag records one selection-history unit.
+            return self._apply_dotnet_paint_select_sample(controller, payload)
         if self._reject_dotnet_mutation_while_busy("select", payload):
             return True
         screen_payload = self._dotnet_screen_selection_payload(payload)
@@ -123,6 +131,38 @@ class MeshEditorDotNetCommandMixin:
             command_name="select",
             request_payload=payload,
         )
+    def _apply_dotnet_paint_select_sample(self, controller: object, payload: Mapping[str, object]) -> bool:
+        screen_payload = self._dotnet_screen_selection_payload(payload)
+        # A dab is a screen_brush disc; a fast sweep arrives as a screen_region
+        # quad covering the segment the cursor crossed between samples, so the
+        # painted band has no holes at any cursor speed.
+        if not any(key in screen_payload for key in ("screen_brush", "screen_region")):
+            return False
+        if self._native_editor_action_blocked("select", embedded=self.standalone_dotnet_target_embedded):
+            return False
+        if self._standalone_action_worker_active():
+            # A heavy action owns the session; one dropped dab is better than
+            # queueing selects behind a subdivide.
+            return True
+        operation = str(payload.get("operation", "add") or "add").strip().lower()
+        try:
+            result = controller.apply(
+                "select",
+                selection=_tab.MeshEditSelection(),
+                operation=operation,
+                _native_screen_selection_payload=screen_payload,
+            )
+            update = controller.native_update_for_result(result)
+        except Exception as exc:
+            self._set_dotnet_status(f"Mesh .NET editor selection failed: {exc}", error=True)
+            return False
+        if not result.ok:
+            return False
+        if self.standalone_dotnet_target_embedded:
+            self._apply_embedded_native_update(update)
+        else:
+            self._apply_standalone_native_update(update)
+        return True
     def _handle_dotnet_local_selection_request(self, payload: Mapping[str, object]) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None or not isinstance(payload.get("local_selection"), Mapping):
@@ -248,6 +288,7 @@ class MeshEditorDotNetCommandMixin:
             else:
                 self.standalone_native_mesh_edit_stroke_id = ""
             self._send_dotnet_session_state()
+            self._retry_pending_dotnet_finish()
     def _handle_dotnet_live_stroke_failed(self, failure: object) -> None:
         if not isinstance(failure, _tab.MeshLiveStrokeFailure) or failure.source not in {"dotnet", "dotnet_morph"}:
             return
@@ -545,6 +586,19 @@ class MeshEditorDotNetCommandMixin:
                         params["delta"] = (step if axis == "x" else 0.0, step if axis == "y" else 0.0, step if axis == "z" else 0.0)
                     if "axis" in payload:
                         params["axis"] = str(payload.get("axis") or "").strip().lower()
+                if (
+                    action_key in {"subdivide", "refine_smooth"}
+                    and (action_selection is None or action_selection.is_empty())
+                ):
+                    # Subdivide (and its smoothing variant) with nothing
+                    # selected acts on the whole editable scope: every part
+                    # becomes the selection, the same shape Select All uses.
+                    # Whole-mesh subdivision no longer requires selecting
+                    # everything first.
+                    summary = controller.workspace_summary()
+                    action_selection = _tab.MeshEditSelection.from_maps(
+                        source_indices=tuple(part.index for part in summary.parts)
+                    )
                 action = mesh_editor_actions_by_key().get(action_key)
                 if (
                     action is not None
@@ -728,6 +782,7 @@ class MeshEditorDotNetCommandMixin:
             return False
         if self._reject_dotnet_mutation_while_busy("save_request", request_payload):
             _blocked("mutation_busy")
+            self.standalone_dotnet_finish_retry_pending = True
             return True
         live_stroke_busy = bool(
             str(self.standalone_native_mesh_edit_stroke_id or "").strip()
@@ -747,6 +802,7 @@ class MeshEditorDotNetCommandMixin:
                 "live_stroke_busy",
                 stroke_id=str(self.standalone_native_mesh_edit_stroke_id or ""),
             )
+            self.standalone_dotnet_finish_retry_pending = True
             self._send_dotnet_command_result(
                 "save_request",
                 ok=False,
@@ -755,6 +811,9 @@ class MeshEditorDotNetCommandMixin:
                 request_payload=request_payload,
             )
             return True
+        # Past the busy gates: this attempt is the finish, so no deferred
+        # retry may fire a second one behind it.
+        self.standalone_dotnet_finish_retry_pending = False
         if not self._standalone_dotnet_editor_process_running():
             self._send_dotnet_command_result(
                 "save_request",
