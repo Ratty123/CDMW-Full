@@ -25,6 +25,11 @@ GIZMO_COLOR_SETTING_FIELDS = (
     "gizmo_z_axis_color",
     "gizmo_highlight_color",
     "gizmo_label_color",
+    # Not gizmo colours, but they ride the same panel, persistence and
+    # presentation-quality lanes: the resident viewport's clear colour and the
+    # grid's minor-line colour.
+    "d3d11_background_color",
+    "d3d11_grid_color",
 )
 
 GIZMO_NUMERIC_SETTING_FIELDS = (
@@ -32,6 +37,8 @@ GIZMO_NUMERIC_SETTING_FIELDS = (
     "gizmo_size_scale",
     "gizmo_label_size_pixels",
     "gizmo_handle_size_pixels",
+    "d3d11_grid_spacing_scale",
+    "d3d11_grid_line_count",
 )
 
 GIZMO_APPEARANCE_SETTING_FIELDS = GIZMO_COLOR_SETTING_FIELDS + GIZMO_NUMERIC_SETTING_FIELDS
@@ -123,6 +130,8 @@ class GizmoPreviewSettingsPanel(QScrollArea):
             ("gizmo_z_axis_color", "Z axis color"),
             ("gizmo_highlight_color", "Active/hover color"),
             ("gizmo_label_color", "Label color"),
+            ("d3d11_background_color", "Viewport background"),
+            ("d3d11_grid_color", "Grid color"),
         ):
             control = _PreviewColorButton(str(getattr(defaults, key)))
             control.valueChanged.connect(self._emit_settings_changed)
@@ -134,6 +143,8 @@ class GizmoPreviewSettingsPanel(QScrollArea):
             ("gizmo_size_scale", "Overall size", 0.05, 2, " x"),
             ("gizmo_label_size_pixels", "Font/label size", 1.0, 0, " px"),
             ("gizmo_handle_size_pixels", "Handle size", 1.0, 0, " px"),
+            ("d3d11_grid_spacing_scale", "Grid spacing", 0.1, 2, " x"),
+            ("d3d11_grid_line_count", "Grid lines", 1.0, 0, ""),
         ):
             minimum, maximum = MODEL_PREVIEW_RENDER_LIMITS[key]
             control = QDoubleSpinBox()

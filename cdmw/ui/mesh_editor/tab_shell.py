@@ -22,16 +22,11 @@ from cdmw.ui.mesh_editor.dotnet_update_queue import DotNetRevisionUpdateQueue
 from cdmw.ui.mesh_editor.resident_texture_update_queue import ResidentTextureRegionUpdateQueue
 from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
 
-_STANDALONE_NATIVE_TOOL_STATE: dict[str, tuple[str, str, str]] = {
-    "transform_move": ("move", "selection", "edit"),
-    "brush_grab": ("grab", "selection", "sculpt"),
-    "brush_smooth": ("smooth", "selection", "sculpt"),
-    "brush_inflate": ("inflate", "selection", "sculpt"),
-    "brush_pinch": ("pinch", "selection", "sculpt"),
-}
-
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
-from cdmw.ui.mesh_editor.tab_support import _mesh_editor_tab_index
+from cdmw.ui.mesh_editor.tab_support import (
+    STANDALONE_NATIVE_TOOL_STATE as _STANDALONE_NATIVE_TOOL_STATE,
+    _mesh_editor_tab_index,
+)
 from cdmw.ui.mesh_editor.tab_shell_runtime import MeshEditorTabShellRuntimeMixin
 
 #: Marks naming the tab an object's signals are already connected to.

@@ -32,6 +32,36 @@ if TYPE_CHECKING:
 
 _FAST_ARCHIVE_PREVIEW_MAX_FACES = 35_000
 
+# Character variants share their rig's HKX collision files, so consecutive
+# previews keep re-decoding the same bytes into the same editable-geometry
+# document. Keyed by content digest plus the descriptor-hint signature; the
+# document is treated as read-only by every overlay consumer.
+_HKX_OVERLAY_DOCUMENT_CACHE: "dict[tuple, object]" = {}
+_HKX_OVERLAY_DOCUMENT_CACHE_LIMIT = 6
+_HKX_OVERLAY_DOCUMENT_CACHE_LOCK = threading.Lock()
+
+
+def _cached_hkx_editable_geometry_document(
+    hkx_data: bytes,
+    source_path: str,
+    descriptor_hints: Sequence[Mapping[str, object]],
+):
+    key = (
+        hashlib.sha256(hkx_data).hexdigest(),
+        str(source_path or ""),
+        hashlib.sha256(repr(descriptor_hints).encode("utf-8", "replace")).hexdigest(),
+    )
+    with _HKX_OVERLAY_DOCUMENT_CACHE_LOCK:
+        cached = _HKX_OVERLAY_DOCUMENT_CACHE.get(key)
+        if cached is not None:
+            return cached
+    document = build_hkx_editable_geometry_document(hkx_data, source_path, descriptor_hints)
+    with _HKX_OVERLAY_DOCUMENT_CACHE_LOCK:
+        while len(_HKX_OVERLAY_DOCUMENT_CACHE) >= _HKX_OVERLAY_DOCUMENT_CACHE_LIMIT:
+            _HKX_OVERLAY_DOCUMENT_CACHE.pop(next(iter(_HKX_OVERLAY_DOCUMENT_CACHE)))
+        _HKX_OVERLAY_DOCUMENT_CACHE[key] = document
+    return document
+
 
 def build_hkx_descriptor_hint_from_xml_text(*args, **kwargs):
     from cdmw.core.archive_hkx_descriptor import build_hkx_descriptor_hint_from_xml_text as owner
@@ -440,7 +470,7 @@ def _attach_hkx_physics_overlay_to_model_preview(
         seen_paths.add(normalized_path)
         try:
             hkx_data, _decompressed, _note = read_archive_entry_data(resolved_entry, stop_event=stop_event)
-            hkx_document = build_hkx_editable_geometry_document(hkx_data, resolved_entry.path, descriptor_hints)
+            hkx_document = _cached_hkx_editable_geometry_document(hkx_data, resolved_entry.path, descriptor_hints)
             overlay = build_hkx_physics_overlay_from_document(
                 hkx_document,
                 source_path=resolved_entry.path,

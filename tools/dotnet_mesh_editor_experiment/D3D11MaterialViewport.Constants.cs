@@ -69,6 +69,14 @@ internal sealed record D3D11PresentationSettings
     // Exactly neutral at the same luminance: a tinted backdrop biases how every
     // material's colour reads, and the previous value measured a +0.06 cool cast.
     public Vector3 BackgroundColor { get; init; } = new Vector3(0.0434f, 0.0434f, 0.0434f);
+    // Grid appearance. GridColor is the minor-line colour in sRGB (the major
+    // lines draw a lightened variant of it), GridSpacingScale multiplies the
+    // scene's own grid spacing, and GridLineCount is lines each side of the
+    // origin. Defaults reproduce the grid exactly as it drew before these
+    // became configurable.
+    public Vector3 GridColor { get; init; } = new Vector3(90f / 255f, 105f / 255f, 120f / 255f);
+    public float GridSpacingScale { get; init; } = 1.0f;
+    public int GridLineCount { get; init; } = 10;
     public float NormalStrengthCap { get; init; } = 1.0f;
     public float HeightEffectMax { get; init; } = 1.0f;
     public float SpecularBase { get; init; } = 0.055f;

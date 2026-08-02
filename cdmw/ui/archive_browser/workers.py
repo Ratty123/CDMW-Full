@@ -147,6 +147,13 @@ class ArchivePreviewWorkerMixin:
         if not force and self._mesh_replacement_builder_active():
             self._defer_archive_preview_refresh_for_builder(entry)
             return
+        if self._coalesce_into_scheduled_archive_preview_request(
+            entry,
+            include_loose_preview_assets=include_loose_preview_assets,
+            prefer_loose_preview=prefer_loose_preview,
+            force=force,
+        ):
+            return
         remote_bridge = getattr(self, "archive_remote_bridge", None)
         if remote_bridge is not None and remote_bridge.displays_v2:
             remote_bridge.cancel_preview_dependencies(clear_snapshot=True)
@@ -220,6 +227,64 @@ class ArchivePreviewWorkerMixin:
         self.scheduled_archive_preview_request = (request_id, entry, include_loose_preview_assets, bool(force))
         self._show_archive_preview_loading_state(entry)
         self.archive_preview_debounce_timer.start(_archive_preview_debounce_ms(entry))
+
+    def _coalesce_into_scheduled_archive_preview_request(
+        self,
+        entry: Optional[ArchiveEntry],
+        *,
+        include_loose_preview_assets: bool,
+        prefer_loose_preview: bool,
+        force: bool,
+    ) -> bool:
+        """Fold a repeat request into the one already waiting to run.
+
+        Twelve call sites ask for a preview and several of them fire for a
+        single user action, so one asset was routinely requested two or three
+        times before the first request had left the debounce. Each repeat took a
+        new generation and reset the visible preview state, which is what the
+        panel blanking was. Folding an identical repeat drops nothing: the
+        request it folds into has not run yet, and it reads the sidecar
+        generation, track index, cache and dependency set when it does, so a
+        caller that dropped a cache entry or advanced a generation first still
+        gets the rebuild it asked for.
+        """
+
+        scheduled = self.scheduled_archive_preview_request
+        if scheduled is None or entry is None:
+            return False
+        scheduled_request_id, scheduled_entry, scheduled_loose, scheduled_force = scheduled
+        if scheduled_entry is None:
+            return False
+        if int(scheduled_request_id) != int(self.archive_preview_request_id):
+            return False
+        if bool(scheduled_loose) != bool(include_loose_preview_assets):
+            return False
+        if bool(prefer_loose_preview) != bool(self.archive_preview_requested_loose):
+            return False
+        if getattr(scheduled_entry, "identity", None) != getattr(entry, "identity", None):
+            return False
+        # A texture request arms _archive_texture_request_id for the generation
+        # this call is expected to create. Fold that one and the generation
+        # never arrives, so _archive_texture_request_loading stays true and the
+        # texture action is stuck reading "Loading textures..." for good.
+        if int(getattr(self, "_archive_texture_request_id", 0) or 0) == int(self.archive_preview_request_id) + 1:
+            return False
+        if force and not scheduled_force:
+            self.scheduled_archive_preview_request = (
+                scheduled_request_id,
+                scheduled_entry,
+                scheduled_loose,
+                True,
+            )
+        self._record_runtime_event(
+            "archive_preview_request_coalesced",
+            request_id=int(scheduled_request_id),
+            path=str(getattr(entry, "path", "") or ""),
+            force=bool(force),
+            scheduled_force=bool(scheduled_force),
+            origin=_preview_request_origin(),
+        )
+        return True
 
     def _handle_archive_preview_track_selected(self, track_index: int) -> None:
         """Re-previews the selected entry with a different embedded sound.
@@ -363,7 +428,11 @@ class ArchivePreviewWorkerMixin:
                 self.archive_preview_worker.stop()
             return
 
-        self._show_archive_preview_loading_state(entry)
+        # The dispatcher already showed this for this generation, before the
+        # debounce. Running it again here reset the panel a second time for one
+        # request, which is the second half of the flicker.
+        if int(getattr(self, "archive_preview_loading_request_id", 0) or 0) != int(request_id):
+            self._show_archive_preview_loading_state(entry)
         if cache_miss_reason == "native_package_expired":
             rebuild_text = "Cached preview package expired; rebuilding preview package..."
             self.archive_preview_meta_label.setText("Rebuilding preview package...")

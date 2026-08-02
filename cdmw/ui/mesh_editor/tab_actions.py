@@ -8,16 +8,8 @@ from PySide6.QtCore import Signal
 from cdmw.ui.mesh_editor.resident_texture_update_queue import ResidentTextureRegionRequest
 
 
-_STANDALONE_NATIVE_TOOL_STATE: dict[str, tuple[str, str, str]] = {
-    "transform_move": ("move", "selection", "edit"),
-    "brush_grab": ("grab", "selection", "sculpt"),
-    "brush_smooth": ("smooth", "selection", "sculpt"),
-    "brush_inflate": ("inflate", "selection", "sculpt"),
-    "brush_pinch": ("pinch", "selection", "sculpt"),
-}
-
-
 from cdmw.ui.mesh_editor.tab_support import (
+    STANDALONE_NATIVE_TOOL_STATE as _STANDALONE_NATIVE_TOOL_STATE,
     _mesh_edit_result_with_metric,
     _mesh_editor_texture_binding_target,
     _native_update_has_payload,

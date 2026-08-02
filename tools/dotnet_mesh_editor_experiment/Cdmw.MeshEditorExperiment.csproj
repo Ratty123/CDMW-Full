@@ -7,6 +7,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>cdmw-mesh-dotnet-editor</AssemblyName>
+    <!-- The Qt host is per-monitor DPI aware (Qt 6 default). Left unset, the
+         generated ApplicationConfiguration.Initialize() picks SystemAware, so
+         the embedded helper rendered text sized for the primary monitor: tiny
+         or oversized labels on any other screen, and a bitmap-stretch seam on
+         every monitor move. -->
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Version>2.0.0</Version>
     <AssemblyInformationalVersion>2.0.0+resident-v2</AssemblyInformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>

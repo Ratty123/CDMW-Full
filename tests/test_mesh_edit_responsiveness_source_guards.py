@@ -1433,12 +1433,16 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("MESH_EDIT_SELECTION_DEPTH_OPTIONS", source)
         self.assertIn('("Visible Only", "visible")', source)
         self.assertIn('("X-Ray", "xray")', source)
-        self.assertIn("_state.compact_selection_mode_combo = _state.QComboBox(_state.compact_mesh_edit_options_widget)", ui_source)
-        self.assertIn("_state.compact_selection_mode_combo.setObjectName('ClassicMeshEditSelectionModeCombo')", ui_source)
-        self.assertIn("_state._populate_combo_options_helper(_state.compact_selection_mode_combo, _state.MESH_EDIT_SELECTION_MODE_OPTIONS)", ui_source)
-        self.assertIn("_state.compact_selection_depth_combo = _state.QComboBox(_state.compact_mesh_edit_options_widget)", ui_source)
-        self.assertIn("_state.compact_selection_depth_combo.setObjectName('ClassicMeshEditSelectionDepthCombo')", ui_source)
-        self.assertIn("_state._populate_combo_options_helper(_state.compact_selection_depth_combo, _state.MESH_EDIT_SELECTION_DEPTH_OPTIONS)", ui_source)
+        # The Classic side-panel Edit Mesh toolbar is removed outright: nothing
+        # may construct the compact combos or the toolbar frame again. The
+        # placeholders stay None so every getattr-guarded consumer is inert.
+        self.assertNotIn("ClassicMeshEditSelectionModeCombo", ui_source)
+        self.assertNotIn("ClassicMeshEditSelectionDepthCombo", ui_source)
+        self.assertNotIn("ClassicMeshEditPreviewActionBar", ui_source)
+        self.assertNotIn('setObjectName("ClassicMeshEditPreviewToolbar")', ui_source)
+        self.assertIn("_state.compact_selection_mode_combo = None", ui_source)
+        self.assertIn("_state.compact_selection_depth_combo = None", ui_source)
+        self.assertIn("_state.classic_mesh_edit_action_bar = None", ui_source)
         self.assertIn("_state.mesh_edit_tool_combo.setCurrentIndex(_state.max(0, _state.mesh_edit_tool_combo.findData('vertex')))", ui_source)
         self.assertIn("button.setChecked(tool == current_tool)", refresh_body)
         self.assertIn("widget.setVisible(select_tool)", refresh_body)
@@ -2185,7 +2189,12 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs")
         input_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
 
-        self.assertIn('payload["screen_region"] = ScreenDragPayload(', source)
+        self.assertIn("var region = ScreenDragPayload(_edgeDragStart, point);", source)
+        self.assertIn('payload["screen_region"] = region;', source)
+        # A lasso drag rides the same region payload: mode plus the swept
+        # polygon, with the rectangle endpoints kept for older cores.
+        self.assertIn('region["mode"] = "lasso";', source)
+        self.assertIn('region["points"]', source)
         self.assertIn('EditorEventRequested?.Invoke("select_request", payload)', source)
         self.assertIn('["world_view_projection"] = camera.WorldViewProjectionRowMajorArray()', input_source)
         self.assertIn('["selection_depth_mode"] = ShowXRay ? "xray" : "visible"', source)
@@ -7943,6 +7952,30 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             update_body.index("if mesh_edit_active and apply_state.geometry_changed:"),
             update_body.index("adjustment.offset_xyz = apply_state.offset_xyz"),
         )
+
+    def test_host_highlight_setters_do_not_republish_the_display_block(self) -> None:
+        # The shared host's copy of display.grid_visible starts False and is
+        # never synced from the dialog's Grid checkbox, so a highlight update
+        # that carries it switches the grid off on every part selection. The
+        # helper preserves current display state when the key is absent.
+        host_source = _read("cdmw/ui/preview/dotnet_host.py")
+        for setter in (
+            "def set_highlighted_source_submeshes(",
+            "def set_highlighted_alignment_submeshes(",
+            "def set_hidden_source_submeshes(",
+        ):
+            body = host_source[host_source.index(setter):]
+            body = body[: body.index("\n    def ", 1)]
+            self.assertIn(
+                "_remember_presentation_state_without_display()",
+                body,
+                setter,
+            )
+        without_display_body = _function_source(
+            host_source, "_remember_presentation_state_without_display"
+        )
+        self.assertIn('if key != "display"', without_display_body)
+        self.assertIn('"presentation_state_update"', without_display_body)
 
 
 if __name__ == "__main__":

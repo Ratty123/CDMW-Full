@@ -7,14 +7,10 @@ from PySide6.QtCore import QSettings, Signal
 from PySide6.QtWidgets import QFrame, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget
 
 from cdmw.ui.mesh_editor.action_bar import MeshEditorActionBar
+from cdmw.ui.mesh_editor.tab_support import (
+    STANDALONE_NATIVE_TOOL_STATE as _STANDALONE_NATIVE_TOOL_STATE,
+)
 
-_STANDALONE_NATIVE_TOOL_STATE: dict[str, tuple[str, str, str]] = {
-    "transform_move": ("move", "selection", "edit"),
-    "brush_grab": ("grab", "selection", "sculpt"),
-    "brush_smooth": ("smooth", "selection", "sculpt"),
-    "brush_inflate": ("inflate", "selection", "sculpt"),
-    "brush_pinch": ("pinch", "selection", "sculpt"),
-}
 _LEGACY_SCREEN_CAMERA_FIELDS = frozenset(
     {"camera_world", "yaw_degrees", "pitch_degrees", "distance", "vertical_fov_degrees", "pan"}
 )

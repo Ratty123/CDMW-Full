@@ -62,6 +62,11 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_validation_thread: _tab.QThread | None = None
         self.standalone_validation_worker: _tab.MeshExportValidationWorker | None = None
         self.standalone_validation_request_id = 0
+        self._initialize_dotnet_runtime_state()
+        self._initialize_runtime_objects()
+
+    def _initialize_dotnet_runtime_state(self) -> None:
+        """The resident .NET helper's protocol, scene, material, and lifecycle state."""
         self.standalone_dotnet_package_thread: _tab.QThread | None = None
         self.standalone_dotnet_package_worker: _tab.MeshDotNetExperimentPackageWorker | None = None
         self.standalone_dotnet_package_request_id = 0
@@ -110,6 +115,9 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_embedded_exit_finalized = False
         self.standalone_dotnet_exit_pending = False
         self.standalone_dotnet_deactivate_acknowledged = False
+        # A Finish Edit Mesh refused for "busy" retries itself when the worker
+        # drains, instead of requiring the reader to click the button again.
+        self.standalone_dotnet_finish_retry_pending = False
         self.standalone_dotnet_protocol_stdout = ""
         self.standalone_dotnet_protocol_events: list[dict[str, object]] = []
         self.standalone_dotnet_capabilities: set[str] = set()
@@ -163,7 +171,6 @@ class MeshEditorTabShellRuntimeMixin:
             "material_compile_replaced_count": 0,
             "material_compile_stale_count": 0,
         }
-        self._initialize_runtime_objects()
 
     def _initialize_runtime_objects(self) -> None:
         self._initialize_dotnet_material_parameter_state()

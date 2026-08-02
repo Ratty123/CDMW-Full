@@ -78,6 +78,8 @@ internal sealed partial class D3D11MaterialViewport : Control
     private bool _overlayShowXRay;
     private Point? _overlayBrushCursor;
     private float _overlayBrushRadius = 24.0f;
+    private IReadOnlyList<Point>? _overlayLassoPath;
+    private IReadOnlyDictionary<int, HashSet<int>>? _overlayProvisionalVertices;
     private int _materialDebugMode;
     private long _texturedSolidBatchDrawCount;
     private long _untexturedSolidBatchDrawCount;
@@ -127,6 +129,14 @@ internal sealed partial class D3D11MaterialViewport : Control
     }
     public bool ShowSolid { get; set; } = true;
     public bool TexturesEnabled { get; set; } = true;
+    /// <summary>
+    /// True while the resident scene is the prewarm placeholder nobody asked to
+    /// see. Frames still clear and present -- the warm-up needs the pipeline --
+    /// but no geometry, grid or overlay is drawn, so even a mistimed reveal or
+    /// a stale swap-chain surface shows an empty viewport instead of the
+    /// procedural triangle. Cleared by the first real scene replacement.
+    /// </summary>
+    public bool ScenePresentationSuppressed { get; set; }
     public D3D11PresentationSettings PresentationSettings => _presentationSettings;
     public bool IsInitialized => _device is not null && _swapChain is not null;
     public uint PresentSyncInterval => string.Equals(
@@ -154,7 +164,9 @@ internal sealed partial class D3D11MaterialViewport : Control
         bool showVertices,
         bool showXRay,
         Point? brushCursor,
-        float brushRadius)
+        float brushRadius,
+        IReadOnlyList<Point>? lassoPath = null,
+        IReadOnlyDictionary<int, HashSet<int>>? provisionalVertices = null)
     {
         _overlayTopology = topology;
         _overlaySelectedEdges = selectedEdges as HashSet<int> ?? new HashSet<int>(selectedEdges);
@@ -171,6 +183,8 @@ internal sealed partial class D3D11MaterialViewport : Control
         _overlayShowXRay = showXRay;
         _overlayBrushCursor = brushCursor;
         _overlayBrushRadius = Math.Clamp(brushRadius, 1.0f, 512.0f);
+        _overlayLassoPath = lassoPath;
+        _overlayProvisionalVertices = provisionalVertices;
     }
 
     public void UpdateCamera(NetViewportCamera camera)
@@ -254,6 +268,37 @@ internal sealed partial class D3D11MaterialViewport : Control
     /// the handle is required here, not visibility.
     /// </remarks>
     public bool EnsureRendererInitialized() => EnsureDeviceReady();
+
+    /// <summary>
+    /// Renders and presents one frame of the current resident scene now,
+    /// without waiting for a paint message.
+    /// </summary>
+    /// <remarks>
+    /// The embedded reveal calls this before the window gains WS_VISIBLE. The
+    /// swap chain otherwise still holds whatever was last presented while the
+    /// window was hidden -- the procedural prewarm scene -- and DWM composites
+    /// that stale surface for the frames between the reveal and the first
+    /// WM_PAINT, which is the placeholder triangle blinking at Mesh Editor
+    /// start. Failures are swallowed: the reveal must go ahead either way, and
+    /// the regular paint path already owns device-loss recovery.
+    /// </remarks>
+    public bool TryPresentCurrentScene()
+    {
+        if (!EnsureDeviceReady())
+        {
+            return false;
+        }
+        try
+        {
+            RenderFrame();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LastError = ex.Message;
+            return false;
+        }
+    }
 
     private bool EnsureDeviceReady()
     {
@@ -642,17 +687,20 @@ internal sealed partial class D3D11MaterialViewport : Control
         var previousShowWire = _overlayShowWire;
         var previousShowVertices = _overlayShowVertices;
         var previousShowXRay = _overlayShowXRay;
-        var panes = PanesForFrame(replacementOnly, out var paneCount);
-        for (var paneIndex = 0; paneIndex < paneCount; paneIndex++)
+        if (!ScenePresentationSuppressed)
         {
-            var pane = panes[paneIndex];
-            ActivateRenderPane(pane);
-            DrawActiveRenderPane(includeOverlays, replacementOnly);
-            RecordActivePaneRender();
-        }
-        if (includeOverlays && !replacementOnly)
-        {
-            DrawPaneDividerOverlay();
+            var panes = PanesForFrame(replacementOnly, out var paneCount);
+            for (var paneIndex = 0; paneIndex < paneCount; paneIndex++)
+            {
+                var pane = panes[paneIndex];
+                ActivateRenderPane(pane);
+                DrawActiveRenderPane(includeOverlays, replacementOnly);
+                RecordActivePaneRender();
+            }
+            if (includeOverlays && !replacementOnly)
+            {
+                DrawPaneDividerOverlay();
+            }
         }
         if (present)
         {

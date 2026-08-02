@@ -242,6 +242,8 @@ internal sealed partial class MeshViewport
             _rotating = false;
             _panning = false;
             _edgeDragActive = false;
+            _selectionPaintActive = false;
+            _selectionLassoPoints.Clear();
             EndEditorStroke(_strokePrevious, cancelled: true);
             _capturedInputPane = string.Empty;
             SetRenderSurfaceCapture(false);
@@ -313,6 +315,18 @@ internal sealed partial class MeshViewport
         if (_edgeDragActive)
         {
             _edgeDragCurrent = e.Location;
+            if (_selectionLassoPoints.Count > 0)
+            {
+                var lastPoint = _selectionLassoPoints[^1];
+                if (Math.Abs(e.X - lastPoint.X) + Math.Abs(e.Y - lastPoint.Y) >= 3)
+                {
+                    _selectionLassoPoints.Add(e.Location);
+                }
+            }
+            if (_selectionPaintActive && (e.Button & MouseButtons.Left) == MouseButtons.Left)
+            {
+                MaybeEmitSelectionPaintSample(e.Location);
+            }
         }
         if (!_edgeDragActive
             && !_editorStrokeActive
@@ -578,6 +592,21 @@ internal sealed partial class MeshViewport
         };
     }
 
+    /// <summary>
+    /// Adopts the host's Select drag mode. Only the three drag modes are
+    /// accepted; anything else -- the standalone host publishes its element
+    /// mode in the same field -- leaves the current mode standing rather than
+    /// silently resetting a choice.
+    /// </summary>
+    internal void SetSelectionDragMode(string? mode)
+    {
+        var normalized = (mode ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalized is "brush" or "lasso" or "rectangle")
+        {
+            _selectionDragMode = normalized;
+        }
+    }
+
     private void BeginSelectionDrag(Point point, string mode)
     {
         _edgeDragActive = true;
@@ -585,6 +614,34 @@ internal sealed partial class MeshViewport
         _edgeDragStart = point;
         _edgeDragCurrent = point;
         _hoverEdgeId = _selectionDragTargetMode == "edge" ? PickEdgeAt(point) : -1;
+        _selectionPaintActive = false;
+        _selectionPaintPainted = false;
+        _selectionLassoPoints.Clear();
+        // Brush and lasso are Edit Mesh interactions; placement part-pick
+        // drags keep their rectangle semantics whatever the combo says.
+        if (string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_selectionDragMode == "brush")
+            {
+                var operation = CurrentSelectionOperation();
+                // Toggle per dab would flicker every sample the cursor
+                // re-crosses, so a painted toggle adds; subtract erases.
+                _selectionPaintFirstOperation = operation switch
+                {
+                    "subtract" => "subtract",
+                    "replace" => "replace",
+                    _ => "add",
+                };
+                _selectionPaintOperation = operation == "subtract" ? "subtract" : "add";
+                _selectionPaintActive = true;
+                _selectionPaintLastSample = point;
+                _selectionPaintLastSampleTicks = 0;
+            }
+            else if (_selectionDragMode == "lasso")
+            {
+                _selectionLassoPoints.Add(point);
+            }
+        }
         UpdateGpuViewport();
     }
 }

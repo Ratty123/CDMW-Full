@@ -7,6 +7,38 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
 from cdmw.ui.archive_browser.static_replacement_preview_status_state import (
     preview_grid_visible,
 )
+from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
+    normalize_mesh_preview_display_mode,
+)
+
+def mirror_mesh_edit_combo_pair(first, second) -> None:
+    """Keep two combos showing the same value, and never invent one.
+
+    Both directions are wired, so an unguarded pair re-enters: setting the
+    second combo emits its own `currentIndexChanged`, which sets the first
+    again. Refusing to write a value the target already holds ends that echo on
+    its first bounce, which is why the signals are deliberately *not* blocked --
+    blocking them would also silence the handlers that actually apply the
+    selection target, and a combo that changes without telling anyone is the
+    same bug wearing different clothes.
+
+    Refusing to write at all when the value is not in the target combo is the
+    other half: `findData` answers -1, and the previous `max(0, -1)` selected
+    index 0, which is Vertex.
+    """
+
+    def _bind(source, target) -> None:
+        def _apply(_index: int) -> None:
+            index = target.findData(source.currentData())
+            if index < 0 or index == target.currentIndex():
+                return
+            target.setCurrentIndex(index)
+
+        source.currentIndexChanged.connect(_apply)
+
+    _bind(first, second)
+    _bind(second, first)
+
 
 def _mesh_geometry_preview_step_001(_state):
     _state.CollapsibleSection = _state.context.get('CollapsibleSection')
@@ -541,85 +573,14 @@ def _bind_embedded_mesh_editor_preview(_state):
 
 
 def _mesh_geometry_preview_step_008(_state):
-    if _state.classic_mesh_edit_toolbar is not None and _state.classic_mesh_edit_toolbar_layout is not None:
-        _state.compact_actions_by_key = _state.mesh_editor_actions_by_key()
-        _state.compact_action_keys = ('select_vertex', 'select_edge', 'select_face', 'transform_move', 'brush_grab', 'brush_smooth', 'brush_inflate', 'brush_pinch', 'delete', 'subdivide', 'refine_smooth', 'split', 'undo', 'redo')
-        _state.classic_mesh_edit_action_bar = _state.MeshEditorActionBar(tuple((_state.compact_actions_by_key[key] for key in _state.compact_action_keys if key in _state.compact_actions_by_key)), parent=_state.classic_mesh_edit_toolbar)
-        _state.classic_mesh_edit_action_bar.setObjectName('ClassicMeshEditPreviewActionBar')
-        _state.classic_mesh_edit_toolbar_layout.addWidget(_state.classic_mesh_edit_action_bar)
-        _state.compact_mesh_edit_options_widget = _state.QWidget(_state.classic_mesh_edit_toolbar)
-        _state.compact_mesh_edit_options_widget.setObjectName('ClassicMeshEditPreviewOptions')
-        _state.compact_options_row = _state.QHBoxLayout(_state.compact_mesh_edit_options_widget)
-        _state.compact_options_row.setContentsMargins(0, 0, 0, 0)
-        _state.compact_options_row.setSpacing(4)
-        _state.compact_radius_spin = _state._make_double_spin_helper(24.0, 2.0, 256.0, 0, 2.0, ' px')
-        _state.compact_strength_spin = _state._make_double_spin_helper(50.0, 0.0, 100.0, 0, 5.0, '%')
-        _state.compact_falloff_combo = _state.QComboBox(_state.compact_mesh_edit_options_widget)
-        _state._populate_combo_options_helper(_state.compact_falloff_combo, _state.MESH_EDIT_FALLOFF_OPTIONS)
-        _state.compact_selection_mode_combo = _state.QComboBox(_state.compact_mesh_edit_options_widget)
-        _state.compact_selection_mode_combo.setObjectName('ClassicMeshEditSelectionModeCombo')
-        _state._populate_combo_options_helper(_state.compact_selection_mode_combo, _state.MESH_EDIT_SELECTION_MODE_OPTIONS)
-        _state.compact_selection_mode_combo.setToolTip(_state.mesh_edit_action_control_text['selection_mode_tooltip'])
-        _state.compact_selection_depth_combo = _state.QComboBox(_state.compact_mesh_edit_options_widget)
-        _state.compact_selection_depth_combo.setObjectName('ClassicMeshEditSelectionDepthCombo')
-        _state._populate_combo_options_helper(_state.compact_selection_depth_combo, _state.MESH_EDIT_SELECTION_DEPTH_OPTIONS)
-        _state.compact_selection_depth_combo.setToolTip(_state.mesh_edit_action_control_text['selection_depth_tooltip'])
-        _state.compact_mirror_checkbox = _state.QCheckBox('Mirror X', _state.compact_mesh_edit_options_widget)
-        _state.compact_vertices_checkbox = _state.QCheckBox('Dots', _state.compact_mesh_edit_options_widget)
-        for _state.compact_spin in (_state.compact_radius_spin, _state.compact_strength_spin):
-            _state.compact_spin.setMaximumWidth(76)
-        _state.compact_falloff_combo.setMaximumWidth(132)
-        _state.compact_selection_mode_combo.setMaximumWidth(132)
-        _state.compact_selection_depth_combo.setMaximumWidth(104)
-        _state.compact_options_row.addWidget(_state.QLabel('Radius'))
-        _state.compact_options_row.addWidget(_state.compact_radius_spin)
-        _state.compact_options_row.addWidget(_state.QLabel('Strength'))
-        _state.compact_options_row.addWidget(_state.compact_strength_spin)
-        _state.compact_options_row.addWidget(_state.QLabel('Falloff'))
-        _state.compact_options_row.addWidget(_state.compact_falloff_combo)
-        _state.compact_options_row.addWidget(_state.compact_selection_mode_combo)
-        _state.compact_options_row.addWidget(_state.compact_selection_depth_combo)
-        _state.compact_options_row.addWidget(_state.compact_mirror_checkbox)
-        _state.compact_options_row.addWidget(_state.compact_vertices_checkbox)
-        _state.compact_mesh_edit_clear_button = _state.QPushButton('Clear', _state.compact_mesh_edit_options_widget)
-        _state.compact_mesh_edit_grow_button = _state.QPushButton('Grow', _state.compact_mesh_edit_options_widget)
-        _state.compact_mesh_edit_shrink_button = _state.QPushButton('Shrink', _state.compact_mesh_edit_options_widget)
-        _state.compact_mesh_edit_feather_button = _state.QPushButton('Feather', _state.compact_mesh_edit_options_widget)
-        _state.compact_mesh_edit_reset_scope_button = _state.QPushButton('Reset Scope', _state.compact_mesh_edit_options_widget)
-        for _state.compact_button in (_state.compact_mesh_edit_clear_button, _state.compact_mesh_edit_grow_button, _state.compact_mesh_edit_shrink_button, _state.compact_mesh_edit_feather_button, _state.compact_mesh_edit_reset_scope_button):
-            _state.compact_button.setMinimumWidth(0)
-            _state.compact_button.setMaximumWidth(92)
-            _state.compact_options_row.addWidget(_state.compact_button)
-        _state.compact_mesh_edit_status_label = _state.QLabel('', _state.compact_mesh_edit_options_widget)
-        _state.compact_mesh_edit_status_label.setObjectName('ClassicMeshEditPreviewStatus')
-        _state.compact_mesh_edit_status_label.setWordWrap(False)
-        _state.compact_options_row.addWidget(_state.compact_mesh_edit_status_label, 1)
-        _state.compact_options_row.addStretch(1)
-        _state.compact_radius_spin.valueChanged.connect(lambda value: _state.mesh_edit_radius_spin.setValue(float(value)))
-        _state.mesh_edit_radius_spin.valueChanged.connect(lambda value: _state.compact_radius_spin.setValue(float(value)))
-        _state.compact_strength_spin.valueChanged.connect(lambda value: _state.mesh_edit_strength_spin.setValue(float(value)))
-        _state.mesh_edit_strength_spin.valueChanged.connect(lambda value: _state.compact_strength_spin.setValue(float(value)))
-        _state.compact_falloff_combo.currentIndexChanged.connect(lambda _index: _state.mesh_edit_falloff_combo.setCurrentIndex(_state.max(0, _state.mesh_edit_falloff_combo.findData(_state.compact_falloff_combo.currentData()))))
-        _state.mesh_edit_falloff_combo.currentIndexChanged.connect(lambda _index: _state.compact_falloff_combo.setCurrentIndex(_state.max(0, _state.compact_falloff_combo.findData(_state.mesh_edit_falloff_combo.currentData()))))
-        _state.compact_selection_mode_combo.currentIndexChanged.connect(lambda _index: _state.mesh_edit_selection_mode_combo.setCurrentIndex(_state.max(0, _state.mesh_edit_selection_mode_combo.findData(_state.compact_selection_mode_combo.currentData()))))
-        _state.mesh_edit_selection_mode_combo.currentIndexChanged.connect(lambda _index: _state.compact_selection_mode_combo.setCurrentIndex(_state.max(0, _state.compact_selection_mode_combo.findData(_state.mesh_edit_selection_mode_combo.currentData()))))
-        _state.compact_selection_depth_combo.currentIndexChanged.connect(lambda _index: _state.mesh_edit_selection_depth_combo.setCurrentIndex(_state.max(0, _state.mesh_edit_selection_depth_combo.findData(_state.compact_selection_depth_combo.currentData()))))
-        _state.mesh_edit_selection_depth_combo.currentIndexChanged.connect(lambda _index: _state.compact_selection_depth_combo.setCurrentIndex(_state.max(0, _state.compact_selection_depth_combo.findData(_state.mesh_edit_selection_depth_combo.currentData()))))
-        _state.compact_mirror_checkbox.toggled.connect(lambda checked: _state.mesh_edit_mirror_checkbox.setChecked(_state.bool(checked)))
-        _state.mesh_edit_mirror_checkbox.toggled.connect(lambda checked: _state.compact_mirror_checkbox.setChecked(_state.bool(checked)))
-        _state.compact_vertices_checkbox.toggled.connect(lambda checked: _state.mesh_edit_show_vertices_checkbox.setChecked(_state.bool(checked)))
-        _state.mesh_edit_show_vertices_checkbox.toggled.connect(lambda checked: _state.compact_vertices_checkbox.setChecked(_state.bool(checked)))
-        _state.compact_vertices_checkbox.setChecked(_state.mesh_edit_show_vertices_checkbox.isChecked())
-        _state.compact_mesh_edit_clear_button.clicked.connect(lambda _checked=False: _state.mesh_edit_clear_selection_button.click())
-        _state.compact_mesh_edit_grow_button.clicked.connect(lambda _checked=False: _state.mesh_edit_grow_selection_button.click())
-        _state.compact_mesh_edit_shrink_button.clicked.connect(lambda _checked=False: _state.mesh_edit_shrink_selection_button.click())
-        _state.compact_mesh_edit_feather_button.clicked.connect(lambda _checked=False: _state.mesh_edit_smooth_selection_button.click())
-        _state.compact_mesh_edit_reset_scope_button.clicked.connect(lambda _checked=False: _state.mesh_edit_reset_part_button.click())
-        _state.classic_mesh_edit_toolbar_layout.addWidget(_state.compact_mesh_edit_options_widget)
-        _state.classic_mesh_edit_toolbar.setVisible(False)
+    # The Classic side-panel Edit Mesh toolbar and its compact controls are
+    # removed outright: the .NET tool rail is the only Edit Mesh layout. The
+    # preview shell no longer builds `classic_mesh_edit_toolbar`, so every
+    # compact widget stays None (assigned in step 007) and the consumers'
+    # existing None guards make them inert. The combo-mirror helper above is
+    # kept for its regression tests; nothing constructs a mirrored pair here
+    # any more.
     _state.alignment_mesh_edit_callbacks = _state.create_alignment_mesh_edit_callbacks({**_state.context, **_state._factory_globals, **vars(_state), '_delete_selected_source_parts': lambda *args, **kwargs: _state._delete_selected_source_parts(*args, **kwargs)})
-    if _state.classic_mesh_edit_action_bar is not None:
-        _state.classic_mesh_edit_action_bar.action_requested.connect(_state.alignment_mesh_edit_callbacks._mesh_editor_action_bar_action_requested)
     _bind_embedded_mesh_editor_preview(_state)
     _state._mesh_edit_adjusted_sources_for_live_preview = _state.alignment_mesh_edit_callbacks._mesh_edit_adjusted_sources_for_live_preview
     _state._mesh_edit_all_live_vertices_for_sources = _state.alignment_mesh_edit_callbacks._mesh_edit_all_live_vertices_for_sources

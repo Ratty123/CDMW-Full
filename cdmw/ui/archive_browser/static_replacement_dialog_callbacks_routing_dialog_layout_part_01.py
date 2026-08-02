@@ -137,7 +137,10 @@ def _routing_dialog_layout_step_007(_state):
         if _state.preview_splitter.orientation() != preview_orientation:
             _state.preview_splitter.setOrientation(preview_orientation)
         policy_by_name = {'fixed': _state.QSizePolicy.Fixed, 'minimum_expanding': _state.QSizePolicy.MinimumExpanding, 'preferred': _state.QSizePolicy.Preferred}
-        _state.controls_panel.setVisible(True)
+        # The setup column is hidden while Edit Mesh owns the surface; this
+        # pass runs on every dialog resize, and unconditionally showing it is
+        # what made a window resize resurrect the right-side panel mid-edit.
+        _state.controls_panel.setVisible(not mesh_edit_tools_active)
         _state.main_splitter.setHandleWidth(layout_spec.main_handle_width)
         _state.main_splitter.setCollapsible(0, False)
         _state.main_splitter.setCollapsible(1, False)

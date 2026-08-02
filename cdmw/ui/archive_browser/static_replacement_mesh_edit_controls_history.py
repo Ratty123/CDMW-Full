@@ -235,17 +235,16 @@ def _refresh_mesh_edit_controls(_state, _callbacks, ) -> None:
         )
     )
     _state.mesh_edit_full_reset_button.setEnabled(_state.mesh_edit_reset_part_button.isEnabled())
-    _state.mesh_edit_status_label.setText(
-        _state._mesh_edit_control_status_text_helper(
-            reason,
-            selected_count,
-            int(_state.mesh_edit_revision.get("value", 0) or 0),
-            editing_active=editing_active,
-        )
+    status_text = _state._mesh_edit_control_status_text_helper(
+        reason, selected_count, int(_state.mesh_edit_revision.get("value", 0) or 0), editing_active=editing_active
     )
+    # QLabel.setText repaints even for identical text, and this refresh runs on
+    # every selection change; only a real change is worth the paint.
+    if _state.mesh_edit_status_label.text() != status_text:
+        _state.mesh_edit_status_label.setText(status_text)
     compact_status_set_text = getattr(_state.compact_mesh_edit_status_label, "setText", None)
     if callable(compact_status_set_text):
-        compact_status_set_text(_state.mesh_edit_status_label.text())
+        compact_status_set_text(status_text)
     for compact_button, source_button in (
         (_state.compact_mesh_edit_clear_button, _state.mesh_edit_clear_selection_button),
         (_state.compact_mesh_edit_grow_button, _state.mesh_edit_grow_selection_button),

@@ -23,15 +23,13 @@ def _preview_meshes_from_submeshes(submeshes: Sequence[SubMesh]) -> List[ModelPr
     for submesh_index, submesh in enumerate(submeshes):
         if not submesh.vertices or not submesh.faces:
             continue
-        indices: List[int] = []
-        for face in submesh.faces:
-            indices.extend(int(index) for index in face[:3])
+        indices: List[int] = [int(index) for face in submesh.faces for index in face[:3]]
         preview_mesh = ModelPreviewMesh(
             material_name=str(submesh.material or submesh.name or ""),
             texture_name=str(submesh.texture or ""),
-            positions=[tuple(vertex) for vertex in submesh.vertices],
-            texture_coordinates=[tuple(uv) for uv in submesh.uvs[: len(submesh.vertices)]],
-            normals=[tuple(normal) for normal in submesh.normals[: len(submesh.vertices)]],
+            positions=list(map(tuple, submesh.vertices)),
+            texture_coordinates=list(map(tuple, submesh.uvs[: len(submesh.vertices)])),
+            normals=list(map(tuple, submesh.normals[: len(submesh.vertices)])),
             indices=indices,
             source_submesh_index=submesh_index,
             source_vertex_range_start=0,

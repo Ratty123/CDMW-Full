@@ -489,6 +489,20 @@ class MeshEditorDotNetProcessMixin:
         if self._standalone_dotnet_editor_process_running():
             self._send_dotnet_session_state()
         self._complete_pending_dotnet_exit()
+        self._retry_pending_dotnet_finish()
+    def _retry_pending_dotnet_finish(self) -> None:
+        # A Finish Edit Mesh that was refused for "busy" runs itself now that
+        # the worker has drained; making the reader click the button again is
+        # how "Finish does nothing" reports happen.
+        if not self.standalone_dotnet_finish_retry_pending:
+            return
+        self.standalone_dotnet_finish_retry_pending = False
+        if (
+            self.standalone_dotnet_target_embedded
+            and not self.standalone_dotnet_exit_pending
+            and self._standalone_dotnet_editor_process_running()
+        ):
+            self._finish_embedded_dotnet_edit_mode()
     def _cancel_standalone_action_worker(self) -> None:
         worker = self.standalone_action_worker
         thread = self.standalone_action_thread

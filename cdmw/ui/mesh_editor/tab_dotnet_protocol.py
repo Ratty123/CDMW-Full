@@ -56,11 +56,22 @@ def _dotnet_protocol_trail_path() -> "object | None":
         return _PROTOCOL_TRAIL_STATE["path"]
     _PROTOCOL_TRAIL_STATE["resolved"] = True
     try:
+        import os
         from pathlib import Path
 
-        from cdmw.ui.shell.app_window import crash_reports_dir
+        # `crash_reports_dir` is a local inside app_window's entry point, not a
+        # module attribute, so importing it raised ImportError into the guard
+        # below and this trail silently never wrote a line. CDMW_CRASH_DIR is
+        # the channel that already exists for exactly this, set during startup
+        # and read the same way by the native mesh, texture and archive layers.
+        crash_dir = str(os.environ.get("CDMW_CRASH_DIR", "") or "").strip()
+        if crash_dir:
+            directory = Path(crash_dir)
+        else:
+            from cdmw.domain.workspace import workspace_paths
+            from cdmw.services.settings_service import resolve_settings_file_path
 
-        directory = Path(str(crash_reports_dir))
+            directory = Path(workspace_paths(resolve_settings_file_path().parent)["crash_reports_dir"])
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / "dotnet_protocol_current.jsonl"
         # Truncated per process so a capture is one session, not a pile of them.

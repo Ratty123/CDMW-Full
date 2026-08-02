@@ -1501,6 +1501,10 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         self.settings.setValue("preview/low_quality_texture_max_dimension", preview_settings.low_quality_texture_max_dimension)
         self.settings.setValue("preview/max_anisotropy", preview_settings.max_anisotropy)
         self.settings.setValue("preview/d3d11_mip_lod_bias", preview_settings.d3d11_mip_lod_bias)
+        self.settings.setValue("preview/d3d11_background_color", preview_settings.d3d11_background_color)
+        self.settings.setValue("preview/d3d11_grid_color", preview_settings.d3d11_grid_color)
+        self.settings.setValue("preview/d3d11_grid_spacing_scale", preview_settings.d3d11_grid_spacing_scale)
+        self.settings.setValue("preview/d3d11_grid_line_count", preview_settings.d3d11_grid_line_count)
         self.settings.setValue("preview/ambient_strength", preview_settings.ambient_strength)
         self.settings.setValue("preview/diffuse_wrap_bias", preview_settings.diffuse_wrap_bias)
         self.settings.setValue("preview/diffuse_light_scale", preview_settings.diffuse_light_scale)
@@ -1896,6 +1900,20 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
                 ),
                 max_anisotropy=self._read_int("preview/max_anisotropy", defaults.max_anisotropy),
                 d3d11_mip_lod_bias=self._read_float("preview/d3d11_mip_lod_bias", defaults.d3d11_mip_lod_bias),
+                d3d11_background_color=str(
+                    self.settings.value("preview/d3d11_background_color", defaults.d3d11_background_color)
+                    or defaults.d3d11_background_color
+                ),
+                d3d11_grid_color=str(
+                    self.settings.value("preview/d3d11_grid_color", defaults.d3d11_grid_color)
+                    or defaults.d3d11_grid_color
+                ),
+                d3d11_grid_spacing_scale=self._read_float(
+                    "preview/d3d11_grid_spacing_scale", defaults.d3d11_grid_spacing_scale
+                ),
+                d3d11_grid_line_count=self._read_int(
+                    "preview/d3d11_grid_line_count", defaults.d3d11_grid_line_count
+                ),
                 ambient_strength=self._read_float("preview/ambient_strength", defaults.ambient_strength),
                 diffuse_wrap_bias=self._read_float("preview/diffuse_wrap_bias", defaults.diffuse_wrap_bias),
                 diffuse_light_scale=self._read_float("preview/diffuse_light_scale", defaults.diffuse_light_scale),

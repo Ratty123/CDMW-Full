@@ -30,6 +30,22 @@ from .logging import get_logger
 
 logger = get_logger("core.mesh_parser")
 
+_NUMPY = None
+_NUMPY_CHECKED = False
+
+
+def _np_module():
+    """numpy, or None where it is unavailable; scalar decode paths stay authoritative."""
+    global _NUMPY, _NUMPY_CHECKED
+    if not _NUMPY_CHECKED:
+        try:
+            import numpy
+        except Exception:
+            numpy = None
+        _NUMPY = numpy
+        _NUMPY_CHECKED = True
+    return _NUMPY
+
 # ── Constants ────────────────────────────────────────────────────────
 
 PAR_MAGIC = b"PAR "
@@ -288,8 +304,82 @@ def _compute_face_normal(v0, v1, v2):
     return (0.0, 1.0, 0.0)
 
 
+def _compute_smooth_normals_vectorized(np, vertices, faces):
+    """Vectorized twin of the scalar smooth-normal loop below, bit-identical.
+
+    Returns None when the inputs cannot be represented as clean arrays; the
+    scalar loop stays authoritative for those (and raises exactly as before).
+    """
+
+    vertex_count = len(vertices)
+    if vertex_count == 0:
+        return []
+    try:
+        positions = np.asarray(vertices, dtype=np.float64)
+        face_array = np.asarray(faces) if len(faces) else np.empty((0, 3), dtype=np.int64)
+    except (TypeError, ValueError):
+        return None
+    if positions.ndim != 2 or positions.shape[1] != 3:
+        return None
+    if face_array.ndim != 2 or face_array.shape[1] != 3:
+        return None
+    if face_array.dtype.kind not in ("i", "u"):
+        # Non-integer face indexes raise in the scalar loop; let it.
+        return None
+    face_array = face_array.astype(np.int64)
+    # Only the upper bound is checked, like the scalar loop; negative indexes
+    # wrap from the end in both implementations.
+    valid = (
+        (face_array[:, 0] < vertex_count)
+        & (face_array[:, 1] < vertex_count)
+        & (face_array[:, 2] < vertex_count)
+    )
+    triangles = face_array[valid]
+    accumulated = np.zeros((vertex_count, 3), dtype=np.float64)
+    if len(triangles):
+        corner0 = positions[triangles[:, 0]]
+        corner1 = positions[triangles[:, 1]]
+        corner2 = positions[triangles[:, 2]]
+        edge_a = corner1 - corner0
+        edge_b = corner2 - corner0
+        face_normals = np.empty_like(edge_a)
+        face_normals[:, 0] = edge_a[:, 1] * edge_b[:, 2] - edge_a[:, 2] * edge_b[:, 1]
+        face_normals[:, 1] = edge_a[:, 2] * edge_b[:, 0] - edge_a[:, 0] * edge_b[:, 2]
+        face_normals[:, 2] = edge_a[:, 0] * edge_b[:, 1] - edge_a[:, 1] * edge_b[:, 0]
+        squared = (
+            face_normals[:, 0] * face_normals[:, 0]
+            + face_normals[:, 1] * face_normals[:, 1]
+            + face_normals[:, 2] * face_normals[:, 2]
+        )
+        lengths = np.sqrt(squared)
+        keep = lengths > 1e-8
+        unit = np.empty_like(face_normals)
+        unit[keep] = face_normals[keep] / lengths[keep, None]
+        # A degenerate face contributes the (0, 1, 0) fallback, as scalar does.
+        unit[~keep] = (0.0, 1.0, 0.0)
+        # Flattened (a, b, c) per face keeps the scalar accumulation order, so
+        # the float sums stay bit-identical.
+        np.add.at(accumulated, triangles.reshape(-1), np.repeat(unit, 3, axis=0))
+    vertex_squared = (
+        accumulated[:, 0] * accumulated[:, 0]
+        + accumulated[:, 1] * accumulated[:, 1]
+        + accumulated[:, 2] * accumulated[:, 2]
+    )
+    vertex_lengths = np.sqrt(vertex_squared)
+    long_enough = vertex_lengths > 1e-8
+    output = np.empty_like(accumulated)
+    output[long_enough] = accumulated[long_enough] / vertex_lengths[long_enough, None]
+    output[~long_enough] = (0.0, 1.0, 0.0)
+    return list(map(tuple, output.tolist()))
+
+
 def _compute_smooth_normals(vertices, faces):
     """Compute per-vertex smooth normals by averaging adjacent face normals."""
+    np = _np_module()
+    if np is not None:
+        vectorized = _compute_smooth_normals_vectorized(np, vertices, faces)
+        if vectorized is not None:
+            return vectorized
     normals = [[0.0, 0.0, 0.0] for _ in range(len(vertices))]
     for a, b, c in faces:
         if a < len(vertices) and b < len(vertices) and c < len(vertices):
@@ -363,13 +453,131 @@ def _find_local_stride(data: bytes, geom_off: int, voff: int, n_verts: int, n_id
         if valid:
             # Full validation on remaining
             if n_idx > 100:
-                valid = all(
-                    struct.unpack_from("<H", data, idx_off + j * 2)[0] < n_verts
-                    for j in range(100, n_idx)
-                )
+                np = _np_module()
+                if np is not None:
+                    valid = bool(
+                        (
+                            np.frombuffer(data, dtype="<u2", count=n_idx - 100, offset=idx_off + 200)
+                            < n_verts
+                        ).all()
+                    )
+                else:
+                    valid = all(
+                        struct.unpack_from("<H", data, idx_off + j * 2)[0] < n_verts
+                        for j in range(100, n_idx)
+                    )
             if valid:
                 return stride, idx_off
     return None, None
+
+
+def _read_pam_u16_indices(data: bytes, base: int, count: int) -> list[int]:
+    """Read a run of little-endian u16 indexes; identical to the struct loop."""
+    if count <= 0:
+        return []
+    np = _np_module()
+    if np is not None and 0 <= base and base + count * 2 <= len(data):
+        return np.frombuffer(data, dtype="<u2", count=count, offset=base).tolist()
+    return [struct.unpack_from("<H", data, base + j * 2)[0] for j in range(count)]
+
+
+def _read_pam_u16_index_array(data: bytes, base: int, count: int):
+    """The same u16 index run as a numpy array, or None for the scalar path."""
+    np = _np_module()
+    if np is None or count <= 0 or base < 0 or base + count * 2 > len(data):
+        return None
+    return np.frombuffer(data, dtype="<u2", count=count, offset=base)
+
+
+def _any_pam_offsets_invalid(submeshes, geom_off: int, data_length: int) -> bool:
+    """Whether any recorded source vertex offset falls outside the geometry."""
+    np = _np_module()
+    for sm in submeshes:
+        offsets = sm.source_vertex_offsets
+        if not offsets:
+            continue
+        if np is not None:
+            array = np.asarray(offsets, dtype=np.int64)
+            if bool(((array < geom_off) | (array > data_length - 6)).any()):
+                return True
+        elif any(off < geom_off or off + 6 > data_length for off in offsets):
+            return True
+    return False
+
+
+def _gather_pam_unique_vertices(
+    data: bytes,
+    unique: list[int],
+    vert_base: int,
+    stride: int,
+    bmin,
+    bmax,
+    *,
+    include_uv: bool,
+):
+    """Vectorized twin of the sorted-unique PAM vertex gather loops.
+
+    Matches the scalar loops exactly: the gather stops at the first record
+    running past the buffer (offsets are ascending, so that is a prefix), UVs
+    keep their raw half-float values, and every dequantization runs the same
+    float operations in the same order. Returns None when numpy is unavailable
+    or the layout needs the scalar loop's negative-offset semantics.
+    """
+
+    np = _np_module()
+    if np is None or vert_base < 0 or stride <= 0:
+        return None
+    if len(unique) == 0:
+        return [], [], []
+    offsets = np.asarray(unique, dtype=np.int64) * stride + vert_base
+    keep_count = int(np.searchsorted(offsets, len(data) - 6, side="right"))
+    if keep_count <= 0:
+        return [], [], []
+    kept = offsets[:keep_count]
+    raw = np.frombuffer(data, dtype=np.uint8)
+    gathered = raw[kept[:, None] + np.arange(6)]
+    words = gathered[:, 0::2].astype(np.uint16) | (gathered[:, 1::2].astype(np.uint16) << np.uint16(8))
+    axes = []
+    for axis in range(3):
+        minimum = bmin[axis]
+        column = words[:, axis].astype(np.float64)
+        column /= 65535.0
+        column *= bmax[axis] - minimum
+        column += minimum
+        axes.append(column)
+    verts = list(zip(axes[0].tolist(), axes[1].tolist(), axes[2].tolist()))
+    uvs: list = []
+    if include_uv:
+        uv_count = int(np.searchsorted(kept, len(data) - 12, side="right"))
+        if uv_count > 0:
+            uv_bytes = raw[kept[:uv_count, None] + np.arange(8, 12)]
+            uv_words = uv_bytes[:, 0::2].astype(np.uint16) | (
+                uv_bytes[:, 1::2].astype(np.uint16) << np.uint16(8)
+            )
+            uv_values = uv_words.view(np.float16).astype(np.float64)
+            uvs = list(zip(uv_values[:, 0].tolist(), uv_values[:, 1].tolist()))
+    return verts, uvs, kept.tolist()
+
+
+def _map_pam_faces(indices: list[int], unique: list[int], *, base_offset: int = 0):
+    """Vectorized (idx_map[a], idx_map[b], idx_map[c]) face mapping.
+
+    Callers build ``unique`` as ``sorted(set(indices))``, so membership always
+    holds and searchsorted positions equal the scalar idx_map lookups. Returns
+    None when numpy is unavailable.
+    """
+
+    np = _np_module()
+    if np is None:
+        return None
+    triple_count = len(indices) // 3
+    if triple_count <= 0:
+        return []
+    arr = np.asarray(indices[: triple_count * 3], dtype=np.int64).reshape(-1, 3)
+    mapped = np.searchsorted(np.asarray(unique, dtype=np.int64), arr)
+    if base_offset:
+        mapped = mapped + base_offset
+    return list(zip(mapped[:, 0].tolist(), mapped[:, 1].tolist(), mapped[:, 2].tolist()))
 
 
 # ── PAM Parser ───────────────────────────────────────────────────────
@@ -418,11 +626,7 @@ def parse_pam(data: bytes, filename: str = "") -> ParsedMesh:
         _parse_independent_meshes(data, raw_entries, geom_off, bmin, bmax, result)
 
     primary_total_vertices = sum(len(sm.vertices) for sm in result.submeshes)
-    has_invalid_offsets = any(
-        off < geom_off or off + 6 > len(data)
-        for sm in result.submeshes
-        for off in sm.source_vertex_offsets
-    )
+    has_invalid_offsets = _any_pam_offsets_invalid(result.submeshes, geom_off, len(data))
 
     # Fallback: scan for vertex+index blocks when the primary table-based parse
     # found no usable geometry, or when it produced impossible vertex offsets.
@@ -613,10 +817,16 @@ def _parse_scan_fallback(data, entries, geom_off, bmin, bmax, result):
             continue
 
         # Full validation
-        valid = all(
-            struct.unpack_from("<H", data, test_start + j * 2)[0] < total_v
-            for j in range(total_i)
-        )
+        np = _np_module()
+        if np is not None:
+            valid = bool(
+                (np.frombuffer(data, dtype="<u2", count=total_i, offset=test_start) < total_v).all()
+            )
+        else:
+            valid = all(
+                struct.unpack_from("<H", data, test_start + j * 2)[0] < total_v
+                for j in range(total_i)
+            )
         if not valid:
             continue
 
@@ -647,34 +857,12 @@ def _parse_scan_fallback(data, entries, geom_off, bmin, bmax, result):
             vert_base = geom_off + r["ve"] * best_stride
             idx_off = idx_base + r["ie"] * 2
 
-            indices = [struct.unpack_from("<H", data, idx_off + j * 2)[0]
-                       for j in range(ni)]
-            if not indices:
+            extracted = _extract_pam_indexed_mesh(
+                data, idx_off, ni, vert_base, best_stride, bmin, bmax, has_uv
+            )
+            if extracted is None:
                 continue
-
-            unique = sorted(set(indices))
-            idx_map = {gi: li for li, gi in enumerate(unique)}
-
-            verts, uvs, offsets = [], [], []
-            for gi in unique:
-                foff = vert_base + gi * best_stride
-                if foff + 6 > len(data):
-                    break
-                xu, yu, zu = struct.unpack_from("<HHH", data, foff)
-                offsets.append(foff)
-                verts.append((_dequant_u16(xu, bmin[0], bmax[0]),
-                              _dequant_u16(yu, bmin[1], bmax[1]),
-                              _dequant_u16(zu, bmin[2], bmax[2])))
-                if has_uv and foff + 12 <= len(data):
-                    u = struct.unpack_from("<e", data, foff + 8)[0]
-                    v = struct.unpack_from("<e", data, foff + 10)[0]
-                    uvs.append((u, v))
-
-            faces = []
-            for j in range(0, ni - 2, 3):
-                a, b, c = indices[j], indices[j + 1], indices[j + 2]
-                if a in idx_map and b in idx_map and c in idx_map:
-                    faces.append((idx_map[a], idx_map[b], idx_map[c]))
+            verts, uvs, faces, offsets, _unique_count = extracted
 
             sm = SubMesh(
                 name=f"mesh_{r['i']:02d}_{r['mat'] or str(r['i'])}",
@@ -712,34 +900,11 @@ def _parse_combined_buffer(data, entries, geom_off, bmin, bmax, result):
         idx_off = idx_base + r["ie"] * 2
         tex, mat = r["tex"], r["mat"]
 
-        indices = [struct.unpack_from("<H", data, idx_off + j * 2)[0] for j in range(ni)]
-        if not indices:
-            continue
-
-        unique = sorted(set(indices))
-        idx_map = {gi: li for li, gi in enumerate(unique)}
         has_uv = stride >= 12
-
-        verts, uvs, offsets = [], [], []
-        for gi in unique:
-            foff = vert_base + gi * stride
-            if foff + 6 > len(data):
-                break
-            xu, yu, zu = struct.unpack_from("<HHH", data, foff)
-            offsets.append(foff)
-            verts.append((_dequant_u16(xu, bmin[0], bmax[0]),
-                          _dequant_u16(yu, bmin[1], bmax[1]),
-                          _dequant_u16(zu, bmin[2], bmax[2])))
-            if has_uv and foff + 12 <= len(data):
-                u = struct.unpack_from("<e", data, foff + 8)[0]
-                v = struct.unpack_from("<e", data, foff + 10)[0]
-                uvs.append((u, v))
-
-        faces = []
-        for j in range(0, ni - 2, 3):
-            a, b, c = indices[j], indices[j + 1], indices[j + 2]
-            if a in idx_map and b in idx_map and c in idx_map:
-                faces.append((idx_map[a], idx_map[b], idx_map[c]))
+        extracted = _extract_pam_indexed_mesh(data, idx_off, ni, vert_base, stride, bmin, bmax, has_uv)
+        if extracted is None:
+            continue
+        verts, uvs, faces, offsets, _unique_count = extracted
 
         sm = SubMesh(
             name=f"mesh_{r['i']:02d}_{mat or str(r['i'])}",
@@ -751,16 +916,40 @@ def _parse_combined_buffer(data, entries, geom_off, bmin, bmax, result):
         result.submeshes.append(sm)
 
 
-def _extract_local_mesh(data, geom_off, voff, stride, idx_off, nv, ni, bmin, bmax):
-    """Extract vertices/uvs/faces from local (per-mesh) layout."""
-    indices = [struct.unpack_from("<H", data, idx_off + j * 2)[0] for j in range(ni)]
+def _extract_pam_indexed_mesh(
+    data, idx_off, ni, vert_base, stride, bmin, bmax, has_uv, *, face_base_offset=0
+):
+    """Shared index-read, unique-vertex gather, and face remap for PAM layouts.
+
+    Returns (verts, uvs, faces, offsets, unique_count), or None when the index
+    run is empty. The numpy pipeline stays in arrays end to end; the scalar
+    loops below remain the authoritative fallback and keep the bounds-error
+    behavior for bad offsets.
+    """
+
+    index_array = _read_pam_u16_index_array(data, idx_off, ni)
+    if index_array is not None:
+        if not len(index_array):
+            return None
+        np = _np_module()
+        unique_array = np.unique(index_array)
+        gathered = _gather_pam_unique_vertices(
+            data, unique_array, vert_base, stride, bmin, bmax, include_uv=has_uv
+        )
+        mapped = _map_pam_faces(index_array, unique_array, base_offset=face_base_offset)
+        if gathered is not None and mapped is not None:
+            verts, uvs, offsets = gathered
+            return verts, uvs, mapped, offsets, len(unique_array)
+
+    indices = _read_pam_u16_indices(data, idx_off, ni)
+    if not indices:
+        return None
     unique = sorted(set(indices))
-    idx_map = {gi: li for li, gi in enumerate(unique)}
-    has_uv = stride >= 12
+    idx_map = {gi: li + face_base_offset for li, gi in enumerate(unique)}
 
     verts, uvs, offsets = [], [], []
     for gi in unique:
-        foff = geom_off + voff + gi * stride
+        foff = vert_base + gi * stride
         if foff + 6 > len(data):
             break
         xu, yu, zu = struct.unpack_from("<HHH", data, foff)
@@ -779,6 +968,18 @@ def _extract_local_mesh(data, geom_off, voff, stride, idx_off, nv, ni, bmin, bma
         if a in idx_map and b in idx_map and c in idx_map:
             faces.append((idx_map[a], idx_map[b], idx_map[c]))
 
+    return verts, uvs, faces, offsets, len(unique)
+
+
+def _extract_local_mesh(data, geom_off, voff, stride, idx_off, nv, ni, bmin, bmax):
+    """Extract vertices/uvs/faces from local (per-mesh) layout."""
+    has_uv = stride >= 12
+    extracted = _extract_pam_indexed_mesh(
+        data, idx_off, ni, geom_off + voff, stride, bmin, bmax, has_uv
+    )
+    if extracted is None:
+        return [], [], [], []
+    verts, uvs, faces, offsets, _unique_count = extracted
     return verts, uvs, faces, offsets
 
 
@@ -907,30 +1108,26 @@ def parse_pamlod(data: bytes, filename: str = "", lod_level: int = 0) -> ParsedM
             vert_base_e = found_base + e["voff"] * found_stride
             idx_off_e = found_idx_off + e["ioff"] * 2
 
-            indices = [struct.unpack_from("<H", data, idx_off_e + j * 2)[0] for j in range(ni_e)]
-            unique = sorted(set(indices))
-            idx_map = {gi: li + vert_offset for li, gi in enumerate(unique)}
+            extracted = _extract_pam_indexed_mesh(
+                data,
+                idx_off_e,
+                ni_e,
+                vert_base_e,
+                found_stride,
+                bmin,
+                bmax,
+                has_uv,
+                face_base_offset=vert_offset,
+            )
+            if extracted is None:
+                continue
+            verts_e, uvs_e, faces_e, offsets_e, unique_count = extracted
+            all_verts.extend(verts_e)
+            all_uvs.extend(uvs_e)
+            all_offsets.extend(offsets_e)
+            all_faces.extend(faces_e)
 
-            for gi in unique:
-                foff = vert_base_e + gi * found_stride
-                if foff + 6 > len(data):
-                    break
-                xu, yu, zu = struct.unpack_from("<HHH", data, foff)
-                all_offsets.append(foff)
-                all_verts.append((_dequant_u16(xu, bmin[0], bmax[0]),
-                                  _dequant_u16(yu, bmin[1], bmax[1]),
-                                  _dequant_u16(zu, bmin[2], bmax[2])))
-                if has_uv and foff + 12 <= len(data):
-                    u = struct.unpack_from("<e", data, foff + 8)[0]
-                    v = struct.unpack_from("<e", data, foff + 10)[0]
-                    all_uvs.append((u, v))
-
-            for j in range(0, ni_e - 2, 3):
-                a, b, c = indices[j], indices[j + 1], indices[j + 2]
-                if a in idx_map and b in idx_map and c in idx_map:
-                    all_faces.append((idx_map[a], idx_map[b], idx_map[c]))
-
-            vert_offset += len(unique)
+            vert_offset += unique_count
 
         mat_name = group[0]["mat"] or f"lod{lod_i}"
         sm = SubMesh(
@@ -1553,6 +1750,141 @@ def _decode_pac_vertex_record(
     return pos, uv, normal, packed_bones, packed_weights
 
 
+def _decode_pac_vertex_records_bulk(
+    data: bytes,
+    base_off: int,
+    count: int,
+    desc: PacDescriptor,
+    *,
+    include_uv: bool = True,
+    include_skin: bool = True,
+):
+    """Decode contiguous 40-byte PAC vertex records in one vectorized pass.
+
+    Produces exactly what the `_decode_pac_vertex_record` loop produces for the
+    same records, including the break at the first record that runs past the
+    buffer. Returns None when numpy is unavailable so callers keep the scalar
+    loop as the authoritative fallback.
+    """
+
+    np = _np_module()
+    if np is None or base_off < 0:
+        return None
+    n = min(int(count), max(0, (len(data) - base_off) // 40))
+    if n <= 0:
+        return [], [], [], [], [], []
+
+    records = np.frombuffer(data, dtype=np.uint8, count=n * 40, offset=base_off).reshape(n, 40)
+    u16 = np.frombuffer(data, dtype="<u2", count=n * 20, offset=base_off).reshape(n, 20)
+    u32 = np.frombuffer(data, dtype="<u4", count=n * 10, offset=base_off).reshape(n, 10)
+
+    axes = []
+    for axis in range(3):
+        extent = desc.bbox_extent[axis]
+        minimum = desc.bbox_min[axis]
+        if abs(extent) < 1e-8:
+            axes.append(np.full(n, minimum, dtype=np.float64))
+        else:
+            column = u16[:, axis].astype(np.float64)
+            column /= 32767.0
+            column *= extent
+            column += minimum
+            axes.append(column)
+    verts = list(zip(axes[0].tolist(), axes[1].tolist(), axes[2].tolist()))
+
+    uvs: list = []
+    if include_uv:
+        uv64 = np.ascontiguousarray(u16[:, 4:6]).view("<f2").astype(np.float64)
+        uv64[np.isnan(uv64).any(axis=1)] = 0.0
+        uvs = list(zip(uv64[:, 0].tolist(), uv64[:, 1].tolist()))
+
+    packed = u32[:, 4]
+    nx_raw = packed & 0x3FF
+    ny_raw = (packed >> 10) & 0x3FF
+    nz_raw = (packed >> 20) & 0x3FF
+    normals = list(
+        zip(
+            (ny_raw / 511.5 - 1.0).tolist(),
+            (nz_raw / 511.5 - 1.0).tolist(),
+            (nx_raw / 511.5 - 1.0).tolist(),
+        )
+    )
+
+    source_offsets = list(range(base_off, base_off + n * 40, 40))
+
+    bone_indices: list = []
+    bone_weights: list = []
+    if include_skin:
+        group0 = u32[:, 5]
+        group1 = u32[:, 6]
+        slots = np.stack(
+            (
+                group0 & PAC_SKIN_SLOT_MASK,
+                (group0 >> PAC_SKIN_SLOT_BITS) & PAC_SKIN_SLOT_MASK,
+                (group0 >> (2 * PAC_SKIN_SLOT_BITS)) & PAC_SKIN_SLOT_MASK,
+                group1 & PAC_SKIN_SLOT_MASK,
+                (group1 >> PAC_SKIN_SLOT_BITS) & PAC_SKIN_SLOT_MASK,
+                (group1 >> (2 * PAC_SKIN_SLOT_BITS)) & PAC_SKIN_SLOT_MASK,
+            ),
+            axis=1,
+        )
+        raw_weights = records[:, PAC_SKIN_WEIGHT_OFFSET : PAC_SKIN_WEIGHT_OFFSET + PAC_SKIN_INFLUENCES]
+        if not raw_weights.any():
+            empty = ()
+            bone_indices = [empty] * n
+            bone_weights = [empty] * n
+        else:
+            scaled = raw_weights.astype(np.float64) / 255.0
+            empty = ()
+            bone_indices = [empty] * n
+            bone_weights = [empty] * n
+            # Group vertices by which of the six weights are live; each group
+            # slices its live columns in one vectorized pass instead of
+            # filtering per vertex.
+            codes = (raw_weights > 0) @ (1 << np.arange(PAC_SKIN_INFLUENCES, dtype=np.int64))
+            for code in np.unique(codes):
+                if code == 0:
+                    continue
+                rows = np.nonzero(codes == code)[0]
+                live_positions = [position for position in range(PAC_SKIN_INFLUENCES) if (int(code) >> position) & 1]
+                slot_tuples = list(map(tuple, slots[rows][:, live_positions].tolist()))
+                weight_tuples = list(map(tuple, scaled[rows][:, live_positions].tolist()))
+                for row, slot_tuple, weight_tuple in zip(rows.tolist(), slot_tuples, weight_tuples):
+                    bone_indices[row] = slot_tuple
+                    bone_weights[row] = weight_tuple
+
+    return verts, uvs, normals, source_offsets, bone_indices, bone_weights
+
+
+def _pac_faces_from_indices(
+    indices: list[int],
+    vertex_count: int,
+    *,
+    require_distinct: bool,
+    base_offset: int = 0,
+):
+    """Filter index triples into face tuples, matching the scalar loops exactly.
+
+    Returns None when numpy is unavailable.
+    """
+
+    np = _np_module()
+    if np is None:
+        return None
+    triple_count = len(indices) // 3
+    if triple_count <= 0:
+        return []
+    arr = np.asarray(indices[: triple_count * 3], dtype=np.int64).reshape(-1, 3)
+    a, b, c = arr[:, 0], arr[:, 1], arr[:, 2]
+    mask = (a < vertex_count) & (b < vertex_count) & (c < vertex_count)
+    if require_distinct:
+        mask &= (a != b) & (b != c) & (a != c)
+    kept = arr[mask]
+    if base_offset:
+        kept = kept + base_offset
+    return list(zip(kept[:, 0].tolist(), kept[:, 1].tolist(), kept[:, 2].tolist()))
+
+
 def _read_pac_indices(
     data: bytes,
     section_offset: int,
@@ -1566,6 +1898,9 @@ def _read_pac_indices(
 
     max_count = max(0, min(index_count, (section_size - index_start) // 2))
     base = section_offset + index_start
+    np = _np_module()
+    if np is not None and 0 <= base and base + max_count * 2 <= len(data):
+        return np.frombuffer(data, dtype="<u2", count=max_count, offset=base).tolist()
     return [struct.unpack_from("<H", data, base + i * 2)[0] for i in range(max_count)]
 
 
@@ -1892,30 +2227,41 @@ def _parse_pac_geometry_section(
                     owner_vc = max_idx + 1
 
         vertex_start = desc_vert_offsets[vertex_owner_idx]
-        verts = []
-        uvs = []
-        normals = []
-        source_offsets = []
-        bone_indices = []
-        bone_weights = []
+        bulk = _decode_pac_vertex_records_bulk(
+            data,
+            geom_sec["offset"] + vertex_start,
+            owner_vc,
+            desc,
+        )
+        if bulk is not None:
+            verts, uvs, normals, source_offsets, bone_indices, bone_weights = bulk
+        else:
+            verts = []
+            uvs = []
+            normals = []
+            source_offsets = []
+            bone_indices = []
+            bone_weights = []
 
-        for vi in range(owner_vc):
-            rec_off = geom_sec["offset"] + vertex_start + vi * 40
-            if rec_off + 40 > len(data):
-                break
-            pos, uv, normal, bones, weights = _decode_pac_vertex_record(data, rec_off, desc)
-            verts.append(pos)
-            uvs.append(uv)
-            normals.append(normal)
-            source_offsets.append(rec_off)
-            bone_indices.append(bones)
-            bone_weights.append(weights)
+            for vi in range(owner_vc):
+                rec_off = geom_sec["offset"] + vertex_start + vi * 40
+                if rec_off + 40 > len(data):
+                    break
+                pos, uv, normal, bones, weights = _decode_pac_vertex_record(data, rec_off, desc)
+                verts.append(pos)
+                uvs.append(uv)
+                normals.append(normal)
+                source_offsets.append(rec_off)
+                bone_indices.append(bones)
+                bone_weights.append(weights)
 
-        faces = []
-        for i in range(0, len(indices) - 2, 3):
-            a, b, c = indices[i], indices[i + 1], indices[i + 2]
-            if a < len(verts) and b < len(verts) and c < len(verts) and len({a, b, c}) == 3:
-                faces.append((a, b, c))
+        faces = _pac_faces_from_indices(indices, len(verts), require_distinct=True)
+        if faces is None:
+            faces = []
+            for i in range(0, len(indices) - 2, 3):
+                a, b, c = indices[i], indices[i + 1], indices[i + 2]
+                if a < len(verts) and b < len(verts) and c < len(verts) and len({a, b, c}) == 3:
+                    faces.append((a, b, c))
 
         bbox_max = tuple(desc.bbox_min[i] + desc.bbox_extent[i] for i in range(3))
         sm = SubMesh(
@@ -2004,6 +2350,63 @@ def _preview_mesh_has_valid_indices(preview: PreviewMesh) -> bool:
     return max_idx < len(preview.vertices)
 
 
+def _emit_pac_preview_vertices(
+    preview: PreviewMesh,
+    data: bytes,
+    base_off: int,
+    count: int,
+    desc: PacDescriptor,
+) -> int:
+    """Append positions and normals for contiguous records; returns how many."""
+
+    bulk = _decode_pac_vertex_records_bulk(
+        data,
+        base_off,
+        count,
+        desc,
+        include_uv=False,
+        include_skin=False,
+    )
+    if bulk is not None:
+        verts, _uvs, normals, _offsets, _bones, _weights = bulk
+        preview.vertices.extend(verts)
+        preview.normals.extend(normals)
+        return len(verts)
+    emitted = 0
+    for vi in range(count):
+        rec_off = base_off + vi * 40
+        if rec_off + 40 > len(data):
+            break
+        pos, _, normal, _, _ = _decode_pac_vertex_record(data, rec_off, desc)
+        preview.vertices.append(pos)
+        preview.normals.append(normal)
+        emitted += 1
+    return emitted
+
+
+def _emit_pac_preview_faces(
+    preview: PreviewMesh,
+    indices: list[int],
+    emitted: int,
+    vert_offset: int,
+) -> None:
+    """Append bounded, offset face triples exactly as the scalar loop did."""
+
+    faces = _pac_faces_from_indices(
+        indices,
+        emitted,
+        require_distinct=False,
+        base_offset=vert_offset,
+    )
+    if faces is not None:
+        preview.faces.extend(faces)
+        return
+    for i in range(0, len(indices) - 2, 3):
+        a, b, c = indices[i], indices[i + 1], indices[i + 2]
+        if a < emitted and b < emitted and c < emitted:
+            preview.faces.append((a + vert_offset, b + vert_offset, c + vert_offset))
+
+
 def _build_pac_preview_mesh(data: bytes, filename: str = "") -> PreviewMesh:
     """Build PAC preview buffers using the same flattening strategy as CDMB."""
     sections = _parse_par_sections(data)
@@ -2071,35 +2474,13 @@ def _build_pac_preview_mesh(data: bytes, filename: str = "") -> PreviewMesh:
                 source_offset = desc_vert_offsets[partner_idx] if partner_idx is not None else vert_byte_offset
                 source_vc = descriptors[partner_idx].vertex_counts[lod] if partner_idx is not None else vc
                 desc_output_offset[di] = vert_offset
-                emitted = 0
-                for vi in range(source_vc):
-                    rec_off = geom_sec["offset"] + source_offset + vi * 40
-                    if rec_off + 40 > len(data):
-                        break
-                    pos, _, normal, _, _ = _decode_pac_vertex_record(data, rec_off, desc)
-                    preview.vertices.append(pos)
-                    preview.normals.append(normal)
-                    emitted += 1
-                for i in range(0, len(indices) - 2, 3):
-                    a, b, c = indices[i], indices[i + 1], indices[i + 2]
-                    if a < emitted and b < emitted and c < emitted:
-                        preview.faces.append((a + vert_offset, b + vert_offset, c + vert_offset))
+                emitted = _emit_pac_preview_vertices(preview, data, geom_sec["offset"] + source_offset, source_vc, desc)
+                _emit_pac_preview_faces(preview, indices, emitted, vert_offset)
                 vert_offset += emitted
         else:
             desc_output_offset[di] = vert_offset
-            emitted = 0
-            for vi in range(vc):
-                rec_off = geom_sec["offset"] + vert_byte_offset + vi * 40
-                if rec_off + 40 > len(data):
-                    break
-                pos, _, normal, _, _ = _decode_pac_vertex_record(data, rec_off, desc)
-                preview.vertices.append(pos)
-                preview.normals.append(normal)
-                emitted += 1
-            for i in range(0, len(indices) - 2, 3):
-                a, b, c = indices[i], indices[i + 1], indices[i + 2]
-                if a < emitted and b < emitted and c < emitted:
-                    preview.faces.append((a + vert_offset, b + vert_offset, c + vert_offset))
+            emitted = _emit_pac_preview_vertices(preview, data, geom_sec["offset"] + vert_byte_offset, vc, desc)
+            _emit_pac_preview_faces(preview, indices, emitted, vert_offset)
             vert_offset += emitted
 
         idx_byte_offset += ic * 2

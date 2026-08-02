@@ -18,6 +18,10 @@ def create_payload_apply_callbacks(state: SimpleNamespace, callbacks: SimpleName
 
 
 def _mesh_edit_apply_preview_payload(_state, _callbacks, payload: object) -> None:
+    if isinstance(payload, _state.Mapping) and str(payload.get("event", "") or "").startswith("stroke_"):
+        # Resident-editor strokes belong to the tab's live-stroke dispatcher;
+        # see _mesh_edit_begin_stroke for the single-authority rule.
+        return
     callback_started = _state.time.perf_counter()
     if _state._mesh_edit_state.replacement_mesh_for_mapping is None or not isinstance(payload, _state.Mapping):
         return
@@ -248,9 +252,11 @@ def _mesh_edit_apply_geometry_payload(
                         "invert": bool(payload.get("invert")),
                     }
                 )
-                if transform_screen_stroke_started and tool == "grab":
-                    pass
-                elif has_screen_brush:
+                # Grab sends the live brush every sample. The native session
+                # keeps no per-stroke brush region, so an update without one
+                # fell back to a world-space radius around the origin: Grab
+                # moved an arbitrary chunk of mesh or nothing at all.
+                if has_screen_brush:
                     params["screen_brush"] = _state._native_screen_payload(raw_screen_brush)  # type: ignore[arg-type]
                 elif descriptor_selection_payload:
                     params["_native_selection_payload"] = descriptor_selection_payload

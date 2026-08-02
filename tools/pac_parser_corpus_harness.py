@@ -16,7 +16,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
-from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, parse_mesh
+from cdmw.modding.mesh_parser import PAC_SKIN_INFLUENCES, ParsedMesh, SubMesh, parse_mesh
 from cdmw.models import ArchiveEntry
 
 _REPORT_FORMAT = "cdmw_pac_parser_corpus_v1"
@@ -229,13 +229,17 @@ def _validate_submesh(submesh: SubMesh, index: int, *, mesh_has_bones: bool, dat
                         )
                     )
                     break
-                if index_width > 4:
+                # The 40-byte PAC vertex record carries six packed influences
+                # (two u32 groups of three 10-bit palette slots plus six u8
+                # weights), so the parser's own capacity is the bound here.
+                if index_width > PAC_SKIN_INFLUENCES:
                     issues.append(
                         PacCorpusIssue(
                             "bone_influence_width_too_large",
-                            f"Bone influence row is wider than four at vertex {vertex_index}.",
+                            f"Bone influence row is wider than the {PAC_SKIN_INFLUENCES}-slot"
+                            f" vertex record at vertex {vertex_index}.",
                             index,
-                            expected="<=4",
+                            expected=f"<={PAC_SKIN_INFLUENCES}",
                             actual=index_width,
                         )
                     )

@@ -235,6 +235,19 @@ def _preview_mode_step_012(_state):
         mode = normalize_mesh_preview_display_mode(
             _state.preview_mesh_view_combo.currentData()
         )
+        # A pick made on this combo during Edit Mesh must land in the same
+        # remembered slot the resident rail's combo writes, or the next
+        # presentation republish overrides it with the slot's old value --
+        # which is what made "Mesh view: Solid (Textured)" revert to
+        # Faces + Wire the moment any tool or selection refreshed controls.
+        if bool(_state.mesh_edit_enabled_checkbox.isChecked()):
+            remember = getattr(
+                _state.dialog,
+                "_mesh_editor_remember_mesh_edit_display_mode",
+                None,
+            )
+            if callable(remember):
+                remember(mode)
         request_display = getattr(
             _state.dialog,
             "_mesh_editor_embedded_request_viewport_display",

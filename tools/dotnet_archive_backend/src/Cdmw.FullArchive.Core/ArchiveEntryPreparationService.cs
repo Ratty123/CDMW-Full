@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -154,27 +155,66 @@ public sealed class ArchiveEntryPreparationService(
             throw new InvalidDataException("The content-analysis entry id must be included in the prepare batch.");
         }
 
-        var items = new List<PrepareEntryResult>(request.EntryIds.Count);
-        long totalBytes = 0;
-        foreach (var entryId in request.EntryIds)
+        // Preparation is per-entry hashing, decoding, and file publication with
+        // no cross-entry state; the native decode and the write path already
+        // tolerate concurrent requests, so a batch runs its entries with
+        // bounded parallelism. Results keep request order because the shell
+        // asserts it, and the first failure fails the whole batch with its own
+        // exception, exactly as the sequential loop did.
+        var entryIds = request.EntryIds;
+        var results = new PrepareEntryResult[entryIds.Count];
+        Exception? firstFailure = null;
+        using var failureCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var item = await PrepareAsync(
-                new PrepareEntryRequest(
-                    request.SessionId,
-                    entryId,
-                    IncludeContentAnalysis: request.ContentAnalysisEntryId == entryId),
-                cancellationToken,
-                progress).ConfigureAwait(false);
-            items.Add(item);
-            totalBytes = checked(totalBytes + item.Size);
+            await Parallel.ForEachAsync(
+                Enumerable.Range(0, entryIds.Count),
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount, 1, 8),
+                    CancellationToken = failureCancellation.Token,
+                },
+                async (index, token) =>
+                {
+                    var entryId = entryIds[index];
+                    try
+                    {
+                        results[index] = await PrepareAsync(
+                            new PrepareEntryRequest(
+                                request.SessionId,
+                                entryId,
+                                IncludeContentAnalysis: request.ContentAnalysisEntryId == entryId),
+                            token,
+                            progress).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        Interlocked.CompareExchange(ref firstFailure, exception, null);
+                        failureCancellation.Cancel();
+                        throw;
+                    }
+                }).ConfigureAwait(false);
+        }
+        catch (Exception) when (firstFailure is not null && !cancellationToken.IsCancellationRequested)
+        {
+            ExceptionDispatchInfo.Capture(firstFailure).Throw();
+            throw;
         }
         cancellationToken.ThrowIfCancellationRequested();
+        long totalBytes = 0;
+        foreach (var item in results)
+        {
+            totalBytes = checked(totalBytes + item.Size);
+        }
         return new PrepareEntriesResult(
             request.SessionId,
-            items,
-            request.EntryIds.Count,
-            items.Count,
+            results,
+            entryIds.Count,
+            results.Length,
             totalBytes);
     }
 

@@ -41,6 +41,11 @@ internal sealed partial class MeshViewport
             {
                 Dock = DockStyle.None,
                 Bounds = ClientRectangle,
+                // A --prewarm launch holds the procedural placeholder triangle;
+                // suppress its geometry so no reveal or stale swap-chain frame
+                // can ever put it on screen. The first ReplaceResidentScene
+                // clears this.
+                ScenePresentationSuppressed = _options.PrewarmLaunch,
             };
             viewport.SetOverlaySettings(_overlaySettings);
             viewport.SetGizmoAppearance(_gizmoAppearance);
@@ -84,6 +89,14 @@ internal sealed partial class MeshViewport
             return false;
         }
     }
+
+    /// <summary>
+    /// Presents one frame of the resident scene immediately, so a reveal never
+    /// shows the swap chain's stale pre-reveal contents. Returns false when the
+    /// production D3D11 renderer is not up; the reveal proceeds regardless.
+    /// </summary>
+    public bool PresentFreshFrame() =>
+        _d3d11Viewport is { IsDisposed: false } viewport && viewport.TryPresentCurrentScene();
 
     private bool TryStartWpfViewport()
     {
@@ -192,12 +205,21 @@ internal sealed partial class MeshViewport
             _d3d11Viewport.UpdateCamera(_camera);
             _d3d11Viewport.UpdateRenderPanes(_currentRenderPanes, PopulateCurrentRenderPanes());
             var brushTool = ActiveTool is "grab" or "smooth" or "inflate" or "pinch";
+            // Brush-select paints with the same ring the sculpt brushes show:
+            // the cursor circle appears whenever the Select tool would paint,
+            // not only while the button is held.
+            var selectPaint = _selectionPaintActive
+                || (_selectionDragMode == "brush"
+                    && string.Equals(ActiveTool, "select", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase));
             var brushRadius = brushTool
                 ? (float)NumberOption(
                     ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>(),
                     "radius",
                     24.0)
-                : 24.0f;
+                : selectPaint
+                    ? (float)SelectionPaintRadiusPixels()
+                    : 24.0f;
             _presentedSources.Clear();
             _presentedSources.UnionWith(_selectedSources);
             _presentedSources.UnionWith(_presentationHighlightedSources);
@@ -212,7 +234,13 @@ internal sealed partial class MeshViewport
             var presentedSourceIndex = _presentationHoveredSource >= 0
                 ? _presentationHoveredSource
                 : MinimumPresentedSourceIndex();
-            _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, _presentedSources, presentedSourceIndex, ShowWire, ShowVertices, ShowXRay, brushTool && _pointerInside ? _pointerLocation : null, brushRadius);
+            // The lasso drag shows the polygon actually swept; the rectangle
+            // rubber-band belongs to rectangle mode alone, and painting shows
+            // only the brush ring.
+            var lassoDragPath = _edgeDragActive && _selectionLassoPoints.Count >= 2
+                ? (IReadOnlyList<Point>)_selectionLassoPoints
+                : null;
+            _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive && !_selectionPaintActive && lassoDragPath is null ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, _presentedSources, presentedSourceIndex, ShowWire, ShowVertices, ShowXRay, (brushTool || selectPaint) && _pointerInside ? _pointerLocation : null, brushRadius, lassoDragPath, _provisionalSelectedVertices.Count > 0 ? _provisionalSelectedVertices : null);
             return;
         }
         var viewport = _gpuViewport;

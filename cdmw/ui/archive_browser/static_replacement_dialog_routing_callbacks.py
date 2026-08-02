@@ -136,6 +136,12 @@ def create_alignment_original_clipboard_callbacks(context: dict[str, object]) ->
     _copied_original_clipboard_status_message_helper = context.get('_copied_original_clipboard_status_message_helper')
     _copy_original_part_payload = context.get('_copy_original_part_payload')
     _pasted_original_source_status_message_helper = context.get('_pasted_original_source_status_message_helper')
+    # Used three times below and never pulled out of the context, while the
+    # caller does put it there and the sibling factory in
+    # static_replacement_dialog_remaining_callbacks reads it the same way. Both
+    # uses sit behind the original-parts context menu, so opening that menu or
+    # copying a part raised NameError rather than doing anything.
+    _selected_original_index_from_tree = context.get('_selected_original_index_from_tree')
     alignment_part_clipboard = context.get('alignment_part_clipboard')
     chosen = context.get('chosen')
     copy_action = context.get('copy_action')

@@ -4,6 +4,7 @@ import re
 import threading
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional, Tuple
 
@@ -209,6 +210,7 @@ _MODEL_SIDECAR_REFERENCE_CACHE: OrderedDict[
 ] = OrderedDict()
 _MODEL_SIDECAR_PARSE_CACHE_LOCK = threading.Lock()
 
+@lru_cache(maxsize=16384)
 def _normalize_model_texture_reference(value: str) -> str:
     raw_text = str(value or "").replace("\\", "/").strip().lower()
     if not raw_text or raw_text == ".":
@@ -308,6 +310,7 @@ def _archive_texture_family_mismatch_reason(source_entry: ArchiveEntry, texture_
     return "cross-family texture name; exact sidecar binding may be legitimate material reuse"
 
 
+@lru_cache(maxsize=16384)
 def _normalize_model_submesh_reference(value: str) -> str:
     raw_text = str(value or "").replace("\\", "/").strip().lower()
     if not raw_text:
