@@ -24,8 +24,13 @@ internal sealed partial class ExperimentForm
             return;
         }
         _viewport.MarkHostDisplayModeAuthoritative();
-        SyncPreviewModeSelection(_viewport.DisplayMode);
-        _statusLabel.Text = JsonBoolean(root, "texture_request_pending")
+        var textureRequestPending = JsonBoolean(root, "texture_request_pending");
+        var selectedMode = textureRequestPending
+            ? JsonString(root, "requested_mode").Trim().ToLowerInvariant()
+            : _viewport.DisplayMode;
+        SyncPreviewModeSelection(
+            string.IsNullOrWhiteSpace(selectedMode) ? _viewport.DisplayMode : selectedMode);
+        _statusLabel.Text = textureRequestPending
             ? "Loading textures in the resident viewport..."
             : $"Viewport display: {_viewport.DisplayMode}.";
         WriteViewportDisplayResult(root, "viewport_display_applied", sessionId, _viewport.DisplayMode, string.Empty, string.Empty);

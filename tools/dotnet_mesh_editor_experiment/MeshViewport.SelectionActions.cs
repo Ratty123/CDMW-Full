@@ -50,8 +50,23 @@ internal sealed partial class MeshViewport
         {
             return result;
         }
+        if (_selectedSources.Contains(submeshIndex))
+        {
+            result.UnionWith(Enumerable.Range(0, _document.Submeshes[submeshIndex].Vertices.Count));
+            return result;
+        }
         AddSelectedVertices(submeshIndex, result);
         AddSelectedFaceVertices(submeshIndex, result);
+        foreach (var edgeId in _selectedEdges)
+        {
+            var edge = _edgeTopology.EdgeById(edgeId);
+            if (edge is null || edge.SubmeshIndex != submeshIndex)
+            {
+                continue;
+            }
+            result.Add(edge.VertexA);
+            result.Add(edge.VertexB);
+        }
         return result;
     }
 

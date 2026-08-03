@@ -590,12 +590,18 @@ internal static class EditMeshLayoutSmoke
 
     private static Dictionary<string, object?> RequireMorphAuthorWizardContract()
     {
-        IReadOnlyList<MorphPartChoice> parts = Array.Empty<MorphPartChoice>();
+        IReadOnlyList<MorphPartChoice> parts = new[]
+        {
+            new MorphPartChoice(0, "Body"),
+            new MorphPartChoice(2, "Sleeve"),
+        };
         using var wizard = new MorphAuthorDialog(
             string.Empty,
             string.Empty,
             definition: null,
-            () => parts,
+            parts,
+            Array.Empty<MorphPartChoice>(),
+            new Dictionary<string, object?>(),
             Color.FromArgb(23, 25, 29),
             Color.FromArgb(31, 34, 40),
             Color.FromArgb(43, 47, 55),
@@ -605,8 +611,7 @@ internal static class EditMeshLayoutSmoke
         var title = RequiredControl<Label>(wizard, "MorphWizardStepTitle");
         var validation = RequiredControl<Label>(wizard, "MorphWizardValidationLabel");
         var next = RequiredControl<Button>(wizard, "MorphWizardNextButton");
-        var refresh = RequiredControl<Button>(wizard, "MorphWizardRefreshPartsButton");
-        var chips = RequiredControl<FlowLayoutPanel>(wizard, "MorphWizardSelectedPartChips");
+        var partList = RequiredControl<CheckedListBox>(wizard, "MorphWizardPartList");
         var deformation = RequiredControl<ComboBox>(wizard, "MorphWizardDeformation");
         var axis = RequiredControl<ComboBox>(wizard, "MorphWizardAxis");
         var profileName = RequiredControl<TextBox>(wizard, "MorphWizardProfileName");
@@ -627,12 +632,21 @@ internal static class EditMeshLayoutSmoke
             title.Text == "2. Parts" && validation.Text.Contains("at least one part", StringComparison.OrdinalIgnoreCase),
             "The Morph wizard accepted an empty part selection.");
 
-        parts = new[] { new MorphPartChoice(0, "Body"), new MorphPartChoice(2, "Sleeve") };
-        InvokeButton(refresh);
-        Require(chips.Controls.Count == 2, "Refreshing the Morph wizard did not show both selected-part chips.");
-        var selectedPartChipCount = chips.Controls.Count;
+        partList.SetItemChecked(0, true);
+        Application.DoEvents();
+        var selectedPartChoiceCount = partList.CheckedItems.Count;
         InvokeButton(next);
         Require(title.Text == "3. Deformation", "The Morph wizard did not advance to Deformation.");
+        var advancedToggle = RequiredControl<Button>(wizard, "MorphWizardAdvancedToggle");
+        var advancedBody = RequiredControl<Panel>(wizard, "MorphWizardAdvancedBody");
+        var advancedMaximum = RequiredControl<NumericUpDown>(wizard, "MorphWizardMaximum");
+        InvokeButton(advancedToggle);
+        wizard.PerformLayout();
+        Require(
+            advancedBody.PreferredSize.Height > 0
+                && advancedMaximum.PreferredSize.Height > 0
+                && advancedMaximum.Parent is not null,
+            $"The Morph wizard Advanced fields did not expand into layout bounds (body={advancedBody.PreferredSize.Height}, maximum={advancedMaximum.PreferredSize.Height}).");
         var defaults = wizard.Payload;
         Require(
             string.Equals(Convert.ToString(defaults["rule"]), "volume", StringComparison.Ordinal)
@@ -675,29 +689,75 @@ internal static class EditMeshLayoutSmoke
             "body-profile",
             "Body",
             definitionDocument.RootElement,
-            () => parts,
+            parts,
+            Array.Empty<MorphPartChoice>(),
+            new Dictionary<string, object?>(),
             Color.FromArgb(23, 25, 29),
             Color.FromArgb(31, 34, 40),
             Color.FromArgb(43, 47, 55),
             Color.White,
             Color.Silver);
+        _ = editor.Handle;
         var edited = editor.Payload;
+        var replaceSelection = RequiredControl<CheckBox>(editor, "MorphWizardReplaceSelection");
         Require(
             editor.ProfileId == "body-profile"
                 && editor.DefinitionId == "waist"
                 && string.Equals(Convert.ToString(edited["rule"]), "taper", StringComparison.Ordinal)
-                && Convert.ToDouble(edited["default_percent"]) == 10.0,
+                && Convert.ToDouble(edited["default_percent"]) == 10.0
+                && editor.PreserveExistingSelection
+                && !replaceSelection.Checked,
             "Editing an existing Morph profile did not reload its v2 definition.");
+        InvokeButton(RequiredControl<Button>(editor, "MorphWizardNextButton"));
+        InvokeButton(RequiredControl<Button>(editor, "MorphWizardNextButton"));
+        Require(
+            RequiredControl<Label>(editor, "MorphWizardStepTitle").Text == "3. Deformation",
+            "Editing a Morph slider required an unrelated ambient viewport selection.");
+        replaceSelection.Checked = true;
+        Require(
+            !editor.PreserveExistingSelection
+                && RequiredControl<RadioButton>(editor, "MorphWizardUseParts").Enabled,
+            "The explicit Replace authored region choice did not enable replacement selection controls.");
+
+        using var meshSelectionWizard = new MorphAuthorDialog(
+            string.Empty,
+            string.Empty,
+            definition: null,
+            parts,
+            Array.Empty<MorphPartChoice>(),
+            new Dictionary<string, object?>
+            {
+                ["vertices_by_submesh"] = new Dictionary<string, int[]> { ["2"] = new[] { 3, 4, 5 } },
+            },
+            Color.FromArgb(23, 25, 29),
+            Color.FromArgb(31, 34, 40),
+            Color.FromArgb(43, 47, 55),
+            Color.White,
+            Color.Silver);
+        _ = meshSelectionWizard.Handle;
+        InvokeButton(RequiredControl<Button>(meshSelectionWizard, "MorphWizardNextButton"));
+        InvokeButton(RequiredControl<Button>(meshSelectionWizard, "MorphWizardNextButton"));
+        Require(
+            RequiredControl<Label>(meshSelectionWizard, "MorphWizardStepTitle").Text == "3. Deformation",
+            "The Morph wizard rejected an acknowledged viewport mesh selection.");
+        var meshSelectionPayload = JsonSerializer.SerializeToElement(meshSelectionWizard.Payload["local_selection"]);
+        Require(
+            meshSelectionPayload.GetProperty("source_indices").GetArrayLength() == 0
+                && meshSelectionPayload.GetProperty("vertices_by_submesh").GetProperty("2").GetArrayLength() == 3,
+            "The Morph wizard promoted a viewport mesh selection to whole parts.");
 
         return new Dictionary<string, object?>
         {
             ["opening_page"] = "Profile",
             ["empty_selection_blocked"] = true,
-            ["part_chip_count"] = selectedPartChipCount,
+            ["part_chip_count"] = selectedPartChoiceCount,
+            ["advanced_visible"] = true,
             ["defaults_preserved"] = true,
             ["preview_values"] = previews,
             ["save_result"] = wizard.DialogResult.ToString(),
             ["existing_profile_reloaded"] = true,
+            ["existing_profile_scope_preserved"] = true,
+            ["mesh_selection_preserved"] = true,
         };
     }
 

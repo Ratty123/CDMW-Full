@@ -665,10 +665,11 @@ internal sealed partial class MeshViewport
         _hoverEdgeId = _selectionDragTargetMode == "edge" ? PickEdgeAt(point) : -1;
         _selectionPaintActive = false;
         _selectionPaintPainted = false;
-        _selectionPaintToggleTouchedSources.Clear();
+        _selectionPaintToggleTouchedVertices.Clear();
         _selectionPaintPathPoints.Clear();
         _selectionPaintPathPoints.Add(point);
         _selectionLassoPoints.Clear();
+        ReplaceSelectionMap(_provisionalSelectedVertices, _selectedVertices);
         _provisionalSelectedSources.Clear();
         _provisionalSelectedSources.UnionWith(_selectedSources);
         _provisionalPartSelectionActive = string.Equals(

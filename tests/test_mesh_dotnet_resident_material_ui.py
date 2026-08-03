@@ -307,35 +307,21 @@ def test_builder_textured_selector_resolves_materials_before_presentation_update
     assert request_display("textured")
 
     writes = [json.loads(raw.decode("utf-8")) for raw in process.stdin_writes]
-    presentation_updates = [
-        payload
-        for payload in writes
-        if payload.get("event") == "presentation_state_update"
-    ]
-    assert texture_requests == ["requested"]
-    assert presentation_updates[-1]["display"]["mode"] == "untextured_faces"
-    assert not [
+    viewport_updates = [
         payload
         for payload in writes
         if payload.get("event") == "viewport_display_update"
     ]
+    assert texture_requests == ["requested"]
+    assert viewport_updates[-1]["mode"] == "untextured_faces"
+    assert viewport_updates[-1]["texture_request_pending"] is True
+    assert viewport_updates[-1]["requested_mode"] == "textured"
+    assert tab.standalone_dotnet_presentation_desired["display"]["mode"] == "textured"
     assert tab.standalone_dotnet_pending_textured_view is True
     assert tab.standalone_dotnet_pending_textured_view_uses_presentation is True
 
     _acknowledge_editable_materials(tab, process)
     assert tab.standalone_dotnet_presentation_desired["display"]["mode"] == "textured"
-    assert tab.standalone_dotnet_presentation_queued is True
-
-    first_update = presentation_updates[-1]
-    assert tab._handle_dotnet_presentation_state_ack(
-        {
-            "event": "presentation_state_update_ack",
-            "status": "applied",
-            "session_id": first_update["session_id"],
-            "request_id": first_update["request_id"],
-            "process_generation": first_update["process_generation"],
-        }
-    )
     writes = [json.loads(raw.decode("utf-8")) for raw in process.stdin_writes]
     presentation_updates = [
         payload
@@ -487,7 +473,9 @@ def test_generated_material_resource_commits_only_after_matching_renderer_ack(tm
     app.processEvents()
 
 
-def test_late_exact_clone_materials_update_editable_then_reference_resources(tmp_path: Path) -> None:
+def test_late_exact_clone_materials_compile_once_for_editable_and_reference_resources(
+    tmp_path: Path,
+) -> None:
     app = QApplication.instance() or QApplication([])
     tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorLateExactCloneMaterials"))
     builder = _EmbeddedMeshBuilder()
@@ -519,16 +507,19 @@ def test_late_exact_clone_materials_update_editable_then_reference_resources(tmp
         ]
     )
 
-    clone_hook = getattr(builder, "_mesh_editor_embedded_apply_clone_material_resources")
-    reference_hook = getattr(builder, "_mesh_editor_embedded_apply_reference_material_resources")
-    assert clone_hook(preview_model)
-    assert reference_hook(preview_model)
-    assert tab.standalone_dotnet_pending_reference_material_model is preview_model
+    paired_hook = getattr(
+        builder,
+        "_mesh_editor_embedded_apply_clone_and_reference_material_resources",
+    )
+    assert paired_hook(preview_model)
+    assert tab.standalone_dotnet_pending_reference_material_model is None
     assert all(submesh.preview_texture_path == str(texture_path) for submesh in editable_mesh.submeshes)
 
     material_writes = _material_writes(app, process)
     assert len(material_writes) == 1
-    assert material_writes[0]["reason"] == "late_exact_clone_resources"
+    assert material_writes[0]["reason"] == "late_exact_clone_and_reference_resources"
+    assert material_writes[0]["roles"] == ["replacement", "original_reference"]
+    assert len(material_writes[0]["submeshes"]) == len(editable_mesh.submeshes) * 2
     assert all(resource["role"] == "replacement" for resource in material_writes[0]["resources"])
 
     editable_input_signature = material_writes[0]["material_signature"]
@@ -546,11 +537,13 @@ def test_late_exact_clone_materials_update_editable_then_reference_resources(tmp
         tab.standalone_dotnet_material_signature_by_role["editable_imported"]
         == resident_combined_signature
     )
+    assert (
+        tab.standalone_dotnet_material_signature_by_role["original_reference"]
+        == resident_combined_signature
+    )
+    assert tab._dotnet_material_roles_ready()
     app.processEvents()
-    material_writes = _material_writes(app, process, minimum=2)
-    assert len(material_writes) == 2
-    assert material_writes[1]["reason"] == "late_original_reference_resources"
-    assert all(resource["role"] == "original_reference" for resource in material_writes[1]["resources"])
+    assert len(_material_writes(app, process)) == 1
 
     tab.deleteLater()
     builder.deleteLater()
@@ -636,29 +629,27 @@ def test_pre_ready_clone_materials_replay_and_stale_pending_models_clear(tmp_pat
         ]
     )
 
-    assert tab.apply_resident_clone_material_resources(preview_model)
-    assert tab.apply_resident_reference_material_resources(preview_model)
-    assert tab.standalone_dotnet_pending_clone_material_model is preview_model
-    assert tab.standalone_dotnet_pending_reference_material_model is preview_model
+    assert tab.apply_resident_clone_and_reference_material_resources(preview_model)
+    assert tab.standalone_dotnet_pending_paired_material_model is preview_model
 
     process = _FakeProcess(tab)
     process._state = process.Running
     tab._connect_dotnet_protocol(process)
     _install_shared_dotnet_test_process(tab, process)
-    assert tab.standalone_dotnet_pending_clone_material_model is preview_model
-    assert tab.standalone_dotnet_pending_reference_material_model is preview_model
+    assert tab.standalone_dotnet_pending_paired_material_model is preview_model
     assert not process.stdin_writes
 
     tab._observe_dotnet_capabilities({"capabilities": ["resident_material_updates_v2"]})
     app.processEvents()
     material_writes = _material_writes(app, process)
     assert len(material_writes) == 1
-    assert material_writes[0]["reason"] == "late_exact_clone_resources"
-    assert tab.standalone_dotnet_pending_reference_material_model is preview_model
+    assert material_writes[0]["reason"] == "late_exact_clone_and_reference_resources"
+    assert tab.standalone_dotnet_pending_paired_material_model is None
 
     tab._stop_standalone_dotnet_editor_process()
     assert tab.standalone_dotnet_pending_clone_material_model is None
     assert tab.standalone_dotnet_pending_reference_material_model is None
+    assert tab.standalone_dotnet_pending_paired_material_model is None
 
     tab.deleteLater()
     builder.deleteLater()

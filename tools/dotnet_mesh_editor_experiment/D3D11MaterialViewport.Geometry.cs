@@ -693,6 +693,8 @@ internal sealed class D3D11SubmeshBatch : IDisposable
 
     public void Dispose()
     {
+        ProvisionalGeometry?.Dispose();
+        ProvisionalGeometry = null;
         Materials.Dispose();
         IndexBuffer.Dispose();
         VertexBuffer.Dispose();

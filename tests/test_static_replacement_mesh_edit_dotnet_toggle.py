@@ -233,6 +233,7 @@ def test_edit_mesh_toggle_forces_replacement_only_and_restores_placement_mode() 
 
     transitions: list[dict[str, object]] = []
     presentations: list[dict[str, object]] = []
+    remembered_display_modes: list[object] = []
     visibility: list[bool] = []
     queued: list[str] = []
     checkbox = _Checkbox(True)
@@ -248,6 +249,7 @@ def test_edit_mesh_toggle_forces_replacement_only_and_restores_placement_mode() 
             "replacement_only" if checkbox.isChecked() else "original_only"
         ),
         _mesh_editor_embedded_set_scene_state=lambda **state: transitions.append(dict(state)) or True,
+        _mesh_editor_remember_mesh_edit_display_mode=remembered_display_modes.append,
         _mesh_editor_embedded_presentation_state=lambda: placement_presentation,
         _mesh_editor_embedded_set_presentation_state=lambda state: presentations.append(
             dict(state)
@@ -257,6 +259,7 @@ def test_edit_mesh_toggle_forces_replacement_only_and_restores_placement_mode() 
     state = SimpleNamespace(
         dialog=dialog,
         mesh_edit_enabled_checkbox=checkbox,
+        preview_mesh_view_combo=SimpleNamespace(currentData=lambda: "textured"),
         controls_panel=SimpleNamespace(
             setVisible=lambda value: visibility.append(bool(value))
         ),
@@ -290,6 +293,7 @@ def test_edit_mesh_toggle_forces_replacement_only_and_restores_placement_mode() 
             "gizmo_tool": "move",
         },
     ]
+    assert remembered_display_modes == ["textured"]
     assert visibility == [False, True]
     assert presentations == [placement_presentation]
     assert queued == ["mesh_edit_toggle"]

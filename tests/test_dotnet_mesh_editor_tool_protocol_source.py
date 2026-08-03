@@ -197,8 +197,12 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert '&& decode.Failures.Count > 0)' in material_protocol_source
     assert 'WriteProtocolEvent("viewport_display_request"' in controls_source
     assert '"Loading textures in the resident viewport..."' in controls_source
-    assert 'SyncPreviewModeSelection(_viewport.DisplayMode);' in display_source
+    assert 'JsonString(root, "requested_mode")' in display_source
+    assert 'SyncPreviewModeSelection(' in display_source
     assert 'texture_request_pending' in display_source
+    assert 'message["source_identity"] = _scene.SourceIdentity;' in _source(
+        "ExperimentForm.Output.cs"
+    )
     # One rule decides the settled view, so a load never presents an
     # intermediate mode before the host's own display update lands. Read-only
     # previews default to wire over untextured geometry, and to plain textured
@@ -642,6 +646,21 @@ def test_mesh_edit_forces_the_resident_view_to_editable_replacement_only() -> No
     assert "button.Enabled = !meshEdit" in _source("ExperimentForm.PresentationProtocol.cs")
 
 
+def test_mesh_edit_opening_default_cannot_replace_an_existing_display_choice() -> None:
+    controls_source = _source("ExperimentForm.Controls.cs")
+    entry = controls_source.split("if (enteringMeshEdit)", maxsplit=1)[1].split(
+        "_meshEditDisplayInitialized = true;",
+        maxsplit=1,
+    )[0]
+
+    assert "!_viewport.HostDisplayModeAuthoritative" in entry
+    assert '_viewport.DisplayMode,' in entry
+    assert '"untextured_wire"' in entry
+    assert entry.index('"untextured_wire"') < entry.index(
+        'SyncPreviewModeSelection("wire_vertices")'
+    )
+
+
 def test_dotnet_input_precedence_depth_passes_and_mode_controls_are_explicit() -> None:
     input_source = _source("MeshViewport.Input.cs")
     overlay_source = _source("D3D11MaterialViewport.Overlay.cs")
@@ -866,7 +885,8 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     assert "RequestFinishEditMesh();" in program_source
     assert 'WriteProtocolEvent("save_request")' in morph_source
     assert 'AddSection(stack, "Clipboard"' not in program_source
-    assert '_selectionTarget.SelectedItem = "Part";' in program_source
+    assert 'ConfigureCombo(_selectionTarget, new object[] { "Vertex" }, selectedIndex: 0);' in program_source
+    assert '_selectionTarget.SelectedItem = "Part";' not in program_source
     assert "RefreshSubmeshList();" in protocol_source
     assert material_source.count("RefreshSubmeshList();") >= 2
     assert "ApplyWheelZoomToPane(paneId, e.Delta)" in input_source
@@ -1066,6 +1086,22 @@ def test_a_resident_package_swap_keeps_the_host_overlay_choice() -> None:
     )
 
 
+def test_preview_profile_package_load_keeps_package_overlay_visibility() -> None:
+    """The preview profile owns navigation mode, not the Grid checkbox.
+
+    Its package-loader override ran before the first host presentation replay,
+    so every real PAC load visibly cleared a checked grid until the user toggled
+    the control again.
+    """
+    package_source = _source("ExperimentForm.PackageProtocol.cs")
+    prepare = package_source.split("private static PreparedResidentPackage PrepareResidentPackage(", maxsplit=1)[1]
+    prepare = prepare.split("var parseMilliseconds = phase.Elapsed.TotalMilliseconds;", maxsplit=1)[0]
+
+    assert 'scene.SetInteractionMode("placement");' in prepare
+    assert 'scene.SetComparisonMode("replacement_only");' in prepare
+    assert "SetPresentationOverlayVisibility" not in prepare
+
+
 def test_pane_focus_and_pane_render_never_read_stored_overlay_visibility() -> None:
     """Grid/gizmo visibility is one host flag for the whole viewport.
 
@@ -1166,7 +1202,7 @@ def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
     sweep = picking_source.split("private void EmitSelectionSweepQuad(", maxsplit=1)[1]
     assert 'region["mode"] = "lasso";' in sweep
     assert '["paint_sample"] = true' in sweep
-    assert "_selectionPaintToggleTouchedSources.Add(submeshIndex)" in picking_source
+    assert "_selectionPaintToggleTouchedVertices.Add((submeshIndex, vertexIndex))" in picking_source
     toggle_finish = picking_source.split(
         "private void EmitFinalTogglePaintSelection()", maxsplit=1
     )[1].split("private void EmitSelectionSweepQuad(", maxsplit=1)[0]
@@ -1177,7 +1213,8 @@ def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
     assert '["operation"] = "toggle"' in toggle_finish
     assert '["local_selection"]' not in toggle_finish
     assert "ProvisionalSelectionVertexBudget" not in picking_source
-    assert "FrontFacingFaces" in picking_source
+    assert "FrontFacingVertices" in picking_source
+    assert "VertexBuckets" in picking_source
     assert "PartBounds" in picking_source
 
     renderer_source = _source("MeshViewport.Renderer.cs")
@@ -1189,6 +1226,8 @@ def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
     )
     assert "(brushTool || selectPaint) && _pointerInside" in renderer_source
     assert "(IReadOnlyList<Point>)_selectionLassoPoints" in renderer_source
+    assert "_selectionPaintActive ? _provisionalSelectedVertices : null" in renderer_source
+    assert "_presentedSources.UnionWith(ProvisionalStrokeSourceIndices);" not in renderer_source
     overlay_source = _source("D3D11MaterialViewport.Overlay.cs")
     assert "private void DrawSelectionLassoOverlay()" in overlay_source
     assert "DrawSelectionLassoOverlay();" in overlay_source

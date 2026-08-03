@@ -123,11 +123,11 @@ window, starts no renderer, reads no licensed asset, and performs no archive
 I/O. Changes to `static_replacement_dialog_prompt*`, its preview shell, or its
 state/presentation callbacks must run this gate.
 
-Resident Edit Mesh Classic/Bottom Tool Deck ownership, grouping, responsive
-Morph & Refit composition, and the nonvisual WinForms round trip:
+Resident Edit Mesh tool ownership, element-selection protocol, responsive
+Morph & Refit composition and command handoff, and the nonvisual WinForms round trip:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_dotnet_mesh_editor_layout_contract.py tests/test_mesh_morph_slider_ui_source_guards.py tests/test_dotnet_mesh_editor_tool_protocol_source.py
+.\.venv\Scripts\python.exe -m pytest tests/test_dotnet_mesh_editor_layout_contract.py tests/test_mesh_morph_slider_ui_source_guards.py tests/test_mesh_morph_refit_protocol.py tests/test_mesh_morph_service.py tests/test_dotnet_mesh_editor_tool_protocol_source.py
 dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-edit-mesh-layout-smoke --layout-report "$env:TEMP\cdmw-edit-mesh-layout.json"
 ```
@@ -190,7 +190,9 @@ dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.cspro
 For user-facing Mesh Editor edit proof, run the read-only real game archive
 scenario. `codex_check -Area mesh` reads an in-game PAC through `0009/0.pamt`,
 opens the actual body mesh in the embedded .NET/Vortice D3D11 viewport, routes
-edits through `cdmw_mesh_core`, then proves selection/transform, scalar state,
+edits through `cdmw_mesh_core`, then proves vertex-region selection without a
+PARTS selection, a continuously driven transform whose exact terminal cursor
+position survives bounded protocol coalescing, scalar state,
 two linked texture strokes, committed DDS assignment, UV/topology edits,
 undo/redo, coherent export, and GLB/OBJ/DDS/sidecar readback. Evidence stays
 under the temp directory. A second isolated resident session loads the same real
@@ -203,6 +205,9 @@ proves face/vertex selection does not select or highlight a part.
 checker-square window. Its visual-audit harness coverage is nonvisual: corpus
 validation, stale-result guards, resident-device source contracts, comparison
 layout, preparation checkpoints, and structured review finalization.
+It also constructs the real embedded Builder with host defaults and exercises
+tool-only refresh plus Finish Edit Mesh restoration, so those escaped shell
+regressions cannot disappear behind standalone helper tests.
 Before capture or physical mouse-down, the proof requires the exact .NET form
 to own the foreground and the sampled screen point to resolve to a viewport
 descendant with the renderer PID; otherwise it aborts without injecting input.
@@ -215,6 +220,7 @@ dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-me
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-sparse-soak --gpu-soak-report "$env:TEMP\cdmw-dotnet-gpu-sparse-soak.json"
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-material-authority-parity --material-authority-parity-report "$env:TEMP\cdmw-material-authority-parity.json"
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-frame-pacing-soak --frame-pacing-report "$env:TEMP\cdmw-dotnet-preview-frame-pacing.json" --frame-pacing-duration-seconds 30 --frame-pacing-target-hz 144
+'select_brush','move','grab','smooth','inflate','pinch' | ForEach-Object { dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-interaction-soak --interaction-soak-mode $_ --frame-pacing-report "$env:TEMP\cdmw-dotnet-interaction-$_.json" }
 .\.venv\Scripts\python.exe -m pytest tests/test_dotnet_preview_performance_contract.py tests/test_mesh_harness_performance_contract.py tests/test_dotnet_texture_region_protocol.py tests/test_mesh_harness_scenario_registry.py tests/test_mesh_harness_real_dotnet_evidence.py tests/test_mesh_dotnet_live_stroke_dispatch.py
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_asset_pipeline.py tests/test_mesh_pipeline_cli.py tests/test_mesh_dotnet_experiment.py tests/test_mesh_dotnet_experiment_output.py tests/test_mesh_dotnet_material_state.py tests/test_mesh_dotnet_material_visual_parity.py tests/test_mesh_dotnet_material_package.py tests/test_mesh_dotnet_material_dds_synthesis.py tests/test_mesh_dotnet_material_parameters.py tests/test_mesh_visual_audit_harness.py tests/test_mesh_visual_audit_integrity.py tests/test_mesh_visual_audit_package.py tests/test_mesh_visual_audit_v2.py tests/test_dotnet_mesh_editor_tool_protocol_source.py tests/test_dotnet_material_parameter_protocol.py tests/test_native_preview_material_authority_protocol.py tests/test_dotnet_icon_capture_protocol.py tests/test_dotnet_gpu_geometry_resources.py tests/test_dotnet_topology_channel_updates.py tests/test_mesh_edit_revision_protocol.py tests/test_mesh_history_bounds.py tests/test_native_preview_package_cache_concurrency.py tests/test_mesh_edit_operations.py tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_resident_editor_regressions.py tests/test_static_replacement_mesh_edit_dotnet_toggle.py tests/test_static_replacement_d3d11_cache.py tests/test_mesh_deformer.py tests/test_mesh_body_regions.py tests/test_mesh_body_region_falloff.py tests/test_mesh_body_region_sliders.py tests/test_mesh_body_region_slider_native.py tests/test_mesh_region_decompose.py tests/test_mesh_body_region_atlas.py tests/test_native_morph_field_generation.py tests/test_pac_skin_layout_regression.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_harness_scenario_registry.py tests/test_mesh_harness_real_dotnet_evidence.py tests/test_mesh_dotnet_live_stroke_dispatch.py

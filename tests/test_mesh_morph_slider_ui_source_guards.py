@@ -88,7 +88,10 @@ class MeshMorphSliderUiSourceGuardTests(unittest.TestCase):
         self.assertIn('StyledActionButton("Bake"', resident_source)
         self.assertIn('Name = "MorphProfileWizard"', resident_source)
         self.assertIn('"1. Profile", "2. Parts", "3. Deformation", "4. Preview & Save"', resident_source)
-        self.assertIn('Name = "MorphWizardSelectedPartChips"', resident_source)
+        self.assertIn('Name = "MorphWizardPartList"', resident_source)
+        self.assertIn('Name = "MorphWizardUseMeshSelection"', resident_source)
+        self.assertIn('Name = "MorphWizardReplaceSelection"', resident_source)
+        self.assertNotIn('MorphWizardRefreshPartsButton', resident_source)
         self.assertIn('Text = "Save Profile"', resident_source)
         self.assertIn('("morph_author_definition", MorphAuthorPayload(', resident_source)
         self.assertIn('"morph_delete_definition"', resident_source)
@@ -115,8 +118,9 @@ class MeshMorphSliderUiSourceGuardTests(unittest.TestCase):
         self.assertIn('case "morph_state_update":', source)
         self.assertIn('"morph_state_update_ack"', source)
         self.assertIn("requestId <= _morphStateRequestId", source)
-        self.assertIn('payload["preserve_selection"] = false', source)
+        self.assertIn('payload["preserve_selection"] = preserveExistingSelection', source)
         self.assertIn('["preserve_selection"] = true', source)
+        self.assertIn('dialog.PreserveExistingSelection', source)
         self.assertIn("SelectedMorphParts", source)
         self.assertIn("BeginMorphWizardCommandSequence", source)
         self.assertIn('"morph_state_update" => $"{message.EventName}|{sessionId}"', source)
@@ -143,12 +147,48 @@ class MeshMorphSliderUiSourceGuardTests(unittest.TestCase):
         self.assertIn("BeginInvoke((Action)SendNextMorphWizardCommand)", source)
         self.assertIn("CompleteMorphWizardCommandSequence(accepted: false)", source)
 
+    def test_new_profile_cancel_deletes_the_temporary_profile_and_edit_preserves_scope(self) -> None:
+        source = (
+            ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphRefit.cs"
+        ).read_text(encoding="utf-8")
+        wizard_source = (
+            ROOT / "tools" / "dotnet_mesh_editor_experiment" / "MorphAuthorWizard.cs"
+        ).read_text(encoding="utf-8")
+
+        cancel_start = source.index("        var cancellation = new List<")
+        cancel_end = source.index("    private void PreviewMorphAuthorDialog(", cancel_start)
+        cancel_body = source[cancel_start:cancel_end]
+        self.assertIn('cancellation.Add(("morph_delete_profile"', cancel_body)
+        self.assertIn('["profile_id"] = dialog.ProfileId', cancel_body)
+        self.assertNotIn('cancellation.Add(("morph_delete_definition"', cancel_body)
+        self.assertIn("public bool PreserveExistingSelection", wizard_source)
+        self.assertIn("&& !PreserveExistingSelection", wizard_source)
+
+    def test_morph_slider_paces_updates_and_flushes_only_after_acknowledgement(self) -> None:
+        source = (
+            ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphRefit.cs"
+        ).read_text(encoding="utf-8")
+        completion_start = source.index("    private void CompleteMorphCommandResult(")
+        completion_end = source.index("    private void RegisterTopologyMutationButton(", completion_start)
+        completion_body = source[completion_start:completion_end]
+
+        self.assertIn("new() { Interval = 33 }", source)
+        self.assertIn("if (_morphUpdateRequestId > 0)", source)
+        self.assertIn("_pendingMorphUpdateControls = controls", source)
+        self.assertIn("DiscardPendingMorphUpdate();\n                SendMorphValue(controls, \"end\"", source)
+        self.assertLess(
+            completion_body.index('pending.Phase == "update"'),
+            completion_body.index('pending.Command != "morph_finish"'),
+        )
+        self.assertIn("_morphUpdateRequestId = 0", completion_body)
+        self.assertIn("BeginInvoke((Action)FlushPendingMorphUpdate)", completion_body)
+
     def test_vortice_vertex_overlay_reuses_resident_geometry_buffers(self) -> None:
         overlay_source = (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
         selection_source = (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "MeshViewport.SelectionPicking.cs").read_text(encoding="utf-8")
 
         self.assertIn("private void DrawD3D11VertexOverlay()", overlay_source)
-        self.assertIn("_context.IASetVertexBuffer(0u, batch.VertexBuffer", overlay_source)
+        self.assertIn("_context.IASetVertexBuffer(0u, ActiveVertexBuffer(batch)", overlay_source)
         self.assertIn("_context.DrawIndexed((uint)batch.IndexCount", overlay_source)
         self.assertIn("PrimitiveTopology.PointList", overlay_source)
         self.assertIn("VertexIdsInRectangle", selection_source)

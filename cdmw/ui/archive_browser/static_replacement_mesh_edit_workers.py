@@ -48,15 +48,11 @@ def _sync_mesh_edit_preview_settings(_state, _callbacks, ) -> None:
     tool_enabled = active and tool != "orbit"
     delete_mode = str(_state.mesh_edit_delete_mode_combo.currentData() or "release")
     if _callbacks._alignment_d3d11_mesh_edit_commands_active():
-        if active:
-            _state._clear_alignment_d3d11_fast_transform_state()
-            _state.alignment_d3d11_preview_host.set_alignment_state(
-                enabled=False,
-                source_submesh_indices=(),
-                translation_sensitivity=0.85,
-                rotation_degrees_per_pixel=0.18,
-            )
-            _state.alignment_d3d11_preview_host.set_alignment_preview_transform()
+        # The tab owns the resident scene and presentation while Edit Mesh is
+        # active. Republishing this host's legacy alignment snapshot here sent
+        # its unsynchronised display defaults (textured, grid hidden) and an
+        # identity placement frame once per tool refresh. That was the mode/grid
+        # flash observed on every rail click. Only tool state belongs here.
         _state.alignment_d3d11_preview_host.set_mesh_edit_state(
             enabled=tool_enabled,
             scope_mode=_state._mesh_edit_scope_mode(),
@@ -320,6 +316,10 @@ def _sync_mesh_editor_tab_action_state(_state, _callbacks,
             selection_empty=selection_empty,
             undo_count=len(_state.mesh_edit_undo_stack),
             redo_count=len(_state.mesh_edit_redo_stack),
+            # The Builder's complete tool/brush publication follows this UI
+            # state update in `_refresh_mesh_edit_controls`. Publishing from
+            # both paths applied every rail click twice in the resident editor.
+            publish_native=False,
         )
     compact_update = getattr(_state.classic_mesh_edit_action_bar, "update_action_state", None)
     if callable(compact_update):

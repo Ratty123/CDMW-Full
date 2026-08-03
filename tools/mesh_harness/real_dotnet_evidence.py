@@ -137,6 +137,16 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
             else {}
         ),
         "last_apply_update": dict(getattr(state, "last_apply_update_evidence", {}) or {}),
+        "input_evidence": {
+            "physical_select": dict(getattr(state, "physical_select_gesture", {}) or {}),
+            "physical_selection_anchor": dict(getattr(state, "physical_selection_anchor", {}) or {}),
+            "requested_end": list(getattr(state, "mouse_drag_end", ()) or ()),
+            "effective_end": list(getattr(state, "mouse_drag_effective_end", ()) or ()),
+            "actual_screen_end": list(getattr(state, "mouse_drag_actual_screen_end", ()) or ()),
+            "viewport_rect_before": list(getattr(state, "viewport_rect_before", ()) or ()),
+            "viewport_rect_at_release": list(getattr(state, "viewport_rect_at_release", ()) or ()),
+            "terminal_coverage": dict(getattr(state, "stroke_terminal_coverage", {}) or {}),
+        },
         "revision_ack_tail": _revision_ack_tail(state),
         "protocol_event_tail": list(
             tuple(getattr(getattr(state, "tab", None), "standalone_dotnet_protocol_events", ()) or ())[-16:]
@@ -308,7 +318,10 @@ def _record_stroke_geometry_evidence(state: SimpleNamespace) -> None:
             for axis in range(3)
         )
     }
-    state.selected_vertex_keys = {(state.submesh_index, index) for index in state.face_vertices}
+    state.selected_vertex_keys = set(
+        getattr(state, "selected_vertex_keys", ())
+        or {(state.submesh_index, index) for index in state.face_vertices}
+    )
     state.changed_only_selected_geometry = bool(state.changed_vertex_keys) and (
         state.changed_vertex_keys <= state.selected_vertex_keys
     )
@@ -335,9 +348,13 @@ def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
         "edit_backend_ok": native_mesh_core_available() and not state.fallback_counts,
         "protocol_ready": bool(state.protocol_ready),
         "tool_state_applied": bool(state.tool_state_event),
-        "part_only_selection": bool(
-            state.initial_part_selection_empty and state.part_selection_armed
+        "viewport_mesh_selection": bool(
+            state.initial_part_selection_empty
+            and state.part_selection_remained_empty
+            and state.physical_select_gesture.get("ok") is True
+            and state.viewport_mesh_selection_armed
         ),
+        "terminal_cursor_coverage": bool(state.stroke_terminal_coverage.get("ok")),
         "real_texture_provenance": bool(state.real_texture_provenance_ok),
         "real_textures_bound_and_decoded": renderer_texture_ok,
         "no_synthetic_fallback": bool(state.no_synthetic_fallback and renderer_texture_ok),
@@ -377,10 +394,12 @@ def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
         )
     return gates
 
-def _part_selection_evidence(state: SimpleNamespace) -> dict[str, bool]:
+def _part_selection_evidence(state: SimpleNamespace) -> dict[str, object]:
     return {
         "initially_empty": state.initial_part_selection_empty,
-        "selected_whole_part": state.part_selection_armed,
+        "viewport_did_not_select_part": state.part_selection_remained_empty,
+        "physical_select_gesture": dict(state.physical_select_gesture),
+        "mesh_selection_armed": state.viewport_mesh_selection_armed,
     }
 
 __all__ = ['_base_error', '_drive_viewport_stroke', '_has_real_archive_texture_provenance', '_part_selection_evidence', '_prepare_real_asset', '_pump_for', '_pump_until', '_record_stroke_geometry_evidence', '_result_gates', '_revision_ack_tail', '_wait_protocol_event']

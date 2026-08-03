@@ -101,9 +101,12 @@ internal sealed partial class ExperimentForm
             }
             CompleteMorphCommandResult(pending, accepted: false);
             _pendingMutationRequests.Remove(pending.RequestId);
+            var diagnostic = JsonStringArray(root, "diagnostics").FirstOrDefault()?.Trim() ?? string.Empty;
             _statusLabel.Text = restored
                 ? $"Command result: {status}. Restored last acknowledged state."
-                : $"Ignored stale {status} result; a newer provisional request is active.";
+                : diagnostic.Length > 0
+                    ? $"Command result: {status}. {diagnostic}"
+                    : $"Command result: {status}.";
             return;
         }
 

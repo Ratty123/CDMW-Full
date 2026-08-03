@@ -9,17 +9,6 @@ from html import escape
 AlignmentContextFact = tuple[str, str, str]
 
 
-def alignment_selection_context_initial_text() -> str:
-    return "Source: none | Target: none | Texture: none"
-
-
-def alignment_selection_context_help_text() -> str:
-    return (
-        "This strip follows the current source, target, and texture selection. "
-        "Selecting a Geometry source, target draw slot, or Texture row also highlights the related preview part."
-    )
-
-
 def alignment_builder_window_title() -> str:
     return "Mesh Replacement Builder"
 
@@ -45,15 +34,6 @@ def alignment_setup_intro_html() -> str:
         "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #2f81f7; background:#10233a;'>"
         "<span style='color:#79c0ff; font-weight:700;'>Setup</span>"
         "<span style='color:#c9d1d9;'> Alignment behavior, safety options, and export values.</span>"
-        "</div>"
-    )
-
-
-def alignment_placement_review_html() -> str:
-    return (
-        "<div style='font-size:0.8em; line-height:1.08; padding:3px 5px; border-left:3px solid #f59e0b; background:#2a2112;'>"
-        "<span style='color:#fbbf24; font-weight:700;'>Placement review required</span>"
-        "<span style='color:#e5e7eb;'> Session-only clone; final output is written through loose-mod save.</span>"
         "</div>"
     )
 
@@ -196,9 +176,6 @@ __all__ = [
     "alignment_import_diagnostic_rows",
     "alignment_import_diagnostics_control_text",
     "alignment_import_diagnostics_html",
-    "alignment_placement_review_html",
-    "alignment_selection_context_help_text",
-    "alignment_selection_context_initial_text",
     "alignment_setup_intro_html",
     "alignment_setup_options_control_text",
     "alignment_setup_warning_label_text",

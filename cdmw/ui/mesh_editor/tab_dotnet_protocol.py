@@ -32,6 +32,7 @@ _CORRELATED_HELPER_REQUEST_EVENTS = frozenset(
 _CORRELATION_FIELDS = ("session_id", "request_id", "process_generation")
 _SHARED_CONTROLLER_LIFECYCLE_EVENTS = frozenset(
     {
+        "activated",
         "package_load_received",
         "package_load_started",
         "package_load_applied",
@@ -113,7 +114,9 @@ def _write_dotnet_protocol_trail(payload: Mapping[str, object]) -> None:
 
 def _dotnet_event_requires_correlation(event: str, payload: Mapping[str, object]) -> bool:
     # The shared resident controller owns request/generation correlation for
-    # package lifecycle events before forwarding them to Mesh Editor consumers.
+    # package and activation lifecycle events before forwarding them to Mesh
+    # Editor consumers. Activation deliberately carries activation_request_id,
+    # not the mutation envelope's request_id.
     if event in _SHARED_CONTROLLER_LIFECYCLE_EVENTS:
         return False
     return event in _CORRELATED_HELPER_REQUEST_EVENTS or any(field in payload for field in _CORRELATION_FIELDS)
@@ -251,7 +254,11 @@ class MeshEditorDotNetProtocolMixin(
                 return bool(handler(float(payload.get("ratio", 0.5) or 0.5)))
             except (TypeError, ValueError, AttributeError, RuntimeError):
                 return False
-        if event in {"preview_vertex_update_ack", "preview_triangle_update_ack"}:
+        if event in {
+            "preview_vertex_update_ack",
+            "preview_triangle_update_ack",
+            "resident_state_resync_ack",
+        }:
             self._append_dotnet_protocol_event(payload)
             handled = self.standalone_dotnet_update_queue.acknowledge(event, payload)
             self._sync_dotnet_update_ack_timer()

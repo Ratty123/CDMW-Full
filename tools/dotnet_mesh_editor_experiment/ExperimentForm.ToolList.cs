@@ -14,7 +14,7 @@ namespace Cdmw.MeshEditorExperiment;
 /// </remarks>
 internal sealed partial class ExperimentForm
 {
-    private const int ToolListRowHeight = 34;
+    private const int ToolListRowHeight = 30;
 
     private MeshEditorBufferedTableLayoutPanel? _toolListTable;
     private MeshEditorBufferedPanel? _toolListBodyHost;
@@ -39,7 +39,7 @@ internal sealed partial class ExperimentForm
             Dock = DockStyle.Fill,
             AutoScroll = true,
             Margin = new Padding(0),
-            Padding = new Padding(10, 8, 10, 10),
+            Padding = new Padding(8, 6, 8, 8),
             BackColor = ThemePanelBackground,
         };
         ApplyDarkScrollbars(_toolListScroll);
@@ -85,8 +85,8 @@ internal sealed partial class ExperimentForm
             Dock = DockStyle.Top,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Margin = new Padding(0, 0, 0, 6),
-            Padding = new Padding(10, 8, 8, 4),
+            Margin = new Padding(0, 0, 0, 4),
+            Padding = new Padding(8, 6, 6, 3),
             BackColor = ThemeSectionBackground,
         };
         foreach (var page in Enum.GetValues<ToolRailPage>())
@@ -161,8 +161,8 @@ internal sealed partial class ExperimentForm
     /// </summary>
     private static string ToolListRowDescription(string key) => key switch
     {
-        RowKeys.Select => "Whole-part selection: drag shape, combine mode and X-Ray.",
-        RowKeys.Move or RowKeys.Grab => "Translate step, Move and Grab.",
+        RowKeys.Select => "Mesh vertex selection: drag shape, combine mode and X-Ray.",
+        RowKeys.Move or RowKeys.Grab => "Translate step, Move, Grab and Grab radius.",
         RowKeys.Smooth or RowKeys.Inflate or RowKeys.Pinch =>
             "Smooth, Inflate and Pinch with radius, strength and falloff.",
         RowKeys.Topology => "Subdivide and Refine Smooth.",
@@ -215,7 +215,7 @@ internal sealed partial class ExperimentForm
         button.Dock = DockStyle.Top;
         button.Height = ScaleToolPanelWidth(ToolListRowHeight);
         button.Margin = new Padding(0, 0, 0, 2);
-        button.Padding = new Padding(10, 0, 8, 0);
+        button.Padding = new Padding(8, 0, 6, 0);
         button.TextAlign = ContentAlignment.MiddleLeft;
         SetHelpText(button, ToolListRowDescription(row.Key));
         return button;
@@ -230,10 +230,10 @@ internal sealed partial class ExperimentForm
             Text = "COMMANDS",
             Dock = DockStyle.Top,
             AutoSize = false,
-            Height = ScaleToolPanelWidth(24),
+            Height = ScaleToolPanelWidth(20),
             TextAlign = ContentAlignment.BottomLeft,
-            Margin = new Padding(0, 8, 0, 2),
-            Padding = new Padding(2, 0, 0, 3),
+            Margin = new Padding(0, 6, 0, 2),
+            Padding = new Padding(2, 0, 0, 2),
             ForeColor = ThemeMutedText,
             BackColor = ThemePanelBackground,
         };

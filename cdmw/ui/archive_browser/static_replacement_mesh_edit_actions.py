@@ -64,11 +64,11 @@ def _select_mesh_edit_tool(_state, _callbacks, tool: str, *, active_action_key: 
     _state.mesh_editor_action_bar_active_tool_key["value"] = str(active_action_key or _callbacks._mesh_editor_tool_action_key(tool) or "")
     if _state.mesh_edit_tool_combo.currentIndex() == int(index):
         _callbacks._refresh_mesh_edit_controls()
-        _callbacks._sync_mesh_edit_preview_settings()
         return True
     _state.mesh_edit_tool_combo.setCurrentIndex(int(index))
-    _callbacks._refresh_mesh_edit_controls()
-    _callbacks._sync_mesh_edit_preview_settings()
+    # currentIndexChanged owns the one control refresh. Repeating it here sent
+    # the same tool_state several times for one click and made the resident rail
+    # visibly repaint even though the armed tool had already changed locally.
     return True
 
 def _mesh_edit_protocol_tool(_state, _callbacks, tool: str) -> str:

@@ -189,11 +189,8 @@ def test_modify_original_late_bindings_publish_both_resident_material_roles() ->
         return True
 
     dialog = SimpleNamespace(
-        _mesh_editor_embedded_apply_clone_material_resources=(
-            lambda _model: record_update("clone")
-        ),
-        _mesh_editor_embedded_apply_reference_material_resources=(
-            lambda _model: record_update("reference")
+        _mesh_editor_embedded_apply_clone_and_reference_material_resources=(
+            lambda _model: record_update("clone_and_reference")
         ),
     )
 
@@ -208,7 +205,7 @@ def test_modify_original_late_bindings_publish_both_resident_material_roles() ->
 
     assert replacement_mesh_base.submeshes[0].preview_texture_path == "C:/cache/original.dds"
     assert replacement_mesh.submeshes[0].preview_texture_path == "C:/cache/original.dds"
-    assert resident_updates == ["clone", "reference"]
+    assert resident_updates == ["clone_and_reference"]
 
 
 def test_apply_original_material_preview_uses_direct_source_preview_map() -> None:

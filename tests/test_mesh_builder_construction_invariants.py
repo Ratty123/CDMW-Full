@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QTabWidget, QWidget
+from PySide6.QtWidgets import QDoubleSpinBox, QPushButton, QTabWidget, QWidget
 
 from tests.mesh_builder_driver import open_mesh_builder
 
@@ -84,3 +84,64 @@ def test_workflow_tabs_stay_readable_rather_than_eliding() -> None:
             f"workflow tabs whose tooltip does not repeat the label: {untooltipped}; "
             "a scrolled-out tab is then unidentifiable on hover"
         )
+
+
+@_MODES
+def test_builder_chrome_does_not_reserve_preview_height(
+    modify_original_clone_mode: bool, mode_name: str
+) -> None:
+    with open_mesh_builder(
+        modify_original_clone_mode=modify_original_clone_mode,
+        dialog_title=f"{mode_name} compact chrome",
+        placement_context_note="Review placement before export.",
+    ) as builder:
+        controls_panel = builder.find(QWidget, "MeshAlignmentStickyControlPanel")
+        selection_label = builder.find(QWidget, "SelectionContextLabel")
+        resident_status_sink = builder.find(QWidget, "MeshAlignmentResidentStatusSink")
+        preview_status_sink = builder.find(QWidget, "MeshAlignmentPreviewStatusSink")
+
+        assert builder.dialog.findChild(QWidget, "SelectionContextFrame") is None
+        assert selection_label.isHidden()
+        assert builder.context["placement_note"] is None
+        assert resident_status_sink.isHidden()
+        assert preview_status_sink.isHidden()
+        assert not builder.control("alignment_d3d11_preview_status_label").isVisibleTo(
+            builder.dialog
+        )
+        assert not builder.control("preview_performance_label").isVisibleTo(builder.dialog)
+
+        build_button = getattr(builder.dialog, "_material_authority_build_button")
+        cancel_button = next(
+            button
+            for button in builder.dialog.findChildren(QPushButton)
+            if button.text() == "Cancel"
+        )
+        for button in (build_button, cancel_button):
+            parent = button.parentWidget()
+            while parent is not None and parent is not controls_panel:
+                parent = parent.parentWidget()
+            assert parent is controls_panel
+
+
+@_MODES
+def test_export_transform_axes_keep_distinct_numeric_fields(
+    modify_original_clone_mode: bool, mode_name: str
+) -> None:
+    with open_mesh_builder(
+        modify_original_clone_mode=modify_original_clone_mode,
+        dialog_title=f"{mode_name} transform density",
+    ) as builder:
+        row_keys = (
+            ("offset_x_spin", "offset_y_spin", "offset_z_spin"),
+            ("rotate_x_spin", "rotate_y_spin", "rotate_z_spin"),
+            ("scale_x_spin", "scale_y_spin", "scale_z_spin"),
+        )
+        for row in row_keys:
+            spins = tuple(builder.control(key) for key in row)
+            assert all(isinstance(spin, QDoubleSpinBox) for spin in spins)
+            assert tuple(spin.prefix() for spin in spins) == ("X ", "Y ", "Z ")
+            assert all(spin.minimumWidth() == 72 for spin in spins)
+
+        sliders = tuple(builder.control("alignment_transform_sliders").values())
+        assert len(sliders) == 9
+        assert all(slider.minimumWidth() == 72 for slider in sliders)

@@ -199,7 +199,9 @@ internal sealed partial class ExperimentForm
         {
             scene.SetInteractionMode("placement");
             scene.SetComparisonMode("replacement_only");
-            scene.SetPresentationOverlayVisibility(gridVisible: false, gizmoVisible: false);
+            // Interaction and comparison are profile-owned, but overlay
+            // visibility is authored by the package/host. Forcing both off
+            // here replaced a checked Grid control during every resident load.
         }
         var parseMilliseconds = phase.Elapsed.TotalMilliseconds;
         var textures = NetTextureSet.Load(materials);

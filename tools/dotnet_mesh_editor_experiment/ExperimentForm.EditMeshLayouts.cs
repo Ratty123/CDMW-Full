@@ -75,7 +75,7 @@ internal sealed partial class ExperimentForm
         _editMeshLayoutHost.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         _editMeshLayoutHost.RowStyles.Add(new RowStyle(
             SizeType.Absolute,
-            _options.SimplePreview ? 0 : Math.Max(30, _statusLabel.Height + 12)));
+            _options.SimplePreview ? 0 : Math.Max(30, Font.Height + 8)));
         _editMeshLayoutHost.Resize += (_, _) =>
         {
             if (!IsToolRailActive)
@@ -308,6 +308,7 @@ internal sealed partial class ExperimentForm
         };
         _toolDock.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         _toolDock.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        _toolDock.Font = new Font(Font.FontFamily, 8.5f);
         _toolDock.Controls.Add(BuildToolListColumn(), 0, 0);
         return _toolDock;
     }
@@ -329,6 +330,7 @@ internal sealed partial class ExperimentForm
             BackColor = ThemePanelBackground,
         };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.Font = new Font(Font.FontFamily, 8.5f);
         // No "SCENE" header: Parts, Action History and Viewport name themselves,
         // so the band above them only cost height.
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -339,7 +341,7 @@ internal sealed partial class ExperimentForm
             Dock = DockStyle.Fill,
             AutoScroll = true,
             Margin = new Padding(0),
-            Padding = new Padding(10, 8, 10, 10),
+            Padding = new Padding(8, 6, 8, 8),
             BackColor = ThemePanelBackground,
         };
         ApplyDarkScrollbars(scroll);

@@ -368,3 +368,29 @@ def test_material_resource_dialog_close_cancels_thread_and_cleans_owned_roots(
     assert not owned_root.exists()
     assert generated_roots and all(not path.exists() for path in generated_roots)
     monkeypatch.setattr(worker_module.tempfile, "mkdtemp", real_mkdtemp)
+
+
+def test_material_resource_ack_clears_the_source_texture_loading_status() -> None:
+    _app()
+    owner = QObject()
+    dialog = QDialog()
+    progress_updates: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    callbacks = create_material_authority_adjustment_callbacks(
+        {
+            "self": owner,
+            "dialog": dialog,
+            "alignment_d3d11_state": {"loading_stage": "source_textures"},
+            "_set_alignment_d3d11_progress": lambda *args, **kwargs: progress_updates.append(
+                (args, kwargs)
+            ),
+        }
+    )
+    finished = getattr(dialog, "_mesh_editor_embedded_material_resources_finished")
+
+    finished(1, True, ())
+
+    assert progress_updates == [
+        ((100, "Preview ready."), {"stage": "ready", "active": False})
+    ]
+    callbacks.material_resource_controller.request_shutdown()
+    dialog.deleteLater()

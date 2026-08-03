@@ -1,16 +1,17 @@
 """Raw support-map channels the resident .NET viewport consumes undecoded.
 
-A normal or height input whose `.dds` is packaged verbatim is never decoded to a
-preview PNG: `_generated_channels` discards the combiner's own output for that
-channel, so decoding it would be work thrown away. The combiner still walks the
-input, cannot open a `.dds` through `QImageReader`, and records it as unreadable
--- which `_material_compile_blockers` treats as a hard blocker. Keeping the
-deferral and the note it produces in one place is what stops a deliberate skip
-from reading as a failure.
+A normal, height, or packed material input whose `.dds` is packaged verbatim is
+never decoded to a preview PNG: `_generated_channels` discards the combiner's
+own output for that channel, so decoding it would be work thrown away. The
+combiner still walks the input, cannot open a `.dds` through `QImageReader`, and
+records it as unreadable -- which `_material_compile_blockers` treats as a hard
+blocker. Keeping the deferral and the note it produces in one place is what
+stops a deliberate skip from reading as a failure.
 """
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -54,12 +55,21 @@ def _native_support_map_channel(
         channel = "normal"
     elif slot in {"height", "displacement"} or semantic in {"height", "displacement"}:
         channel = "height"
+    elif slot == "material" or semantic == "material":
+        channel = "material"
     else:
         return ""
+    item_path = _local_synthesis_dds_path(item)
     raw_path = _local_synthesis_dds_path(
         {"source_dds_path": raw_channels.get(channel, "")}
     )
-    return channel if raw_path is not None else ""
+    if item_path is None or raw_path is None:
+        return ""
+    return (
+        channel
+        if os.path.normcase(str(item_path)) == os.path.normcase(str(raw_path))
+        else ""
+    )
 
 
 def _has_native_support_map(

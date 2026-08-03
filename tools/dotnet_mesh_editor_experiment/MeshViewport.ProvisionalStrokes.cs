@@ -18,6 +18,8 @@ internal sealed partial class MeshViewport
         public required float[] Exposure { get; init; }
         public required float[] GrabWeights { get; init; }
         public required int[] GrabIndices { get; init; }
+        public required bool[] EditableMask { get; init; }
+        public required int[] EditableIndices { get; init; }
         public required int[][] SpatialBuckets { get; init; }
         public required int[] VisitMarks { get; init; }
         public required int[] DirtyIndices { get; init; }
@@ -68,6 +70,7 @@ internal sealed partial class MeshViewport
     {
         ClearProvisionalEditorStroke();
         var normalizedTool = (tool ?? string.Empty).Trim().ToLowerInvariant();
+        var hasExplicitSelection = HasEditableSelection;
         var scope = SelectedEditableStrokeSources();
         if (scope.Length == 0 && normalizedTool != "move")
         {
@@ -79,6 +82,10 @@ internal sealed partial class MeshViewport
         }
         if (scope.Length == 0)
         {
+            if (normalizedTool == "move")
+            {
+                StatusRequested?.Invoke("Move requires a selection. Use Select in the viewport or choose a part under PARTS.");
+            }
             return false;
         }
         SetProvisionalViewportSize();
@@ -90,7 +97,12 @@ internal sealed partial class MeshViewport
         var candidates = new ProvisionalStrokeSubmesh[scope.Length];
         for (var index = 0; index < scope.Length; index++)
         {
-            candidates[index] = BuildProvisionalStrokeSubmesh(scope[index], camera, location, radius);
+            candidates[index] = BuildProvisionalStrokeSubmesh(
+                scope[index],
+                camera,
+                location,
+                radius,
+                hasExplicitSelection ? SelectionVerticesForSubmesh(scope[index]) : null);
         }
         _provisionalStroke = new ProvisionalStrokeState
         {
@@ -103,27 +115,19 @@ internal sealed partial class MeshViewport
             BaseRevision = _authoritativeEditRevision,
             LastAcceptedRevision = _authoritativeEditRevision,
         };
-        if (normalizedTool == "move")
-        {
-            _d3d11Viewport?.BeginProvisionalPartTransforms(scope);
-        }
-        else
-        {
-            _d3d11Viewport?.BeginProvisionalVertexGeometry(scope);
-        }
+        _d3d11Viewport?.BeginProvisionalVertexGeometry(scope);
         UpdateProvisionalEditorStroke(location, initial: true);
         return true;
     }
 
     private int[] SelectedEditableStrokeSources()
     {
-        var values = new List<int>(_selectedSources.Count);
-        foreach (var sourceIndex in _selectedSources)
+        var values = new List<int>();
+        var editableCount = Math.Min(_scene.EditableSubmeshCount, _document.Submeshes.Count);
+        for (var sourceIndex = 0; sourceIndex < editableCount; sourceIndex++)
         {
-            if (sourceIndex >= 0
-                && sourceIndex < _scene.EditableSubmeshCount
-                && sourceIndex < _document.Submeshes.Count
-                && IsSubmeshVisibleForViewportSelection(sourceIndex))
+            if (IsSubmeshVisibleForViewportSelection(sourceIndex)
+                && SelectionVerticesForSubmesh(sourceIndex).Count > 0)
             {
                 values.Add(sourceIndex);
             }
@@ -136,7 +140,8 @@ internal sealed partial class MeshViewport
         int submeshIndex,
         NetViewportCamera camera,
         Point origin,
-        float radius)
+        float radius,
+        IReadOnlySet<int>? editableSelection)
     {
         var submesh = _document.Submeshes[submeshIndex];
         var count = submesh.Vertices.Count;
@@ -144,15 +149,26 @@ internal sealed partial class MeshViewport
         var working = baseline.ToArray();
         var projected = new PointF[count];
         var frontFacing = new bool[count];
+        var editableMask = new bool[count];
+        var editableIndices = editableSelection is null
+            ? Enumerable.Range(0, count).ToArray()
+            : editableSelection.Where(index => index >= 0 && index < count).Distinct().OrderBy(index => index).ToArray();
+        foreach (var vertexIndex in editableIndices)
+        {
+            editableMask[vertexIndex] = true;
+        }
         var normals = BuildProvisionalVertexNormals(submesh, baseline);
         var center = Vector3.Zero;
         for (var vertexIndex = 0; vertexIndex < count; vertexIndex++)
         {
             var vertex = baseline[vertexIndex];
-            center += new Vector3(vertex.X, vertex.Y, vertex.Z);
+            if (editableMask[vertexIndex])
+            {
+                center += new Vector3(vertex.X, vertex.Y, vertex.Z);
+            }
             projected[vertexIndex] = SceneProjectedPoint(camera, submeshIndex, vertex);
         }
-        center /= Math.Max(1, count);
+        center /= Math.Max(1, editableIndices.Length);
         MarkFrontFacingVertices(submesh, projected, frontFacing);
         var matrix = ActiveSceneModelMatrix(submeshIndex) * camera.WorldViewProjection;
         var unitsPerPixel = ScreenUnitsPerPixel(matrix, center, origin);
@@ -166,7 +182,9 @@ internal sealed partial class MeshViewport
             var dx = projected[vertexIndex].X - origin.X;
             var dy = projected[vertexIndex].Y - origin.Y;
             var distance = MathF.Sqrt(dx * dx + dy * dy);
-            if (distance > radius || (!ShowXRay && !frontFacing[vertexIndex]))
+            if (!editableMask[vertexIndex]
+                || distance > radius
+                || (!ShowXRay && !frontFacing[vertexIndex]))
             {
                 continue;
             }
@@ -180,7 +198,7 @@ internal sealed partial class MeshViewport
             weightTotal += weight;
         }
         Array.Resize(ref grabIndices, grabCount);
-        var spatialIndex = BuildProvisionalSpatialIndex(projected);
+        var spatialIndex = BuildProvisionalSpatialIndex(projected, editableMask);
         return new ProvisionalStrokeSubmesh
         {
             SubmeshIndex = submeshIndex,
@@ -193,6 +211,8 @@ internal sealed partial class MeshViewport
             Exposure = new float[count],
             GrabWeights = weights,
             GrabIndices = grabIndices,
+            EditableMask = editableMask,
+            EditableIndices = editableIndices,
             SpatialBuckets = spatialIndex.Buckets,
             VisitMarks = new int[count],
             DirtyIndices = new int[count],
@@ -207,7 +227,9 @@ internal sealed partial class MeshViewport
 
     private const int ProvisionalSpatialCellPixels = 32;
 
-    private (int Columns, int Rows, int[][] Buckets) BuildProvisionalSpatialIndex(PointF[] projected)
+    private (int Columns, int Rows, int[][] Buckets) BuildProvisionalSpatialIndex(
+        PointF[] projected,
+        IReadOnlyList<bool> editableMask)
     {
         var viewport = ActivePaneBounds();
         var columns = Math.Max(1, (viewport.Width + ProvisionalSpatialCellPixels - 1) / ProvisionalSpatialCellPixels);
@@ -215,6 +237,10 @@ internal sealed partial class MeshViewport
         var pending = new List<int>?[columns * rows];
         for (var vertexIndex = 0; vertexIndex < projected.Length; vertexIndex++)
         {
+            if (!editableMask[vertexIndex])
+            {
+                continue;
+            }
             var point = projected[vertexIndex];
             var column = (int)MathF.Floor(point.X / ProvisionalSpatialCellPixels);
             var row = (int)MathF.Floor(point.Y / ProvisionalSpatialCellPixels);
@@ -354,13 +380,25 @@ internal sealed partial class MeshViewport
         {
             foreach (var candidate in state.Submeshes)
             {
+                candidate.DirtyCount = 0;
                 var delta = UnprojectScreenDelta(
                     candidate.WorldViewProjection,
                     candidate.Center,
                     state.Origin,
                     point);
                 candidate.LastTranslation = delta;
-                _d3d11Viewport?.UpdateProvisionalPartTranslation(candidate.SubmeshIndex, delta);
+                foreach (var vertexIndex in candidate.EditableIndices)
+                {
+                    candidate.Working[vertexIndex] = FromVector3(
+                        ToVector3(candidate.Baseline[vertexIndex]) + delta);
+                    candidate.DirtyIndices[candidate.DirtyCount++] = vertexIndex;
+                }
+                _d3d11Viewport?.UpdateProvisionalVertexPositions(
+                    candidate.SubmeshIndex,
+                    candidate.Working,
+                    candidate.DirtyIndices,
+                    candidate.DirtyCount,
+                    stableChangedSet: true);
             }
         }
         else if (state.Tool == "grab")
@@ -397,7 +435,8 @@ internal sealed partial class MeshViewport
                 candidate.SubmeshIndex,
                 candidate.Working,
                 candidate.DirtyIndices,
-                candidate.DirtyCount);
+                candidate.DirtyCount,
+                stableChangedSet: true);
         }
     }
 
@@ -502,17 +541,27 @@ internal sealed partial class MeshViewport
         {
             foreach (var candidate in state.Submeshes)
             {
-                _d3d11Viewport?.UpdateProvisionalPartTranslation(candidate.SubmeshIndex, Vector3.Zero);
+                candidate.DirtyCount = 0;
+                foreach (var vertexIndex in candidate.EditableIndices)
+                {
+                    candidate.Working[vertexIndex] = candidate.Baseline[vertexIndex];
+                    candidate.DirtyIndices[candidate.DirtyCount++] = vertexIndex;
+                }
+                _d3d11Viewport?.UpdateProvisionalVertexPositions(
+                    candidate.SubmeshIndex,
+                    candidate.Working,
+                    candidate.DirtyIndices,
+                    candidate.DirtyCount);
             }
             return;
         }
         foreach (var candidate in state.Submeshes)
         {
-            candidate.DirtyCount = candidate.Baseline.Length;
-            for (var index = 0; index < candidate.Baseline.Length; index++)
+            candidate.DirtyCount = 0;
+            foreach (var vertexIndex in candidate.EditableIndices)
             {
-                candidate.Working[index] = candidate.Baseline[index];
-                candidate.DirtyIndices[index] = index;
+                candidate.Working[vertexIndex] = candidate.Baseline[vertexIndex];
+                candidate.DirtyIndices[candidate.DirtyCount++] = vertexIndex;
             }
             _d3d11Viewport?.UpdateProvisionalVertexPositions(
                 candidate.SubmeshIndex,

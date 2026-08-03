@@ -71,6 +71,7 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         selection_empty: bool | None = None,
         undo_count: int | None = None,
         redo_count: int | None = None,
+        publish_native: bool = True,
     ) -> None:
         if mode:
             self.current_edit_mode = str(mode)
@@ -85,7 +86,8 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         if redo_count is not None:
             self.current_redo_count = max(0, int(redo_count or 0))
         self._sync_state()
-        self._sync_standalone_native_mesh_edit_state()
+        if publish_native:
+            self._sync_standalone_native_mesh_edit_state()
     def update_editor_session_state(
         self,
         view: _tab.MeshEditSessionView | None,
@@ -448,6 +450,8 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         interaction_mode: str | None = None,
         gizmo_tool: str | None = None,
         placement: Mapping[str, object] | None = None,
+        source_identity: str = "",
+        session_id: str = "",
     ) -> bool:
         if not self._standalone_dotnet_editor_process_running():
             return False
@@ -467,7 +471,10 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
             # Publish the existing scene correlation without roles so the
             # helper changes only its interaction layout. The older worker is
             # made stale by the newer request id and cannot roll the mode back.
-            return self._publish_dotnet_interaction_state()
+            return self._publish_dotnet_interaction_state(
+                source_identity=source_identity,
+                session_id=session_id,
+            )
         # Mode-only transitions must not wait behind an older transform
         # calculation. Publishing the last authoritative frame with a newer
         # request id makes that worker result stale while keeping geometry and
@@ -481,11 +488,19 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
                 interaction_mode=str(self.standalone_dotnet_scene_desired["interaction_mode"]),
             )
         except (AttributeError, TypeError, ValueError):
-            return False
+            return self._publish_dotnet_interaction_state(
+                source_identity=source_identity,
+                session_id=session_id,
+            )
         return self._publish_dotnet_scene_frame(frame, self.standalone_dotnet_scene_request_id)
 
-    def _publish_dotnet_interaction_state(self) -> bool:
-        source_identity = ""
+    def _publish_dotnet_interaction_state(
+        self,
+        *,
+        source_identity: str = "",
+        session_id: str = "",
+    ) -> bool:
+        source_identity = str(source_identity or "").strip()
         package = getattr(self, "standalone_dotnet_experiment_package", None)
         candidates = (
             self.standalone_dotnet_scene_candidate,
@@ -494,6 +509,8 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
             self.standalone_dotnet_scene_acknowledged,
         )
         for candidate in candidates:
+            if source_identity:
+                break
             if isinstance(candidate, Mapping):
                 value = candidate.get("source_identity", "")
             else:
@@ -501,7 +518,13 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
             source_identity = str(value or "").strip()
             if source_identity:
                 break
-        if not source_identity or not self.standalone_dotnet_lifecycle_session_id:
+        # A correlated renderer request is the freshest session authority for
+        # its response. Prefer it over cached lifecycle state so Finish cannot
+        # be published back to a just-replaced session during reactivation.
+        effective_session_id = str(
+            session_id or self.standalone_dotnet_lifecycle_session_id or ""
+        ).strip()
+        if not source_identity or not effective_session_id:
             return False
         self.standalone_dotnet_scene_request_id += 1
         self.standalone_dotnet_scene_generation += 1
@@ -509,7 +532,7 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         scene_generation = self.standalone_dotnet_scene_generation
         payload = {
             "event": "scene_state_update",
-            "session_id": self.standalone_dotnet_lifecycle_session_id,
+            "session_id": effective_session_id,
             "request_id": request_id,
             "process_generation": self.standalone_dotnet_process_generation,
             "protocol_version": 2,
@@ -527,7 +550,7 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         if sent:
             self.standalone_dotnet_scene_candidate = None
             self.standalone_dotnet_scene_pending = {
-                "session_id": self.standalone_dotnet_lifecycle_session_id,
+                "session_id": effective_session_id,
                 "request_id": request_id,
                 "process_generation": self.standalone_dotnet_process_generation,
                 "source_identity": source_identity,
@@ -701,6 +724,7 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         # unset; recording it up front makes the choice stick regardless of
         # which path the request takes.
         self._remember_mesh_edit_display_mode(normalized)
+        self._remember_dotnet_desired_display_mode(normalized)
         # Any explicit request supersedes a textured view this tab is still
         # hoping to restore on its own, so it must never snap back later.
         self._forget_deferred_textured_view()
@@ -750,6 +774,7 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
                 untextured_fallback_display_mode(normalized),
                 use_presentation_state=use_presentation_state,
                 texture_request_pending=True,
+                requested_mode=normalized,
             )
             self.status_message_requested.emit(
                 "Loading Mesh Editor textures in the resident viewport...",
@@ -865,7 +890,17 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         *,
         use_presentation_state: bool,
         texture_request_pending: bool = False,
+        requested_mode: str = "",
     ) -> bool:
+        if texture_request_pending:
+            # A fallback is an effective renderer state, never presentation
+            # authority. Use the narrow display message so the full desired
+            # snapshot continues to remember Solid (Textured).
+            return self._send_embedded_viewport_display_mode(
+                normalized,
+                texture_request_pending=True,
+                requested_mode=requested_mode,
+            )
         if use_presentation_state:
             return self._send_dotnet_presentation_state(
                 {"display": {"mode": normalized}}
@@ -880,6 +915,7 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         normalized: str,
         *,
         texture_request_pending: bool = False,
+        requested_mode: str = "",
     ) -> bool:
         self.standalone_dotnet_viewport_display_request_id += 1
         payload: dict[str, object] = {
@@ -892,6 +928,9 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         }
         if texture_request_pending:
             payload["texture_request_pending"] = True
+            payload["requested_mode"] = normalize_mesh_preview_display_mode(
+                requested_mode or "textured"
+            )
         sent = self._send_dotnet_protocol_message(payload)
         if not sent:
             self.status_message_requested.emit("Could not update embedded .NET viewport display mode.", True)
@@ -906,6 +945,11 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         # moved away from: picking Solid (Textured) and then selecting a part
         # snapped the viewport back to Wire + Vertices, and the same publish in
         # placement snapped it back to Faces + Wire.
+        if not texture_request_pending:
+            self._remember_dotnet_desired_display_mode(normalized)
+        return sent
+
+    def _remember_dotnet_desired_display_mode(self, normalized: str) -> None:
         display = self.standalone_dotnet_presentation_desired.get("display")
         if not isinstance(display, dict):
             display = {}
@@ -916,7 +960,6 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         # already-applied -- that would leave the helper on the mode this
         # message set with no way to move it back.
         self.standalone_dotnet_presentation_published_content = None
-        return sent
     def _handle_embedded_skeleton_pose_request(self, command: str, payload: object) -> bool:
         normalized = str(command or "").strip().lower()
         if normalized != "select_bone":

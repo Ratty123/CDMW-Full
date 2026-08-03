@@ -289,9 +289,13 @@ class _FakeSharedDotNetController:
         self.package_applied = _FakeSignal()
         self.package_failed = _FakeSignal()
         self.rehydrators: list[object] = []
+        self.forgotten_states: list[str] = []
 
     def set_authoring_rehydrator(self, callback: object) -> None:
         self.rehydrators.append(callback)
+
+    def forget_state(self, key: str) -> None:
+        self.forgotten_states.append(str(key))
 
 
 class _FakeProcess:
@@ -642,6 +646,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             "a new controller must be wired even at an address the tab has seen",
         )
         self.assertTrue(recycled.controller.rehydrators)
+        self.assertEqual(["presentation"], recycled.controller.forgotten_states)
         app.processEvents()
         tab.deleteLater()
 
@@ -4769,6 +4774,26 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertFalse(tab.action_bar.button_for_key("brush_grab").isEnabled())
         self.assertFalse(tab.action_bar.button_for_key("undo").isEnabled())
         self.assertFalse(tab.action_bar.button_for_key("redo").isEnabled())
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_mesh_editor_tab_can_update_builder_ui_without_republishing_native_tool_state(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorBuilderUiOnlyState"))
+
+        with patch.object(tab, "_sync_standalone_native_mesh_edit_state") as publish:
+            tab.update_editor_action_state(
+                mode="edit",
+                active_selection_mode="brush",
+                active_tool_key="brush_grab",
+                selection_empty=True,
+                publish_native=False,
+            )
+
+        publish.assert_not_called()
+        self.assertEqual("edit", tab.current_edit_mode)
+        self.assertEqual("brush_grab", tab.current_tool_action_key)
+        self.assertTrue(tab.action_bar.button_for_key("brush_grab").isChecked())
         app.processEvents()
         tab.deleteLater()
 

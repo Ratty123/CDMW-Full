@@ -27,6 +27,19 @@ internal sealed partial class MeshViewport
 
     public bool TrySetDisplayMode(string mode, out string error)
     {
+        if (!TryApplyDisplayModeState(mode, out error))
+        {
+            return false;
+        }
+        // display_mode, xray and textures_enabled are all reported view state.
+        NotifyViewStateChanged();
+        UpdateGpuViewport();
+        Invalidate();
+        return true;
+    }
+
+    private bool TryApplyDisplayModeState(string mode, out string error)
+    {
         var normalized = (mode ?? string.Empty).Trim().ToLowerInvariant().Replace('-', '_');
         if (normalized is "textured_wire" or "solid_wire")
         {
@@ -66,10 +79,6 @@ internal sealed partial class MeshViewport
         }
         TexturesEnabled = state.Textures;
         error = string.Empty;
-        // display_mode, xray and textures_enabled are all reported view state.
-        NotifyViewStateChanged();
-        UpdateGpuViewport();
-        Invalidate();
         return true;
     }
 }

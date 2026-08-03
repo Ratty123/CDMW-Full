@@ -398,10 +398,15 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             screen_payload["paint_sample"] = bool(payload.get("paint_sample"))
         if "paint_final" in payload:
             screen_payload["paint_final"] = bool(payload.get("paint_final"))
-        # User-facing resident selection is whole-part only. Older helpers may
-        # still publish vertex/edge/face here; retain those native maps for
-        # compatibility, but never let the stale target re-arm element picking.
-        screen_payload["target_mode"] = "source"
+        # Edit Mesh screen gestures select mesh elements. Whole-part selection
+        # belongs exclusively to the PARTS list and must never be inferred from
+        # a viewport hit. Keep the legacy edge/face targets for protocol
+        # compatibility; unknown or stale part/source targets fall back to the
+        # user-facing vertex target.
+        target_mode = str(payload.get("target_mode", "vertex") or "vertex").strip().lower()
+        screen_payload["target_mode"] = (
+            target_mode if target_mode in {"vertex", "edge", "face"} else "vertex"
+        )
         depth_mode = str(payload.get("selection_depth_mode", "visible") or "visible").strip().lower()
         screen_payload["selection_depth_mode"] = "xray" if depth_mode == "xray" else "visible"
         return screen_payload

@@ -272,15 +272,39 @@ class MeshMorphServiceMixin:
                 pivot = existing_definition.pivot
                 definition_basis = existing_definition.local_basis
             else:
-                selected = session.selection.vertex_map()
-                if not selected and session.selection.source_indices:
-                    selected = {
-                        source_index: tuple(range(len(mesh.submeshes[source_index].vertices)))
-                        for source_index in session.selection.source_indices
-                        if 0 <= source_index < len(mesh.submeshes)
-                    }
+                selected_sets = {
+                    submesh_index: set(vertex_indices)
+                    for submesh_index, vertex_indices in session.selection.vertex_map().items()
+                    if 0 <= submesh_index < len(mesh.submeshes)
+                }
+                for submesh_index, edges in session.selection.edge_map().items():
+                    if not 0 <= submesh_index < len(mesh.submeshes):
+                        continue
+                    vertices = selected_sets.setdefault(submesh_index, set())
+                    for edge in edges:
+                        vertices.update(int(vertex) for vertex in tuple(edge)[:2])
+                for submesh_index, face_indices in session.selection.face_map().items():
+                    if not 0 <= submesh_index < len(mesh.submeshes):
+                        continue
+                    submesh = mesh.submeshes[submesh_index]
+                    vertices = selected_sets.setdefault(submesh_index, set())
+                    for face_index in face_indices:
+                        if 0 <= face_index < len(submesh.faces):
+                            vertices.update(int(vertex) for vertex in tuple(submesh.faces[face_index])[:3])
+                for source_index in session.selection.source_indices:
+                    if 0 <= source_index < len(mesh.submeshes):
+                        selected_sets[source_index] = set(range(len(mesh.submeshes[source_index].vertices)))
+                selected = {
+                    submesh_index: tuple(sorted(
+                        vertex_index
+                        for vertex_index in vertex_indices
+                        if 0 <= vertex_index < len(mesh.submeshes[submesh_index].vertices)
+                    ))
+                    for submesh_index, vertex_indices in selected_sets.items()
+                }
+                selected = {submesh_index: vertices for submesh_index, vertices in selected.items() if vertices}
                 if not selected:
-                    raise ValueError("Select at least one part before creating a Morph profile slider.")
+                    raise ValueError("Select mesh vertices or choose at least one part before creating a Morph profile slider.")
                 weighted = build_weighted_morph_selection(
                     mesh,
                     selected,
@@ -384,10 +408,23 @@ class MeshMorphServiceMixin:
         profile_id: object,
     ) -> tuple[bool, MeshEditResult | None]:
         profile_key = str(profile_id or "").strip()
-        deleted = delete_mesh_morph_profile(self._profile_root(), profile_key)
         data = self._morph_sessions.get(session.session_id)
+        active_in_memory = bool(
+            isinstance(data, _MeshMorphSessionData)
+            and data.profile is not None
+            and data.profile.profile_id == profile_key
+        )
+        known_in_memory = bool(
+            isinstance(data, _MeshMorphSessionData)
+            and profile_key in data.known_profiles
+        )
+        deleted = bool(
+            delete_mesh_morph_profile(self._profile_root(), profile_key)
+            or active_in_memory
+            or known_in_memory
+        )
         result: MeshEditResult | None = None
-        if deleted and isinstance(data, _MeshMorphSessionData) and data.profile is not None and data.profile.profile_id == profile_key:
+        if active_in_memory and isinstance(data, _MeshMorphSessionData):
             reset_report = self._run_morph_command_locked(
                 session,
                 "morph_reset",

@@ -152,16 +152,26 @@ def apply_resolved_original_materials_to_resident_editor(
         copy_dotnet_preview_material_bindings(replacement_mesh_base, preview_model)
         copy_dotnet_preview_material_bindings(replacement_mesh, preview_model)
         if publish_resident_updates:
+            apply_paired = getattr(
+                dialog,
+                "_mesh_editor_embedded_apply_clone_and_reference_material_resources",
+                None,
+            )
             apply_clone = getattr(dialog, "_mesh_editor_embedded_apply_clone_material_resources", None)
             apply_reference = getattr(
                 dialog,
                 "_mesh_editor_embedded_apply_reference_material_resources",
                 None,
             )
-            clone_published = bool(callable(apply_clone) and apply_clone(preview_model))
-            reference_published = bool(
-                callable(apply_reference) and apply_reference(preview_model)
-            )
+            if callable(apply_paired):
+                paired_published = bool(apply_paired(preview_model))
+                clone_published = paired_published
+                reference_published = paired_published
+            else:
+                clone_published = bool(callable(apply_clone) and apply_clone(preview_model))
+                reference_published = bool(
+                    callable(apply_reference) and apply_reference(preview_model)
+                )
             notify_failure = getattr(dialog, "_mesh_editor_embedded_texture_request_failed", None)
             if callable(notify_failure):
                 if not clone_published:

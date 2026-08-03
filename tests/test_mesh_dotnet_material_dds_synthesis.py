@@ -10,6 +10,7 @@ from cdmw.models import PreviewMaterialTextureInput
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services import mesh_dotnet_material_package
 from cdmw.services.mesh_dotnet_material_compiler import _material_compile_blockers
+from cdmw.services.mesh_dotnet_material_raw_channels import _native_support_map_channel
 
 
 def _image(path: Path, color: tuple[int, int, int, int]) -> Path:
@@ -61,6 +62,10 @@ def test_package_decodes_dds_graph_inputs_and_preserves_native_support_maps(
     detail_mask_png = _image(
         tmp_path / "cd_phm_01_blade_0070_mg.png",
         (0, 0, 255, 255),
+    )
+    detail_height_png = _image(
+        tmp_path / "cd_texturelayer_003_0005_disp.png",
+        (128, 128, 128, 255),
     )
     submesh = _submesh()
     submesh.preview_material_texture_inputs = (
@@ -123,6 +128,13 @@ def test_package_decodes_dds_graph_inputs_and_preserves_native_support_maps(
                 "normal_space": "auto",
             },
             {
+                "dds_path": str(detail_height_dds.resolve()),
+                "max_dimension": 256,
+                "slot_kind": "material",
+                "srgb": "linear",
+                "normal_space": "auto",
+            },
+            {
                 "dds_path": str(detail_mask_dds.resolve()),
                 "max_dimension": 512,
                 "slot_kind": "material",
@@ -141,6 +153,13 @@ def test_package_decodes_dds_graph_inputs_and_preserves_native_support_maps(
                 normal_space="auto",
             ): layer_png,
             directxtex_preview_result_key(
+                detail_height_dds,
+                max_dimension=256,
+                slot_kind="material",
+                srgb="linear",
+                normal_space="auto",
+            ): detail_height_png,
+            directxtex_preview_result_key(
                 detail_mask_dds,
                 max_dimension=512,
                 slot_kind="material",
@@ -158,7 +177,7 @@ def test_package_decodes_dds_graph_inputs_and_preserves_native_support_maps(
     binding = payload["submeshes"][0]
 
     assert binding["material_synthesis"]["succeeded"] is True
-    assert binding["material_synthesis"]["decoded_preview_input_count"] == 2
+    assert binding["material_synthesis"]["decoded_preview_input_count"] == 3
     assert "failure" not in binding["material_synthesis"]
     assert "base" in binding["material_synthesis"]["generated_channels"]
     assert "height" not in binding["material_synthesis"]["generated_channels"]
@@ -210,9 +229,15 @@ def test_unreadable_neutral_metal_graph_fails_closed_without_index_error(
     assert "albedo synthesis failed" in binding["material_synthesis"]["notes"]
 
 
-def _support_map_submesh(normal_dds: Path, height_dds: Path, layer_dds: Path) -> SubMesh:
+def _support_map_submesh(
+    normal_dds: Path,
+    height_dds: Path,
+    layer_dds: Path,
+    *,
+    material_dds: Path | None = None,
+) -> SubMesh:
     submesh = _submesh()
-    submesh.preview_material_texture_inputs = (
+    inputs = [
         PreviewMaterialTextureInput(
             slot_kind="base",
             parameter_name="_detailDiffuseMaskR",
@@ -245,7 +270,23 @@ def _support_map_submesh(normal_dds: Path, height_dds: Path, layer_dds: Path) ->
             shader_family="SkinnedMeshStandard_Ver2",
             visualized=True,
         ),
-    )
+    ]
+    if material_dds is not None:
+        submesh.preview_material_texture_dds_path = str(material_dds)
+        submesh.preview_material_texture_path = str(material_dds)
+        inputs.append(
+            PreviewMaterialTextureInput(
+                slot_kind="material",
+                parameter_name="_specularTexture",
+                source_dds_path=str(material_dds),
+                preview_texture_path=str(material_dds),
+                semantic_type="material",
+                semantic_subtype="specular",
+                shader_family="SkinnedMeshStandard_Ver2",
+                visualized=True,
+            )
+        )
+    submesh.preview_material_texture_inputs = tuple(inputs)
     return submesh
 
 
@@ -255,11 +296,10 @@ def test_raw_support_map_channels_do_not_block_the_material_compile(
 ) -> None:
     """Skipping a decode is not a read failure, and must not abort the compile.
 
-    Normal and height inputs whose raw DDS is packaged verbatim are never
-    decoded, so the combiner reads the `.dds` itself, fails, and used to leave
-    an `unreadable:` note behind. `_material_compile_blockers` treats those as
-    hard blockers, so Solid (Textured) got no textures at all for any mesh with
-    a raw normal map.
+    Normal, height, and packed material inputs whose raw DDS is packaged
+    verbatim are never decoded, so the combiner reads the `.dds` itself, fails,
+    and used to leave an `unreadable:` note behind. `_material_compile_blockers`
+    treats those as hard blockers, so Solid (Textured) got no textures at all.
     """
     layer_dds = tmp_path / "cd_texturelayer_003_0005.dds"
     layer_dds.write_bytes(b"DDS graph input placeholder")
@@ -267,12 +307,15 @@ def test_raw_support_map_channels_do_not_block_the_material_compile(
     normal_dds.write_bytes(b"DDS normal input placeholder")
     height_dds = tmp_path / "cd_phm_01_blade_0070_disp.dds"
     height_dds.write_bytes(b"DDS height input placeholder")
+    material_dds = tmp_path / "cd_texturelayer_damaged_scar_sp.dds"
+    material_dds.write_bytes(b"DDS packed material input placeholder")
     layer_png = _image(tmp_path / "cd_texturelayer_003_0005.png", (184, 132, 72, 255))
 
     def decode(jobs, *, include_job_keys, stop_event):
         from cdmw.core.texture_native import directxtex_preview_result_key
 
-        # The raw-channel normal and height never reach the decoder.
+        # The raw-channel normal, height, and packed material maps never reach
+        # the decoder.
         assert [job["dds_path"] for job in jobs] == [str(layer_dds.resolve())]
         return {
             directxtex_preview_result_key(
@@ -291,7 +334,12 @@ def test_raw_support_map_channels_do_not_block_the_material_compile(
 
     payload = _write_manifest(
         tmp_path / "package",
-        _support_map_submesh(normal_dds, height_dds, layer_dds),
+        _support_map_submesh(
+            normal_dds,
+            height_dds,
+            layer_dds,
+            material_dds=material_dds,
+        ),
     )
     binding = payload["submeshes"][0]
     notes = tuple(binding["material_synthesis"]["notes"])
@@ -300,9 +348,49 @@ def test_raw_support_map_channels_do_not_block_the_material_compile(
     assert not [note for note in notes if "unreadable:" in note.casefold()]
     assert "normal not decoded, raw channel packaged:cd_phm_01_blade_0070_n.dds" in notes
     assert "height not decoded, raw channel packaged:cd_phm_01_blade_0070_disp.dds" in notes
+    assert (
+        "material not decoded, raw channel packaged:cd_texturelayer_damaged_scar_sp.dds"
+        in notes
+    )
     assert binding["raw_resolved_channels"]["normal"] == str(normal_dds)
     assert binding["resolved_channels"]["normal"] == str(normal_dds)
+    assert binding["raw_resolved_channels"]["material"] == str(material_dds)
+    assert binding["resolved_channels"]["material"] == str(material_dds)
+    for channel in ("occlusion", "roughness", "metallic"):
+        assert binding["raw_resolved_channels"][channel] == str(material_dds)
+        assert binding["resolved_channels"][channel] == str(material_dds)
+        assert channel in binding["resource_channels"]
+    assert binding["channel_components"] == {
+        "occlusion": "r",
+        "roughness": "g",
+        "metallic": "b",
+    }
     assert _material_compile_blockers(payload) == []
+
+
+def test_raw_support_map_skip_requires_the_same_dds_path(tmp_path: Path) -> None:
+    packaged_material_dds = tmp_path / "packaged_sp.dds"
+    packaged_material_dds.write_bytes(b"DDS packaged material placeholder")
+    unrelated_material_dds = tmp_path / "unrelated_sp.dds"
+    unrelated_material_dds.write_bytes(b"DDS unrelated material placeholder")
+    item = PreviewMaterialTextureInput(
+        slot_kind="material",
+        parameter_name="_specularTexture",
+        source_dds_path=str(unrelated_material_dds),
+        preview_texture_path=str(unrelated_material_dds),
+        semantic_type="material",
+        semantic_subtype="specular",
+        shader_family="SkinnedMeshStandard_Ver2",
+        visualized=True,
+    )
+
+    assert (
+        _native_support_map_channel(
+            item,
+            {"material": str(packaged_material_dds)},
+        )
+        == ""
+    )
 
 
 def test_unreadable_input_without_a_raw_channel_still_blocks_the_compile(

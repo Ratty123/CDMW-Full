@@ -62,17 +62,17 @@ internal sealed partial class ExperimentForm
     {
         control.ForeColor = ThemeText;
         control.BackColor = ThemeInputBackground;
-        control.Margin = new Padding(0, 0, 0, 6);
+        control.Margin = new Padding(0, 0, 0, 4);
     }
 
-    private static int SingleLineControlHeight(Control control, int minimum = 28)
+    private static int SingleLineControlHeight(Control control, int minimum = 24)
     {
-        return Math.Max(minimum, TextRenderer.MeasureText("Ag", control.Font).Height + 10);
+        return Math.Max(minimum, TextRenderer.MeasureText("Ag", control.Font).Height + 6);
     }
 
-    private static Button StyledButton(string text, int height = 30)
+    private static Button StyledButton(string text, int height = 26)
     {
-        var buttonHeight = Math.Max(height, TextRenderer.MeasureText(text, SystemFonts.MessageBoxFont).Height + 10);
+        var buttonHeight = Math.Max(height, TextRenderer.MeasureText(text, SystemFonts.MessageBoxFont).Height + 6);
         var button = new MeshEditorFlatButton
         {
             Text = text,
@@ -80,11 +80,11 @@ internal sealed partial class ExperimentForm
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Height = buttonHeight,
             MinimumSize = new Size(0, buttonHeight),
-            Padding = new Padding(6, 3, 6, 3),
+            Padding = new Padding(5, 1, 5, 1),
             FlatStyle = FlatStyle.Flat,
             ForeColor = ThemeText,
             BackColor = ThemeButtonBackground,
-            Margin = new Padding(0, 0, 0, 6),
+            Margin = new Padding(0, 0, 0, 3),
             // Tool captions are data, not accelerators: "Morph & Refit" has to
             // render its ampersand instead of losing it to a mnemonic prefix.
             UseMnemonic = false,
@@ -163,10 +163,12 @@ internal sealed partial class ExperimentForm
             var index = Math.Clamp(_previewMode.SelectedIndex, 0, modes.Length - 1);
             var mode = modes[index];
             if (string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase)
-                && _options.Embedded
-                && !HasResidentTextureResources())
+                && _options.Embedded)
             {
-                _ = _viewport.TrySetDisplayMode("untextured_faces", out _);
+                // Only the host knows whether every role required by this scene
+                // is resident. A global "any texture exists" check accepted
+                // Solid after Imported loaded while Original was still absent,
+                // then the role-aware host sent Faces back one frame later.
                 RequestResidentViewportDisplay(mode);
                 return;
             }
@@ -209,7 +211,7 @@ internal sealed partial class ExperimentForm
             // an early "Solid (Textured)" pick do nothing until the user
             // happened to pick another textured mode later.
             _pendingResidentDisplayMode = mode;
-            SyncPreviewModeSelection("untextured_faces");
+            SyncPreviewModeSelection(mode);
             _statusLabel.Text = "Textures will load as soon as the resident preview is ready...";
             return;
         }
@@ -327,6 +329,11 @@ internal sealed partial class ExperimentForm
     private Button OverlayColorButton(string label, bool wire)
     {
         var button = StyledButton(label);
+        button.AutoSize = false;
+        button.Height = 40;
+        button.MinimumSize = new Size(0, 40);
+        button.Padding = new Padding(2, 0, 2, 0);
+        button.Font = new Font(button.Font.FontFamily, 8f);
         button.Click += (_, _) => ChooseOverlayColor(label, wire);
         ApplyOverlayColorButtonStyle(
             button,
@@ -352,6 +359,11 @@ internal sealed partial class ExperimentForm
     private Button ViewportColorButton(string label, bool background)
     {
         var button = StyledButton(label);
+        button.AutoSize = false;
+        button.Height = 40;
+        button.MinimumSize = new Size(0, 40);
+        button.Padding = new Padding(2, 0, 2, 0);
+        button.Font = new Font(button.Font.FontFamily, 8f);
         button.Name = background ? "ViewportBackgroundColorButton" : "ViewportGridColorButton";
         button.AccessibleName = background ? "Viewport background color" : "Viewport grid color";
         button.Click += (_, _) => ChooseViewportColor(label, background);
@@ -540,7 +552,7 @@ internal sealed partial class ExperimentForm
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             BackColor = ThemeSectionBackground,
-            Margin = new Padding(0, 0, 0, 6),
+            Margin = new Padding(0, 0, 0, 4),
             Padding = new Padding(0)
         };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -551,10 +563,10 @@ internal sealed partial class ExperimentForm
             Text = label,
             AutoSize = true,
             UseMnemonic = false,
-            MinimumSize = new Size(0, 20),
+            MinimumSize = new Size(0, 18),
             ForeColor = ThemeMutedText,
             BackColor = ThemeSectionBackground,
-            Margin = new Padding(0, 0, 10, 0),
+            Margin = new Padding(0, 0, 8, 0),
             Anchor = AnchorStyles.Left
         };
         control.Margin = new Padding(0);
@@ -572,8 +584,8 @@ internal sealed partial class ExperimentForm
         for (var index = 0; index < controls.Length; index++)
         {
             var control = controls[index];
-            control.Margin = new Padding(index == 0 ? 0 : 3, 0, index == controls.Length - 1 ? 0 : 3, 0);
-            var preferredWidth = Math.Max(64, control.GetPreferredSize(Size.Empty).Width);
+            control.Margin = new Padding(index == 0 ? 0 : 2, 0, index == controls.Length - 1 ? 0 : 2, 0);
+            var preferredWidth = Math.Max(56, control.GetPreferredSize(Size.Empty).Width);
             control.MinimumSize = new Size(
                 Math.Max(control.MinimumSize.Width, preferredWidth),
                 control.MinimumSize.Height);
@@ -596,8 +608,8 @@ internal sealed partial class ExperimentForm
             Text = title,
             ForeColor = ThemeText,
             BackColor = ThemeSectionBackground,
-            Padding = new Padding(10, 24, 10, 10),
-            Margin = new Padding(0, 0, 0, 10),
+            Padding = new Padding(8, 20, 8, 7),
+            Margin = new Padding(0, 0, 0, 6),
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink
         };
@@ -846,9 +858,16 @@ internal sealed partial class ExperimentForm
     private void ActivateTool(string tool, string text, bool announce = false)
     {
         SetActiveTool(tool);
-        _statusLabel.Text = tool is "grab" or "smooth" or "inflate" or "pinch"
-            ? $"{text} active: left-drag inside the brush circle."
-            : $"Tool: {text}";
+        if (tool == "move" && !_viewport.HasEditableSelection)
+        {
+            _statusLabel.Text = "Move requires a selection. Use Select in the viewport or choose a part under PARTS.";
+        }
+        else
+        {
+            _statusLabel.Text = tool is "grab" or "smooth" or "inflate" or "pinch"
+                ? $"{text} active: left-drag inside the brush circle."
+                : $"Tool: {text}";
+        }
         UpdateViewportControlsHint();
         if (announce)
         {
@@ -947,7 +966,7 @@ internal sealed partial class ExperimentForm
         {
             primary = tool switch
             {
-                "select" => $"Select {_selectionTarget.SelectedItem ?? "mesh"}: LMB click/drag",
+                "select" => "Select mesh vertices: LMB click/drag",
                 "orbit" => "Orbit: LMB drag",
                 "move" => "Move selection: LMB drag",
                 "grab" => "Grab: LMB drag",
@@ -1049,7 +1068,17 @@ internal sealed partial class ExperimentForm
             if (enteringMeshEdit)
             {
                 _viewport.SuppressPlacementGizmoInteraction();
-                if (!_meshEditDisplayInitialized && !_viewport.HostDisplayModeAuthoritative)
+                // Wire + Vertices is only the untouched opening default. A
+                // textured/material settle can put the renderer in the user's
+                // requested mode before the separate host-authority marker is
+                // observed, so authority alone cannot decide whether a real
+                // choice exists. Preserve every non-default placement mode.
+                if (!_meshEditDisplayInitialized
+                    && !_viewport.HostDisplayModeAuthoritative
+                    && string.Equals(
+                        _viewport.DisplayMode,
+                        "untextured_wire",
+                        StringComparison.OrdinalIgnoreCase))
                 {
                     SyncPreviewModeSelection("wire_vertices");
                     _ = _viewport.TrySetSynchronizedDisplayMode("wire_vertices", out _);

@@ -109,8 +109,8 @@ def test_builder_presentation_state_defaults_mesh_edit_to_wire_vertices() -> Non
     assert state["display"]["gizmo_visible"] is False  # type: ignore[index]
 
 
-def test_mesh_edit_display_mode_is_a_default_not_an_override() -> None:
-    """A mode chosen inside Edit Mesh survives the next snapshot.
+def test_mesh_edit_display_mode_preserves_an_edit_choice_or_inherits_mesh_view() -> None:
+    """A chosen mode survives both the transition and the next snapshot.
 
     This snapshot is republished after every accepted scene frame. While the
     mesh-edit mode was hard-coded, a pick made inside Edit Mesh lasted only until
@@ -129,13 +129,14 @@ def test_mesh_edit_display_mode_is_a_default_not_an_override() -> None:
     remembered = builder_presentation_state(mesh_edit_display_mode="textured", **kwargs)
     assert remembered["display"]["mode"] == "textured"  # type: ignore[index]
 
-    # The placement combo is a separate slot and must not leak into Edit Mesh.
-    ignored = builder_presentation_state(
-        display_mode="textured_wire",
+    # The Edit Mesh slot is still empty during the first transition. Inherit an
+    # explicit Mesh view instead of replacing it with the opening edit default.
+    inherited = builder_presentation_state(
+        display_mode="textured",
         mesh_edit_display_mode="",
         **kwargs,
     )
-    assert ignored["display"]["mode"] == "wire_vertices"  # type: ignore[index]
+    assert inherited["display"]["mode"] == "textured"  # type: ignore[index]
 
     # Leaving Edit Mesh returns to the placement slot, untouched by the above.
     placement = dict(kwargs)
@@ -529,6 +530,25 @@ def test_resident_presentation_merge_does_not_mutate_caller_nested_state() -> No
 
 def test_resident_presentation_queue_has_one_active_and_one_merged_pending_state() -> None:
     sent: list[dict[str, object]] = []
+    next_request_id = 0
+
+    def send_correlated(event: str, payload: object) -> int:
+        nonlocal next_request_id
+        assert isinstance(payload, dict)
+        next_request_id += 1
+        sent.append(
+            {
+                **payload,
+                "event": event,
+                "session_id": "session-a",
+                "request_id": next_request_id,
+                "base_revision": 12,
+                "process_generation": 8,
+                "protocol_version": 2,
+            }
+        )
+        return next_request_id
+
     state = MeshEditorStateMixin()
     state.standalone_dotnet_presentation_request_id = 0
     state.standalone_dotnet_presentation_generation = 0
@@ -542,7 +562,9 @@ def test_resident_presentation_queue_has_one_active_and_one_merged_pending_state
     state._dotnet_target_controller = lambda: SimpleNamespace(
         session_view=lambda: SimpleNamespace(session_id="session-a", revision=12)
     )
-    state._send_dotnet_protocol_message = lambda payload: sent.append(dict(payload)) or True
+    state._active_shared_dotnet_controller = lambda: SimpleNamespace(
+        send_correlated=send_correlated
+    )
     state._flush_dotnet_protocol_messages = lambda: True
     state._dotnet_session_matches = lambda _payload: True
     state._set_dotnet_status = lambda *_args, **_kwargs: None

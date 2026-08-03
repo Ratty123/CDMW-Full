@@ -144,12 +144,26 @@ class MeshEditorDotNetMaterialCompilationMixin:
                 self.standalone_dotnet_completed_material_generation,
                 int(request.generation),
             )
-            role = self._dotnet_material_role_key(request.role)
-            self.standalone_dotnet_completed_material_generation_by_role[role] = max(
-                int(self.standalone_dotnet_completed_material_generation_by_role.get(role, 0) or 0),
-                int(request.generation),
+            roles = self._dotnet_material_roles_for_generation(
+                request.generation,
+                request.role,
             )
-            self.standalone_dotnet_material_error_by_role[role] = "Compiled material payload could not be sent."
+            role = roles[0]
+            for applied_role in roles:
+                self.standalone_dotnet_completed_material_generation_by_role[
+                    applied_role
+                ] = max(
+                    int(
+                        self.standalone_dotnet_completed_material_generation_by_role.get(
+                            applied_role, 0
+                        )
+                        or 0
+                    ),
+                    int(request.generation),
+                )
+                self.standalone_dotnet_material_error_by_role[
+                    applied_role
+                ] = "Compiled material payload could not be sent."
             self._notify_dotnet_material_resources_finished(
                 request.generation,
                 False,
@@ -174,6 +188,10 @@ class MeshEditorDotNetMaterialCompilationMixin:
         self._record_mesh_dotnet_event(
             "mesh_dotnet_material_state_update",
             role=self._dotnet_material_role_key(request.role),
+            roles=self._dotnet_material_roles_for_generation(
+                request.generation,
+                request.role,
+            ),
             generation=int(request.generation),
             edit_revision=int(request.edit_revision),
             material_signature=str(correlated.get("material_signature", "") or ""),
@@ -197,12 +215,22 @@ class MeshEditorDotNetMaterialCompilationMixin:
             self.standalone_dotnet_completed_material_generation,
             int(request.generation),
         )
-        role = self._dotnet_material_role_key(request.role)
-        self.standalone_dotnet_completed_material_generation_by_role[role] = max(
-            int(self.standalone_dotnet_completed_material_generation_by_role.get(role, 0) or 0),
-            int(request.generation),
+        roles = self._dotnet_material_roles_for_generation(
+            request.generation,
+            request.role,
         )
-        self.standalone_dotnet_material_error_by_role[role] = str(message)
+        role = roles[0]
+        for applied_role in roles:
+            self.standalone_dotnet_completed_material_generation_by_role[applied_role] = max(
+                int(
+                    self.standalone_dotnet_completed_material_generation_by_role.get(
+                        applied_role, 0
+                    )
+                    or 0
+                ),
+                int(request.generation),
+            )
+            self.standalone_dotnet_material_error_by_role[applied_role] = str(message)
         self.standalone_dotnet_lifecycle_counts["material_compile_failed_count"] += 1
         self.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
         self._notify_dotnet_material_resources_finished(

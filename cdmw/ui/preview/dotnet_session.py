@@ -1268,6 +1268,18 @@ class DotNetPreviewSessionController(QObject):
             self._last_event = dict(payload)
             self.protocol_event.emit(dict(payload))
             return
+        if event == "activated":
+            pending = self._pending_activation
+            if pending is not None:
+                request_id = int(payload.get("activation_request_id", 0) or 0)
+                process_generation = int(payload.get("process_generation", 0) or 0)
+                package_generation = int(payload.get("package_generation", 0) or 0)
+                if request_id > 0 and request_id != pending["request_id"]:
+                    return
+                if process_generation > 0 and process_generation != pending["process_generation"]:
+                    return
+                if package_generation > 0 and package_generation != pending["package_generation"]:
+                    return
         self._last_event = dict(payload)
         self.protocol_event.emit(dict(payload))
         if event == "protocol_ready":
@@ -1289,17 +1301,6 @@ class DotNetPreviewSessionController(QObject):
         elif event == "capture_result":
             self._handle_capture_result(payload)
         elif event == "activated":
-            pending = self._pending_activation
-            if pending is not None:
-                request_id = int(payload.get("activation_request_id", 0) or 0)
-                process_generation = int(payload.get("process_generation", 0) or 0)
-                package_generation = int(payload.get("package_generation", 0) or 0)
-                if request_id > 0 and request_id != pending["request_id"]:
-                    return
-                if process_generation > 0 and process_generation != pending["process_generation"]:
-                    return
-                if package_generation > 0 and package_generation != pending["package_generation"]:
-                    return
             self._activation_timer.stop()
             self._pending_activation = None
             self._activation_retry_count = 0

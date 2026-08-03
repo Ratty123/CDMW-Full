@@ -34,7 +34,7 @@ def test_python_authoring_sender_correlates_revisions_through_shared_controller(
     controller = Path("cdmw/ui/preview/dotnet_session.py").read_text(encoding="utf-8")
 
     assert 'base["edit_revision"] = int(revision)' in tab
-    assert 'event in {"preview_vertex_update_ack", "preview_triangle_update_ack"}' in tab
+    assert '"resident_state_resync_ack",' in tab
     assert "DotNetRevisionUpdateQueue" in tab
     assert "pending_depth" in queue
     assert '"request_id": request_id' in queue

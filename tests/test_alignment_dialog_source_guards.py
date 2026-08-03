@@ -1773,7 +1773,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertLess(ui_source.index("_state.setup_layout.addWidget(_state.transform_section)"), ui_source.index("_state.setup_layout.addWidget(_state.item_icon_section)"))
         self.assertLess(ui_source.index("_state.setup_layout.addWidget(_state.item_icon_section)"), ui_source.index("_state.setup_layout.addWidget(_state.advanced_setup_section)"))
         self.assertLess(ui_source.index("_state.setup_layout.addWidget(_state.advanced_setup_section)"), ui_source.index("_state.setup_layout.addWidget(_state.modify_original_texture_tuning_section)"))
-        self.assertLess(ui_source.index("_state.setup_layout.addWidget(_state.modify_original_texture_tuning_section)"), ui_source.index("_state.setup_layout.addWidget(_state.placement_note)"))
+        self.assertIn("if _state.placement_note is not None:", ui_source)
         self.assertIn('add_archive_source_button = QPushButton(source_mix_control_text["add_archive"])', source)
         self.assertIn('add_loose_source_button = QPushButton(source_mix_control_text["add_loose"])', source)
         self.assertIn('add_mod_archive_source_button = QPushButton(source_mix_control_text["add_mod_archive"])', source)

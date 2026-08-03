@@ -74,7 +74,7 @@ internal static class HeadlessGpuInteractionSoak
         };
         var toolOptions = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
-            ["target_mode"] = "source",
+            ["target_mode"] = "vertex",
             ["operation"] = "add",
             ["radius"] = 24.0,
             ["strength"] = 0.5,
@@ -197,8 +197,9 @@ internal static class HeadlessGpuInteractionSoak
             ["provisional_state_cleared_after_authority"] = interaction.ProvisionalCleared,
             ["one_terminal_history_event"] = mode == "select_brush" || protocol.TerminalStrokeEvents == 1,
             ["interaction_changed_expected_scope"] = mode == "select_brush"
-                ? interaction.SelectedPartCount > 0
+                ? interaction.SelectedVertexCount > 0
                 : interaction.ChangedVertexCount > 0,
+            ["viewport_tools_did_not_select_parts"] = interaction.SelectedPartCount == 0,
             ["production_d3d11_backend"] = string.Equals(viewport.RendererBackendName, "d3d11_vortice_shader", StringComparison.Ordinal),
             ["native_window_remained_hidden"] = !host.Visible && !host.ShowInTaskbar,
         };
@@ -213,6 +214,7 @@ internal static class HeadlessGpuInteractionSoak
             ["expected_cursor_coverage_pixels"] = driver.CoveragePixels,
             ["changed_vertex_count"] = interaction.ChangedVertexCount,
             ["selected_part_count"] = interaction.SelectedPartCount,
+            ["selected_vertex_count"] = interaction.SelectedVertexCount,
             ["protocol_event_count"] = protocol.EventCount,
             ["protocol_updates_coalesced"] = protocol.CoalescedUpdates,
             ["maximum_pending_depth"] = protocol.MaximumPendingDepth,
@@ -269,7 +271,7 @@ internal static class HeadlessGpuInteractionSoak
                 return args[index + 1].Trim().ToLowerInvariant();
             }
         }
-        throw new ArgumentException("--interaction-soak-mode is required (select_brush, move, grab, or inflate).");
+        throw new ArgumentException("--interaction-soak-mode is required (select_brush, move, grab, smooth, inflate, or pinch).");
     }
 
     private sealed class InteractionPathDriver

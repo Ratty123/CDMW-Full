@@ -17,12 +17,13 @@ internal sealed partial class ExperimentForm
     private Control BuildPresentationViewportRegion()
     {
         var simplePreview = _options.SimplePreview;
+        var embeddedAuthoring = _options.Embedded && !simplePreview;
         var region = new TableLayoutPanel
         {
             Name = "ResidentRoleViewRegion",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = simplePreview ? 2 : 3,
+            RowCount = simplePreview || embeddedAuthoring ? 2 : 3,
             Margin = new Padding(0),
             Padding = new Padding(0),
             BackColor = ThemeWindowBackground,
@@ -37,7 +38,10 @@ internal sealed partial class ExperimentForm
         {
             region.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
             region.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            region.RowStyles.Add(new RowStyle(SizeType.Absolute, Math.Max(32, _statusLabel.Height + 6)));
+            if (!embeddedAuthoring)
+            {
+                region.RowStyles.Add(new RowStyle(SizeType.Absolute, Math.Max(32, _statusLabel.Height + 6)));
+            }
         }
         var selector = new TableLayoutPanel
         {
@@ -110,7 +114,7 @@ internal sealed partial class ExperimentForm
         {
             region.Controls.Add(_controlsHintLabel, 0, 1);
         }
-        else
+        else if (!embeddedAuthoring)
         {
             region.Controls.Add(BuildAuthoringStatusFooter(), 0, 2);
         }
@@ -316,21 +320,32 @@ internal sealed partial class ExperimentForm
                 : "Imported / Modify pane focused. Both previews remain visible; its camera is independent.";
         };
         _presentationViewButtons[view] = button;
-        if (_options.Embedded && string.Equals(view, "editable", StringComparison.OrdinalIgnoreCase))
+        if (_options.Embedded && string.Equals(view, "reference", StringComparison.OrdinalIgnoreCase))
+        {
+            // The embedded editor does not need a footer row. Keep its live
+            // status in the pane header, where it costs no viewport height.
+            _statusLabel.Dock = DockStyle.Left;
+            _statusLabel.Width = 280;
+            _statusLabel.Height = 26;
+            _statusLabel.Padding = new Padding(12, 0, 8, 0);
+            _statusLabel.Margin = new Padding(0);
+            _statusLabel.Cursor = Cursors.Hand;
+            _statusLabel.Click += (_, _) => button.PerformClick();
+            button.Padding = new Padding(_statusLabel.Width, 0, 0, 0);
+            button.Controls.Add(_statusLabel);
+            _statusLabel.BringToFront();
+        }
+        else if (_options.Embedded && string.Equals(view, "editable", StringComparison.OrdinalIgnoreCase))
         {
             _fpsLabel.Dock = DockStyle.Right;
-            _fpsLabel.Width = 248;
+            _fpsLabel.Width = 320;
             _fpsLabel.Height = 26;
-            _fpsLabel.Padding = new Padding(8, 0, 8, 0);
+            _fpsLabel.Padding = new Padding(8, 0, 24, 0);
             _fpsLabel.Margin = new Padding(0);
             _fpsLabel.BackColor = ThemeStatusBackground;
             _fpsLabel.ForeColor = ThemeMutedText;
             _fpsLabel.Cursor = Cursors.Hand;
-            _fpsLabel.Click += (_, _) =>
-            {
-                _viewport.FocusPresentationPane("editable");
-                UpdatePresentationViewButtons();
-            };
+            _fpsLabel.Click += (_, _) => button.PerformClick();
             button.Padding = new Padding(0, 0, _fpsLabel.Width, 0);
             button.Controls.Add(_fpsLabel);
             _fpsLabel.BringToFront();

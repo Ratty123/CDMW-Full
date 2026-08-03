@@ -299,6 +299,7 @@ class MeshEditorDotNetLaunchMixin:
     ) -> None:
         self.standalone_dotnet_pending_clone_material_model = None
         self.standalone_dotnet_pending_reference_material_model = None
+        self.standalone_dotnet_pending_paired_material_model = None
         session_id = controller.session_view().session_id
         if self.standalone_dotnet_lifecycle_session_id != session_id:
             self.standalone_dotnet_lifecycle_session_id = session_id
@@ -767,7 +768,11 @@ class MeshEditorDotNetLaunchMixin:
         builder = self.active_builder()
         finalize = getattr(builder, "_mesh_editor_embedded_finalize_dotnet_import", None) if builder is not None else None
         if not callable(finalize):
-            return True
+            self.status_message_requested.emit(
+                "Resident mesh edit finalization failed.",
+                True,
+            )
+            return False
         try:
             return bool(finalize(str(reason or "dotnet_import")))
         except Exception as exc:

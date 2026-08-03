@@ -557,6 +557,26 @@ def _mesh_edit_enabled_toggled(_state, _callbacks, _checked: bool = False) -> No
                 gizmo_tool="move",
             )
         return
+    # Edit Mesh is another control surface for the same resident display, not a
+    # second display preference. Seed its presentation slot from the visible
+    # Mesh view before publishing the mode transition; otherwise an empty slot
+    # republishes Wire + Vertices over a Solid choice made immediately before
+    # entering the editor.
+    remember_display_mode = getattr(
+        _state.dialog,
+        "_mesh_editor_remember_mesh_edit_display_mode",
+        None,
+    )
+    current_display_mode = getattr(
+        getattr(_state, "preview_mesh_view_combo", None),
+        "currentData",
+        None,
+    )
+    if callable(remember_display_mode) and callable(current_display_mode):
+        try:
+            remember_display_mode(current_display_mode())
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            pass
     start_dotnet = getattr(_state.dialog, "_mesh_editor_embedded_start_dotnet", None)
     dotnet_enabled = bool(getattr(_state.dialog, "_mesh_editor_use_embedded_dotnet_viewport", False))
     dotnet_available = bool(getattr(_state.dialog, "_mesh_editor_dotnet_available", False))

@@ -9,7 +9,8 @@ internal sealed record MeshInteractionSoakResult(
     bool ProvisionalCleared,
     double CursorCoveragePixels,
     int ChangedVertexCount,
-    int SelectedPartCount);
+    int SelectedPartCount,
+    int SelectedVertexCount);
 
 /// <summary>
 /// Drives the same local gesture methods used by WinForms mouse input while a
@@ -50,15 +51,19 @@ internal sealed partial class MeshViewport
                 revision: _authoritativeEditRevision);
             ActiveTool = "select";
             SetSelectionDragMode("brush");
-            BeginSelectionDrag(start, "source");
+            BeginSelectionDrag(start, "vertex");
             MaybeEmitSelectionPaintSample(start);
             return;
         }
+        var selectedVertexCount = Math.Max(1, _document.Submeshes[0].Vertices.Count / 4);
         _ = UpdateSelection(
-            new Dictionary<int, HashSet<int>>(),
+            new Dictionary<int, HashSet<int>>
+            {
+                [0] = Enumerable.Range(0, selectedVertexCount).ToHashSet(),
+            },
             new Dictionary<int, HashSet<int>>(),
             new Dictionary<int, HashSet<(int A, int B)>>(),
-            new HashSet<int> { 0 },
+            new HashSet<int>(),
             revision: _authoritativeEditRevision);
         ActiveTool = _interactionSoakMode;
         BeginEditorStroke(start);
@@ -92,26 +97,30 @@ internal sealed partial class MeshViewport
         if (_interactionSoakMode == "select_brush")
         {
             FinishEdgeDrag(point);
-            var expected = new HashSet<int>(_provisionalSelectedSources);
+            var expected = CloneSelectionMap(_provisionalSelectedVertices);
             var selectionRequestId = Math.Max(1L, _authoritativeEditRevision + 1L);
             BeginProvisionalSelection(selectionRequestId, _authoritativeEditRevision);
             var accepted = UpdateSelection(
-                new Dictionary<int, HashSet<int>>(),
+                expected,
                 new Dictionary<int, HashSet<int>>(),
                 new Dictionary<int, HashSet<(int A, int B)>>(),
-                expected,
+                new HashSet<int>(),
                 selectionRequestId,
                 _authoritativeEditRevision + 1L);
             _selectionPaintActive = false;
             ReleasePaintProjectionCache();
-            var matches = accepted && expected.SetEquals(_selectedSources);
+            var matches = accepted
+                && expected.Count == _selectedVertices.Count
+                && expected.All(pair => _selectedVertices.TryGetValue(pair.Key, out var selected)
+                    && pair.Value.SetEquals(selected));
             return new MeshInteractionSoakResult(
                 matches,
                 true,
                 !_provisionalPartSelectionActive,
                 _interactionSoakCoveragePixels,
                 0,
-                _selectedSources.Count);
+                _selectedSources.Count,
+                _selectedVertices.Values.Sum(values => values.Count));
         }
 
         var state = _provisionalStroke
@@ -145,7 +154,8 @@ internal sealed partial class MeshViewport
             !HasProvisionalStroke,
             _interactionSoakCoveragePixels,
             changed,
-            _selectedSources.Count);
+            _selectedSources.Count,
+            _selectedVertices.Values.Sum(values => values.Count));
     }
 
     private int CommitInteractionSoakGeometry(
@@ -158,20 +168,27 @@ internal sealed partial class MeshViewport
         foreach (var candidate in state.Submeshes)
         {
             var submesh = _document.Submeshes[candidate.SubmeshIndex];
-            var authoritative = new Vec3[candidate.Baseline.Length];
-            var indices = new int[candidate.Baseline.Length];
-            for (var vertexIndex = 0; vertexIndex < authoritative.Length; vertexIndex++)
+            var authoritative = candidate.Baseline.ToArray();
+            var indices = new List<int>(candidate.EditableIndices.Length);
+            foreach (var vertexIndex in candidate.EditableIndices)
             {
-                var value = state.Tool == "move"
-                    ? FromVector3(ToVector3(candidate.Baseline[vertexIndex]) + candidate.LastTranslation)
-                    : candidate.Working[vertexIndex];
+                var value = candidate.Working[vertexIndex];
+                if (Vector3.DistanceSquared(
+                        ToVector3(value),
+                        ToVector3(candidate.Baseline[vertexIndex])) <= 0.000000000001f)
+                {
+                    continue;
+                }
                 authoritative[vertexIndex] = value;
                 submesh.Vertices[vertexIndex] = value;
-                indices[vertexIndex] = vertexIndex;
+                indices.Add(vertexIndex);
             }
             expected[candidate.SubmeshIndex] = authoritative;
-            changed[candidate.SubmeshIndex] = indices;
-            changedCount += indices.Length;
+            if (indices.Count > 0)
+            {
+                changed[candidate.SubmeshIndex] = indices;
+                changedCount += indices.Count;
+            }
         }
         RefreshVertexGeometry(changed);
         finalAuthorityMatches = expected.All(pair =>
@@ -192,6 +209,8 @@ internal sealed partial class MeshViewport
             "move" => "move",
             "grab" => "grab",
             "sculpt" or "inflate" => "inflate",
-            _ => throw new ArgumentOutOfRangeException(nameof(mode), "Interaction soak mode must be select_brush, move, grab, or inflate."),
+            "smooth" => "smooth",
+            "pinch" => "pinch",
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), "Interaction soak mode must be select_brush, move, grab, smooth, inflate, or pinch."),
         };
 }

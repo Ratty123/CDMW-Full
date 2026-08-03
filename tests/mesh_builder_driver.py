@@ -105,6 +105,7 @@ class MeshBuilderDriver:
         *,
         modify_original_clone_mode: bool = False,
         dialog_title: str = "Mesh Builder driver",
+        placement_context_note: str = "",
     ) -> None:
         self.modify_original_clone_mode = bool(modify_original_clone_mode)
         self._temp = tempfile.TemporaryDirectory(prefix="cdmw-mesh-builder-driver-")
@@ -141,6 +142,7 @@ class MeshBuilderDriver:
                 self.window.archive_entries[0],
                 self.root / f"{dialog_title}.obj",
                 dialog_title=dialog_title,
+                placement_context_note=placement_context_note,
                 _prepared_prompt_preflight=synthetic_builder_preflight(
                     modify_original_clone_mode=self.modify_original_clone_mode,
                 ),
@@ -302,11 +304,13 @@ def open_mesh_builder(
     *,
     modify_original_clone_mode: bool = False,
     dialog_title: str = "Mesh Builder driver",
+    placement_context_note: str = "",
 ) -> Iterator[MeshBuilderDriver]:
     """Construct the Builder offscreen, yield it, then assert clean teardown."""
     driver = MeshBuilderDriver(
         modify_original_clone_mode=modify_original_clone_mode,
         dialog_title=dialog_title,
+        placement_context_note=placement_context_note,
     )
     try:
         yield driver

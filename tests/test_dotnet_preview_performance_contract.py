@@ -84,9 +84,9 @@ def test_interaction_soak_drives_real_provisional_paths_and_required_gates() -> 
         "LaunchOptions.Parse(args)"
     )
     assert '"--headless-gpu-interaction-soak"' in entry
-    for mode in ("select_brush", "move", "grab", "inflate"):
+    for mode in ("select_brush", "move", "grab", "smooth", "inflate", "pinch"):
         assert f'"{mode}"' in soak + probe
-    assert "BeginSelectionDrag(start, \"source\")" in probe
+    assert "BeginSelectionDrag(start, \"vertex\")" in probe
     assert "BeginEditorStroke(start)" in probe
     assert "UpdateProvisionalEditorStroke(point)" in probe
     assert "FinishEdgeDrag(point)" in probe
@@ -94,7 +94,17 @@ def test_interaction_soak_drives_real_provisional_paths_and_required_gates() -> 
     assert "CompleteProvisionalAuthoritativeUpdate" in probe
     assert "SpatialBuckets" in strokes
     assert "GrabIndices" in strokes
-    assert "FaceBuckets" in picking
+    assert "VertexBuckets" in picking
+    assert "DrawOverlayPrimitive(\n                PrimitiveTopology.PointList" in _source("D3D11MaterialViewport.Overlay.cs")
+    assert "PrimitiveTopology.PointList when command.LineWidthPixels > 0.0f" in _source("D3D11MaterialViewport.Overlay.cs")
+    provisional = _source("D3D11MaterialViewport.ProvisionalGeometry.cs")
+    assert "ProvisionalRotatingFaceThreshold" in provisional
+    assert "CreateProvisionalVertexBuffers" in provisional
+    assert "AdvanceProvisionalVertexBuffer" in provisional
+    assert "new SubresourceData((IntPtr)source)" in provisional
+    assert "stableChangedSet: true" in _source("MeshViewport.ProvisionalStrokes.cs")
+    assert "CaptureStableFaceRanges" in provisional
+    assert "ActiveVertexBuffer(batch)" in _source("D3D11MaterialViewport.cs")
     assert "EditorStrokeProtocolIntervalMs = 16.0" in input_source
     assert "_strokeProtocolPrevious" in input_source
     for gate in (
@@ -107,6 +117,7 @@ def test_interaction_soak_drives_real_provisional_paths_and_required_gates() -> 
         "zero_gen1_collections",
         "zero_gen2_collections",
         "final_authority_matches_visible_provisional_result",
+        "viewport_tools_did_not_select_parts",
     ):
         assert f'["{gate}"]' in soak
 

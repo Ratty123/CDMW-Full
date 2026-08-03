@@ -895,7 +895,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         var constants = BuildCameraConstants(batch);
         _context.UpdateSubresource(ref constants, _cameraBuffer);
         _context.PSSetShaderResources(0u, batch.Materials.ShaderResources);
-        _context.IASetVertexBuffer(0u, batch.VertexBuffer, D3D11SubmeshBatch.VertexStride);
+        _context.IASetVertexBuffer(0u, ActiveVertexBuffer(batch), D3D11SubmeshBatch.VertexStride);
         _context.IASetIndexBuffer(batch.IndexBuffer, Format.R32_UInt, 0);
         _context.DrawIndexed((uint)batch.IndexCount, 0, 0);
         _lastDrawnMaterialAuthority[batch.MaterialSubmeshIndex] = constants.MaterialBaseTintPolicy;

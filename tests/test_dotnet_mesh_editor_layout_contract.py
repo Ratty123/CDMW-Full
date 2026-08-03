@@ -134,7 +134,8 @@ def test_long_edit_mesh_help_is_available_from_section_tooltips() -> None:
     assert "MaximumSize = new Size(248, 0)" not in build_panels
     assert "OverlayAppearanceXRayHint" not in controls
 
-    assert "RowCount = simplePreview ? 2 : 3" in presentation
+    assert "var embeddedAuthoring = _options.Embedded && !simplePreview;" in presentation
+    assert "RowCount = simplePreview || embeddedAuthoring ? 2 : 3" in presentation
     simple_preview_footer = re.search(
         r"if \(simplePreview\)\s*\{\s*region\.Controls\.Add\(_controlsHintLabel, 0, 1\);\s*\}",
         presentation,
@@ -142,7 +143,7 @@ def test_long_edit_mesh_help_is_available_from_section_tooltips() -> None:
     assert simple_preview_footer is not None
 
 
-def test_edit_mesh_rail_replaces_the_left_navigator_and_status_uses_the_space() -> None:
+def test_embedded_edit_mesh_status_uses_the_header_instead_of_a_footer() -> None:
     """The rail lists every tool directly, so the classic scroll navigator is gone.
 
     The navigator existed to jump the classic scrolling stack to a tool's
@@ -160,9 +161,36 @@ def test_edit_mesh_rail_replaces_the_left_navigator_and_status_uses_the_space() 
 
     assert "left.Controls.Add(statusFooter);" not in program
     assert 'Name = "ResidentViewportStatusFooter"' in presentation
+    assert "else if (!embeddedAuthoring)" in presentation
     assert "region.Controls.Add(BuildAuthoringStatusFooter(), 0, 2);" in presentation
     assert "footer.Controls.Add(_statusLabel, 0, 0);" in presentation
     assert "footer.Controls.Add(_fpsLabel, 1, 0);" in presentation
+    assert '_statusLabel.Dock = DockStyle.Left;' in presentation
+    assert 'button.Controls.Add(_statusLabel);' in presentation
+    assert '_fpsLabel.Dock = DockStyle.Right;' in presentation
+    assert '_fpsLabel.Width = 320;' in presentation
+    assert '_fpsLabel.Padding = new Padding(8, 0, 24, 0);' in presentation
+    assert 'button.Controls.Add(_fpsLabel);' in presentation
+
+
+def test_edit_mesh_side_controls_use_compact_density_values() -> None:
+    program = _source("Program.cs")
+    controls = _source("ExperimentForm.Controls.cs")
+    layout = _source("ExperimentForm.EditMeshLayouts.cs")
+    tool_list = _source("ExperimentForm.ToolList.cs")
+
+    assert "private static int SingleLineControlHeight(Control control, int minimum = 24)" in controls
+    assert 'private static Button StyledButton(string text, int height = 26)' in controls
+    assert 'Padding = new Padding(8, 20, 8, 7)' in controls
+    assert 'Margin = new Padding(0, 0, 0, 6)' in controls
+    assert controls.count('button.Height = 40;') == 2
+    assert controls.count('button.Font = new Font(button.Font.FontFamily, 8f);') == 2
+    assert '_submeshList.Height = 96;' in program
+    assert '_actionHistoryList.Height = 96;' in program
+    assert 'private const int ToolListRowHeight = 30;' in tool_list
+    assert '_toolDock.Font = new Font(Font.FontFamily, 8.5f);' in layout
+    assert 'panel.Font = new Font(Font.FontFamily, 8.5f);' in layout
+    assert '_options.SimplePreview ? 0 : Math.Max(30, Font.Height + 8)' in layout
 
 
 def test_edit_mesh_text_controls_expand_for_the_active_font() -> None:

@@ -3,7 +3,10 @@ using System.Text.Json;
 
 namespace Cdmw.MeshEditorExperiment;
 
-internal sealed record MorphPartChoice(int Index, string Name);
+internal sealed record MorphPartChoice(int Index, string Name)
+{
+    public override string ToString() => $"{Name} (Part {Index})";
+}
 
 internal sealed partial class ExperimentForm
 {
@@ -75,6 +78,11 @@ internal sealed partial class ExperimentForm
     private string _morphSessionId = string.Empty;
     private string _morphDefinitionSignature = string.Empty;
     private string _morphActiveChangeId = string.Empty;
+    private readonly System.Windows.Forms.Timer _morphUpdateTimer = new() { Interval = 33 };
+    private bool _morphUpdateTimerWired;
+    private MorphSliderControls? _pendingMorphUpdateControls;
+    private string _pendingMorphUpdateChangeId = string.Empty;
+    private long _morphUpdateRequestId;
     private readonly HashSet<int> _morphDriverPartIndices = new();
     private readonly Queue<(string Command, Dictionary<string, object?> Payload)> _morphWizardCommandQueue = new();
     private bool _morphWizardSequenceActive;
@@ -82,6 +90,8 @@ internal sealed partial class ExperimentForm
     private MorphAuthorDialog? _morphWizardActiveDialog;
     private Action<bool>? _morphWizardSequenceCompleted;
     private string _morphWizardSuccessMessage = string.Empty;
+    private readonly Queue<(string Command, Dictionary<string, object?> Payload)> _morphUiCommandQueue = new();
+    private long _morphUiCommandRequestId;
 
     private Control BuildMorphRefitSection(TableLayoutPanel stack)
     {
@@ -93,14 +103,14 @@ internal sealed partial class ExperimentForm
         {
             if (!_syncingMorphUi && _morphProfile.SelectedItem is MorphChoice choice)
             {
-                WriteCommandRequest("morph_activate", new Dictionary<string, object?> { ["profile_id"] = choice.Id });
+                RequestMorphUiCommand("morph_activate", new Dictionary<string, object?> { ["profile_id"] = choice.Id });
             }
         };
         _morphPreset.SelectedIndexChanged += (_, _) =>
         {
             if (!_syncingMorphUi && _morphPreset.SelectedItem is MorphChoice choice && choice.Id.Length > 0)
             {
-                WriteCommandRequest("morph_apply_preset", new Dictionary<string, object?> { ["preset_id"] = choice.Id });
+                RequestMorphUiCommand("morph_apply_preset", new Dictionary<string, object?> { ["preset_id"] = choice.Id });
             }
         };
 
@@ -124,27 +134,31 @@ internal sealed partial class ExperimentForm
 
         var author = StyledActionButton("Create Profile...", () => ShowMorphAuthorDialog());
         _morphAuthorButton = author;
-        var saveProfile = StyledActionButton("Save Profile", () => WriteCommandRequest("morph_save_profile"));
+        var saveProfile = StyledActionButton("Save Profile", () => RequestMorphUiCommand("morph_save_profile"));
+        saveProfile.Name = "MorphSaveProfileButton";
         var deleteProfile = StyledActionButton("Delete Profile", () =>
         {
             if (_morphProfile.SelectedItem is MorphChoice choice)
             {
-                WriteCommandRequest("morph_delete_profile", new Dictionary<string, object?> { ["profile_id"] = choice.Id });
+                RequestMorphUiCommand("morph_delete_profile", new Dictionary<string, object?> { ["profile_id"] = choice.Id });
             }
         });
+        deleteProfile.Name = "MorphDeleteProfileButton";
         var savePreset = StyledActionButton("Save Preset...", SaveMorphPreset);
         var deletePreset = StyledActionButton("Delete Preset", () =>
         {
             if (_morphPreset.SelectedItem is MorphChoice choice && choice.Id.Length > 0)
             {
-                WriteCommandRequest("morph_delete_preset", new Dictionary<string, object?> { ["preset_id"] = choice.Id });
+                RequestMorphUiCommand("morph_delete_preset", new Dictionary<string, object?> { ["preset_id"] = choice.Id });
             }
         });
         var setDriver = StyledActionButton("1. Set Selected Driver Parts", RequestMorphSetDriver);
         var bind = StyledActionButton("2. Bind Selected Garment Parts", RequestMorphBind);
-        var clear = StyledActionButton("Clear Refit", () => WriteCommandRequest("morph_clear_refit"));
-        var reset = StyledActionButton("Reset", () => WriteCommandRequest("morph_reset"));
-        var bake = StyledActionButton("Bake", () => WriteCommandRequest("morph_bake"));
+        var clear = StyledActionButton("Clear Refit", () => RequestMorphUiCommand("morph_clear_refit"));
+        var reset = StyledActionButton("Reset", () => RequestMorphUiCommand("morph_reset"));
+        var bake = StyledActionButton("Bake", () => RequestMorphUiCommand("morph_bake"));
+        reset.Name = "MorphResetButton";
+        bake.Name = "MorphBakeButton";
         // The five buttons whose captions alone do not say what happens next.
         // The workflow hint below the header carries the order; these carry
         // the consequence of each click.
@@ -645,6 +659,53 @@ internal sealed partial class ExperimentForm
         label.Margin = new Padding(0, 0, 0, 6);
     }
 
+    private long RequestMorphUiCommand(
+        string command,
+        Dictionary<string, object?>? payload = null)
+    {
+        var normalized = (command ?? string.Empty).Trim().ToLowerInvariant();
+        var commandPayload = payload is null
+            ? new Dictionary<string, object?>()
+            : new Dictionary<string, object?>(payload);
+        if (MorphUiCommandBlocked() || _morphUiCommandQueue.Count > 0)
+        {
+            _morphUiCommandQueue.Enqueue((normalized, commandPayload));
+            _morphDiagnosticStatus.ForeColor = ThemeMutedText;
+            var displayName = (normalized.StartsWith("morph_", StringComparison.Ordinal)
+                ? normalized["morph_".Length..]
+                : normalized).Replace('_', ' ');
+            _morphDiagnosticStatus.Text = $"Queued {displayName} until the active Morph change finishes.";
+            return 0;
+        }
+        _morphUiCommandRequestId = WriteCommandRequest(normalized, commandPayload);
+        return _morphUiCommandRequestId;
+    }
+
+    private bool MorphUiCommandBlocked() =>
+        _morphUiCommandRequestId > 0
+        || _morphBusy
+        || _morphActiveChangeId.Length > 0
+        || _morphEndRequestId > 0
+        || _morphUpdateRequestId > 0
+        || _pendingMorphUpdateControls is not null
+        || _morphWizardSequenceActive
+        || _morphWizardCommandRequestId > 0
+        || _morphWizardCommandQueue.Count > 0;
+
+    private void ResumeQueuedMorphUiCommandIfClear()
+    {
+        if (MorphUiCommandBlocked() || _morphUiCommandQueue.Count == 0)
+        {
+            return;
+        }
+        var (command, payload) = _morphUiCommandQueue.Dequeue();
+        _morphUiCommandRequestId = WriteCommandRequest(command, payload);
+        if (_morphUiCommandRequestId <= 0 && _morphUiCommandQueue.Count > 0)
+        {
+            BeginInvoke((Action)ResumeQueuedMorphUiCommandIfClear);
+        }
+    }
+
     private void RequestMorphStateRefresh()
     {
         if (_morphRefreshRequested
@@ -666,6 +727,12 @@ internal sealed partial class ExperimentForm
         _morphStateRequestId = 0;
         _morphSessionId = string.Empty;
         _morphActiveChangeId = string.Empty;
+        _morphUpdateTimer.Stop();
+        _pendingMorphUpdateControls = null;
+        _pendingMorphUpdateChangeId = string.Empty;
+        _morphUpdateRequestId = 0;
+        _morphUiCommandQueue.Clear();
+        _morphUiCommandRequestId = 0;
         _morphFinishRequestId = 0;
         _morphEndRequestId = 0;
         _morphFinishPending = false;
@@ -706,6 +773,8 @@ internal sealed partial class ExperimentForm
             || _morphWizardSequenceActive
             || _morphWizardCommandRequestId > 0
             || _morphWizardCommandQueue.Count > 0
+            || _morphUiCommandRequestId > 0
+            || _morphUiCommandQueue.Count > 0
             || _pendingMutationRequests.Values.Any(pending =>
                 pending.Command.StartsWith("morph_", StringComparison.Ordinal)
                 && pending.Command != "morph_finish"))
@@ -765,6 +834,8 @@ internal sealed partial class ExperimentForm
             && !_morphWizardSequenceActive
             && _morphWizardCommandRequestId == 0
             && _morphWizardCommandQueue.Count == 0
+            && _morphUiCommandRequestId == 0
+            && _morphUiCommandQueue.Count == 0
             && !_pendingMutationRequests.Values.Any(pending =>
                 pending.Command.StartsWith("morph_", StringComparison.Ordinal)
                 && pending.Command != "morph_finish"))
@@ -796,6 +867,10 @@ internal sealed partial class ExperimentForm
 
     private void CompleteMorphCommandResult(PendingMutationRequest pending, bool accepted)
     {
+        if (pending.RequestId == _morphUiCommandRequestId)
+        {
+            _morphUiCommandRequestId = 0;
+        }
         if (pending.RequestId == _morphWizardCommandRequestId)
         {
             _morphWizardCommandRequestId = 0;
@@ -815,9 +890,9 @@ internal sealed partial class ExperimentForm
         if (pending.Command == "morph_change" && pending.Phase == "end" && pending.RequestId == _morphEndRequestId)
         {
             _morphEndRequestId = 0;
+            _morphBusy = false;
             if (!accepted)
             {
-                _morphBusy = false;
                 _morphFinishPending = false;
             }
         }
@@ -825,12 +900,18 @@ internal sealed partial class ExperimentForm
         {
             _morphFinishPending = false;
         }
+        if (pending.Command == "morph_change" && pending.Phase == "update" && pending.RequestId == _morphUpdateRequestId)
+        {
+            _morphUpdateRequestId = 0;
+            BeginInvoke((Action)FlushPendingMorphUpdate);
+        }
         if (pending.Command != "morph_finish" || pending.RequestId != _morphFinishRequestId)
         {
             // This result may have been the last blocker a pending Finish was
             // waiting on; without this the finish only resumed from a fresh
             // morph state update, which quiet sessions never send.
             ResumePendingFinishIfClear();
+            BeginInvoke((Action)ResumeQueuedMorphUiCommandIfClear);
             return;
         }
         _morphFinishRequestId = 0;
@@ -840,6 +921,7 @@ internal sealed partial class ExperimentForm
             _morphUnbaked = false;
             WriteProtocolEvent("save_request");
         }
+        BeginInvoke((Action)ResumeQueuedMorphUiCommandIfClear);
     }
 
     private void RegisterTopologyMutationButton(Button button)
@@ -915,6 +997,7 @@ internal sealed partial class ExperimentForm
         CopyMutationEnvelope(root, acknowledgement);
         WriteProtocolEvent("morph_state_update_ack", acknowledgement);
         ResumePendingFinishIfClear();
+        BeginInvoke((Action)ResumeQueuedMorphUiCommandIfClear);
     }
 
     private void ApplyMorphChoices(
@@ -1083,6 +1166,7 @@ internal sealed partial class ExperimentForm
         SetMorphSliderValue(controls, value);
         track.MouseDown += (_, _) =>
         {
+            FlushPendingMorphUpdate();
             _morphActiveChangeId = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
             SendMorphValue(controls, "begin", _morphActiveChangeId);
         };
@@ -1095,12 +1179,20 @@ internal sealed partial class ExperimentForm
             controls.Synchronizing = true;
             numeric.Value = Math.Clamp((decimal)track.Value / resolution, numeric.Minimum, numeric.Maximum);
             controls.Synchronizing = false;
-            SendMorphValue(controls, _morphActiveChangeId.Length > 0 ? "update" : "end", _morphActiveChangeId);
+            if (_morphActiveChangeId.Length > 0)
+            {
+                QueueMorphUpdate(controls, _morphActiveChangeId);
+            }
+            else
+            {
+                SendMorphValue(controls, "end", Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
+            }
         };
         track.MouseUp += (_, _) =>
         {
             if (_morphActiveChangeId.Length > 0)
             {
+                DiscardPendingMorphUpdate();
                 SendMorphValue(controls, "end", _morphActiveChangeId);
                 _morphActiveChangeId = string.Empty;
             }
@@ -1114,18 +1206,21 @@ internal sealed partial class ExperimentForm
             controls.Synchronizing = true;
             track.Value = Math.Clamp((int)Math.Round((double)numeric.Value * resolution), track.Minimum, track.Maximum);
             controls.Synchronizing = false;
+            DiscardPendingMorphUpdate();
             SendMorphValue(controls, "end", Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
         };
         var reset = StyledActionButton("Reset", () =>
         {
+            DiscardPendingMorphUpdate();
             SetMorphSliderValue(controls, controls.DefaultValue);
             SendMorphValue(controls, "end", Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
         });
         reset.MinimumSize = new Size(58, reset.MinimumSize.Height);
         var edit = StyledActionButton("Edit...", () => ShowMorphAuthorDialog(definition));
-        var delete = StyledActionButton("Delete", () => WriteCommandRequest(
+        var delete = StyledActionButton("Delete", () => RequestMorphUiCommand(
             "morph_delete_definition",
             new Dictionary<string, object?> { ["definition_id"] = definitionId }));
+        delete.Name = $"MorphDeleteDefinition_{definitionId}";
         var labelControl = new Label
         {
             Text = label.Length > 0 ? label : definitionId,
@@ -1172,6 +1267,10 @@ internal sealed partial class ExperimentForm
         {
             _morphEndRequestId = requestId;
         }
+        else if (phase == "update")
+        {
+            _morphUpdateRequestId = requestId;
+        }
     }
 
     private void ApplyMorphRefitStatus(JsonElement root)
@@ -1212,6 +1311,13 @@ internal sealed partial class ExperimentForm
             .ToArray();
     }
 
+    private IReadOnlyList<MorphPartChoice> AllMorphParts()
+    {
+        return Enumerable.Range(0, Math.Min(_scene.EditableSubmeshCount, _document.Submeshes.Count))
+            .Select(index => new MorphPartChoice(index, _document.Submeshes[index].Name))
+            .ToArray();
+    }
+
     private string MorphPartDisplayName(int index)
     {
         return index >= 0 && index < _document.Submeshes.Count
@@ -1228,7 +1334,7 @@ internal sealed partial class ExperimentForm
             _morphDiagnosticStatus.Text = "Select one or more driver parts in the viewport, then choose Set Selected Driver Parts.";
             return;
         }
-        WriteCommandRequest("morph_set_driver");
+        RequestMorphUiCommand("morph_set_driver");
     }
 
     private void RequestMorphBind()
@@ -1247,7 +1353,7 @@ internal sealed partial class ExperimentForm
             _morphDiagnosticStatus.Text = $"A part cannot be both driver and garment: {string.Join(", ", overlap.Select(part => part.Name))}.";
             return;
         }
-        WriteCommandRequest("morph_bind");
+        RequestMorphUiCommand("morph_bind");
     }
 
     private void ShowMorphAuthorDialog(JsonElement? definition = null)
@@ -1258,11 +1364,21 @@ internal sealed partial class ExperimentForm
             _morphDiagnosticStatus.Text = "Finish the current Morph profile preview or save before opening another wizard.";
             return;
         }
+        if (_viewport.HasPendingSelectionAuthority)
+        {
+            _morphDiagnosticStatus.ForeColor = Color.Gold;
+            _morphDiagnosticStatus.Text = "Wait for the viewport selection to finish, then open Create Profile again.";
+            return;
+        }
+        var selectedParts = SelectedMorphParts();
+        var capturedMeshSelection = _viewport.SelectionSnapshotPayload();
         using var dialog = new MorphAuthorDialog(
             _morphProfile.SelectedItem is MorphChoice profile ? profile.Id : string.Empty,
             _morphProfile.SelectedItem is MorphChoice namedProfile ? namedProfile.Name : string.Empty,
             definition,
-            SelectedMorphParts,
+            AllMorphParts(),
+            selectedParts,
+            capturedMeshSelection,
             ThemeWindowBackground,
             ThemeSectionBackground,
             ThemeInputBackground,
@@ -1277,7 +1393,10 @@ internal sealed partial class ExperimentForm
             {
                 commands.Add(("morph_change", MorphWizardChangePayload(dialog.DefinitionId, 0.0)));
             }
-            commands.Add(("morph_author_definition", MorphAuthorPayload(dialog.Payload, definition)));
+            commands.Add(("morph_author_definition", MorphAuthorPayload(
+                dialog.Payload,
+                definition,
+                dialog.PreserveExistingSelection)));
             commands.Add(("morph_change", MorphWizardChangePayload(dialog.DefinitionId, 0.0)));
             commands.Add(("morph_save_profile", new Dictionary<string, object?>()));
             _ = BeginMorphWizardCommandSequence(
@@ -1304,9 +1423,9 @@ internal sealed partial class ExperimentForm
         }
         else
         {
-            cancellation.Add(("morph_delete_definition", new Dictionary<string, object?>
+            cancellation.Add(("morph_delete_profile", new Dictionary<string, object?>
             {
-                ["definition_id"] = dialog.DefinitionId,
+                ["profile_id"] = dialog.ProfileId,
             }));
         }
         _ = BeginMorphWizardCommandSequence(
@@ -1322,7 +1441,10 @@ internal sealed partial class ExperimentForm
         {
             commands.Add(("morph_change", MorphWizardChangePayload(dialog.DefinitionId, 0.0)));
         }
-        commands.Add(("morph_author_definition", MorphAuthorPayload(dialog.Payload, definition)));
+        commands.Add(("morph_author_definition", MorphAuthorPayload(
+            dialog.Payload,
+            definition,
+            dialog.PreserveExistingSelection)));
         commands.Add(("morph_change", MorphWizardChangePayload(dialog.DefinitionId, value)));
         if (!BeginMorphWizardCommandSequence(
                 dialog,
@@ -1338,6 +1460,48 @@ internal sealed partial class ExperimentForm
         {
             dialog.SetProtocolBusy(false, "Another Morph profile command is still running.");
         }
+    }
+
+    private void QueueMorphUpdate(MorphSliderControls controls, string changeId)
+    {
+        if (_pendingMorphUpdateControls is not null
+            && (!ReferenceEquals(_pendingMorphUpdateControls, controls)
+                || !string.Equals(_pendingMorphUpdateChangeId, changeId, StringComparison.Ordinal)))
+        {
+            FlushPendingMorphUpdate();
+        }
+        _pendingMorphUpdateControls = controls;
+        _pendingMorphUpdateChangeId = changeId;
+        if (!_morphUpdateTimerWired)
+        {
+            _morphUpdateTimerWired = true;
+            _morphUpdateTimer.Tick += (_, _) => FlushPendingMorphUpdate();
+        }
+        _morphUpdateTimer.Start();
+    }
+
+    private void FlushPendingMorphUpdate()
+    {
+        _morphUpdateTimer.Stop();
+        if (_morphUpdateRequestId > 0)
+        {
+            return;
+        }
+        var controls = _pendingMorphUpdateControls;
+        var changeId = _pendingMorphUpdateChangeId;
+        _pendingMorphUpdateControls = null;
+        _pendingMorphUpdateChangeId = string.Empty;
+        if (controls is not null && changeId.Length > 0)
+        {
+            SendMorphValue(controls, "update", changeId);
+        }
+    }
+
+    private void DiscardPendingMorphUpdate()
+    {
+        _morphUpdateTimer.Stop();
+        _pendingMorphUpdateControls = null;
+        _pendingMorphUpdateChangeId = string.Empty;
     }
 
     private static Dictionary<string, object?> MorphWizardChangePayload(
@@ -1431,13 +1595,15 @@ internal sealed partial class ExperimentForm
             ? successMessage
             : "Morph profile command sequence stopped after a rejected step.";
         ResumePendingFinishIfClear();
+        BeginInvoke((Action)ResumeQueuedMorphUiCommandIfClear);
     }
 
     private static Dictionary<string, object?> MorphAuthorPayload(
         Dictionary<string, object?> payload,
-        JsonElement? definition)
+        JsonElement? definition,
+        bool preserveExistingSelection)
     {
-        payload["preserve_selection"] = false;
+        payload["preserve_selection"] = preserveExistingSelection;
         payload["source_definition_id"] = definition.HasValue
             ? JsonString(definition.Value, "definition_id").Trim()
             : string.Empty;
@@ -1513,7 +1679,7 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
-        WriteCommandRequest("morph_save_preset", new Dictionary<string, object?>
+        RequestMorphUiCommand("morph_save_preset", new Dictionary<string, object?>
         {
             ["preset_id"] = dialog.PresetId,
             ["name"] = dialog.PresetName,

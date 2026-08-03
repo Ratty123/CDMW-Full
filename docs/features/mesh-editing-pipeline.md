@@ -70,6 +70,15 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
     explicit applied/rejected acknowledgements; revision and mutation-envelope
     support are negotiated as the `mesh_edit_revision_ack_v1` and
     `resident_mutation_envelope_v2` capabilities rather than assumed.
+    Shared-helper process or session adoption resets this queue to the adopted
+    identity and restores the process's negotiated capabilities before another
+    mutation can be sent. The protocol router returns
+    `resident_state_resync_ack` to the same queue as vertex and triangle
+    acknowledgements, so an applied one closes recovery and releases the next
+    pending revision instead of timing out a resync the renderer already
+    completed. The shared controller validates an `activated` acknowledgement's
+    request, process, and package generations before forwarding it to feature
+    consumers.
   - The native editor session has one authoritative resident submesh map.
     Non-topology undo units retain only changed channel/index values; topology
     units retain one reversible affected-submesh snapshot and swap it on
@@ -362,12 +371,13 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   sessions, with minimum content widths and horizontal overflow preventing
   controls from being compressed into one another. Long guidance for Action
   History, Selection, Brush Tools, and Viewport is available from each section's
-  `?` hover help instead of consuming panel space. A fixed Select/Move/Brush/
-  Topology jump bar scrolls the left panel directly to each tool family, and
-  label/input pairs share one horizontal row to use the panel width. Runtime
-  status and FPS share the wide viewport footer instead of consuming the left
-  panel's vertical space. Controls and section titles size from the active
-  Windows font so larger text does not clip. This side-panel arrangement remains
+  hover tooltip instead of consuming panel space. The side controls use a compact
+  8.5-point density, 24-pixel single-line fields, 26-pixel action buttons, and
+  40-pixel colour swatches while retaining DPI scaling. Embedded runtime status
+  and FPS sit inside the two pane headers; the FPS field reserves 320 pixels with
+  a right inset, and the redundant footer row is absent. The full-width camera
+  navigation strip remains below the viewport at a font-derived 30-pixel minimum.
+  This side-panel arrangement remains
   the default for every new helper session. Embedded Edit Mesh also offers an
   opt-in `Bottom Tool Deck`: the live viewport stays under one permanent Win32
   parent while the same command controls move atomically into a top session
@@ -387,6 +397,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   bottom deck, while a new form always starts Classic. The editable
   viewport defaults to Wire + Vertices, with round vertex markers; the inert
   Material Debug control is not shown in the Viewport section.
+  The Qt Builder does not repeat the resident camera legend or reserve rows for
+  preview-ready/performance text. Those values remain available to diagnostics,
+  and the Builder's Cancel/Build Mod footer belongs to the control column so it
+  disappears with that column while Edit Mesh is active.
   Placement exposes the same geometry display family in the Builder's
   `Mesh view` selector and defaults to Faces + Wire. `Solid (Textured)` first
   runs the existing material resolver and waits for the resident material
@@ -433,9 +447,13 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   input rate and GPU/display budget permit it.
   Edit Mesh opens with Orbit as the single neutral interaction state; Add and
   Brush are the initial selection operation and shape but no selection tool is
-  armed. Select Parts is the only visible selection tool. Legacy vertex, edge,
-  and face action IDs normalize to Select Parts for compatibility, while their
-  low-level maps remain available to native readers and existing profile data.
+  armed. The viewport's Select tool edits a vertex selection with Click, Brush,
+  Rectangle, or Lasso. Whole-part selection is a separate explicit action in the
+  PARTS list and is never inferred from a viewport gesture. The Python bridge
+  preserves `vertex`, `edge`, and `face` on screen-selection packets and coerces
+  stale `source`/`part` targets to `vertex`; it cannot promote a viewport hit to
+  a part. Legacy element maps remain available to native readers and existing
+  profile data.
   Grid, gizmo, selection, wire, and divider vertices stream through one
   capacity-growing dynamic D3D11 vertex buffer and one discard map per pane
   frame. Draw commands preserve the established grid/wire/vertex/selection
@@ -450,15 +468,28 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   hover hit-testing constructs one camera per event. Continuous mouse input
   performs one latest-wins renderer update and does not directly invalidate the
   parent surface as a second paint path.
-  Select Brush paints a renderer-local part overlay on every pointer update.
-  Move applies a transient selected-part transform, while Grab and sculpt tools
-  patch a transient vertex buffer from immutable per-stroke projections,
-  falloff data, and screen-space spatial buckets. Protocol stroke samples are
+  Select Brush paints a renderer-local vertex overlay on every pointer update;
+  selected and provisional vertices use the GPU point-marker geometry shader,
+  so selection size does not multiply CPU projection and cross construction per
+  frame. Move applies a transient transform only to the selected mesh elements
+  (or an explicitly selected PARTS row). Fixed Move and Grab scopes cache their
+  incident face ranges on the first sample and rotate three transient vertex
+  buffers, keeping later samples off a buffer the GPU may still be drawing.
+  Grab and sculpt tools patch that provisional geometry from immutable
+  per-stroke projections, falloff data, and screen-space spatial buckets;
+  without a selection their initial hit establishes an internal stroke scope
+  without selecting that whole part. Grab has its own visible radius control.
+  Protocol stroke samples are
   bounded to 16 ms and carry the complete segment since the last publication;
   Python's existing single-flight dispatcher keeps one in-flight plus one
   latest cumulative pending update. Reconciliation requires matching stroke ID,
   request, and revision. Cancel restores the baseline, and only stroke end adds
-  history.
+  history. The visible real-PAC driver therefore keeps the physical pointer
+  moving instead of waiting for one protocol packet per raw mouse event. It
+  requires at least one bounded update, compares the terminal packet with the
+  release-time cursor and child-window rectangle, and fails if the final cursor
+  segment was coalesced away. Its selection seed and projected region are vertex
+  maps; the same evidence requires the PARTS selection to remain empty.
   The reported FPS is calculated from completion-to-completion frame intervals;
   render work, Present time, interval p95/max, and pacing jitter are reported
   separately so fast submission cannot masquerade as smooth output. Placement
@@ -586,14 +617,18 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   always compose from the baked base plus ordinary-edit residuals, so returning
   a slider to zero is exact and drift-free.
   New profiles are authored through Profile, Parts, Deformation, and Preview &
-  Save pages. Stable IDs are generated automatically; whole-part chips come from the live
-  viewport selection and are expanded to vertices only inside the service
-  boundary. The deformation page offers Volume, Scale, Move, Flatten, Taper,
+  Save pages. Stable IDs are generated automatically. The Parts page either
+  checks named whole parts directly or uses the acknowledged vertex/edge/face
+  selection captured when the modal wizard opened; both are expanded to vertices
+  only inside the service boundary. The deformation page offers Volume, Scale, Move, Flatten, Taper,
   and Twist and only shows Axis where it is meaningful. Advanced owns category,
   generated ID, feather, falloff, mirror, local basis, and custom range. The
-  final page previews minimum/default/maximum through correlated resident
-  commands. Finish atomically saves v2 and returns preview to zero; Cancel also
-  returns to zero and removes the temporary definition. Saving never bakes.
+  final page previews minimum/default/maximum through serialized correlated
+  resident commands. Finish saves v2 and returns preview to zero; Cancel also
+  returns to zero and removes the temporary definition. Slider updates are
+  display-paced with one acknowledged update plus one latest pending value, and
+  Save, Delete, Reset, Bake, and Finish wait for active Morph work instead of
+  being rejected during the worker cleanup handoff. Saving never bakes.
   The main workflow is Profile and sliders, optional Refit, then Review and
   Apply. Refit separately captures named driver and garment part selections,
   rejects overlap, and prevents binding until both roles are valid. Garment
@@ -607,7 +642,7 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   `mesh_slider_profiles` directory. Legacy version 1 regions migrate in memory;
   legacy target-import data is omitted with a diagnostic and the old file is
   left untouched.
-  Element-only topology actions and Vertex/Edge/Face activation stay internal
+  Separate Vertex/Edge/Face activation controls stay internal
   for native compatibility and are not exposed by either Mesh Editor surface.
   Visible-surface selection and brushes rasterize only their screen-space
   brush/region depth bounds, and one brush command shares that depth mask across
@@ -619,9 +654,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   the same resident mesh revision; stale or future mesh revisions fail instead
   of poisoning the geometry revision stream. Each generation tracks its
   `editable/imported` or `original_reference` role separately.
-  Modify Original's late resolver publishes the exact clone first and queues the
-  same resolved model as `original_reference` behind it; returning after the clone
-  alone is not a settled two-pane material state. Source-input signatures are
+  Modify Original's late resolver compiles its exact-clone material graph once,
+  then binds that one resource set to both the editable and reference submesh
+  ranges in the same generation. Returning after only one role is not a settled
+  two-pane material state. Source-input signatures are
   tracked separately from the combined signature reported by the renderer, so a
   healthy resident scene reactivates with the state it actually holds instead of
   entering a false material-sync/restart loop.
@@ -638,15 +674,20 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   quality/lighting, UV, grid/gizmo, highlight, hidden-part, routing, and
   per-part state acknowledge in .NET; stale responses are ignored and
   production-active callbacks bypass legacy-only presentation mutation.
+  Edit Mesh tool refreshes publish only `tool_state`: they never send the shared
+  preview host's unsynchronized alignment presentation or an identity scene
+  frame, so a tool click cannot replace display mode, grid state, or placement.
   The .NET material manifest preserves source tint, surface, and emissive factors
   plus packed-channel selectors; glTF metallic-roughness reuses one decoded image
   while sampling roughness from G and metallic from B. A Python-owned resource
   policy declares role, scene submesh, channel, profile, criticality, and
   fallback for every texture. Initial Ready requires the geometry-only package
   and one presented frame; texture resolution is not on the first-display
-  critical path. Selecting `Textured` starts the cancellable resolver, leaves
-  readable untextured faces active, and changes display only after the correlated
-  resident material generation is acknowledged. A missing declared-required
+  critical path. Selecting `Textured` starts the cancellable resolver and leaves
+  readable untextured faces active while retaining `Solid (Textured)` as the
+  desired mode in both controls and presentation replay. The effective fallback
+  never becomes a preference; the correlated resident material acknowledgement
+  activates the requested mode. A missing declared-required
   base fails that material request while the last valid scene remains visible;
   optional channels retain their declared fallback and diagnostic. Late original archive
   resources enter the existing reference-role material generation without an
@@ -657,7 +698,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   Mesh View and Edit Mesh expose one textured choice, `Solid (Textured)`; legacy
   `textured_wire` preferences and protocol requests normalize to it. Finish Edit
   Mesh publishes an interaction-only placement transition even while a full scene
-  frame is calculating, and finalizes only after the exact scene acknowledgement.
+  frame is calculating. The helper includes its resident source identity in the
+  Finish request, so that transition remains correlatable even if the host's
+  cached frame was released. Finish finalizes only after the exact scene
+  acknowledgement and fails closed if the Builder shell finalizer is absent.
   A five-second timeout leaves Edit Mesh open and reports the correlated failure,
   rather than claiming the save while the resident tool layout is still active.
   The focused profile corpus records every
