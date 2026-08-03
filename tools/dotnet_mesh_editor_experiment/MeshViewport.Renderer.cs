@@ -225,7 +225,6 @@ internal sealed partial class MeshViewport
                 _provisionalPartSelectionActive
                     ? _provisionalSelectedSources
                     : _selectedSources);
-            _presentedSources.UnionWith(ProvisionalStrokeSourceIndices);
             _presentedSources.UnionWith(_presentationHighlightedSources);
             foreach (var originalIndex in _presentationHighlightedOriginals)
             {
@@ -244,7 +243,7 @@ internal sealed partial class MeshViewport
             var lassoDragPath = _edgeDragActive && _selectionLassoPoints.Count >= 2
                 ? (IReadOnlyList<Point>)_selectionLassoPoints
                 : null;
-            _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive && !_selectionPaintActive && lassoDragPath is null ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, _presentedSources, presentedSourceIndex, ShowWire, ShowVertices, ShowXRay, (brushTool || selectPaint) && _pointerInside ? _pointerLocation : null, brushRadius, lassoDragPath, null);
+            _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive && !_selectionPaintActive && lassoDragPath is null ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, _presentedSources, presentedSourceIndex, ShowWire, ShowVertices, ShowXRay, (brushTool || selectPaint) && _pointerInside ? _pointerLocation : null, brushRadius, lassoDragPath, _selectionPaintActive ? _provisionalSelectedVertices : null);
             return;
         }
         var viewport = _gpuViewport;

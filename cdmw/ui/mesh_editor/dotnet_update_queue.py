@@ -107,6 +107,23 @@ def _merge_inline_vertex_packets(
     older: Mapping[str, object],
     newer: Mapping[str, object],
 ) -> dict[str, object] | None:
+    def correlated_request_id(packet: Mapping[str, object]) -> int:
+        raw_value = packet.get("request_id", 0)
+        if isinstance(raw_value, bool):
+            return 0
+        try:
+            return max(0, int(raw_value or 0))
+        except (TypeError, ValueError, OverflowError):
+            return 0
+
+    older_request_id = correlated_request_id(older)
+    newer_request_id = correlated_request_id(newer)
+    if (
+        older_request_id != newer_request_id
+        and (older_request_id > 0 or newer_request_id > 0)
+    ):
+        return None
+
     raw_groups = tuple(older.get("vertex_groups", ()) or ()) + tuple(newer.get("vertex_groups", ()) or ())
     grouped: dict[tuple[int, bool, bool], dict[int, tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]]] = {}
     for raw_group in raw_groups:

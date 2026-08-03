@@ -147,6 +147,38 @@ def _process_until(app: QApplication, predicate, timeout: float = 2.0) -> bool:
     return bool(predicate())
 
 
+def test_stroke_scope_filters_screen_candidates_without_promoting_a_part_selection() -> None:
+    class _SelectionController:
+        @staticmethod
+        def session_view():
+            return type("View", (), {"selection": MeshEditSelection()})()
+
+    class _PayloadHarness(MeshEditorInteractionMixin):
+        standalone_dotnet_target_controller = _SelectionController()
+        standalone_native_mesh_edit_stroke_id = ""
+
+    harness = _PayloadHarness()
+    command = harness._standalone_native_mesh_edit_stroke_command(
+        {
+            "stroke_id": "grab-1",
+            "tool": "grab",
+            "scope_source_indices": [2],
+            "screen_brush": {
+                "x": 50,
+                "y": 60,
+                "radius_pixels": 24,
+                "source_submesh_indices": [0, 1, 2],
+            },
+            "screen_drag": {"start_x": 50, "start_y": 60, "end_x": 55, "end_y": 65},
+        },
+        "begin",
+    )
+
+    assert command is not None
+    assert "_native_selection_payload" not in command.params
+    assert command.params["screen_brush"]["source_submesh_indices"] == (2,)
+
+
 def test_dotnet_stroke_updates_return_quickly_coalesce_and_apply_final_revision() -> None:
     app = QApplication.instance() or QApplication(["dotnet-live-stroke-test"])
     controller = _Controller()

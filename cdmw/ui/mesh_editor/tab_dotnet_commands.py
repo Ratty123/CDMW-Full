@@ -537,15 +537,12 @@ class MeshEditorDotNetCommandMixin:
                     request_payload=payload,
                 )
             elif command == "select_all":
-                summary = controller.workspace_summary()
-                target_mode = "source"
+                target_mode = "vertex"
                 return self._start_dotnet_action_worker(
                     controller,
                     _tab.MeshEditCommand(
                         "select",
-                        selection=_tab.MeshEditSelection.from_maps(
-                            source_indices=tuple(part.index for part in summary.parts)
-                        ),
+                        selection=_tab.MeshEditSelection(),
                         params={"operation": "all", "target_mode": target_mode},
                         label="Select All",
                     ),
@@ -553,12 +550,13 @@ class MeshEditorDotNetCommandMixin:
                     request_payload=payload,
                 )
             elif command in {"grow", "shrink", "invert"}:
+                target_mode = target_mode if target_mode in {"vertex", "edge", "face"} else "vertex"
                 return self._start_dotnet_action_worker(
                     controller,
                     _tab.MeshEditCommand(
                         "select",
                         selection=local_selection,
-                        params={"operation": command, "target_mode": "source"},
+                        params={"operation": command, "target_mode": target_mode},
                         label=command.replace("_", " ").title(),
                     ),
                     command_name=command,
@@ -578,6 +576,19 @@ class MeshEditorDotNetCommandMixin:
                 }
                 action_key = aliases.get(command, command)
                 params: dict[str, object] = {}
+                if (
+                    action_key in {"transform_move", "delete", "duplicate", "subdivide", "refine_smooth"}
+                    and selection_supplied
+                    and local_selection.is_empty()
+                ):
+                    self._send_dotnet_command_result(
+                        command,
+                        ok=False,
+                        status="no_selection",
+                        diagnostics=("Select mesh vertices in the viewport or choose a part under PARTS first.",),
+                        request_payload=payload,
+                    )
+                    return False
                 if action_key == "transform_move":
                     if "delta" in payload:
                         params["delta"] = self._standalone_native_payload_vec3(payload.get("delta"))
@@ -589,19 +600,6 @@ class MeshEditorDotNetCommandMixin:
                         params["delta"] = (step if axis == "x" else 0.0, step if axis == "y" else 0.0, step if axis == "z" else 0.0)
                     if "axis" in payload:
                         params["axis"] = str(payload.get("axis") or "").strip().lower()
-                if (
-                    action_key in {"subdivide", "refine_smooth"}
-                    and (action_selection is None or action_selection.is_empty())
-                ):
-                    # Subdivide (and its smoothing variant) with nothing
-                    # selected acts on the whole editable scope: every part
-                    # becomes the selection, the same shape Select All uses.
-                    # Whole-mesh subdivision no longer requires selecting
-                    # everything first.
-                    summary = controller.workspace_summary()
-                    action_selection = _tab.MeshEditSelection.from_maps(
-                        source_indices=tuple(part.index for part in summary.parts)
-                    )
                 action = mesh_editor_actions_by_key().get(action_key)
                 if (
                     action is not None
@@ -856,6 +854,8 @@ class MeshEditorDotNetCommandMixin:
             interaction_mode="placement",
             comparison_mode=comparison_mode,
             gizmo_tool="move",
+            source_identity=str((request_payload or {}).get("source_identity", "") or ""),
+            session_id=str((request_payload or {}).get("session_id", "") or ""),
         ):
             self._send_dotnet_command_result(
                 "save_request",

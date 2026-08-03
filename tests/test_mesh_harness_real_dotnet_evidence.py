@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -33,9 +34,15 @@ def test_dotnet_real_game_evidence_keeps_drag_and_heartbeat_samples() -> None:
         "heartbeat_sample_count": 4,
         "max_heartbeat_gap_ms": 25.0,
         "changed_vertex_count": 1,
+        "stroke_terminal_coverage": {
+            "ok": True,
+            "expected_end": [12, 20],
+            "reported_end": [12, 20],
+        },
         "part_selection": {
             "initially_empty": True,
-            "selected_whole_part": True,
+            "viewport_did_not_select_part": True,
+            "mesh_selection_armed": True,
         },
         "resident_material_update": {
             "process_pid_before": 101,
@@ -59,6 +66,7 @@ def test_dotnet_real_game_evidence_keeps_drag_and_heartbeat_samples() -> None:
 
     assert evidence["projected_drag"]["points"] == [[11, 20], [12, 20]]
     assert evidence["projected_drag"]["screen_delta"] == [2.0, 0.0]
+    assert evidence["projected_drag"]["terminal_coverage"]["ok"] is True
     assert evidence["heartbeat"] == {"count": 4, "max_gap_ms": 25.0}
     assert evidence["resident_material_update"] == proof["resident_material_update"]
     assert evidence["resident_material_parameter_update"] == proof["resident_material_parameter_update"]
@@ -177,6 +185,91 @@ def test_real_dotnet_stroke_never_sends_global_input_without_foreground_ownershi
     send_button.assert_not_called()
 
 
+def test_real_dotnet_stroke_accepts_bounded_updates_and_requires_terminal_coverage(
+    tmp_path: Path,
+) -> None:
+    from tools.mesh_harness.real_dotnet_input import drive_viewport_stroke
+
+    events: list[dict[str, object]] = []
+    state = SimpleNamespace(
+        viewport={"width": 100, "height": 100, "screen_x": 0, "screen_y": 0},
+        projected_center=(20.0, 20.0),
+        viewport_hwnd=10,
+        form_hwnd=11,
+        production_process_pid=42,
+        heartbeat_ms=[],
+        heartbeat_started=time.perf_counter(),
+        tab=SimpleNamespace(
+            standalone_dotnet_protocol_events=events,
+            standalone_live_stroke_dispatcher=SimpleNamespace(
+                metrics=lambda: {"queue_depth": 0, "control_depth": 0, "active": 0}
+            ),
+            standalone_dotnet_update_queue=SimpleNamespace(
+                metrics=lambda: {"active_revision": 0}
+            ),
+        ),
+        after_capture_path=tmp_path / "after.png",
+    )
+    cursor_calls = 0
+
+    def set_cursor(_x: int, _y: int) -> bool:
+        nonlocal cursor_calls
+        cursor_calls += 1
+        if cursor_calls in {10, 25}:
+            events.append({"event": "stroke_update", "request_id": cursor_calls})
+        return True
+
+    def wait_event(
+        _state: SimpleNamespace,
+        event: str,
+        _cursor: int,
+        _timeout: float,
+    ) -> dict[str, object]:
+        if event == "stroke_begin":
+            return {"event": event}
+        if event == "stroke_end":
+            return {
+                "event": event,
+                "screen_drag": {"end_x": 60, "end_y": 20},
+            }
+        return {}
+
+    with (
+        patch("tools.mesh_harness.real_dotnet_input._host_window_rect", return_value=(0, 0, 100, 100)),
+        patch("tools.mesh_harness.real_dotnet_input._activate_window_for_input", return_value=True),
+        patch("tools.mesh_harness.real_dotnet_input._foreground_window_matches", return_value=True),
+        patch("tools.mesh_harness.real_dotnet_input._screen_cursor_position", return_value=None),
+        patch("tools.mesh_harness.real_dotnet_input._set_screen_cursor_position", side_effect=set_cursor),
+        patch("tools.mesh_harness.real_dotnet_input._window_at_screen_point", return_value=10),
+        patch("tools.mesh_harness.real_dotnet_input._window_process_id", return_value=42),
+        patch("tools.mesh_harness.real_dotnet_input._window_is_same_or_child", return_value=True),
+        patch("tools.mesh_harness.real_dotnet_input._send_left_button_input", return_value=True),
+    ):
+        result = drive_viewport_stroke(
+            state,
+            base_error=lambda _state, message: {"error": message},
+            pump_for=lambda *_args: None,
+            pump_until=lambda _state, predicate, _timeout: bool(predicate()),
+            wait_protocol_event=wait_event,
+            capture_viewport=lambda *_args: {"ok": True},
+        )
+
+    assert result is None
+    assert len(state.mouse_drag_points) == 40
+    assert len(state.stroke_updates) == 2
+    assert state.stroke_terminal_coverage == {
+        "requested_end": [60, 20],
+        "expected_end": [60, 20],
+        "reported_end": [60, 20],
+        "actual_screen_end": None,
+        "viewport_rect_at_release": [0, 0, 100, 100],
+        "viewport_stationary_to_release": True,
+        "protocol_update_count": 2,
+        "physical_point_count": 40,
+        "ok": True,
+    }
+
+
 def test_real_dotnet_harness_targets_editable_pane_coordinates_on_shared_hwnd() -> None:
     root = Path(__file__).resolve().parents[1]
     flow_source = (root / "tools" / "mesh_harness" / "real_dotnet.py").read_text(
@@ -237,7 +330,33 @@ def test_stroke_geometry_gate_is_frozen_before_later_workflow_edits() -> None:
     assert state.changed_only_selected_geometry is True
 
 
-def test_real_pac_move_aims_at_the_visible_face_cluster_not_the_whole_part(
+def test_stroke_geometry_gate_uses_the_full_authoritative_multisubmesh_selection() -> None:
+    from tools.mesh_harness.real_dotnet import _record_stroke_geometry_evidence
+
+    mesh = SimpleNamespace(
+        submeshes=[
+            SimpleNamespace(vertices=[(1.0, 0.0, 0.0), (0.0, 0.0, 0.0)]),
+            SimpleNamespace(vertices=[(2.0, 0.0, 0.0), (0.0, 0.0, 0.0)]),
+        ]
+    )
+    state = SimpleNamespace(
+        controller=SimpleNamespace(working_mesh=lambda clone: mesh),
+        original_vertex_positions=(
+            ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
+            ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
+        ),
+        submesh_index=0,
+        face_vertices=[0],
+        selected_vertex_keys={(0, 0), (1, 0)},
+    )
+
+    _record_stroke_geometry_evidence(state)
+
+    assert state.changed_vertex_keys == {(0, 0), (1, 0)}
+    assert state.changed_only_selected_geometry is True
+
+
+def test_real_pac_move_selects_the_visible_vertex_cluster_not_the_whole_part(
     monkeypatch,
 ) -> None:
     from tools.mesh_harness import real_dotnet
@@ -254,12 +373,37 @@ def test_real_pac_move_aims_at_the_visible_face_cluster_not_the_whole_part(
         faces=[(0, 1, 2), (3, 4, 5)],
     )
     projected_world_points: list[tuple[float, float, float]] = []
+    tool_state_events = iter(
+        (
+            {
+                "local_selection": {
+                    "source_indices": [],
+                    "vertices_by_submesh": {"0": [0, 1, 2, 3, 4, 5]},
+                },
+                "selected_part_index": -1,
+                "parts_list_selected_index": -1,
+            },
+            {
+                "local_selection": {
+                    "source_indices": [],
+                    "vertices_by_submesh": {},
+                },
+                "selected_part_index": -1,
+                "parts_list_selected_index": -1,
+            },
+            {
+                "local_selection": {
+                    "source_indices": [],
+                    "target_mode": "vertex",
+                    "vertices_by_submesh": {"0": [0, 1, 2], "1": [4, 5]},
+                },
+                "selected_part_index": -1,
+                "parts_list_selected_index": -1,
+                "parts_list_selected_indices": [],
+            },
+        )
+    )
     protocol_events = {
-        "tool_state_applied": {
-            "local_selection": {"source_indices": [0]},
-            "selected_part_index": 0,
-            "parts_list_selected_index": 0,
-        },
         "stroke_begin": {
             "screen_drag": {
                 "world_view_projection": [1.0] * 16,
@@ -269,11 +413,13 @@ def test_real_pac_move_aims_at_the_visible_face_cluster_not_the_whole_part(
         },
         "stroke_end": {"event": "stroke_end"},
     }
+    select_calls: list[dict[str, object]] = []
+    physical_points: list[tuple[float, float]] = []
     state = SimpleNamespace(
         submesh=submesh,
         submesh_index=0,
         controller=SimpleNamespace(
-            select=lambda **_kwargs: SimpleNamespace(ok=True),
+            select=lambda **kwargs: select_calls.append(dict(kwargs)) or SimpleNamespace(ok=True),
             working_mesh=lambda *, clone: SimpleNamespace(submeshes=[submesh]),
         ),
         tab=SimpleNamespace(
@@ -296,10 +442,17 @@ def test_real_pac_move_aims_at_the_visible_face_cluster_not_the_whole_part(
     monkeypatch.setattr(
         real_dotnet,
         "_wait_protocol_event",
-        lambda _state, event, _cursor, _timeout: protocol_events[event],
+        lambda _state, event, _cursor, _timeout: (
+            next(tool_state_events) if event == "tool_state_applied" else protocol_events[event]
+        ),
     )
     monkeypatch.setattr(real_dotnet, "_host_window_rect", lambda _hwnd: (0, 0, 100, 100))
     monkeypatch.setattr(real_dotnet, "_projected_face_cluster_for_drag", lambda *_args, **_kwargs: (0,))
+    monkeypatch.setattr(
+        real_dotnet,
+        "_front_facing_vertex_selection_anchor",
+        lambda *_args, **_kwargs: (0, 1, (50.0, 50.0)),
+    )
     monkeypatch.setattr(
         real_dotnet,
         "_project_world_to_screen",
@@ -307,14 +460,108 @@ def test_real_pac_move_aims_at_the_visible_face_cluster_not_the_whole_part(
     )
     monkeypatch.setattr(real_dotnet, "_pump_for", lambda *_args: None)
     monkeypatch.setattr(real_dotnet, "_capture_viewport", lambda *_args: {})
+    monkeypatch.setattr(
+        real_dotnet,
+        "drive_viewport_selection",
+        lambda _state, *, point, **_kwargs: physical_points.append(tuple(point))
+        or {"ok": True, "select_request_count": 2},
+    )
 
     error = real_dotnet._configure_selection_and_projection(state)
 
     assert error is None
-    assert state.face_vertices == [0, 1, 2, 3, 4, 5]
-    assert len(state.before_vertices) == 6
+    assert state.face_vertices == [0, 1, 2]
+    assert state.selected_vertex_keys == {(0, 0), (0, 1), (0, 2), (1, 4), (1, 5)}
+    assert len(state.before_vertices) == 3
     assert state.projected_anchor_faces == (0,)
     assert projected_world_points == [(1.0, 1.0, 0.0)]
+    assert physical_points == [(50.0, 50.0)]
+    assert select_calls == [
+        {"vertices_by_submesh": {0: [0, 1, 2, 3, 4, 5]}, "operation": "replace"},
+        {"operation": "replace"},
+    ]
+    assert state.part_selection_remained_empty is True
+    assert state.viewport_mesh_selection_armed is True
+
+
+def test_physical_selection_anchor_targets_an_exact_front_facing_vertex() -> None:
+    from tools.mesh_harness.real_dotnet import _front_facing_vertex_selection_anchor
+
+    submesh = SimpleNamespace(
+        vertices=[(-0.5, -0.5, 0.0), (0.5, -0.5, 0.0), (0.0, 0.5, 0.0)],
+        faces=[(0, 1, 2)],
+    )
+    anchor = _front_facing_vertex_selection_anchor(
+        submesh,
+        tuple(
+            (
+                1.0, 0.0, 0.0, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 1.0, 0.0,
+                0.0, 0.0, 0.0, 1.0,
+            )
+        ),
+        viewport_width=100.0,
+        viewport_height=100.0,
+    )
+
+    assert anchor == (0, 0, (25.0, 75.0))
+
+
+def test_physical_select_gesture_emits_helper_selection_and_waits_for_authority() -> None:
+    from tools.mesh_harness.real_dotnet_input import drive_viewport_selection
+
+    button = {"down": False}
+    state = SimpleNamespace(
+        viewport={"width": 100, "height": 100, "screen_x": 10, "screen_y": 20},
+        viewport_hwnd=101,
+        production_process_pid=77,
+        form_hwnd=100,
+        tab=SimpleNamespace(
+            standalone_dotnet_protocol_events=[],
+            _standalone_action_worker_active=lambda: False,
+        ),
+    )
+
+    def send_button(*, down: bool) -> bool:
+        was_down = button["down"]
+        button["down"] = down
+        if was_down and not down:
+            state.tab.standalone_dotnet_protocol_events.append(
+                {"event": "select_request", "target_mode": "vertex", "paint_final": True}
+            )
+        return True
+
+    def pump_for(_state, _seconds: float) -> None:
+        if button["down"] and not state.tab.standalone_dotnet_protocol_events:
+            state.tab.standalone_dotnet_protocol_events.append(
+                {"event": "select_request", "target_mode": "vertex", "paint_final": False}
+            )
+
+    with (
+        patch("tools.mesh_harness.real_dotnet_input._host_window_rect", return_value=(10, 20, 110, 120)),
+        patch("tools.mesh_harness.real_dotnet_input._screen_cursor_position", return_value=(5, 6)),
+        patch("tools.mesh_harness.real_dotnet_input._activate_window_for_input", return_value=True),
+        patch("tools.mesh_harness.real_dotnet_input._set_screen_cursor_position", return_value=True),
+        patch("tools.mesh_harness.real_dotnet_input._window_at_screen_point", return_value=101),
+        patch("tools.mesh_harness.real_dotnet_input._window_process_id", return_value=77),
+        patch("tools.mesh_harness.real_dotnet_input._foreground_window_matches", return_value=True),
+        patch("tools.mesh_harness.real_dotnet_input._window_is_same_or_child", return_value=True),
+        patch("tools.mesh_harness.real_dotnet_input._send_left_button_input", side_effect=send_button),
+    ):
+        result = drive_viewport_selection(
+            state,
+            point=(50.0, 50.0),
+            pump_for=pump_for,
+            pump_until=lambda _state, predicate, _timeout: predicate(),
+        )
+
+    assert result["ok"] is True
+    assert result["backend"] == "win32_physical_cursor"
+    assert result["start"] == [50, 50]
+    assert result["end"] == [58, 50]
+    assert result["select_request_count"] == 2
+    assert result["authority_settled"] is True
 
 
 def test_dotnet_real_game_resident_material_gates_require_reuse_and_one_process() -> None:
@@ -409,11 +656,12 @@ def test_dotnet_real_game_sends_material_state_before_selection_and_stroke() -> 
     assert "mesh_dotnet_material_state_payload(" in material_source
     assert 'state.tab._send_dotnet_material_state(reason="real_archive_harness")' in material_source
     assert 'state.tab._send_dotnet_material_state(reason="real_archive_harness_same_revision")' in material_source
-    assert '"part_only_selection": bool(' in evidence_source
+    assert '"viewport_mesh_selection": bool(' in evidence_source
     assert (
-        "state.initial_part_selection_empty and state.part_selection_armed"
+        "state.initial_part_selection_empty\n            and state.part_selection_remained_empty\n            and state.physical_select_gesture.get(\"ok\") is True\n            and state.viewport_mesh_selection_armed"
         in evidence_source
     )
+    assert "drive_viewport_selection(" in source
     run = source[source.index("def run_real_archive_mesh_editor_dotnet_edit_smoke(") :]
     offscreen_capture = run.index("exercise_deterministic_offscreen_capture(")
     state_update = run.index("exercise_resident_material_update(")

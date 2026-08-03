@@ -259,15 +259,6 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
             font-size: {ui_font_size}px;
             min-height: {button_min_height}px;
         }}
-        QDialog#MeshReplacementAlignmentDialog QFrame#SelectionContextFrame {{
-            background: #111820;
-            border: 1px solid #30363d;
-            border-radius: 4px;
-        }}
-        QDialog#MeshReplacementAlignmentDialog QLabel#SelectionContextLabel {{
-            color: #c9d1d9;
-            font-size: {hint_font_size}px;
-        }}
         QDialog#MeshReplacementAlignmentDialog QPushButton#InlineHelpButton {{
             color: #79c0ff;
             font-weight: 700;

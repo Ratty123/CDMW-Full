@@ -95,7 +95,7 @@ class ArchiveReferencePreviewUiSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_preview_info_edit.set_theme(self.current_theme_key)", source)
         self.assertIn("current_widget is self.archive_preview_info_edit", source)
 
-    def test_model_preview_panes_show_navigation_controls_hint(self) -> None:
+    def test_model_preview_panes_do_not_duplicate_resident_navigation_hint(self) -> None:
         source = "\n".join(
             (
                 APP_WINDOW.read_text(encoding="utf-8"),
@@ -105,14 +105,10 @@ class ArchiveReferencePreviewUiSourceGuards(unittest.TestCase):
             )
         )
 
-        self.assertIn("self.archive_preview_controls_hint_label = QLabel", source)
-        self.assertIn("preview_controls_hint_label = QLabel", source)
-        self.assertIn("left-drag orbit | middle/right-drag pan", source)
-        self.assertIn("These controls move the preview camera/view only", source)
-        self.assertIn("self.archive_preview_controls_hint_label.setVisible(", source)
-        self.assertIn("current_widget is self.archive_model_preview", source)
-        self.assertIn("current_widget is self.archive_d3d11_preview_host", source)
-        self.assertIn("preview_controls_hint_label.setVisible(current_widget is preview_model or current_widget is preview_d3d11_host)", source)
+        self.assertNotIn("archive_preview_controls_hint_label", source)
+        self.assertNotIn("preview_controls_hint_label", source)
+        self.assertNotIn("left-drag orbit | middle/right-drag pan", source)
+        self.assertNotIn("These controls move the preview camera/view only", source)
 
     def test_referenced_pac_preview_uses_canonical_dotnet_package(self) -> None:
         source = ARCHIVE_REFERENCE_PREVIEW.read_text(encoding="utf-8")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -196,6 +197,99 @@ def test_morph_protocol_routes_local_selection_and_authoring_parameters() -> Non
         )
     finally:
         tab._start_dotnet_action_worker = original_start  # type: ignore[method-assign]
+        tab.deleteLater()
+        _APP.processEvents()
+
+
+def test_morph_author_result_can_immediately_handoff_to_correlated_slider_change() -> None:
+    tab, builder = _embedded_tab("MeshMorphRefitImmediateCommandHandoff")
+    tab.standalone_dotnet_process_generation = 5
+    tab.standalone_dotnet_capabilities = {"resident_mutation_envelope_v2"}
+    sent: list[dict[str, object]] = []
+    second_started: list[bool] = []
+    original_send = tab._send_dotnet_protocol_message
+
+    def request(request_id: int, command: str, **payload: object) -> dict[str, object]:
+        return {
+            "event": "command_request",
+            "command": command,
+            "session_id": builder.controller.active_session_id,
+            "request_id": request_id,
+            "base_revision": builder.controller.session_view().revision,
+            "process_generation": 5,
+            "protocol_version": 2,
+            **payload,
+        }
+
+    def capture(payload: object) -> bool:
+        assert isinstance(payload, dict)
+        message = dict(payload)
+        sent.append(message)
+        if (
+            message.get("event") == "command_result"
+            and message.get("request_id") == 1
+            and not second_started
+        ):
+            second_started.append(
+                tab._handle_dotnet_protocol_event(
+                    request(
+                        2,
+                        "morph_change",
+                        definition_id="volume",
+                        value=0.0,
+                        phase="end",
+                        change_id="author-save-handoff",
+                    )
+                )
+            )
+        return True
+
+    try:
+        tab._send_dotnet_protocol_message = capture  # type: ignore[method-assign]
+        assert tab._handle_dotnet_protocol_event(
+            request(
+                1,
+                "morph_author_definition",
+                local_selection={"vertices_by_submesh": {"0": [0]}},
+                profile_id="handoff-profile",
+                profile_name="Handoff Profile",
+                definition_id="volume",
+                label="Volume",
+                category="General",
+                rule="volume",
+                axis="y",
+                amount=0.1,
+                feather=2,
+                falloff="smooth",
+                mirror_mode="off",
+                min_percent=-100.0,
+                max_percent=100.0,
+                default_percent=0.0,
+                preserve_selection=False,
+            )
+        )
+        deadline = time.monotonic() + 4.0
+        while time.monotonic() < deadline and not any(
+            message.get("event") == "command_result" and message.get("request_id") == 2
+            for message in sent
+        ):
+            _APP.processEvents()
+            time.sleep(0.005)
+
+        assert second_started == [True]
+        second_results = [
+            message
+            for message in sent
+            if message.get("event") == "command_result" and message.get("request_id") == 2
+        ]
+        assert len(second_results) == 1, sent
+        assert second_results[0]["status"] != "busy"
+    finally:
+        tab._send_dotnet_protocol_message = original_send  # type: ignore[method-assign]
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline and tab._standalone_action_worker_active():
+            _APP.processEvents()
+            time.sleep(0.005)
         tab.deleteLater()
         _APP.processEvents()
 

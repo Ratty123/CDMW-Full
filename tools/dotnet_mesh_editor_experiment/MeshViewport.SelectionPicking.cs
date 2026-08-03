@@ -207,11 +207,9 @@ internal sealed partial class MeshViewport
         public required int GridColumns { get; init; }
         public required int GridRows { get; init; }
         public Dictionary<int, PointF[]> Points { get; } = new();
-        public Dictionary<int, bool[]> FrontFacingFaces { get; } = new();
+        public Dictionary<int, bool[]> FrontFacingVertices { get; } = new();
         public Dictionary<int, RectangleF> PartBounds { get; } = new();
-        public Dictionary<int, int[][]> FaceBuckets { get; } = new();
-        public Dictionary<int, int[]> FaceVisitMarks { get; } = new();
-        public Dictionary<int, int> FaceVisitGenerations { get; } = new();
+        public Dictionary<int, int[][]> VertexBuckets { get; } = new();
     }
 
     private const int PaintProjectionCellPixels = 32;
@@ -248,11 +246,22 @@ internal sealed partial class MeshViewport
             }
             var submesh = _document.Submeshes[submeshIndex];
             var points = new PointF[submesh.Vertices.Count];
+            var pendingVertexBuckets = new List<int>?[cache.GridColumns * cache.GridRows];
             for (var vertexIndex = 0; vertexIndex < points.Length; vertexIndex++)
             {
                 points[vertexIndex] = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
+                var column = (int)MathF.Floor(points[vertexIndex].X / PaintProjectionCellPixels);
+                var row = (int)MathF.Floor(points[vertexIndex].Y / PaintProjectionCellPixels);
+                if (column >= 0 && column < cache.GridColumns && row >= 0 && row < cache.GridRows)
+                {
+                    var bucketIndex = row * cache.GridColumns + column;
+                    (pendingVertexBuckets[bucketIndex] ??= new List<int>()).Add(vertexIndex);
+                }
             }
             cache.Points[submeshIndex] = points;
+            cache.VertexBuckets[submeshIndex] = pendingVertexBuckets
+                .Select(bucket => bucket?.ToArray() ?? Array.Empty<int>())
+                .ToArray();
             if (points.Length > 0)
             {
                 var minX = points.Min(point => point.X);
@@ -261,8 +270,7 @@ internal sealed partial class MeshViewport
                 var maxY = points.Max(point => point.Y);
                 cache.PartBounds[submeshIndex] = RectangleF.FromLTRB(minX, minY, maxX, maxY);
             }
-            var frontFacing = new bool[submesh.Faces.Count];
-            var pendingBuckets = new List<int>?[cache.GridColumns * cache.GridRows];
+            var frontFacing = new bool[submesh.Vertices.Count];
             for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
             {
                 var face = submesh.Faces[faceIndex];
@@ -279,49 +287,24 @@ internal sealed partial class MeshViewport
                 }
                 var area = ((points[b].X - points[a].X) * (points[c].Y - points[a].Y))
                     - ((points[b].Y - points[a].Y) * (points[c].X - points[a].X));
-                frontFacing[faceIndex] = area < -0.01f;
-                var faceLeft = Math.Min(points[a].X, Math.Min(points[b].X, points[c].X));
-                var faceRight = Math.Max(points[a].X, Math.Max(points[b].X, points[c].X));
-                var faceTop = Math.Min(points[a].Y, Math.Min(points[b].Y, points[c].Y));
-                var faceBottom = Math.Max(points[a].Y, Math.Max(points[b].Y, points[c].Y));
-                if (faceRight < 0.0f || faceBottom < 0.0f || faceLeft >= viewport.Width || faceTop >= viewport.Height)
+                if (area < -0.01f)
                 {
-                    continue;
-                }
-                var left = Math.Clamp((int)MathF.Floor(faceLeft / PaintProjectionCellPixels), 0, cache.GridColumns - 1);
-                var right = Math.Clamp((int)MathF.Floor(faceRight / PaintProjectionCellPixels), 0, cache.GridColumns - 1);
-                var top = Math.Clamp((int)MathF.Floor(faceTop / PaintProjectionCellPixels), 0, cache.GridRows - 1);
-                var bottom = Math.Clamp((int)MathF.Floor(faceBottom / PaintProjectionCellPixels), 0, cache.GridRows - 1);
-                for (var row = top; row <= bottom; row++)
-                {
-                    for (var column = left; column <= right; column++)
-                    {
-                        var bucketIndex = row * cache.GridColumns + column;
-                        (pendingBuckets[bucketIndex] ??= new List<int>()).Add(faceIndex);
-                    }
+                    frontFacing[a] = true;
+                    frontFacing[b] = true;
+                    frontFacing[c] = true;
                 }
             }
-            cache.FrontFacingFaces[submeshIndex] = frontFacing;
-            var buckets = new int[pendingBuckets.Length][];
-            for (var bucketIndex = 0; bucketIndex < buckets.Length; bucketIndex++)
-            {
-                buckets[bucketIndex] = pendingBuckets[bucketIndex]?.ToArray() ?? Array.Empty<int>();
-            }
-            cache.FaceBuckets[submeshIndex] = buckets;
-            cache.FaceVisitMarks[submeshIndex] = new int[submesh.Faces.Count];
-            cache.FaceVisitGenerations[submeshIndex] = 0;
+            cache.FrontFacingVertices[submeshIndex] = frontFacing;
         }
         _paintProjection = cache;
         return cache;
     }
 
     /// <summary>
-    /// Instant local echo of one paint dab or sweep: every part whose visible
-    /// triangles intersect the swept band is tinted immediately, then replaced when the
-    /// authoritative native result lands one round trip later. Projection,
-    /// face orientation, and broad part bounds are immutable for the drag and
-    /// built once, so dense meshes never lose their realtime echo merely
-    /// because they cross an arbitrary vertex threshold.
+    /// Instant local echo of one paint dab or sweep. Edit Mesh paints vertices;
+    /// whole-part selection is reserved for the explicit PARTS list. Projection,
+    /// visibility and spatial buckets are immutable for the drag, so dense
+    /// meshes do not turn each pointer sample into a whole-mesh scan.
     /// </summary>
     private void UpdateProvisionalPaintHits(Point start, Point end, double radius, string operation)
     {
@@ -340,87 +323,62 @@ internal sealed partial class MeshViewport
             {
                 continue;
             }
-            var submesh = _document.Submeshes[submeshIndex];
-            var frontFacingFaces = cache.FrontFacingFaces[submeshIndex];
-            var faceBuckets = cache.FaceBuckets[submeshIndex];
-            var visitMarks = cache.FaceVisitMarks[submeshIndex];
-            var visitGeneration = cache.FaceVisitGenerations[submeshIndex] == int.MaxValue
-                ? 1
-                : cache.FaceVisitGenerations[submeshIndex] + 1;
-            cache.FaceVisitGenerations[submeshIndex] = visitGeneration;
-            if (visitGeneration == 1)
+            var frontFacing = cache.FrontFacingVertices[submeshIndex];
+            var vertexBuckets = cache.VertexBuckets[submeshIndex];
+            if (!_provisionalSelectedVertices.TryGetValue(submeshIndex, out var selected))
             {
-                Array.Clear(visitMarks);
+                selected = new HashSet<int>();
+                if (operation != "subtract")
+                {
+                    _provisionalSelectedVertices[submeshIndex] = selected;
+                }
             }
-            var hit = false;
             var left = Math.Clamp((int)MathF.Floor(bandBounds.Left / PaintProjectionCellPixels), 0, cache.GridColumns - 1);
             var right = Math.Clamp((int)MathF.Floor(bandBounds.Right / PaintProjectionCellPixels), 0, cache.GridColumns - 1);
             var top = Math.Clamp((int)MathF.Floor(bandBounds.Top / PaintProjectionCellPixels), 0, cache.GridRows - 1);
             var bottom = Math.Clamp((int)MathF.Floor(bandBounds.Bottom / PaintProjectionCellPixels), 0, cache.GridRows - 1);
-            for (var row = top; row <= bottom && !hit; row++)
+            for (var row = top; row <= bottom; row++)
             {
-                for (var column = left; column <= right && !hit; column++)
+                for (var column = left; column <= right; column++)
                 {
-                    foreach (var faceIndex in faceBuckets[row * cache.GridColumns + column])
+                    foreach (var vertexIndex in vertexBuckets[row * cache.GridColumns + column])
                     {
-                        if (visitMarks[faceIndex] == visitGeneration)
+                        if (!ShowXRay && !frontFacing[vertexIndex])
                         {
                             continue;
                         }
-                        visitMarks[faceIndex] = visitGeneration;
-                        var face = submesh.Faces[faceIndex];
-                        if (face.Corners.Length != 3)
+                        if (DistanceToSegment(points[vertexIndex], start, end) > radius)
                         {
                             continue;
                         }
-                        var aIndex = face.Corners[0].VertexIndex;
-                        var bIndex = face.Corners[1].VertexIndex;
-                        var cIndex = face.Corners[2].VertexIndex;
-                        if (aIndex < 0 || bIndex < 0 || cIndex < 0
-                            || aIndex >= points.Length || bIndex >= points.Length || cIndex >= points.Length)
+                        if (operation == "subtract")
                         {
-                            continue;
+                            selected.Remove(vertexIndex);
                         }
-                        var a = points[aIndex];
-                        var b = points[bIndex];
-                        var c = points[cIndex];
-                        if (!ShowXRay && !frontFacingFaces[faceIndex])
+                        else if (operation == "toggle")
                         {
-                            continue;
+                            if (!_selectionPaintToggleTouchedVertices.Add((submeshIndex, vertexIndex)))
+                            {
+                                continue;
+                            }
+                            if (!selected.Remove(vertexIndex))
+                            {
+                                selected.Add(vertexIndex);
+                            }
                         }
-                        if (SweptBandIntersectsTriangle(start, end, radius, a, b, c))
+                        else
                         {
-                            hit = true;
-                            break;
+                            selected.Add(vertexIndex);
                         }
                     }
                 }
             }
-            if (!hit)
+            if (selected.Count == 0)
             {
-                continue;
-            }
-            if (operation == "subtract")
-            {
-                _provisionalSelectedSources.Remove(submeshIndex);
-            }
-            else if (operation == "toggle")
-            {
-                if (!_selectionPaintToggleTouchedSources.Add(submeshIndex))
-                {
-                    continue;
-                }
-                if (!_provisionalSelectedSources.Remove(submeshIndex))
-                {
-                    _provisionalSelectedSources.Add(submeshIndex);
-                }
-            }
-            else
-            {
-                _provisionalSelectedSources.Add(submeshIndex);
+                _provisionalSelectedVertices.Remove(submeshIndex);
             }
         }
-        _provisionalPartSelectionActive = true;
+        _provisionalPartSelectionActive = false;
         UpdateGpuViewport();
         Invalidate();
     }
@@ -966,16 +924,15 @@ internal sealed partial class MeshViewport
     }
 
     /// <summary>
-    /// Parts are the only selectable element, so "source" is the fallback here
-    /// as well as the combo's only value: a provider that is not attached yet
-    /// must not answer with a target the surface no longer offers.
+    /// Edit Mesh viewport selection paints vertices. Whole-part selection is a
+    /// separate explicit action from the PARTS list.
     /// </summary>
     internal string CurrentTargetMode()
     {
         var options = ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>();
         return options.TryGetValue("target_mode", out var value)
-            ? (value?.ToString() ?? "source").Trim().ToLowerInvariant()
-            : "source";
+            ? (value?.ToString() ?? "vertex").Trim().ToLowerInvariant()
+            : "vertex";
     }
 
     private string CurrentSelectionOperation()

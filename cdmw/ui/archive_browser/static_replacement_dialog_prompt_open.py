@@ -13,6 +13,7 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     self = context["self"]
     dialog = context["dialog"]
     root_layout = context["root_layout"]
+    controls_layout = context["layout"]
     embedded_alignment_builder = context["embedded_alignment_builder"]
     continue_build_callback = context.get("continue_build_callback")
     replacement_export_allowed = context["replacement_export_allowed"]
@@ -63,7 +64,7 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     _queue_alignment_post_open_task(_refresh_mesh_editor_diagnostics)
 
     build_footer = _make_alignment_build_footer_helper(
-        root_layout,
+        controls_layout,
         continue_build=callable(continue_build_callback),
         export_allowed=bool(replacement_export_allowed["allowed"]),
         export_block_reason=str(replacement_export_allowed["reason"] or ""),

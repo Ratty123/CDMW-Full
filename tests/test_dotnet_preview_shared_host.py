@@ -956,6 +956,49 @@ def test_same_package_identity_is_an_idempotent_resident_activation(tmp_path: Pa
     controller.shutdown()
 
 
+def test_stale_activation_is_not_forwarded_before_controller_validation(tmp_path: Path) -> None:
+    controller, process, _package = _start_controller(tmp_path)
+    forwarded: list[dict[str, object]] = []
+    controller.protocol_event.connect(lambda payload: forwarded.append(dict(payload)))
+    _make_ready(controller)
+    activation = next(
+        payload
+        for payload in reversed(process.writes)
+        if payload.get("event") == "activate_request"
+    )
+    pending = dict(controller._pending_activation)  # noqa: SLF001
+    forwarded.clear()
+
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "activated",
+            "activation_request_id": int(activation["activation_request_id"]) + 1,
+            "process_generation": activation["process_generation"],
+            "package_generation": activation["package_generation"],
+        },
+        controller.process_generation,
+    )
+
+    assert not any(payload.get("event") == "activated" for payload in forwarded)
+    assert controller._pending_activation == pending  # noqa: SLF001
+    assert not controller._active  # noqa: SLF001
+
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "activated",
+            "activation_request_id": activation["activation_request_id"],
+            "process_generation": activation["process_generation"],
+            "package_generation": activation["package_generation"],
+        },
+        controller.process_generation,
+    )
+
+    assert [payload.get("event") for payload in forwarded] == ["activated"]
+    assert controller._pending_activation is None  # noqa: SLF001
+    assert controller._active  # noqa: SLF001
+    controller.shutdown()
+
+
 def test_twenty_hide_show_cycles_reactivate_the_same_resident_process_and_state(
     tmp_path: Path,
 ) -> None:
@@ -1153,6 +1196,99 @@ def test_authoring_host_normalizes_legacy_selection_tool() -> None:
     assert event == "tool_state"
     assert payload["tool"] == "select"
     assert payload["enabled"] is False
+    controller.shutdown()
+    host.deleteLater()
+
+
+def test_authoring_host_does_not_duplicate_tab_owned_protocol_requests() -> None:
+    controller = _own(DotNetPreviewSessionController(
+        host_hwnd=lambda: 1,
+        profile=DotNetPreviewProfile.AUTHORING,
+        terminate_on_close=True,
+        process_factory=lambda parent: _FakeProcess(parent),
+    ))
+    host = DotNetPreviewHostFrame(
+        profile=DotNetPreviewProfile.AUTHORING,
+        controller=controller,
+    )
+    renderer_events: list[dict[str, object]] = []
+    tool_events: list[dict[str, object]] = []
+    stroke_events: list[dict[str, object]] = []
+    host.renderer_event_received.connect(renderer_events.append)
+    host.mesh_edit_tool_changed.connect(tool_events.append)
+    host.mesh_edit_stroke_previewed.connect(stroke_events.append)
+    setattr(controller, "_mesh_editor_shared_dotnet_wired_to", 1)
+
+    host._handle_protocol_event({"event": "tool_changed", "tool": "smooth"})  # noqa: SLF001
+    host._handle_protocol_event({"event": "stroke_update", "stroke_id": "stroke-1"})  # noqa: SLF001
+
+    assert [event["event"] for event in renderer_events] == [
+        "tool_changed",
+        "stroke_update",
+    ]
+    assert tool_events == []
+    assert stroke_events == []
+
+    delattr(controller, "_mesh_editor_shared_dotnet_wired_to")
+    host._handle_protocol_event({"event": "tool_changed", "tool": "grab"})  # noqa: SLF001
+    assert [event["tool"] for event in tool_events] == ["grab"]
+    controller.shutdown()
+    host.deleteLater()
+
+
+def test_authoring_host_cannot_replay_a_second_presentation_owner() -> None:
+    controller = _own(DotNetPreviewSessionController(
+        host_hwnd=lambda: 1,
+        profile=DotNetPreviewProfile.AUTHORING,
+        terminate_on_close=True,
+        process_factory=lambda parent: _FakeProcess(parent),
+    ))
+    host = DotNetPreviewHostFrame(
+        profile=DotNetPreviewProfile.AUTHORING,
+        controller=controller,
+    )
+    assert host._remember_presentation_state()  # noqa: SLF001
+    stale_host_state = controller._resident_state["presentation"]  # noqa: SLF001
+    setattr(controller, "_mesh_editor_shared_dotnet_wired_to", 1)
+    forwarded: list[dict[str, object]] = []
+    setattr(
+        controller,
+        "_mesh_editor_shared_dotnet_presentation_sender",
+        lambda state: forwarded.append(dict(state)) or True,
+    )
+
+    assert host.set_viewport_display_mode("textured")
+    assert host.set_alignment_state(
+        enabled=True,
+        source_submesh_indices=(0,),
+    )
+    host._scene_state = {"scene_generation": 1}  # noqa: SLF001
+    assert host.set_alignment_preview_transforms(
+        part_transforms=(
+            {
+                "source_submesh_indices": (0,),
+                "translation": (1.0, 2.0, 3.0),
+            },
+        )
+    )
+    assert controller._resident_state["presentation"] == stale_host_state  # noqa: SLF001
+    assert forwarded[0] == {"display": {"mode": "textured"}}
+    assert forwarded[1] == {"highlights": {"source_indices": [0], "original_indices": []}}
+    assert forwarded[2] == {"display": {"gizmo_visible": True}}
+    assert forwarded[3] == {
+        "part_transforms": {
+            "0": {
+                "translation": (1.0, 2.0, 3.0),
+                "rotation_degrees": (0.0, 0.0, 0.0),
+                "scale": (1.0, 1.0, 1.0),
+            }
+        }
+    }
+    assert all(
+        "grid_visible" not in dict(state.get("display", {}))
+        for state in forwarded
+    )
+
     controller.shutdown()
     host.deleteLater()
 

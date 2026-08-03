@@ -21,6 +21,13 @@ from cdmw.ui.archive_browser.static_replacement_dialog_prompt_shell import (
 )
 from cdmw.ui.mesh_editor import MeshEditorTab
 from cdmw.ui.mesh_editor.controller import MeshEditorController, MeshEditorNativeUpdate
+from cdmw.ui.mesh_editor.dotnet_update_queue import (
+    MESH_EDIT_REVISION_CAPABILITY,
+    MESH_MUTATION_ENVELOPE_CAPABILITY,
+    DotNetRevisionUpdateQueue,
+)
+from cdmw.ui.mesh_editor.tab_dotnet_process import MeshEditorDotNetProcessMixin
+from cdmw.ui.mesh_editor.tab_shell import MeshEditorTabShellMixin
 from cdmw.ui.mesh_editor.static_replacement_adapter import StaticReplacementMeshEditSession
 from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
 from tests.test_mesh_editor_action_bar import (
@@ -35,6 +42,204 @@ _APP = QApplication.instance() or QApplication([])
 
 
 class MeshResidentEditorRegressionTests(unittest.TestCase):
+    def test_shared_process_generation_recontexts_resident_update_queue(self) -> None:
+        sent: list[dict[str, object]] = []
+        queue = DotNetRevisionUpdateQueue(
+            lambda payload: not sent.append(dict(payload))
+        )
+        queue.set_context(session_id="mesh-session", process_generation=1)
+        queue.observe_capabilities(
+            {
+                "capabilities": [
+                    MESH_EDIT_REVISION_CAPABILITY,
+                    MESH_MUTATION_ENVELOPE_CAPABILITY,
+                ]
+            }
+        )
+        self.assertTrue(
+            queue.enqueue(1, ({"event": "preview_vertex_update"},))
+        )
+        self.assertEqual(1, queue.metrics()["active_revision"])
+
+        harness = SimpleNamespace(
+            standalone_dotnet_editor_process=None,
+            standalone_dotnet_process_generation=1,
+            standalone_dotnet_lifecycle_session_id="mesh-session",
+            standalone_dotnet_update_queue=queue,
+            standalone_dotnet_lifecycle_counts={
+                "renderer_process_start_count": 1,
+                "process_restart_count": 0,
+            },
+            _record_mesh_dotnet_event=lambda *args, **kwargs: None,
+            _dotnet_process_event_payload=lambda process: {},
+        )
+        process = object()
+        controller = SimpleNamespace(
+            process=process,
+            process_generation=2,
+            capabilities=(
+                MESH_EDIT_REVISION_CAPABILITY,
+                MESH_MUTATION_ENVELOPE_CAPABILITY,
+            ),
+        )
+
+        MeshEditorTabShellMixin._sync_shared_dotnet_process_identity(
+            harness,
+            controller,
+        )
+
+        self.assertIs(process, harness.standalone_dotnet_editor_process)
+        self.assertEqual(2, harness.standalone_dotnet_process_generation)
+        self.assertEqual(0, queue.metrics()["active_revision"])
+        self.assertTrue(queue.metrics()["revision_ack_capable"])
+        self.assertTrue(queue.metrics()["correlated_ack_capable"])
+        self.assertTrue(
+            queue.enqueue(2, ({"event": "preview_vertex_update"},))
+        )
+        self.assertEqual(2, sent[-1]["process_generation"])
+
+    def test_same_process_session_handoff_keeps_revision_pacing_capable(self) -> None:
+        sent: list[dict[str, object]] = []
+        queue = DotNetRevisionUpdateQueue(
+            lambda payload: not sent.append(dict(payload))
+        )
+        queue.set_context(session_id="prewarm-session", process_generation=2)
+        queue.observe_capabilities(
+            {
+                "capabilities": [
+                    MESH_EDIT_REVISION_CAPABILITY,
+                    MESH_MUTATION_ENVELOPE_CAPABILITY,
+                ]
+            }
+        )
+        process = object()
+        harness = SimpleNamespace(
+            standalone_dotnet_editor_process=process,
+            standalone_dotnet_process_generation=2,
+            standalone_dotnet_lifecycle_session_id="mesh-session",
+            standalone_dotnet_update_queue=queue,
+            standalone_dotnet_lifecycle_counts={
+                "renderer_process_start_count": 1,
+                "process_restart_count": 0,
+            },
+            _record_mesh_dotnet_event=lambda *args, **kwargs: None,
+            _dotnet_process_event_payload=lambda current: {},
+        )
+        controller = SimpleNamespace(
+            process=process,
+            process_generation=2,
+            capabilities=(
+                MESH_EDIT_REVISION_CAPABILITY,
+                MESH_MUTATION_ENVELOPE_CAPABILITY,
+            ),
+        )
+
+        MeshEditorTabShellMixin._sync_shared_dotnet_process_identity(
+            harness,
+            controller,
+        )
+
+        self.assertTrue(queue.metrics()["revision_ack_capable"])
+        self.assertTrue(queue.metrics()["correlated_ack_capable"])
+        self.assertTrue(
+            queue.enqueue(1, ({"event": "preview_vertex_update"},))
+        )
+        self.assertEqual("mesh-session", sent[-1]["session_id"])
+        self.assertEqual(1, queue.metrics()["active_revision"])
+
+    def test_protocol_routes_applied_resync_ack_back_to_update_queue(self) -> None:
+        tab = MeshEditorTab(
+            settings=QSettings("CDMWTests", "MeshEditorResyncAckRouting")
+        )
+        sent: list[dict[str, object]] = []
+        queue = DotNetRevisionUpdateQueue(
+            lambda payload: not sent.append(dict(payload)),
+            resync_packets=lambda: (
+                {"event": "resident_state_resync", "snapshot": "authoritative"},
+            ),
+        )
+        queue.set_context(session_id="mesh-session", process_generation=2)
+        queue.observe_capabilities(
+            {
+                "capabilities": [
+                    MESH_EDIT_REVISION_CAPABILITY,
+                    MESH_MUTATION_ENVELOPE_CAPABILITY,
+                ]
+            }
+        )
+        tab.standalone_dotnet_update_queue = queue
+        try:
+            self.assertTrue(
+                queue.enqueue(5, ({"event": "preview_vertex_update"},))
+            )
+            rejected = {
+                "event": "preview_vertex_update_ack",
+                "session_id": sent[-1]["session_id"],
+                "request_id": sent[-1]["request_id"],
+                "process_generation": sent[-1]["process_generation"],
+                "edit_revision": sent[-1]["edit_revision"],
+                "status": "rejected",
+                "capabilities": [
+                    MESH_EDIT_REVISION_CAPABILITY,
+                    MESH_MUTATION_ENVELOPE_CAPABILITY,
+                ],
+            }
+            self.assertTrue(tab._handle_dotnet_protocol_event(rejected))
+            self.assertEqual("resident_state_resync", sent[-1]["event"])
+            self.assertTrue(queue.metrics()["resync_active"])
+
+            applied = {
+                **rejected,
+                "event": "resident_state_resync_ack",
+                "session_id": sent[-1]["session_id"],
+                "request_id": sent[-1]["request_id"],
+                "process_generation": sent[-1]["process_generation"],
+                "edit_revision": sent[-1]["edit_revision"],
+                "status": "applied",
+            }
+            self.assertTrue(tab._handle_dotnet_protocol_event(applied))
+            self.assertFalse(queue.metrics()["resync_active"])
+            self.assertFalse(queue.metrics()["recovery_failed"])
+
+            self.assertTrue(
+                queue.enqueue(6, ({"event": "preview_vertex_update"},))
+            )
+            self.assertEqual(6, sent[-1]["edit_revision"])
+            self.assertTrue(
+                tab._handle_dotnet_protocol_event(
+                    {
+                        **applied,
+                        "event": "preview_vertex_update_ack",
+                        "session_id": sent[-1]["session_id"],
+                        "request_id": sent[-1]["request_id"],
+                        "process_generation": sent[-1]["process_generation"],
+                        "edit_revision": sent[-1]["edit_revision"],
+                    }
+                )
+            )
+            self.assertEqual(6, queue.metrics()["last_acked_revision"])
+        finally:
+            tab.standalone_dotnet_update_ack_timer.stop()
+            tab.deleteLater()
+
+    def test_completed_dotnet_worker_handoff_accepts_the_next_correlated_command(self) -> None:
+        class _Harness(MeshEditorDotNetProcessMixin):
+            pass
+
+        harness = _Harness()
+        harness.standalone_action_thread = object()
+        harness.standalone_action_worker = object()
+        harness.standalone_action_request_id = 7
+        harness.standalone_action_finished_request_id = 6
+        harness.standalone_action_dotnet_command = "morph_author_definition"
+        self.assertTrue(harness._standalone_action_worker_active())
+
+        harness.standalone_action_finished_request_id = 7
+        self.assertFalse(harness._standalone_action_worker_active())
+
+        harness.standalone_action_dotnet_command = ""
+        self.assertTrue(harness._standalone_action_worker_active())
+
     def test_embedded_builder_escape_does_not_close_the_workflow(self) -> None:
         host = QFrame()
         host.show()
@@ -170,13 +375,13 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         _install_shared_dotnet_test_process(tab, process, generation=9)
         tab._set_embedded_dotnet_state("ready", active=True)
         session_id = builder.controller.active_session_id
-        tab.standalone_dotnet_lifecycle_session_id = session_id
+        # The renderer request is already correlated to the controller and is
+        # fresher than a lifecycle cache that can lag during reactivation.
+        tab.standalone_dotnet_lifecycle_session_id = "stale-host-session"
         tab.standalone_dotnet_scene_frame = None
         tab.standalone_dotnet_scene_candidate = None
         tab.standalone_dotnet_scene_thread = object()  # exact captured state: frame worker still active
-        tab.standalone_dotnet_experiment_package = SimpleNamespace(
-            scene_frame=SimpleNamespace(source_identity="resident-finish-source")
-        )
+        tab.standalone_dotnet_experiment_package = SimpleNamespace(scene_frame=None)
         request = {
             "event": "save_request",
             "session_id": session_id,
@@ -184,6 +389,7 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
             "base_revision": builder.controller.session_view().revision,
             "process_generation": 9,
             "protocol_version": 2,
+            "source_identity": "resident-finish-source",
         }
 
         self.assertTrue(tab._handle_dotnet_protocol_event(request))
@@ -191,6 +397,7 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         scene_transition = next(
             message for message in messages if message.get("event") == "scene_state_update"
         )
+        self.assertEqual(session_id, scene_transition["session_id"])
         self.assertEqual("placement", scene_transition["interaction_mode"])
         self.assertEqual("original_only", scene_transition["comparison_mode"])
         self.assertNotIn("roles", scene_transition)
@@ -220,6 +427,19 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         self.assertIsNone(tab.standalone_dotnet_finish_scene_pending)
         tab.standalone_dotnet_scene_thread = None
         tab.standalone_dotnet_editor_process = None
+        tab.deleteLater()
+        _APP.processEvents()
+
+    def test_embedded_finish_cannot_report_saved_without_builder_shell_finalizer(self) -> None:
+        settings = QSettings("CDMWTests", "MeshEditorResidentFinishMissingFinalizer")
+        settings.clear()
+        tab = MeshEditorTab(settings=settings)
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        builder._mesh_editor_embedded_finalize_dotnet_import = None  # type: ignore[method-assign]
+
+        self.assertFalse(tab._finalize_embedded_dotnet_import("dotnet_finish_edit"))
+
         tab.deleteLater()
         _APP.processEvents()
 
@@ -510,7 +730,7 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         _APP.processEvents()
         tab.deleteLater()
 
-    def test_dotnet_commands_keep_explicit_empty_selection_instead_of_reusing_resident_selection(self) -> None:
+    def test_dotnet_move_rejects_explicit_empty_selection_instead_of_reusing_resident_parts(self) -> None:
         settings = QSettings("CDMWTests", "MeshEditorDotNetExplicitEmptySelection")
         settings.clear()
         tab = MeshEditorTab(settings=settings)
@@ -519,13 +739,21 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         tab.standalone_dotnet_target_controller = builder.controller
         builder.controller.select(source_indices=(0,), operation="replace")
         captured: list[MeshEditCommand] = []
+        results: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
-        with patch.object(
-            tab,
-            "_start_dotnet_action_worker",
-            side_effect=lambda _controller, command, **_kwargs: captured.append(command) or True,
+        with (
+            patch.object(
+                tab,
+                "_start_dotnet_action_worker",
+                side_effect=lambda _controller, command, **_kwargs: captured.append(command) or True,
+            ),
+            patch.object(
+                tab,
+                "_send_dotnet_command_result",
+                side_effect=lambda *args, **kwargs: results.append((args, kwargs)),
+            ),
         ):
-            self.assertTrue(
+            self.assertFalse(
                 tab._handle_dotnet_command_request(
                     {
                         "event": "command_request",
@@ -536,11 +764,11 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
                 )
             )
 
-        self.assertEqual(1, len(captured))
-        self.assertEqual("transform", captured[0].action)
-        self.assertIsNotNone(captured[0].selection)
-        assert captured[0].selection is not None
-        self.assertTrue(captured[0].selection.is_empty())
+        self.assertEqual([], captured)
+        self.assertEqual(1, len(results))
+        self.assertEqual("transform_move", results[0][0][0])
+        self.assertEqual("no_selection", results[0][1]["status"])
+        self.assertIn("Select mesh vertices", results[0][1]["diagnostics"][0])
         self.assertEqual((0,), builder.controller.session_view().selection.source_indices)
         _APP.processEvents()
         tab.deleteLater()
@@ -619,7 +847,7 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         _APP.processEvents()
         tab.deleteLater()
 
-    def test_dotnet_select_all_ignores_empty_local_snapshot_and_targets_every_part(self) -> None:
+    def test_dotnet_select_all_ignores_empty_local_snapshot_and_targets_every_vertex(self) -> None:
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetSelectAll"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
@@ -644,9 +872,9 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
 
         self.assertEqual(1, len(captured))
         self.assertEqual("all", captured[0].params["operation"])
-        self.assertEqual("source", captured[0].params["target_mode"])
+        self.assertEqual("vertex", captured[0].params["target_mode"])
         assert captured[0].selection is not None
-        self.assertEqual((0, 1), captured[0].selection.source_indices)
+        self.assertTrue(captured[0].selection.is_empty())
         _APP.processEvents()
         tab.deleteLater()
 
@@ -695,7 +923,7 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         _APP.processEvents()
         tab.deleteLater()
 
-    def test_dotnet_grow_normalizes_legacy_element_target_to_parts(self) -> None:
+    def test_dotnet_grow_preserves_vertex_target_without_promoting_parts(self) -> None:
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetGrowTarget"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
@@ -723,7 +951,7 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
             )
 
         self.assertEqual(1, len(captured))
-        self.assertEqual("source", captured[0].params["target_mode"])
+        self.assertEqual("vertex", captured[0].params["target_mode"])
         _APP.processEvents()
         tab.deleteLater()
 

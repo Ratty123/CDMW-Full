@@ -23,6 +23,14 @@ internal sealed partial class ExperimentForm
             message["edit_revision"] = Math.Max(_lastAppliedEditRevision, _lastObservedSessionRevision);
             message["process_generation"] = _residentProcessGeneration;
             message["protocol_version"] = 2;
+            if (string.Equals(eventName, "save_request", StringComparison.OrdinalIgnoreCase))
+            {
+                // Finish is itself the renderer's last authoritative view of the
+                // scene. Carry that identity so the host can still issue the
+                // placement transition if its cached Python frame was released
+                // while the resident package stayed alive.
+                message["source_identity"] = _scene.SourceIdentity;
+            }
             RegisterOutgoingMutation(eventName, message);
         }
         if (string.Equals(eventName, "metrics", StringComparison.OrdinalIgnoreCase))

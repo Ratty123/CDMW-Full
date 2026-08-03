@@ -146,6 +146,7 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_dotnet_scene_queued = None
         self.standalone_dotnet_pending_clone_material_model = None
         self.standalone_dotnet_pending_reference_material_model = None
+        self.standalone_dotnet_pending_paired_material_model = None
         # A textured view this tab still meant to restore belongs to the session
         # that is ending; the next one starts from its own scene.
         self._forget_deferred_textured_view()
@@ -184,6 +185,7 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_dotnet_scene_queued = None
         self.standalone_dotnet_pending_clone_material_model = None
         self.standalone_dotnet_pending_reference_material_model = None
+        self.standalone_dotnet_pending_paired_material_model = None
         # A textured view this tab still meant to restore belongs to the session
         # that is ending; the next one starts from its own scene.
         self._forget_deferred_textured_view()
@@ -291,6 +293,18 @@ class MeshEditorDotNetProcessMixin:
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         self._set_dotnet_status(text, error=True)
     def _standalone_action_worker_active(self) -> bool:
+        if (
+            self.standalone_action_dotnet_command
+            and int(self.standalone_action_request_id) > 0
+            and int(self.standalone_action_finished_request_id) == int(self.standalone_action_request_id)
+        ):
+            # A .NET command result may immediately trigger the next correlated
+            # wizard command. The worker has already produced its final result;
+            # only QThread's queued finished/deleteLater cleanup remains. Treat
+            # that narrow handoff window as idle so the next command is not
+            # falsely rejected as busy. Identity checks in cleanup keep the old
+            # thread from clearing a newly installed worker.
+            return False
         return self.standalone_action_thread is not None or self.standalone_action_worker is not None
     def _start_standalone_action_worker(self, action: object, *, action_text: str) -> bool:
         controller = self.standalone_controller

@@ -173,6 +173,31 @@ def test_resident_compiler_reuses_content_addressed_outputs(tmp_path: Path) -> N
             assert Path(raw_path).is_file()
 
 
+def test_exact_clone_material_compile_binds_one_resource_set_to_both_scene_roles(
+    tmp_path: Path,
+) -> None:
+    mesh = _mesh_with_layer_graph(tmp_path)
+    base_request = _request(mesh, tmp_path / "cache")
+    request = MeshDotNetMaterialCompileRequest(
+        session_id=base_request.session_id,
+        edit_revision=base_request.edit_revision,
+        generation=base_request.generation,
+        role=base_request.role,
+        mesh_snapshot=base_request.mesh_snapshot,
+        material_signature=base_request.material_signature,
+        output_root=base_request.output_root,
+        mirror_reference_submesh_offset=8,
+    )
+
+    resident = compile_mesh_dotnet_material_update(request)
+
+    assert resident["roles"] == ["replacement", "original_reference"]
+    assert [row["submesh_index"] for row in resident["submeshes"]] == [4, 12]
+    assert resident["affected_submeshes"] == [4, 12]
+    assert resident["submeshes"][0]["channels"] == resident["submeshes"][1]["channels"]
+    assert resident["compiler"]["mirrored_reference_submesh_offset"] == 8
+
+
 def test_snapshot_separates_scene_slot_from_duplicate_pac_wrapper_owner(tmp_path: Path) -> None:
     second = SubMesh(name="Blade_B", material="Shared_Blade")
     second.preview_material_texture_inputs = (

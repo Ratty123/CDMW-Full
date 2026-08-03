@@ -556,6 +556,11 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         )
         setattr(
             builder,
+            "_mesh_editor_embedded_apply_clone_and_reference_material_resources",
+            self.apply_resident_clone_and_reference_material_resources,
+        )
+        setattr(
+            builder,
             "_mesh_editor_embedded_apply_reference_material_resources",
             self.apply_resident_reference_material_resources,
         )
@@ -634,6 +639,24 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
             lambda target=controller: self._rehydrate_shared_dotnet_controller(target)
         )
         _mark_wired_to(controller, _SHARED_DOTNET_WIRED_MARK, self)
+        try:
+            setattr(
+                controller,
+                "_mesh_editor_shared_dotnet_presentation_sender",
+                self._send_dotnet_presentation_state,
+            )
+        except (AttributeError, RuntimeError):
+            pass
+        # The embedded preview host is constructed before Mesh Editor takes
+        # ownership of this controller, so it may already have cached its
+        # generic presentation defaults (notably Grid off).  Replaying that
+        # second presentation owner after a package load races the tab's live
+        # Builder snapshot and can leave the acknowledgement queue paired with
+        # the wrong request.  Once authoring is shared, the tab is the sole
+        # presentation owner and rehydrates the complete Builder state itself.
+        forget_state = getattr(controller, "forget_state", None)
+        if callable(forget_state):
+            forget_state("presentation")
 
     def _sync_shared_dotnet_process_identity(self, controller: object) -> None:
         """Adopt the resident controller's process and count real launches.
@@ -651,6 +674,21 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         previous = int(getattr(self, "standalone_dotnet_process_generation", 0) or 0)
         self.standalone_dotnet_editor_process = process
         self.standalone_dotnet_process_generation = generation
+        update_queue = getattr(self, "standalone_dotnet_update_queue", None)
+        if update_queue is not None:
+            update_queue.set_context(
+                session_id=str(
+                    getattr(self, "standalone_dotnet_lifecycle_session_id", "") or ""
+                ),
+                process_generation=generation,
+            )
+            update_queue.observe_capabilities(
+                {
+                    "capabilities": tuple(
+                        getattr(controller, "capabilities", ()) or ()
+                    )
+                }
+            )
         if generation <= previous or process is None:
             return
         starts = int(self.standalone_dotnet_lifecycle_counts.get("renderer_process_start_count", 0) or 0)
@@ -779,7 +817,13 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         self.standalone_dotnet_presentation_published_content = None
         sent = self._send_dotnet_session_state()
         self._send_dotnet_scene_state()
-        self._send_dotnet_presentation_state()
+        # Rebuild from the live Builder before publishing.  A prewarmed host is
+        # created with generic Grid/Gizmo-off defaults, while the actual controls
+        # may already be checked and the reader may already have chosen Solid.
+        # Replaying cached tab state first lets those construction defaults win
+        # the package-load race until some unrelated control changes later.
+        if not self._sync_embedded_builder_presentation_state():
+            self._send_dotnet_presentation_state()
         self._send_dotnet_cached_morph_state()
         # This runs after the package is applied and before the helper is
         # activated, so the interaction mode is settled while the window is

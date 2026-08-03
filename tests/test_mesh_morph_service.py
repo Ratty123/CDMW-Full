@@ -75,6 +75,59 @@ def test_morph_authoring_expands_selected_parts_inside_service_boundary(tmp_path
     }
 
 
+def test_morph_authoring_expands_face_and_edge_selection_to_vertices(tmp_path) -> None:
+    mesh = _driver_garment_mesh()
+    service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
+    session_id = service.open_edit_session(mesh, mode="edit").session_id
+    try:
+        result = service.apply_command(
+            session_id,
+            MeshEditCommand(
+                "morph_author_definition",
+                selection=MeshEditSelection.from_maps(
+                    edges_by_submesh={2: ((0, 1),)},
+                    faces_by_submesh={2: (0,)},
+                ),
+                params={
+                    "profile_id": "region-profile",
+                    "profile_name": "Region Profile",
+                    "definition_id": "region",
+                    "label": "Region",
+                    "feather": 0,
+                },
+            ),
+        )
+        state = service.cached_morph_state(session_id)
+    finally:
+        service.close_edit_session(session_id)
+
+    assert result.ok
+    assert state is not None
+    expected = {int(vertex) for vertex in mesh.submeshes[2].faces[0][:3]} | {0, 1}
+    assert {item.vertex_index for item in state.definitions[0].vertices} == expected
+
+
+def test_unsaved_active_morph_profile_can_be_deleted(tmp_path) -> None:
+    service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
+    session_id = service.open_edit_session(_driver_garment_mesh(), mode="edit").session_id
+    profile_path = tmp_path / "mesh_slider_profiles" / "definitions" / "resident-body.json"
+    try:
+        assert service.apply_command(session_id, _author_command()).ok
+        assert not profile_path.exists()
+        deleted = service.apply_command(
+            session_id,
+            MeshEditCommand("morph_delete_profile", params={"profile_id": "resident-body"}),
+        )
+        state = service.cached_morph_state(session_id)
+    finally:
+        service.close_edit_session(session_id)
+
+    assert deleted.ok
+    assert state is not None
+    assert state.profile_id == ""
+    assert state.available_profiles == ()
+
+
 def test_refit_rejects_a_part_used_as_both_driver_and_garment(tmp_path) -> None:
     service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
     view = service.open_edit_session(_driver_garment_mesh(), mode="edit")

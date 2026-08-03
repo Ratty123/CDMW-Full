@@ -669,16 +669,7 @@ class ArchivePreviewLayoutMixin:
         archive_preview_tab_layout = QVBoxLayout(archive_preview_tab)
         archive_preview_tab_layout.setContentsMargins(0, 0, 0, 0)
         archive_preview_tab_layout.setSpacing(6)
-        self.archive_preview_controls_hint_label = QLabel(
-            "Controls: left-drag orbit | middle/right-drag pan | Shift+left-drag pan | mouse wheel zoom | Fit resets view."
-        )
-        self.archive_preview_controls_hint_label.setObjectName("HintLabel")
-        self.archive_preview_controls_hint_label.setWordWrap(True)
-        self.archive_preview_controls_hint_label.setToolTip(
-            "These controls move the preview camera/view only. Mesh placement and exported transforms are changed in edit/alignment tools."
-        )
         archive_preview_tab_layout.addWidget(self.archive_preview_stack)
-        archive_preview_tab_layout.addWidget(self.archive_preview_controls_hint_label)
         archive_preview_tab_layout.addWidget(self.archive_preview_text_tools)
         archive_preview_tab_layout.addWidget(self.archive_preview_info_tools)
         archive_details_tab = QWidget()

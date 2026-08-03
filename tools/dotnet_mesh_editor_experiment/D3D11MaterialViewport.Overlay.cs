@@ -376,7 +376,7 @@ internal sealed partial class D3D11MaterialViewport
             }
             constants.WorldViewProjection = ActivePaneModelMatrix(batch.SubmeshIndex) * _camera.WorldViewProjection;
             _context.UpdateSubresource(in constants, _overlayCameraBuffer);
-            _context.IASetVertexBuffer(0u, batch.VertexBuffer, D3D11SubmeshBatch.VertexStride);
+            _context.IASetVertexBuffer(0u, ActiveVertexBuffer(batch), D3D11SubmeshBatch.VertexStride);
             _context.IASetIndexBuffer(batch.IndexBuffer, Vortice.DXGI.Format.R32_UInt, 0);
             _context.DrawIndexed((uint)batch.IndexCount, 0, 0);
             _vertexOverlayBatchDrawCount++;
@@ -462,7 +462,6 @@ internal sealed partial class D3D11MaterialViewport
 
     private void DrawSelectedVerticesOverlay()
     {
-        var lines = ResetScratchA();
         foreach (var pair in _overlaySelectedVertices)
         {
             if (pair.Key < 0 || pair.Key >= _document.Submeshes.Count)
@@ -474,20 +473,23 @@ internal sealed partial class D3D11MaterialViewport
                 continue;
             }
             var submesh = _document.Submeshes[pair.Key];
+            var points = ResetScratchA();
             foreach (var vertexIndex in pair.Value)
             {
                 if (vertexIndex < 0 || vertexIndex >= submesh.Vertices.Count)
                 {
                     continue;
                 }
-                var transformed = Vector3.Transform(new Vector3(submesh.Vertices[vertexIndex].X, submesh.Vertices[vertexIndex].Y, submesh.Vertices[vertexIndex].Z), ActivePaneModelMatrix(pair.Key));
-                AddScreenCross(
-                    _camera.Project(new Vec3(transformed.X, transformed.Y, transformed.Z)),
-                    SelectedVertexMarkerRadiusPixels,
-                    lines);
+                var vertex = submesh.Vertices[vertexIndex];
+                points.Add(new Vector3(vertex.X, vertex.Y, vertex.Z));
             }
+            DrawOverlayPrimitive(
+                PrimitiveTopology.PointList,
+                points,
+                OverlayColor(255, 230, 88, 245),
+                ActivePaneModelMatrix(pair.Key) * _camera.WorldViewProjection,
+                SelectedVertexMarkerRadiusPixels);
         }
-        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(255, 230, 88, 245), Matrix4x4.Identity);
     }
 
     /// <summary>
@@ -502,7 +504,6 @@ internal sealed partial class D3D11MaterialViewport
         {
             return;
         }
-        var lines = ResetScratchA();
         foreach (var pair in provisional)
         {
             if (pair.Key < 0 || pair.Key >= _document.Submeshes.Count)
@@ -514,20 +515,23 @@ internal sealed partial class D3D11MaterialViewport
                 continue;
             }
             var submesh = _document.Submeshes[pair.Key];
+            var points = ResetScratchA();
             foreach (var vertexIndex in pair.Value)
             {
                 if (vertexIndex < 0 || vertexIndex >= submesh.Vertices.Count)
                 {
                     continue;
                 }
-                var transformed = Vector3.Transform(new Vector3(submesh.Vertices[vertexIndex].X, submesh.Vertices[vertexIndex].Y, submesh.Vertices[vertexIndex].Z), ActivePaneModelMatrix(pair.Key));
-                AddScreenCross(
-                    _camera.Project(new Vec3(transformed.X, transformed.Y, transformed.Z)),
-                    SelectedVertexMarkerRadiusPixels,
-                    lines);
+                var vertex = submesh.Vertices[vertexIndex];
+                points.Add(new Vector3(vertex.X, vertex.Y, vertex.Z));
             }
+            DrawOverlayPrimitive(
+                PrimitiveTopology.PointList,
+                points,
+                OverlayColor(96, 202, 255, 180),
+                ActivePaneModelMatrix(pair.Key) * _camera.WorldViewProjection,
+                SelectedVertexMarkerRadiusPixels);
         }
-        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(96, 202, 255, 180), Matrix4x4.Identity);
     }
 
     private void DrawSelectionRectangleOverlay()
@@ -879,10 +883,12 @@ internal sealed partial class D3D11MaterialViewport
                     0.0f),
             };
             _context.UpdateSubresource(in constants, _overlayCameraBuffer);
-            _context.GSSetShader(
-                command.Topology == PrimitiveTopology.LineList && command.LineWidthPixels > 1.0f
-                    ? _wireGeometryShader
-                    : null);
+            _context.GSSetShader(command.Topology switch
+            {
+                PrimitiveTopology.PointList when command.LineWidthPixels > 0.0f => _vertexMarkerGeometryShader,
+                PrimitiveTopology.LineList when command.LineWidthPixels > 1.0f => _wireGeometryShader,
+                _ => null,
+            });
             _context.IASetPrimitiveTopology(command.Topology);
             _context.Draw((uint)command.VertexCount, (uint)command.StartVertex);
             if (command.DepthMode == 1 && command.LineWidthPixels > 1.0f)

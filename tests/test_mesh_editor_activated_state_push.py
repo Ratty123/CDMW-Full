@@ -112,3 +112,30 @@ def test_state_is_not_considered_pushed_for_a_fresh_process() -> None:
         assert not tab._dotnet_state_already_pushed_for_process()
     finally:
         tab.deleteLater()
+
+
+def test_real_activated_envelope_uses_activation_correlation_not_mutation_request_id() -> None:
+    tab, builder = _embedded_tab("MeshEditorActivatedCorrelation")
+    try:
+        tab.standalone_dotnet_process_generation = 7
+        tab.standalone_dotnet_capabilities.add("resident_mutation_envelope_v2")
+        tab.standalone_dotnet_state_pushed_generation = 7
+        session_id = builder.controller.session_view().session_id
+        command_results: list[dict[str, object]] = []
+        tab._send_dotnet_command_result = (  # type: ignore[method-assign]
+            lambda *args, **kwargs: command_results.append(dict(kwargs)) or True
+        )
+
+        assert tab._handle_dotnet_protocol_event(
+            {
+                "event": "activated",
+                "activation_request_id": 4,
+                "session_id": session_id,
+                "process_generation": 7,
+                "package_generation": 2,
+            }
+        )
+
+        assert command_results == []
+    finally:
+        tab.deleteLater()

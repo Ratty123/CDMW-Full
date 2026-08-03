@@ -21,6 +21,7 @@ internal sealed partial class MeshViewport
     private long _provisionalSelectionBaseRevision;
 
     public long AcknowledgedSelectionRevision => _acknowledgedSelection.Revision;
+    public bool HasPendingSelectionAuthority => _provisionalSelectionRequestId > 0;
 
     public void BeginProvisionalSelection(long requestId, long baseRevision)
     {
@@ -79,13 +80,21 @@ internal sealed partial class MeshViewport
             Math.Max(0, revision));
         // The authoritative selection replaces the instant local echo. A live
         // brush stroke immediately rebases that echo on the acknowledged
-        // parts so the next dab continues an Add/Subtract sweep smoothly.
+        // vertices so the next dab continues an Add/Subtract sweep smoothly.
         _provisionalSelectedVertices.Clear();
         _provisionalSelectedSources.Clear();
-        _provisionalPartSelectionActive = _selectionPaintActive;
         if (_selectionPaintActive)
         {
-            _provisionalSelectedSources.UnionWith(_selectedSources);
+            ReplaceSelectionMap(_provisionalSelectedVertices, _selectedVertices);
+            _provisionalPartSelectionActive = _selectionDragTargetMode is "source" or "part";
+            if (_provisionalPartSelectionActive)
+            {
+                _provisionalSelectedSources.UnionWith(_selectedSources);
+            }
+        }
+        else
+        {
+            _provisionalPartSelectionActive = false;
         }
         if (requestId <= 0 || requestId == _provisionalSelectionRequestId)
         {

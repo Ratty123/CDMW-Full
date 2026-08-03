@@ -71,6 +71,7 @@ from tools.mesh_harness.real_dotnet_flow import (
     record_flow_step,
 )
 from tools.mesh_harness.real_dotnet_input import (
+    drive_viewport_selection,
     drive_viewport_stroke,
     exercise_side_by_side_wheel_zoom,
 )
@@ -488,6 +489,62 @@ def _performance_requires_edit_preparation(request: PerformanceRequest) -> bool:
     )
 
 
+def _front_facing_vertex_selection_anchor(
+    submesh: object,
+    matrix: tuple[object, ...],
+    *,
+    viewport_width: float,
+    viewport_height: float,
+) -> tuple[int, int, tuple[float, float]] | None:
+    """Choose an exact visible vertex using the renderer's winding contract."""
+
+    vertices = tuple(getattr(submesh, "vertices", ()) or ())
+    faces = tuple(getattr(submesh, "faces", ()) or ())
+    viewport_center = (viewport_width * 0.5, viewport_height * 0.5)
+    candidates: list[tuple[float, int, tuple[int, int, tuple[float, float]]]] = []
+    for face_index, face in enumerate(faces):
+        indices = tuple(int(value) for value in tuple(face or ())[:3])
+        if len(indices) != 3 or any(index < 0 or index >= len(vertices) for index in indices):
+            continue
+        projected = tuple(
+            _project_world_to_screen(
+                matrix,
+                vertices[index],
+                viewport_x=0.0,
+                viewport_y=0.0,
+                viewport_width=viewport_width,
+                viewport_height=viewport_height,
+            )
+            for index in indices
+        )
+        if any(point is None for point in projected):
+            continue
+        points = tuple(point for point in projected if point is not None)
+        area = (
+            (points[1][0] - points[0][0]) * (points[2][1] - points[0][1])
+            - (points[1][1] - points[0][1]) * (points[2][0] - points[0][0])
+        )
+        if area >= -0.01:
+            continue
+        center = (
+            sum(point[0] for point in points) / 3.0,
+            sum(point[1] for point in points) / 3.0,
+        )
+        vertex_offset = min(
+            range(3),
+            key=lambda offset: math.hypot(
+                points[offset][0] - center[0],
+                points[offset][1] - center[1],
+            ),
+        )
+        point = points[vertex_offset]
+        if not (0.0 <= point[0] < viewport_width and 0.0 <= point[1] < viewport_height):
+            continue
+        score = math.hypot(center[0] - viewport_center[0], center[1] - viewport_center[1])
+        candidates.append((score, face_index, (face_index, indices[vertex_offset], point)))
+    return min(candidates, default=None, key=lambda item: (item[0], item[1]))[2] if candidates else None
+
+
 def _execute_performance_capture(state: SimpleNamespace, request: PerformanceRequest) -> str:
     try:
         if not _configure_performance_viewport(state, request):
@@ -510,27 +567,24 @@ def _execute_performance_capture(state: SimpleNamespace, request: PerformanceReq
 
 
 def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, object] | None:
-    # The production UI exposes only whole-part selection. Keep the historical
-    # face/vertex evidence fields below as geometry bookkeeping, but select the
-    # complete source part through the same contract the visible tool rail uses.
+    # Edit Mesh viewport gestures own mesh-vertex selection; whole parts belong
+    # only to the PARTS list.  Seed a vertex selection so Move can provide the
+    # projection used to find a visible cluster, then narrow the authoritative
+    # selection to that cluster before the measured physical drag.
     initial_faces = tuple(range(len(state.submesh.faces)))
+    initial_vertex_indices = sorted(
+        {vertex for face_index in initial_faces for vertex in state.submesh.faces[int(face_index)]}
+    )
     state.select_result = state.controller.select(
-        source_indices=(state.submesh_index,), operation="replace"
+        vertices_by_submesh={state.submesh_index: initial_vertex_indices},
+        operation="replace",
     )
     state.tab._send_dotnet_session_state()
     tool_cursor = len(state.tab.standalone_dotnet_protocol_events)
     state.tool_state_sent = state.tab._send_dotnet_protocol_message(
-        {"event": "tool_state", "tool": "move", "target_mode": "source"}
+        {"event": "tool_state", "tool": "move", "target_mode": "vertex"}
     )
     state.tool_state_event = _wait_protocol_event(state, "tool_state_applied", tool_cursor, 5.0)
-    tool_selection = state.tool_state_event.get("local_selection", {})
-    tool_selection = tool_selection if isinstance(tool_selection, Mapping) else {}
-    selected_sources = tuple(int(value) for value in tuple(tool_selection.get("source_indices", ()) or ()))
-    state.part_selection_armed = bool(
-        selected_sources == (state.submesh_index,)
-        and int(state.tool_state_event.get("selected_part_index", -2)) == state.submesh_index
-        and int(state.tool_state_event.get("parts_list_selected_index", -2)) == state.submesh_index
-    )
     # Re-read the viewport rectangle before using it to aim anything. The one
     # carried on the ready event describes the embedded editor window before it
     # was revealed and grown -- 547x603 against a live 1467x1139 here -- and the
@@ -614,19 +668,12 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
         viewport_width=state.projection_viewport_width,
         viewport_height=state.projection_viewport_height,
     ) if matrix else initial_faces
-    # Projected faces choose a stable drag anchor only. Authority remains the
-    # selected part, so the expected changed set is every vertex in that part.
+    # Projected faces choose a stable on-mesh target for the physical Select
+    # gesture. The direct seed above exists only long enough to obtain this
+    # renderer projection; it is cleared before Select is armed and is never
+    # used as the Move selection under test.
     state.projected_anchor_faces = selected_faces or initial_faces
-    state.selected_faces = initial_faces
-    state.face_vertices = sorted(
-        {vertex for face_index in state.selected_faces for vertex in state.submesh.faces[int(face_index)]}
-    )
-    # The part selection was already published before Move was armed. Replaying
-    # the host session here would intentionally restore its neutral Orbit tool
-    # and disarm the physical stroke that follows.
-    _pump_for(state, 0.15)
     current = state.controller.working_mesh(clone=False)
-    state.before_vertices = [tuple(float(value) for value in current.submeshes[state.submesh_index].vertices[index]) for index in state.face_vertices]
     anchor_vertex_indices = sorted(
         {
             int(vertex_index)
@@ -635,16 +682,120 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
             for vertex_index in state.submesh.faces[int(face_index)]
             if 0 <= int(vertex_index) < len(current.submeshes[state.submesh_index].vertices)
         }
-    ) or state.face_vertices
-    anchor_vertices = [
+    ) or initial_vertex_indices
+    selection_anchor = _front_facing_vertex_selection_anchor(
+        state.submesh,
+        matrix,
+        viewport_width=state.projection_viewport_width,
+        viewport_height=state.projection_viewport_height,
+    ) if matrix else None
+    state.physical_selection_anchor = {
+        "face_index": int(selection_anchor[0]),
+        "vertex_index": int(selection_anchor[1]),
+        "point": [float(selection_anchor[2][0]), float(selection_anchor[2][1])],
+    } if selection_anchor is not None else {}
+    projected_anchor_center = selection_anchor[2] if selection_anchor is not None else None
+    state.select_result = state.controller.select(operation="replace")
+    state.tab._send_dotnet_session_state()
+    select_tool_cursor = len(state.tab.standalone_dotnet_protocol_events)
+    state.selection_tool_state_sent = state.tab._send_dotnet_protocol_message(
+        {
+            "event": "tool_state",
+            "tool": "select",
+            "target_mode": "vertex",
+            "selection_mode": "brush",
+            "selection_operation": "replace",
+        }
+    )
+    state.selection_tool_state_event = _wait_protocol_event(
+        state, "tool_state_applied", select_tool_cursor, 5.0
+    )
+    state.physical_select_gesture = (
+        drive_viewport_selection(
+            state,
+            point=projected_anchor_center,
+            pump_for=_pump_for,
+            pump_until=_pump_until,
+        )
+        if projected_anchor_center is not None
+        else {"ok": False, "reason": "projection_missing"}
+    )
+    tool_cursor = len(state.tab.standalone_dotnet_protocol_events)
+    state.tool_state_sent = bool(
+        state.tool_state_sent
+        and state.selection_tool_state_sent
+        and state.tab._send_dotnet_protocol_message(
+            {"event": "tool_state", "tool": "move", "target_mode": "vertex"}
+        )
+    )
+    state.tool_state_event = _wait_protocol_event(
+        state, "tool_state_applied", tool_cursor, 5.0
+    )
+    tool_selection = state.tool_state_event.get("local_selection", {})
+    tool_selection = tool_selection if isinstance(tool_selection, Mapping) else {}
+    selected_sources = tuple(
+        int(value) for value in tuple(tool_selection.get("source_indices", ()) or ())
+    )
+    raw_vertex_map = tool_selection.get("vertices_by_submesh")
+    raw_vertex_map = raw_vertex_map if isinstance(raw_vertex_map, Mapping) else {}
+    selected_vertex_keys: set[tuple[int, int]] = set()
+    for raw_submesh_index, raw_indices in raw_vertex_map.items():
+        try:
+            selected_submesh_index = int(raw_submesh_index)
+        except (TypeError, ValueError):
+            continue
+        for raw_vertex_index in tuple(raw_indices or ()):
+            try:
+                selected_vertex_keys.add((selected_submesh_index, int(raw_vertex_index)))
+            except (TypeError, ValueError):
+                continue
+    state.selected_vertex_keys = selected_vertex_keys
+    selected_vertices = tuple(
+        sorted(vertex_index for submesh_index, vertex_index in selected_vertex_keys if submesh_index == state.submesh_index)
+    )
+    selected_part_rows = tuple(state.tool_state_event.get("parts_list_selected_indices", ()) or ())
+    state.part_selection_remained_empty = bool(
+        not selected_sources
+        and int(state.tool_state_event.get("selected_part_index", -2)) == -1
+        and int(state.tool_state_event.get("parts_list_selected_index", -2)) == -1
+        and not selected_part_rows
+    )
+    state.viewport_mesh_selection_armed = bool(
+        state.part_selection_remained_empty
+        and state.physical_select_gesture.get("ok") is True
+        and str(tool_selection.get("target_mode", "vertex") or "vertex").strip().lower() == "vertex"
+        and selected_vertex_keys
+        and selected_vertices
+    )
+    state.selected_faces = tuple(state.projected_anchor_faces)
+    state.face_vertices = list(selected_vertices)
+    if (
+        not state.tool_state_sent
+        or not state.tool_state_event
+        or not state.selection_tool_state_event
+        or not state.viewport_mesh_selection_armed
+    ):
+        return _base_error(
+            state,
+            "The physical production Select gesture did not settle as a viewport vertex selection with PARTS empty.",
+        )
+    # Replaying host selection restores Orbit, so the final Move publication
+    # above must remain the last tool state before the physical deformation.
+    _pump_for(state, 0.15)
+    current = state.controller.working_mesh(clone=False)
+    state.before_vertices = [
+        tuple(float(value) for value in current.submeshes[state.submesh_index].vertices[index])
+        for index in state.face_vertices
+    ]
+    selected_vertices_world = [
         tuple(
             float(value)
             for value in current.submeshes[state.submesh_index].vertices[vertex_index]
         )
-        for vertex_index in anchor_vertex_indices
+        for vertex_index in state.face_vertices
     ]
     state.selected_center = tuple(
-        sum(vertex[axis] for vertex in anchor_vertices) / len(anchor_vertices)
+        sum(vertex[axis] for vertex in selected_vertices_world) / len(selected_vertices_world)
         for axis in range(3)
     )
     state.projected_center = _project_world_to_screen(
@@ -656,8 +807,13 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
         viewport_height=state.projection_viewport_height,
     ) if matrix else None
     state.selected_before_capture_summary = _capture_viewport(state, state.selected_before_capture_path)
-    if not state.tool_state_sent or not state.tool_state_event or state.projected_center is None:
-        return _base_error(state, "Could not configure the production .NET Move tool and projected part selection.")
+    if (
+        not state.tool_state_sent
+        or not state.tool_state_event
+        or not state.selection_tool_state_event
+        or state.projected_center is None
+    ):
+        return _base_error(state, "Could not configure the production .NET Move tool and projected mesh selection.")
     return None
 
 
@@ -687,8 +843,8 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         state.projected_after_center[1] - state.projected_center[1],
     )
     expected_delta = (
-        state.mouse_drag_end[0] - state.mouse_drag_start[0],
-        state.mouse_drag_end[1] - state.mouse_drag_start[1],
+        state.mouse_drag_effective_end[0] - state.mouse_drag_start[0],
+        state.mouse_drag_effective_end[1] - state.mouse_drag_start[1],
     )
     state.projected_screen_error = math.hypot(projected_delta[0] - expected_delta[0], projected_delta[1] - expected_delta[1])
     state.projected_drag_tracks_cursor = state.projected_screen_error <= max(8.0, math.hypot(*expected_delta) * 0.35)
@@ -785,6 +941,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "mouse_drag_start": list(state.mouse_drag_start),
         "mouse_drag_points": [list(point) for point in state.mouse_drag_points],
         "mouse_drag_end": list(state.mouse_drag_end),
+        "mouse_drag_effective_end": list(state.mouse_drag_effective_end),
         "mouse_input_backend": "win32_physical_cursor",
         "input_window_activated": bool(getattr(state, "input_window_activated", False)),
         "physical_viewport_origin": [
@@ -792,6 +949,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
             int(state.viewport_rect_before[1]),
         ] if state.viewport_rect_before else None,
         "stroke_update_count": len(state.stroke_updates),
+        "stroke_terminal_coverage": dict(state.stroke_terminal_coverage),
         "stroke_handler_timings": state.stroke_handler_timings,
         "stroke_handler_timing_summary": state.handler_summary,
         "stroke_completion_timings": state.stroke_completion_timings,

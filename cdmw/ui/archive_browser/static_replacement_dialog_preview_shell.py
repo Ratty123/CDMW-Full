@@ -554,7 +554,13 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
             pass
 
     alignment_d3d11_preview_host.native_event_received.connect(_remember_alignment_d3d11_split_ratio)
-    alignment_d3d11_preview_status_label = QLabel(alignment_preview_control_text["d3d11_waiting_status"])
+    alignment_d3d11_status_sink = QWidget(alignment_d3d11_preview_page)
+    alignment_d3d11_status_sink.setObjectName("MeshAlignmentResidentStatusSink")
+    alignment_d3d11_status_sink.setVisible(False)
+    alignment_d3d11_preview_status_label = QLabel(
+        alignment_preview_control_text["d3d11_waiting_status"],
+        alignment_d3d11_status_sink,
+    )
     alignment_d3d11_preview_status_label.setObjectName("HintLabel")
     alignment_d3d11_preview_status_label.setAlignment(Qt.AlignCenter)
     alignment_d3d11_preview_status_label.setWordWrap(False)
@@ -562,13 +568,13 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     alignment_d3d11_preview_status_label.setMinimumHeight(18)
     alignment_d3d11_preview_status_label.setMaximumHeight(24)
     alignment_d3d11_preview_status_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-    alignment_d3d11_loading_spinner_label = QLabel("")
+    alignment_d3d11_loading_spinner_label = QLabel("", alignment_d3d11_status_sink)
     alignment_d3d11_loading_spinner_label.setObjectName("AlignmentD3D11LoadingSpinner")
     alignment_d3d11_loading_spinner_label.setAlignment(Qt.AlignCenter)
     alignment_d3d11_loading_spinner_label.setTextFormat(Qt.RichText)
     alignment_d3d11_loading_spinner_label.setFixedSize(30, 22)
     alignment_d3d11_loading_spinner_label.setVisible(False)
-    alignment_d3d11_status_row = QHBoxLayout()
+    alignment_d3d11_status_row = QHBoxLayout(alignment_d3d11_status_sink)
     alignment_d3d11_status_row.setContentsMargins(0, 0, 0, 0)
     alignment_d3d11_status_row.setSpacing(4)
     alignment_d3d11_status_row.addStretch(1)
@@ -579,7 +585,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     # editor's height restating what the tooltip and the navigation strip
     # already say; the viewport gets that height instead.
     alignment_d3d11_preview_layout.addWidget(alignment_d3d11_preview_host, 1)
-    alignment_d3d11_preview_layout.addLayout(alignment_d3d11_status_row)
+    alignment_d3d11_preview_layout.addWidget(alignment_d3d11_status_sink)
     alignment_d3d11_status_timer = QTimer(dialog)
     alignment_d3d11_status_timer.setInterval(250)
     alignment_d3d11_loading_timer = QTimer(dialog)
@@ -734,13 +740,19 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_stack.addWidget(alignment_d3d11_preview_page)
     preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
     preview_panel_layout.addWidget(preview_stack, 1)
-    preview_help = QLabel(alignment_preview_default_help.text)
+    preview_status_sink = QWidget(preview_panel)
+    preview_status_sink.setObjectName("MeshAlignmentPreviewStatusSink")
+    preview_status_sink.setVisible(False)
+    preview_help = QLabel(alignment_preview_default_help.text, preview_status_sink)
     preview_help.setWordWrap(False)
     preview_help.setMaximumHeight(24)
     preview_help.setObjectName("HintLabel")
     preview_help.setToolTip(alignment_preview_default_help.tooltip)
     preview_performance_initial_status = _alignment_preview_initial_performance_status_helper()
-    preview_performance_label = QLabel(preview_performance_initial_status.text)
+    preview_performance_label = QLabel(
+        preview_performance_initial_status.text,
+        preview_status_sink,
+    )
     preview_performance_label.setObjectName("HintLabel")
     preview_performance_label.setWordWrap(False)
     preview_performance_label.setMaximumHeight(24)
@@ -753,12 +765,12 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_help.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
     preview_performance_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
     preview_performance_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-    preview_status_row = QHBoxLayout()
+    preview_status_row = QHBoxLayout(preview_status_sink)
     preview_status_row.setContentsMargins(0, 0, 0, 0)
     preview_status_row.setSpacing(12)
     preview_status_row.addWidget(preview_help, 3)
     preview_status_row.addWidget(preview_performance_label, 2)
-    preview_panel_layout.addLayout(preview_status_row)
+    preview_panel_layout.addWidget(preview_status_sink)
 
     alignment_dialog_layout_state = _alignment_dialog_layout_initial_state_helper()
     previous_dialog_resize_event = dialog.resizeEvent
