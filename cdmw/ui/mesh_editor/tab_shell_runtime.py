@@ -118,6 +118,7 @@ class MeshEditorTabShellRuntimeMixin:
         # A Finish Edit Mesh refused for "busy" retries itself when the worker
         # drains, instead of requiring the reader to click the button again.
         self.standalone_dotnet_finish_retry_pending = False
+        self.standalone_dotnet_finish_scene_pending: dict[str, object] | None = None
         self.standalone_dotnet_protocol_stdout = ""
         self.standalone_dotnet_protocol_events: list[dict[str, object]] = []
         self.standalone_dotnet_capabilities: set[str] = set()
@@ -126,10 +127,12 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_completed_material_generation = 0
         self.standalone_dotnet_material_signature = ""
         self.standalone_dotnet_material_role_by_generation: dict[int, str] = {}
+        self.standalone_dotnet_material_input_signature_by_generation: dict[int, str] = {}
         self.standalone_dotnet_material_generation_by_role: dict[str, int] = {}
         self.standalone_dotnet_completed_material_generation_by_role: dict[str, int] = {}
         self.standalone_dotnet_applied_material_generation_by_role: dict[str, int] = {}
         self.standalone_dotnet_material_signature_by_role: dict[str, str] = {}
+        self.standalone_dotnet_material_input_signature_by_role: dict[str, str] = {}
         self.standalone_dotnet_material_error_by_role: dict[str, str] = {}
         self.standalone_dotnet_pending_textured_view = False
         self.standalone_dotnet_pending_textured_view_mode = "textured"
@@ -199,6 +202,11 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_deactivate_timer = QTimer(self)
         self.standalone_dotnet_deactivate_timer.setSingleShot(True)
         self.standalone_dotnet_deactivate_timer.timeout.connect(self._handle_dotnet_deactivate_timeout)
+        self.standalone_dotnet_finish_scene_timer = QTimer(self)
+        self.standalone_dotnet_finish_scene_timer.setSingleShot(True)
+        self.standalone_dotnet_finish_scene_timer.timeout.connect(
+            self._handle_dotnet_finish_scene_timeout
+        )
         self.standalone_dotnet_last_arguments: list[str] = []
         self.standalone_dotnet_last_working_directory = ""
         self.standalone_dotnet_last_parent_hwnd = 0

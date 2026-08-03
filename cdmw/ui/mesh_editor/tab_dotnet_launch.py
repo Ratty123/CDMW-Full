@@ -194,13 +194,21 @@ class MeshEditorDotNetLaunchMixin:
                     controller.working_mesh(clone=False)
                 )
                 cached_material_signature = str(
-                    self.standalone_dotnet_material_signature
+                    self.standalone_dotnet_material_input_signature_by_role.get(
+                        "editable_imported",
+                        "",
+                    )
                     or getattr(self.standalone_dotnet_experiment_package, "material_signature", "")
                     or ""
                 )
                 same_materials = bool(
                     cached_material_signature
                     and current_material_signature == cached_material_signature
+                )
+                activation_material_signature = str(
+                    self.standalone_dotnet_material_signature
+                    if same_materials and self.standalone_dotnet_applied_material_generation > 0
+                    else current_material_signature
                 )
             except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
                 same_session = False
@@ -216,7 +224,7 @@ class MeshEditorDotNetLaunchMixin:
                     {
                         "event": "activate_request",
                         "source_identity": current_scene_identity,
-                        "material_signature": current_material_signature,
+                        "material_signature": activation_material_signature,
                         "material_generation": self.standalone_dotnet_material_generation + (0 if same_materials else 1),
                     }
                 ):
@@ -307,10 +315,12 @@ class MeshEditorDotNetLaunchMixin:
             self.standalone_dotnet_completed_material_generation = 0
             self.standalone_dotnet_material_signature = ""
             self.standalone_dotnet_material_role_by_generation.clear()
+            self.standalone_dotnet_material_input_signature_by_generation.clear()
             self.standalone_dotnet_material_generation_by_role.clear()
             self.standalone_dotnet_completed_material_generation_by_role.clear()
             self.standalone_dotnet_applied_material_generation_by_role.clear()
             self.standalone_dotnet_material_signature_by_role.clear()
+            self.standalone_dotnet_material_input_signature_by_role.clear()
             self.standalone_dotnet_material_error_by_role.clear()
             self.standalone_dotnet_viewport_display_request_id = 0
         self.standalone_dotnet_package_request_id += 1

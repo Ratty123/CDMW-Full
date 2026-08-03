@@ -153,11 +153,21 @@ def apply_resolved_original_materials_to_resident_editor(
         copy_dotnet_preview_material_bindings(replacement_mesh, preview_model)
         if publish_resident_updates:
             apply_clone = getattr(dialog, "_mesh_editor_embedded_apply_clone_material_resources", None)
-            published = bool(callable(apply_clone) and apply_clone(preview_model))
-            if not published:
-                notify_failure = getattr(dialog, "_mesh_editor_embedded_texture_request_failed", None)
-                if callable(notify_failure):
+            apply_reference = getattr(
+                dialog,
+                "_mesh_editor_embedded_apply_reference_material_resources",
+                None,
+            )
+            clone_published = bool(callable(apply_clone) and apply_clone(preview_model))
+            reference_published = bool(
+                callable(apply_reference) and apply_reference(preview_model)
+            )
+            notify_failure = getattr(dialog, "_mesh_editor_embedded_texture_request_failed", None)
+            if callable(notify_failure):
+                if not clone_published:
                     notify_failure("Resolved clone materials could not be queued for the resident helper.")
+                if not reference_published:
+                    notify_failure("Resolved reference materials could not be queued for the resident helper.")
         return
     if not publish_resident_updates:
         return

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QApplication
 
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     MESH_PREVIEW_TEXTURED_DISPLAY_MODES,
+    normalize_mesh_preview_display_mode,
     untextured_fallback_display_mode,
 )
 from cdmw.ui.mesh_editor.actions import NATIVE_EDITOR_SESSION_COMMANDS, normalize_mesh_selection_shape
@@ -460,9 +461,13 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
             return self._queue_dotnet_scene_frame_update()
         frame = self.standalone_dotnet_scene_candidate or self.standalone_dotnet_scene_frame
         if frame is None:
-            # A first authoritative frame may still be calculating. Its
-            # completion applies the latest desired presentation values.
-            return self.standalone_dotnet_scene_thread is not None
+            # A first authoritative frame may still be calculating, but an
+            # interaction transition cannot wait behind it: Finish Edit Mesh
+            # must close the resident rails before the host reports success.
+            # Publish the existing scene correlation without roles so the
+            # helper changes only its interaction layout. The older worker is
+            # made stale by the newer request id and cannot roll the mode back.
+            return self._publish_dotnet_interaction_state()
         # Mode-only transitions must not wait behind an older transform
         # calculation. Publishing the last authoritative frame with a newer
         # request id makes that worker result stale while keeping geometry and
@@ -478,6 +483,65 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         except (AttributeError, TypeError, ValueError):
             return False
         return self._publish_dotnet_scene_frame(frame, self.standalone_dotnet_scene_request_id)
+
+    def _publish_dotnet_interaction_state(self) -> bool:
+        source_identity = ""
+        package = getattr(self, "standalone_dotnet_experiment_package", None)
+        candidates = (
+            self.standalone_dotnet_scene_candidate,
+            self.standalone_dotnet_scene_frame,
+            getattr(package, "scene_frame", None),
+            self.standalone_dotnet_scene_acknowledged,
+        )
+        for candidate in candidates:
+            if isinstance(candidate, Mapping):
+                value = candidate.get("source_identity", "")
+            else:
+                value = getattr(candidate, "source_identity", "")
+            source_identity = str(value or "").strip()
+            if source_identity:
+                break
+        if not source_identity or not self.standalone_dotnet_lifecycle_session_id:
+            return False
+        self.standalone_dotnet_scene_request_id += 1
+        self.standalone_dotnet_scene_generation += 1
+        request_id = self.standalone_dotnet_scene_request_id
+        scene_generation = self.standalone_dotnet_scene_generation
+        payload = {
+            "event": "scene_state_update",
+            "session_id": self.standalone_dotnet_lifecycle_session_id,
+            "request_id": request_id,
+            "process_generation": self.standalone_dotnet_process_generation,
+            "protocol_version": 2,
+            "source_identity": source_identity,
+            "scene_generation": scene_generation,
+            "comparison_mode": str(self.standalone_dotnet_scene_desired["comparison_mode"]),
+            "interaction_mode": str(self.standalone_dotnet_scene_desired["interaction_mode"]),
+            "gizmo": {
+                "visible": True,
+                "tool": str(self.standalone_dotnet_scene_desired["gizmo_tool"]),
+                "space": "world",
+            },
+        }
+        sent = self._send_dotnet_protocol_message(payload)
+        if sent:
+            self.standalone_dotnet_scene_candidate = None
+            self.standalone_dotnet_scene_pending = {
+                "session_id": self.standalone_dotnet_lifecycle_session_id,
+                "request_id": request_id,
+                "process_generation": self.standalone_dotnet_process_generation,
+                "source_identity": source_identity,
+                "scene_generation": scene_generation,
+                "interaction_only": True,
+            }
+            self._flush_dotnet_protocol_messages()
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_scene_interaction_sent",
+                request_id=request_id,
+                scene_generation=scene_generation,
+                interaction_mode=str(payload["interaction_mode"]),
+            )
+        return bool(sent)
 
 
     def _queue_dotnet_scene_frame_update(self) -> bool:
@@ -626,7 +690,7 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         *,
         use_presentation_state: bool = False,
     ) -> bool:
-        normalized = str(mode or "textured").strip().lower() or "textured"
+        normalized = normalize_mesh_preview_display_mode(mode or "textured")
         # Remember the reader's choice before anything can return early. The
         # presentation snapshot is rebuilt after every accepted scene frame, and
         # while Edit Mesh is active it falls back to Wire + Vertices whenever
@@ -646,9 +710,6 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         if "viewport_display_modes_v1" not in self.standalone_dotnet_capabilities:
             self.status_message_requested.emit("Embedded .NET viewport does not support display-mode updates.", True)
             return False
-        # "Solid + Wire" samples the same material as "Solid (Textured)", so it
-        # has to take the texture-resolve route too rather than being sent as a
-        # plain mode switch onto an untextured scene.
         if normalized in MESH_PREVIEW_TEXTURED_DISPLAY_MODES:
             if not self._dotnet_resident_material_updates_supported():
                 self.status_message_requested.emit(

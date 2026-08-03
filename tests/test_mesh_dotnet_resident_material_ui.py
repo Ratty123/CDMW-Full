@@ -155,6 +155,64 @@ def test_mesh_editor_reactivation_syncs_changed_materials_without_restart_v2() -
     tab.deleteLater()
 
 
+def test_mesh_editor_reactivation_uses_the_applied_resident_material_signature() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorResidentAppliedSignature"))
+    builder = _EmbeddedMeshBuilder()
+    tab.mount_embedded_builder(builder)
+    mesh = builder.controller.working_mesh(clone=False)
+    input_signature = mesh_dotnet_material_input_signature(mesh)
+    resident_signature = "resident-combined-material-state"
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    package = MeshDotNetExperimentPackage(
+        package_dir=Path("package"),
+        mesh_path=Path("package/mesh.obj"),
+        obj_sidecar_path=Path("package/mesh.obj.meta.json"),
+        cdmeta_path=Path("package/mesh.cdmeta.json"),
+        original_asset_hash_path=Path("package/original_asset_hash.txt"),
+        status_path=Path("package/dotnet_status.json"),
+        output_dir=Path("package/output"),
+        edit_operations_path=Path("package/output/edit_operations.json"),
+        launch_manifest_path=Path("package/dotnet_launch.json"),
+        material_signature=input_signature,
+        scene_frame=SimpleNamespace(
+            source_identity=static_scene_source_identity(mesh, None),
+        ),
+    )
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab.standalone_dotnet_experiment_package = package
+    tab.standalone_dotnet_material_signature = resident_signature
+    tab.standalone_dotnet_material_generation = 1
+    tab.standalone_dotnet_completed_material_generation = 1
+    tab.standalone_dotnet_applied_material_generation = 1
+    tab.standalone_dotnet_material_input_signature_by_role["editable_imported"] = input_signature
+    tab.standalone_dotnet_material_signature_by_role["editable_imported"] = resident_signature
+    tab.standalone_dotnet_material_generation_by_role["editable_imported"] = 1
+    tab.standalone_dotnet_completed_material_generation_by_role["editable_imported"] = 1
+    tab.standalone_dotnet_applied_material_generation_by_role["editable_imported"] = 1
+    tab._connect_dotnet_protocol(process)
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2",),
+    )
+
+    tab._start_dotnet_editor_requested(builder.controller, embedded=True)
+
+    activation = next(
+        json.loads(raw.decode("utf-8"))
+        for raw in reversed(process.stdin_writes)
+        if b'"event":"activate_request"' in raw
+    )
+    assert activation["material_signature"] == resident_signature
+    assert activation["material_generation"] == 1
+    assert not process.terminated
+    app.processEvents()
+    tab.deleteLater()
+
+
 def test_textured_view_waits_for_resident_material_ack_without_reload() -> None:
     app = QApplication.instance() or QApplication([])
     tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorTexturedViewResidentAck"))
@@ -473,11 +531,21 @@ def test_late_exact_clone_materials_update_editable_then_reference_resources(tmp
     assert material_writes[0]["reason"] == "late_exact_clone_resources"
     assert all(resource["role"] == "replacement" for resource in material_writes[0]["resources"])
 
+    editable_input_signature = material_writes[0]["material_signature"]
+    resident_combined_signature = "resident-editable-material-state"
     assert tab._handle_dotnet_protocol_event({
         "event": "material_state_applied",
         "generation": material_writes[0]["generation"],
-        "material_signature": material_writes[0]["material_signature"],
+        "material_signature": resident_combined_signature,
     })
+    assert (
+        tab.standalone_dotnet_material_input_signature_by_role["editable_imported"]
+        == editable_input_signature
+    )
+    assert (
+        tab.standalone_dotnet_material_signature_by_role["editable_imported"]
+        == resident_combined_signature
+    )
     app.processEvents()
     material_writes = _material_writes(app, process, minimum=2)
     assert len(material_writes) == 2

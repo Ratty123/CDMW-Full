@@ -52,7 +52,6 @@ def test_static_combo_options_keep_expected_order_and_values() -> None:
         ("Solid (Textured)", "textured"),
         ("Faces (No Textures)", "untextured_faces"),
         ("Faces + Wire", "untextured_wire"),
-        ("Solid + Wire", "textured_wire"),
         ("Wire", "wire"),
         ("Vertices", "vertices"),
         ("Wire + Vertices", "wire_vertices"),
@@ -62,6 +61,7 @@ def test_static_combo_options_keep_expected_order_and_values() -> None:
         value for _label, value in MESH_PREVIEW_DISPLAY_MODE_OPTIONS
     )
     assert normalize_mesh_preview_display_mode("UNtextured-Wire") == "untextured_wire"
+    assert normalize_mesh_preview_display_mode("textured_wire") == "textured"
     assert normalize_mesh_preview_display_mode("unsupported") == "untextured_wire"
     assert TEXTURE_UV_ROTATION_OPTIONS == (
         ("0 deg", 0),

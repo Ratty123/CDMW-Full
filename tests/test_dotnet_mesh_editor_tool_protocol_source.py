@@ -205,10 +205,11 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     # geometry once textures resolve; the wire overlay stays an authoring
     # default only.
     assert 'hasTextureResources ? "textured" : "untextured_wire"' in resident_package_source
-    assert 'hasTextureResources ? "textured_wire" : "untextured_wire"' in resident_package_source
     assert "InitialResidentDisplayMode(bool hasTextureResources)" in resident_package_source
     assert "InitialResidentDisplayMode(" in controls_source
     assert '"Faces + Wire"' in controls_source
+    assert '"Solid + Wire"' not in controls_source
+    assert 'normalized = "textured";' in controls_source
     assert "selectedIndex: Array.IndexOf(" in controls_source
     assert 'var mode = _placementPreviewMode;' in controls_source
     assert 'SyncPreviewModeSelection(_viewport.DisplayMode);' in _source(
@@ -417,6 +418,8 @@ def test_dotnet_resident_scene_owns_reference_grid_modes_and_gizmo() -> None:
     assert 'AuthoritativeResidentSceneCapability = "authoritative_resident_scene_frame_v2"' in protocol_source
     assert "HandleSceneStateUpdate(root);" in protocol_source
     assert "TryApplyResidentUpdate" in scene_source
+    assert "TryApplyResidentInteractionUpdate" in scene_source
+    assert "hasAuthoritativeRoles" in protocol_source
     assert 'rejectionReason = "stale_scene_generation"' in scene_source
     assert 'rejectionReason = "stale_source_identity"' in scene_source
     assert "EditableModelMatrix" in scene_source
@@ -679,7 +682,7 @@ def test_dotnet_input_precedence_depth_passes_and_mode_controls_are_explicit() -
     assert "section.Visible = !meshEdit;" in controls_source
     assert "var leavingMeshEdit = !meshEdit && _meshEditInteractionActive;" in controls_source
     assert "var mode = _placementPreviewMode;" in controls_source
-    assert '"textured_wire" => "untextured_wire"' in controls_source
+    assert 'string.Equals(normalized, "textured_wire"' in controls_source
     assert "_viewport.TrySetSynchronizedDisplayMode(mode, out var error)" in controls_source
     assert "SynchronizePresentationDisplaySettings();" in _source("MeshViewport.PresentationSettings.cs")
     assert 'phase == "begin" and isinstance(payload.get("local_selection"), Mapping)' not in host_commands

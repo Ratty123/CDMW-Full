@@ -136,11 +136,10 @@ def test_tool_rail_mesh_view_labels_fit_the_control(builder) -> None:
         _APPLICATION.processEvents()
 
 
-def test_textured_modes_fall_back_to_their_own_untextured_pair() -> None:
-    """A pending texture load must not silently drop the wire overlay."""
-    assert MESH_PREVIEW_TEXTURED_DISPLAY_MODES == {"textured", "textured_wire"}
+def test_textured_mode_falls_back_to_readable_untextured_faces() -> None:
+    assert MESH_PREVIEW_TEXTURED_DISPLAY_MODES == {"textured"}
     assert untextured_fallback_display_mode("textured") == "untextured_faces"
-    assert untextured_fallback_display_mode("textured_wire") == "untextured_wire"
+    assert untextured_fallback_display_mode("textured_wire") == "untextured_faces"
     # Non-textured modes need no fallback and must pass through unchanged.
     for _label, mode in MESH_PREVIEW_DISPLAY_MODE_OPTIONS:
         if mode in MESH_PREVIEW_TEXTURED_DISPLAY_MODES:

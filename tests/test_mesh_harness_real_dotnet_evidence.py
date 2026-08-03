@@ -409,9 +409,8 @@ def test_real_dotnet_geometry_color_guard_uses_the_saved_viewport_background(tmp
 def test_real_dotnet_proof_exercises_every_mode_the_mesh_view_controls_offer() -> None:
     """A mode the user can pick but the harness never drives is an untested claim.
 
-    Covering only a subset is how "Solid + Wire" reached users broken while this
-    gate stayed green, so the harness table is pinned to the combo table rather
-    than to a hand-kept shortlist.
+    The harness table is pinned to the combo table rather than to a hand-kept
+    shortlist, so removing or adding a visible mode updates acceptance coverage.
     """
     from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
         MESH_PREVIEW_DISPLAY_MODE_OPTIONS,

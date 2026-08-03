@@ -177,19 +177,23 @@ def test_copy_exact_clone_original_preview_materials_requires_clone_preview_stat
     assert [mesh.material_name for mesh in preview_model.meshes] == ["A", "B"]
 
 
-def test_modify_original_late_bindings_publish_one_resident_clone_snapshot() -> None:
+def test_modify_original_late_bindings_publish_both_resident_material_roles() -> None:
     preview_model = SimpleNamespace(
         meshes=[_mesh(preview_texture_path="C:/cache/original.dds")]
     )
     replacement_mesh_base = SimpleNamespace(submeshes=[SimpleNamespace()])
     replacement_mesh = SimpleNamespace(submeshes=[SimpleNamespace()])
     resident_updates: list[str] = []
+    def record_update(role: str) -> bool:
+        resident_updates.append(role)
+        return True
+
     dialog = SimpleNamespace(
         _mesh_editor_embedded_apply_clone_material_resources=(
-            lambda _model: resident_updates.append("clone")
+            lambda _model: record_update("clone")
         ),
         _mesh_editor_embedded_apply_reference_material_resources=(
-            lambda _model: resident_updates.append("reference")
+            lambda _model: record_update("reference")
         ),
     )
 
@@ -204,7 +208,7 @@ def test_modify_original_late_bindings_publish_one_resident_clone_snapshot() -> 
 
     assert replacement_mesh_base.submeshes[0].preview_texture_path == "C:/cache/original.dds"
     assert replacement_mesh.submeshes[0].preview_texture_path == "C:/cache/original.dds"
-    assert resident_updates == ["clone"]
+    assert resident_updates == ["clone", "reference"]
 
 
 def test_apply_original_material_preview_uses_direct_source_preview_map() -> None:

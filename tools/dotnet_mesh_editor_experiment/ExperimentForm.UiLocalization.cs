@@ -284,7 +284,6 @@ internal sealed class UiLocalizationOwner : IDisposable
         "Smooth",
         "Smooth, Inflate and Pinch with radius, strength and falloff.",
         "Solid (Textured)",
-        "Solid + Wire",
         "Split Selection Into Part",
         "Step 1: Profile and sliders",
         "Step 2: Refit (optional)",

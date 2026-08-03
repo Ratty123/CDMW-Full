@@ -619,6 +619,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   the same resident mesh revision; stale or future mesh revisions fail instead
   of poisoning the geometry revision stream. Each generation tracks its
   `editable/imported` or `original_reference` role separately.
+  Modify Original's late resolver publishes the exact clone first and queues the
+  same resolved model as `original_reference` behind it; returning after the clone
+  alone is not a settled two-pane material state. Source-input signatures are
+  tracked separately from the combined signature reported by the renderer, so a
+  healthy resident scene reactivates with the state it actually holds instead of
+  entering a false material-sync/restart loop.
   Textured display settles only when every role required by the current scene
   has applied; an Imported acknowledgement cannot complete Original, and a
   missing resource reports the affected pane without replacing the last valid
@@ -647,7 +653,14 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   export commit, package rebuild, camera change, or process restart. Normal-map
   space is also explicit per submesh; glTF/green-up inputs invert green in the
   DirectX shader while DirectX inputs are preserved. PNG-only sessions do not
-  report DDS-upload parity warnings. The focused profile corpus records every
+  report DDS-upload parity warnings.
+  Mesh View and Edit Mesh expose one textured choice, `Solid (Textured)`; legacy
+  `textured_wire` preferences and protocol requests normalize to it. Finish Edit
+  Mesh publishes an interaction-only placement transition even while a full scene
+  frame is calculating, and finalizes only after the exact scene acknowledgement.
+  A five-second timeout leaves Edit Mesh open and reports the correlated failure,
+  rather than claiming the save while the resident tool layout is still active.
+  The focused profile corpus records every
   supported profile's channels, criticality, scalar/tint/normal-Y/layer rules,
   real PAC and external-catalogue input fingerprints, and synthetic failure
   cases without claiming visual parity beyond production capture evidence. Its

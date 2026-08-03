@@ -129,6 +129,8 @@ class MeshEditorDotNetProcessMixin:
         self._cancel_dotnet_material_compile()
         self.standalone_dotnet_ready_timer.stop()
         self.standalone_dotnet_deactivate_timer.stop()
+        self.standalone_dotnet_finish_scene_timer.stop()
+        self.standalone_dotnet_finish_scene_pending = None
         controller = self._active_shared_dotnet_controller()
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state(embedded_state, active=False)
@@ -168,6 +170,8 @@ class MeshEditorDotNetProcessMixin:
         process_payload = self._dotnet_process_event_payload(process, package=package)
         self._record_mesh_dotnet_event("mesh_dotnet_process_finished", **process_payload)
         self.standalone_dotnet_ready_timer.stop()
+        self.standalone_dotnet_finish_scene_timer.stop()
+        self.standalone_dotnet_finish_scene_pending = None
         self.standalone_dotnet_editor_process = None
         self._cancel_dotnet_material_compile()
         self.standalone_dotnet_update_ack_start_timer.stop()

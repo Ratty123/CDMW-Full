@@ -118,6 +118,12 @@ class MeshEditorDotNetResourceProtocolMixin(
                 payload.get("material_signature", self.standalone_dotnet_material_signature) or ""
             )
             self.standalone_dotnet_material_signature_by_role[role] = self.standalone_dotnet_material_signature
+            input_signature = self.standalone_dotnet_material_input_signature_by_generation.get(
+                generation,
+                "",
+            )
+            if input_signature:
+                self.standalone_dotnet_material_input_signature_by_role[role] = input_signature
             self.standalone_dotnet_material_error_by_role.pop(role, None)
             self.standalone_dotnet_lifecycle_counts["material_state_applied_count"] += 1
             self._set_dotnet_status(
@@ -505,10 +511,15 @@ class MeshEditorDotNetResourceProtocolMixin(
                 or _tab.mesh_dotnet_material_input_signature(immutable_inputs)
                 or ""
             )
+            resident_input_signature = str(
+                self.standalone_dotnet_material_input_signature_by_role.get(role_key, "")
+                or self.standalone_dotnet_material_signature_by_role.get(role_key, "")
+                or ""
+            )
             if (
                 effective_material_signature
                 and effective_material_signature
-                == self.standalone_dotnet_material_signature_by_role.get(role_key, "")
+                == resident_input_signature
                 and int(self.standalone_dotnet_applied_material_generation_by_role.get(role_key, 0) or 0) > 0
                 and int(self.standalone_dotnet_material_generation_by_role.get(role_key, 0) or 0)
                 <= int(self.standalone_dotnet_completed_material_generation_by_role.get(role_key, 0) or 0)
@@ -555,6 +566,9 @@ class MeshEditorDotNetResourceProtocolMixin(
             return False
         self.standalone_dotnet_material_generation = generation
         self.standalone_dotnet_material_role_by_generation[generation] = role_key
+        self.standalone_dotnet_material_input_signature_by_generation[generation] = (
+            effective_material_signature
+        )
         self.standalone_dotnet_material_generation_by_role[role_key] = generation
         self.standalone_dotnet_material_error_by_role.pop(role_key, None)
         return self._queue_dotnet_material_compile(

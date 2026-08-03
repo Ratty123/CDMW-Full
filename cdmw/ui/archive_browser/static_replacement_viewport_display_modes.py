@@ -14,7 +14,6 @@ MESH_PREVIEW_DISPLAY_MODE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Solid (Textured)", "textured"),
     ("Faces (No Textures)", "untextured_faces"),
     ("Faces + Wire", "untextured_wire"),
-    ("Solid + Wire", "textured_wire"),
     ("Wire", "wire"),
     ("Vertices", "vertices"),
     ("Wire + Vertices", "wire_vertices"),
@@ -28,7 +27,6 @@ MESH_PREVIEW_COMPACT_DISPLAY_MODE_OPTIONS: tuple[tuple[str, str], ...] = (
     ("Solid", "textured"),
     ("Faces", "untextured_faces"),
     ("Faces+W", "untextured_wire"),
-    ("Solid+W", "textured_wire"),
     ("Wire", "wire"),
     ("Verts", "vertices"),
     ("Wire+V", "wire_vertices"),
@@ -48,7 +46,12 @@ if MESH_PREVIEW_DISPLAY_MODES != tuple(
 
 # Modes that sample the material, so the resident viewport needs resolved
 # textures before the mode can be honoured.
-MESH_PREVIEW_TEXTURED_DISPLAY_MODES = frozenset({"textured", "textured_wire"})
+MESH_PREVIEW_TEXTURED_DISPLAY_MODES = frozenset({"textured"})
+
+# Version 0.11 exposed a second textured choice whose renderer output was the
+# same as Faces + Wire whenever resources were absent. Keep its protocol and
+# preference value readable, but resolve it to the one honest textured mode.
+_LEGACY_DISPLAY_MODE_ALIASES = {"textured_wire": "textured"}
 
 # What to show while a textured mode waits for its textures. The .NET viewport
 # applies the same rule in ExperimentForm.ConfigurePreviewModeCombo, so keeping
@@ -56,7 +59,6 @@ MESH_PREVIEW_TEXTURED_DISPLAY_MODES = frozenset({"textured", "textured_wire"})
 # chosen from the Qt control.
 _UNTEXTURED_FALLBACK_DISPLAY_MODES = {
     "textured": "untextured_faces",
-    "textured_wire": "untextured_wire",
 }
 
 
@@ -68,6 +70,7 @@ def untextured_fallback_display_mode(value: object) -> str:
 
 def normalize_mesh_preview_display_mode(value: object) -> str:
     normalized = str(value or "").strip().lower().replace("-", "_")
+    normalized = _LEGACY_DISPLAY_MODE_ALIASES.get(normalized, normalized)
     if normalized in MESH_PREVIEW_DISPLAY_MODES:
         return normalized
     return MESH_PREVIEW_DEFAULT_DISPLAY_MODE
