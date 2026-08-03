@@ -106,8 +106,51 @@ internal sealed partial class MeshViewport
         {
             MaterialDebugMode = DotNetPreviewViewModes.MaterialDebugMode(viewMode);
         }
+        // A background chosen in the Viewport section outranks the snapshot. The
+        // host republishes this payload after every accepted scene frame, so
+        // without the override the reader's colour lasted until the next frame.
+        ApplyViewportColorOverrides();
         ApplyGizmoAppearanceFromPresentation(quality);
         _d3d11Viewport?.ApplyPresentationSettings(_residentPresentationSettings);
+    }
+
+    private Vector3? _backgroundColorOverride;
+    private Vector3? _gridColorOverride;
+
+    /// <summary>
+    /// The viewport's own clear and grid colours. Null clears an override and
+    /// hands the field back to the host's presentation quality payload.
+    /// </summary>
+    internal void SetViewportColorOverrides(
+        System.Drawing.Color? background,
+        System.Drawing.Color? grid)
+    {
+        _backgroundColorOverride = background is { } backgroundColor
+            ? new Vector3(
+                SrgbToLinear(backgroundColor.R / 255.0f),
+                SrgbToLinear(backgroundColor.G / 255.0f),
+                SrgbToLinear(backgroundColor.B / 255.0f))
+            : null;
+        _gridColorOverride = grid is { } gridColor
+            ? new Vector3(gridColor.R / 255.0f, gridColor.G / 255.0f, gridColor.B / 255.0f)
+            : null;
+        ApplyViewportColorOverrides();
+        _d3d11Viewport?.ApplyPresentationSettings(_residentPresentationSettings);
+        UpdateGpuViewport();
+        Invalidate();
+    }
+
+    private void ApplyViewportColorOverrides()
+    {
+        if (_backgroundColorOverride is null && _gridColorOverride is null)
+        {
+            return;
+        }
+        _residentPresentationSettings = _residentPresentationSettings with
+        {
+            BackgroundColor = _backgroundColorOverride ?? _residentPresentationSettings.BackgroundColor,
+            GridColor = _gridColorOverride ?? _residentPresentationSettings.GridColor,
+        };
     }
 
     private void SynchronizePresentationDisplaySettings()

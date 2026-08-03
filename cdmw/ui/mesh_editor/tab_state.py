@@ -656,6 +656,12 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
                     True,
                 )
                 return False
+            builder = self.active_builder()
+            request_textures = getattr(
+                builder,
+                "_mesh_editor_embedded_request_material_resources",
+                None,
+            )
             if (
                 self.standalone_dotnet_applied_material_generation > 0
                 and self.standalone_dotnet_material_generation
@@ -667,13 +673,22 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
                 )
                 if sent:
                     self.sync_viewport_display_combos(normalized)
+                    # A material state having been applied means the *editable*
+                    # package's textures are resident: they are baked into it.
+                    # The Original pane's are not -- they are resolved lazily by
+                    # this same resolver, and the embedded builder deliberately
+                    # does not resolve them at open. Returning here without
+                    # asking is why Solid (Textured) textured the Imported pane
+                    # and left the Original flat. The resolver answers
+                    # "already loaded" or "in flight" for a repeat, so asking on
+                    # every pick costs nothing after the first, and the wait is
+                    # deliberately not armed: the editable pane is textured now
+                    # and the reference materials publish themselves when they
+                    # land.
+                    self._request_reference_textures_for_textured_view(
+                        request_textures
+                    )
                 return sent
-            builder = self.active_builder()
-            request_textures = getattr(
-                builder,
-                "_mesh_editor_embedded_request_material_resources",
-                None,
-            )
             if not callable(request_textures):
                 self.status_message_requested.emit(
                     "No texture resolver is available for this Mesh Editor session; the untextured scene remains active.",
@@ -707,6 +722,24 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         if sent:
             self.sync_viewport_display_combos(normalized)
         return sent
+
+    def _request_reference_textures_for_textured_view(self, request_textures: object) -> None:
+        """Kick the Original pane's lazy texture resolve without waiting on it.
+
+        Failures are reported by the resolver itself. They must not be raised as
+        a textured-view failure here: the editable pane really is textured, and
+        an error banner over a correct preview reads as the mode not having
+        worked at all.
+        """
+        if not callable(request_textures):
+            return
+        try:
+            request_textures()
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_reference_texture_request_failed",
+                error=str(exc),
+            )
 
     def _settle_requested_textured_view(self, outcome: object) -> None:
         """Resolve a textured-view request whose resolver started no worker.
@@ -817,10 +850,24 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
             self.status_message_requested.emit("Could not update embedded .NET viewport display mode.", True)
             return sent
         # The display mode is part of the presentation snapshot, and this is the
-        # other channel that changes it. The record of what the helper is
-        # holding no longer describes it, so it must not be used to skip a later
-        # presentation publish as already-applied -- that would leave the helper
-        # on the mode this message set with no way to move it back.
+        # other channel that changes it. Both records have to follow it.
+        #
+        # The desired snapshot is what every later publish sends, and a publish
+        # is triggered by things that carry no mode of their own -- a part
+        # highlight, a visibility change, an armed tool. Leaving the old mode in
+        # it meant the next of those re-asserted the mode the reader had just
+        # moved away from: picking Solid (Textured) and then selecting a part
+        # snapped the viewport back to Wire + Vertices, and the same publish in
+        # placement snapped it back to Faces + Wire.
+        display = self.standalone_dotnet_presentation_desired.get("display")
+        if not isinstance(display, dict):
+            display = {}
+            self.standalone_dotnet_presentation_desired["display"] = display
+        display["mode"] = normalized
+        # The record of what the helper is holding no longer describes it, so it
+        # must not be used to skip a later presentation publish as
+        # already-applied -- that would leave the helper on the mode this
+        # message set with no way to move it back.
         self.standalone_dotnet_presentation_published_content = None
         return sent
     def _handle_embedded_skeleton_pose_request(self, command: str, payload: object) -> bool:
