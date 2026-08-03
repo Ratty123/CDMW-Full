@@ -14,6 +14,7 @@ from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 #: it to decide whether an action arms a tool -- three drifting literals would
 #: let a new tool arm on one path and be refused on the other.
 STANDALONE_NATIVE_TOOL_STATE: dict[str, tuple[str, str, str]] = {
+    "select_parts": ("select", "source", "edit"),
     "transform_move": ("move", "selection", "edit"),
     "brush_grab": ("grab", "selection", "sculpt"),
     "brush_smooth": ("smooth", "selection", "sculpt"),

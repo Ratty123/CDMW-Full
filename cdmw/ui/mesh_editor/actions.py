@@ -11,6 +11,13 @@ _NON_NATIVE_EDITOR_SESSION_COMMANDS = frozenset(
 )
 NATIVE_EDITOR_SESSION_COMMANDS = frozenset(MESH_EDIT_ACTIONS) - _NON_NATIVE_EDITOR_SESSION_COMMANDS
 
+LEGACY_PART_SELECTION_ACTION_KEYS = frozenset(
+    {"select_vertex", "select_edge", "select_face"}
+)
+_USER_HIDDEN_ACTION_KEYS = LEGACY_PART_SELECTION_ACTION_KEYS | frozenset(
+    {"loop_cut", "edge_split", "bridge", "extrude", "inset", "merge", "weld", "fill"}
+)
+
 
 @dataclass(frozen=True, slots=True)
 class MeshEditorAction:
@@ -31,9 +38,7 @@ _SHORTCUTS = {
     "mode_object": "Ctrl+1",
     "mode_edit": "Ctrl+2",
     "mode_sculpt": "Ctrl+3",
-    "select_vertex": "1",
-    "select_edge": "2",
-    "select_face": "3",
+    "select_parts": "1",
     "transform_move": "G",
     "transform_rotate": "R",
     "transform_scale": "S",
@@ -92,18 +97,16 @@ _SHORTCUTS = {
 
 _TOOLTIPS = {
     "mode_object": "Object mode for whole-part editing.",
-    "mode_edit": "Edit mode for vertex, edge, face, UV, and topology tools.",
+    "mode_edit": "Edit mode for whole-part selection, transforms, UV, and topology tools.",
     "mode_sculpt": "Sculpt mode for brush-based surface edits.",
-    "select_vertex": "Select vertices.",
-    "select_edge": "Select edges.",
-    "select_face": "Select faces.",
-    "transform_move": "Move selected mesh elements.",
-    "transform_rotate": "Rotate selected mesh elements.",
-    "transform_scale": "Scale selected mesh elements.",
-    "brush_grab": "Grab selected or brushed vertices.",
-    "brush_smooth": "Smooth selected or brushed vertices.",
-    "brush_inflate": "Inflate selected or brushed vertices.",
-    "brush_pinch": "Pinch selected or brushed vertices.",
+    "select_parts": "Select complete mesh parts in the viewport.",
+    "transform_move": "Move selected mesh parts.",
+    "transform_rotate": "Rotate selected mesh parts.",
+    "transform_scale": "Scale selected mesh parts.",
+    "brush_grab": "Grab vertices within the selected parts or the initially hit part.",
+    "brush_smooth": "Smooth vertices within the selected parts or the initially hit part.",
+    "brush_inflate": "Inflate vertices within the selected parts or the initially hit part.",
+    "brush_pinch": "Pinch vertices within the selected parts or the initially hit part.",
     "uv_island_transform": "Transform the connected UV island from the current selection.",
     "uv_rotate_90": "Rotate selected UVs around the texture center.",
     "uv_normalize": "Normalize selected UVs into the 0-1 texture tile.",
@@ -152,9 +155,7 @@ MESH_EDITOR_ACTIONS = tuple(_with_palette_metadata(action) for action in (
     MeshEditorAction("mode_object", "Object", "set_mode", "mode", mode="object"),
     MeshEditorAction("mode_edit", "Edit", "set_mode", "mode", mode="edit"),
     MeshEditorAction("mode_sculpt", "Sculpt", "set_mode", "mode", mode="sculpt"),
-    MeshEditorAction("select_vertex", "Vertex", "select", "selection", selection_mode="vertex"),
-    MeshEditorAction("select_edge", "Edge", "select", "selection", selection_mode="edge"),
-    MeshEditorAction("select_face", "Face", "select", "selection", selection_mode="face"),
+    MeshEditorAction("select_parts", "Select Parts", "select", "selection"),
     MeshEditorAction("transform_move", "Move", "transform", "transform", requires_selection=True),
     MeshEditorAction("transform_rotate", "Rotate", "transform", "transform", params=(("rotate", (0.0, 0.0, 15.0)),), requires_selection=True),
     MeshEditorAction("transform_scale", "Scale", "transform", "transform", params=(("scale", (1.1, 1.1, 1.1)),), requires_selection=True),
@@ -211,14 +212,37 @@ MESH_EDITOR_ACTIONS = tuple(_with_palette_metadata(action) for action in (
     MeshEditorAction("redo", "Redo", "redo", "history"),
 ))
 
+MESH_EDITOR_VISIBLE_ACTIONS = tuple(
+    action for action in MESH_EDITOR_ACTIONS if action.key not in _USER_HIDDEN_ACTION_KEYS
+)
+
 
 def mesh_editor_actions_by_key() -> dict[str, MeshEditorAction]:
-    return {action.key: action for action in MESH_EDITOR_ACTIONS}
+    actions = {action.key: action for action in MESH_EDITOR_ACTIONS}
+    select_parts = actions["select_parts"]
+    actions.update({key: select_parts for key in LEGACY_PART_SELECTION_ACTION_KEYS})
+    return actions
 
 
 def mesh_editor_actions_for_category(category: str) -> tuple[MeshEditorAction, ...]:
     normalized = str(category or "").strip().lower()
     return tuple(action for action in MESH_EDITOR_ACTIONS if action.category == normalized)
+
+
+def normalize_mesh_selection_shape(value: object, *, default: str = "brush") -> str:
+    normalized = str(value or "").strip().lower().replace(" ", "_")
+    aliases = {
+        "select_vertex": "brush",
+        "select_edge": "brush",
+        "select_face": "brush",
+        "vertex": "brush",
+        "edge": "brush",
+        "face": "brush",
+        "paint": "brush",
+        "box": "rectangle",
+    }
+    normalized = aliases.get(normalized, normalized)
+    return normalized if normalized in {"brush", "rectangle", "lasso"} else default
 
 
 def validate_mesh_editor_actions() -> None:
@@ -242,9 +266,12 @@ def validate_mesh_editor_actions() -> None:
 
 __all__ = [
     "MESH_EDITOR_ACTIONS",
+    "MESH_EDITOR_VISIBLE_ACTIONS",
+    "LEGACY_PART_SELECTION_ACTION_KEYS",
     "NATIVE_EDITOR_SESSION_COMMANDS",
     "MeshEditorAction",
     "mesh_editor_actions_by_key",
     "mesh_editor_actions_for_category",
+    "normalize_mesh_selection_shape",
     "validate_mesh_editor_actions",
 ]

@@ -151,7 +151,7 @@ def _run_performance_interactions(
         active_name = interaction.name
         if interaction.name == "textured-orbit-pan-zoom":
             tool_ok = tab._send_dotnet_protocol_message(
-                {"event": "tool_state", "tool": "orbit", "target_mode": "face"}
+                {"event": "tool_state", "tool": "orbit", "target_mode": "source"}
             )
             return bool(
                 tool_ok
@@ -165,7 +165,7 @@ def _run_performance_interactions(
         if interaction.name == "side-by-side":
             scene_ok = tab._send_dotnet_scene_state(comparison_mode="side_by_side")
             tool_ok = tab._send_dotnet_protocol_message(
-                {"event": "tool_state", "tool": "orbit", "target_mode": "face"}
+                {"event": "tool_state", "tool": "orbit", "target_mode": "source"}
             )
             down_ok = _send_mouse_message(
                 state.viewport_hwnd,
@@ -175,9 +175,22 @@ def _run_performance_interactions(
             )
             return bool(scene_ok and tool_ok and down_ok)
         if interaction.name == "selection-brush-burst":
+            tool_ok = tab._send_dotnet_protocol_message(
+                {
+                    "event": "tool_state",
+                    "tool": "select",
+                    "target_mode": "source",
+                    "selection_mode": "brush",
+                    "selection_operation": "add",
+                }
+            )
             return bool(
-                tab._send_dotnet_protocol_message(
-                    {"event": "tool_state", "tool": "grab", "target_mode": "vertex"}
+                tool_ok
+                and _send_mouse_message(
+                    state.viewport_hwnd,
+                    _WM_LBUTTONDOWN,
+                    *center,
+                    wparam=_MK_LBUTTON,
                 )
             )
         if interaction.name in {
@@ -234,7 +247,13 @@ def _run_performance_interactions(
         elif interaction.name == "selection-brush-burst":
             x = max(1, min(width - 2, center[0] + (phase - 32)))
             y = max(1, min(height - 2, center[1] + int(round(math.sin(phase * 0.3) * 24))))
-            workload_ok = _send_mouse_message(state.viewport_hwnd, _WM_MOUSEMOVE, x, y)
+            workload_ok = _send_mouse_message(
+                state.viewport_hwnd,
+                _WM_MOUSEMOVE,
+                x,
+                y,
+                wparam=_MK_LBUTTON,
+            )
         elif interaction.name == "material-update":
             group = {
                 "source_submesh_indices": [int(state.submesh_index)],
@@ -286,13 +305,13 @@ def _run_performance_interactions(
         if interaction.name == "textured-orbit-pan-zoom":
             up_ok = _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONUP, *center)
             restore_ok = tab._send_dotnet_protocol_message(
-                {"event": "tool_state", "tool": "move", "target_mode": "face"}
+                {"event": "tool_state", "tool": "move", "target_mode": "source"}
             )
             return bool(up_ok and restore_ok)
         if interaction.name == "side-by-side":
             up_ok = _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONUP, *center)
             restore_tool_ok = tab._send_dotnet_protocol_message(
-                {"event": "tool_state", "tool": "move", "target_mode": "face"}
+                {"event": "tool_state", "tool": "move", "target_mode": "source"}
             )
             restore_scene_ok = tab._send_dotnet_scene_state(comparison_mode="replacement_only")
             return bool(up_ok and restore_tool_ok and restore_scene_ok)
@@ -307,11 +326,11 @@ def _run_performance_interactions(
                 )
             )
         if interaction.name == "selection-brush-burst":
-            return bool(
-                tab._send_dotnet_protocol_message(
-                    {"event": "tool_state", "tool": "move", "target_mode": "face"}
-                )
+            up_ok = _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONUP, *center)
+            restore_ok = tab._send_dotnet_protocol_message(
+                {"event": "tool_state", "tool": "move", "target_mode": "source"}
             )
+            return bool(up_ok and restore_ok)
         if interaction.name == "material-update":
             final_group = {
                 "source_submesh_indices": [int(state.submesh_index)],
@@ -491,20 +510,26 @@ def _execute_performance_capture(state: SimpleNamespace, request: PerformanceReq
 
 
 def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, object] | None:
-    initial_faces = tuple(range(min(12, len(state.submesh.faces))))
-    state.controller.select(faces_by_submesh={state.submesh_index: initial_faces}, operation="replace")
+    # The production UI exposes only whole-part selection. Keep the historical
+    # face/vertex evidence fields below as geometry bookkeeping, but select the
+    # complete source part through the same contract the visible tool rail uses.
+    initial_faces = tuple(range(len(state.submesh.faces)))
+    state.select_result = state.controller.select(
+        source_indices=(state.submesh_index,), operation="replace"
+    )
     state.tab._send_dotnet_session_state()
     tool_cursor = len(state.tab.standalone_dotnet_protocol_events)
     state.tool_state_sent = state.tab._send_dotnet_protocol_message(
-        {"event": "tool_state", "tool": "move", "target_mode": "face"}
+        {"event": "tool_state", "tool": "move", "target_mode": "source"}
     )
-    state.tool_state_event = _wait_protocol_event(state, "tool_state_applied", tool_cursor)
+    state.tool_state_event = _wait_protocol_event(state, "tool_state_applied", tool_cursor, 5.0)
     tool_selection = state.tool_state_event.get("local_selection", {})
     tool_selection = tool_selection if isinstance(tool_selection, Mapping) else {}
-    state.face_selection_keeps_part_unselected = bool(
-        not tuple(tool_selection.get("source_indices", ()) or ())
-        and int(state.tool_state_event.get("selected_part_index", -2)) == -1
-        and int(state.tool_state_event.get("parts_list_selected_index", -2)) == -1
+    selected_sources = tuple(int(value) for value in tuple(tool_selection.get("source_indices", ()) or ()))
+    state.part_selection_armed = bool(
+        selected_sources == (state.submesh_index,)
+        and int(state.tool_state_event.get("selected_part_index", -2)) == state.submesh_index
+        and int(state.tool_state_event.get("parts_list_selected_index", -2)) == state.submesh_index
     )
     # Re-read the viewport rectangle before using it to aim anything. The one
     # carried on the ready event describes the embedded editor window before it
@@ -521,10 +546,16 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
     probe = (client_x + max(1, width // 2), client_y + max(1, height // 2))
     cursor = len(state.tab.standalone_dotnet_protocol_events)
     state.probe_down_sent = _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONDOWN, *probe, wparam=_MK_LBUTTON)
-    state.probe_started = _wait_protocol_event(state, "stroke_begin", cursor)
+    state.probe_started = _wait_protocol_event(state, "stroke_begin", cursor, 2.0)
     cursor = len(state.tab.standalone_dotnet_protocol_events)
     state.probe_up_sent = _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONUP, *probe)
-    state.probe_finished = _wait_protocol_event(state, "stroke_end", cursor)
+    state.probe_finished = _wait_protocol_event(state, "stroke_end", cursor, 0.25)
+    if not state.probe_finished:
+        # Focusing the embedded render child may cancel this zero-distance probe
+        # after publishing the projection-bearing begin event. That is a valid
+        # terminal state for the probe, not a reason to consume the scenario's
+        # entire deadline before the measured stroke starts.
+        state.probe_finished = _wait_protocol_event(state, "stroke_cancel", cursor, 1.75)
     drag = state.probe_started.get("screen_drag", {}) if isinstance(state.probe_started, Mapping) else {}
     state.projection_drag = dict(drag) if isinstance(drag, Mapping) else {}
     matrix = tuple(state.projection_drag.get("world_view_projection", ()) or ())
@@ -540,6 +571,41 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
     state.projection_viewport_height = float(
         state.projection_drag.get("viewport_height", 0) or 0
     ) or float(height)
+    projection_width = int(round(state.projection_viewport_width))
+    projection_height = int(round(state.projection_viewport_height))
+    surface_rect = _host_window_rect(state.viewport_hwnd)
+    surface_width = int(surface_rect[2] - surface_rect[0]) if surface_rect else 0
+    surface_height = int(surface_rect[3] - surface_rect[1]) if surface_rect else 0
+    state.projection_surface_reconciliation = {
+        "status_width": width,
+        "status_height": height,
+        "projection_width": projection_width,
+        "projection_height": projection_height,
+        "surface_width": surface_width,
+        "surface_height": surface_height,
+        "reconciled": False,
+    }
+    # The host can resize the embedded child after the correlated renderer-status
+    # reply but before the first pointer event is dispatched. Trust the newer
+    # projection dimensions only when Windows independently reports the exact
+    # same child-surface rectangle; otherwise the stroke driver keeps rejecting
+    # the disagreement as before.
+    if (
+        surface_rect
+        and (projection_width, projection_height) == (surface_width, surface_height)
+        and (width, height) != (projection_width, projection_height)
+    ):
+        state.viewport.update(
+            {
+                "screen_x": int(surface_rect[0]),
+                "screen_y": int(surface_rect[1]),
+                "client_x": 0,
+                "client_y": 0,
+                "width": projection_width,
+                "height": projection_height,
+            }
+        )
+        state.projection_surface_reconciliation["reconciled"] = True
     selected_faces = _projected_face_cluster_for_drag(
         state.submesh,
         matrix,
@@ -548,14 +614,16 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
         viewport_width=state.projection_viewport_width,
         viewport_height=state.projection_viewport_height,
     ) if matrix else initial_faces
-    state.selected_faces = selected_faces or initial_faces
+    # Projected faces choose a stable drag anchor only. Authority remains the
+    # selected part, so the expected changed set is every vertex in that part.
+    state.projected_anchor_faces = selected_faces or initial_faces
+    state.selected_faces = initial_faces
     state.face_vertices = sorted(
         {vertex for face_index in state.selected_faces for vertex in state.submesh.faces[int(face_index)]}
     )
-    state.select_result = state.controller.select(
-        faces_by_submesh={state.submesh_index: state.selected_faces}, operation="replace"
-    )
-    state.tab._send_dotnet_session_state()
+    # The part selection was already published before Move was armed. Replaying
+    # the host session here would intentionally restore its neutral Orbit tool
+    # and disarm the physical stroke that follows.
     _pump_for(state, 0.15)
     current = state.controller.working_mesh(clone=False)
     state.before_vertices = [tuple(float(value) for value in current.submeshes[state.submesh_index].vertices[index]) for index in state.face_vertices]
@@ -572,7 +640,7 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
     ) if matrix else None
     state.selected_before_capture_summary = _capture_viewport(state, state.selected_before_capture_path)
     if not state.tool_state_sent or not state.tool_state_event or state.projected_center is None:
-        return _base_error(state, "Could not configure the production .NET Move tool and projected face selection.")
+        return _base_error(state, "Could not configure the production .NET Move tool and projected part selection.")
     return None
 
 
@@ -709,6 +777,8 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "stroke_update_count": len(state.stroke_updates),
         "stroke_handler_timings": state.stroke_handler_timings,
         "stroke_handler_timing_summary": state.handler_summary,
+        "stroke_completion_timings": state.stroke_completion_timings,
+        "stroke_completion_stage_timings": state.stroke_completion_stage_timings,
         "main_thread_edit_handler_p95_ms": state.handler_p95_ms,
         "live_stroke_frame_budget_ms": 1000.0 / 60.0,
         "max_heartbeat_gap_ms": state.max_heartbeat_gap_ms,

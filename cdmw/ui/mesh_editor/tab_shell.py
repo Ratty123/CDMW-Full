@@ -876,12 +876,19 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         tool_state = _STANDALONE_NATIVE_TOOL_STATE.get(str(self.current_tool_action_key or "").strip())
         controller = self.standalone_controller
         if controller is None or tool_state is None or not self._native_mesh_editor_available():
-            signature = (False,)
+            signature = (False, "orbit", "source", "brush")
             if not force and signature == self.standalone_native_mesh_edit_state_signature:
                 return True
             self.standalone_native_mesh_edit_state_signature = signature
             try:
-                return bool(setter(enabled=False))
+                return bool(
+                    setter(
+                        enabled=False,
+                        tool="orbit",
+                        target_mode="source",
+                        selection_mode="brush",
+                    )
+                )
             except (RuntimeError, TypeError):
                 return False
         tool, target_mode, mode = tool_state
@@ -892,13 +899,15 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         except (AttributeError, RuntimeError, TypeError, ValueError):
             source_indices = ()
             selection_empty = True
-        target = target_mode if not selection_empty else ("selection" if tool in {"move", "vertex"} else "brush")
+        target = "source" if tool == "select" else (
+            target_mode if not selection_empty else ("selection" if tool == "move" else "brush")
+        )
         signature = (
             True,
             tool,
             target,
             mode,
-            str(self.current_selection_mode or "vertex"),
+            str(self.current_selection_mode or "brush"),
             source_indices,
         )
         if not force and signature == self.standalone_native_mesh_edit_state_signature:
@@ -915,14 +924,7 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
                     radius_pixels=24.0,
                     strength=0.5,
                     falloff="smooth",
-                    # Deliberately no `selection_mode`. That field names the
-                    # Select drag shape -- brush, lasso or rectangle -- and this
-                    # tab has no such choice; `current_selection_mode` is the
-                    # element mode, which already travels as `target_mode`.
-                    # Publishing it here put a second vocabulary into one field,
-                    # and the two publishers alternating made every builder
-                    # refresh look like a change back to brush, which took a
-                    # reader's Lasso away again on the next control refresh.
+                    selection_mode=str(self.current_selection_mode or "brush"),
                     smooth_iterations=3,
                 )
             )

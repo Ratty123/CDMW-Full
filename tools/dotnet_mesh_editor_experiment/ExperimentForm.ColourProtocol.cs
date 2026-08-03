@@ -203,47 +203,6 @@ internal sealed partial class ExperimentForm
         return true;
     }
 
-    /// <summary>
-    /// Put the viewport into a mode that can actually show a colour edit.
-    ///
-    /// Prefers textured, because that is what a recolour changes. Without
-    /// resident texture resources it settles for lit faces, which at least
-    /// shows the multiply tint, rather than leaving a wireframe on screen.
-    /// </summary>
-    private void EnsureColourVisibleDisplayMode()
-    {
-        var current = _viewport.DisplayMode ?? string.Empty;
-        if (current.StartsWith("textured", StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-        // Requesting textures needs an established resident session; without one
-        // RequestResidentViewportDisplay only re-labels the combo and leaves the
-        // viewport on whatever it was showing, which desyncs the two.
-        var residentReady = !string.IsNullOrWhiteSpace(_residentMaterialSessionId)
-            && _residentProcessGeneration > 0;
-        if (residentReady && HasResidentTextureResources())
-        {
-            if (!_colourDisplayModeRequested)
-            {
-                _colourDisplayModeRequested = true;
-                RequestResidentViewportDisplay("textured");
-            }
-            return;
-        }
-        // No textures reachable yet: show lit faces so the surface is at least
-        // visible, and let the status line explain what colour can reach.
-        if (_viewport.TrySetSynchronizedDisplayMode("untextured_faces", out _))
-        {
-            SyncPreviewModeSelection("untextured_faces");
-            // Announced, not applied silently. The host republishes its
-            // presentation snapshot after every accepted scene frame, and a mode
-            // it never heard about is overwritten by the next frame that lands --
-            // which is why opening a page could put the preview mode back.
-            RequestResidentViewportDisplay("untextured_faces");
-        }
-    }
-
     /// <summary>Reload the Colour page from the resident parameter mirror.</summary>
     private void LoadPartColourControls()
     {

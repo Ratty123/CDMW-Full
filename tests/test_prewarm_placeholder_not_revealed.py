@@ -72,20 +72,20 @@ class ActivateAppliedGuardTests(unittest.TestCase):
     def test_activate_applied_still_reveals_a_real_package(self) -> None:
         from cdmw.ui.preview.dotnet_session import DotNetPreviewSessionController
 
-        sent: list[dict] = []
+        activated: list[object] = []
+        package = SimpleNamespace(material_signature="sig")
         controller = SimpleNamespace(
             _visible=True,
             _applied_package_path="C:/cache/sword_pac",
             _prewarm_package=SimpleNamespace(package_dir="C:/cache/prewarm"),
-            _applied_package=SimpleNamespace(material_signature="sig"),
-            _send_json=lambda payload: sent.append(payload) or True,
+            _applied_package=package,
+            _request_activation=lambda requested: activated.append(requested) or True,
         )
         controller.serving_prewarm_placeholder = (
             DotNetPreviewSessionController.serving_prewarm_placeholder.fget(controller)
         )
         self.assertTrue(DotNetPreviewSessionController._activate_applied(controller))
-        self.assertEqual(len(sent), 1)
-        self.assertEqual(sent[0]["event"], "activate_request")
+        self.assertEqual(activated, [package])
 
 
 if __name__ == "__main__":

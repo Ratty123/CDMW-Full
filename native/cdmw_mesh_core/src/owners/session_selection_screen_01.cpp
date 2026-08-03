@@ -10,6 +10,13 @@ struct MeshEditorScreenBrushSelectionContext {
     const MeshEditorScreenBrushDepthMask* depth_mask = nullptr;
 };
 
+bool mesh_editor_brush_face_screen_hit(
+    const MeshSessionSubmesh& submesh,
+    const std::array<int, 3>& face,
+    const MeshEditorScreenBrushSelectionContext& context,
+    const MeshEditorScreenBrushProjection& projection
+);
+
 void mesh_editor_select_brush_source(
     const MeshEditorSession& session,
     MeshEditorSelection& selection,
@@ -57,6 +64,38 @@ void mesh_editor_select_brush_source(
     }
     if (best_index >= 0) {
         selection.source_indices.insert(best_index);
+    }
+}
+
+void mesh_editor_select_brush_sources(
+    const MeshEditorSession& session,
+    MeshEditorSelection& selection,
+    const MeshEditorScreenBrushSelectionContext& context
+) {
+    if (!context.has_screen_point) {
+        return;
+    }
+    for (const auto& entry : mesh_editor_submeshes(session)) {
+        JsonValue item;
+        item.type = JsonValue::Type::Object;
+        item.object_value["index"] = mesh_editor_json_number(entry.first);
+        if (!mesh_editor_screen_brush_submesh_allowed(item, context.brush)) {
+            continue;
+        }
+        const MeshEditorScreenBrushProjection projection =
+            mesh_editor_projection_for_submesh(context.projection, entry.first);
+        for (const std::array<int, 3>& face : entry.second.faces) {
+            if (face[0] < 0 || face[1] < 0 || face[2] < 0
+                || static_cast<std::size_t>(face[0]) >= entry.second.vertices.size()
+                || static_cast<std::size_t>(face[1]) >= entry.second.vertices.size()
+                || static_cast<std::size_t>(face[2]) >= entry.second.vertices.size()) {
+                continue;
+            }
+            if (mesh_editor_brush_face_screen_hit(entry.second, face, context, projection)) {
+                selection.source_indices.insert(entry.first);
+                break;
+            }
+        }
     }
 }
 
@@ -372,7 +411,11 @@ void mesh_editor_add_screen_brush_selection(
     };
     context.has_screen_point = std::isfinite(context.x) && std::isfinite(context.y) && context.radius_pixels >= 0.0;
     if (context.target_mode == "source") {
-        mesh_editor_select_brush_source(*session, selection, context);
+        if (bool_or(raw_selection->get("paint_sample"), false)) {
+            mesh_editor_select_brush_sources(*session, selection, context);
+        } else {
+            mesh_editor_select_brush_source(*session, selection, context);
+        }
         return;
     }
     for (const auto& entry : mesh_editor_submeshes(*session)) {

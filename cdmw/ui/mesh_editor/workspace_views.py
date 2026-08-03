@@ -70,7 +70,7 @@ _LEFT_CATEGORY_LABELS = {
 
 _SLOW_FRAME_MS = 1000.0 / 60.0
 _MODE_ACTION_BY_TEXT = {"object": "mode_object", "edit": "mode_edit", "sculpt": "mode_sculpt"}
-_SELECTION_ACTION_BY_TEXT = {"vertex": "select_vertex", "edge": "select_edge", "face": "select_face"}
+_SELECTION_ACTION_BY_TEXT = {"brush": "select_parts", "rectangle": "select_parts", "lasso": "select_parts"}
 _SKELETON_PANEL_BONE_LIMIT = 512
 _SKELETON_PANEL_WEIGHT_LIMIT = 32
 

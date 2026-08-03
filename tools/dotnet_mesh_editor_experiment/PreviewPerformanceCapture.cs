@@ -505,6 +505,14 @@ internal sealed class PreviewPerformanceCaptureSession
         Interlocked.Exchange(ref _active, 0);
         var stoppedTimestamp = Stopwatch.GetTimestamp();
         var stoppedAtUtc = DateTime.UtcNow;
+        // The measured window ends before report construction. Snapshot arrays
+        // are intentionally allocated only after every allocation/GC counter is
+        // sampled so the capture cannot fail its own zero-GC gate.
+        var totalAllocatedBytesStop = GC.GetTotalAllocatedBytes(precise: false);
+        var gcCount0Stop = GC.CollectionCount(0);
+        var gcCount1Stop = GC.CollectionCount(1);
+        var gcCount2Stop = GC.CollectionCount(2);
+        var gcPauseMsStop = GC.GetTotalPauseDuration().TotalMilliseconds;
         var workingSetStop = CurrentWorkingSet();
         InterlockedMax(ref _peakWorkingSetBytes, workingSetStop);
         var frameCount = Math.Clamp(Volatile.Read(ref _frameWriteIndex) + 1, 0, _frames.Length);
@@ -548,11 +556,11 @@ internal sealed class PreviewPerformanceCaptureSession
             Volatile.Read(ref _protocolTelemetryWritten),
             Volatile.Read(ref _protocolWriteFailures),
             _totalAllocatedBytesStart,
-            GC.GetTotalAllocatedBytes(precise: false),
+            totalAllocatedBytesStop,
             _gcCountsStart,
-            new[] { GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2) },
+            new[] { gcCount0Stop, gcCount1Stop, gcCount2Stop },
             _gcPauseMsStart,
-            GC.GetTotalPauseDuration().TotalMilliseconds,
+            gcPauseMsStop,
             _workingSetBytesStart,
             workingSetStop,
             Volatile.Read(ref _peakWorkingSetBytes),

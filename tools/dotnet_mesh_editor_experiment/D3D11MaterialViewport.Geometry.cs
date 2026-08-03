@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -33,6 +32,7 @@ internal sealed partial class D3D11MaterialViewport
 
     public void RefreshGeometry()
     {
+        ClearProvisionalGeometry(uploadAuthoritative: false);
         DiscardPendingVertexUpdates();
         _dirtyTopologySubmeshes.Clear();
         _geometryDirty = true;
@@ -335,6 +335,7 @@ internal sealed partial class D3D11MaterialViewport
                 indexBuffer,
                 indices.Length,
                 batchCenter,
+                vertices,
                 renderFaces,
                 sourceVertexToRenderCorners,
                 CreateMaterialResources(materialSubmeshIndex));
@@ -483,14 +484,13 @@ internal sealed partial class D3D11MaterialViewport
         }
         var firstRenderVertex = checked(firstFace * 3);
         var renderVertexCount = checked((lastFace - firstFace + 1) * 3);
-        var rented = ArrayPool<D3D11MaterialVertex>.Shared.Rent(renderVertexCount);
-        try
+        var destination = batch.ResidentVertices.AsSpan(firstRenderVertex, renderVertexCount);
+        for (var faceIndex = firstFace; faceIndex <= lastFace; faceIndex++)
         {
-            var destination = rented.AsSpan(0, renderVertexCount);
-            for (var faceIndex = firstFace; faceIndex <= lastFace; faceIndex++)
-            {
-                WriteFaceVertices(submesh, batch.RenderFaces[faceIndex], destination.Slice((faceIndex - firstFace) * 3, 3));
-            }
+            WriteFaceVertices(submesh, batch.RenderFaces[faceIndex], destination.Slice((faceIndex - firstFace) * 3, 3));
+        }
+        if (batch.ProvisionalGeometry is null)
+        {
             var byteStart = checked(firstRenderVertex * (int)D3D11SubmeshBatch.VertexStride);
             var byteEnd = checked(byteStart + renderVertexCount * (int)D3D11SubmeshBatch.VertexStride);
             _context.UpdateSubresource(
@@ -501,12 +501,12 @@ internal sealed partial class D3D11MaterialViewport
                 0,
                 new Box(byteStart, 0, 0, byteEnd, 1, 1));
             _vertexPatchRangeCount++;
-            return renderVertexCount;
         }
-        finally
+        else
         {
-            ArrayPool<D3D11MaterialVertex>.Shared.Return(rented);
+            batch.ProvisionalGeometry.MarkAuthoritativeRange(firstFace, lastFace);
         }
+        return renderVertexCount;
     }
 
     private static System.Windows.Media.Media3D.Vector3D NormalForCorner(ObjSubmesh submesh, ObjCorner corner, System.Windows.Media.Media3D.Vector3D fallback)
@@ -651,6 +651,7 @@ internal sealed class D3D11SubmeshBatch : IDisposable
         ID3D11Buffer indexBuffer,
         int indexCount,
         Vector3 center,
+        D3D11MaterialVertex[] residentVertices,
         ObjFace[] renderFaces,
         D3D11SourceVertexToRenderCorners sourceVertexToRenderCorners,
         D3D11MaterialResources materials)
@@ -662,6 +663,7 @@ internal sealed class D3D11SubmeshBatch : IDisposable
         IndexBuffer = indexBuffer;
         IndexCount = indexCount;
         Center = center;
+        ResidentVertices = residentVertices;
         RenderFaces = renderFaces;
         SourceVertexToRenderCorners = sourceVertexToRenderCorners;
         Materials = materials;
@@ -676,11 +678,13 @@ internal sealed class D3D11SubmeshBatch : IDisposable
     public ID3D11Buffer IndexBuffer { get; }
     public int IndexCount { get; }
     public Vector3 Center { get; }
+    public D3D11MaterialVertex[] ResidentVertices { get; }
     public ObjFace[] RenderFaces { get; }
     public D3D11SourceVertexToRenderCorners SourceVertexToRenderCorners { get; }
     public D3D11MaterialResources Materials { get; set; }
     public long CreatedTimestamp { get; }
     public long GeometryBytes { get; }
+    public D3D11ProvisionalBatchGeometry? ProvisionalGeometry { get; set; }
 
     public void AdvanceTopologyGeneration(long generation)
     {

@@ -1055,35 +1055,13 @@ internal sealed partial class ExperimentForm
             if (enteringMeshEdit)
             {
                 _viewport.SuppressPlacementGizmoInteraction();
-                // Applied without announcing it: this is the entry default, and
-                // the host's own snapshot arrives immediately after with either
-                // the same default or the mode the reader last chose in Edit
-                // Mesh. Announcing here would overwrite that remembered mode
-                // with the default before it could be applied.
-                if (_previewMode.SelectedIndex != 6)
+                if (!_meshEditDisplayInitialized && !_viewport.HostDisplayModeAuthoritative)
                 {
-                    var syncing = _syncingPreviewModeSelection;
-                    _syncingPreviewModeSelection = true;
-                    try
-                    {
-                        _previewMode.SelectedIndex = 6;
-                    }
-                    finally
-                    {
-                        _syncingPreviewModeSelection = syncing;
-                    }
-                    _ = _viewport.TrySetDisplayMode("wire_vertices", out _);
-                }
-                else if (_viewport.TrySetDisplayMode("wire_vertices", out var error))
-                {
-                    _xray.Checked = _viewport.ShowXRay;
-                    _statusLabel.Text = $"Preview mode: {_previewMode.SelectedItem}.";
-                }
-                else
-                {
-                    _statusLabel.Text = error;
+                    SyncPreviewModeSelection("wire_vertices");
+                    _ = _viewport.TrySetSynchronizedDisplayMode("wire_vertices", out _);
                 }
             }
+            _meshEditDisplayInitialized = true;
         }
         else if (leavingMeshEdit)
         {

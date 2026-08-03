@@ -68,6 +68,8 @@ _SOLID_DISPLAY_MODES = frozenset(
 
 
 def _image_color_metrics(path: Path) -> dict[str, object]:
+    from collections import Counter
+
     from PIL import Image
 
     with Image.open(path) as source:
@@ -75,30 +77,61 @@ def _image_color_metrics(path: Path) -> dict[str, object]:
         width, height = image.size
         pixels = image.load()
         stride = max(1, int((width * height / 50_000) ** 0.5))
-        foreground_luma: list[float] = []
-        colors: set[tuple[int, int, int]] = set()
-        sampled = 0
+        sampled_colors: list[tuple[int, int, int]] = []
+        border_colors: Counter[tuple[int, int, int]] = Counter()
+        border_band = max(stride, min(width, height) // 20)
         for y in range(0, height, stride):
             for x in range(0, width, stride):
-                red, green, blue = pixels[x, y]
-                sampled += 1
-                colors.add((red, green, blue))
-                if abs(red - 18) + abs(green - 20) + abs(blue - 25) <= 36:
-                    continue
-                foreground_luma.append(0.2126 * red + 0.7152 * green + 0.0722 * blue)
+                color = pixels[x, y]
+                sampled_colors.append(color)
+                if (
+                    x < border_band
+                    or y < border_band
+                    or x >= width - border_band
+                    or y >= height - border_band
+                ):
+                    border_colors[color] += 1
+        background = border_colors.most_common(1)[0][0] if border_colors else (0, 0, 0)
+        background_luma = 0.2126 * background[0] + 0.7152 * background[1] + 0.0722 * background[2]
+        foreground_luma: list[float] = []
+        foreground_contrast: list[float] = []
+        colors: set[tuple[int, int, int]] = set()
+        for red, green, blue in sampled_colors:
+            colors.add((red, green, blue))
+            if (
+                abs(red - background[0])
+                + abs(green - background[1])
+                + abs(blue - background[2])
+                <= 36
+            ):
+                continue
+            luma = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+            foreground_luma.append(luma)
+            foreground_contrast.append(abs(luma - background_luma))
+    sampled = len(sampled_colors)
     foreground = len(foreground_luma)
     mean_luma = sum(foreground_luma) / foreground if foreground else 0.0
+    mean_contrast = sum(foreground_contrast) / foreground if foreground else 0.0
     bright_fraction = (
         sum(value >= 32.0 for value in foreground_luma) / foreground if foreground else 0.0
     )
+    contrast_fraction = (
+        sum(value >= 24.0 for value in foreground_contrast) / foreground if foreground else 0.0
+    )
     return {
         "sampled_pixels": sampled,
+        "background_rgb": list(background),
+        "background_luma": background_luma,
         "foreground_samples": foreground,
         "foreground_ratio": foreground / sampled if sampled else 0.0,
         "foreground_mean_luma": mean_luma,
         "foreground_bright_fraction": bright_fraction,
+        "foreground_mean_contrast": mean_contrast,
+        "foreground_contrast_fraction": contrast_fraction,
         "unique_color_count": len(colors),
-        "non_black_geometry": bool(foreground >= 64 and mean_luma >= 32.0 and bright_fraction >= 0.35),
+        "non_black_geometry": bool(
+            foreground >= 64 and mean_contrast >= 24.0 and contrast_fraction >= 0.35
+        ),
     }
 
 

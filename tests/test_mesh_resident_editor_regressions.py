@@ -300,6 +300,56 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         self.assertEqual([True], timer_syncs)
         tab.deleteLater()
 
+    def test_terminal_stroke_result_waits_for_correlated_authoritative_geometry(self) -> None:
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorTerminalStrokeGeometry"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_controller = builder.controller
+        activity: list[tuple[str, object]] = []
+        tab.standalone_dotnet_update_queue = SimpleNamespace(
+            enqueue=lambda revision, packets: activity.append(
+                ("geometry", (int(revision), tuple(packets)))
+            )
+            or True
+        )
+
+        with patch.object(
+            tab,
+            "_send_dotnet_protocol_message",
+            side_effect=lambda payload: activity.append(("result", dict(payload))) or True,
+        ):
+            tab._send_dotnet_native_update(
+                MeshEditorNativeUpdate(
+                    vertex_groups=(
+                        {
+                            "source_submesh_index": 0,
+                            "source_vertex_indices": [0],
+                            "positions": [0.0, 0.1, 0.0],
+                        },
+                    ),
+                ),
+                result=MeshEditResult(action="grab", status="ok", revision=1),
+                request_payload={
+                    "event": "stroke_end",
+                    "session_id": builder.controller.session_view().session_id,
+                    "request_id": 42,
+                    "base_revision": 0,
+                    "process_generation": 7,
+                    "protocol_version": 2,
+                },
+            )
+
+        self.assertEqual(["geometry", "result"], [kind for kind, _payload in activity])
+        queued = activity[0][1]
+        assert isinstance(queued, tuple)
+        self.assertEqual(42, queued[1][0]["request_id"])
+        command_result = activity[1][1]
+        assert isinstance(command_result, dict)
+        self.assertTrue(command_result["authoritative_geometry_pending"])
+        self.assertEqual(42, command_result["request_id"])
+        tab.deleteLater()
+        builder.deleteLater()
+
     def test_successful_part_command_uses_current_controller_for_result_revision(self) -> None:
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorPartCommandControllerHandoff"))
         builder = _EmbeddedMeshBuilder()
@@ -580,7 +630,7 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         _APP.processEvents()
         tab.deleteLater()
 
-    def test_dotnet_grow_forwards_the_active_selection_target(self) -> None:
+    def test_dotnet_grow_normalizes_legacy_element_target_to_parts(self) -> None:
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetGrowTarget"))
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
@@ -608,7 +658,7 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
             )
 
         self.assertEqual(1, len(captured))
-        self.assertEqual("vertex", captured[0].params["target_mode"])
+        self.assertEqual("source", captured[0].params["target_mode"])
         _APP.processEvents()
         tab.deleteLater()
 

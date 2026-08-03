@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -64,6 +65,22 @@ def _display_modes(process: _FakeProcess) -> list[str]:
         for payload in (json.loads(raw.decode("utf-8")) for raw in process.stdin_writes)
         if payload.get("event") == "viewport_display_update"
     ]
+
+
+def _mark_material_role_ready(
+    tab: MeshEditorTab,
+    *,
+    role: str = "editable_imported",
+    generation: int = 1,
+    signature: str = "resident-materials",
+) -> None:
+    tab.standalone_dotnet_material_generation = generation
+    tab.standalone_dotnet_completed_material_generation = generation
+    tab.standalone_dotnet_applied_material_generation = generation
+    tab.standalone_dotnet_material_generation_by_role[role] = generation
+    tab.standalone_dotnet_completed_material_generation_by_role[role] = generation
+    tab.standalone_dotnet_applied_material_generation_by_role[role] = generation
+    tab.standalone_dotnet_material_signature_by_role[role] = signature
 
 
 def test_load_start_state_reports_why_no_worker_started() -> None:
@@ -135,9 +152,7 @@ def test_already_resolved_textures_apply_without_a_new_acknowledgement() -> None
     )
     # A material state really was applied earlier in this session, so the
     # resolver's "already loaded" genuinely describes the resident viewport.
-    tab.standalone_dotnet_material_generation = 1
-    tab.standalone_dotnet_completed_material_generation = 1
-    tab.standalone_dotnet_applied_material_generation = 1
+    _mark_material_role_ready(tab)
 
     assert tab._handle_embedded_viewport_display_mode("textured")
 
@@ -195,6 +210,8 @@ def test_a_resolver_that_starts_work_arms_the_watchdog_and_still_times_out() -> 
 def _acknowledge_material_state(tab: MeshEditorTab, process: _FakeProcess) -> None:
     """Deliver the acknowledgement a finished resident material update sends."""
     tab.standalone_dotnet_material_generation = 1
+    tab.standalone_dotnet_material_generation_by_role["editable_imported"] = 1
+    tab.standalone_dotnet_material_role_by_generation[1] = "editable_imported"
     process.emit_stdout(
         json.dumps(
             {
@@ -342,9 +359,10 @@ def test_a_deduplicated_material_publish_completes_the_textured_view() -> None:
     tab.standalone_dotnet_material_signature = _resident_material_signature(tab)
     # A generation was applied while the request was in flight, which is what
     # makes "the helper already holds these" true rather than merely unproven.
-    tab.standalone_dotnet_material_generation = 1
-    tab.standalone_dotnet_completed_material_generation = 1
-    tab.standalone_dotnet_applied_material_generation = 1
+    _mark_material_role_ready(
+        tab,
+        signature=tab.standalone_dotnet_material_signature,
+    )
     assert tab._send_dotnet_material_state(reason="late_exact_clone_resources")
     assert tab.standalone_dotnet_lifecycle_counts["material_state_deduplicated_count"] == 1
 
@@ -405,7 +423,7 @@ def test_a_resolver_returning_nothing_still_waits_for_its_acknowledgement() -> N
     assert calls == ["requested"]
     assert tab.standalone_dotnet_pending_textured_view is True
 
-    tab._finish_pending_textured_view(success=True)
+    _acknowledge_material_state(tab, process)
     assert _display_modes(process)[-1] == "textured"
     assert not tab.standalone_dotnet_pending_textured_view_timer.isActive()
 
@@ -483,20 +501,38 @@ def test_a_settled_material_state_still_resolves_the_original_pane_textures() ->
             ORIGINAL_REFERENCE_TEXTURE_REQUEST_IN_FLIGHT,
         )[1],
     )
+    tab.standalone_dotnet_experiment_package = SimpleNamespace(
+        reference_submesh_count=1,
+        scene_material_slot_indices=(),
+    )
     # The editable package's materials are resident and settled.
-    tab.standalone_dotnet_material_generation = 1
-    tab.standalone_dotnet_completed_material_generation = 1
-    tab.standalone_dotnet_applied_material_generation = 1
+    _mark_material_role_ready(tab)
 
     assert tab._handle_embedded_viewport_display_mode("textured")
 
-    # The mode goes straight through -- no untextured fallback flicker -- and
-    # the Original pane's resolve is started beside it.
-    assert _display_modes(process)[-1] == "textured"
+    # Imported readiness cannot settle the Original pane. The renderer stays on
+    # its honest fallback until the independently correlated reference update.
+    assert _display_modes(process)[-1] == "untextured_faces"
     assert requests == ["resolve"]
-    # The wait belongs to the editable pane, which is already textured; arming
-    # it here would put a "loading textures" banner over a finished preview.
+    assert tab.standalone_dotnet_pending_textured_view is True
+
+    tab.standalone_dotnet_material_generation = 2
+    tab.standalone_dotnet_material_generation_by_role["original_reference"] = 2
+    tab.standalone_dotnet_material_role_by_generation[2] = "original_reference"
+    process.emit_stdout(
+        json.dumps(
+            {
+                "event": "material_state_applied",
+                "generation": 2,
+                "role": "original_reference",
+                "material_signature": "reference-materials",
+            }
+        )
+        + "\n"
+    )
+
     assert tab.standalone_dotnet_pending_textured_view is False
+    assert _display_modes(process)[-1] == "textured"
 
     tab.deleteLater()
     builder.deleteLater()

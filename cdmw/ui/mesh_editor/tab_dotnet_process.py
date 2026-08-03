@@ -133,6 +133,7 @@ class MeshEditorDotNetProcessMixin:
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state(embedded_state, active=False)
         self.standalone_dotnet_editor_process = None
+        self.standalone_dotnet_update_ack_start_timer.stop()
         self.standalone_dotnet_update_ack_timer.stop()
         self.standalone_dotnet_update_queue.reset()
         self.standalone_texture_region_queue.reset()
@@ -169,6 +170,7 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_dotnet_ready_timer.stop()
         self.standalone_dotnet_editor_process = None
         self._cancel_dotnet_material_compile()
+        self.standalone_dotnet_update_ack_start_timer.stop()
         self.standalone_dotnet_update_ack_timer.stop()
         self.standalone_dotnet_update_queue.reset()
         self._cancel_pending_dotnet_captures()

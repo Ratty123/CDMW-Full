@@ -253,18 +253,16 @@ def _mesh_editor_action_bar_action_requested(_state, _callbacks, action: object)
         _callbacks._show_mesh_edit_tab()
         _callbacks._set_mesh_edit_enabled(True)
         if mode == "edit":
-            _state.mesh_editor_action_bar_selection_mode["value"] = "vertex"
-            return _callbacks._select_mesh_edit_tool("vertex")
+            return _callbacks._select_mesh_edit_tool("orbit")
         if mode == "sculpt":
-            return _callbacks._select_mesh_edit_tool(_state._mesh_edit_current_tool() if _state._mesh_edit_current_tool() != "vertex" else "grab")
+            return _callbacks._select_mesh_edit_tool(_state._mesh_edit_current_tool())
         return False
     if command == "select":
-        if selection_mode not in {"vertex", "edge", "face"}:
-            return False
-        _state.mesh_editor_action_bar_selection_mode["value"] = selection_mode
+        if selection_mode in {"brush", "lasso", "rectangle"}:
+            _state.mesh_editor_action_bar_selection_mode["value"] = selection_mode
         _callbacks._show_mesh_edit_tab()
         _callbacks._set_mesh_edit_enabled(True)
-        return _callbacks._select_mesh_edit_tool("vertex")
+        return _callbacks._select_mesh_edit_tool("select")
     if key == "transform_rotate":
         degrees = _callbacks._mesh_editor_prompt_action_value(text, "Rotate selected elements around Z axis (degrees):", 15.0, -360.0, 360.0, 2)
         if degrees is None:
@@ -290,7 +288,7 @@ def _mesh_editor_action_bar_action_requested(_state, _callbacks, action: object)
     if key == "transform_move":
         _callbacks._show_mesh_edit_tab()
         _callbacks._set_mesh_edit_enabled(True)
-        return _callbacks._select_mesh_edit_tool("grab", active_action_key="transform_move")
+        return _callbacks._select_mesh_edit_tool("move", active_action_key="transform_move")
     if command == "brush":
         tool = str(params.get("tool") or "grab").strip()
         _callbacks._show_mesh_edit_tab()

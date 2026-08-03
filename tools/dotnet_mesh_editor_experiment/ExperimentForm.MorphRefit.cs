@@ -3,6 +3,8 @@ using System.Text.Json;
 
 namespace Cdmw.MeshEditorExperiment;
 
+internal sealed record MorphPartChoice(int Index, string Name);
+
 internal sealed partial class ExperimentForm
 {
     private sealed record MorphChoice(string Id, string Name)
@@ -34,7 +36,6 @@ internal sealed partial class ExperimentForm
     private Button? _morphSectionHeader;
     private Label? _morphWorkflowHint;
     private Label? _morphStepDefinition;
-    private Label? _morphStepShape;
     private Label? _morphStepRefit;
     private Label? _morphStepKeep;
     private Button? _morphAuthorButton;
@@ -74,6 +75,13 @@ internal sealed partial class ExperimentForm
     private string _morphSessionId = string.Empty;
     private string _morphDefinitionSignature = string.Empty;
     private string _morphActiveChangeId = string.Empty;
+    private readonly HashSet<int> _morphDriverPartIndices = new();
+    private readonly Queue<(string Command, Dictionary<string, object?> Payload)> _morphWizardCommandQueue = new();
+    private bool _morphWizardSequenceActive;
+    private long _morphWizardCommandRequestId;
+    private MorphAuthorDialog? _morphWizardActiveDialog;
+    private Action<bool>? _morphWizardSequenceCompleted;
+    private string _morphWizardSuccessMessage = string.Empty;
 
     private Control BuildMorphRefitSection(TableLayoutPanel stack)
     {
@@ -114,7 +122,7 @@ internal sealed partial class ExperimentForm
         _morphSliderStack.Padding = new Padding(0);
         _morphSliderStack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-        var author = StyledActionButton("Author Slider...", () => ShowMorphAuthorDialog());
+        var author = StyledActionButton("Create Profile...", () => ShowMorphAuthorDialog());
         _morphAuthorButton = author;
         var saveProfile = StyledActionButton("Save Profile", () => WriteCommandRequest("morph_save_profile"));
         var deleteProfile = StyledActionButton("Delete Profile", () =>
@@ -132,10 +140,10 @@ internal sealed partial class ExperimentForm
                 WriteCommandRequest("morph_delete_preset", new Dictionary<string, object?> { ["preset_id"] = choice.Id });
             }
         });
-        var setDriver = StyledActionButton("Set Driver", () => WriteCommandRequest("morph_set_driver"));
-        var bind = StyledActionButton("Bind Selected Parts", () => WriteCommandRequest("morph_bind"));
+        var setDriver = StyledActionButton("1. Set Selected Driver Parts", RequestMorphSetDriver);
+        var bind = StyledActionButton("2. Bind Selected Garment Parts", RequestMorphBind);
         var clear = StyledActionButton("Clear Refit", () => WriteCommandRequest("morph_clear_refit"));
-        var reset = StyledActionButton("Reset All", () => WriteCommandRequest("morph_reset"));
+        var reset = StyledActionButton("Reset", () => WriteCommandRequest("morph_reset"));
         var bake = StyledActionButton("Bake", () => WriteCommandRequest("morph_bake"));
         // The five buttons whose captions alone do not say what happens next.
         // The workflow hint below the header carries the order; these carry
@@ -155,19 +163,18 @@ internal sealed partial class ExperimentForm
             UseMnemonic = false,
             MaximumSize = new Size(ScaleToolPanelWidth(EditMeshToolColumnMetrics.WrappedStatusWidth), 0),
         };
-        _morphWorkflowHint.Text = "Pick a profile, shape with the sliders, then Bake to keep the result. Sliders are non-destructive until baked.";
+        _morphWorkflowHint.Text = "Create or choose a profile, adjust its sliders, optionally bind a garment, then review and Bake. Saving a profile never bakes the mesh.";
         // The four steps, named on the surface rather than in a tooltip. The
         // section is a single column of eleven controls, and reading it top to
         // bottom did not say which of them is the place to start, that a
         // definition profile is a thing you create rather than something the
         // mesh arrives with, or that the garment half is optional. Numbering
         // the groups says all three without a document.
-        _morphStepDefinition = MorphStepLabel("Step 1: Definition profile");
-        _morphStepShape = MorphStepLabel("Step 2: Shape sliders");
-        _morphStepRefit = MorphStepLabel("Step 3: Garment refit (optional)");
-        _morphStepKeep = MorphStepLabel("Step 4: Keep the result");
+        _morphStepDefinition = MorphStepLabel("Step 1: Profile and sliders");
+        _morphStepRefit = MorphStepLabel("Step 2: Refit (optional)");
+        _morphStepKeep = MorphStepLabel("Step 3: Review and apply");
 
-        _morphProfileControl = LabeledControl("Definition profile", _morphProfile);
+        _morphProfileControl = LabeledControl("Profile", _morphProfile);
         _morphProfileActions = ButtonRow(author, saveProfile, deleteProfile);
         _morphPresetControl = LabeledControl("Value preset", _morphPreset);
         _morphPresetActions = ButtonRow(savePreset, deletePreset);
@@ -178,7 +185,6 @@ internal sealed partial class ExperimentForm
             _morphStepDefinition,
             _morphProfileControl,
             _morphProfileActions,
-            _morphStepShape,
             _morphPresetControl,
             _morphPresetActions,
             _morphSliderStack,
@@ -220,24 +226,24 @@ internal sealed partial class ExperimentForm
         section.Controls.Add(header, 0, 0);
         section.Controls.Add(body, 0, 1);
         _morphDefinitionCard = CreateMorphCompactCard(
-            "Definition",
-            "Select or author the topology-matched slider definition.",
+            "Profile",
+            "Create or choose a topology-matched profile and its sliders.",
             out _morphDefinitionCardBody);
         _morphPresetCard = CreateMorphCompactCard(
-            "Presets",
-            "Apply or save a named set of procedural values.",
+            "Profile Values",
+            "Apply or save a named set of slider values.",
             out _morphPresetCardBody);
         _morphSlidersCard = CreateMorphCompactCard(
             "Shape Sliders",
             "Adjust the active topology-bound values.",
             out _morphSlidersCardBody);
         _morphRefitCard = CreateMorphCompactCard(
-            "Garment Refit",
-            "Choose the driver and bind selected garment parts.",
+            "Optional Refit",
+            "First set selected driver parts, then select and bind garment parts.",
             out _morphRefitCardBody);
         _morphCommitCard = CreateMorphCompactCard(
             "Review & Apply",
-            "Reset or bake the visible procedural result.",
+            "Reset or Bake the visible result. Saving a profile does not Bake.",
             out _morphCommitCardBody);
         AddStackRow(stack, section);
         _meshEditOnlySections.Add(section);
@@ -303,23 +309,23 @@ internal sealed partial class ExperimentForm
         // leave the other four English in every other language.
         if (!hasProfiles)
         {
-            _morphWorkflowHint.Text = "No definition profile yet. Author Slider... builds one from this mesh; nothing is changed until you Bake.";
+            _morphWorkflowHint.Text = "No profile yet. Select one or more parts, then Create Profile... to build the first slider. Saving it does not Bake the mesh.";
         }
         else if (!profileChosen)
         {
-            _morphWorkflowHint.Text = "Choose a definition profile above, or Author Slider... to build another one.";
+            _morphWorkflowHint.Text = "Choose a profile above, or Create Profile... to build another one from selected parts.";
         }
         else if (_morphSliders.Count == 0)
         {
-            _morphWorkflowHint.Text = "This profile carries no sliders yet. Author Slider... adds one to it.";
+            _morphWorkflowHint.Text = "This profile has no sliders yet. Select parts, then Create Profile... to add one.";
         }
         else if (_morphUnbaked)
         {
-            _morphWorkflowHint.Text = "Bake keeps this result in the mesh; Reset All discards it. Topology edits stay blocked until one of them runs.";
+            _morphWorkflowHint.Text = "Review the visible result. Bake writes it into the mesh; Reset discards it. Topology edits stay blocked until one runs.";
         }
         else
         {
-            _morphWorkflowHint.Text = "Pick a profile, shape with the sliders, then Bake to keep the result. Sliders are non-destructive until baked.";
+            _morphWorkflowHint.Text = "Adjust profile sliders, optionally bind garment parts, then review and Bake. Slider changes remain non-destructive until baked.";
         }
         if (_morphAuthorButton is not null)
         {
@@ -524,7 +530,6 @@ internal sealed partial class ExperimentForm
             AddMorphStepRow(_morphStepDefinition);
             AddStackRow(_morphSectionBody, _morphProfileControl);
             AddStackRow(_morphSectionBody, _morphProfileActions);
-            AddMorphStepRow(_morphStepShape);
             AddStackRow(_morphSectionBody, _morphPresetControl);
             AddStackRow(_morphSectionBody, _morphPresetActions);
             AddStackRow(_morphSectionBody, _morphSliderStack);
@@ -654,6 +659,7 @@ internal sealed partial class ExperimentForm
 
     private void ResetMorphStateAuthority()
     {
+        CompleteMorphWizardCommandSequence(accepted: false);
         _morphStateReceived = false;
         _morphRefreshRequested = false;
         _morphStateRevision = -1;
@@ -665,6 +671,7 @@ internal sealed partial class ExperimentForm
         _morphFinishPending = false;
         _morphUnbaked = false;
         _morphBusy = false;
+        _morphDriverPartIndices.Clear();
         foreach (var button in _topologyMutationButtons)
         {
             button.Enabled = true;
@@ -696,6 +703,9 @@ internal sealed partial class ExperimentForm
         if (_morphActiveChangeId.Length > 0
             || _morphEndRequestId > 0
             || _morphBusy
+            || _morphWizardSequenceActive
+            || _morphWizardCommandRequestId > 0
+            || _morphWizardCommandQueue.Count > 0
             || _pendingMutationRequests.Values.Any(pending =>
                 pending.Command.StartsWith("morph_", StringComparison.Ordinal)
                 && pending.Command != "morph_finish"))
@@ -752,6 +762,9 @@ internal sealed partial class ExperimentForm
             && _morphActiveChangeId.Length == 0
             && _morphEndRequestId == 0
             && !_morphBusy
+            && !_morphWizardSequenceActive
+            && _morphWizardCommandRequestId == 0
+            && _morphWizardCommandQueue.Count == 0
             && !_pendingMutationRequests.Values.Any(pending =>
                 pending.Command.StartsWith("morph_", StringComparison.Ordinal)
                 && pending.Command != "morph_finish"))
@@ -783,6 +796,18 @@ internal sealed partial class ExperimentForm
 
     private void CompleteMorphCommandResult(PendingMutationRequest pending, bool accepted)
     {
+        if (pending.RequestId == _morphWizardCommandRequestId)
+        {
+            _morphWizardCommandRequestId = 0;
+            if (accepted)
+            {
+                BeginInvoke((Action)SendNextMorphWizardCommand);
+            }
+            else
+            {
+                CompleteMorphWizardCommandSequence(accepted: false);
+            }
+        }
         if (pending.Command == "morph_refresh")
         {
             _morphRefreshRequested = false;
@@ -1152,8 +1177,10 @@ internal sealed partial class ExperimentForm
     private void ApplyMorphRefitStatus(JsonElement root)
     {
         var drivers = JsonIntValues(root, "driver_submesh_indices");
+        _morphDriverPartIndices.Clear();
+        _morphDriverPartIndices.UnionWith(drivers);
         _morphDriverStatus.Text = drivers.Count > 0
-            ? $"Driver: {string.Join(", ", drivers.Select(index => $"Part {index}"))}"
+            ? $"Driver: {string.Join(", ", drivers.Select(MorphPartDisplayName))}"
             : "Driver: not set";
         if (!root.TryGetProperty("refit", out var refit) || refit.ValueKind != JsonValueKind.Object)
         {
@@ -1171,32 +1198,279 @@ internal sealed partial class ExperimentForm
         var maximum = JsonDoubleValue(refit, "maximum_distance", 0.0);
         var p95 = JsonDoubleValue(refit, "p95_distance", 0.0);
         var warning = JsonBoolean(refit, "distance_warning");
-        _morphBindingStatus.Text = $"Garment: {bound} vertices | max {maximum:G4} | p95 {p95:G4}";
+        _morphBindingStatus.Text = $"Garment: {string.Join(", ", garments.Select(MorphPartDisplayName))} | {bound} vertices | max {maximum:G4} | p95 {p95:G4}";
         _morphBindingStatus.ForeColor = warning ? Color.Gold : ThemeMutedText;
+    }
+
+    private IReadOnlyList<MorphPartChoice> SelectedMorphParts()
+    {
+        return _viewport.SelectedSubmeshIndices
+            .Where(index => index >= 0 && index < _document.Submeshes.Count)
+            .Distinct()
+            .OrderBy(index => index)
+            .Select(index => new MorphPartChoice(index, _document.Submeshes[index].Name))
+            .ToArray();
+    }
+
+    private string MorphPartDisplayName(int index)
+    {
+        return index >= 0 && index < _document.Submeshes.Count
+            ? $"{_document.Submeshes[index].Name} (Part {index})"
+            : $"Part {index}";
+    }
+
+    private void RequestMorphSetDriver()
+    {
+        var selected = SelectedMorphParts();
+        if (selected.Count == 0)
+        {
+            _morphDiagnosticStatus.ForeColor = Color.Salmon;
+            _morphDiagnosticStatus.Text = "Select one or more driver parts in the viewport, then choose Set Selected Driver Parts.";
+            return;
+        }
+        WriteCommandRequest("morph_set_driver");
+    }
+
+    private void RequestMorphBind()
+    {
+        var selected = SelectedMorphParts();
+        if (selected.Count == 0)
+        {
+            _morphDiagnosticStatus.ForeColor = Color.Salmon;
+            _morphDiagnosticStatus.Text = "Select one or more garment parts in the viewport, then choose Bind Selected Garment Parts.";
+            return;
+        }
+        var overlap = selected.Where(part => _morphDriverPartIndices.Contains(part.Index)).ToArray();
+        if (overlap.Length > 0)
+        {
+            _morphDiagnosticStatus.ForeColor = Color.Salmon;
+            _morphDiagnosticStatus.Text = $"A part cannot be both driver and garment: {string.Join(", ", overlap.Select(part => part.Name))}.";
+            return;
+        }
+        WriteCommandRequest("morph_bind");
     }
 
     private void ShowMorphAuthorDialog(JsonElement? definition = null)
     {
+        if (_morphWizardSequenceActive)
+        {
+            _morphDiagnosticStatus.ForeColor = Color.Salmon;
+            _morphDiagnosticStatus.Text = "Finish the current Morph profile preview or save before opening another wizard.";
+            return;
+        }
         using var dialog = new MorphAuthorDialog(
             _morphProfile.SelectedItem is MorphChoice profile ? profile.Id : string.Empty,
             _morphProfile.SelectedItem is MorphChoice namedProfile ? namedProfile.Name : string.Empty,
             definition,
+            SelectedMorphParts,
             ThemeWindowBackground,
             ThemeSectionBackground,
             ThemeInputBackground,
             ThemeText,
             ThemeMutedText);
-        if (dialog.ShowDialog(this) != DialogResult.OK)
+        dialog.PreviewRequested += (_, value) => PreviewMorphAuthorDialog(dialog, definition, value);
+        var result = dialog.ShowDialog(this);
+        if (result == DialogResult.OK)
+        {
+            var commands = new List<(string Command, Dictionary<string, object?> Payload)>();
+            if (dialog.PreviewWasSent)
+            {
+                commands.Add(("morph_change", MorphWizardChangePayload(dialog.DefinitionId, 0.0)));
+            }
+            commands.Add(("morph_author_definition", MorphAuthorPayload(dialog.Payload, definition)));
+            commands.Add(("morph_change", MorphWizardChangePayload(dialog.DefinitionId, 0.0)));
+            commands.Add(("morph_save_profile", new Dictionary<string, object?>()));
+            _ = BeginMorphWizardCommandSequence(
+                null,
+                commands,
+                "Morph profile saved at zero. Bake remains a separate action.");
+            return;
+        }
+        if (!dialog.PreviewWasSent)
         {
             return;
         }
-        var payload = dialog.Payload;
-        payload["preserve_selection"] = definition.HasValue;
+        var cancellation = new List<(string Command, Dictionary<string, object?> Payload)>
+        {
+            ("morph_change", MorphWizardChangePayload(dialog.DefinitionId, 0.0)),
+        };
+        if (definition.HasValue)
+        {
+            cancellation.Add(("morph_author_definition", OriginalMorphAuthorPayload(
+                    definition.Value,
+                    _morphProfile.SelectedItem is MorphChoice currentProfile ? currentProfile.Id : dialog.ProfileId,
+                    _morphProfile.SelectedItem is MorphChoice currentNamedProfile ? currentNamedProfile.Name : dialog.ProfileName)));
+            cancellation.Add(("morph_change", MorphWizardChangePayload(dialog.DefinitionId, 0.0)));
+        }
+        else
+        {
+            cancellation.Add(("morph_delete_definition", new Dictionary<string, object?>
+            {
+                ["definition_id"] = dialog.DefinitionId,
+            }));
+        }
+        _ = BeginMorphWizardCommandSequence(
+            null,
+            cancellation,
+            "Morph profile preview cancelled and temporary changes removed.");
+    }
+
+    private void PreviewMorphAuthorDialog(MorphAuthorDialog dialog, JsonElement? definition, double value)
+    {
+        var commands = new List<(string Command, Dictionary<string, object?> Payload)>();
+        if (dialog.PreviewDefinitionCreated)
+        {
+            commands.Add(("morph_change", MorphWizardChangePayload(dialog.DefinitionId, 0.0)));
+        }
+        commands.Add(("morph_author_definition", MorphAuthorPayload(dialog.Payload, definition)));
+        commands.Add(("morph_change", MorphWizardChangePayload(dialog.DefinitionId, value)));
+        if (!BeginMorphWizardCommandSequence(
+                dialog,
+                commands,
+                $"Morph preview ready at {value:0.#}%.",
+                accepted =>
+                {
+                    if (accepted)
+                    {
+                        dialog.MarkPreviewDefinitionCreated();
+                    }
+                }))
+        {
+            dialog.SetProtocolBusy(false, "Another Morph profile command is still running.");
+        }
+    }
+
+    private static Dictionary<string, object?> MorphWizardChangePayload(
+        string definitionId,
+        double value)
+    {
+        return new Dictionary<string, object?>
+        {
+            ["definition_id"] = definitionId,
+            ["value"] = value,
+            ["phase"] = "end",
+            ["change_id"] = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+        };
+    }
+
+    private bool BeginMorphWizardCommandSequence(
+        MorphAuthorDialog? dialog,
+        IEnumerable<(string Command, Dictionary<string, object?> Payload)> commands,
+        string successMessage,
+        Action<bool>? completed = null)
+    {
+        if (_morphWizardSequenceActive)
+        {
+            return false;
+        }
+        foreach (var (command, payload) in commands)
+        {
+            _morphWizardCommandQueue.Enqueue((command, new Dictionary<string, object?>(payload)));
+        }
+        if (_morphWizardCommandQueue.Count == 0)
+        {
+            return false;
+        }
+        _morphWizardActiveDialog = dialog;
+        _morphWizardSequenceCompleted = completed;
+        _morphWizardSuccessMessage = successMessage;
+        _morphWizardSequenceActive = true;
+        dialog?.SetProtocolBusy(true, "Applying the correlated Morph preview commands...");
+        SendNextMorphWizardCommand();
+        return _morphWizardCommandRequestId > 0 || _morphWizardCommandQueue.Count > 0;
+    }
+
+    private void SendNextMorphWizardCommand()
+    {
+        if (_morphWizardCommandRequestId > 0)
+        {
+            return;
+        }
+        if (_morphWizardCommandQueue.Count == 0)
+        {
+            CompleteMorphWizardCommandSequence(accepted: true);
+            return;
+        }
+        var (command, payload) = _morphWizardCommandQueue.Dequeue();
+        _morphWizardCommandRequestId = WriteCommandRequest(command, payload);
+        if (_morphWizardCommandRequestId <= 0)
+        {
+            CompleteMorphWizardCommandSequence(accepted: false);
+        }
+    }
+
+    private void CompleteMorphWizardCommandSequence(bool accepted)
+    {
+        var hadSequence = _morphWizardSequenceActive
+            || _morphWizardCommandRequestId > 0
+            || _morphWizardCommandQueue.Count > 0
+            || _morphWizardActiveDialog is not null
+            || _morphWizardSequenceCompleted is not null
+            || _morphWizardSuccessMessage.Length > 0;
+        if (!hadSequence)
+        {
+            return;
+        }
+        _morphWizardCommandRequestId = 0;
+        _morphWizardCommandQueue.Clear();
+        _morphWizardSequenceActive = false;
+        var dialog = _morphWizardActiveDialog;
+        var completed = _morphWizardSequenceCompleted;
+        var successMessage = _morphWizardSuccessMessage;
+        _morphWizardActiveDialog = null;
+        _morphWizardSequenceCompleted = null;
+        _morphWizardSuccessMessage = string.Empty;
+        completed?.Invoke(accepted);
+        if (dialog is not null && !dialog.IsDisposed)
+        {
+            dialog.SetProtocolBusy(
+                false,
+                accepted ? successMessage : "The Morph preview command was rejected; no further preview commands were sent.");
+        }
+        _statusLabel.Text = accepted
+            ? successMessage
+            : "Morph profile command sequence stopped after a rejected step.";
+        ResumePendingFinishIfClear();
+    }
+
+    private static Dictionary<string, object?> MorphAuthorPayload(
+        Dictionary<string, object?> payload,
+        JsonElement? definition)
+    {
+        payload["preserve_selection"] = false;
         payload["source_definition_id"] = definition.HasValue
             ? JsonString(definition.Value, "definition_id").Trim()
             : string.Empty;
         payload["local_basis"] = MorphLocalBasis(definition);
-        WriteCommandRequest("morph_author_definition", payload);
+        return payload;
+    }
+
+    private static Dictionary<string, object?> OriginalMorphAuthorPayload(
+        JsonElement definition,
+        string profileId,
+        string profileName)
+    {
+        var definitionId = JsonString(definition, "definition_id").Trim();
+        return new Dictionary<string, object?>
+        {
+            ["profile_id"] = profileId,
+            ["profile_name"] = profileName,
+            ["definition_id"] = definitionId,
+            ["label"] = JsonString(definition, "label"),
+            ["category"] = JsonString(definition, "category"),
+            ["rule"] = JsonString(definition, "rule"),
+            ["axis"] = JsonString(definition, "axis"),
+            ["amount"] = JsonDoubleValue(definition, "amount", 0.1),
+            ["feather"] = JsonLongValue(definition, "feather"),
+            ["falloff"] = JsonString(definition, "falloff"),
+            ["mirror_mode"] = JsonString(definition, "mirror_mode"),
+            ["min_percent"] = JsonDoubleValue(definition, "min_percent", -100.0),
+            ["max_percent"] = JsonDoubleValue(definition, "max_percent", 100.0),
+            ["default_percent"] = JsonDoubleValue(definition, "default_percent", 0.0),
+            ["preserve_selection"] = true,
+            ["source_definition_id"] = definitionId,
+            ["local_basis"] = MorphLocalBasis(definition),
+        };
     }
 
     private static double[][] MorphLocalBasis(JsonElement? definition)
@@ -1261,188 +1535,6 @@ internal sealed partial class ExperimentForm
             }
         }
         return result;
-    }
-}
-
-internal sealed class MorphAuthorDialog : Form
-{
-    private readonly TextBox _profileId = new();
-    private readonly TextBox _profileName = new();
-    private readonly TextBox _definitionId = new();
-    private readonly TextBox _label = new();
-    private readonly TextBox _category = new();
-    private readonly ComboBox _rule = new();
-    private readonly ComboBox _axis = new();
-    private readonly ComboBox _falloff = new();
-    private readonly ComboBox _mirror = new();
-    private readonly NumericUpDown _amount = new();
-    private readonly NumericUpDown _feather = new();
-    private readonly NumericUpDown _minimum = new();
-    private readonly NumericUpDown _maximum = new();
-
-    public Dictionary<string, object?> Payload => new()
-    {
-        ["profile_id"] = _profileId.Text.Trim(),
-        ["profile_name"] = _profileName.Text.Trim(),
-        ["definition_id"] = _definitionId.Text.Trim(),
-        ["label"] = _label.Text.Trim(),
-        ["category"] = _category.Text.Trim(),
-        ["rule"] = Convert.ToString(_rule.SelectedItem, CultureInfo.InvariantCulture)?.ToLowerInvariant(),
-        ["axis"] = Convert.ToString(_axis.SelectedItem, CultureInfo.InvariantCulture)?.ToLowerInvariant(),
-        ["amount"] = (double)_amount.Value,
-        ["feather"] = (int)_feather.Value,
-        ["falloff"] = Convert.ToString(_falloff.SelectedItem, CultureInfo.InvariantCulture)?.ToLowerInvariant(),
-        ["mirror_mode"] = Convert.ToString(_mirror.SelectedItem, CultureInfo.InvariantCulture)?.ToLowerInvariant(),
-        ["min_percent"] = (double)_minimum.Value,
-        ["max_percent"] = (double)_maximum.Value,
-        ["default_percent"] = 0.0,
-    };
-
-    public MorphAuthorDialog(
-        string profileId,
-        string profileName,
-        JsonElement? definition,
-        Color background,
-        Color section,
-        Color input,
-        Color text,
-        Color muted)
-    {
-        var hasDefinition = definition.HasValue && definition.Value.ValueKind == JsonValueKind.Object;
-        string DefinitionString(string name, string fallback)
-        {
-            if (!hasDefinition || !definition!.Value.TryGetProperty(name, out var value) || value.ValueKind != JsonValueKind.String)
-            {
-                return fallback;
-            }
-            return value.GetString()?.Trim() is { Length: > 0 } textValue ? textValue : fallback;
-        }
-        double DefinitionDouble(string name, double fallback)
-        {
-            if (!hasDefinition || !definition!.Value.TryGetProperty(name, out var value) || !value.TryGetDouble(out var number) || !double.IsFinite(number))
-            {
-                return fallback;
-            }
-            return number;
-        }
-        int DefinitionInt(string name, int fallback)
-        {
-            if (!hasDefinition || !definition!.Value.TryGetProperty(name, out var value) || !value.TryGetInt32(out var number))
-            {
-                return fallback;
-            }
-            return number;
-        }
-
-        Text = hasDefinition ? "Edit Procedural Slider" : "Author Procedural Slider";
-        Width = 480;
-        Height = 650;
-        MinimumSize = new Size(440, 560);
-        StartPosition = FormStartPosition.CenterParent;
-        BackColor = background;
-        ForeColor = text;
-        FormBorderStyle = FormBorderStyle.SizableToolWindow;
-        _profileId.Text = profileId.Length > 0 ? profileId : $"profile-{Guid.NewGuid():N}"[..18];
-        _profileName.Text = profileName.Length > 0 ? profileName : "My Morph Profile";
-        _definitionId.Text = DefinitionString("definition_id", $"slider-{Guid.NewGuid():N}"[..17]);
-        _label.Text = DefinitionString("label", "New Slider");
-        _category.Text = DefinitionString("category", "Body");
-        foreach (var combo in new[] { _rule, _axis, _falloff, _mirror })
-        {
-            combo.DropDownStyle = ComboBoxStyle.DropDownList;
-            combo.BackColor = input;
-            combo.ForeColor = text;
-            combo.FlatStyle = FlatStyle.Flat;
-        }
-        _rule.Items.AddRange(new object[] { "Volume", "Scale", "Move", "Flatten", "Taper", "Twist" });
-        _axis.Items.AddRange(new object[] { "X", "Y", "Z" });
-        _falloff.Items.AddRange(new object[] { "Smooth", "Linear", "Constant" });
-        _mirror.Items.AddRange(new object[] { "Off", "X", "Y", "Z" });
-        SelectComboValue(_rule, DefinitionString("rule", "volume"));
-        SelectComboValue(_axis, DefinitionString("axis", "y"));
-        SelectComboValue(_falloff, DefinitionString("falloff", "smooth"));
-        SelectComboValue(_mirror, DefinitionString("mirror_mode", "off"));
-        ConfigureNumber(_amount, -1000, 1000, (decimal)Math.Clamp(DefinitionDouble("amount", 0.1), -1000.0, 1000.0), 0.01M, 4, input, text);
-        ConfigureNumber(_feather, 0, 64, Math.Clamp(DefinitionInt("feather", 2), 0, 64), 1, 0, input, text);
-        ConfigureNumber(_minimum, -1000, 1000, (decimal)Math.Clamp(DefinitionDouble("min_percent", -100.0), -1000.0, 1000.0), 5, 1, input, text);
-        ConfigureNumber(_maximum, -1000, 1000, (decimal)Math.Clamp(DefinitionDouble("max_percent", 100.0), -1000.0, 1000.0), 5, 1, input, text);
-        foreach (var box in new[] { _profileId, _profileName, _definitionId, _label, _category })
-        {
-            box.BackColor = input;
-            box.ForeColor = text;
-            box.BorderStyle = BorderStyle.FixedSingle;
-        }
-        var layout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            AutoScroll = true,
-            ColumnCount = 1,
-            RowCount = 0,
-            Padding = new Padding(12),
-            BackColor = section,
-        };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        AddField(layout, "Profile id", _profileId, muted, section);
-        AddField(layout, "Profile name", _profileName, muted, section);
-        AddField(layout, "Slider id", _definitionId, muted, section);
-        AddField(layout, "Slider label", _label, muted, section);
-        AddField(layout, "Category", _category, muted, section);
-        AddField(layout, "Procedural rule", _rule, muted, section);
-        AddField(layout, "Local axis (World XYZ basis)", _axis, muted, section);
-        AddField(layout, "100% amount", _amount, muted, section);
-        AddField(layout, "Selection feather rings", _feather, muted, section);
-        AddField(layout, "Falloff", _falloff, muted, section);
-        AddField(layout, "Strict mirror", _mirror, muted, section);
-        AddField(layout, "Minimum percent", _minimum, muted, section);
-        AddField(layout, "Maximum percent", _maximum, muted, section);
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.RightToLeft };
-        var ok = new Button { Text = hasDefinition ? "Update" : "Create", DialogResult = DialogResult.OK, AutoSize = true };
-        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
-        buttons.Controls.Add(ok);
-        buttons.Controls.Add(cancel);
-        layout.RowCount++;
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.Controls.Add(buttons, 0, layout.RowCount - 1);
-        Controls.Add(layout);
-        AcceptButton = ok;
-        CancelButton = cancel;
-    }
-
-    private static void SelectComboValue(ComboBox combo, string value)
-    {
-        for (var index = 0; index < combo.Items.Count; index++)
-        {
-            if (string.Equals(Convert.ToString(combo.Items[index], CultureInfo.InvariantCulture), value, StringComparison.OrdinalIgnoreCase))
-            {
-                combo.SelectedIndex = index;
-                return;
-            }
-        }
-        combo.SelectedIndex = combo.Items.Count > 0 ? 0 : -1;
-    }
-
-    private static void ConfigureNumber(NumericUpDown control, decimal min, decimal max, decimal value, decimal increment, int decimals, Color input, Color text)
-    {
-        control.Minimum = min;
-        control.Maximum = max;
-        control.Value = value;
-        control.Increment = increment;
-        control.DecimalPlaces = decimals;
-        control.BackColor = input;
-        control.ForeColor = text;
-        control.BorderStyle = BorderStyle.FixedSingle;
-    }
-
-    private static void AddField(TableLayoutPanel layout, string label, Control control, Color muted, Color section)
-    {
-        var caption = new Label { Text = label, AutoSize = true, ForeColor = muted, BackColor = section, Margin = new Padding(0, 5, 0, 2) };
-        control.Dock = DockStyle.Top;
-        layout.RowCount++;
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.Controls.Add(caption, 0, layout.RowCount - 1);
-        layout.RowCount++;
-        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        layout.Controls.Add(control, 0, layout.RowCount - 1);
     }
 }
 

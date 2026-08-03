@@ -3,7 +3,9 @@
 The rail is the only tool picker visible in Edit Mesh, and arming one sends
 `tool_changed` to the host. The host maps that key through
 `_DOTNET_TOOL_TO_DIALOG_TOOL`, and a key with no entry is dropped on purpose --
-that is how orbit and the command pages are ignored. The same silence is what a
+that is how command pages are ignored. Orbit is the one non-rail mapping: it is
+the neutral navigation button in Viewport and must clear any armed tool. The
+same silence is what a
 genuinely missing entry produces: the rail lights the row, the host adopts
 nothing, and the next control refresh republishes the stale tool and takes the
 reader's choice away. Nothing fails, and nothing works.
@@ -76,12 +78,13 @@ class EditMeshToolRailContractTests(unittest.TestCase):
         wrongly_mapped = [key for key in pages if key in _DOTNET_TOOL_TO_DIALOG_TOOL]
         self.assertEqual(wrongly_mapped, [], f"command pages must not arm a tool: {wrongly_mapped}")
 
-    def test_the_host_maps_nothing_the_rail_does_not_offer(self) -> None:
-        """A stale mapping is a tool this side expects and the rail never sends."""
+    def test_the_host_maps_only_the_rail_and_the_neutral_orbit_button(self) -> None:
+        """A stale mapping is a tool this side expects and no visible control sends."""
 
         rail_keys = {key for _kind, key in _rail_rows()}
-        stale = sorted(set(_DOTNET_TOOL_TO_DIALOG_TOOL) - rail_keys)
-        self.assertEqual(stale, [], f"host maps rail tools that no longer exist: {stale}")
+        non_rail = sorted(set(_DOTNET_TOOL_TO_DIALOG_TOOL) - rail_keys)
+        self.assertEqual(non_rail, ["orbit"])
+        self.assertEqual(_DOTNET_TOOL_TO_DIALOG_TOOL["orbit"], ("orbit", ""))
 
     def test_every_mapped_action_key_is_a_real_mesh_editor_action(self) -> None:
         """The second half of the mapping names an action key, not free text."""

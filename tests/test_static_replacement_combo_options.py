@@ -89,11 +89,22 @@ def test_static_combo_options_keep_expected_order_and_values() -> None:
         ("Unknown", "unknown"),
     )
     assert MESH_EDIT_SCOPE_OPTIONS == (("All editable parts", "all"), ("Selected part only", "selected"))
-    assert MESH_EDIT_TOOL_OPTIONS[-1] == ("Select Vertices", "vertex")
-    assert MESH_EDIT_TOOL_BUTTON_OPTIONS[4] == (
-        "Remove Faces",
-        "remove",
-        "Cut away faces touched by the brush. Boundaries stay open.",
+    assert MESH_EDIT_TOOL_OPTIONS == (
+        ("Orbit", "orbit"),
+        ("Select Parts", "select"),
+        ("Move", "move"),
+        ("Grab", "grab"),
+        ("Smooth", "smooth"),
+        ("Push/Pull", "inflate"),
+        ("Pinch/Relax", "pinch"),
+    )
+    assert tuple(value for _label, value, _help in MESH_EDIT_TOOL_BUTTON_OPTIONS) == (
+        "select",
+        "move",
+        "grab",
+        "smooth",
+        "inflate",
+        "pinch",
     )
     assert MESH_EDIT_DELETE_MODE_OPTIONS == (("On release", "release"), ("During drag", "live"))
     assert MESH_EDIT_FALLOFF_OPTIONS == (

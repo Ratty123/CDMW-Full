@@ -46,6 +46,47 @@ def _author_command() -> MeshEditCommand:
     )
 
 
+def test_morph_authoring_expands_selected_parts_inside_service_boundary(tmp_path) -> None:
+    mesh = _driver_garment_mesh()
+    service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
+    view = service.open_edit_session(mesh, mode="edit")
+    try:
+        result = service.apply_command(
+            view.session_id,
+            MeshEditCommand(
+                "morph_author_definition",
+                selection=MeshEditSelection.from_maps(source_indices=(2,)),
+                params={
+                    "profile_id": "part-profile",
+                    "profile_name": "Part Profile",
+                    "definition_id": "volume",
+                    "label": "Volume",
+                },
+            ),
+        )
+        state = service.cached_morph_state(view.session_id)
+    finally:
+        service.close_edit_session(view.session_id)
+
+    assert result.ok
+    assert state is not None
+    assert {(item.submesh_index, item.vertex_index) for item in state.definitions[0].vertices} == {
+        (2, vertex_index) for vertex_index in range(len(mesh.submeshes[2].vertices))
+    }
+
+
+def test_refit_rejects_a_part_used_as_both_driver_and_garment(tmp_path) -> None:
+    service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
+    view = service.open_edit_session(_driver_garment_mesh(), mode="edit")
+    try:
+        assert service.apply_command(view.session_id, _author_command()).ok
+        assert service.set_refit_driver(view.session_id, (0,))[0].ok
+        with pytest.raises(ValueError, match="cannot also be refit driver"):
+            service.bind_refit(view.session_id, (0,))
+    finally:
+        service.close_edit_session(view.session_id)
+
+
 def test_mesh_service_owns_authoring_resident_values_refit_persistence_history_and_cleanup(tmp_path) -> None:
     service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
     view = service.open_edit_session(_driver_garment_mesh(), mode="edit")

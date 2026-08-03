@@ -20,7 +20,7 @@ class MeshEditorTabShellRuntimeMixin:
         self.current_request: Optional[_tab.MeshEditorSessionRequest] = None
         self.current_archive_selection: Optional[_tab.ArchiveEntry] = None
         self.current_edit_mode = "object"
-        self.current_selection_mode = "vertex"
+        self.current_selection_mode = "brush"
         self.current_tool_action_key = ""
         self.current_selection_empty = True
         self.current_undo_count = 0
@@ -125,6 +125,12 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_applied_material_generation = 0
         self.standalone_dotnet_completed_material_generation = 0
         self.standalone_dotnet_material_signature = ""
+        self.standalone_dotnet_material_role_by_generation: dict[int, str] = {}
+        self.standalone_dotnet_material_generation_by_role: dict[str, int] = {}
+        self.standalone_dotnet_completed_material_generation_by_role: dict[str, int] = {}
+        self.standalone_dotnet_applied_material_generation_by_role: dict[str, int] = {}
+        self.standalone_dotnet_material_signature_by_role: dict[str, str] = {}
+        self.standalone_dotnet_material_error_by_role: dict[str, str] = {}
         self.standalone_dotnet_pending_textured_view = False
         self.standalone_dotnet_pending_textured_view_mode = "textured"
         self.standalone_dotnet_pending_textured_view_uses_presentation = False
@@ -179,6 +185,11 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_update_ack_timer = QTimer(self)
         self.standalone_dotnet_update_ack_timer.setSingleShot(True)
         self.standalone_dotnet_update_ack_timer.timeout.connect(self._handle_dotnet_update_ack_timeout)
+        self.standalone_dotnet_update_ack_start_timer = QTimer(self)
+        self.standalone_dotnet_update_ack_start_timer.setSingleShot(True)
+        self.standalone_dotnet_update_ack_start_timer.timeout.connect(
+            lambda: self._sync_dotnet_update_ack_timer()
+        )
         self.standalone_dotnet_stdout_tail = ""
         self.standalone_dotnet_stderr_tail = ""
         self.standalone_dotnet_last_program = ""

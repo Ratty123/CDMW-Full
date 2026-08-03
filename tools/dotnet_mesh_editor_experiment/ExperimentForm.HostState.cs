@@ -9,6 +9,21 @@ internal sealed partial class ExperimentForm
         "orbit", "select", "move", "grab", "smooth", "inflate", "pinch"
     };
 
+    private void ResetSelectionGestureDefaultsForSession()
+    {
+        _lastHostSelectionDragMode = "brush";
+        _lastHostSelectionOperation = "add";
+        if (_selectionShape.Items.Count > 0)
+        {
+            _selectionShape.SelectedIndex = 0;
+        }
+        if (_selectionOperation.Items.Count > 0)
+        {
+            _selectionOperation.SelectedIndex = 0;
+        }
+        _viewport.SetSelectionDragMode("brush");
+    }
+
     private void ApplyHostToolState(JsonElement root)
     {
         var tool = JsonString(root, "tool").Trim().ToLowerInvariant();
@@ -18,6 +33,36 @@ internal sealed partial class ExperimentForm
         }
         var enabled = !root.TryGetProperty("enabled", out var enabledElement)
             || enabledElement.ValueKind != JsonValueKind.False;
+        // Selection shape and operation are session preferences, not an
+        // interaction permission. Apply their opening defaults even when the
+        // host intentionally arms Orbit with enabled=false. Remember the
+        // host value so later control refreshes do not overwrite a reader's
+        // sticky choice while switching tools.
+        var selectionDragMode = JsonString(root, "selection_mode").Trim().ToLowerInvariant();
+        if (selectionDragMode is "brush" or "lasso" or "rectangle"
+            && !string.Equals(selectionDragMode, _lastHostSelectionDragMode, StringComparison.OrdinalIgnoreCase))
+        {
+            _lastHostSelectionDragMode = selectionDragMode;
+            _viewport.SetSelectionDragMode(selectionDragMode);
+            var shapeItem = _selectionShape.Items.Cast<object>()
+                .FirstOrDefault(item => string.Equals(Convert.ToString(item), selectionDragMode, StringComparison.OrdinalIgnoreCase));
+            if (shapeItem is not null)
+            {
+                _selectionShape.SelectedItem = shapeItem;
+            }
+        }
+        var selectionOperation = JsonString(root, "selection_operation").Trim().ToLowerInvariant();
+        if (selectionOperation is "add" or "replace" or "subtract" or "toggle"
+            && !string.Equals(selectionOperation, _lastHostSelectionOperation, StringComparison.OrdinalIgnoreCase))
+        {
+            _lastHostSelectionOperation = selectionOperation;
+            var operationItem = _selectionOperation.Items.Cast<object>()
+                .FirstOrDefault(item => string.Equals(Convert.ToString(item), selectionOperation, StringComparison.OrdinalIgnoreCase));
+            if (operationItem is not null)
+            {
+                _selectionOperation.SelectedItem = operationItem;
+            }
+        }
         if (!enabled)
         {
             if (!string.Equals("orbit", _viewport.ActiveTool, StringComparison.OrdinalIgnoreCase))
@@ -29,6 +74,8 @@ internal sealed partial class ExperimentForm
                 ["enabled"] = false,
                 ["tool"] = "orbit",
                 ["target_mode"] = _viewport.CurrentTargetMode(),
+                ["selection_mode"] = SelectionText(_selectionShape, "brush"),
+                ["selection_operation"] = SelectionOperation(),
                 ["local_selection"] = _viewport.SelectionSnapshotPayload(),
                 ["selected_part_index"] = _viewport.SelectedSubmeshIndex,
                 ["parts_list_selected_index"] = _submeshList.SelectedIndex,
@@ -69,19 +116,6 @@ internal sealed partial class ExperimentForm
         // assignment and all -- so a reader who picked Lasso had it taken away
         // again on the next control refresh, every time, which is why lasso
         // appeared not to work at all.
-        var selectionDragMode = JsonString(root, "selection_mode").Trim().ToLowerInvariant();
-        if (selectionDragMode is "brush" or "lasso" or "rectangle"
-            && !string.Equals(selectionDragMode, _lastHostSelectionDragMode, StringComparison.OrdinalIgnoreCase))
-        {
-            _lastHostSelectionDragMode = selectionDragMode;
-            _viewport.SetSelectionDragMode(selectionDragMode);
-            var shapeItem = _selectionShape.Items.Cast<object>()
-                .FirstOrDefault(item => string.Equals(Convert.ToString(item), selectionDragMode, StringComparison.OrdinalIgnoreCase));
-            if (shapeItem is not null)
-            {
-                _selectionShape.SelectedItem = shapeItem;
-            }
-        }
         // Re-asserting the tool the viewport already has is not a no-op: it runs
         // SyncToolRailPageToActiveTool, which closes whichever rail page is open.
         // The host republishes this state on every control refresh, so without
@@ -95,6 +129,8 @@ internal sealed partial class ExperimentForm
             ["enabled"] = true,
             ["tool"] = tool,
             ["target_mode"] = _viewport.CurrentTargetMode(),
+            ["selection_mode"] = SelectionText(_selectionShape, "brush"),
+            ["selection_operation"] = SelectionOperation(),
             ["local_selection"] = _viewport.SelectionSnapshotPayload(),
             ["selected_part_index"] = _viewport.SelectedSubmeshIndex,
             ["parts_list_selected_index"] = _submeshList.SelectedIndex,

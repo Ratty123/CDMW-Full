@@ -2983,6 +2983,263 @@ class NativeMeshEditorSessionBridgeTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertEqual((0,), selected_sources)
 
+    def test_native_session_part_click_brush_rectangle_and_lasso_accumulate_with_all_operations(self) -> None:
+        from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+        from cdmw.services.mesh_service import MeshService
+
+        mesh = _two_part_mesh()
+        mesh.submeshes[0].vertices = [
+            (-0.8, -0.2, 0.0),
+            (-0.4, -0.2, 0.0),
+            (-0.8, 0.2, 0.0),
+            (-0.4, 0.2, 0.0),
+        ]
+        mesh.submeshes[1].vertices = [
+            (0.4, -0.2, 0.0),
+            (0.8, -0.2, 0.0),
+            (0.4, 0.2, 0.0),
+            (0.8, 0.2, 0.0),
+        ]
+
+        def selection_payload(*, depth: str = "xray", **shape: object) -> dict[str, object]:
+            return {
+                "target_mode": "source",
+                "selection_depth_mode": depth,
+                **shape,
+            }
+
+        def brush(x: float) -> dict[str, object]:
+            return {
+                "screen_brush": {
+                    "x": x,
+                    "y": 100.0,
+                    "radius_pixels": 12.0,
+                    "viewport_width": 200.0,
+                    "viewport_height": 200.0,
+                    "world_view_projection": _screen_wvp(),
+                },
+            }
+
+        def region(mode: str, left: float, right: float) -> dict[str, object]:
+            result: dict[str, object] = {
+                "mode": mode,
+                "start_x": left,
+                "start_y": 75.0,
+                "end_x": right,
+                "end_y": 125.0,
+                "viewport_width": 200.0,
+                "viewport_height": 200.0,
+                "world_view_projection": _screen_wvp(),
+            }
+            if mode == "lasso":
+                result["points"] = [
+                    [left, 75.0],
+                    [right, 75.0],
+                    [right, 125.0],
+                    [left, 125.0],
+                ]
+            return {"screen_region": result}
+
+        service = MeshService()
+        view = service.open_edit_session(
+            mesh,
+            session_id=f"native-editor-part-gestures-{uuid4().hex}",
+            mode="edit",
+        )
+        try:
+            expected = (("replace", brush(40.0), (0,)),)
+            for operation, shape, selected in expected:
+                result = service.apply_command(
+                    view.session_id,
+                    MeshEditCommand(
+                        "select",
+                        selection=MeshEditSelection(),
+                        params={
+                            "operation": operation,
+                            "_native_screen_selection_payload": selection_payload(**shape),
+                        },
+                    ),
+                )
+                self.assertTrue(result.ok)
+                self.assertEqual(selected, service.session_view(view.session_id).selection.source_indices)
+
+            for operation, shape, selected in (
+                ("add", region("lasso", 135.0, 185.0), (0, 1)),
+                ("subtract", region("rectangle", 15.0, 65.0), (1,)),
+                ("toggle", brush(160.0), ()),
+                ("add", region("rectangle", 15.0, 185.0), (0, 1)),
+            ):
+                result = service.apply_command(
+                    view.session_id,
+                    MeshEditCommand(
+                        "select",
+                        selection=MeshEditSelection(),
+                        params={
+                            "operation": operation,
+                            "_native_screen_selection_payload": selection_payload(**shape),
+                        },
+                    ),
+                )
+                self.assertTrue(result.ok)
+                self.assertEqual(selected, service.session_view(view.session_id).selection.source_indices)
+        finally:
+            service.close_edit_session(view.session_id)
+
+    def test_native_session_part_brush_paint_selects_every_intersected_part_and_respects_depth(self) -> None:
+        from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+        from cdmw.services.mesh_service import MeshService
+
+        mesh = _two_part_mesh()
+        mesh.submeshes[1].vertices = [(x, y, 0.5) for x, y, _z in mesh.submeshes[1].vertices]
+        brush = {
+            "x": 130.0,
+            "y": 50.0,
+            "radius_pixels": 45.0,
+            "viewport_width": 200.0,
+            "viewport_height": 200.0,
+            "world_view_projection": _screen_wvp(),
+        }
+        service = MeshService()
+        view = service.open_edit_session(
+            mesh,
+            session_id=f"native-editor-part-brush-paint-{uuid4().hex}",
+            mode="edit",
+        )
+        try:
+            selections: dict[str, tuple[int, ...]] = {}
+            for depth_mode in ("visible", "xray"):
+                result = service.apply_command(
+                    view.session_id,
+                    MeshEditCommand(
+                        "select",
+                        selection=MeshEditSelection(),
+                        params={
+                            "operation": "replace",
+                            "_native_screen_selection_payload": {
+                                "target_mode": "source",
+                                "selection_depth_mode": depth_mode,
+                                "paint_sample": True,
+                                "screen_brush": brush,
+                            },
+                        },
+                    ),
+                )
+                self.assertTrue(result.ok)
+                selections[depth_mode] = service.session_view(view.session_id).selection.source_indices
+        finally:
+            service.close_edit_session(view.session_id)
+
+        self.assertEqual((0,), selections["visible"])
+        self.assertEqual((0, 1), selections["xray"])
+
+    def test_native_session_toggle_brush_path_applies_each_crossed_part_once(self) -> None:
+        from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+        from cdmw.services.mesh_service import MeshService
+
+        mesh = _two_part_mesh()
+        mesh.submeshes[0].vertices = [
+            (-0.8, -0.2, 0.0), (-0.4, -0.2, 0.0),
+            (-0.8, 0.2, 0.0), (-0.4, 0.2, 0.0),
+        ]
+        mesh.submeshes[1].vertices = [
+            (0.4, -0.2, 0.0), (0.8, -0.2, 0.0),
+            (0.4, 0.2, 0.0), (0.8, 0.2, 0.0),
+        ]
+        brush_path = {
+            "mode": "brush",
+            "selection_mode": "brush",
+            "points": [[40.0, 100.0], [160.0, 100.0], [40.0, 100.0]],
+            "radius_pixels": 12.0,
+            "start_x": 40.0,
+            "start_y": 100.0,
+            "end_x": 40.0,
+            "end_y": 100.0,
+            "viewport_width": 200.0,
+            "viewport_height": 200.0,
+            "world_view_projection": _screen_wvp(),
+        }
+        service = MeshService()
+        view = service.open_edit_session(
+            mesh,
+            session_id=f"native-editor-part-toggle-path-{uuid4().hex}",
+            mode="edit",
+        )
+        try:
+            selections: list[tuple[int, ...]] = []
+            for _ in range(2):
+                result = service.apply_command(
+                    view.session_id,
+                    MeshEditCommand(
+                        "select",
+                        selection=MeshEditSelection(),
+                        params={
+                            "operation": "toggle",
+                            "_native_screen_selection_payload": {
+                                "target_mode": "source",
+                                "selection_depth_mode": "xray",
+                                "paint_sample": True,
+                                "paint_final": True,
+                                "screen_region": brush_path,
+                            },
+                        },
+                    ),
+                )
+                self.assertTrue(result.ok)
+                selections.append(service.session_view(view.session_id).selection.source_indices)
+        finally:
+            service.close_edit_session(view.session_id)
+
+        self.assertEqual([(0, 1), ()], selections)
+
+    def test_native_session_part_region_visible_rejects_occluded_part_but_xray_keeps_it(self) -> None:
+        from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+        from cdmw.services.mesh_service import MeshService
+
+        mesh = _two_part_mesh()
+        mesh.submeshes[1].vertices = [(x, y, 0.5) for x, y, _z in mesh.submeshes[1].vertices]
+        region = {
+            "mode": "lasso",
+            "points": [[110.0, 30.0], [150.0, 30.0], [150.0, 70.0], [110.0, 70.0]],
+            "start_x": 110.0,
+            "start_y": 30.0,
+            "end_x": 150.0,
+            "end_y": 70.0,
+            "viewport_width": 200.0,
+            "viewport_height": 200.0,
+            "world_view_projection": _screen_wvp(),
+        }
+        service = MeshService()
+        view = service.open_edit_session(
+            mesh,
+            session_id=f"native-editor-part-depth-{uuid4().hex}",
+            mode="edit",
+        )
+        try:
+            selections: dict[str, tuple[int, ...]] = {}
+            for depth_mode in ("visible", "xray"):
+                result = service.apply_command(
+                    view.session_id,
+                    MeshEditCommand(
+                        "select",
+                        selection=MeshEditSelection(),
+                        params={
+                            "operation": "replace",
+                            "_native_screen_selection_payload": {
+                                "target_mode": "source",
+                                "selection_depth_mode": depth_mode,
+                                "screen_region": region,
+                            },
+                        },
+                    ),
+                )
+                self.assertTrue(result.ok)
+                selections[depth_mode] = service.session_view(view.session_id).selection.source_indices
+        finally:
+            service.close_edit_session(view.session_id)
+
+        self.assertEqual((0,), selections["visible"])
+        self.assertEqual((0, 1), selections["xray"])
+
     def test_native_session_select_face_region_uses_source_projection_override(self) -> None:
         from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
         from cdmw.services.mesh_service import MeshService

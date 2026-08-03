@@ -188,9 +188,60 @@ void mesh_editor_prune_vertex_weights_to_selection(MeshEditorSelection& selectio
     }
 }
 
+double mesh_editor_screen_point_segment_distance_squared(
+    const Vec2& point,
+    const Vec2& start,
+    const Vec2& end,
+    Vec2* out_closest = nullptr
+) {
+    const double dx = end[0] - start[0];
+    const double dy = end[1] - start[1];
+    const double length_squared = dx * dx + dy * dy;
+    const double t = length_squared <= 1.0e-12
+        ? 0.0
+        : std::clamp(
+            ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / length_squared,
+            0.0,
+            1.0
+        );
+    const Vec2 closest{start[0] + t * dx, start[1] + t * dy};
+    if (out_closest != nullptr) {
+        *out_closest = closest;
+    }
+    const double delta_x = point[0] - closest[0];
+    const double delta_y = point[1] - closest[1];
+    return delta_x * delta_x + delta_y * delta_y;
+}
+
+double mesh_editor_screen_region_brush_radius(const JsonValue& region) {
+    return std::max(
+        0.0,
+        number_or(
+            region.get("radius_pixels"),
+            number_or(region.get("brush_radius_pixels"), number_or(region.get("radius"), 0.0))
+        )
+    );
+}
+
 bool mesh_editor_screen_region_contains(const JsonValue& region, double screen_x, double screen_y) {
     const std::string mode = lower_ascii(string_or(region.get("mode"), string_or(region.get("selection_mode"), "rectangle")));
     const std::vector<Vec2> points = vec2_array_from_json(region.get("points"));
+    if (mode == "brush" && !points.empty()) {
+        const Vec2 point{screen_x, screen_y};
+        const double radius_squared = std::pow(mesh_editor_screen_region_brush_radius(region), 2.0);
+        if (points.size() == 1) {
+            const double dx = point[0] - points[0][0];
+            const double dy = point[1] - points[0][1];
+            return dx * dx + dy * dy <= radius_squared;
+        }
+        for (std::size_t index = 1; index < points.size(); ++index) {
+            if (mesh_editor_screen_point_segment_distance_squared(
+                    point, points[index - 1], points[index]) <= radius_squared) {
+                return true;
+            }
+        }
+        return false;
+    }
     if (mode == "lasso" && points.size() >= 3) {
         return uv_point_in_polygon({screen_x, screen_y}, points);
     }
@@ -267,6 +318,80 @@ bool mesh_editor_screen_segment_intersection_point(
     return true;
 }
 
+bool mesh_editor_screen_brush_path_segment_sample(
+    const JsonValue& region,
+    const Vec2& segment_start,
+    const Vec2& segment_end,
+    Vec2& out_sample
+) {
+    const std::string mode = lower_ascii(string_or(
+        region.get("mode"), string_or(region.get("selection_mode"), "rectangle")
+    ));
+    const std::vector<Vec2> points = vec2_array_from_json(region.get("points"));
+    if (mode != "brush" || points.empty()) {
+        return false;
+    }
+    const double radius_squared = std::pow(mesh_editor_screen_region_brush_radius(region), 2.0);
+    double best_distance = std::numeric_limits<double>::infinity();
+    Vec2 best_sample{};
+    auto consider = [&](double distance, const Vec2& sample) {
+        if (distance < best_distance) {
+            best_distance = distance;
+            best_sample = sample;
+        }
+    };
+    if (points.size() == 1) {
+        Vec2 closest{};
+        consider(
+            mesh_editor_screen_point_segment_distance_squared(
+                points[0], segment_start, segment_end, &closest
+            ),
+            closest
+        );
+    } else {
+        for (std::size_t index = 1; index < points.size(); ++index) {
+            const Vec2& path_start = points[index - 1];
+            const Vec2& path_end = points[index];
+            Vec2 intersection{};
+            if (mesh_editor_screen_segment_intersection_point(
+                    segment_start, segment_end, path_start, path_end, intersection)) {
+                out_sample = intersection;
+                return true;
+            }
+            Vec2 closest{};
+            consider(
+                mesh_editor_screen_point_segment_distance_squared(
+                    path_start, segment_start, segment_end, &closest
+                ),
+                closest
+            );
+            consider(
+                mesh_editor_screen_point_segment_distance_squared(
+                    path_end, segment_start, segment_end, &closest
+                ),
+                closest
+            );
+            consider(
+                mesh_editor_screen_point_segment_distance_squared(
+                    segment_start, path_start, path_end
+                ),
+                segment_start
+            );
+            consider(
+                mesh_editor_screen_point_segment_distance_squared(
+                    segment_end, path_start, path_end
+                ),
+                segment_end
+            );
+        }
+    }
+    if (best_distance > radius_squared) {
+        return false;
+    }
+    out_sample = best_sample;
+    return true;
+}
+
 bool mesh_editor_screen_point_in_triangle(const Vec2& point, const Vec2& a, const Vec2& b, const Vec2& c) {
     constexpr double epsilon = 1.0e-9;
     const double ab = mesh_editor_screen_orientation(a, b, point);
@@ -301,6 +426,9 @@ bool mesh_editor_screen_triangle_depth_at(
 std::vector<Vec2> mesh_editor_screen_region_boundary_points(const JsonValue& region) {
     const std::string mode = lower_ascii(string_or(region.get("mode"), string_or(region.get("selection_mode"), "rectangle")));
     const std::vector<Vec2> points = vec2_array_from_json(region.get("points"));
+    if (mode == "brush") {
+        return {};
+    }
     if (mode == "lasso" && points.size() >= 3) {
         return points;
     }
@@ -341,6 +469,9 @@ bool mesh_editor_screen_region_segment_sample(
     const Vec2 b{bx, by};
     const std::string mode = lower_ascii(string_or(region.get("mode"), string_or(region.get("selection_mode"), "rectangle")));
     const std::vector<Vec2> points = vec2_array_from_json(region.get("points"));
+    if (mode == "brush") {
+        return mesh_editor_screen_brush_path_segment_sample(region, a, b, out_sample);
+    }
     if (mode == "lasso" && points.size() >= 3) {
         for (std::size_t index = 0; index < points.size(); ++index) {
             if (mesh_editor_screen_segment_intersection_point(a, b, points[index], points[(index + 1) % points.size()], out_sample)) {
@@ -396,6 +527,9 @@ bool mesh_editor_screen_region_triangle_intersects(
     const Vec2 av{a[0], a[1]};
     const Vec2 bv{b[0], b[1]};
     const Vec2 cv{c[0], c[1]};
+    const std::string mode = lower_ascii(string_or(
+        region.get("mode"), string_or(region.get("selection_mode"), "rectangle")
+    ));
     if (mesh_editor_screen_region_contains(region, av[0], av[1])) {
         out_sample = a;
         return true;
@@ -407,6 +541,32 @@ bool mesh_editor_screen_region_triangle_intersects(
     if (mesh_editor_screen_region_contains(region, cv[0], cv[1])) {
         out_sample = c;
         return true;
+    }
+    if (mode == "brush") {
+        const std::vector<Vec2> path = vec2_array_from_json(region.get("points"));
+        for (const Vec2& point : path) {
+            if (!mesh_editor_screen_point_in_triangle(point, av, bv, cv)) {
+                continue;
+            }
+            double depth = 0.0;
+            if (mesh_editor_screen_triangle_depth_at(point, a, b, c, depth)) {
+                out_sample = {point[0], point[1], depth};
+                return true;
+            }
+        }
+        const std::array<std::array<Vec2, 2>, 3> triangle_edges{{{av, bv}, {bv, cv}, {cv, av}}};
+        for (const auto& edge : triangle_edges) {
+            Vec2 hit{};
+            if (!mesh_editor_screen_brush_path_segment_sample(region, edge[0], edge[1], hit)) {
+                continue;
+            }
+            double depth = 0.0;
+            if (mesh_editor_screen_triangle_depth_at(hit, a, b, c, depth)) {
+                out_sample = {hit[0], hit[1], depth};
+                return true;
+            }
+        }
+        return false;
     }
     const std::vector<Vec2> points = mesh_editor_screen_region_boundary_points(region);
     for (const Vec2& point : points) {

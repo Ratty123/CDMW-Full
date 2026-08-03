@@ -1111,6 +1111,34 @@ class MeshEditorControllerTests(unittest.TestCase):
         self.assertEqual((native_group,), tuple(update.triangle_groups))
         self.assertTrue(update.refresh_selection)
 
+    def test_controller_topology_payload_wins_when_native_result_also_has_vertex_groups(self) -> None:
+        controller = MeshEditorController()
+        triangle_group = {
+            "preview_backend": "cdmw_mesh_core",
+            "source_submesh_index": 0,
+            "positions": [0.0] * 9,
+            "normals": [0.0, 0.0, 1.0] * 3,
+            "uvs": [0.0] * 6,
+            "indices": [0, 1, 2],
+        }
+        result = MeshEditResult(
+            action="undo",
+            status="ok",
+            revision=2,
+            affected_submesh_indices=(0,),
+            native_preview_vertex_update_groups=(
+                {"source_submesh_index": 0, "positions": [0.0] * 9},
+            ),
+            native_preview_triangle_groups=(triangle_group,),
+            topology_changed=True,
+        )
+
+        update = controller.native_update_for_result(result)
+
+        self.assertFalse(update.vertex_groups)
+        self.assertEqual((triangle_group,), tuple(update.triangle_groups))
+        self.assertEqual((0,), update.triangle_source_submesh_indices)
+
     def test_controller_negative_topology_restores_direct_selection_without_working_mesh_refresh(self) -> None:
         controller = MeshEditorController()
         controller.open_mesh(build_synthetic_mesh(), session_id="negative-topology-direct-selection", mode="edit")
@@ -1318,7 +1346,7 @@ class MeshEditorControllerTests(unittest.TestCase):
         self.assertTrue(mode_result.ok)
         self.assertEqual("sculpt", controller.session_view().mode)
         self.assertTrue(select_result.ok)
-        self.assertEqual("vertex", controller.active_selection_mode)
+        self.assertEqual("brush", controller.active_selection_mode)
         self.assertEqual("brush_grab", controller.active_action_key)
         self.assertTrue(brush_result.ok)
         self.assertEqual("brush", brush_result.action)
@@ -1336,7 +1364,8 @@ class MeshEditorControllerTests(unittest.TestCase):
 
         self.assertEqual("noop", result.status)
         self.assertEqual("select", result.action)
-        self.assertEqual("edge", controller.active_selection_mode)
+        self.assertEqual("brush", controller.active_selection_mode)
+        self.assertEqual("select_parts", controller.active_action_key)
         self.assertEqual(before.selection, after.selection)
         self.assertEqual(before.revision, after.revision)
         self.assertFalse(native_update.refresh_selection)

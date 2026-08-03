@@ -956,6 +956,121 @@ def test_same_package_identity_is_an_idempotent_resident_activation(tmp_path: Pa
     controller.shutdown()
 
 
+def test_twenty_hide_show_cycles_reactivate_the_same_resident_process_and_state(
+    tmp_path: Path,
+) -> None:
+    controller, process, _package = _start_controller(tmp_path)
+    states: list[tuple[str, str]] = []
+    controller.state_changed.connect(lambda state, message: states.append((state, message)))
+    _make_ready(controller)
+    initial_activation = next(
+        payload
+        for payload in reversed(process.writes)
+        if payload.get("event") == "activate_request"
+    )
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "activated",
+            "activation_request_id": initial_activation["activation_request_id"],
+            "process_generation": initial_activation["process_generation"],
+            "package_generation": initial_activation["package_generation"],
+        },
+        controller.process_generation,
+    )
+
+    remembered = {
+        "scene": (
+            "scene_state_update",
+            {"scene_generation": 8, "interaction_mode": "mesh_edit"},
+        ),
+        "camera": ("camera_state_update", {"yaw": 0.25, "pitch": -0.1}),
+        "selection": ("selection_state_update", {"source_indices": [0]}),
+        "tool": (
+            "tool_state",
+            {
+                "enabled": True,
+                "tool": "select",
+                "selection_mode": "brush",
+                "selection_operation": "add",
+                "target_mode": "source",
+            },
+        ),
+        "display": ("display_state_update", {"mode": "solid_textured"}),
+    }
+    for key, (event, payload) in remembered.items():
+        assert controller.remember_state(key, event, payload)
+    resident_snapshot = {
+        key: (event, dict(payload))
+        for key, (event, payload) in controller._resident_state.items()  # noqa: SLF001
+    }
+    process_id = process.processId()
+    package_generation = controller.package_generation
+    process_generation = controller.process_generation
+
+    for _cycle in range(20):
+        write_offset = len(process.writes)
+        controller.set_visible(False)
+        assert process.writes[-1]["event"] == "deactivate_request"
+        assert states[-1][0] == "inactive"
+
+        controller.set_visible(True)
+        activation = next(
+            payload
+            for payload in reversed(process.writes[write_offset:])
+            if payload.get("event") == "activate_request"
+        )
+        assert not any(
+            payload.get("event") == "package_load_request"
+            for payload in process.writes[write_offset:]
+        )
+        assert states[-1][0] == "resuming"
+        controller._handle_protocol_event(  # noqa: SLF001
+            {
+                "event": "activated",
+                "activation_request_id": activation["activation_request_id"],
+                "process_generation": activation["process_generation"],
+                "package_generation": activation["package_generation"],
+            },
+            process_generation,
+        )
+        assert states[-1][0] == "ready"
+        assert controller.process is process
+        assert process.processId() == process_id
+        assert controller.process_generation == process_generation
+        assert controller.package_generation == package_generation
+        assert controller._resident_state == resident_snapshot  # noqa: SLF001
+
+    controller.shutdown()
+
+
+def test_show_with_a_different_desired_identity_loads_before_activation(tmp_path: Path) -> None:
+    controller, process, _initial_package = _start_controller(tmp_path)
+    _make_ready(controller)
+    controller.set_visible(False)
+    replacement = _package(tmp_path, "package-b")
+
+    assert controller.load_package(replacement)
+    write_offset = len(process.writes)
+    controller.set_visible(True)
+
+    resumed = process.writes[write_offset:]
+    assert [payload.get("event") for payload in resumed] == ["package_load_request"]
+    assert resumed[0]["package_path"] == str(replacement.package_dir)
+    controller.shutdown()
+
+
+def test_a_recovered_activation_cycle_gets_its_own_retry_budget(tmp_path: Path) -> None:
+    controller, _process, _package = _start_controller(tmp_path)
+    _make_ready(controller)
+    controller._pending_activation = None  # noqa: SLF001 - recovered-cycle seam
+    controller._activation_retry_count = 1  # noqa: SLF001
+
+    assert controller._request_activation(controller._applied_package)  # noqa: SLF001
+
+    assert controller._activation_retry_count == 0  # noqa: SLF001
+    controller.shutdown()
+
+
 def test_same_path_with_changed_scene_signature_creates_one_new_generation(tmp_path: Path) -> None:
     controller, process, package = _start_controller(tmp_path)
     _make_ready(controller)

@@ -349,7 +349,15 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   rejects geometry commands. Entering `Edit Mesh` hides the Builder controls
   and exposes the embedded child's dark scrollable WinForms controls around the
   viewport. The wider primary tool panel remains on the left; Action History,
-  Parts, and Viewport controls are on the right. Both boundaries are draggable;
+  Parts, and Viewport controls are on the right. Tab visibility follows
+  `inactive -> resuming -> active` and correlates each activation with the
+  process and package generation. A matching resident identity activates
+  immediately; a different desired identity loads before activation. The ready
+  timeout permits one activation retry and then enters the existing automatic
+  helper recovery/rehydration path. Healthy returns keep the PID plus scene
+  revision, camera, selection, tool, and display state, and an activation
+  acknowledgement removes the paused overlay without a manual editor restart.
+  Both boundaries are draggable;
   their DPI-normalized widths persist across Edit Mesh transitions and helper
   sessions, with minimum content widths and horizontal overflow preventing
   controls from being compressed into one another. Long guidance for Action
@@ -383,8 +391,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   `Mesh view` selector and defaults to Faces + Wire. `Solid (Textured)` first
   runs the existing material resolver and waits for the resident material
   acknowledgement before switching the presentation to textured rendering.
-  The selected placement mode remains resident while Edit Mesh temporarily uses
-  Wire + Vertices, then is restored without rebuilding geometry or textures.
+  Edit Mesh starts in Wire + Vertices, but that is only the opening display
+  default. The user's next display choice is authoritative across selection,
+  tool, scene, material, and visibility publications; those paths may add
+  overlays but cannot force Faces + Wire or Wire + Vertices. The selected
+  placement mode remains resident and is restored without rebuilding geometry
+  or textures when Edit Mesh closes.
   Its Original role selector is disabled during editing; Imported/Modify remains
   active with move/rotate/scale gizmo selection. In placement, the scene toolbar
   provides two-pane, overlay, focus-Imported/Modify, and focus-Original choices.
@@ -419,6 +431,11 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   maximum frame latency of one, so continuous input can follow 120 Hz, 144 Hz,
   or another active monitor refresh rate without a software 60 Hz cap when the
   input rate and GPU/display budget permit it.
+  Edit Mesh opens with Orbit as the single neutral interaction state; Add and
+  Brush are the initial selection operation and shape but no selection tool is
+  armed. Select Parts is the only visible selection tool. Legacy vertex, edge,
+  and face action IDs normalize to Select Parts for compatibility, while their
+  low-level maps remain available to native readers and existing profile data.
   Grid, gizmo, selection, wire, and divider vertices stream through one
   capacity-growing dynamic D3D11 vertex buffer and one discard map per pane
   frame. Draw commands preserve the established grid/wire/vertex/selection
@@ -433,6 +450,15 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   hover hit-testing constructs one camera per event. Continuous mouse input
   performs one latest-wins renderer update and does not directly invalidate the
   parent surface as a second paint path.
+  Select Brush paints a renderer-local part overlay on every pointer update.
+  Move applies a transient selected-part transform, while Grab and sculpt tools
+  patch a transient vertex buffer from immutable per-stroke projections,
+  falloff data, and screen-space spatial buckets. Protocol stroke samples are
+  bounded to 16 ms and carry the complete segment since the last publication;
+  Python's existing single-flight dispatcher keeps one in-flight plus one
+  latest cumulative pending update. Reconciliation requires matching stroke ID,
+  request, and revision. Cancel restores the baseline, and only stroke end adds
+  history.
   The reported FPS is calculated from completion-to-completion frame intervals;
   render work, Present time, interval p95/max, and pacing jitter are reported
   separately so fast submission cannot masquerade as smooth output. Placement
@@ -559,7 +585,19 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   sparse 100% fields from an exact driver-topology fingerprint. Slider values
   always compose from the baked base plus ordinary-edit residuals, so returning
   a slider to zero is exact and drift-free.
-  Garment binding is explicit and selected-submesh-only. C++ projects garment
+  New profiles are authored through Profile, Parts, Deformation, and Preview &
+  Save pages. Stable IDs are generated automatically; whole-part chips come from the live
+  viewport selection and are expanded to vertices only inside the service
+  boundary. The deformation page offers Volume, Scale, Move, Flatten, Taper,
+  and Twist and only shows Axis where it is meaningful. Advanced owns category,
+  generated ID, feather, falloff, mirror, local basis, and custom range. The
+  final page previews minimum/default/maximum through correlated resident
+  commands. Finish atomically saves v2 and returns preview to zero; Cancel also
+  returns to zero and removes the temporary definition. Saving never bakes.
+  The main workflow is Profile and sliders, optional Refit, then Review and
+  Apply. Refit separately captures named driver and garment part selections,
+  rejects overlap, and prevents binding until both roles are valid. Garment
+  binding is explicit and selected-submesh-only. C++ projects garment
   vertices to the closest driver triangles, stores barycentric bindings and
   seam cohorts, and reports maximum and p95 bind distance warnings. Refit never
   mutates driver or reference batches. Topology commands stay disabled while a
@@ -569,8 +607,8 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   `mesh_slider_profiles` directory. Legacy version 1 regions migrate in memory;
   legacy target-import data is omitted with a diagnostic and the old file is
   left untouched.
-  Grow, Shrink, and Invert operate only on the active vertex/edge/face domain;
-  a retained part highlight cannot expand a vertex selection to the whole mesh.
+  Element-only topology actions and Vertex/Edge/Face activation stay internal
+  for native compatibility and are not exposed by either Mesh Editor surface.
   Visible-surface selection and brushes rasterize only their screen-space
   brush/region depth bounds, and one brush command shares that depth mask across
   all editable submeshes instead of rebuilding a full-viewport mask per part.
@@ -579,7 +617,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   inputs synchronize through resident material protocol v2. Material generation
   is ordered independently, so multiple newer material generations may target
   the same resident mesh revision; stale or future mesh revisions fail instead
-  of poisoning the geometry revision stream. Helper lifecycle evidence owns the
+  of poisoning the geometry revision stream. Each generation tracks its
+  `editable/imported` or `original_reference` role separately.
+  Textured display settles only when every role required by the current scene
+  has applied; an Imported acknowledgement cannot complete Original, and a
+  missing resource reports the affected pane without replacing the last valid
+  material state. Helper lifecycle evidence owns the
   actual source-parse, geometry-upload, and device-reset counters, while package,
   process, and full-reload counters remain host-owned. Only a source or session
   replacement, device loss, or explicit process restart creates another

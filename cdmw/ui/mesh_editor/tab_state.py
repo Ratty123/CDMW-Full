@@ -11,7 +11,7 @@ from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     MESH_PREVIEW_TEXTURED_DISPLAY_MODES,
     untextured_fallback_display_mode,
 )
-from cdmw.ui.mesh_editor.actions import NATIVE_EDITOR_SESSION_COMMANDS
+from cdmw.ui.mesh_editor.actions import NATIVE_EDITOR_SESSION_COMMANDS, normalize_mesh_selection_shape
 
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
@@ -74,7 +74,7 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         if mode:
             self.current_edit_mode = str(mode)
         if active_selection_mode:
-            self.current_selection_mode = str(active_selection_mode)
+            self.current_selection_mode = normalize_mesh_selection_shape(active_selection_mode)
         if active_tool_key is not None:
             self.current_tool_action_key = str(active_tool_key)
         if selection_empty is not None:
@@ -117,7 +117,7 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         if view is None:
             self.update_editor_action_state(
                 mode="object",
-                active_selection_mode="vertex",
+                active_selection_mode="brush",
                 selection_empty=True,
                 undo_count=0,
                 redo_count=0,
@@ -125,7 +125,7 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
             return
         self.update_editor_action_state(
             mode=str(view.mode or "object"),
-            active_selection_mode=str(active_selection_mode or self.current_selection_mode or "vertex"),
+            active_selection_mode=str(active_selection_mode or self.current_selection_mode or "brush"),
             selection_empty=bool(view.selection.is_empty()),
             undo_count=int(view.undo_count or 0),
             redo_count=int(view.redo_count or 0),
@@ -412,7 +412,7 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
             has_target=True,
             selection_empty=bool(view.selection.is_empty()),
             mode=str(view.mode or "edit"),
-            active_selection_mode=str(getattr(controller, "active_selection_mode", "") or self.current_selection_mode or "vertex"),
+            active_selection_mode=str(getattr(controller, "active_selection_mode", "") or self.current_selection_mode or "brush"),
             undo_count=int(view.undo_count or 0),
             redo_count=int(view.redo_count or 0),
             native_editor_available=native_editor_available,
@@ -662,29 +662,13 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
                 "_mesh_editor_embedded_request_material_resources",
                 None,
             )
-            if (
-                self.standalone_dotnet_applied_material_generation > 0
-                and self.standalone_dotnet_material_generation
-                <= self.standalone_dotnet_completed_material_generation
-            ):
+            if self._dotnet_material_roles_ready():
                 sent = self._send_requested_viewport_display_mode(
                     normalized,
                     use_presentation_state=use_presentation_state,
                 )
                 if sent:
                     self.sync_viewport_display_combos(normalized)
-                    # A material state having been applied means the *editable*
-                    # package's textures are resident: they are baked into it.
-                    # The Original pane's are not -- they are resolved lazily by
-                    # this same resolver, and the embedded builder deliberately
-                    # does not resolve them at open. Returning here without
-                    # asking is why Solid (Textured) textured the Imported pane
-                    # and left the Original flat. The resolver answers
-                    # "already loaded" or "in flight" for a repeat, so asking on
-                    # every pick costs nothing after the first, and the wait is
-                    # deliberately not armed: the editable pane is textured now
-                    # and the reference materials publish themselves when they
-                    # land.
                     self._request_reference_textures_for_textured_view(
                         request_textures
                     )
@@ -765,9 +749,7 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
             return
         if (
             normalized == "already_loaded"
-            and self.standalone_dotnet_applied_material_generation > 0
-            and self.standalone_dotnet_material_generation
-            <= self.standalone_dotnet_completed_material_generation
+            and self._dotnet_material_roles_ready()
         ):
             # The resolved materials were already resident, so the republish
             # deduplicated and there is no acknowledgement left to wait for.
@@ -807,8 +789,12 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
             success=False,
             reason="acknowledgement_timeout",
         )
+        missing = self._dotnet_missing_material_roles()
+        missing_text = ", ".join(
+            self._dotnet_material_role_label(role) for role in missing
+        )
         self.status_message_requested.emit(
-            "Mesh Editor textures did not reach the resident viewport in time; the untextured scene remains active.",
+            f"{missing_text or 'Mesh Editor'} textures did not reach the resident viewport in time; the untextured scene remains active.",
             True,
         )
 

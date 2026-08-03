@@ -279,6 +279,8 @@ internal static class EditMeshLayoutSmoke
         RequireToolColumnMetrics();
         RequireToolListContract();
         RequireBrushFalloffProfile();
+        var morphWizard = RequireMorphAuthorWizardContract();
+        var viewportColorPreferences = RequireViewportColorPreferenceContract();
 
         // The rail is one flat list: every armable tool is its own button, and
         // clicking one arms exactly that tool. Edit Mesh boots on "orbit", and
@@ -416,6 +418,8 @@ internal static class EditMeshLayoutSmoke
                 ["medium"] = EditMeshLayoutContracts.MorphColumnsForLogicalWidth(900),
                 ["wide"] = EditMeshLayoutContracts.MorphColumnsForLogicalWidth(1500),
             },
+            ["morph_profile_wizard"] = morphWizard,
+            ["viewport_color_preferences"] = viewportColorPreferences,
             ["tool_column_width"] = ToolColumnWidthReport(),
             ["tool_list_row_count"] = EditMeshToolListContract.RowOrder.Length,
             ["zero_size_splitter_construction"] = true,
@@ -582,6 +586,199 @@ internal static class EditMeshLayoutSmoke
                 BrushFalloffProfile.Weight(12.0, 24.0, "not_a_falloff"),
                 BrushFalloffProfile.Weight(12.0, 24.0, BrushFalloffProfile.Smooth)),
             "An unknown falloff no longer falls back to smooth.");
+    }
+
+    private static Dictionary<string, object?> RequireMorphAuthorWizardContract()
+    {
+        IReadOnlyList<MorphPartChoice> parts = Array.Empty<MorphPartChoice>();
+        using var wizard = new MorphAuthorDialog(
+            string.Empty,
+            string.Empty,
+            definition: null,
+            () => parts,
+            Color.FromArgb(23, 25, 29),
+            Color.FromArgb(31, 34, 40),
+            Color.FromArgb(43, 47, 55),
+            Color.White,
+            Color.Silver);
+        _ = wizard.Handle;
+        var title = RequiredControl<Label>(wizard, "MorphWizardStepTitle");
+        var validation = RequiredControl<Label>(wizard, "MorphWizardValidationLabel");
+        var next = RequiredControl<Button>(wizard, "MorphWizardNextButton");
+        var refresh = RequiredControl<Button>(wizard, "MorphWizardRefreshPartsButton");
+        var chips = RequiredControl<FlowLayoutPanel>(wizard, "MorphWizardSelectedPartChips");
+        var deformation = RequiredControl<ComboBox>(wizard, "MorphWizardDeformation");
+        var axis = RequiredControl<ComboBox>(wizard, "MorphWizardAxis");
+        var profileName = RequiredControl<TextBox>(wizard, "MorphWizardProfileName");
+        var profileId = RequiredControl<TextBox>(wizard, "MorphWizardProfileId");
+        var definitionId = RequiredControl<TextBox>(wizard, "MorphWizardDefinitionId");
+        var sliderLabel = RequiredControl<TextBox>(wizard, "MorphWizardSliderLabel");
+        var finish = RequiredControl<Button>(wizard, "MorphWizardFinishButton");
+        var cancel = RequiredControl<Button>(wizard, "MorphWizardCancelButton");
+
+        Require(title.Text == "1. Profile", "The Morph wizard did not open on Profile.");
+        Require(profileName.Text == "My Morph Profile", "The Morph wizard lost its friendly-name default.");
+        Require(wizard.ProfileId.Length > 0 && wizard.DefinitionId.Length > 0, "The Morph wizard did not generate stable IDs.");
+        Require(profileId.ReadOnly && definitionId.ReadOnly, "Generated Morph IDs became user-editable again.");
+        InvokeButton(next);
+        Require(title.Text == "2. Parts", "Enter/Next did not advance the Morph wizard to Parts.");
+        InvokeButton(next);
+        Require(
+            title.Text == "2. Parts" && validation.Text.Contains("at least one part", StringComparison.OrdinalIgnoreCase),
+            "The Morph wizard accepted an empty part selection.");
+
+        parts = new[] { new MorphPartChoice(0, "Body"), new MorphPartChoice(2, "Sleeve") };
+        InvokeButton(refresh);
+        Require(chips.Controls.Count == 2, "Refreshing the Morph wizard did not show both selected-part chips.");
+        var selectedPartChipCount = chips.Controls.Count;
+        InvokeButton(next);
+        Require(title.Text == "3. Deformation", "The Morph wizard did not advance to Deformation.");
+        var defaults = wizard.Payload;
+        Require(
+            string.Equals(Convert.ToString(defaults["rule"]), "volume", StringComparison.Ordinal)
+                && string.Equals(Convert.ToString(defaults["axis"]), "y", StringComparison.Ordinal)
+                && Convert.ToDouble(defaults["amount"]) == 0.1
+                && Convert.ToInt32(defaults["feather"]) == 2
+                && string.Equals(Convert.ToString(defaults["falloff"]), "smooth", StringComparison.Ordinal)
+                && string.Equals(Convert.ToString(defaults["mirror_mode"]), "off", StringComparison.Ordinal)
+                && Convert.ToDouble(defaults["min_percent"]) == -100.0
+                && Convert.ToDouble(defaults["max_percent"]) == 100.0,
+            "The Morph wizard's established deformation defaults changed.");
+        deformation.SelectedItem = "Move";
+        axis.SelectedItem = "Z";
+        sliderLabel.Text = "Waist Move";
+        InvokeButton(next);
+        Require(title.Text == "4. Preview & Save", "The Morph wizard did not advance to Preview & Save.");
+        Require(ReferenceEquals(wizard.AcceptButton, finish), "Enter does not save from the final Morph wizard page.");
+
+        var previews = new List<double>();
+        wizard.PreviewRequested += (_, value) => previews.Add(value);
+        InvokeButton(RequiredControl<Button>(wizard, "MorphWizardPreviewMinimum"));
+        InvokeButton(RequiredControl<Button>(wizard, "MorphWizardPreviewDefault"));
+        InvokeButton(RequiredControl<Button>(wizard, "MorphWizardPreviewMaximum"));
+        Require(
+            previews.SequenceEqual(new[] { -100.0, 0.0, 100.0 }) && wizard.PreviewWasSent,
+            "The Morph wizard did not preview minimum, default, and maximum in order.");
+        wizard.SetProtocolBusy(true, "Testing correlated command lock.");
+        Require(
+            !finish.Enabled
+                && !cancel.Enabled
+                && !RequiredControl<Button>(wizard, "MorphWizardPreviewMinimum").Enabled,
+            "The Morph wizard can close or start another preview while a correlated command sequence is active.");
+        wizard.SetProtocolBusy(false, string.Empty);
+        InvokeButton(finish);
+        Require(wizard.DialogResult == DialogResult.OK, "Save Profile did not finish the Morph wizard.");
+
+        using var definitionDocument = JsonDocument.Parse(
+            "{\"definition_id\":\"waist\",\"label\":\"Waist\",\"rule\":\"taper\",\"axis\":\"x\",\"amount\":0.25,\"feather\":4,\"falloff\":\"linear\",\"mirror_mode\":\"x\",\"min_percent\":-50,\"default_percent\":10,\"max_percent\":75}");
+        using var editor = new MorphAuthorDialog(
+            "body-profile",
+            "Body",
+            definitionDocument.RootElement,
+            () => parts,
+            Color.FromArgb(23, 25, 29),
+            Color.FromArgb(31, 34, 40),
+            Color.FromArgb(43, 47, 55),
+            Color.White,
+            Color.Silver);
+        var edited = editor.Payload;
+        Require(
+            editor.ProfileId == "body-profile"
+                && editor.DefinitionId == "waist"
+                && string.Equals(Convert.ToString(edited["rule"]), "taper", StringComparison.Ordinal)
+                && Convert.ToDouble(edited["default_percent"]) == 10.0,
+            "Editing an existing Morph profile did not reload its v2 definition.");
+
+        return new Dictionary<string, object?>
+        {
+            ["opening_page"] = "Profile",
+            ["empty_selection_blocked"] = true,
+            ["part_chip_count"] = selectedPartChipCount,
+            ["defaults_preserved"] = true,
+            ["preview_values"] = previews,
+            ["save_result"] = wizard.DialogResult.ToString(),
+            ["existing_profile_reloaded"] = true,
+        };
+    }
+
+    private static Dictionary<string, object?> RequireViewportColorPreferenceContract()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"cdmw-mesh-viewport-colors-{Environment.ProcessId}-{Guid.NewGuid():N}.json");
+        try
+        {
+            Require(
+                MeshViewportBackgroundPreferences.Load(path) == MeshViewportBackgroundColors.Default,
+                "A missing viewport-colour preference did not use renderer defaults.");
+            var chosen = new MeshViewportBackgroundColors(
+                Color.FromArgb(0x12, 0x34, 0x56),
+                Color.FromArgb(0xAB, 0xCD, 0xEF));
+            Require(
+                MeshViewportBackgroundPreferences.TrySave(chosen, path, out var saveError),
+                $"Viewport-colour preference save failed: {saveError}");
+            Require(
+                MeshViewportBackgroundPreferences.Load(path) == chosen,
+                "Viewport background/grid colours did not survive reload.");
+
+            File.WriteAllText(path, "{not json", System.Text.Encoding.UTF8);
+            Require(
+                MeshViewportBackgroundPreferences.Load(path) == MeshViewportBackgroundColors.Default,
+                "An invalid viewport-colour file did not fall back to defaults.");
+            File.WriteAllText(
+                path,
+                "{\"schema\":\"cdmw_mesh_viewport_background_v1\",\"background_color\":\"bad\",\"grid_color\":\"#010203\"}",
+                System.Text.Encoding.UTF8);
+            var partial = MeshViewportBackgroundPreferences.Load(path);
+            Require(
+                partial.Background == MeshViewportBackgroundColors.Default.Background
+                    && partial.Grid == Color.FromArgb(1, 2, 3),
+                "A bad viewport colour did not fall back without discarding its valid sibling.");
+
+            Require(
+                MeshViewportBackgroundPreferences.TrySave(
+                    MeshViewportBackgroundColors.Default,
+                    path,
+                    out saveError),
+                $"Viewport-colour reset save failed: {saveError}");
+            Require(
+                MeshViewportBackgroundPreferences.Load(path) == MeshViewportBackgroundColors.Default,
+                "Reset viewport colours did not persist renderer defaults.");
+            return new Dictionary<string, object?>
+            {
+                ["save_load"] = true,
+                ["invalid_file_fallback"] = true,
+                ["per_field_fallback"] = true,
+                ["reset_persisted"] = true,
+            };
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch
+            {
+                // The acceptance result already reflects the actual preference
+                // contract; temp cleanup must not turn it into a false failure.
+            }
+        }
+    }
+
+    private static T RequiredControl<T>(Control root, string name) where T : Control
+    {
+        var control = root.Controls.Find(name, searchAllChildren: true).OfType<T>().SingleOrDefault();
+        return control ?? throw new InvalidOperationException($"Morph wizard control {name} is missing or duplicated.");
+    }
+
+    private static void InvokeButton(Button button)
+    {
+        var onClick = typeof(Button).GetMethod(
+            "OnClick",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("WinForms Button.OnClick is unavailable.");
+        onClick.Invoke(button, new object[] { EventArgs.Empty });
     }
 
     private static string RequiredValue(string[] args, string name)

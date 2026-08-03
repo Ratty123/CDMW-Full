@@ -127,6 +127,9 @@ class DotNetPreviewSessionController(QObject):
         self._session_provisional = False
         self._session_released = False
         self._active = False
+        self._activation_request_id = 0
+        self._pending_activation: dict[str, int] | None = None
+        self._activation_retry_count = 0
         self._retry_attempt = 0
         self._retry_reason = ""
         self._executable = Path()
@@ -161,6 +164,9 @@ class DotNetPreviewSessionController(QObject):
         self._package_timer = QTimer(self)
         self._package_timer.setSingleShot(True)
         self._package_timer.timeout.connect(self._handle_package_timeout)
+        self._activation_timer = QTimer(self)
+        self._activation_timer.setSingleShot(True)
+        self._activation_timer.timeout.connect(self._handle_activation_timeout)
 
     @property
     def process_generation(self) -> int:
@@ -374,6 +380,8 @@ class DotNetPreviewSessionController(QObject):
         self._process = None
         self._ready_timer.stop()
         self._package_timer.stop()
+        self._activation_timer.stop()
+        self._pending_activation = None
         self._pending_package_generation = 0
         self._protocol_ready = False
         self._renderer_ready = False
@@ -647,6 +655,8 @@ class DotNetPreviewSessionController(QObject):
         self._invalid_retry_status_path = ""
         self._invalid_retry_reset_view = False
         self._package_timer.stop()
+        self._activation_timer.stop()
+        self._pending_activation = None
         self._pending_package_generation = 0
         self._deactivate_for_replacement()
         self._release_package_leases()
@@ -678,6 +688,9 @@ class DotNetPreviewSessionController(QObject):
             return
         if not self._visible:
             self._retry_timer.stop()
+            self._activation_timer.stop()
+            self._pending_activation = None
+            self._activation_retry_count = 0
             self._send_json({"event": "deactivate_request"})
             self._active = False
             self._set_state("inactive", ".NET/Vortice Preview paused while hidden.")
@@ -699,6 +712,7 @@ class DotNetPreviewSessionController(QObject):
         if self._desired_package is None:
             self._set_state("empty", "Select a model to open .NET/Vortice Preview.")
             return
+        self._set_state("resuming", ".NET/Vortice Preview is resuming…")
         if self._process is None or not qprocess_is_running(self._process):
             self.retry_now()
             return
@@ -718,16 +732,9 @@ class DotNetPreviewSessionController(QObject):
                 # not check identity, which is what let this through; the load
                 # path activates from `_accept_applied_package` once the right
                 # package has landed, so there is nothing to reveal early for.
-                self._request_resident_package_load()
-                if self._pending_package_generation == self._package_generation:
-                    return
-                # Nothing was sent. `_request_resident_package_load` reports
-                # success for "the helper already holds this package path at
-                # this generation" as well as for "a request went out", and the
-                # identities can still differ there -- an identity carries more
-                # than the path. A reload cannot settle that difference, so
-                # returning here left the panel paused over a resident scene it
-                # was already showing correctly. Fall through and reveal it.
+                if not self._request_resident_package_load():
+                    self._await_resident_gates_for_package_load()
+                return
             elif self._activate_applied():
                 return
         elif self._request_resident_package_load():
@@ -745,14 +752,7 @@ class DotNetPreviewSessionController(QObject):
         # scene is the one case that must stay hidden, and it is excluded rather
         # than asked and refused.
         if self._applied_package_path and not self.serving_prewarm_placeholder:
-            self._send_json(
-                {
-                    "event": "activate_request",
-                    "material_signature": str(
-                        getattr(self._applied_package, "material_signature", "") or ""
-                    ),
-                }
-            )
+            self._request_activation(self._applied_package)
 
     def retry_now(self) -> None:
         if self._closed or not self._visible:
@@ -881,6 +881,8 @@ class DotNetPreviewSessionController(QObject):
         self._retry_timer.stop()
         self._ready_timer.stop()
         self._package_timer.stop()
+        self._activation_timer.stop()
+        self._pending_activation = None
         self._pending_package_generation = 0
         process = self._process
         self._process = None
@@ -1005,6 +1007,8 @@ class DotNetPreviewSessionController(QObject):
         self._process = None
         self._ready_timer.stop()
         self._package_timer.stop()
+        self._activation_timer.stop()
+        self._pending_activation = None
         self._pending_package_generation = 0
         self._protocol_ready = False
         self._renderer_ready = False
@@ -1285,11 +1289,27 @@ class DotNetPreviewSessionController(QObject):
         elif event == "capture_result":
             self._handle_capture_result(payload)
         elif event == "activated":
+            pending = self._pending_activation
+            if pending is not None:
+                request_id = int(payload.get("activation_request_id", 0) or 0)
+                process_generation = int(payload.get("process_generation", 0) or 0)
+                package_generation = int(payload.get("package_generation", 0) or 0)
+                if request_id > 0 and request_id != pending["request_id"]:
+                    return
+                if process_generation > 0 and process_generation != pending["process_generation"]:
+                    return
+                if package_generation > 0 and package_generation != pending["package_generation"]:
+                    return
+            self._activation_timer.stop()
+            self._pending_activation = None
+            self._activation_retry_count = 0
             self._active = True
             self._retry_attempt = 0
             self._set_state("ready", ".NET/Vortice Preview")
         elif event == "deactivated":
             self._active = False
+            if self._visible and self._applied_package_path:
+                self._request_activation(self._applied_package)
         elif event == "error":
             # Helper-level request errors (invalid tool state, stale sessions,
             # malformed commands, and similar protocol rejections) do not
@@ -1497,6 +1517,7 @@ class DotNetPreviewSessionController(QObject):
         if (
             self._applied_package_path == self.desired_package_path
             and self._applied_package_generation == self._package_generation
+            and self._applied_package_identity == self._desired_package_identity
         ):
             return True
         if (
@@ -1570,12 +1591,7 @@ class DotNetPreviewSessionController(QObject):
     def _activate(self) -> bool:
         if not self._visible or self._applied_package_path != self.desired_package_path:
             return False
-        return self._send_json(
-            {
-                "event": "activate_request",
-                "material_signature": str(getattr(self._desired_package, "material_signature", "") or ""),
-            }
-        )
+        return self._request_activation(self._desired_package)
 
     def _activate_applied(self) -> bool:
         # Activating reveals whatever the helper currently holds. If that is
@@ -1583,14 +1599,34 @@ class DotNetPreviewSessionController(QObject):
         # model nobody asked for in place of the one they opened.
         if not self._visible or not self._applied_package_path or self.serving_prewarm_placeholder:
             return False
-        return self._send_json(
+        return self._request_activation(self._applied_package)
+
+    def _request_activation(self, package: object | None) -> bool:
+        if not self._visible or not self._applied_package_path or self.serving_prewarm_placeholder:
+            return False
+        if self._pending_activation is None:
+            self._activation_retry_count = 0
+        self._activation_request_id += 1
+        pending = {
+            "request_id": self._activation_request_id,
+            "process_generation": self._process_generation,
+            "package_generation": self._applied_package_generation,
+        }
+        sent = self._send_json(
             {
                 "event": "activate_request",
-                "material_signature": str(
-                    getattr(self._applied_package, "material_signature", "") or ""
-                ),
+                "activation_request_id": pending["request_id"],
+                "process_generation": pending["process_generation"],
+                "package_generation": pending["package_generation"],
+                "material_signature": str(getattr(package, "material_signature", "") or ""),
             }
         )
+        if not sent:
+            return False
+        self._pending_activation = pending
+        self._activation_timer.start(_READY_TIMEOUT_MS)
+        self._set_state("resuming", ".NET/Vortice Preview is resuming…")
+        return True
 
     def _await_resident_gates_for_package_load(self) -> None:
         """A real package is wanted but a handshake gate is still down.
@@ -1682,6 +1718,19 @@ class DotNetPreviewSessionController(QObject):
     def _handle_ready_timeout(self) -> None:
         self._fail_current_process(".NET/Vortice Preview did not become ready in time.", static_failure=False)
 
+    def _handle_activation_timeout(self) -> None:
+        if self._pending_activation is None or not self._visible:
+            return
+        if self._activation_retry_count < 1 and self.is_running:
+            self._activation_retry_count += 1
+            if self._request_activation(self._applied_package):
+                return
+        self._pending_activation = None
+        self._fail_current_process(
+            ".NET/Vortice Preview did not reactivate in time.",
+            static_failure=False,
+        )
+
     def _handle_package_timeout(self) -> None:
         self._fail_current_package("Package replacement timed out.")
 
@@ -1700,6 +1749,8 @@ class DotNetPreviewSessionController(QObject):
         self._process = None
         self._ready_timer.stop()
         self._package_timer.stop()
+        self._activation_timer.stop()
+        self._pending_activation = None
         self._protocol_ready = False
         self._renderer_ready = False
         self._session_established = False

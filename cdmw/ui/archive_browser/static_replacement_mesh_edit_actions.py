@@ -11,13 +11,10 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_material_bridge import (
 )
 
 
-# The editor names every armable tool; this side names six combo entries and
-# folds Move and Grab onto one of them, telling them apart by action key. Both
-# halves have to agree or the tool the reader picked in the editor is not the
-# tool this side publishes back to it.
 _DOTNET_TOOL_TO_DIALOG_TOOL: dict[str, tuple[str, str]] = {
-    "select": ("vertex", ""),
-    "move": ("grab", "transform_move"),
+    "orbit": ("orbit", ""),
+    "select": ("select", "select_parts"),
+    "move": ("move", "transform_move"),
     "grab": ("grab", "brush_grab"),
     "smooth": ("smooth", "brush_smooth"),
     "inflate": ("inflate", "brush_inflate"),
@@ -38,6 +35,8 @@ def create_actions_callbacks(state: SimpleNamespace, callbacks: SimpleNamespace)
 
 def _mesh_editor_tool_action_key(_state, _callbacks, tool: str) -> str:
     return {
+        "select": "select_parts",
+        "move": "transform_move",
         "grab": "brush_grab",
         "smooth": "brush_smooth",
         "inflate": "brush_inflate",
@@ -46,9 +45,6 @@ def _mesh_editor_tool_action_key(_state, _callbacks, tool: str) -> str:
 
 def _mesh_editor_active_tool_action_key(_state, _callbacks, ) -> str:
     current_tool = _state._mesh_edit_current_tool()
-    active_key = str(_state.mesh_editor_action_bar_active_tool_key.get("value") or "")
-    if current_tool == "grab" and active_key in {"transform_move", "brush_grab"}:
-        return active_key
     expected_key = _callbacks._mesh_editor_tool_action_key(current_tool)
     if expected_key:
         _state.mesh_editor_action_bar_active_tool_key["value"] = expected_key
@@ -76,17 +72,7 @@ def _select_mesh_edit_tool(_state, _callbacks, tool: str, *, active_action_key: 
     return True
 
 def _mesh_edit_protocol_tool(_state, _callbacks, tool: str) -> str:
-    """The name the embedded editor knows this tool by.
-
-    This side folds Move and Grab onto one combo entry and tells them apart by
-    the active action key; the editor has a separate tool for each. Publishing
-    the combo value alone would answer a reader who picked Move with Grab.
-    """
-    normalized = str(tool or "").strip().lower()
-    if normalized != "grab":
-        return normalized
-    active_key = str(_state.mesh_editor_action_bar_active_tool_key.get("value") or "")
-    return "move" if active_key == "transform_move" else "grab"
+    return str(tool or "orbit").strip().lower()
 
 def _mesh_editor_dotnet_tool_changed(_state, _callbacks, payload: object) -> bool:
     """Adopt the tool a reader armed on the embedded editor's tool rail.
@@ -101,8 +87,6 @@ def _mesh_editor_dotnet_tool_changed(_state, _callbacks, payload: object) -> boo
     tool = str(payload.get("tool", "") or "").strip().lower()
     mapped = _DOTNET_TOOL_TO_DIALOG_TOOL.get(tool)
     if mapped is None:
-        # orbit, or a tool this side has no entry for. Leave the combo alone
-        # rather than guessing; the camera is not one of its options.
         return False
     dialog_tool, active_action_key = mapped
     return bool(_callbacks._select_mesh_edit_tool(dialog_tool, active_action_key=active_action_key))

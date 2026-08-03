@@ -92,6 +92,15 @@ Imported/Modify, pins navigation to its editable camera context, and disables
 the Original selector. Entering Edit Mesh defaults its editable viewport to
 Wire + Vertices; leaving Edit Mesh restores the Builder's selected
 placement preview mode without restarting the resident renderer.
+After that initial default, the selected display mode is authoritative: tool,
+selection, scene, material, and tab-visibility publications add their overlays
+without replacing it, so Solid stays Solid while selecting or editing. The
+resident tab lifecycle is explicit `inactive -> resuming -> active`. Returning
+to Mesh Editor activates the already-resident matching package immediately; a
+different desired identity loads before activation. One timed activation retry
+precedes the existing helper recovery/rehydration path, preserving the healthy
+PID and the scene revision, camera, selection, tool, and display state whenever
+the process itself is healthy.
 When both roles exist it renders both contexts at once in separate rectangles,
 each with its own grid and independent camera/display state, inside one shared
 D3D11 viewport and swap chain. The divider is draggable and its ratio is shared
@@ -106,6 +115,11 @@ camera framing bounds and the world grid stay fixed through resident placement
 updates. Only an explicit, role-addressed Fit command reframes a pane, and
 camera command generations prevent persistent presentation replay from
 reapplying an earlier Fit or camera nudge.
+Textured readiness is tracked independently for the `editable/imported` and
+`original_reference` material roles. A generation is settled only after every
+role required by the active scene acknowledges it; an Imported acknowledgement
+cannot complete Original, and failures identify the affected pane while the
+last valid presentation remains resident.
 Preview Settings opened anywhere while .NET/Vortice owns the embedded Mesh
 Editor session use an explicit .NET preview target. In that context the dialog
 shows Camera Input and Gizmo tabs. Camera Input contains orbit sensitivity, pan
@@ -167,6 +181,14 @@ so customized handles remain aligned with interaction.
 Native D3D11 viewport Move/Grab/Smooth/Inflate/Pinch stroke events also route
 through `MeshEditorController`/`MeshService` as resident native-session
 `transform`/`brush` commands with `stroke_phase` and `stroke_id` payloads.
+Each gesture builds its immutable projected candidates once. Move then applies
+a renderer-local part transform on every pointer update; Grab and sculpt tools
+patch a transient vertex buffer from the stroke baseline through a screen-space
+spatial index. Protocol updates are bounded to 16 ms, retain the full cursor
+segment since the last publication, and enter the existing one-in-flight plus
+one-latest-pending dispatcher. Only a matching stroke ID, request, and revision
+can reconcile the local result; Cancel restores the baseline and a completed
+stroke creates one history entry.
 Move with existing resident vertex, edge, face, or source selection and
 selection-target Grab with existing resident selection send only `screen_drag`
 plus the tool scalar fields and rely on the matching resident C++ selection;
@@ -239,18 +261,29 @@ candidates in the host.
 host that publishes anything else in the drag-shape field is ignored outright,
 including for the record of what the host last said, so a shape picked in the
 editor survives every control refresh.
-The Morph & Refit section is four captioned steps -- definition profile, shape
-sliders, garment refit (optional), keep the result -- above a hint computed from
-the section's own state, which names the next action and accents the button that
-performs it.
-Edit Mesh selects whole parts and nothing else. The Selection page's target is
-pinned to Part and its control is not shown, so every surface that reads it --
-click, drag, region and brush picks, and the Topology commands that follow the
-target -- resolves source parts. The sculpt brushes are unaffected: Grab,
-Smooth, Inflate and Pinch take their weights from the screen brush rather than
-the selection target. Selection mode defaults to Add.
+Morph & Refit profile creation is a four-page guided wizard: Profile, Parts,
+Deformation, and Preview & Save. It generates the technical profile ID
+automatically, reads whole-part chips from the live viewport selection, exposes
+only the axis fields meaningful to Volume/Scale/Move/Flatten/Taper/Twist, and
+keeps category, ID, range, feather, falloff, mirror, and local basis under
+Advanced. Minimum/default/maximum previews use the correlated resident morph
+lane; Finish saves `mesh_morph_profile_v2` and returns preview to zero, while
+Cancel restores zero and removes the temporary definition. The main section
+then stays linear: profile sliders, optional Refit, Review and Apply. Refit
+names its driver and garment part selections and rejects overlap; Reset and
+Bake remain explicit, and saving never bakes geometry.
+Edit Mesh selects whole parts and nothing else. The only visible selection tool
+is Select Parts; legacy `select_vertex`, `select_edge`, and `select_face` action
+IDs are compatibility aliases to it and cannot re-arm an element target. Click,
+Brush, Rectangle, and Lasso all resolve source parts, with X-Ray changing only
+the visibility filter. A new editor opens in Orbit with no selection armed,
+operation Add, and shape Brush. Operation and shape remain sticky while tools
+change, while a newly opened editor restores those defaults. The sculpt brushes
+act on selected parts, or use the initial hit part as the stroke scope when none
+is selected.
 The builder's Selection combo (Brush/Lasso/Rectangle) is honored by the
-resident editor: a brush-mode Select drag paints throttled add/subtract
+resident editor: a brush-mode Select drag paints renderer-local part highlights
+on every pointer update while sending throttled add/subtract
 `screen_brush` dabs that native unions over the swept path (Replace starts the
 new selection on the first dab; Subtract erases; a plain click keeps the
 precise 14px click pick), and a cursor step longer than the brush radius is
@@ -263,7 +296,9 @@ one native authority: the tab's protocol handler applies them, answers the
 helper's pending request, and commits the result back through the builder;
 the builder's own screen-selection route is legacy-panel-only. Intermediate
 paint dabs apply inline off the action-worker path; the final dab records the
-one selection-history unit for the drag. The old D3D11 vertex/edge/face hover
+one selection-history unit for the drag. Toggle records each crossed part once
+per gesture, so crossing the same part again cannot undo the first pass. The old
+D3D11 vertex/edge/face hover
 candidate projectors are removed; Mesh Edit overlay drawing keeps the cursor
 ring and selected geometry while hit resolution stays in native screen
 selection.

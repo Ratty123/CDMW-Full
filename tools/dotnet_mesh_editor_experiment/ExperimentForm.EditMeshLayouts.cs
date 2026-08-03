@@ -777,13 +777,6 @@ internal sealed partial class ExperimentForm
         // already holds a batch; this was the one that did not, and it is the
         // one on the click path.
         using var redraw = BeginRedrawBatch();
-        if (page == ToolRailPage.Colour)
-        {
-            // Colour edits land on the base texture, and the editable viewport
-            // defaults to Wire + Vertices, which draws no surface at all. Opening
-            // the page in that mode would hide every edit it makes.
-            EnsureColourVisibleDisplayMode();
-        }
         foreach (var pair in _toolRailPages)
         {
             RevealToolRailPage(pair.Value, pair.Key == page);

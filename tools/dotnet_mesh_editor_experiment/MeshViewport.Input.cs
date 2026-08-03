@@ -16,6 +16,7 @@ internal sealed partial class MeshViewport
     {
         "move", "grab", "smooth", "inflate", "pinch",
     };
+    private const double EditorStrokeProtocolIntervalMs = 16.0;
 
     // The tool a stroke opened with. Update and end phases report this instead
     // of the live ActiveTool, so switching tools (or leaving mesh-edit mode)
@@ -342,7 +343,8 @@ internal sealed partial class MeshViewport
         {
             if ((e.Button & MouseButtons.Left) == MouseButtons.Left)
             {
-                EditorEventRequested?.Invoke("stroke_update", StrokePointerPayload(e.Location, _strokePrevious));
+                UpdateProvisionalEditorStroke(e.Location);
+                MaybeEmitEditorStrokeUpdate(e.Location);
                 _strokePrevious = e.Location;
             }
         }
@@ -452,11 +454,36 @@ internal sealed partial class MeshViewport
 
     private void BeginEditorStroke(Point location)
     {
-        _editorStrokeActive = true;
         _strokeTool = ActiveTool;
         _strokePrevious = location;
+        _strokeProtocolPrevious = location;
+        _strokeLastProtocolTicks = 0;
         _strokeId++;
+        if (!BeginProvisionalEditorStroke(location, _strokeTool, _strokeId))
+        {
+            _strokeTool = string.Empty;
+            return;
+        }
+        _editorStrokeActive = true;
         EditorEventRequested?.Invoke("stroke_begin", StrokePointerPayload(location, location));
+        _strokeLastProtocolTicks = Environment.TickCount64;
+    }
+
+    private void MaybeEmitEditorStrokeUpdate(Point location, bool final = false)
+    {
+        if (!_editorStrokeActive)
+        {
+            return;
+        }
+        var now = Environment.TickCount64;
+        if (!final
+            && now - _strokeLastProtocolTicks < (long)EditorStrokeProtocolIntervalMs)
+        {
+            return;
+        }
+        EditorEventRequested?.Invoke("stroke_update", StrokePointerPayload(location, _strokeProtocolPrevious));
+        _strokeProtocolPrevious = location;
+        _strokeLastProtocolTicks = now;
     }
 
     /// <summary>
@@ -470,8 +497,10 @@ internal sealed partial class MeshViewport
             return;
         }
         _editorStrokeActive = false;
-        var payload = StrokePointerPayload(location, _strokePrevious);
+        var payload = StrokePointerPayload(location, _strokeProtocolPrevious);
         _strokePrevious = location;
+        _strokeProtocolPrevious = location;
+        MarkProvisionalEditorStrokeEnded(cancelled);
         _strokeTool = string.Empty;
         EditorEventRequested?.Invoke(cancelled ? "stroke_cancel" : "stroke_end", payload);
     }
@@ -523,6 +552,10 @@ internal sealed partial class MeshViewport
             var origin = start ?? point;
             payload["stroke_id"] = _strokeId.ToString(CultureInfo.InvariantCulture);
             payload["screen_drag"] = ScreenDragPayload(origin, point);
+            if (_provisionalStroke is { } provisional)
+            {
+                payload["scope_source_indices"] = provisional.SourceIndices;
+            }
         }
         return payload;
     }
@@ -632,7 +665,17 @@ internal sealed partial class MeshViewport
         _hoverEdgeId = _selectionDragTargetMode == "edge" ? PickEdgeAt(point) : -1;
         _selectionPaintActive = false;
         _selectionPaintPainted = false;
+        _selectionPaintToggleTouchedSources.Clear();
+        _selectionPaintPathPoints.Clear();
+        _selectionPaintPathPoints.Add(point);
         _selectionLassoPoints.Clear();
+        _provisionalSelectedSources.Clear();
+        _provisionalSelectedSources.UnionWith(_selectedSources);
+        _provisionalPartSelectionActive = string.Equals(
+            _scene.InteractionMode,
+            "mesh_edit",
+            StringComparison.OrdinalIgnoreCase)
+            && _selectionDragTargetMode is "source" or "part";
         // Brush and lasso are Edit Mesh interactions; placement part-pick
         // drags keep their rectangle semantics whatever the combo says.
         if (string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase))
@@ -640,15 +683,13 @@ internal sealed partial class MeshViewport
             if (_selectionDragMode == "brush")
             {
                 var operation = CurrentSelectionOperation();
-                // Toggle per dab would flicker every sample the cursor
-                // re-crosses, so a painted toggle adds; subtract erases.
-                _selectionPaintFirstOperation = operation switch
+                _selectionPaintFirstOperation = operation;
+                _selectionPaintOperation = operation switch
                 {
                     "subtract" => "subtract",
-                    "replace" => "replace",
+                    "toggle" => "toggle",
                     _ => "add",
                 };
-                _selectionPaintOperation = operation == "subtract" ? "subtract" : "add";
                 _selectionPaintActive = true;
                 _selectionPaintLastSample = point;
                 _selectionPaintLastEcho = point;

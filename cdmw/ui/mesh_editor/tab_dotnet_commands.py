@@ -161,7 +161,10 @@ class MeshEditorDotNetCommandMixin:
         if self.standalone_dotnet_target_embedded:
             self._apply_embedded_native_update(update)
         else:
-            self._apply_standalone_native_update(update)
+            self._send_dotnet_native_update(
+                update,
+                request_payload=payload,
+            )
         return True
     def _handle_dotnet_local_selection_request(self, payload: Mapping[str, object]) -> bool:
         controller = self._dotnet_target_controller()
@@ -535,7 +538,7 @@ class MeshEditorDotNetCommandMixin:
                 )
             elif command == "select_all":
                 summary = controller.workspace_summary()
-                target_mode = str(payload.get("target_mode", "vertex") or "vertex").strip().lower()
+                target_mode = "source"
                 return self._start_dotnet_action_worker(
                     controller,
                     _tab.MeshEditCommand(
@@ -555,7 +558,7 @@ class MeshEditorDotNetCommandMixin:
                     _tab.MeshEditCommand(
                         "select",
                         selection=local_selection,
-                        params={"operation": command, "target_mode": target_mode or "vertex"},
+                        params={"operation": command, "target_mode": "source"},
                         label=command.replace("_", " ").title(),
                     ),
                     command_name=command,

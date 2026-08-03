@@ -164,6 +164,10 @@ internal sealed partial class MeshViewport
 
     private bool IsPartSelected(int submeshIndex)
     {
+        if (_provisionalPartSelectionActive)
+        {
+            return _provisionalSelectedSources.Contains(submeshIndex);
+        }
         return submeshIndex == SelectedSubmeshIndex || _selectedSources.Contains(submeshIndex);
     }
 

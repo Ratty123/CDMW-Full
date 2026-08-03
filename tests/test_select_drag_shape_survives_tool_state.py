@@ -38,9 +38,15 @@ def test_the_helper_discards_a_selection_mode_that_is_not_a_drag_shape() -> None
     assert guard_at < adopt.index("_selectionShape.SelectedItem = shapeItem")
 
 
-def test_the_mesh_editor_tab_does_not_publish_an_element_mode_as_a_drag_shape() -> None:
+def test_the_mesh_editor_tab_publishes_only_its_normalized_drag_shape() -> None:
     source = (ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_shell.py").read_text(encoding="utf-8")
-    call = source.split("def _sync_native_mesh_edit_state", maxsplit=1)[-1]
+    call = source.split("def _sync_standalone_native_mesh_edit_state", maxsplit=1)[-1]
     call = call.split("def _standalone_preview_mesh_snapshot", maxsplit=1)[0]
     assert "target_mode=target," in call, "the element mode still has to reach the helper"
-    assert not re.search(r"^\s*selection_mode=", call, re.MULTILINE)
+    publications = re.findall(r"^\s*selection_mode=(.+),$", call, re.MULTILINE)
+    assert publications == ['"brush"', 'str(self.current_selection_mode or "brush")']
+
+    runtime = (ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_shell_runtime.py").read_text(encoding="utf-8")
+    state = (ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_state.py").read_text(encoding="utf-8")
+    assert 'self.current_selection_mode = "brush"' in runtime
+    assert "self.current_selection_mode = normalize_mesh_selection_shape(active_selection_mode)" in state

@@ -90,7 +90,13 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
         "protected override void OnMouseMove", maxsplit=1
     )[1].split("if (_editorStrokeActive)", maxsplit=1)[1].split("else if (_rotating)", maxsplit=1)[0]
     assert "(e.Button & MouseButtons.Left) == MouseButtons.Left" in active_stroke_move
-    assert active_stroke_move.index("MouseButtons.Left") < active_stroke_move.index('Invoke("stroke_update"') < active_stroke_move.index("_strokePrevious = e.Location")
+    assert active_stroke_move.index("MouseButtons.Left") < active_stroke_move.index("MaybeEmitEditorStrokeUpdate(e.Location)") < active_stroke_move.index("_strokePrevious = e.Location")
+    throttled_stroke_publish = input_source.split(
+        "private void MaybeEmitEditorStrokeUpdate", maxsplit=1
+    )[1].split("private void EndEditorStroke", maxsplit=1)[0]
+    assert "EditorStrokeProtocolIntervalMs" in throttled_stroke_publish
+    assert 'Invoke("stroke_update"' in throttled_stroke_publish
+    assert "_strokeProtocolPrevious = location" in throttled_stroke_publish
     assert "_viewport.RefreshVertexGeometry(changed" in protocol_source
     assert "RefreshVertexGeometry(IReadOnlyDictionary<int, IReadOnlyCollection<int>> changedVertices)" in d3d_source
     assert "SourceVertexToRenderCorners" in d3d_source
@@ -1113,6 +1119,12 @@ def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
     # would stomp a drag mode picked on the editor side between refreshes.
     assert "_viewport.SetSelectionDragMode(selectionDragMode);" in host_state_source
     assert "_lastHostSelectionDragMode" in host_state_source
+    assert "ResetSelectionGestureDefaultsForSession" in host_state_source
+    material_source = _source("ExperimentForm.MaterialProtocol.cs")
+    session_rebind = material_source.split("if (sessionChanged)", maxsplit=1)[1].split(
+        "if (!provisional)", maxsplit=1
+    )[0]
+    assert "ResetSelectionGestureDefaultsForSession();" in session_rebind
 
     input_source = _source("MeshViewport.Input.cs")
     set_mode = input_source.split("internal void SetSelectionDragMode(", maxsplit=1)[1].split(
@@ -1146,9 +1158,24 @@ def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
         "private void MaybeEmitSelectionPaintSample(Point point, bool final = false)", maxsplit=1
     )[1].split("private void EmitSelectionSweepQuad(", maxsplit=1)[0]
     assert "stepLength > radius" in sampler
+    assert "toggleGesture" in sampler
+    assert "EmitFinalTogglePaintSelection();" in sampler
     sweep = picking_source.split("private void EmitSelectionSweepQuad(", maxsplit=1)[1]
     assert 'region["mode"] = "lasso";' in sweep
     assert '["paint_sample"] = true' in sweep
+    assert "_selectionPaintToggleTouchedSources.Add(submeshIndex)" in picking_source
+    toggle_finish = picking_source.split(
+        "private void EmitFinalTogglePaintSelection()", maxsplit=1
+    )[1].split("private void EmitSelectionSweepQuad(", maxsplit=1)[0]
+    assert 'region["mode"] = "brush";' in toggle_finish
+    assert 'region["points"] = path' in toggle_finish
+    assert 'region["radius_pixels"] = SelectionPaintRadiusPixels();' in toggle_finish
+    assert 'EditorEventRequested?.Invoke("select_request"' in toggle_finish
+    assert '["operation"] = "toggle"' in toggle_finish
+    assert '["local_selection"]' not in toggle_finish
+    assert "ProvisionalSelectionVertexBudget" not in picking_source
+    assert "FrontFacingFaces" in picking_source
+    assert "PartBounds" in picking_source
 
     renderer_source = _source("MeshViewport.Renderer.cs")
     # Rectangle rubber-band belongs to rectangle mode alone; painting shows

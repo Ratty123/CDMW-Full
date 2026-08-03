@@ -71,6 +71,14 @@ class _Host:
         self.standalone_updates.append(update)
         return True
 
+    def _send_dotnet_native_update(
+        self,
+        update: object,
+        *,
+        request_payload: object = None,
+    ) -> None:
+        self.standalone_updates.append((update, request_payload))
+
 
 def _payload(operation: str = "add") -> dict[str, object]:
     return {
@@ -100,7 +108,7 @@ def test_a_dab_routes_to_the_standalone_update_when_not_embedded() -> None:
     assert host._apply_dotnet_paint_select_sample(controller, _payload("subtract")) is True
 
     assert controller.applied[0]["operation"] == "subtract"
-    assert host.standalone_updates == ["native-update"]
+    assert host.standalone_updates == [("native-update", _payload("subtract"))]
 
 
 def test_a_dab_is_dropped_quietly_while_a_heavy_action_runs() -> None:

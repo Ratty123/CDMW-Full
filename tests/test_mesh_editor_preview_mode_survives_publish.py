@@ -19,10 +19,14 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 from cdmw.ui.mesh_editor import MeshEditorTab
+from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
+    MESH_PREVIEW_DISPLAY_MODES,
+)
 from tests.test_mesh_editor_action_bar import (
     _EmbeddedMeshBuilder,
     _FakeProcess,
@@ -102,3 +106,34 @@ def test_a_rail_mode_choice_is_carried_by_the_next_presentation_publish() -> Non
     tab.deleteLater()
     builder.deleteLater()
     app.processEvents()
+
+
+@pytest.mark.parametrize("mode", MESH_PREVIEW_DISPLAY_MODES)
+def test_every_display_mode_survives_selection_tool_scene_material_and_visibility_publishes(
+    mode: str,
+) -> None:
+    app, tab, builder, process = _mounted_tab(f"MeshModeAuthority-{mode}")
+    try:
+        tab.standalone_dotnet_material_generation_by_role["editable_imported"] = 1
+        tab.standalone_dotnet_completed_material_generation_by_role["editable_imported"] = 1
+        tab.standalone_dotnet_applied_material_generation_by_role["editable_imported"] = 1
+
+        assert tab._send_dotnet_presentation_state({"display": {"mode": "wire_vertices"}})
+        _acknowledge_latest_publish(tab, process)
+        assert tab._handle_embedded_viewport_display_mode(mode)
+
+        transition_updates = (
+            {"highlights": {"source_indices": [0]}},
+            {"display": {"grid_visible": False}},
+            {"camera": {"yaw": 0.2, "pitch": -0.1, "distance": 3.0}},
+            {"visibility": {"hidden_source_indices": [1]}},
+            {"comparison_mode": "replacement_only"},
+        )
+        for update in transition_updates:
+            assert tab._send_dotnet_presentation_state(update)
+            assert _published_display_modes(process)[-1] == mode
+            _acknowledge_latest_publish(tab, process)
+    finally:
+        tab.deleteLater()
+        builder.deleteLater()
+        app.processEvents()

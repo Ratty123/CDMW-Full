@@ -267,7 +267,7 @@ class MeshEditorShellBridgeMixin:
             self.mesh_editor_tab.set_active_tool_state(
                 mode=mode if command == "set_mode" else "",
                 active_selection_mode=selection_mode,
-                active_tool_key=key if command == "brush" or key == "transform_move" else "",
+                active_tool_key=key if command in {"brush", "select"} or key == "transform_move" else "",
             )
         if routed is True:
             self.set_status_message(f"Mesh Editor action sent: {text}.")

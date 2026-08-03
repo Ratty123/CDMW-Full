@@ -132,9 +132,12 @@ internal sealed partial class D3D11MaterialViewport
     private Matrix4x4 ActivePaneModelMatrix(int submeshIndex)
     {
         var role = _activeRenderPane?.Role ?? "comparison";
-        return role is "reference" or "editable"
+        var model = role is "reference" or "editable"
             ? _scene.RoleViewModelMatrix(submeshIndex)
             : _scene.ModelMatrix(submeshIndex);
+        return role == "reference"
+            ? model
+            : ApplyProvisionalPartTranslation(submeshIndex, model);
     }
 
     private bool ActivePaneGridVisible => _activeRenderPane?.GridVisible ?? _scene.GridVisible;

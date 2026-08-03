@@ -111,6 +111,23 @@ def _latest_settled_topology_metrics(
     return {}
 
 
+def _latest_presented_topology_metrics(
+    state: SimpleNamespace,
+    cursor: int,
+    *,
+    topology_generation_floor: int,
+) -> dict[str, object]:
+    events = tuple(state.tab.standalone_dotnet_protocol_events)
+    for event in reversed(events[max(0, int(cursor)) :]):
+        if str(event.get("event", "")) != "metrics":
+            continue
+        renderer = event.get("renderer")
+        resources = renderer_resource_metrics(renderer) if isinstance(renderer, Mapping) else {}
+        if int(resources.get("topology_generation", 0) or 0) >= int(topology_generation_floor):
+            return dict(event)
+    return {}
+
+
 def _target_texture_row(state: SimpleNamespace) -> dict[str, object]:
     rows = [dict(row) for row in state.resolved_textures if isinstance(row, Mapping)]
     matching = [row for row in rows if int(row.get("submesh_index", -1)) == int(state.submesh_index)]
@@ -366,15 +383,27 @@ def _record_apply_update_evidence(
     expected_revision: int,
     before: Mapping[str, object],
     after: Mapping[str, object],
+    *,
+    topology_generation_floor: int | None,
+    topology_presented: bool,
 ) -> None:
-    state.last_apply_update_evidence = {
+    evidence = {
         "expected_revision": expected_revision,
         "vertex_group_count": len(tuple(getattr(update, "vertex_groups", ()) or ())),
         "triangle_group_count": len(tuple(getattr(update, "triangle_groups", ()) or ())),
+        "triangle_source_submesh_indices": list(
+            tuple(getattr(update, "triangle_source_submesh_indices", ()) or ())
+        ),
+        "replace_all_triangles": bool(getattr(update, "replace_all_triangles", False)),
+        "final_submesh_count": getattr(update, "final_submesh_count", None),
         "refresh_selection": bool(getattr(update, "refresh_selection", False)),
+        "topology_generation_floor": topology_generation_floor,
+        "topology_presented": topology_presented,
         "before": dict(before),
         "after": dict(after),
     }
+    state.last_apply_update_evidence = evidence
+    state.apply_update_evidence.append(evidence)
 
 
 def exercise_assignment_and_mesh_edits(
@@ -382,9 +411,17 @@ def exercise_assignment_and_mesh_edits(
     *,
     pump_until: Callable[..., bool],
 ) -> str:
-    def apply_update(update: object, timeout_seconds: float = 15.0) -> bool:
+    state.apply_update_evidence = []
+    state.history_result_evidence = []
+    def apply_update(
+        update: object,
+        timeout_seconds: float = 15.0,
+        *,
+        topology_generation_floor: int | None = None,
+    ) -> bool:
         expected_revision = int(state.controller.session_view().revision)
         before = state.tab.standalone_dotnet_update_queue.metrics()
+        event_cursor = len(state.tab.standalone_dotnet_protocol_events)
         state.tab._send_dotnet_native_update(update)
         drained = pump_until(
             state,
@@ -392,9 +429,31 @@ def exercise_assignment_and_mesh_edits(
             timeout_seconds,
         )
         after = state.tab.standalone_dotnet_update_queue.metrics()
-        _record_apply_update_evidence(state, update, expected_revision, before, after)
+        topology_presented = topology_generation_floor is None
+        if drained and topology_generation_floor is not None:
+            topology_presented = pump_until(
+                state,
+                lambda: bool(
+                    _latest_presented_topology_metrics(
+                        state,
+                        event_cursor,
+                        topology_generation_floor=topology_generation_floor,
+                    )
+                ),
+                timeout_seconds,
+            )
+        _record_apply_update_evidence(
+            state,
+            update,
+            expected_revision,
+            before,
+            after,
+            topology_generation_floor=topology_generation_floor,
+            topology_presented=topology_presented,
+        )
         return bool(
             drained
+            and topology_presented
             and int(after.get("last_acked_revision", 0) or 0) >= expected_revision
             and int(after.get("rejected_updates", 0) or 0)
             == int(before.get("rejected_updates", 0) or 0)
@@ -474,6 +533,7 @@ def exercise_assignment_and_mesh_edits(
     record_flow_step(state, "committed_assignment", artifact=str(assigned))
     before_resources = dict(state.texture_flow_evidence.get("resource_metrics_after", {}) or {})
     partial_rebuild_floor = int(before_resources.get("partial_topology_rebuilds", 0) or 0) + 4
+    topology_generation_floor = int(before_resources.get("topology_generation", 0) or 0) + 4
     restored_live_batches = int(before_resources.get("live_geometry_batches", 0) or 0)
     selection = state.controller.session_view().selection
     uv_before = tuple(tuple(uv) for uv in state.controller.working_mesh(clone=False).submeshes[state.submesh_index].uvs)
@@ -492,7 +552,10 @@ def exercise_assignment_and_mesh_edits(
 
     part_selection = MeshEditSelection.from_maps(source_indices=(state.submesh_index,))
     duplicate = state.controller.run_editor_action("duplicate", selection=part_selection, mode="edit")
-    if not duplicate.edit_result.ok or not apply_update(duplicate.native_update):
+    if not duplicate.edit_result.ok or not apply_update(
+        duplicate.native_update,
+        topology_generation_floor=topology_generation_floor - 3,
+    ):
         return "Resident part duplicate was rejected."
     duplicate_index = len(state.controller.working_mesh(clone=False).submeshes) - 1
     record_flow_step(state, "duplicate", revision=duplicate.edit_result.revision, submesh_index=duplicate_index)
@@ -503,16 +566,45 @@ def exercise_assignment_and_mesh_edits(
         mode="edit",
         delete_parts=True,
     )
-    if not deleted.edit_result.ok or not apply_update(deleted.native_update):
+    if not deleted.edit_result.ok or not apply_update(
+        deleted.native_update,
+        topology_generation_floor=topology_generation_floor - 2,
+    ):
         return "Resident part delete was rejected."
     record_flow_step(state, "delete", revision=deleted.edit_result.revision, submesh_index=duplicate_index)
     undone = state.controller.undo()
-    if not undone.ok or not apply_update(state.controller.native_update_for_result(undone)):
+    state.history_result_evidence.append(
+        {
+            "action": undone.action,
+            "revision": int(undone.revision),
+            "topology_changed": bool(undone.topology_changed),
+            "submesh_count_delta": int(undone.submesh_count_delta),
+            "native_vertex_group_count": len(tuple(undone.native_preview_vertex_update_groups or ())),
+            "native_triangle_group_count": len(tuple(undone.native_preview_triangle_groups or ())),
+        }
+    )
+    if not undone.ok or not apply_update(
+        state.controller.native_update_for_result(undone),
+        topology_generation_floor=topology_generation_floor - 1,
+    ):
         return "Resident topology undo was rejected."
     record_flow_step(state, "undo", revision=undone.revision)
     metrics_cursor = len(state.tab.standalone_dotnet_protocol_events)
     redone = state.controller.redo()
-    if not redone.ok or not apply_update(state.controller.native_update_for_result(redone)):
+    state.history_result_evidence.append(
+        {
+            "action": redone.action,
+            "revision": int(redone.revision),
+            "topology_changed": bool(redone.topology_changed),
+            "submesh_count_delta": int(redone.submesh_count_delta),
+            "native_vertex_group_count": len(tuple(redone.native_preview_vertex_update_groups or ())),
+            "native_triangle_group_count": len(tuple(redone.native_preview_triangle_groups or ())),
+        }
+    )
+    if not redone.ok or not apply_update(
+        state.controller.native_update_for_result(redone),
+        topology_generation_floor=topology_generation_floor,
+    ):
         return "Resident topology redo was rejected."
     record_flow_step(state, "redo", revision=redone.revision)
     settled = lambda: _latest_settled_topology_metrics(
@@ -548,6 +640,8 @@ def exercise_assignment_and_mesh_edits(
         "undo_revision": int(undone.revision),
         "redo_revision": int(redone.revision),
         "renderer_metrics_event": final_metrics_event,
+        "apply_updates": list(state.apply_update_evidence),
+        "history_results": list(state.history_result_evidence),
         "resource_metrics_before": before_resources,
         "resource_metrics_after": final_resources,
         "affected_only_updates": affected_only,

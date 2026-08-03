@@ -143,6 +143,7 @@ def _refresh_mesh_edit_controls(_state, _callbacks, ) -> None:
     selected_face_count = _state._mesh_edit_index_group_count_helper(_state.mesh_edit_selected_faces_by_submesh)
     selected_edge_count = _callbacks._mesh_editor_selected_edge_count()
     selected_element_count = selected_count + selected_face_count + selected_edge_count
+    selected_part_count = len(_state.mesh_edit_selected_source_indices)
     tool_context = _state._mesh_edit_tool_context_helper(
         current_tool,
         _state._mesh_edit_selection_mode(),
@@ -154,8 +155,8 @@ def _refresh_mesh_edit_controls(_state, _callbacks, ) -> None:
     select_tool = bool(tool_context["select_tool"])
     brush_selection_tool = bool(tool_context["brush_selection_tool"])
     vertex_selection_active = bool(tool_context["selection_active"])
-    selection_active = bool(editing_active and selected_element_count > 0)
-    selection_actions_visible = bool(select_tool or selected_element_count > 0)
+    selection_active = bool(editing_active and (selected_part_count > 0 or selected_element_count > 0))
+    selection_actions_visible = bool(select_tool or selected_part_count > 0 or selected_element_count > 0)
     smooth_tool = bool(tool_context["smooth_tool"])
 
     def _set_mesh_edit_row_visible(row_key: str, visible: bool) -> None:
@@ -201,13 +202,19 @@ def _refresh_mesh_edit_controls(_state, _callbacks, ) -> None:
     _state.mesh_edit_mirror_checkbox.setEnabled(editing_requested and not topology_busy and sculpt_tool)
     _state.mesh_edit_option_widget.setVisible(True)
     _state.mesh_edit_clear_selection_button.setVisible(selection_actions_visible)
-    _state.mesh_edit_select_part_button.setVisible(select_tool)
-    _state.mesh_edit_invert_selection_button.setVisible(select_tool)
-    _state.mesh_edit_selection_actions_widget.setVisible(selection_actions_visible)
-    _state.mesh_edit_subdivide_selection_button.setVisible(select_tool)
-    _state.mesh_edit_refine_smooth_selection_button.setVisible(select_tool)
-    _state.mesh_edit_split_selection_button.setVisible(select_tool)
-    _state.mesh_edit_delete_faces_button.setVisible(select_tool)
+    # Element-selection and element-only topology controls remain constructed
+    # for native/session compatibility, but part-only Edit Mesh must never
+    # reveal them during a refresh after the setup code hid them.
+    for element_only_control in (
+        _state.mesh_edit_select_part_button,
+        _state.mesh_edit_invert_selection_button,
+        _state.mesh_edit_selection_actions_widget,
+        _state.mesh_edit_subdivide_selection_button,
+        _state.mesh_edit_refine_smooth_selection_button,
+        _state.mesh_edit_split_selection_button,
+        _state.mesh_edit_delete_faces_button,
+    ):
+        element_only_control.setVisible(False)
     _state.mesh_edit_clear_selection_button.setEnabled(selection_active and not topology_busy)
     _state.mesh_edit_select_part_button.setEnabled(editing_active and select_tool and bool(allowed_indices) and not topology_busy)
     _state.mesh_edit_invert_selection_button.setEnabled(editing_active and select_tool and bool(allowed_indices) and not topology_busy)

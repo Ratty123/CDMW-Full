@@ -35,7 +35,7 @@ def test_dotnet_real_game_evidence_keeps_drag_and_heartbeat_samples() -> None:
         "changed_vertex_count": 1,
         "part_selection": {
             "initially_empty": True,
-            "face_selection_keeps_part_unselected": True,
+            "selected_whole_part": True,
         },
         "resident_material_update": {
             "process_pid_before": 101,
@@ -329,9 +329,9 @@ def test_dotnet_real_game_sends_material_state_before_selection_and_stroke() -> 
     assert "mesh_dotnet_material_state_payload(" in material_source
     assert 'state.tab._send_dotnet_material_state(reason="real_archive_harness")' in material_source
     assert 'state.tab._send_dotnet_material_state(reason="real_archive_harness_same_revision")' in material_source
-    assert '"part_selection_optional": bool(' in evidence_source
+    assert '"part_only_selection": bool(' in evidence_source
     assert (
-        "state.initial_part_selection_empty and state.face_selection_keeps_part_unselected"
+        "state.initial_part_selection_empty and state.part_selection_armed"
         in evidence_source
     )
     run = source[source.index("def run_real_archive_mesh_editor_dotnet_edit_smoke(") :]
@@ -380,6 +380,30 @@ def test_real_dotnet_geometry_color_guard_rejects_black_and_accepts_lit_faces(tm
 
     assert _image_color_metrics(black)["non_black_geometry"] is False
     assert _image_color_metrics(lit)["non_black_geometry"] is True
+
+
+def test_real_dotnet_geometry_color_guard_uses_the_saved_viewport_background(tmp_path: Path) -> None:
+    from PIL import Image
+
+    for name, background, geometry in (
+        ("custom-black", (0, 0, 0), (125, 142, 164)),
+        ("custom-light", (238, 240, 244), (42, 50, 62)),
+    ):
+        empty = tmp_path / f"{name}-empty.png"
+        rendered = tmp_path / f"{name}-rendered.png"
+        Image.new("RGB", (128, 128), background).save(empty)
+        image = Image.new("RGB", (128, 128), background)
+        for y in range(24, 104):
+            for x in range(32, 96):
+                image.putpixel((x, y), geometry)
+        image.save(rendered)
+
+        empty_metrics = _image_color_metrics(empty)
+        rendered_metrics = _image_color_metrics(rendered)
+        assert empty_metrics["background_rgb"] == list(background)
+        assert empty_metrics["non_black_geometry"] is False
+        assert rendered_metrics["background_rgb"] == list(background)
+        assert rendered_metrics["non_black_geometry"] is True
 
 
 def test_real_dotnet_proof_exercises_every_mode_the_mesh_view_controls_offer() -> None:

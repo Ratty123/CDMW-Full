@@ -18,12 +18,21 @@ def mesh_edit_scope_mode(raw_mode: object) -> str:
     return "selected" if mode == "selected" else "all"
 
 
-def mesh_edit_tool(raw_tool: object, fallback: object = "grab") -> str:
-    return _mesh_edit_choice(raw_tool, fallback, {"grab", "smooth", "inflate", "pinch", "remove", "vertex"})
+def mesh_edit_tool(raw_tool: object, fallback: object = "orbit") -> str:
+    return _mesh_edit_choice(
+        raw_tool,
+        fallback,
+        {"orbit", "select", "move", "grab", "smooth", "inflate", "pinch", "remove", "vertex"},
+    )
 
 
 def mesh_edit_target_mode_for_tool(tool: str) -> str:
-    return "vertex" if mesh_edit_tool(tool) == "vertex" else "brush"
+    normalized = mesh_edit_tool(tool)
+    if normalized in {"orbit", "select"}:
+        return "source"
+    if normalized == "move":
+        return "selection"
+    return "vertex" if normalized == "vertex" else "brush"
 
 
 def mesh_edit_revision_initial_state() -> dict[str, int]:
@@ -84,8 +93,8 @@ def mesh_edit_action_control_text() -> dict[str, str]:
         "full_reset_mesh": "Full Reset Mesh",
         "delete_mode_tooltip": "Remove Faces behavior. On release makes one cut at mouse-up; During drag cuts continuously.",
         "iterations_tooltip": "Smooth/Relax passes per brush sample.",
-        "selection_mode_tooltip": "Selection mode for the Select Vertices tool.",
-        "selection_depth_tooltip": "Visible Only selects the front surface; X-Ray can select vertices behind it.",
+        "selection_mode_tooltip": "Selection shape for the Select Parts tool.",
+        "selection_depth_tooltip": "Visible Only selects front-facing parts; X-Ray includes occluded parts.",
         "select_part_tooltip": "Select every vertex in the current editable Mesh Editing scope.",
         "invert_selection_tooltip": "Invert the selected vertices inside the current editable Mesh Editing scope.",
         "subdivide_selection_tooltip": "Add local triangle density around selected vertices, then keep sculpting.",
@@ -554,7 +563,7 @@ def mesh_edit_tool_context(
     editing_active: bool,
 ) -> dict[str, bool]:
     tool = str(current_tool or "").strip().lower()
-    select_tool = tool == "vertex"
+    select_tool = tool in {"select", "vertex"}
     sculpt_tool = tool in {"grab", "smooth", "inflate", "pinch"}
     remove_tool = tool == "remove"
     brush_selection_tool = select_tool and str(selection_mode or "").strip().lower() == "brush"
