@@ -11,13 +11,10 @@ from tools.mesh_harness.real_dotnet_material import (
 
 
 # Every mode the Mesh View controls offer, in the order the combos list them.
-# Covering only a subset let "Solid + Wire" ship broken behind a green gate:
-# nothing here ever asked the viewport for a textured mode with a wire overlay.
 # `textured` stays last so the run leaves the viewport where it found it.
 _DISPLAY_MODES = (
     ("untextured_faces", "real_archive_dotnet_untextured_faces.png"),
     ("untextured_wire", "real_archive_dotnet_untextured_wire.png"),
-    ("textured_wire", "real_archive_dotnet_textured_wire.png"),
     ("wire", "real_archive_dotnet_wire.png"),
     ("vertices", "real_archive_dotnet_vertices.png"),
     ("wire_vertices", "real_archive_dotnet_wire_vertices.png"),
@@ -28,14 +25,13 @@ _DISPLAY_MODE_LABELS = {
     "textured": "Solid (Textured)",
     "untextured_faces": "Faces (No Textures)",
     "untextured_wire": "Faces + Wire",
-    "textured_wire": "Solid + Wire",
     "wire": "Wire",
     "vertices": "Vertices",
     "wire_vertices": "Wire + Vertices",
     "xray": "X-Ray",
 }
 _REQUIRED_PRODUCTION_DISPLAY_MODES = frozenset(
-    {"textured", "textured_wire", "untextured_faces", "untextured_wire", "vertices"}
+    {"textured", "untextured_faces", "untextured_wire", "vertices"}
 )
 # (show_solid, show_wire, show_vertices, show_xray, textures_enabled), mirroring
 # MeshViewport.TrySetDisplayMode. A mode that acknowledges different flags is
@@ -43,7 +39,6 @@ _REQUIRED_PRODUCTION_DISPLAY_MODES = frozenset(
 _DISPLAY_MODE_FLAGS = {
     "untextured_faces": (True, False, False, False, False),
     "untextured_wire": (True, True, False, False, False),
-    "textured_wire": (True, True, False, False, True),
     "wire": (False, True, False, False, False),
     "vertices": (False, False, True, False, False),
     "wire_vertices": (False, True, True, False, False),
@@ -54,7 +49,6 @@ _DISPLAY_MODE_FLAGS = {
 _DISPLAY_MODE_COUNTERS = {
     "untextured_faces": ("untextured_solid_batch_draws",),
     "untextured_wire": ("untextured_solid_batch_draws", "wire_overlay_draws"),
-    "textured_wire": ("textured_solid_batch_draws", "wire_overlay_draws"),
     "wire": ("wire_overlay_draws",),
     "vertices": ("vertex_overlay_batch_draws",),
     "wire_vertices": ("wire_overlay_draws", "vertex_overlay_batch_draws"),
@@ -63,7 +57,7 @@ _DISPLAY_MODE_COUNTERS = {
 }
 # Modes that fill faces, so a black frame means the shading never landed.
 _SOLID_DISPLAY_MODES = frozenset(
-    {"untextured_faces", "untextured_wire", "textured_wire", "textured"}
+    {"untextured_faces", "untextured_wire", "textured"}
 )
 
 

@@ -145,7 +145,7 @@ def test_mesh_edit_display_mode_is_a_default_not_an_override() -> None:
         mesh_edit_display_mode="textured",
         **placement,
     )
-    assert left["display"]["mode"] == "textured_wire"  # type: ignore[index]
+    assert left["display"]["mode"] == "textured"  # type: ignore[index]
 
 
 def test_builder_presentation_state_starts_with_readable_untextured_wire() -> None:
@@ -172,7 +172,7 @@ def test_builder_presentation_state_preserves_selected_mesh_view_mode() -> None:
         part_pick_enabled=False,
     )
 
-    assert state["display"]["mode"] == "textured_wire"  # type: ignore[index]
+    assert state["display"]["mode"] == "textured"  # type: ignore[index]
 
 
 def test_builder_mesh_view_selector_uses_the_resident_presentation_lane() -> None:

@@ -244,6 +244,49 @@ internal sealed partial class NetSceneState
         return true;
     }
 
+    public bool TryApplyResidentInteractionUpdate(JsonElement root, out string rejectionReason)
+    {
+        rejectionReason = string.Empty;
+        var sessionId = JsonText(root, "session_id", string.Empty).Trim();
+        var sourceIdentity = JsonText(root, "source_identity", string.Empty).Trim();
+        var requestId = JsonLong(root, "request_id", 0);
+        var generation = JsonLong(root, "scene_generation", 0);
+        if (sessionId.Length == 0 || sourceIdentity.Length == 0 || requestId <= 0 || generation <= 0)
+        {
+            rejectionReason = "missing_scene_correlation";
+            return false;
+        }
+        if (SessionId.Length > 0 && !string.Equals(SessionId, sessionId, StringComparison.Ordinal))
+        {
+            rejectionReason = "stale_session";
+            return false;
+        }
+        if (SourceIdentity.Length > 0 && !string.Equals(SourceIdentity, sourceIdentity, StringComparison.Ordinal))
+        {
+            rejectionReason = "stale_source_identity";
+            return false;
+        }
+        if (generation <= SceneGeneration || requestId <= LastRequestId)
+        {
+            rejectionReason = "stale_scene_generation";
+            return false;
+        }
+
+        SessionId = sessionId;
+        SourceIdentity = sourceIdentity;
+        SceneGeneration = generation;
+        LastRequestId = requestId;
+        InteractionMode = NormalizeInteraction(JsonText(root, "interaction_mode", InteractionMode));
+        ComparisonMode = EffectiveComparisonMode(
+            JsonText(root, "comparison_mode", ComparisonMode),
+            InteractionMode);
+        if (root.TryGetProperty("gizmo", out var gizmo) && gizmo.ValueKind == JsonValueKind.Object)
+        {
+            GizmoTool = NormalizeGizmo(JsonText(gizmo, "tool", GizmoTool));
+        }
+        return true;
+    }
+
     public bool IsEditable(int submeshIndex) => submeshIndex >= 0 && submeshIndex < EditableSubmeshCount;
     public bool IsReference(int submeshIndex) => submeshIndex >= EditableSubmeshCount && submeshIndex < EditableSubmeshCount + ReferenceSubmeshCount;
     public bool IsPresentationVisible(int submeshIndex) => !_presentationHiddenSubmeshes.Contains(submeshIndex);

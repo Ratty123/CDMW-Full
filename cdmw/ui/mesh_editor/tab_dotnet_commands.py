@@ -783,6 +783,16 @@ class MeshEditorDotNetCommandMixin:
         if not self.standalone_dotnet_target_embedded:
             _blocked("not_embedded")
             return False
+        if self.standalone_dotnet_finish_scene_pending is not None:
+            _blocked("placement_transition_pending")
+            self._send_dotnet_command_result(
+                "save_request",
+                ok=False,
+                status="busy",
+                diagnostics=("Waiting for Mesh .NET editor to finish queued edits before saving...",),
+                request_payload=request_payload,
+            )
+            return True
         if self._reject_dotnet_mutation_while_busy("save_request", request_payload):
             _blocked("mutation_busy")
             self.standalone_dotnet_finish_retry_pending = True
@@ -855,6 +865,109 @@ class MeshEditorDotNetCommandMixin:
                 request_payload=request_payload,
             )
             return False
+        scene_pending = self.standalone_dotnet_scene_pending
+        if scene_pending is None:
+            self._send_dotnet_command_result(
+                "save_request",
+                ok=False,
+                status="error",
+                diagnostics=("Resident placement mode transition could not be queued.",),
+                request_payload=request_payload,
+            )
+            return False
+        self.standalone_dotnet_finish_scene_pending = {
+            key: scene_pending[key]
+            for key in (
+                "session_id",
+                "request_id",
+                "process_generation",
+                "source_identity",
+                "scene_generation",
+            )
+        }
+        self.standalone_dotnet_finish_scene_pending["request_payload"] = dict(
+            request_payload or {}
+        )
+        self.standalone_dotnet_finish_scene_timer.start(5_000)
+        self._set_dotnet_status(
+            "Waiting for Mesh .NET editor to finish queued edits before saving..."
+        )
+        return True
+
+    def _dotnet_finish_scene_matches(self, payload: Mapping[str, object]) -> bool:
+        pending = self.standalone_dotnet_finish_scene_pending
+        if pending is None:
+            return False
+        try:
+            return all(
+                (
+                    str(payload.get(key, "") or "") == str(pending[key])
+                    if key in {"session_id", "source_identity"}
+                    else int(payload.get(key, 0) or 0) == int(pending[key])
+                )
+                for key in (
+                    "session_id",
+                    "request_id",
+                    "process_generation",
+                    "source_identity",
+                    "scene_generation",
+                )
+            )
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return False
+
+    def _fail_embedded_dotnet_edit_mode_finish(self, diagnostic: str) -> bool:
+        pending = self.standalone_dotnet_finish_scene_pending
+        if pending is None:
+            return False
+        self.standalone_dotnet_finish_scene_pending = None
+        self.standalone_dotnet_finish_scene_timer.stop()
+        request_payload = pending.get("request_payload")
+        self._send_dotnet_command_result(
+            "save_request",
+            ok=False,
+            status="error",
+            diagnostics=(str(diagnostic or "Resident placement mode transition could not be queued."),),
+            request_payload=(request_payload if isinstance(request_payload, Mapping) else None),
+        )
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_edit_mode_finish_blocked",
+            reason="placement_transition_failed",
+            process_generation=self.standalone_dotnet_process_generation,
+            diagnostic=str(diagnostic or ""),
+        )
+        return True
+
+    def _handle_dotnet_finish_scene_timeout(self) -> None:
+        pending = self.standalone_dotnet_finish_scene_pending
+        if pending is None:
+            return
+        scene_pending = self.standalone_dotnet_scene_pending
+        if scene_pending is not None and all(
+            scene_pending.get(key) == pending.get(key)
+            for key in (
+                "session_id",
+                "request_id",
+                "process_generation",
+                "source_identity",
+                "scene_generation",
+            )
+        ):
+            self.standalone_dotnet_scene_pending = None
+        message = (
+            "Finish Edit Mesh timed out because the resident placement view was not "
+            "acknowledged within 5 seconds; Edit Mesh remains open."
+        )
+        self._fail_embedded_dotnet_edit_mode_finish(message)
+        self._set_dotnet_status(message, error=True)
+
+    def _complete_embedded_dotnet_edit_mode_finish(self) -> bool:
+        pending = self.standalone_dotnet_finish_scene_pending
+        if pending is None:
+            return False
+        self.standalone_dotnet_finish_scene_pending = None
+        self.standalone_dotnet_finish_scene_timer.stop()
+        request_payload = pending.get("request_payload")
         if not self._finalize_embedded_dotnet_import("dotnet_finish_edit"):
             # No re-arm. The builder unticks its checkbox before anything that
             # can fail here, so putting the helper back into mesh_edit left the
@@ -866,7 +979,7 @@ class MeshEditorDotNetCommandMixin:
                 ok=False,
                 status="error",
                 diagnostics=("Resident mesh edit finalization failed.",),
-                request_payload=request_payload,
+                request_payload=(request_payload if isinstance(request_payload, Mapping) else None),
             )
             return False
         controller = self._dotnet_target_controller()
@@ -882,7 +995,7 @@ class MeshEditorDotNetCommandMixin:
             ok=True,
             status="saved",
             revision=revision,
-            request_payload=request_payload,
+            request_payload=(request_payload if isinstance(request_payload, Mapping) else None),
         )
         self._record_mesh_dotnet_event(
             "mesh_dotnet_edit_mode_finished_resident",

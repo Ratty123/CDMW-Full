@@ -573,8 +573,16 @@ def test_finish_edit_mesh_never_rearms_mesh_edit_after_a_failed_finalize() -> No
         and candidate.name == "_finish_embedded_dotnet_edit_mode"
     )
     body = ast.get_source_segment(commands, node) or ""
+    completion_node = next(
+        candidate
+        for candidate in ast.walk(tree)
+        if isinstance(candidate, ast.FunctionDef)
+        and candidate.name == "_complete_embedded_dotnet_edit_mode_finish"
+    )
+    completion_body = ast.get_source_segment(commands, completion_node) or ""
 
-    assert "_finalize_embedded_dotnet_import" in body
+    assert "_finalize_embedded_dotnet_import" not in body
+    assert "_finalize_embedded_dotnet_import" in completion_body
     # Placement is published once, on the way out.
     assert body.count('interaction_mode="placement"') == 1
     assert 'interaction_mode="mesh_edit"' not in body

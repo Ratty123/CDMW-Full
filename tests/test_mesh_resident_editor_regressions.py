@@ -169,13 +169,17 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         process._state = process.Running
         _install_shared_dotnet_test_process(tab, process, generation=9)
         tab._set_embedded_dotnet_state("ready", active=True)
-        scene_transitions: list[dict[str, object]] = []
-        tab._send_dotnet_scene_state = lambda **payload: scene_transitions.append(  # type: ignore[method-assign]
-            dict(payload)
-        ) or True
+        session_id = builder.controller.active_session_id
+        tab.standalone_dotnet_lifecycle_session_id = session_id
+        tab.standalone_dotnet_scene_frame = None
+        tab.standalone_dotnet_scene_candidate = None
+        tab.standalone_dotnet_scene_thread = object()  # exact captured state: frame worker still active
+        tab.standalone_dotnet_experiment_package = SimpleNamespace(
+            scene_frame=SimpleNamespace(source_identity="resident-finish-source")
+        )
         request = {
             "event": "save_request",
-            "session_id": builder.controller.active_session_id,
+            "session_id": session_id,
             "request_id": 12,
             "base_revision": builder.controller.session_view().revision,
             "process_generation": 9,
@@ -183,16 +187,27 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         }
 
         self.assertTrue(tab._handle_dotnet_protocol_event(request))
-        self.assertEqual(
-            [
-                {
-                    "interaction_mode": "placement",
-                    "comparison_mode": "original_only",
-                    "gizmo_tool": "move",
-                }
-            ],
-            scene_transitions,
+        messages = [json.loads(raw.decode("utf-8")) for raw in process.stdin_writes]
+        scene_transition = next(
+            message for message in messages if message.get("event") == "scene_state_update"
         )
+        self.assertEqual("placement", scene_transition["interaction_mode"])
+        self.assertEqual("original_only", scene_transition["comparison_mode"])
+        self.assertNotIn("roles", scene_transition)
+        self.assertEqual([], builder.finalized_dotnet_imports)
+        self.assertNotIn(b'"event":"command_result"', b"".join(process.stdin_writes))
+
+        acknowledgement = {
+            "event": "scene_state_update_ack",
+            "status": "applied",
+            "session_id": scene_transition["session_id"],
+            "request_id": scene_transition["request_id"],
+            "process_generation": scene_transition["process_generation"],
+            "source_identity": scene_transition["source_identity"],
+            "scene_generation": scene_transition["scene_generation"],
+        }
+        self.assertTrue(tab._handle_dotnet_protocol_event(acknowledgement))
+
         self.assertEqual(["dotnet_finish_edit"], builder.finalized_dotnet_imports)
         self.assertIs(process, tab.standalone_dotnet_editor_process)
         self.assertEqual("ready", tab.standalone_dotnet_embedded_state)
@@ -202,6 +217,8 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         self.assertIn(b'"event":"command_result"', writes)
         self.assertIn(b'"status":"saved"', writes)
         self.assertIn(b'"request_id":12', writes)
+        self.assertIsNone(tab.standalone_dotnet_finish_scene_pending)
+        tab.standalone_dotnet_scene_thread = None
         tab.standalone_dotnet_editor_process = None
         tab.deleteLater()
         _APP.processEvents()
@@ -260,6 +277,54 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         tab.standalone_live_stroke_dispatcher = None
         tab.standalone_dotnet_editor_process = None
         tab.deleteLater()
+        _APP.processEvents()
+
+    def test_embedded_finish_timeout_keeps_edit_mesh_open_and_reports_the_request(self) -> None:
+        settings = QSettings("CDMWTests", "MeshEditorResidentFinishTimeout")
+        settings.clear()
+        tab = MeshEditorTab(settings=settings)
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_embedded = True
+        tab.standalone_dotnet_target_controller = builder.controller
+        process = _FakeProcess()
+        process._state = process.Running
+        _install_shared_dotnet_test_process(tab, process, generation=11)
+        tab._set_embedded_dotnet_state("ready", active=True)
+        session_id = builder.controller.active_session_id
+        tab.standalone_dotnet_lifecycle_session_id = session_id
+        tab.standalone_dotnet_scene_frame = None
+        tab.standalone_dotnet_scene_candidate = None
+        tab.standalone_dotnet_scene_thread = object()
+        tab.standalone_dotnet_experiment_package = SimpleNamespace(
+            scene_frame=SimpleNamespace(source_identity="resident-timeout-source")
+        )
+        request = {
+            "event": "save_request",
+            "session_id": session_id,
+            "request_id": 15,
+            "base_revision": builder.controller.session_view().revision,
+            "process_generation": 11,
+            "protocol_version": 2,
+        }
+
+        self.assertTrue(tab._handle_dotnet_protocol_event(request))
+        self.assertTrue(tab.standalone_dotnet_finish_scene_timer.isActive())
+        tab._handle_dotnet_finish_scene_timeout()
+
+        self.assertEqual([], builder.finalized_dotnet_imports)
+        self.assertIsNone(tab.standalone_dotnet_finish_scene_pending)
+        self.assertIsNone(tab.standalone_dotnet_scene_pending)
+        self.assertFalse(tab.standalone_dotnet_finish_scene_timer.isActive())
+        writes = b"".join(process.stdin_writes)
+        self.assertIn(b'"event":"command_result"', writes)
+        self.assertIn(b'"status":"error"', writes)
+        self.assertIn(b'"request_id":15', writes)
+        self.assertIn(b"not acknowledged within 5 seconds", writes)
+        tab.standalone_dotnet_scene_thread = None
+        tab.standalone_dotnet_editor_process = None
+        tab.deleteLater()
+        builder.deleteLater()
         _APP.processEvents()
 
     def test_static_replacement_exit_adopts_hydrated_mesh_without_redundant_clone(self) -> None:

@@ -131,7 +131,6 @@ internal sealed partial class ExperimentForm
             "textured",
             "untextured_faces",
             "untextured_wire",
-            "textured_wire",
             "wire",
             "vertices",
             "wire_vertices",
@@ -144,7 +143,6 @@ internal sealed partial class ExperimentForm
                 "Solid (Textured)",
                 "Faces (No Textures)",
                 "Faces + Wire",
-                "Solid + Wire",
                 "Wire",
                 "Vertices",
                 "Wire + Vertices",
@@ -164,15 +162,11 @@ internal sealed partial class ExperimentForm
             }
             var index = Math.Clamp(_previewMode.SelectedIndex, 0, modes.Length - 1);
             var mode = modes[index];
-            if ((string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase)
                 && _options.Embedded
                 && !HasResidentTextureResources())
             {
-                var fallbackMode = string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase)
-                    ? "untextured_wire"
-                    : "untextured_faces";
-                _ = _viewport.TrySetDisplayMode(fallbackMode, out _);
+                _ = _viewport.TrySetDisplayMode("untextured_faces", out _);
                 RequestResidentViewportDisplay(mode);
                 return;
             }
@@ -215,10 +209,7 @@ internal sealed partial class ExperimentForm
             // an early "Solid (Textured)" pick do nothing until the user
             // happened to pick another textured mode later.
             _pendingResidentDisplayMode = mode;
-            SyncPreviewModeSelection(
-                string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase)
-                    ? "untextured_wire"
-                    : "untextured_faces");
+            SyncPreviewModeSelection("untextured_faces");
             _statusLabel.Text = "Textures will load as soon as the resident preview is ready...";
             return;
         }
@@ -257,16 +248,19 @@ internal sealed partial class ExperimentForm
     private void SyncPreviewModeSelection(string mode)
     {
         var normalized = mode.Trim().ToLowerInvariant();
+        if (string.Equals(normalized, "textured_wire", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = "textured";
+        }
         var index = normalized switch
         {
             "textured" => 0,
             "untextured_faces" => 1,
             "untextured_wire" => 2,
-            "textured_wire" => 3,
-            "wire" => 4,
-            "vertices" => 5,
-            "wire_vertices" => 6,
-            "xray" => 7,
+            "wire" => 3,
+            "vertices" => 4,
+            "wire_vertices" => 5,
+            "xray" => 6,
             _ => -1,
         };
         if (index < 0)
@@ -1071,7 +1065,7 @@ internal sealed partial class ExperimentForm
                 mode = mode switch
                 {
                     "textured" => "untextured_faces",
-                    "textured_wire" => "untextured_wire",
+                    "textured_wire" => "untextured_faces",
                     _ => mode,
                 };
             }

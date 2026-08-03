@@ -1200,6 +1200,15 @@ internal sealed partial class ExperimentForm
             && (_residentProcessGeneration <= 0 || requestedProcessGeneration == _residentProcessGeneration);
         var rejectionReason = string.Empty;
         var applied = false;
+        var hasAuthoritativeRoles = root.TryGetProperty("roles", out var roles)
+            && roles.ValueKind == JsonValueKind.Object;
+        var interactionOnly = !hasAuthoritativeRoles
+            && root.TryGetProperty("interaction_mode", out var interactionMode)
+            && interactionMode.ValueKind == JsonValueKind.String
+            && !root.TryGetProperty("placement", out _)
+            && !root.TryGetProperty("bounds", out _)
+            && !root.TryGetProperty("editable_submesh_count", out _)
+            && !root.TryGetProperty("reference_submesh_count", out _);
         if (_options.SimplePreview
             && string.Equals(JsonString(root, "interaction_mode"), "mesh_edit", StringComparison.OrdinalIgnoreCase))
         {
@@ -1207,7 +1216,9 @@ internal sealed partial class ExperimentForm
         }
         else if (processMatches)
         {
-            applied = _scene.TryApplyResidentUpdate(root, _document.Submeshes.Count, out rejectionReason);
+            applied = interactionOnly
+                ? _scene.TryApplyResidentInteractionUpdate(root, out rejectionReason)
+                : _scene.TryApplyResidentUpdate(root, _document.Submeshes.Count, out rejectionReason);
         }
         else
         {
@@ -1215,7 +1226,10 @@ internal sealed partial class ExperimentForm
         }
         if (applied)
         {
-            CompleteAuthoritativeSceneState();
+            if (hasAuthoritativeRoles)
+            {
+                CompleteAuthoritativeSceneState();
+            }
             ReassertInteractionModeControls();
             _viewport.ApplySceneState();
             RefreshSubmeshList();
