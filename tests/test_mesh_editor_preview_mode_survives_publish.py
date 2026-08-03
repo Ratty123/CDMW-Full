@@ -48,6 +48,7 @@ def _mounted_tab(name: str):
         tab,
         process,
         capabilities=("resident_material_updates_v2", "viewport_display_modes_v1"),
+        session_id=builder.controller.session_view().session_id,
     )
     setattr(builder, "_mesh_editor_embedded_dotnet_active", True)
     return app, tab, builder, process

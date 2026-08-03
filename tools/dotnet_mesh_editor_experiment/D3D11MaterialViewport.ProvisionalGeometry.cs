@@ -1,4 +1,5 @@
 using System.Numerics;
+using Vortice.Direct3D11;
 using Vortice.Mathematics;
 
 namespace Cdmw.MeshEditorExperiment;
@@ -11,7 +12,11 @@ namespace Cdmw.MeshEditorExperiment;
 /// </summary>
 internal sealed partial class D3D11MaterialViewport
 {
+    private const int ProvisionalRotatingFaceThreshold = 2048;
     private readonly Dictionary<int, Vector3> _provisionalPartTranslations = new();
+    private long _provisionalVertexBufferCreateCount;
+    private long _provisionalVertexBufferUpdateCount;
+    private long _provisionalVertexBufferDisposeCount;
 
     public void BeginProvisionalPartTransforms(IEnumerable<int> submeshIndices)
     {
@@ -50,6 +55,7 @@ internal sealed partial class D3D11MaterialViewport
             if (requested.Contains(batch.SubmeshIndex)
                 && batch.SubmeshIndex < _scene.EditableSubmeshCount)
             {
+                batch.ProvisionalGeometry?.Dispose();
                 batch.ProvisionalGeometry = new D3D11ProvisionalBatchGeometry(
                     batch.ResidentVertices,
                     batch.RenderFaces.Length);
@@ -61,7 +67,8 @@ internal sealed partial class D3D11MaterialViewport
         int submeshIndex,
         IReadOnlyList<Vec3> positions,
         int[] changedSourceIndices,
-        int changedCount)
+        int changedCount,
+        bool stableChangedSet = false)
     {
         if (_context is null || changedCount <= 0)
         {
@@ -82,6 +89,7 @@ internal sealed partial class D3D11MaterialViewport
             return;
         }
         state.BeginFrame();
+        var stableRangesReady = stableChangedSet && state.HasStableFaceRanges;
         var limit = Math.Min(changedCount, changedSourceIndices.Length);
         for (var itemIndex = 0; itemIndex < limit; itemIndex++)
         {
@@ -97,10 +105,13 @@ internal sealed partial class D3D11MaterialViewport
                 {
                     Position = new Vector3(position.X, position.Y, position.Z),
                 };
-                state.MarkFace(renderCorner / 3);
+                if (!stableRangesReady)
+                {
+                    state.MarkFace(renderCorner / 3);
+                }
             }
         }
-        UploadProvisionalFrame(batch, state);
+        UploadProvisionalFrame(batch, state, stableChangedSet);
         Invalidate();
     }
 
@@ -118,6 +129,11 @@ internal sealed partial class D3D11MaterialViewport
             {
                 UploadTouchedAuthoritativeFaces(batch, state);
             }
+            if (state.ProvisionalVertexBufferCount > 0)
+            {
+                _provisionalVertexBufferDisposeCount += state.ProvisionalVertexBufferCount;
+            }
+            state.Dispose();
             batch.ProvisionalGeometry = null;
         }
         Invalidate();
@@ -125,13 +141,75 @@ internal sealed partial class D3D11MaterialViewport
 
     private void UploadProvisionalFrame(
         D3D11SubmeshBatch batch,
-        D3D11ProvisionalBatchGeometry state)
+        D3D11ProvisionalBatchGeometry state,
+        bool stableChangedSet)
     {
-        if (_context is null || state.FrameFaceCount <= 0)
+        if (_context is null
+            || (!state.HasStableFaceRanges && state.FrameFaceCount <= 0))
         {
             return;
         }
-        Array.Sort(state.FrameFaces, 0, state.FrameFaceCount);
+        if (!state.HasStableFaceRanges)
+        {
+            Array.Sort(state.FrameFaces, 0, state.FrameFaceCount);
+            if (stableChangedSet)
+            {
+                state.CaptureStableFaceRanges();
+            }
+        }
+        var faceCount = state.HasStableFaceRanges
+            ? state.StableFaceCount
+            : state.FrameFaceCount;
+        var rotating = state.CurrentProvisionalVertexBuffer is not null
+            || faceCount >= ProvisionalRotatingFaceThreshold;
+        var vertexBuffer = batch.VertexBuffer;
+        if (rotating)
+        {
+            if (_device is null)
+            {
+                return;
+            }
+            if (state.ProvisionalVertexBufferCount == 0)
+            {
+                state.CreateProvisionalVertexBuffers(_device);
+                _provisionalVertexBufferCreateCount += state.ProvisionalVertexBufferCount;
+            }
+            vertexBuffer = state.AdvanceProvisionalVertexBuffer();
+            if (vertexBuffer is null)
+            {
+                return;
+            }
+        }
+        if (state.HasStableFaceRanges)
+        {
+            for (var index = 0; index < state.StableFaceRangeCount; index++)
+            {
+                UploadProvisionalFaceRange(
+                    vertexBuffer,
+                    state.Vertices,
+                    state.StableFaceRangeStart(index),
+                    state.StableFaceRangeEnd(index));
+            }
+        }
+        else
+        {
+            UploadSortedProvisionalFaceRanges(vertexBuffer, state);
+        }
+        if (rotating)
+        {
+            _provisionalVertexBufferUpdateCount++;
+        }
+    }
+
+    private void UploadSortedProvisionalFaceRanges(
+        ID3D11Buffer vertexBuffer,
+        D3D11ProvisionalBatchGeometry state)
+    {
+        if (state.CurrentProvisionalVertexBuffer is not null
+            && state.FrameFaceCount <= 0)
+        {
+            return;
+        }
         var rangeStart = state.FrameFaces[0];
         var rangeEnd = rangeStart;
         for (var index = 1; index < state.FrameFaceCount; index++)
@@ -142,11 +220,14 @@ internal sealed partial class D3D11MaterialViewport
                 rangeEnd = face;
                 continue;
             }
-            UploadProvisionalFaceRange(batch, state.Vertices, rangeStart, rangeEnd);
+            UploadProvisionalFaceRange(vertexBuffer, state.Vertices, rangeStart, rangeEnd);
             rangeStart = rangeEnd = face;
         }
-        UploadProvisionalFaceRange(batch, state.Vertices, rangeStart, rangeEnd);
+        UploadProvisionalFaceRange(vertexBuffer, state.Vertices, rangeStart, rangeEnd);
     }
+
+    private static ID3D11Buffer ActiveVertexBuffer(D3D11SubmeshBatch batch) =>
+        batch.ProvisionalGeometry?.CurrentProvisionalVertexBuffer ?? batch.VertexBuffer;
 
     private void UploadTouchedAuthoritativeFaces(
         D3D11SubmeshBatch batch,
@@ -165,13 +246,13 @@ internal sealed partial class D3D11MaterialViewport
             {
                 continue;
             }
-            UploadProvisionalFaceRange(batch, batch.ResidentVertices, rangeStart, face - 1);
+            UploadProvisionalFaceRange(batch.VertexBuffer, batch.ResidentVertices, rangeStart, face - 1);
             rangeStart = -1;
         }
     }
 
     private void UploadProvisionalFaceRange(
-        D3D11SubmeshBatch batch,
+        ID3D11Buffer vertexBuffer,
         D3D11MaterialVertex[] vertices,
         int firstFace,
         int lastFace)
@@ -186,7 +267,7 @@ internal sealed partial class D3D11MaterialViewport
         var byteEnd = checked(byteStart + renderVertexCount * (int)D3D11SubmeshBatch.VertexStride);
         _context.UpdateSubresource(
             vertices.AsSpan(firstRenderVertex, renderVertexCount),
-            batch.VertexBuffer,
+            vertexBuffer,
             0,
             0,
             0,
@@ -205,10 +286,15 @@ internal sealed partial class D3D11MaterialViewport
     }
 }
 
-internal sealed class D3D11ProvisionalBatchGeometry
+internal sealed class D3D11ProvisionalBatchGeometry : IDisposable
 {
+    private const int ProvisionalVertexBufferCountTarget = 3;
     private int _frameGeneration;
     private readonly int[] _frameMarks;
+    private ID3D11Buffer[] _provisionalVertexBuffers = Array.Empty<ID3D11Buffer>();
+    private int _provisionalVertexBufferIndex = -1;
+    private int[] _stableFaceRangeStarts = Array.Empty<int>();
+    private int[] _stableFaceRangeEnds = Array.Empty<int>();
 
     public D3D11ProvisionalBatchGeometry(
         IReadOnlyCollection<D3D11MaterialVertex> residentVertices,
@@ -223,7 +309,92 @@ internal sealed class D3D11ProvisionalBatchGeometry
     public D3D11MaterialVertex[] Vertices { get; }
     public int[] FrameFaces { get; }
     public bool[] TouchedFaces { get; }
+    public ID3D11Buffer? CurrentProvisionalVertexBuffer =>
+        _provisionalVertexBufferIndex >= 0 && _provisionalVertexBufferIndex < _provisionalVertexBuffers.Length
+            ? _provisionalVertexBuffers[_provisionalVertexBufferIndex]
+            : null;
+    public int ProvisionalVertexBufferCount => _provisionalVertexBuffers.Length;
+    public bool HasStableFaceRanges => _stableFaceRangeStarts.Length > 0;
+    public int StableFaceRangeCount => _stableFaceRangeStarts.Length;
+    public int StableFaceCount { get; private set; }
     public int FrameFaceCount { get; private set; }
+
+    public int StableFaceRangeStart(int index) => _stableFaceRangeStarts[index];
+    public int StableFaceRangeEnd(int index) => _stableFaceRangeEnds[index];
+
+    public void CaptureStableFaceRanges()
+    {
+        if (HasStableFaceRanges || FrameFaceCount <= 0)
+        {
+            return;
+        }
+        var starts = new int[FrameFaceCount];
+        var ends = new int[FrameFaceCount];
+        var rangeCount = 0;
+        var rangeStart = FrameFaces[0];
+        var rangeEnd = rangeStart;
+        for (var index = 1; index < FrameFaceCount; index++)
+        {
+            var face = FrameFaces[index];
+            if (face == rangeEnd + 1)
+            {
+                rangeEnd = face;
+                continue;
+            }
+            starts[rangeCount] = rangeStart;
+            ends[rangeCount] = rangeEnd;
+            rangeCount++;
+            rangeStart = rangeEnd = face;
+        }
+        starts[rangeCount] = rangeStart;
+        ends[rangeCount] = rangeEnd;
+        rangeCount++;
+        StableFaceCount = FrameFaceCount;
+        _stableFaceRangeStarts = starts.AsSpan(0, rangeCount).ToArray();
+        _stableFaceRangeEnds = ends.AsSpan(0, rangeCount).ToArray();
+    }
+
+    public unsafe void CreateProvisionalVertexBuffers(ID3D11Device device)
+    {
+        if (_provisionalVertexBuffers.Length > 0 || Vertices.Length == 0)
+        {
+            return;
+        }
+        var buffers = new ID3D11Buffer[ProvisionalVertexBufferCountTarget];
+        try
+        {
+            var description = new BufferDescription(
+                checked((uint)(Vertices.Length * (long)D3D11SubmeshBatch.VertexStride)),
+                BindFlags.VertexBuffer);
+            fixed (D3D11MaterialVertex* source = Vertices)
+            {
+                var initialData = new SubresourceData((IntPtr)source);
+                for (var index = 0; index < buffers.Length; index++)
+                {
+                    buffers[index] = device.CreateBuffer(description, initialData);
+                }
+            }
+            _provisionalVertexBuffers = buffers;
+        }
+        catch
+        {
+            foreach (var buffer in buffers)
+            {
+                buffer?.Dispose();
+            }
+            throw;
+        }
+    }
+
+    public ID3D11Buffer? AdvanceProvisionalVertexBuffer()
+    {
+        if (_provisionalVertexBuffers.Length == 0)
+        {
+            return null;
+        }
+        _provisionalVertexBufferIndex = (_provisionalVertexBufferIndex + 1) % _provisionalVertexBuffers.Length;
+        return _provisionalVertexBuffers[_provisionalVertexBufferIndex];
+    }
 
     public void BeginFrame()
     {
@@ -260,5 +431,15 @@ internal sealed class D3D11ProvisionalBatchGeometry
         {
             TouchedFaces[face] = true;
         }
+    }
+
+    public void Dispose()
+    {
+        foreach (var buffer in _provisionalVertexBuffers)
+        {
+            buffer.Dispose();
+        }
+        _provisionalVertexBuffers = Array.Empty<ID3D11Buffer>();
+        _provisionalVertexBufferIndex = -1;
     }
 }

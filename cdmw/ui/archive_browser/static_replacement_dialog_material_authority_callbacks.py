@@ -439,6 +439,8 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
     _material_authority_sidecar_option_state_helper = context.get('_material_authority_sidecar_option_state_helper')
     _original_texture_preview_material_preview_enabled_helper = context.get('_original_texture_preview_material_preview_enabled_helper')
     _alignment_d3d11_preview_active = context.get('_alignment_d3d11_preview_active')
+    _set_alignment_d3d11_progress = context.get('_set_alignment_d3d11_progress')
+    alignment_d3d11_state = context.get('alignment_d3d11_state')
     _queue_material_edit_refresh = context.get('_queue_material_edit_refresh')
     _queue_texture_preview_refresh = context.get('_queue_texture_preview_refresh')
     _refresh_manual_material_profile_panel = context.get('_refresh_manual_material_profile_panel')
@@ -581,6 +583,19 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
         material_revision: int = 0,
     ) -> None:
         material_resource_controller.finish(generation, committed, bindings)
+        if (
+            committed
+            and callable(_set_alignment_d3d11_progress)
+            and isinstance(alignment_d3d11_state, Mapping)
+            and str(alignment_d3d11_state.get("loading_stage", "") or "")
+            == "source_textures"
+        ):
+            _set_alignment_d3d11_progress(
+                100,
+                "Preview ready.",
+                stage="ready",
+                active=False,
+            )
         pending = getattr(dialog, "_material_authority_pending_resolved_state", None)
         if not isinstance(pending, MaterialAuthorityResolvedState):
             return

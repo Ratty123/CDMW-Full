@@ -55,10 +55,23 @@ class _FakeSharedController:
     def __init__(self) -> None:
         self.is_running = True
         self.sent: list[dict] = []
+        self.request_id = 40
 
     def send_authoring_message(self, payload) -> bool:
         self.sent.append(dict(payload))
         return True
+
+    def send_correlated(self, event: str, payload) -> int:
+        self.request_id += 1
+        self.sent.append(
+            {
+                **dict(payload),
+                "event": str(event),
+                "request_id": self.request_id,
+                "process_generation": 3,
+            }
+        )
+        return self.request_id
 
 
 def _embedded_tab(name: str) -> tuple[MeshEditorTab, _PresentationBuilder, _FakeSharedController]:
@@ -150,6 +163,22 @@ def test_a_changed_snapshot_still_publishes() -> None:
         for index in range(3, 8):
             _drive_scene_frame(tab, builder, index)
         assert len(_publishes(fake)) == 2
+    finally:
+        tab.deleteLater()
+
+
+def test_presentation_uses_the_shared_controller_request_sequence() -> None:
+    """Host and tab presentation acks must never share a request id."""
+
+    tab, _builder, fake = _embedded_tab("MeshPresentationSharedRequestIds")
+    try:
+        assert tab._send_dotnet_presentation_state(copy.deepcopy(_PRESENTATION))
+
+        pending = tab.standalone_dotnet_presentation_pending
+        assert pending is not None
+        assert pending["request_id"] == 41
+        assert _publishes(fake)[-1]["request_id"] == 41
+        assert tab.standalone_dotnet_presentation_request_id == 41
     finally:
         tab.deleteLater()
 

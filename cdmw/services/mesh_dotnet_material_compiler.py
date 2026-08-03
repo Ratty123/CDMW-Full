@@ -55,6 +55,7 @@ class MeshDotNetMaterialCompileRequest:
     mesh_snapshot: object
     affected_submeshes: tuple[int, ...] = ()
     submesh_index_offset: int = 0
+    mirror_reference_submesh_offset: int = 0
     material_signature: str = ""
     output_root: Path | None = None
     reason: str = "changed"
@@ -379,6 +380,21 @@ def _resident_payload_from_manifest(
         all_indices.append(submesh_index)
         submesh["channels"] = dict(submesh.get("resource_channels", {}) or {})
         submeshes.append(submesh)
+    mirror_offset = max(0, int(request.mirror_reference_submesh_offset))
+    if mirror_offset > 0:
+        mirrored: list[dict[str, object]] = []
+        for submesh in submeshes:
+            source_index = _safe_int(submesh.get("submesh_index", -1), -1)
+            if source_index < 0:
+                continue
+            reference = copy.deepcopy(submesh)
+            reference["submesh_index"] = mirror_offset + source_index
+            mirrored.append(reference)
+        submeshes.extend(mirrored)
+        all_indices.extend(
+            _safe_int(submesh.get("submesh_index", -1), -1)
+            for submesh in mirrored
+        )
     valid_indices = set(all_indices)
     affected = (
         sorted(valid_indices)
@@ -416,6 +432,7 @@ def _resident_payload_from_manifest(
             "cache_hit": bool(cache_hit),
             "cache_dir": str(cache_dir),
             "initial_resident_equivalent": True,
+            "mirrored_reference_submesh_offset": mirror_offset,
         }
     )
     submeshes_by_index = {
@@ -446,6 +463,9 @@ def _resident_payload_from_manifest(
             index = _safe_int(raw_index, -1)
             if index in submeshes_by_index:
                 submeshes_by_index[index]["parameters"] = dict(parameters)
+    roles = [str(request.role or "replacement")]
+    if mirror_offset > 0:
+        roles.append("original_reference")
     return {
         "schema": "cdmw_mesh_material_state_v3",
         "version": 3,
@@ -454,6 +474,7 @@ def _resident_payload_from_manifest(
         "edit_revision": max(0, int(request.edit_revision)),
         "generation": max(0, int(request.generation)),
         "role": str(request.role or "replacement"),
+        "roles": roles,
         "reason": str(request.reason or "changed"),
         "material_signature": str(
             request.material_signature

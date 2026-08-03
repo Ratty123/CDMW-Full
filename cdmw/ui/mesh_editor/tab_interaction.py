@@ -318,7 +318,7 @@ class MeshEditorInteractionMixin:
     def _handle_standalone_live_stroke_completed(self, outcome: object) -> None:
         if not isinstance(outcome, _tab.MeshLiveStrokeOutcome):
             return
-        if outcome.source == "dotnet":
+        if outcome.source in {"dotnet", "dotnet_morph"}:
             self._handle_dotnet_live_stroke_completed(outcome)
             return
         controller = self.standalone_controller
@@ -368,7 +368,7 @@ class MeshEditorInteractionMixin:
     def _handle_standalone_live_stroke_failed(self, failure: object) -> None:
         if not isinstance(failure, _tab.MeshLiveStrokeFailure):
             return
-        if failure.source == "dotnet":
+        if failure.source in {"dotnet", "dotnet_morph"}:
             self._handle_dotnet_live_stroke_failed(failure)
             return
         if failure.controller is not self.standalone_controller:
@@ -429,7 +429,8 @@ class MeshEditorInteractionMixin:
             "stroke_id": stroke_id,
         }
         raw_scope = payload.get("scope_source_indices")
-        if normalized_phase == "begin" and not isinstance(raw_scope, (Mapping, str, bytes)):
+        scope_source_indices: list[int] = []
+        if not isinstance(raw_scope, (Mapping, str, bytes)):
             try:
                 scope_source_indices = sorted(
                     {
@@ -440,10 +441,6 @@ class MeshEditorInteractionMixin:
             except TypeError:
                 scope_source_indices = []
             scope_source_indices = [index for index in scope_source_indices if index >= 0]
-            if scope_source_indices:
-                params["_native_selection_payload"] = {
-                    "source_indices": scope_source_indices,
-                }
         if tool in {"move", "vertex"}:
             raw_screen_drag = payload.get("screen_drag")
             if not isinstance(raw_screen_drag, Mapping):
@@ -454,7 +451,12 @@ class MeshEditorInteractionMixin:
             if not reuse_resident_selection:
                 raw_screen_brush = payload.get("screen_brush")
                 if isinstance(raw_screen_brush, Mapping):
-                    screen_payload: dict[str, object] = {"screen_brush": MeshEditorInteractionMixin._native_screen_payload(raw_screen_brush)}
+                    screen_payload: dict[str, object] = {
+                        "screen_brush": MeshEditorInteractionMixin._native_scoped_screen_payload(
+                            raw_screen_brush,
+                            scope_source_indices,
+                        )
+                    }
                     if "target_mode" in payload:
                         screen_payload["target_mode"] = str(payload.get("target_mode") or "vertex")
                     if "selection_depth_mode" in payload:
@@ -480,10 +482,16 @@ class MeshEditorInteractionMixin:
             params["radius"] = self._standalone_native_payload_float(payload.get("radius"), 1.0)
         raw_screen_radius = payload.get("screen_radius")
         if isinstance(raw_screen_radius, Mapping):
-            params["screen_radius"] = MeshEditorInteractionMixin._native_screen_payload(raw_screen_radius)
+            params["screen_radius"] = MeshEditorInteractionMixin._native_scoped_screen_payload(
+                raw_screen_radius,
+                scope_source_indices,
+            )
         raw_screen_brush = payload.get("screen_brush")
         if isinstance(raw_screen_brush, Mapping):
-            params["screen_brush"] = MeshEditorInteractionMixin._native_screen_payload(raw_screen_brush)
+            params["screen_brush"] = MeshEditorInteractionMixin._native_scoped_screen_payload(
+                raw_screen_brush,
+                scope_source_indices,
+            )
         if "target_mode" in payload:
             params["target_mode"] = str(payload.get("target_mode") or "vertex")
         if "selection_depth_mode" in payload:
@@ -521,6 +529,15 @@ class MeshEditorInteractionMixin:
     @staticmethod
     def _native_screen_payload(payload: Mapping[object, object]) -> dict[object, object]:
         return {key: value for key, value in payload.items() if str(key) not in _LEGACY_SCREEN_CAMERA_FIELDS}
+    @staticmethod
+    def _native_scoped_screen_payload(
+        payload: Mapping[object, object],
+        source_indices: list[int],
+    ) -> dict[object, object]:
+        normalized = MeshEditorInteractionMixin._native_screen_payload(payload)
+        if source_indices:
+            normalized["source_submesh_indices"] = tuple(source_indices)
+        return normalized
     @classmethod
     def _standalone_native_payload_selection(cls, payload: Mapping[object, object]) -> dict[str, object]:
         raw_groups = payload.get("groups")

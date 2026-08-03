@@ -167,6 +167,9 @@ def _real_game_mesh_evidence(proof: Mapping[str, object]) -> dict[str, object]:
             "end": list(proof.get("mouse_drag_end", ())),
             "screen_delta": list(proof.get("selected_projected_screen_delta", ())),
             "screen_error": float(proof.get("selected_projected_screen_error", 0.0) or 0.0),
+            "terminal_coverage": dict(proof.get("stroke_terminal_coverage", {}))
+            if isinstance(proof.get("stroke_terminal_coverage"), Mapping)
+            else {},
         },
         "frame_timings": dict(proof.get("live_stroke_timing_summary", proof.get("stroke_handler_timing_summary", {})))
         if isinstance(proof.get("live_stroke_timing_summary", proof.get("stroke_handler_timing_summary", {})), Mapping)

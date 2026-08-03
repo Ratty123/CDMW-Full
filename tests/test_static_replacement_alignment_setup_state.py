@@ -11,9 +11,6 @@ from cdmw.ui.archive_browser.static_replacement_alignment_setup_state import (
     alignment_import_diagnostic_rows,
     alignment_import_diagnostics_control_text,
     alignment_import_diagnostics_html,
-    alignment_placement_review_html,
-    alignment_selection_context_help_text,
-    alignment_selection_context_initial_text,
     alignment_setup_intro_html,
     alignment_setup_options_control_text,
     alignment_setup_warning_label_text,
@@ -37,28 +34,12 @@ def test_alignment_builder_window_title_preserves_default_title() -> None:
     assert alignment_preview_build_failed_status("boom") == "Mesh replacement preview build failed: boom"
 
 
-def test_alignment_selection_context_text_preserves_copy() -> None:
-    assert alignment_selection_context_initial_text() == "Source: none | Target: none | Texture: none"
-    help_text = alignment_selection_context_help_text()
-
-    assert "current source, target, and texture selection" in help_text
-    assert "highlights the related preview part" in help_text
-
-
 def test_alignment_setup_intro_html_preserves_copy() -> None:
     html = alignment_setup_intro_html()
 
     assert "Setup" in html
     assert "Alignment behavior, safety options, and export values." in html
     assert "border-left:3px solid #2f81f7" in html
-
-
-def test_alignment_placement_review_html_preserves_copy() -> None:
-    html = alignment_placement_review_html()
-
-    assert "Placement review required" in html
-    assert "Session-only clone; final output is written through loose-mod save." in html
-    assert "border-left:3px solid #f59e0b" in html
 
 
 def test_alignment_import_diagnostics_control_text_preserves_copy() -> None:

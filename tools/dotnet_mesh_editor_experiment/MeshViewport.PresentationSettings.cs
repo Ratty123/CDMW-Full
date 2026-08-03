@@ -180,17 +180,15 @@ internal sealed partial class MeshViewport
 
     public bool TrySetSynchronizedDisplayMode(string mode, out string error)
     {
-        if (!TrySetDisplayMode(mode, out error))
+        if (!TryApplyDisplayModeState(mode, out error))
         {
             return false;
         }
         SynchronizePresentationDisplaySettings();
-        // TrySetDisplayMode already rebuilt the pane records, but it ran before
-        // the contexts above adopted the new mode, so those records still carry
-        // the old per-pane display state. Without this rebuild the viewport
-        // keeps drawing the previous mode until something else -- a camera
-        // move, a resize -- pushes fresh panes, which is exactly the "textures
-        // only show up when I move the camera" report.
+        // Publish and rebuild only after every pane has adopted the mode. Doing
+        // either earlier exposes an intermediate active-pane-only state to the
+        // host and briefly draws the inactive pane with its previous display.
+        NotifyViewStateChanged();
         UpdateGpuViewport();
         Invalidate();
         return true;

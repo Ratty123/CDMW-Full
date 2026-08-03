@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QApplication
 
 from cdmw.ui.mesh_editor.process_io import DOTNET_PROTOCOL_BUFFER_LIMIT
 from cdmw.ui.mesh_editor.tab import MeshEditorTab
+from cdmw.ui.mesh_editor.tab_dotnet_payloads import MeshEditorDotNetPayloadMixin
 
 DOTNET_EDITOR = Path(__file__).resolve().parents[1] / "tools" / "dotnet_mesh_editor_experiment"
 
@@ -34,6 +35,33 @@ class _StdoutProcess:
     def readAllStandardOutput(self) -> bytes:
         chunk, self._chunk = self._chunk, b""
         return chunk
+
+
+class _ScreenSelectionPayloadHarness(MeshEditorDotNetPayloadMixin):
+    @staticmethod
+    def _native_screen_payload(payload: object) -> dict[object, object]:
+        assert isinstance(payload, dict)
+        return dict(payload)
+
+
+def test_edit_mesh_screen_selection_never_promotes_a_viewport_hit_to_a_part() -> None:
+    owner = object.__new__(_ScreenSelectionPayloadHarness)
+    payload = {
+        "screen_brush": {"x": 10, "y": 20, "radius": 24.0},
+        "selection_depth_mode": "visible",
+    }
+
+    for target_mode in ("vertex", "edge", "face"):
+        result = owner._dotnet_screen_selection_payload(
+            dict(payload, target_mode=target_mode)
+        )
+        assert result["target_mode"] == target_mode
+
+    for stale_part_target in ("source", "part", ""):
+        result = owner._dotnet_screen_selection_payload(
+            dict(payload, target_mode=stale_part_target)
+        )
+        assert result["target_mode"] == "vertex"
 
 
 def _tab_for_stdout(name: str) -> MeshEditorTab:
@@ -125,7 +153,7 @@ def test_helper_pins_the_stroke_tool_and_paces_stroke_updates() -> None:
     assert "private static readonly HashSet<string> StrokeTools" in input_source
     assert "IsStrokeTool(ActiveTool)" in input_source
     assert "private string _strokeTool" in input_source
-    assert 'StrokePointerPayload(e.Location, _strokePrevious)' in input_source
+    assert 'StrokePointerPayload(location, _strokeProtocolPrevious)' in input_source
     assert "toolOverride: _strokeTool" in input_source
 
     # A gesture that loses its mouse-up must not leave the stroke open.

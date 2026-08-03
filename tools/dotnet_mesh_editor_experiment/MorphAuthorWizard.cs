@@ -5,7 +5,9 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed class MorphAuthorDialog : Form
 {
-    private readonly Func<IReadOnlyList<MorphPartChoice>> _partProvider;
+    private readonly IReadOnlyList<MorphPartChoice> _allParts;
+    private readonly IReadOnlyList<MorphPartChoice> _initialParts;
+    private readonly Dictionary<string, object?> _capturedMeshSelection;
     private readonly Color _section;
     private readonly Color _input;
     private readonly Color _text;
@@ -34,12 +36,15 @@ internal sealed class MorphAuthorDialog : Form
     private readonly NumericUpDown _minimum = new();
     private readonly NumericUpDown _maximum = new();
     private readonly NumericUpDown _default = new();
-    private readonly FlowLayoutPanel _partChips = new();
-    private readonly Label _partEmpty = new();
+    private readonly CheckedListBox _partList = new();
+    private readonly RadioButton _useParts = new();
+    private readonly RadioButton _useMeshSelection = new();
+    private readonly CheckBox _replaceExistingSelection = new();
+    private readonly Label _meshSelectionSummary = new();
     private readonly Panel _axisField = new();
     private readonly Panel _advancedBody = new();
     private readonly Label _review = new();
-    private IReadOnlyList<MorphPartChoice> _parts = Array.Empty<MorphPartChoice>();
+    private readonly bool _editingExistingDefinition;
     private int _pageIndex;
     private bool _protocolBusy;
 
@@ -50,6 +55,8 @@ internal sealed class MorphAuthorDialog : Form
     public string ProfileId => _profileId.Text.Trim();
     public string ProfileName => _profileName.Text.Trim();
     public string DefinitionId => _definitionId.Text.Trim();
+    public bool PreserveExistingSelection =>
+        _editingExistingDefinition && !_replaceExistingSelection.Checked;
 
     public Dictionary<string, object?> Payload => new()
     {
@@ -67,33 +74,31 @@ internal sealed class MorphAuthorDialog : Form
         ["min_percent"] = (double)_minimum.Value,
         ["max_percent"] = (double)_maximum.Value,
         ["default_percent"] = (double)_default.Value,
-        ["local_selection"] = new Dictionary<string, object?>
-        {
-            ["vertices_by_submesh"] = new Dictionary<string, object?>(),
-            ["edges_by_submesh"] = new Dictionary<string, object?>(),
-            ["faces_by_submesh"] = new Dictionary<string, object?>(),
-            ["source_indices"] = _parts.Select(part => part.Index).ToArray(),
-            ["empty"] = _parts.Count == 0,
-        },
+        ["local_selection"] = LocalSelectionPayload(),
     };
 
     public MorphAuthorDialog(
         string profileId,
         string profileName,
         JsonElement? definition,
-        Func<IReadOnlyList<MorphPartChoice>> partProvider,
+        IReadOnlyList<MorphPartChoice> allParts,
+        IReadOnlyList<MorphPartChoice> selectedParts,
+        Dictionary<string, object?> capturedMeshSelection,
         Color background,
         Color section,
         Color input,
         Color text,
         Color muted)
     {
-        _partProvider = partProvider;
+        _allParts = allParts;
+        _initialParts = selectedParts;
+        _capturedMeshSelection = new Dictionary<string, object?>(capturedMeshSelection);
         _section = section;
         _input = input;
         _text = text;
         _muted = muted;
         var hasDefinition = definition.HasValue && definition.Value.ValueKind == JsonValueKind.Object;
+        _editingExistingDefinition = hasDefinition;
 
         Text = hasDefinition ? "Edit Morph Profile Slider" : "Create Morph Profile";
         Name = "MorphProfileWizard";
@@ -226,7 +231,7 @@ internal sealed class MorphAuthorDialog : Form
         root.Controls.Add(navigation, 0, 3);
         Controls.Add(root);
         CancelButton = _cancel;
-        RefreshParts();
+        InitializeSelectionPage();
         ShowPage(0);
     }
 
@@ -234,7 +239,7 @@ internal sealed class MorphAuthorDialog : Form
     {
         var page = Page();
         AddField(page, "Profile name", _profileName);
-        var hint = Hint("Use a friendly name. A stable profile ID is generated automatically and can be changed under Advanced.");
+        var hint = Hint("Use a friendly name. Stable profile and slider IDs are generated automatically and shown under Advanced.");
         AddRow(page, hint);
         return page;
     }
@@ -242,20 +247,52 @@ internal sealed class MorphAuthorDialog : Form
     private Control BuildPartsPage()
     {
         var page = Page();
-        _partChips.Name = "MorphWizardSelectedPartChips";
-        _partChips.Dock = DockStyle.Top;
-        _partChips.AutoSize = true;
-        _partChips.WrapContents = true;
-        _partChips.BackColor = _section;
-        _partEmpty.AutoSize = true;
-        _partEmpty.ForeColor = _muted;
-        _partEmpty.Text = "No parts selected. Return to the viewport, select one or more parts, then refresh.";
-        var refresh = new Button { Text = "Refresh from viewport selection", AutoSize = true };
-        refresh.Name = "MorphWizardRefreshPartsButton";
-        refresh.Click += (_, _) => RefreshParts();
-        AddRow(page, _partEmpty);
-        AddRow(page, _partChips);
-        AddRow(page, refresh);
+        _replaceExistingSelection.Name = "MorphWizardReplaceSelection";
+        _replaceExistingSelection.Text = "Replace this slider's authored mesh region";
+        _replaceExistingSelection.AutoSize = true;
+        _replaceExistingSelection.ForeColor = _text;
+        _replaceExistingSelection.BackColor = _section;
+        _replaceExistingSelection.Visible = _editingExistingDefinition;
+        _useParts.Name = "MorphWizardUseParts";
+        _useParts.Text = "Choose whole parts";
+        _useParts.AutoSize = true;
+        _useParts.ForeColor = _text;
+        _useParts.BackColor = _section;
+        _useMeshSelection.Name = "MorphWizardUseMeshSelection";
+        _useMeshSelection.Text = "Use viewport mesh selection captured when this wizard opened";
+        _useMeshSelection.AutoSize = true;
+        _useMeshSelection.ForeColor = _text;
+        _useMeshSelection.BackColor = _section;
+        _partList.Name = "MorphWizardPartList";
+        _partList.Dock = DockStyle.Top;
+        _partList.Height = 210;
+        _partList.CheckOnClick = true;
+        _partList.BackColor = _input;
+        _partList.ForeColor = _text;
+        _partList.BorderStyle = BorderStyle.FixedSingle;
+        _meshSelectionSummary.Name = "MorphWizardMeshSelectionSummary";
+        _meshSelectionSummary.AutoSize = true;
+        _meshSelectionSummary.ForeColor = _muted;
+        _meshSelectionSummary.BackColor = _section;
+        _meshSelectionSummary.MaximumSize = new Size(580, 0);
+        _useParts.CheckedChanged += (_, _) => UpdateSelectionChoice();
+        _useMeshSelection.CheckedChanged += (_, _) => UpdateSelectionChoice();
+        _replaceExistingSelection.CheckedChanged += (_, _) => UpdateSelectionChoice();
+        _partList.ItemCheck += (_, _) =>
+        {
+            if (IsHandleCreated)
+            {
+                BeginInvoke((Action)UpdateReview);
+            }
+        };
+        AddRow(page, _replaceExistingSelection);
+        AddRow(page, Hint(_editingExistingDefinition
+            ? "The authored mesh region is preserved unless you explicitly replace it below."
+            : "Choose parts directly here, or use the acknowledged vertex selection that was captured from the viewport."));
+        AddRow(page, _useParts);
+        AddRow(page, _partList);
+        AddRow(page, _useMeshSelection);
+        AddRow(page, _meshSelectionSummary);
         return page;
     }
 
@@ -296,6 +333,9 @@ internal sealed class MorphAuthorDialog : Form
         _advancedBody.Visible = false;
         _advancedBody.BackColor = _section;
         var advanced = Page();
+        advanced.Dock = DockStyle.Top;
+        advanced.AutoSize = true;
+        advanced.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         advanced.AutoScroll = false;
         AddField(advanced, "Category", _category);
         AddField(advanced, "Profile ID", _profileId);
@@ -312,6 +352,8 @@ internal sealed class MorphAuthorDialog : Form
         {
             _advancedBody.Visible = !_advancedBody.Visible;
             advancedToggle.Text = _advancedBody.Visible ? "Advanced ▾" : "Advanced ▸";
+            _advancedBody.PerformLayout();
+            page.PerformLayout();
         };
         AddRow(page, advancedToggle);
         AddRow(page, _advancedBody);
@@ -386,28 +428,95 @@ internal sealed class MorphAuthorDialog : Form
         PreviewDefinitionCreated = true;
     }
 
-    private void RefreshParts()
+    private void InitializeSelectionPage()
     {
-        _parts = _partProvider();
-        _partChips.SuspendLayout();
-        _partChips.Controls.Clear();
-        foreach (var part in _parts)
+        var initiallySelected = _initialParts.Select(part => part.Index).ToHashSet();
+        _partList.BeginUpdate();
+        foreach (var part in _allParts)
         {
-            _partChips.Controls.Add(new Label
-            {
-                AutoSize = true,
-                Text = $"{part.Name} (Part {part.Index})",
-                ForeColor = _text,
-                BackColor = _input,
-                BorderStyle = BorderStyle.FixedSingle,
-                Padding = new Padding(8, 5, 8, 5),
-                Margin = new Padding(0, 0, 6, 6),
-            });
+            _partList.Items.Add(part, initiallySelected.Contains(part.Index));
         }
-        _partChips.ResumeLayout(performLayout: true);
-        _partEmpty.Visible = _parts.Count == 0;
+        _partList.EndUpdate();
+        var meshVertexCount = SelectionMapCount(_capturedMeshSelection, "vertices_by_submesh");
+        var meshFaceCount = SelectionMapCount(_capturedMeshSelection, "faces_by_submesh");
+        var meshEdgeCount = SelectionMapCount(_capturedMeshSelection, "edges_by_submesh");
+        var hasMeshSelection = meshVertexCount + meshFaceCount + meshEdgeCount > 0;
+        _meshSelectionSummary.Text = hasMeshSelection
+            ? $"Captured mesh selection: {meshVertexCount} vertices, {meshEdgeCount} edges, {meshFaceCount} faces."
+            : "No acknowledged viewport mesh selection was available when the wizard opened.";
+        _useMeshSelection.Enabled = hasMeshSelection;
+        _useParts.Checked = initiallySelected.Count > 0 || !hasMeshSelection;
+        _useMeshSelection.Checked = !_useParts.Checked && hasMeshSelection;
+        _replaceExistingSelection.Checked = false;
+        UpdateSelectionChoice();
+    }
+
+    private void UpdateSelectionChoice()
+    {
+        var replacementEnabled = !PreserveExistingSelection;
+        _useParts.Enabled = replacementEnabled;
+        _useMeshSelection.Enabled = replacementEnabled && CapturedMeshSelectionHasElements();
+        _partList.Enabled = replacementEnabled && _useParts.Checked;
         _validation.Text = string.Empty;
         UpdateReview();
+    }
+
+    private IReadOnlyList<MorphPartChoice> SelectedParts() =>
+        _partList.CheckedItems.Cast<MorphPartChoice>()
+            .OrderBy(part => part.Index)
+            .ToArray();
+
+    private Dictionary<string, object?> LocalSelectionPayload()
+    {
+        if (_useParts.Checked)
+        {
+            var sourceIndices = SelectedParts().Select(part => part.Index).ToArray();
+            return new Dictionary<string, object?>
+            {
+                ["vertices_by_submesh"] = new Dictionary<string, object?>(),
+                ["edges_by_submesh"] = new Dictionary<string, object?>(),
+                ["faces_by_submesh"] = new Dictionary<string, object?>(),
+                ["source_indices"] = sourceIndices,
+                ["sources"] = sourceIndices,
+                ["empty"] = sourceIndices.Length == 0,
+            };
+        }
+        var captured = new Dictionary<string, object?>(_capturedMeshSelection)
+        {
+            ["source_indices"] = Array.Empty<int>(),
+            ["sources"] = Array.Empty<int>(),
+            ["empty"] = !CapturedMeshSelectionHasElements(),
+        };
+        return captured;
+    }
+
+    private bool CapturedMeshSelectionHasElements() =>
+        SelectionMapCount(_capturedMeshSelection, "vertices_by_submesh")
+        + SelectionMapCount(_capturedMeshSelection, "edges_by_submesh")
+        + SelectionMapCount(_capturedMeshSelection, "faces_by_submesh") > 0;
+
+    private static int SelectionMapCount(
+        IReadOnlyDictionary<string, object?> selection,
+        string key)
+    {
+        if (!selection.TryGetValue(key, out var raw) || raw is null)
+        {
+            return 0;
+        }
+        var value = JsonSerializer.SerializeToElement(raw);
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            return 0;
+        }
+        var count = 0;
+        foreach (var group in value.EnumerateObject())
+        {
+            if (group.Value.ValueKind == JsonValueKind.Array)
+            {
+                count += group.Value.GetArrayLength();
+            }
+        }
+        return count;
     }
 
     private void MovePage(int delta)
@@ -430,8 +539,10 @@ internal sealed class MorphAuthorDialog : Form
         var descriptions = new[]
         {
             "Name the profile people will choose in Morph & Refit.",
-            "The slider affects whole selected parts. Refresh after changing the viewport selection.",
-            "Name the slider and choose how the selected parts deform.",
+            _editingExistingDefinition
+                ? "Keep the authored mesh region, or explicitly replace it with parts or the captured viewport selection."
+                : "Choose whole parts here, or use the viewport mesh selection captured when the wizard opened.",
+            "Name the slider and choose how the selected mesh region deforms.",
             "Check the setup at its minimum, default, and maximum before saving.",
         };
         _stepTitle.Text = titles[index];
@@ -456,9 +567,11 @@ internal sealed class MorphAuthorDialog : Form
         {
             _validation.Text = "Enter a profile name.";
         }
-        else if (index == 1 && _parts.Count == 0)
+        else if (index == 1
+            && !PreserveExistingSelection
+            && (_useParts.Checked ? SelectedParts().Count == 0 : !CapturedMeshSelectionHasElements()))
         {
-            _validation.Text = "Select at least one part and refresh the selection.";
+            _validation.Text = "Choose at least one part or open the wizard with a viewport mesh selection.";
         }
         else if (index == 2 && _label.Text.Trim().Length == 0)
         {
@@ -527,11 +640,16 @@ internal sealed class MorphAuthorDialog : Form
 
     private void UpdateReview()
     {
-        var partNames = _parts.Count > 0
-            ? string.Join(", ", _parts.Select(part => part.Name))
-            : "No parts selected";
+        var selectedParts = SelectedParts();
+        var selectionText = PreserveExistingSelection
+            ? "Existing authored mesh region"
+            : _useParts.Checked
+            ? selectedParts.Count > 0
+                ? string.Join(", ", selectedParts.Select(part => part.Name))
+                : "No parts chosen"
+            : "Captured viewport mesh selection";
         var axis = _axisField.Visible ? $" on {ComboValue(_axis)}" : string.Empty;
-        _review.Text = $"Profile: {ProfileName}\nParts: {partNames}\nSlider: {_label.Text.Trim()} — {ComboValue(_rule)}{axis}\nRange: {_minimum.Value}% to {_maximum.Value}% (default {_default.Value}%)";
+        _review.Text = $"Profile: {ProfileName}\nSelection: {selectionText}\nSlider: {_label.Text.Trim()} — {ComboValue(_rule)}{axis}\nRange: {_minimum.Value}% to {_maximum.Value}% (default {_default.Value}%)";
     }
 
     private TableLayoutPanel Page()

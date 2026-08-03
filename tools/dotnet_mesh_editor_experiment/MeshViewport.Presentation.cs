@@ -74,6 +74,7 @@ internal sealed partial class MeshViewport
     private int _presentationHoveredSource = -1;
     private string _presentationStateFingerprint = string.Empty;
     private long _presentationGeneration;
+    private bool _suppressViewStateChanged;
 
     public string ActivePresentationView => _activePresentationView;
     public bool HostDisplayModeAuthoritative => _hostDisplayModeAuthoritative;
@@ -207,6 +208,30 @@ internal sealed partial class MeshViewport
 
     public bool TryApplyPresentationState(JsonElement root, out string error)
     {
+        var wasSuppressing = _suppressViewStateChanged;
+        _suppressViewStateChanged = true;
+        var applied = false;
+        try
+        {
+            applied = TryApplyPresentationStateCore(root, out error);
+        }
+        finally
+        {
+            _suppressViewStateChanged = wasSuppressing;
+        }
+        if (applied && !wasSuppressing)
+        {
+            // A presentation update changes the active role, display, overlays,
+            // camera and part state as one transaction. Publishing from the
+            // individual setters exposed half-applied pane state and caused the
+            // host to repaint the transient mode between tool clicks.
+            NotifyViewStateChanged();
+        }
+        return applied;
+    }
+
+    private bool TryApplyPresentationStateCore(JsonElement root, out string error)
+    {
         error = string.Empty;
         InitializePresentationContexts();
         var activeView = JsonString(root, "active_view", _activePresentationView);
@@ -238,7 +263,7 @@ internal sealed partial class MeshViewport
         if (root.TryGetProperty("display", out var display) && display.ValueKind == JsonValueKind.Object)
         {
             var mode = JsonString(display, "mode", DisplayMode);
-            if (!TrySetDisplayMode(mode, out error))
+            if (!TryApplyDisplayModeState(mode, out error))
             {
                 return false;
             }
@@ -495,6 +520,10 @@ internal sealed partial class MeshViewport
 
     private void NotifyViewStateChanged()
     {
+        if (_suppressViewStateChanged)
+        {
+            return;
+        }
         EditorEventRequested?.Invoke("view_state_changed", PresentationStatusPayload());
     }
 

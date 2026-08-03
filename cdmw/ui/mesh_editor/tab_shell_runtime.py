@@ -126,7 +126,9 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_applied_material_generation = 0
         self.standalone_dotnet_completed_material_generation = 0
         self.standalone_dotnet_material_signature = ""
-        self.standalone_dotnet_material_role_by_generation: dict[int, str] = {}
+        self.standalone_dotnet_material_role_by_generation: dict[
+            int, str | tuple[str, ...]
+        ] = {}
         self.standalone_dotnet_material_input_signature_by_generation: dict[int, str] = {}
         self.standalone_dotnet_material_generation_by_role: dict[str, int] = {}
         self.standalone_dotnet_completed_material_generation_by_role: dict[str, int] = {}
@@ -148,6 +150,7 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_material_ready_flush_token = (0, 0)
         self.standalone_dotnet_pending_clone_material_model: object | None = None
         self.standalone_dotnet_pending_reference_material_model: object | None = None
+        self.standalone_dotnet_pending_paired_material_model: object | None = None
         self.standalone_dotnet_material_update_thread: _tab.QThread | None = None
         self.standalone_dotnet_material_update_worker: _tab.MeshDotNetMaterialUpdateWorker | None = None
         self.standalone_dotnet_material_update_pending: tuple[object, tuple[dict[str, object], ...]] | None = None

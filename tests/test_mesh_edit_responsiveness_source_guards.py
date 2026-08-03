@@ -2997,7 +2997,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
         action_body = _function_source(source, "_mesh_editor_action_bar_action_requested")
         select_body = _function_source(source, "_select_mesh_edit_tool")
-        self.assertIn("_callbacks._sync_mesh_edit_preview_settings()", select_body)
+        self.assertNotIn("_callbacks._sync_mesh_edit_preview_settings()", select_body)
+        self.assertEqual(select_body.count("_callbacks._refresh_mesh_edit_controls()"), 1)
+        self.assertIn("currentIndexChanged owns the one control refresh", select_body)
         show_body = _function_source(source, "_show_mesh_edit_tab")
         self.assertNotIn("setCurrentWidget", show_body)
         self.assertNotIn("set_current_widget(mesh_edit_tab)", show_body)
@@ -6219,14 +6221,17 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn('mesh_edit_active_stroke.pop("inverse_failed"', apply_body)
         self.assertIn("Python inverse transform fallback is disabled", apply_body)
 
-    def test_mesh_edit_disables_native_alignment_transform(self) -> None:
+    def test_mesh_edit_tool_refresh_does_not_republish_alignment_scene_or_display(self) -> None:
         source = _mesh_edit_source()
 
         sync_body = _function_source(source, "_sync_mesh_edit_preview_settings")
-        self.assertIn("_state._clear_alignment_d3d11_fast_transform_state()", sync_body)
-        self.assertIn("_state.alignment_d3d11_preview_host.set_alignment_state(", sync_body)
-        self.assertIn("enabled=False", sync_body)
-        self.assertIn("_state.alignment_d3d11_preview_host.set_alignment_preview_transform()", sync_body)
+        self.assertNotIn("_state._clear_alignment_d3d11_fast_transform_state()", sync_body)
+        self.assertNotIn("_state.alignment_d3d11_preview_host.set_alignment_state(", sync_body)
+        self.assertNotIn(
+            "_state.alignment_d3d11_preview_host.set_alignment_preview_transform()",
+            sync_body,
+        )
+        self.assertIn("_state.alignment_d3d11_preview_host.set_mesh_edit_state(", sync_body)
 
         highlight_body = _function_source(source, "_sync_highlight_sets")
         self.assertIn("_state._selection_highlight_sets_state_helper(", highlight_body)

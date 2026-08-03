@@ -82,10 +82,10 @@ def alignment_global_transform_layout_specs() -> dict[str, object]:
         "horizontal_spacing": 5,
         "vertical_spacing": 2,
         "column_stretches": ((0, 0), (1, 0), (2, 1)),
-        "column_minimum_widths": ((0, 66), (1, 126)),
-        "spin_minimum_width": 76,
+        "column_minimum_widths": ((0, 64), (1, 112)),
+        "spin_minimum_width": 72,
         "slider_object_name": "AlignmentTransformSlider",
-        "slider_minimum_width": 92,
+        "slider_minimum_width": 72,
         "reset_button_minimum_width": 0,
         "tilt_step_minimum_width": 72,
     }

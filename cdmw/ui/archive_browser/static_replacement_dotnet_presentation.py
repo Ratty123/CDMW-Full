@@ -150,20 +150,17 @@ def builder_presentation_state(
     settings["dotnet_view_mode"] = dotnet_view_mode
     viewport_display_mode = normalize_mesh_preview_display_mode(display_mode)
     if mesh_edit_active:
-        # A default, not an override. Edit Mesh opens on Wire + Vertices because
-        # that is what you want to see while editing topology, but this snapshot
-        # is republished after every accepted scene frame -- so hard-coding it
-        # here meant a mode the reader picked inside Edit Mesh survived only
-        # until the next frame happened to land, which read as random.
-        # normalize_mesh_preview_display_mode() answers with the *placement*
-        # default for anything it does not recognise, so an unset slot has to be
-        # tested before normalizing or Edit Mesh would open on Faces + Wire.
+        # A default, not an override. The edit slot can still be empty while the
+        # checkbox transition is being published, but the Mesh view already
+        # carries the reader's explicit display choice. Inherit that choice and
+        # use Wire + Vertices only when the Mesh view is still on its untouched
+        # opening default. This keeps the transition atomic from the reader's
+        # perspective and prevents a queued snapshot from flashing over Solid.
         requested = str(mesh_edit_display_mode or "").strip()
-        viewport_display_mode = (
-            normalize_mesh_preview_display_mode(requested)
-            if requested
-            else MESH_EDIT_DEFAULT_DISPLAY_MODE
-        )
+        if requested:
+            viewport_display_mode = normalize_mesh_preview_display_mode(requested)
+        elif viewport_display_mode == MESH_PREVIEW_DEFAULT_DISPLAY_MODE:
+            viewport_display_mode = MESH_EDIT_DEFAULT_DISPLAY_MODE
     material_debug_mode = dotnet_preview_material_debug_mode(dotnet_view_mode)
     return {
         "active_view": active_view,

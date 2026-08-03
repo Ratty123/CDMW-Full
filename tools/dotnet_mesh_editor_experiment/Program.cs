@@ -59,6 +59,7 @@ internal sealed partial class ExperimentForm : Form
     private readonly NumericUpDown _vertexMarkerSize = new();
     private readonly CheckBox _partPick = new();
     private readonly NumericUpDown _radius = new();
+    private readonly NumericUpDown _grabRadius = new();
     private readonly NumericUpDown _strength = new();
     private readonly ComboBox _falloff = new();
     private readonly Label _statusLabel = new();
@@ -191,10 +192,6 @@ internal sealed partial class ExperimentForm : Form
         {
             if (!_syncingSubmeshListSelection)
             {
-                if (_submeshList.SelectedIndex >= 0)
-                {
-                    _selectionTarget.SelectedItem = "Part";
-                }
                 _viewport.SelectPartsFromList(_submeshList.SelectedIndices.Cast<int>());
             }
         };
@@ -207,17 +204,15 @@ internal sealed partial class ExperimentForm : Form
         };
 
         ConfigureNumeric(_translateStep, decimalPlaces: 4, minimum: -10, maximum: 10, value: 0.0100M, increment: 0.0100M);
-        // Parts are the only selectable element. Sub-part selection is gone from
-        // the surface rather than merely defaulted away: every tool, command and
-        // native screen pick reads this combo, so pinning it to Part is what
-        // makes vertex, edge and face selection unreachable in one place instead
-        // of in each of them. The control keeps existing and stays out of the
-        // layout, because the pick paths read its value.
-        ConfigureCombo(_selectionTarget, new object[] { "Part" }, selectedIndex: 0);
+        // Edit Mesh exposes one Select tool rather than topology-mode buttons.
+        // Its viewport target is vertices; whole-part selection is owned only by
+        // the explicit PARTS list. Keeping the internal combo lets the native v2
+        // protocol retain its existing target field without exposing stale
+        // Vertex/Edge/Face UI controls.
+        ConfigureCombo(_selectionTarget, new object[] { "Vertex" }, selectedIndex: 0);
         _selectionTarget.Visible = false;
-        // Add, not Replace: the reader builds a part selection up across several
-        // clicks far more often than they restart it, and Replace made every
-        // click throw the previous part away.
+        // Add, not Replace: the reader paints a mesh region across several
+        // gestures more often than they restart it.
         ConfigureCombo(_selectionOperation, new object[] { "Add", "Replace", "Subtract", "Toggle" }, selectedIndex: 0);
         // Brush is the drag-shape default, matching the host combo's default;
         // picking here drives the viewport directly, and the host's tool_state
@@ -248,6 +243,7 @@ internal sealed partial class ExperimentForm : Form
                 : "Visible-only selection enabled; picking uses the front surface.";
         };
         ConfigureNumeric(_radius, decimalPlaces: 1, minimum: 1, maximum: 512, value: 24, increment: 2);
+        ConfigureNumeric(_grabRadius, decimalPlaces: 1, minimum: 1, maximum: 512, value: 24, increment: 2);
         ConfigureNumeric(_strength, decimalPlaces: 2, minimum: 0, maximum: 1, value: 0.5M, increment: 0.05M);
         ConfigureCombo(_falloff, new object[] { "Smooth", "Linear", "Constant" }, selectedIndex: 0);
 
@@ -662,7 +658,7 @@ internal sealed partial class ExperimentForm : Form
         _submeshList.BackColor = ThemeInputBackground;
         _submeshList.ForeColor = ThemeText;
         _submeshList.BorderStyle = BorderStyle.FixedSingle;
-        _submeshList.Height = 112;
+        _submeshList.Height = 96;
         _submeshList.Font = new Font(Font.FontFamily, 8.5f);
         ApplyDarkScrollbars(_submeshList);
         _actionHistoryList.Name = "ResidentActionHistoryList";
@@ -671,7 +667,7 @@ internal sealed partial class ExperimentForm : Form
         _actionHistoryList.BorderStyle = BorderStyle.FixedSingle;
         _actionHistoryList.IntegralHeight = false;
         _actionHistoryList.SelectionMode = SelectionMode.None;
-        _actionHistoryList.Height = 124;
+        _actionHistoryList.Height = 96;
         _actionHistoryList.Font = new Font(Font.FontFamily, 8.5f);
         _actionHistoryList.Items.Add("No edit actions yet");
         ApplyDarkScrollbars(_actionHistoryList);
@@ -696,7 +692,6 @@ internal sealed partial class ExperimentForm : Form
             _viewport.PartPickEnabled = _partPick.Checked;
             if (_partPick.Checked)
             {
-                _selectionTarget.SelectedItem = "Part";
                 _statusLabel.Text = "Part Pick enabled; selection requests target source parts.";
             }
             else
@@ -759,7 +754,7 @@ internal sealed partial class ExperimentForm : Form
         var selectionSection = AddHelpSection(
             leftStack,
             "Selection",
-            "Click a part, or drag with the chosen shape to select several. Selection is whole parts only. X-Ray selects through the mesh.",
+            "Click or drag on the mesh to select vertices. Brush, Rectangle and Lasso never select PARTS; X-Ray selects through the mesh.",
             out _,
             LabeledControl("Select shape", _selectionShape),
             LabeledControl("Selection mode", _selectionOperation),
@@ -781,6 +776,7 @@ internal sealed partial class ExperimentForm : Form
             + "The axis buttons nudge the selection by the exact translate step.",
             out _,
             LabeledControl("Translate step", _translateStep),
+            LabeledControl("Grab radius", _grabRadius),
             AxisNudgeRow("x"),
             AxisNudgeRow("y"),
             AxisNudgeRow("z"));
@@ -813,9 +809,8 @@ internal sealed partial class ExperimentForm : Form
         var topologySection = AddHelpSection(
             leftStack,
             "Topology",
-            "Acts on the selected parts. Delete and Duplicate remove or copy them; "
-            + "Subdivide and Refine Smooth add density to them, or to the whole mesh "
-            + "when nothing is selected.",
+            "Acts on the viewport mesh selection or the explicit PARTS selection. "
+            + "Subdivide and Refine Smooth require a selection and never change the whole mesh implicitly.",
             out _,
             ButtonRow(deleteSelectionButton, duplicateSelectionButton),
             ButtonRow(subdivideButton, refineButton));
@@ -866,7 +861,7 @@ internal sealed partial class ExperimentForm : Form
             Name = scrollName,
             Dock = DockStyle.Fill,
             AutoScroll = true,
-            Padding = new Padding(10, 8, 10, 8),
+            Padding = new Padding(8, 6, 8, 8),
             BackColor = ThemePanelBackground,
         };
         ApplyDarkScrollbars(scrollPanel);
@@ -969,6 +964,15 @@ internal sealed partial class ExperimentForm : Form
             _statusLabel.Text = "Placement mode: enable Edit Mesh to mutate geometry.";
             return 0;
         }
+        var normalizedCommand = (command ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalizedCommand is "transform_move" or "delete" or "duplicate" or "subdivide" or "refine_smooth"
+            && !_viewport.HasEditableSelection)
+        {
+            _statusLabel.Text = normalizedCommand == "transform_move"
+                ? "Move requires a selection. Use Select in the viewport or choose a part under PARTS."
+                : "This topology command requires a viewport mesh selection or an explicit PARTS selection.";
+            return 0;
+        }
         var targetMode = SelectionTarget();
         var payload = new Dictionary<string, object?>
         {
@@ -1027,12 +1031,13 @@ internal sealed partial class ExperimentForm : Form
 
     private Dictionary<string, object?> ToolOptionsPayload()
     {
+        var activeTool = (_viewport.ActiveTool ?? string.Empty).Trim().ToLowerInvariant();
         return new Dictionary<string, object?>
         {
             ["target_mode"] = SelectionTarget(),
             ["operation"] = SelectionOperation(),
             ["selection_depth_mode"] = SelectionDepthMode(),
-            ["radius"] = (double)_radius.Value,
+            ["radius"] = (double)(activeTool == "grab" ? _grabRadius.Value : _radius.Value),
             ["strength"] = (double)_strength.Value,
             ["falloff"] = SelectionText(_falloff, "smooth"),
             ["smooth_iterations"] = 3,
@@ -1041,7 +1046,7 @@ internal sealed partial class ExperimentForm : Form
 
     private string SelectionTarget()
     {
-        var selected = SelectionText(_selectionTarget, "part");
+        var selected = SelectionText(_selectionTarget, "vertex");
         return selected == "part" ? "source" : selected;
     }
 
@@ -1131,7 +1136,7 @@ internal sealed partial class MeshViewport : Control
     private int _hoverEdgeId = -1;
     private bool _edgeDragActive;
     private bool _placementDragActive;
-    private string _selectionDragTargetMode = "source";
+    private string _selectionDragTargetMode = "vertex";
     // How a Select drag resolves: brush paint (default), rectangle, or lasso.
     // Matches the Select shape combo's own default, so the two agree before
     // anything has been picked. Host state from the builder's Selection combo
@@ -1146,10 +1151,10 @@ internal sealed partial class MeshViewport : Control
     private bool _selectionPaintPainted;
     private string _selectionPaintFirstOperation = "add";
     private string _selectionPaintOperation = "add";
-    // Toggle is a gesture operation: crossing the same part twice in one
-    // Brush stroke must not toggle it back off. The final exact part set is
+    // Toggle is a gesture operation: crossing the same vertex twice in one
+    // Brush stroke must not toggle it back off. The final exact vertex set is
     // published once, so the host records one selection-history entry.
-    private readonly HashSet<int> _selectionPaintToggleTouchedSources = new();
+    private readonly HashSet<(int SubmeshIndex, int VertexIndex)> _selectionPaintToggleTouchedVertices = new();
     private Point _selectionPaintLastSample;
     // Where the local tint has been painted up to. It runs ahead of
     // _selectionPaintLastSample, which is where the host was last asked for an
@@ -1191,6 +1196,12 @@ internal sealed partial class MeshViewport : Control
     public bool HasSubPartSelection =>
         _selectedVertices.Any(pair => pair.Value.Count > 0)
         || _selectedFaces.Any(pair => pair.Value.Count > 0);
+
+    public bool HasEditableSelection =>
+        _selectedVertices.Any(pair => pair.Value.Count > 0)
+        || _selectedFaces.Any(pair => pair.Value.Count > 0)
+        || _selectedEdges.Count > 0
+        || _selectedSources.Count > 0;
 
     /// <summary>
     /// True when faces specifically are selected. Splitting a selection into its

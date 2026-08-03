@@ -7,7 +7,6 @@ from types import SimpleNamespace
 
 def create_alignment_workflow_shell_section(context: dict[str, object]) -> SimpleNamespace:
     CollapsibleSection = context.get("CollapsibleSection")
-    QFrame = context.get("QFrame")
     QGridLayout = context.get("QGridLayout")
     QGroupBox = context.get("QGroupBox")
     QHBoxLayout = context.get("QHBoxLayout")
@@ -24,9 +23,6 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     _alignment_import_diagnostic_rows_helper = context.get("_alignment_import_diagnostic_rows_helper")
     _alignment_import_diagnostics_control_text_helper = context.get("_alignment_import_diagnostics_control_text_helper")
     _alignment_import_diagnostics_html_helper = context.get("_alignment_import_diagnostics_html_helper")
-    _alignment_placement_review_html_helper = context.get("_alignment_placement_review_html_helper")
-    _alignment_selection_context_help_text_helper = context.get("_alignment_selection_context_help_text_helper")
-    _alignment_selection_context_initial_text_helper = context.get("_alignment_selection_context_initial_text_helper")
     _alignment_setup_intro_html_helper = context.get("_alignment_setup_intro_html_helper")
     _alignment_source_mix_control_text_helper = context.get("_alignment_source_mix_control_text_helper")
     _alignment_source_mix_current_status_helper = context.get("_alignment_source_mix_current_status_helper")
@@ -35,7 +31,6 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     _alignment_workflow_control_text_helper = context.get("_alignment_workflow_control_text_helper")
     _alignment_workflow_tab_labels_helper = context.get("_alignment_workflow_tab_labels_helper")
     _copy_mesh_editor_diagnostics = context.get("_copy_mesh_editor_diagnostics")
-    _inline_help_button_helper = context.get("_inline_help_button_helper")
     _mesh_editor_diagnostics_set_text_widget_helper = context.get("_mesh_editor_diagnostics_set_text_widget_helper")
     _new_alignment_scroll_tab_helper = context.get("_new_alignment_scroll_tab_helper")
     _refresh_mesh_editor_diagnostics = context.get("_refresh_mesh_editor_diagnostics")
@@ -52,7 +47,6 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     modify_original_clone_mode = context.get("modify_original_clone_mode")
     obj_path = context.get("obj_path")
     original_mesh = context.get("original_mesh")
-    placement_context_note = context.get("placement_context_note")
     scene_import_result = context.get("scene_import_result")
     self = context.get("self")
     full_import_model_replacement = bool(context.get("full_import_model_replacement"))
@@ -126,25 +120,12 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     diagnostics_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     diagnostics_layout.addWidget(diagnostics_text, 1)
     _mesh_editor_diagnostics_set_text_widget_helper(mesh_editor_diagnostics_state, diagnostics_text)
-    selection_context_frame = QFrame(content_container)
-    selection_context_frame.setObjectName("SelectionContextFrame")
-    selection_context_layout = QHBoxLayout(selection_context_frame)
-    selection_context_layout.setContentsMargins(5, 2, 5, 2)
-    selection_context_layout.setSpacing(5)
-    selection_context_label = QLabel(_alignment_selection_context_initial_text_helper())
+    # Selection state still feeds preview highlighting and diagnostics, but the
+    # resident preview already shows the active context. Keep the callback sink
+    # parented and hidden instead of spending a full row on duplicate text/help.
+    selection_context_label = QLabel("", content_container)
     selection_context_label.setObjectName("SelectionContextLabel")
-    selection_context_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-    selection_context_label.setWordWrap(True)
-    selection_context_label.setMaximumHeight(30)
-    selection_context_label.setMinimumWidth(0)
-    selection_context_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Maximum)
-    selection_context_layout.addWidget(selection_context_label, 1)
-    selection_context_layout.addWidget(
-        _inline_help_button_helper(
-            _alignment_selection_context_help_text_helper()
-        )
-    )
-    layout.addWidget(selection_context_frame, 0)
+    selection_context_label.setVisible(False)
     layout.addWidget(control_tabs, 1)
     intro = QLabel(_alignment_setup_intro_html_helper())
     intro.setWordWrap(True)
@@ -214,12 +195,6 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     add_archive_source_button.clicked.connect(_choose_loaded_archive_mesh_source_for_alignment)
     add_loose_source_button.clicked.connect(_add_loose_source_folder_for_alignment)
     add_mod_archive_source_button.clicked.connect(_choose_mod_archive_mesh_source_for_alignment)
-    if placement_context_note.strip():
-        placement_note = QLabel(_alignment_placement_review_html_helper())
-        placement_note.setWordWrap(True)
-        placement_note.setTextFormat(Qt.RichText)
-        placement_note.setObjectName("HintLabel")
-        placement_note.setToolTip(placement_context_note.strip())
     if import_diagnostics:
         import_diagnostics_control_text = _alignment_import_diagnostics_control_text_helper()
         import_group = QGroupBox(import_diagnostics_control_text["details_group"])

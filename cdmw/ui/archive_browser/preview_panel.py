@@ -182,11 +182,6 @@ class ArchivePreviewTextToolsMixin:
             self.archive_preview_text_tools.setVisible(current_widget is self.archive_preview_text_edit)
         if hasattr(self, "archive_preview_info_tools"):
             self.archive_preview_info_tools.setVisible(current_widget is self.archive_preview_info_edit)
-        if hasattr(self, "archive_preview_controls_hint_label"):
-            self.archive_preview_controls_hint_label.setVisible(
-                current_widget is self.archive_model_preview
-                or current_widget is self.archive_d3d11_preview_host
-            )
 
 
 __all__ = ["ArchivePreviewTextToolsMixin"]

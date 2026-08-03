@@ -444,7 +444,7 @@ class DotNetPreviewHostFrame(QFrame):
             "command_generation": self._camera_generation,
         }
         self._presentation_state["camera"] = camera
-        sent = self._remember_presentation_state()
+        sent = self._remember_presentation_state({"camera": camera})
         if sent:
             self._zoom_factor = zoom
             self._fit_to_view = fit
@@ -502,7 +502,13 @@ class DotNetPreviewHostFrame(QFrame):
                 "side_by_side_split_ratio": self._side_by_side_split_ratio,
             }
         )
-        return self._remember_presentation_state()
+        return self._remember_presentation_state(
+            {
+                "active_view": active_view,
+                "comparison_mode": comparison_mode,
+                "side_by_side_split_ratio": self._side_by_side_split_ratio,
+            }
+        )
 
     def set_viewport_display_mode(self, mode: str) -> bool:
         normalized = str(mode or "").strip().lower().replace("-", "_")
@@ -511,7 +517,7 @@ class DotNetPreviewHostFrame(QFrame):
         display = dict(self._presentation_state.get("display", {}))
         display["mode"] = normalized
         self._presentation_state["display"] = display
-        return self._remember_presentation_state()
+        return self._remember_presentation_state({"display": {"mode": normalized}})
 
     def remember_side_by_side_split_ratio(self, ratio: Optional[float] = None) -> float:
         if ratio is not None:
@@ -521,7 +527,9 @@ class DotNetPreviewHostFrame(QFrame):
     def set_side_by_side_split_ratio(self, ratio: float) -> bool:
         self.remember_side_by_side_split_ratio(ratio)
         self._presentation_state["side_by_side_split_ratio"] = self._side_by_side_split_ratio
-        return self._remember_presentation_state()
+        return self._remember_presentation_state(
+            {"side_by_side_split_ratio": self._side_by_side_split_ratio}
+        )
 
     def set_render_tuning(self, settings: object) -> bool:
         # Resolved here rather than on the wire: the helper tests pan before
@@ -590,7 +598,7 @@ class DotNetPreviewHostFrame(QFrame):
             }
         )
         self._overlay_state["cloth"] = cloth
-        presentation_ok = self._remember_presentation_state()
+        presentation_ok = self._remember_presentation_state({"display": {"quality": quality}})
         overlay_ok = self.controller.remember_state("overlay", "overlay_state_update", self._overlay_state)
         return presentation_ok and overlay_ok
 
@@ -604,7 +612,7 @@ class DotNetPreviewHostFrame(QFrame):
         highlights = dict(self._presentation_state.get("highlights", {}))
         highlights["source_indices"] = _indices(source_submesh_indices)
         self._presentation_state["highlights"] = highlights
-        return self._remember_presentation_state_without_display()
+        return self._remember_presentation_state_without_display({"highlights": highlights})
 
     def set_highlighted_alignment_submeshes(
         self,
@@ -616,13 +624,15 @@ class DotNetPreviewHostFrame(QFrame):
         highlights["source_indices"] = _indices(replacement_submesh_indices)
         highlights["original_indices"] = _indices(original_submesh_indices)
         self._presentation_state["highlights"] = highlights
-        return self._remember_presentation_state_without_display()
+        return self._remember_presentation_state_without_display({"highlights": highlights})
 
     def set_hidden_source_submeshes(self, source_submesh_indices: Sequence[int]) -> bool:
         self._presentation_state["visibility"] = {
             "hidden_submesh_indices": _indices(source_submesh_indices)
         }
-        return self._remember_presentation_state_without_display()
+        return self._remember_presentation_state_without_display(
+            {"visibility": dict(self._presentation_state["visibility"])}
+        )
 
     def set_texture_flip_vertical(
         self,
@@ -633,13 +643,15 @@ class DotNetPreviewHostFrame(QFrame):
     ) -> bool:
         del source_submesh_indices, editor_role
         self._presentation_state["uv"] = {"flip_v": bool(enabled)}
-        return self._remember_presentation_state()
+        return self._remember_presentation_state({"uv": {"flip_v": bool(enabled)}})
 
     def set_source_part_picking(self, enabled: bool) -> bool:
         display = dict(self._presentation_state.get("display", {}))
         display["part_pick_enabled"] = bool(enabled)
         self._presentation_state["display"] = display
-        return self._remember_presentation_state()
+        return self._remember_presentation_state(
+            {"display": {"part_pick_enabled": bool(enabled)}}
+        )
 
     def set_skeleton_selected_bone(self, bone_index: int) -> bool:
         skeleton = dict(self._overlay_state.get("skeleton", {}))
@@ -683,7 +695,12 @@ class DotNetPreviewHostFrame(QFrame):
         display["grid_visible"] = False if enabled else display.get("grid_visible", False)
         display["gizmo_visible"] = False if enabled else display.get("gizmo_visible", False)
         self._presentation_state["display"] = display
-        return self._remember_presentation_state()
+        shared_patch = (
+            {"display": {"grid_visible": False, "gizmo_visible": False}}
+            if enabled
+            else None
+        )
+        return self._remember_presentation_state(shared_patch)
 
     def capture_replacement_icon_image(self) -> QImage:
         return self._last_capture_image.copy() if not self._last_capture_image.isNull() else QImage()
@@ -705,7 +722,9 @@ class DotNetPreviewHostFrame(QFrame):
         self._presentation_state["display"] = display
         if source_submesh_indices:
             self.set_highlighted_source_submeshes(source_submesh_indices)
-        return self._remember_presentation_state()
+        return self._remember_presentation_state(
+            {"display": {"gizmo_visible": bool(enabled)}}
+        )
 
     def set_alignment_preview_transform(
         self,
@@ -755,7 +774,9 @@ class DotNetPreviewHostFrame(QFrame):
             for source_index in _indices(item.get("source_submesh_indices", ())):  # type: ignore[arg-type]
                 part_payload[str(source_index)] = dict(state)
         self._presentation_state["part_transforms"] = part_payload
-        presentation_ok = self._remember_presentation_state()
+        presentation_ok = self._remember_presentation_state(
+            {"part_transforms": dict(part_payload)}
+        )
         return scene_ok and presentation_ok
 
     def set_mesh_edit_state(self, **payload: object) -> bool:
@@ -907,7 +928,9 @@ class DotNetPreviewHostFrame(QFrame):
             "pan": [0.0, 0.0],
             "command_generation": self._camera_generation,
         }
-        self._remember_presentation_state()
+        self._remember_presentation_state(
+            {"camera": dict(self._presentation_state["camera"])}
+        )
         self.view_state_changed.emit(self._zoom_factor, self._fit_to_view)
         self.view_state_payload_changed.emit(self.view_state_snapshot())
 
@@ -1015,19 +1038,45 @@ class DotNetPreviewHostFrame(QFrame):
             # poll remains the backstop.
             return
 
-    def _remember_presentation_state(self) -> bool:
+    def _remember_presentation_state(
+        self,
+        shared_patch: Mapping[str, object] | None = None,
+    ) -> bool:
+        if getattr(self.controller, "_mesh_editor_shared_dotnet_wired_to", None) is not None:
+            # The Mesh Editor tab owns the complete Builder presentation while
+            # this controller is shared. Route only the field changed by this
+            # host through the tab's single-flight queue. Replaying this host's
+            # full construction snapshot would carry Grid/Gizmo-off defaults
+            # over the live Builder controls; dropping all host updates would
+            # instead lose camera and per-part fast-transform previews.
+            sender = getattr(
+                self.controller,
+                "_mesh_editor_shared_dotnet_presentation_sender",
+                None,
+            )
+            if shared_patch is None or not callable(sender):
+                return True
+            try:
+                return bool(sender(shared_patch))
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                return False
         return self.controller.remember_state(
             "presentation",
             "presentation_state_update",
             self._presentation_state,
         )
 
-    def _remember_presentation_state_without_display(self) -> bool:
+    def _remember_presentation_state_without_display(
+        self,
+        shared_patch: Mapping[str, object] | None = None,
+    ) -> bool:
         # Highlight and visibility setters must not carry the display block:
         # this host's copy of it is not kept in sync with the dialog's Grid and
         # Gizmo checkboxes, so republishing it here switched the grid off every
         # time a part selection changed. The helper keeps its current display
         # state whenever the key is absent.
+        if getattr(self.controller, "_mesh_editor_shared_dotnet_wired_to", None) is not None:
+            return self._remember_presentation_state(shared_patch)
         payload = {
             key: value
             for key, value in self._presentation_state.items()
@@ -1072,6 +1121,30 @@ class DotNetPreviewHostFrame(QFrame):
         event = str(payload.get("event", "") or "").strip().lower()
         self.renderer_event_received.emit(dict(payload))
         self.native_event_received.emit(dict(payload))
+        # The resident Mesh Editor tab consumes these requests directly from
+        # the shared controller so it can correlate replies and run its bounded
+        # native dispatcher. Re-emitting the same request through this host's
+        # compatibility signals makes the Builder execute it a second time.
+        # One tool click therefore produced two identical tool-state updates,
+        # and strokes/selections had the same duplicate route. Standalone host
+        # users still need the compatibility signals, so suppress them only
+        # while a tab has explicitly marked this controller as owned.
+        tab_owns_authoring_events = getattr(
+            self.controller,
+            "_mesh_editor_shared_dotnet_wired_to",
+            None,
+        ) is not None
+        if tab_owns_authoring_events and event in {
+            "placement_transform_request",
+            "stroke_begin",
+            "stroke_update",
+            "stroke_end",
+            "stroke_cancel",
+            "select_request",
+            "selection_request",
+            "tool_changed",
+        }:
+            return
         if event in {"embedded_window_revealed", "reembed_ack"}:
             self._remember_embedded_child_window(payload)
         if event == "placement_transform_request":

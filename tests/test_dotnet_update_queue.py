@@ -108,6 +108,33 @@ def test_repeated_vertex_edit_coalesces_to_newest_absolute_value() -> None:
     assert queue.metrics()["coalesced_updates"] == 1
 
 
+def test_correlated_vertex_requests_are_not_coalesced_across_mutations() -> None:
+    sent: list[dict[str, object]] = []
+    queue = _correlated_queue(sent)
+
+    active = _vertex_packet([0], [1.0])
+    active["request_id"] = 1
+    stroke_terminal = _vertex_packet([1], [2.0])
+    stroke_terminal["request_id"] = 2
+    later_morph = _vertex_packet([2], [3.0])
+    later_morph["request_id"] = 3
+
+    assert queue.enqueue(1, (active,))
+    assert queue.enqueue(2, (stroke_terminal,))
+    assert queue.enqueue(3, (later_morph,))
+    assert queue.metrics()["pending_depth"] == 2
+    assert queue.metrics()["coalesced_updates"] == 0
+
+    assert queue.acknowledge("preview_vertex_update_ack", _ack(sent))
+    assert sent[-1]["request_id"] == 2
+    assert sent[-1]["edit_revision"] == 2
+    assert queue.acknowledge("preview_vertex_update_ack", _ack(sent))
+    assert sent[-1]["request_id"] == 3
+    assert sent[-1]["edit_revision"] == 3
+    assert queue.acknowledge("preview_vertex_update_ack", _ack(sent))
+    assert queue.metrics()["pending_depth"] == 0
+
+
 def test_topology_is_a_barrier_and_owned_payloads_survive_until_each_ack(tmp_path: Path) -> None:
     sent: list[dict[str, object]] = []
     queue = _correlated_queue(sent)

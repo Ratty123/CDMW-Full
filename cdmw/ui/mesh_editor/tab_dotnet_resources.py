@@ -15,7 +15,6 @@ from cdmw.services.mesh_dotnet_material_compiler import (
 )
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     normalize_mesh_preview_display_mode,
-    untextured_fallback_display_mode,
 )
 from cdmw.ui.mesh_editor import tab_dotnet_material_commit as _material_commit
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
@@ -77,6 +76,24 @@ class MeshEditorDotNetResourceProtocolMixin(
     def _dotnet_material_role_label(role: str) -> str:
         return "Original" if role == "original_reference" else "Imported"
 
+    def _dotnet_material_roles_for_generation(
+        self,
+        generation: int,
+        fallback_role: object = "replacement",
+    ) -> tuple[str, ...]:
+        stored = self.standalone_dotnet_material_role_by_generation.get(generation)
+        if isinstance(stored, str):
+            return (stored,)
+        if isinstance(stored, Sequence):
+            roles = tuple(
+                self._dotnet_material_role_key(role)
+                for role in stored
+                if str(role or "").strip()
+            )
+            if roles:
+                return roles
+        return (self._dotnet_material_role_key(fallback_role),)
+
     def _handle_dotnet_material_protocol_event(
         self,
         payload: Mapping[str, object],
@@ -101,30 +118,45 @@ class MeshEditorDotNetResourceProtocolMixin(
             ):
                 return False
             self.standalone_dotnet_completed_material_generation = generation
-            role = self.standalone_dotnet_material_role_by_generation.get(
+            roles = self._dotnet_material_roles_for_generation(
                 generation,
-                self._dotnet_material_role_key(payload.get("role", "replacement")),
+                payload.get("role", "replacement"),
             )
-            self.standalone_dotnet_completed_material_generation_by_role[role] = max(
-                int(self.standalone_dotnet_completed_material_generation_by_role.get(role, 0) or 0),
-                generation,
-            )
+            role = roles[0]
+            for applied_role in roles:
+                self.standalone_dotnet_completed_material_generation_by_role[applied_role] = max(
+                    int(
+                        self.standalone_dotnet_completed_material_generation_by_role.get(
+                            applied_role, 0
+                        )
+                        or 0
+                    ),
+                    generation,
+                )
         if event == "material_state_applied":
             if not _material_commit.commit_acknowledged_material_resources(self, payload):
                 return False
             self.standalone_dotnet_applied_material_generation = generation
-            self.standalone_dotnet_applied_material_generation_by_role[role] = generation
+            for applied_role in roles:
+                self.standalone_dotnet_applied_material_generation_by_role[applied_role] = generation
             self.standalone_dotnet_material_signature = str(
                 payload.get("material_signature", self.standalone_dotnet_material_signature) or ""
             )
-            self.standalone_dotnet_material_signature_by_role[role] = self.standalone_dotnet_material_signature
+            for applied_role in roles:
+                self.standalone_dotnet_material_signature_by_role[
+                    applied_role
+                ] = self.standalone_dotnet_material_signature
             input_signature = self.standalone_dotnet_material_input_signature_by_generation.get(
                 generation,
                 "",
             )
             if input_signature:
-                self.standalone_dotnet_material_input_signature_by_role[role] = input_signature
-            self.standalone_dotnet_material_error_by_role.pop(role, None)
+                for applied_role in roles:
+                    self.standalone_dotnet_material_input_signature_by_role[
+                        applied_role
+                    ] = input_signature
+            for applied_role in roles:
+                self.standalone_dotnet_material_error_by_role.pop(applied_role, None)
             self.standalone_dotnet_lifecycle_counts["material_state_applied_count"] += 1
             self._set_dotnet_status(
                 f"Mesh materials updated in the resident .NET session (generation {generation})."
@@ -141,7 +173,8 @@ class MeshEditorDotNetResourceProtocolMixin(
                 payload.get("message", payload.get("reason", "Material update failed."))
                 or "Material update failed."
             )
-            self.standalone_dotnet_material_error_by_role[role] = message
+            for applied_role in roles:
+                self.standalone_dotnet_material_error_by_role[applied_role] = message
             if (
                 self.standalone_dotnet_target_embedded
                 and self.standalone_dotnet_embedded_state == "launching"
@@ -273,9 +306,10 @@ class MeshEditorDotNetResourceProtocolMixin(
             material_compile_active=bool(self._dotnet_material_compile_active()),
             missing_material_roles=self._dotnet_missing_material_roles(),
         )
-        self.sync_viewport_display_combos(
-            untextured_fallback_display_mode(requested_mode)
-        )
+        # The fallback is only what the renderer can draw while resources are
+        # absent. It is not a new choice, so keep both controls on the requested
+        # Solid mode and let a late material acknowledgement restore it.
+        self.sync_viewport_display_combos(requested_mode)
 
     def sync_viewport_display_combos(self, mode: object) -> None:
         """Show one resident display mode in both visible Mesh View controls."""
@@ -490,6 +524,7 @@ class MeshEditorDotNetResourceProtocolMixin(
         parameter_groups: Sequence[Mapping[str, object]] = (),
         material_authority_fingerprint: str = "",
         material_authority_revision: int = 0,
+        mirror_reference_submesh_offset: int = 0,
     ) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None or not self._dotnet_resident_material_updates_supported():
@@ -548,6 +583,9 @@ class MeshEditorDotNetResourceProtocolMixin(
                 mesh_snapshot=immutable_inputs,
                 affected_submeshes=tuple(int(value) for value in tuple(affected_submeshes or ())),
                 submesh_index_offset=max(0, int(submesh_index_offset)),
+                mirror_reference_submesh_offset=max(
+                    0, int(mirror_reference_submesh_offset)
+                ),
                 material_signature=effective_material_signature,
                 reason=str(reason or "changed"),
                 process_generation=int(self.standalone_dotnet_process_generation),
@@ -565,12 +603,18 @@ class MeshEditorDotNetResourceProtocolMixin(
             )
             return False
         self.standalone_dotnet_material_generation = generation
-        self.standalone_dotnet_material_role_by_generation[generation] = role_key
+        roles = (
+            (role_key, "original_reference")
+            if int(request.mirror_reference_submesh_offset) > 0
+            else (role_key,)
+        )
+        self.standalone_dotnet_material_role_by_generation[generation] = roles
         self.standalone_dotnet_material_input_signature_by_generation[generation] = (
             effective_material_signature
         )
-        self.standalone_dotnet_material_generation_by_role[role_key] = generation
-        self.standalone_dotnet_material_error_by_role.pop(role_key, None)
+        for applied_role in roles:
+            self.standalone_dotnet_material_generation_by_role[applied_role] = generation
+            self.standalone_dotnet_material_error_by_role.pop(applied_role, None)
         return self._queue_dotnet_material_compile(
             request,
             committed_resources=committed_resources,
@@ -643,7 +687,56 @@ class MeshEditorDotNetResourceProtocolMixin(
             mesh_snapshot=editable_mesh,
         )
 
+    def apply_resident_clone_and_reference_material_resources(
+        self,
+        preview_model: object,
+    ) -> bool:
+        """Compile exact-clone materials once and bind them to both scene roles."""
+
+        if preview_model is None:
+            return False
+        controller = self._dotnet_target_controller()
+        if controller is None:
+            return False
+        try:
+            editable_mesh = controller.working_mesh(clone=False)
+            editable_count = len(tuple(getattr(editable_mesh, "submeshes", ()) or ()))
+            if editable_count <= 0 or copy_dotnet_preview_material_bindings(
+                editable_mesh, preview_model
+            ) <= 0:
+                return False
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            self._set_dotnet_status(
+                f"Could not apply late exact-clone materials: {exc}",
+                error=True,
+            )
+            return False
+        if not self._dotnet_resident_material_updates_supported():
+            if self.standalone_dotnet_target_embedded and (
+                self.standalone_dotnet_embedded_state == "launching"
+                or self._standalone_dotnet_package_worker_active()
+                or self._standalone_dotnet_editor_process_running()
+            ):
+                self.standalone_dotnet_pending_paired_material_model = preview_model
+                return True
+            return False
+        if self.standalone_dotnet_material_generation > self.standalone_dotnet_completed_material_generation:
+            self.standalone_dotnet_pending_paired_material_model = preview_model
+            return True
+        return self._send_dotnet_material_state(
+            reason="late_exact_clone_and_reference_resources",
+            mesh_snapshot=editable_mesh,
+            mirror_reference_submesh_offset=editable_count,
+        )
+
     def _flush_pending_dotnet_reference_material_resources(self) -> None:
+        paired_model = self.standalone_dotnet_pending_paired_material_model
+        self.standalone_dotnet_pending_paired_material_model = None
+        if paired_model is not None and self.apply_resident_clone_and_reference_material_resources(
+            paired_model
+        ):
+            if self.standalone_dotnet_material_generation > self.standalone_dotnet_completed_material_generation:
+                return
         clone_model = self.standalone_dotnet_pending_clone_material_model
         self.standalone_dotnet_pending_clone_material_model = None
         if clone_model is not None and self.apply_resident_clone_material_resources(clone_model):

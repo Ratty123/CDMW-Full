@@ -192,14 +192,6 @@ class ArchiveReferencePreviewMixin:
         preview_text_tools = self._build_archive_text_tools(preview_text_edit)
         preview_summary_tools = self._build_archive_text_tools(preview_summary_edit)
         preview_info_tools = self._build_archive_text_tools(preview_info_edit)
-        preview_controls_hint_label = QLabel(
-            "Controls: left-drag orbit | middle/right-drag pan | Shift+left-drag pan | mouse wheel zoom | Fit resets view."
-        )
-        preview_controls_hint_label.setObjectName("HintLabel")
-        preview_controls_hint_label.setWordWrap(True)
-        preview_controls_hint_label.setToolTip(
-            "These controls move the preview camera/view only. Mesh placement and exported transforms are changed in edit/alignment tools."
-        )
         reference_preview_text_tools = {
             preview_text_edit: preview_text_tools,
             preview_summary_edit: preview_summary_tools,
@@ -210,13 +202,11 @@ class ArchiveReferencePreviewMixin:
             current_widget = preview_stack.currentWidget()
             for editor, tools in reference_preview_text_tools.items():
                 tools.setVisible(current_widget is editor)
-            preview_controls_hint_label.setVisible(current_widget is preview_model or current_widget is preview_d3d11_host)
 
         preview_tab_layout.addWidget(preview_text_tools)
         preview_tab_layout.addWidget(preview_summary_tools)
         preview_tab_layout.addWidget(preview_info_tools)
         preview_tab_layout.addWidget(preview_stack)
-        preview_tab_layout.addWidget(preview_controls_hint_label)
         preview_stack.currentChanged.connect(_update_reference_preview_text_tools_visibility)
 
         details_edit = ArchiveDetailsEditor(
