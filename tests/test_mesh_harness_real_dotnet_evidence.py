@@ -237,6 +237,86 @@ def test_stroke_geometry_gate_is_frozen_before_later_workflow_edits() -> None:
     assert state.changed_only_selected_geometry is True
 
 
+def test_real_pac_move_aims_at_the_visible_face_cluster_not_the_whole_part(
+    monkeypatch,
+) -> None:
+    from tools.mesh_harness import real_dotnet
+
+    submesh = SimpleNamespace(
+        vertices=[
+            (0.0, 0.0, 0.0),
+            (3.0, 0.0, 0.0),
+            (0.0, 3.0, 0.0),
+            (1000.0, 0.0, 0.0),
+            (1003.0, 0.0, 0.0),
+            (1000.0, 3.0, 0.0),
+        ],
+        faces=[(0, 1, 2), (3, 4, 5)],
+    )
+    projected_world_points: list[tuple[float, float, float]] = []
+    protocol_events = {
+        "tool_state_applied": {
+            "local_selection": {"source_indices": [0]},
+            "selected_part_index": 0,
+            "parts_list_selected_index": 0,
+        },
+        "stroke_begin": {
+            "screen_drag": {
+                "world_view_projection": [1.0] * 16,
+                "viewport_width": 100,
+                "viewport_height": 100,
+            }
+        },
+        "stroke_end": {"event": "stroke_end"},
+    }
+    state = SimpleNamespace(
+        submesh=submesh,
+        submesh_index=0,
+        controller=SimpleNamespace(
+            select=lambda **_kwargs: SimpleNamespace(ok=True),
+            working_mesh=lambda *, clone: SimpleNamespace(submeshes=[submesh]),
+        ),
+        tab=SimpleNamespace(
+            standalone_dotnet_protocol_events=[],
+            _send_dotnet_session_state=lambda: None,
+            _send_dotnet_protocol_message=lambda _payload: True,
+        ),
+        viewport={
+            "width": 100,
+            "height": 100,
+            "client_x": 0,
+            "client_y": 0,
+        },
+        viewport_hwnd=101,
+        selected_before_capture_path=Path("selected-before.png"),
+    )
+
+    monkeypatch.setattr(real_dotnet, "refresh_editable_viewport_rectangle", lambda *_args: {})
+    monkeypatch.setattr(real_dotnet, "_send_mouse_message", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        real_dotnet,
+        "_wait_protocol_event",
+        lambda _state, event, _cursor, _timeout: protocol_events[event],
+    )
+    monkeypatch.setattr(real_dotnet, "_host_window_rect", lambda _hwnd: (0, 0, 100, 100))
+    monkeypatch.setattr(real_dotnet, "_projected_face_cluster_for_drag", lambda *_args, **_kwargs: (0,))
+    monkeypatch.setattr(
+        real_dotnet,
+        "_project_world_to_screen",
+        lambda _matrix, point, **_kwargs: projected_world_points.append(tuple(point)) or (50.0, 50.0),
+    )
+    monkeypatch.setattr(real_dotnet, "_pump_for", lambda *_args: None)
+    monkeypatch.setattr(real_dotnet, "_capture_viewport", lambda *_args: {})
+
+    error = real_dotnet._configure_selection_and_projection(state)
+
+    assert error is None
+    assert state.face_vertices == [0, 1, 2, 3, 4, 5]
+    assert len(state.before_vertices) == 6
+    assert state.projected_anchor_faces == (0,)
+    assert projected_world_points == [(1.0, 1.0, 0.0)]
+
+
 def test_dotnet_real_game_resident_material_gates_require_reuse_and_one_process() -> None:
     before_counts = {
         "initial_package_build_count": 1,

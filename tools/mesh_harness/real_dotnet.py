@@ -627,8 +627,25 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
     _pump_for(state, 0.15)
     current = state.controller.working_mesh(clone=False)
     state.before_vertices = [tuple(float(value) for value in current.submeshes[state.submesh_index].vertices[index]) for index in state.face_vertices]
+    anchor_vertex_indices = sorted(
+        {
+            int(vertex_index)
+            for face_index in state.projected_anchor_faces
+            if 0 <= int(face_index) < len(state.submesh.faces)
+            for vertex_index in state.submesh.faces[int(face_index)]
+            if 0 <= int(vertex_index) < len(current.submeshes[state.submesh_index].vertices)
+        }
+    ) or state.face_vertices
+    anchor_vertices = [
+        tuple(
+            float(value)
+            for value in current.submeshes[state.submesh_index].vertices[vertex_index]
+        )
+        for vertex_index in anchor_vertex_indices
+    ]
     state.selected_center = tuple(
-        sum(vertex[axis] for vertex in state.before_vertices) / len(state.before_vertices) for axis in range(3)
+        sum(vertex[axis] for vertex in anchor_vertices) / len(anchor_vertices)
+        for axis in range(3)
     )
     state.projected_center = _project_world_to_screen(
         matrix,
