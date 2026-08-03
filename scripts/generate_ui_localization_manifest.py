@@ -303,6 +303,7 @@ _CSHARP_WRAPPER_ARG_INDEXES: dict[str, tuple[int, ...] | None] = {
     "CreateMorphCompactCard": (0, 1),
     "GizmoButton": (0,),
     "LabeledControl": (0,),
+    "MorphStepLabel": (0,),
     "NavigationChip": (0, 1),
     "OverlayColorButton": (0,),
     "PickPartColour": (1,),

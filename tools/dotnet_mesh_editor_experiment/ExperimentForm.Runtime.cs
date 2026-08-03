@@ -7,7 +7,12 @@ internal sealed partial class ExperimentForm
 {
     private const double PlacementTransformProtocolIntervalMs = 30.0;
     private const double ViewStateProtocolIntervalMs = 50.0;
-    private const double StrokeUpdateProtocolIntervalMs = 30.0;
+    // One frame, matching the timer that flushes this. The host's live-stroke
+    // dispatcher is single-flight and coalesces to depth one, so raising the
+    // emission rate costs it nothing and only makes the sample it picks up
+    // younger -- the 30ms gate meant Move and Grab acted on pointer positions
+    // that were already up to two frames stale before the round trip started.
+    private const double StrokeUpdateProtocolIntervalMs = 16.0;
     private Dictionary<string, object?>? _pendingPlacementTransformPayload;
     private Dictionary<string, object?>? _pendingViewStatePayload;
     private Dictionary<string, object?>? _pendingStrokeUpdatePayload;

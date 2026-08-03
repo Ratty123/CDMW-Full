@@ -461,3 +461,43 @@ def test_the_real_builder_resolver_reports_and_republishes() -> None:
         assert resolver() == ORIGINAL_REFERENCE_TEXTURE_REQUEST_IN_FLIGHT
         assert published == []
         assert failures == []
+
+
+def test_a_settled_material_state_still_resolves_the_original_pane_textures() -> None:
+    """Solid (Textured) has to texture both panes, not just the Imported one.
+
+    The editable package bakes its own textures, so a material state has been
+    applied long before the reader picks a textured Mesh view. The Original
+    pane's textures are not in that package -- the embedded builder resolves
+    them lazily, through this same resolver, and deliberately not at open. The
+    fast path returned as soon as the editable materials were settled and never
+    asked for them, which is exactly "Solid (Textured) loads for the Imported
+    preview but not the Original".
+    """
+    requests: list[str] = []
+
+    app, tab, builder, process = _mounted_tab(
+        "MeshEditorTexturedViewResolvesReference",
+        lambda: (
+            requests.append("resolve"),
+            ORIGINAL_REFERENCE_TEXTURE_REQUEST_IN_FLIGHT,
+        )[1],
+    )
+    # The editable package's materials are resident and settled.
+    tab.standalone_dotnet_material_generation = 1
+    tab.standalone_dotnet_completed_material_generation = 1
+    tab.standalone_dotnet_applied_material_generation = 1
+
+    assert tab._handle_embedded_viewport_display_mode("textured")
+
+    # The mode goes straight through -- no untextured fallback flicker -- and
+    # the Original pane's resolve is started beside it.
+    assert _display_modes(process)[-1] == "textured"
+    assert requests == ["resolve"]
+    # The wait belongs to the editable pane, which is already textured; arming
+    # it here would put a "loading textures" banner over a finished preview.
+    assert tab.standalone_dotnet_pending_textured_view is False
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()

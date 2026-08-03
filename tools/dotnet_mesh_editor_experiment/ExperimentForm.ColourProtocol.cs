@@ -236,6 +236,11 @@ internal sealed partial class ExperimentForm
         if (_viewport.TrySetSynchronizedDisplayMode("untextured_faces", out _))
         {
             SyncPreviewModeSelection("untextured_faces");
+            // Announced, not applied silently. The host republishes its
+            // presentation snapshot after every accepted scene frame, and a mode
+            // it never heard about is overwritten by the next frame that lands --
+            // which is why opening a page could put the preview mode back.
+            RequestResidentViewportDisplay("untextured_faces");
         }
     }
 

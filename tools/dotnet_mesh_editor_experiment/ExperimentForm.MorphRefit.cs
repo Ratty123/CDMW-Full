@@ -33,6 +33,11 @@ internal sealed partial class ExperimentForm
     private TableLayoutPanel? _morphSectionBody;
     private Button? _morphSectionHeader;
     private Label? _morphWorkflowHint;
+    private Label? _morphStepDefinition;
+    private Label? _morphStepShape;
+    private Label? _morphStepRefit;
+    private Label? _morphStepKeep;
+    private Button? _morphAuthorButton;
     private Control? _morphProfileControl;
     private Control? _morphProfileActions;
     private Control? _morphPresetControl;
@@ -110,6 +115,7 @@ internal sealed partial class ExperimentForm
         _morphSliderStack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         var author = StyledActionButton("Author Slider...", () => ShowMorphAuthorDialog());
+        _morphAuthorButton = author;
         var saveProfile = StyledActionButton("Save Profile", () => WriteCommandRequest("morph_save_profile"));
         var deleteProfile = StyledActionButton("Delete Profile", () =>
         {
@@ -150,6 +156,16 @@ internal sealed partial class ExperimentForm
             MaximumSize = new Size(ScaleToolPanelWidth(EditMeshToolColumnMetrics.WrappedStatusWidth), 0),
         };
         _morphWorkflowHint.Text = "Pick a profile, shape with the sliders, then Bake to keep the result. Sliders are non-destructive until baked.";
+        // The four steps, named on the surface rather than in a tooltip. The
+        // section is a single column of eleven controls, and reading it top to
+        // bottom did not say which of them is the place to start, that a
+        // definition profile is a thing you create rather than something the
+        // mesh arrives with, or that the garment half is optional. Numbering
+        // the groups says all three without a document.
+        _morphStepDefinition = MorphStepLabel("Step 1: Definition profile");
+        _morphStepShape = MorphStepLabel("Step 2: Shape sliders");
+        _morphStepRefit = MorphStepLabel("Step 3: Garment refit (optional)");
+        _morphStepKeep = MorphStepLabel("Step 4: Keep the result");
 
         _morphProfileControl = LabeledControl("Definition profile", _morphProfile);
         _morphProfileActions = ButtonRow(author, saveProfile, deleteProfile);
@@ -159,14 +175,18 @@ internal sealed partial class ExperimentForm
         _morphCommitActions = ButtonRow(reset, bake);
         var body = (TableLayoutPanel)StackControls(
             _morphWorkflowHint,
+            _morphStepDefinition,
             _morphProfileControl,
             _morphProfileActions,
+            _morphStepShape,
             _morphPresetControl,
             _morphPresetActions,
             _morphSliderStack,
+            _morphStepRefit,
             _morphDriverStatus,
             _morphBindingStatus,
             _morphBindingActions,
+            _morphStepKeep,
             _morphCommitActions,
             _morphDiagnosticStatus);
         _morphSectionBody = body;
@@ -221,7 +241,90 @@ internal sealed partial class ExperimentForm
             out _morphCommitCardBody);
         AddStackRow(stack, section);
         _meshEditOnlySections.Add(section);
+        // Before any morph state has arrived the list is empty, which is the
+        // state the "where do profiles come from" question is asked in.
+        UpdateMorphWorkflowHint();
         return section;
+    }
+
+    /// <summary>
+    /// One step caption in the section's single column. Assigned outside the
+    /// initializer for the same reason every other control name here is: a
+    /// control name sitting beside a Text literal is picked up by the
+    /// localization scanner as if it were one.
+    /// </summary>
+    private Label MorphStepLabel(string text)
+    {
+        var label = new Label
+        {
+            Text = text,
+            AutoSize = true,
+            ForeColor = ThemeStrongText,
+            BackColor = ThemeSectionBackground,
+            Margin = new Padding(2, 8, 2, 2),
+            UseMnemonic = false,
+        };
+        label.Name = $"MorphStepLabel{_morphStepLabelCount++}";
+        return label;
+    }
+
+    private int _morphStepLabelCount;
+
+    private void AddMorphStepRow(Label? label)
+    {
+        if (label is not null && _morphSectionBody is not null)
+        {
+            AddStackRow(_morphSectionBody, label);
+        }
+    }
+
+    /// <summary>
+    /// Says what to do now, from what the section is actually holding.
+    /// </summary>
+    /// <remarks>
+    /// A fixed sentence describing the whole workflow could not answer the
+    /// question a reader opening this page actually has, which is "there is no
+    /// profile in this list and nothing tells me where one comes from". Each
+    /// state names its own next action, and the button that performs it is
+    /// accented while it is the one to press.
+    /// </remarks>
+    private void UpdateMorphWorkflowHint()
+    {
+        if (_morphWorkflowHint is null)
+        {
+            return;
+        }
+        var hasProfiles = _morphProfile.Items.Count > 0;
+        var profileChosen = hasProfiles && _morphProfile.SelectedIndex >= 0;
+        var startHere = !hasProfiles || !profileChosen || _morphSliders.Count == 0;
+        // One assignment per state rather than a nested conditional: the
+        // localization scanner reads assignments to a UI sink, and only the
+        // first branch of a conditional expression reaches it, which would
+        // leave the other four English in every other language.
+        if (!hasProfiles)
+        {
+            _morphWorkflowHint.Text = "No definition profile yet. Author Slider... builds one from this mesh; nothing is changed until you Bake.";
+        }
+        else if (!profileChosen)
+        {
+            _morphWorkflowHint.Text = "Choose a definition profile above, or Author Slider... to build another one.";
+        }
+        else if (_morphSliders.Count == 0)
+        {
+            _morphWorkflowHint.Text = "This profile carries no sliders yet. Author Slider... adds one to it.";
+        }
+        else if (_morphUnbaked)
+        {
+            _morphWorkflowHint.Text = "Bake keeps this result in the mesh; Reset All discards it. Topology edits stay blocked until one of them runs.";
+        }
+        else
+        {
+            _morphWorkflowHint.Text = "Pick a profile, shape with the sliders, then Bake to keep the result. Sliders are non-destructive until baked.";
+        }
+        if (_morphAuthorButton is not null)
+        {
+            SetButtonAccent(_morphAuthorButton, startHere);
+        }
     }
 
     private GroupBox CreateMorphCompactCard(
@@ -418,14 +521,18 @@ internal sealed partial class ExperimentForm
             {
                 AddStackRow(_morphSectionBody, _morphWorkflowHint);
             }
+            AddMorphStepRow(_morphStepDefinition);
             AddStackRow(_morphSectionBody, _morphProfileControl);
             AddStackRow(_morphSectionBody, _morphProfileActions);
+            AddMorphStepRow(_morphStepShape);
             AddStackRow(_morphSectionBody, _morphPresetControl);
             AddStackRow(_morphSectionBody, _morphPresetActions);
             AddStackRow(_morphSectionBody, _morphSliderStack);
+            AddMorphStepRow(_morphStepRefit);
             AddStackRow(_morphSectionBody, _morphDriverStatus);
             AddStackRow(_morphSectionBody, _morphBindingStatus);
             AddStackRow(_morphSectionBody, _morphBindingActions);
+            AddMorphStepRow(_morphStepKeep);
             AddStackRow(_morphSectionBody, _morphCommitActions);
             AddStackRow(_morphSectionBody, _morphDiagnosticStatus);
 
@@ -779,6 +886,7 @@ internal sealed partial class ExperimentForm
             ["state_revision"] = stateRevision,
             ["change_id"] = changeId,
         };
+        UpdateMorphWorkflowHint();
         CopyMutationEnvelope(root, acknowledgement);
         WriteProtocolEvent("morph_state_update_ack", acknowledgement);
         ResumePendingFinishIfClear();

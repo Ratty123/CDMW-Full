@@ -244,6 +244,7 @@ internal sealed partial class MeshViewport
             _edgeDragActive = false;
             _selectionPaintActive = false;
             _selectionLassoPoints.Clear();
+            ReleasePaintProjectionCache();
             EndEditorStroke(_strokePrevious, cancelled: true);
             _capturedInputPane = string.Empty;
             SetRenderSurfaceCapture(false);
@@ -569,9 +570,24 @@ internal sealed partial class MeshViewport
             .ToArray();
     }
 
+    /// <summary>
+    /// A per-submesh world-view-projection for every submesh the pick is
+    /// allowed to touch, and no others.
+    /// </summary>
+    /// <remarks>
+    /// Every stroke sample and every brush dab carries this array twice, once
+    /// in <c>screen_drag</c> and once in <c>screen_brush</c>, at sixteen
+    /// doubles per entry. Sending an entry for a hidden or non-editable submesh
+    /// is pure protocol weight: the native reader filters by
+    /// <c>source_submesh_indices</c> before it ever resolves a projection, so
+    /// an override outside that list cannot be reached. On a character with
+    /// most of its parts switched off this is the difference between a
+    /// kilobyte a sample and tens of them, on the path that has to keep up with
+    /// the pointer.
+    /// </remarks>
     private Dictionary<string, object?>[] SourceProjectionOverrides(NetViewportCamera camera)
     {
-        return Enumerable.Range(0, Math.Min(_scene.EditableSubmeshCount, _document.Submeshes.Count))
+        return VisibleEditableSubmeshIndices()
             .Select(submeshIndex => new Dictionary<string, object?>
             {
                 ["source_submesh_index"] = submeshIndex,
@@ -635,6 +651,7 @@ internal sealed partial class MeshViewport
                 _selectionPaintOperation = operation == "subtract" ? "subtract" : "add";
                 _selectionPaintActive = true;
                 _selectionPaintLastSample = point;
+                _selectionPaintLastEcho = point;
                 _selectionPaintLastSampleTicks = 0;
             }
             else if (_selectionDragMode == "lasso")

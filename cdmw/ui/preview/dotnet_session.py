@@ -701,7 +701,8 @@ class DotNetPreviewSessionController(QObject):
             return
         if self._process is None or not qprocess_is_running(self._process):
             self.retry_now()
-        elif (
+            return
+        if (
             self._applied_package_path
             and self._session_established
             and self._localization_initial_established
@@ -718,10 +719,40 @@ class DotNetPreviewSessionController(QObject):
                 # path activates from `_accept_applied_package` once the right
                 # package has landed, so there is nothing to reveal early for.
                 self._request_resident_package_load()
-            else:
-                self._activate_applied()
-        else:
-            self._request_resident_package_load()
+                if self._pending_package_generation == self._package_generation:
+                    return
+                # Nothing was sent. `_request_resident_package_load` reports
+                # success for "the helper already holds this package path at
+                # this generation" as well as for "a request went out", and the
+                # identities can still differ there -- an identity carries more
+                # than the path. A reload cannot settle that difference, so
+                # returning here left the panel paused over a resident scene it
+                # was already showing correctly. Fall through and reveal it.
+            elif self._activate_applied():
+                return
+        elif self._request_resident_package_load():
+            return
+        # Becoming visible again must not end in silence. Every branch above can
+        # decline without sending anything -- a handshake gate that is still
+        # down, a package request the helper already applied -- and the panel
+        # then keeps showing "paused while hidden" over a perfectly healthy
+        # resident scene, with no way back except restarting the editor. That is
+        # what leaving Mesh Editor for another tab and returning did.
+        #
+        # Asking the helper to reveal what it is already holding is the right
+        # answer here and is idempotent: it answers `activated`, which is what
+        # clears the panel. A helper still holding only the procedural warm-up
+        # scene is the one case that must stay hidden, and it is excluded rather
+        # than asked and refused.
+        if self._applied_package_path and not self.serving_prewarm_placeholder:
+            self._send_json(
+                {
+                    "event": "activate_request",
+                    "material_signature": str(
+                        getattr(self._applied_package, "material_signature", "") or ""
+                    ),
+                }
+            )
 
     def retry_now(self) -> None:
         if self._closed or not self._visible:

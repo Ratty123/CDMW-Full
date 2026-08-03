@@ -28,14 +28,28 @@ internal sealed partial class MeshViewport
         var now = Environment.TickCount64;
         if (!final && _selectionPaintPainted)
         {
-            if (now - _selectionPaintLastSampleTicks < (long)SelectionPaintSampleIntervalMs)
-            {
-                return;
-            }
-            if (Math.Abs(point.X - _selectionPaintLastSample.X)
+            var tooSoon = now - _selectionPaintLastSampleTicks < (long)SelectionPaintSampleIntervalMs;
+            var tooClose = Math.Abs(point.X - _selectionPaintLastSample.X)
                 + Math.Abs(point.Y - _selectionPaintLastSample.Y)
-                < SelectionPaintSampleMinimumStepPixels)
+                < SelectionPaintSampleMinimumStepPixels;
+            if (tooSoon || tooClose)
             {
+                // The cadence bounds how often the host is asked for an
+                // authoritative result, not how often the reader sees the
+                // stroke. Holding the local echo back too made a brush drag
+                // paint in visible steps a frame behind the cursor rather than
+                // under it, which is the whole complaint about brush select.
+                // The echo is a superset of what the next emitted sample asks
+                // for, so nothing it tints is lost when that result lands.
+                if (!tooClose)
+                {
+                    UpdateProvisionalPaintHits(
+                        _selectionPaintLastEcho,
+                        point,
+                        SelectionPaintRadiusPixels(),
+                        _selectionPaintOperation);
+                    _selectionPaintLastEcho = point;
+                }
                 return;
             }
         }
@@ -77,6 +91,7 @@ internal sealed partial class MeshViewport
         EditorEventRequested?.Invoke("select_request", payload);
         _selectionPaintPainted = true;
         _selectionPaintLastSample = point;
+        _selectionPaintLastEcho = point;
         _selectionPaintLastSampleTicks = now;
     }
 
@@ -137,6 +152,91 @@ internal sealed partial class MeshViewport
     }
 
     /// <summary>
+    /// Everything a paint drag needs about the scene that does not change while
+    /// it lasts: where each editable vertex lands on screen, and whether any
+    /// face it belongs to faces the camera.
+    /// </summary>
+    /// <remarks>
+    /// Both used to be recomputed for every dab. The projection is one matrix
+    /// transform per vertex, but the front-facing test walked every face of the
+    /// submesh looking for one that contains the vertex — O(vertices × faces)
+    /// per dab, which on a real garment part is tens of millions of triangle
+    /// orientations at the 30ms sample cadence, on the UI thread. That is what
+    /// made brush select stutter and lag behind the cursor instead of painting.
+    /// Built once per drag it is O(vertices + faces), and every dab after it is
+    /// a distance test.
+    /// </remarks>
+    private sealed class PaintProjectionCache
+    {
+        public required Matrix4x4 Camera { get; init; }
+        public Dictionary<int, PointF[]> Points { get; } = new();
+        public Dictionary<int, bool[]> FrontFacing { get; } = new();
+    }
+
+    private PaintProjectionCache? _paintProjection;
+
+    /// <summary>
+    /// Drops the per-drag projection cache. Called when the gesture ends, so a
+    /// camera move between drags can never be answered from stale screen
+    /// positions.
+    /// </summary>
+    private void ReleasePaintProjectionCache()
+    {
+        _paintProjection = null;
+    }
+
+    private PaintProjectionCache EnsurePaintProjectionCache(NetViewportCamera camera)
+    {
+        if (_paintProjection is { } cached && cached.Camera.Equals(camera.WorldViewProjection))
+        {
+            return cached;
+        }
+        var cache = new PaintProjectionCache { Camera = camera.WorldViewProjection };
+        for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount && submeshIndex < _document.Submeshes.Count; submeshIndex++)
+        {
+            if (!IsSubmeshVisibleForViewportSelection(submeshIndex))
+            {
+                continue;
+            }
+            var submesh = _document.Submeshes[submeshIndex];
+            var points = new PointF[submesh.Vertices.Count];
+            for (var vertexIndex = 0; vertexIndex < points.Length; vertexIndex++)
+            {
+                points[vertexIndex] = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
+            }
+            cache.Points[submeshIndex] = points;
+            var frontFacing = new bool[points.Length];
+            for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
+            {
+                var face = submesh.Faces[faceIndex];
+                if (face.Corners.Length != 3)
+                {
+                    continue;
+                }
+                var a = face.Corners[0].VertexIndex;
+                var b = face.Corners[1].VertexIndex;
+                var c = face.Corners[2].VertexIndex;
+                if (a < 0 || b < 0 || c < 0 || a >= points.Length || b >= points.Length || c >= points.Length)
+                {
+                    continue;
+                }
+                var area = ((points[b].X - points[a].X) * (points[c].Y - points[a].Y))
+                    - ((points[b].Y - points[a].Y) * (points[c].X - points[a].X));
+                if (area >= -0.01f)
+                {
+                    continue;
+                }
+                frontFacing[a] = true;
+                frontFacing[b] = true;
+                frontFacing[c] = true;
+            }
+            cache.FrontFacing[submeshIndex] = frontFacing;
+        }
+        _paintProjection = cache;
+        return cache;
+    }
+
+    /// <summary>
     /// Instant local echo of one paint dab or sweep: the vertices the segment
     /// from <paramref name="start"/> to <paramref name="end"/> (a point, for a
     /// dab) covers are tinted immediately, then replaced when the
@@ -150,23 +250,21 @@ internal sealed partial class MeshViewport
         {
             return;
         }
-        var camera = CurrentCamera();
+        var cache = EnsurePaintProjectionCache(CurrentCamera());
         var radiusSquared = radius * radius;
         var segmentX = (double)(end.X - start.X);
         var segmentY = (double)(end.Y - start.Y);
         var segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
         var subtract = operation == "subtract";
-        for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount && submeshIndex < _document.Submeshes.Count; submeshIndex++)
+        foreach (var pair in cache.Points)
         {
-            if (!IsSubmeshVisibleForViewportSelection(submeshIndex))
-            {
-                continue;
-            }
-            var submesh = _document.Submeshes[submeshIndex];
+            var submeshIndex = pair.Key;
+            var points = pair.Value;
+            var frontFacing = cache.FrontFacing.GetValueOrDefault(submeshIndex);
             HashSet<int>? bucket = null;
-            for (var vertexIndex = 0; vertexIndex < submesh.Vertices.Count; vertexIndex++)
+            for (var vertexIndex = 0; vertexIndex < points.Length; vertexIndex++)
             {
-                var projected = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
+                var projected = points[vertexIndex];
                 double deltaX;
                 double deltaY;
                 if (segmentLengthSquared <= 0.0001)
@@ -187,7 +285,7 @@ internal sealed partial class MeshViewport
                 {
                     continue;
                 }
-                if (!ShowXRay && !IsVertexFrontFacing(submeshIndex, vertexIndex, camera))
+                if (!ShowXRay && (frontFacing is null || !frontFacing[vertexIndex]))
                 {
                     continue;
                 }
@@ -666,19 +764,24 @@ internal sealed partial class MeshViewport
         return area < -0.01f;
     }
 
+    /// <summary>
+    /// Parts are the only selectable element, so "source" is the fallback here
+    /// as well as the combo's only value: a provider that is not attached yet
+    /// must not answer with a target the surface no longer offers.
+    /// </summary>
     internal string CurrentTargetMode()
     {
         var options = ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>();
         return options.TryGetValue("target_mode", out var value)
-            ? (value?.ToString() ?? "vertex").Trim().ToLowerInvariant()
-            : "vertex";
+            ? (value?.ToString() ?? "source").Trim().ToLowerInvariant()
+            : "source";
     }
 
     private string CurrentSelectionOperation()
     {
         var options = ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>();
         return options.TryGetValue("operation", out var value)
-            ? (value?.ToString() ?? "replace").Trim().ToLowerInvariant()
-            : "replace";
+            ? (value?.ToString() ?? "add").Trim().ToLowerInvariant()
+            : "add";
     }
 }

@@ -341,6 +341,77 @@ internal sealed partial class ExperimentForm
         return button;
     }
 
+    /// <summary>
+    /// The viewport's own clear colour and grid colour, picked where they are
+    /// seen. They are not part of the topology overlay, so they get their own
+    /// row and their own preference file, but they use the same swatch button.
+    /// </summary>
+    private Control ViewportColorControls()
+    {
+        _backgroundColorButton = ViewportColorButton("Background", background: true);
+        _gridColorButton = ViewportColorButton("Grid", background: false);
+        var reset = StyledActionButton("Reset", ResetViewportColors);
+        reset.Name = "ViewportColorResetButton";
+        return ButtonRow(_backgroundColorButton, _gridColorButton, reset);
+    }
+
+    private Button ViewportColorButton(string label, bool background)
+    {
+        var button = StyledButton(label);
+        button.Name = background ? "ViewportBackgroundColorButton" : "ViewportGridColorButton";
+        button.AccessibleName = background ? "Viewport background color" : "Viewport grid color";
+        button.Click += (_, _) => ChooseViewportColor(label, background);
+        ApplyOverlayColorButtonStyle(
+            button,
+            label,
+            background ? _viewportColors.Background : _viewportColors.Grid);
+        return button;
+    }
+
+    private void ChooseViewportColor(string label, bool background)
+    {
+        var current = background ? _viewportColors.Background : _viewportColors.Grid;
+        using var dialog = new ColorDialog
+        {
+            Color = current,
+            AllowFullOpen = true,
+            AnyColor = true,
+            FullOpen = true,
+            SolidColorOnly = true,
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+        _viewportColors = background
+            ? _viewportColors with { Background = dialog.Color }
+            : _viewportColors with { Grid = dialog.Color };
+        ApplyViewportColors($"{label} color set to {MeshOverlayColors.Hex(dialog.Color)}.");
+    }
+
+    private void ResetViewportColors()
+    {
+        _viewportColors = MeshViewportBackgroundColors.Default;
+        ApplyViewportColors("Viewport background and grid colors reset.");
+    }
+
+    private void ApplyViewportColors(string status)
+    {
+        _viewportColors = _viewportColors.Normalized();
+        _viewport.SetViewportColorOverrides(_viewportColors.Background, _viewportColors.Grid);
+        if (_backgroundColorButton is not null)
+        {
+            ApplyOverlayColorButtonStyle(_backgroundColorButton, "Background", _viewportColors.Background);
+        }
+        if (_gridColorButton is not null)
+        {
+            ApplyOverlayColorButtonStyle(_gridColorButton, "Grid", _viewportColors.Grid);
+        }
+        _statusLabel.Text = MeshViewportBackgroundPreferences.TrySave(_viewportColors, out var error)
+            ? status
+            : $"{status} Preference save failed: {error}";
+    }
+
     private void ChooseOverlayColor(string label, bool wire)
     {
         var current = wire ? _overlaySettings.Colors.Wire : _overlaySettings.Colors.Vertex;
@@ -904,7 +975,7 @@ internal sealed partial class ExperimentForm
                 && !string.Equals(tool, "orbit", StringComparison.OrdinalIgnoreCase));
         SetHelpText(
             _viewportHelpMarker,
-            $"{hint}\r\n\r\nChoose the preview mode, topology appearance, or a camera preset. Colors and sizes are saved; X-Ray uses white wire and magenta vertices while preserving those sizes.");
+            $"{hint}\r\n\r\nChoose the preview mode, topology appearance, viewport background and grid colors, or a camera preset. Colors and sizes are saved; X-Ray uses white wire and magenta vertices while preserving those sizes.");
     }
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)

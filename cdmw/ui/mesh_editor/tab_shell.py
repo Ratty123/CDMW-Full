@@ -915,7 +915,14 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
                     radius_pixels=24.0,
                     strength=0.5,
                     falloff="smooth",
-                    selection_mode=str(self.current_selection_mode or "vertex"),
+                    # Deliberately no `selection_mode`. That field names the
+                    # Select drag shape -- brush, lasso or rectangle -- and this
+                    # tab has no such choice; `current_selection_mode` is the
+                    # element mode, which already travels as `target_mode`.
+                    # Publishing it here put a second vocabulary into one field,
+                    # and the two publishers alternating made every builder
+                    # refresh look like a change back to brush, which took a
+                    # reader's Lasso away again on the next control refresh.
                     smooth_iterations=3,
                 )
             )
