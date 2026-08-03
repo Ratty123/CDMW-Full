@@ -54,14 +54,24 @@ internal sealed partial class ExperimentForm
         // selection. The combo belongs to this editor; the host never has an
         // authoritative vertex/face/edge/part choice to push.
         // The Select drag mode (brush/lasso/rectangle) IS host state: the
-        // builder's Selection combo publishes it, and the viewport only
-        // accepts those three values, so a host that publishes something else
-        // in this field cannot reset the choice. Adopted only when the host
+        // builder's Selection combo publishes it. Adopted only when the host
         // value changes: the host republishes tool_state on every control
         // refresh, and re-applying the same combo value would stomp a mode
         // picked on this side between refreshes.
-        var selectionDragMode = JsonString(root, "selection_mode");
-        if (!string.Equals(selectionDragMode, _lastHostSelectionDragMode, StringComparison.OrdinalIgnoreCase))
+        //
+        // Anything that is not one of the three drag shapes is not a drag shape
+        // and is discarded before it can touch either the combo or the record
+        // of what the host last said. Two publishers write this one field with
+        // two vocabularies: the builder sends brush/lasso/rectangle, and the
+        // Mesh Editor tab sends its element mode (vertex/face/edge/part).
+        // Recording the element mode as "the host's last drag shape" made the
+        // builder's very next refresh look like a change back to brush, combo
+        // assignment and all -- so a reader who picked Lasso had it taken away
+        // again on the next control refresh, every time, which is why lasso
+        // appeared not to work at all.
+        var selectionDragMode = JsonString(root, "selection_mode").Trim().ToLowerInvariant();
+        if (selectionDragMode is "brush" or "lasso" or "rectangle"
+            && !string.Equals(selectionDragMode, _lastHostSelectionDragMode, StringComparison.OrdinalIgnoreCase))
         {
             _lastHostSelectionDragMode = selectionDragMode;
             _viewport.SetSelectionDragMode(selectionDragMode);

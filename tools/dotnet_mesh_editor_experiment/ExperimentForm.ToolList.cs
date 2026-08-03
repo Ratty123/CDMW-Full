@@ -161,7 +161,7 @@ internal sealed partial class ExperimentForm
     /// </summary>
     private static string ToolListRowDescription(string key) => key switch
     {
-        RowKeys.Select => "Vertex, face and part selection, X-Ray and Part Pick.",
+        RowKeys.Select => "Whole-part selection: drag shape, combine mode and X-Ray.",
         RowKeys.Move or RowKeys.Grab => "Translate step, Move and Grab.",
         RowKeys.Smooth or RowKeys.Inflate or RowKeys.Pinch =>
             "Smooth, Inflate and Pinch with radius, strength and falloff.",

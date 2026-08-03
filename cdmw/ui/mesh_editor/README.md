@@ -119,7 +119,11 @@ font/label size, and handle size. Those values apply live through the resident
 presentation payload and persist with the main Preview Settings config.
 Display, topology, X-Ray, grid, material, texture, and lighting controls stay
 on their owning .NET/Builder viewport surfaces instead of being duplicated in
-this modal. Archive Browser Preview Settings use a separate resident .NET target
+this modal. The viewport's own background and grid colors are picked in the
+editor's Viewport section beside the wire and vertex swatches, persist in
+`mesh-editor-viewport-background.json` next to the topology appearance, and
+override the host presentation snapshot so an accepted scene frame cannot
+replace them. Archive Browser Preview Settings use a separate resident .NET target
 and likewise show only Camera Input; texture loading remains on the Archive
 Preview toolbar. Reset Camera Input restores the two sensitivity values while
 preserving the inversion choices, Gizmo appearance, and every hidden renderer
@@ -230,6 +234,21 @@ Standalone D3D11 rectangle/lasso selection events now send `screen_region`
 with D3D11 start/end coordinates, optional lasso points, source-submesh filter,
 viewport, and world-view-projection matrices instead of expanding selection
 candidates in the host.
+`selection_mode` in `tool_state` names the Select drag shape and accepts only
+`brush`, `lasso` and `rectangle`. The element mode travels as `target_mode`; a
+host that publishes anything else in the drag-shape field is ignored outright,
+including for the record of what the host last said, so a shape picked in the
+editor survives every control refresh.
+The Morph & Refit section is four captioned steps -- definition profile, shape
+sliders, garment refit (optional), keep the result -- above a hint computed from
+the section's own state, which names the next action and accents the button that
+performs it.
+Edit Mesh selects whole parts and nothing else. The Selection page's target is
+pinned to Part and its control is not shown, so every surface that reads it --
+click, drag, region and brush picks, and the Topology commands that follow the
+target -- resolves source parts. The sculpt brushes are unaffected: Grab,
+Smooth, Inflate and Pinch take their weights from the screen brush rather than
+the selection target. Selection mode defaults to Add.
 The builder's Selection combo (Brush/Lasso/Rectangle) is honored by the
 resident editor: a brush-mode Select drag paints throttled add/subtract
 `screen_brush` dabs that native unions over the swept path (Replace starts the

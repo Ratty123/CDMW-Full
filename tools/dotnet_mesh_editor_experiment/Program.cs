@@ -53,6 +53,8 @@ internal sealed partial class ExperimentForm : Form
     private readonly CheckBox _xray = new();
     private Button? _wireColorButton;
     private Button? _vertexColorButton;
+    private Button? _backgroundColorButton;
+    private Button? _gridColorButton;
     private readonly NumericUpDown _wireOverlayWidth = new();
     private readonly NumericUpDown _vertexMarkerSize = new();
     private readonly CheckBox _partPick = new();
@@ -112,6 +114,7 @@ internal sealed partial class ExperimentForm : Form
     private bool _syncingOverlayAppearanceControls;
     private bool _applyingToolPanelLayout;
     private MeshOverlaySettings _overlaySettings = MeshOverlayPreferences.Load();
+    private MeshViewportBackgroundColors _viewportColors = MeshViewportBackgroundPreferences.Load();
     private MeshToolPanelLayout _toolPanelLayout = MeshToolPanelLayoutPreferences.Load();
 
     public ExperimentForm(LaunchOptions options, ObjDocument document, long sourceParseCount)
@@ -162,6 +165,9 @@ internal sealed partial class ExperimentForm : Form
                 out _);
         }
         _viewport.SetOverlaySettings(_overlaySettings);
+        // Applied before the first frame, so a remembered background is what the
+        // reader sees rather than the renderer default followed by a repaint.
+        _viewport.SetViewportColorOverrides(_viewportColors.Background, _viewportColors.Grid);
         _viewport.ToolOptionsProvider = ToolOptionsPayload;
         _viewport.EditorEventRequested += HandleViewportEditorEvent;
         _viewport.StatusRequested += message => _statusLabel.Text = message;
@@ -199,12 +205,26 @@ internal sealed partial class ExperimentForm : Form
         };
 
         ConfigureNumeric(_translateStep, decimalPlaces: 4, minimum: -10, maximum: 10, value: 0.0100M, increment: 0.0100M);
-        ConfigureCombo(_selectionTarget, new object[] { "Vertex", "Face", "Edge", "Part" }, selectedIndex: 0);
-        ConfigureCombo(_selectionOperation, new object[] { "Replace", "Add", "Subtract", "Toggle" }, selectedIndex: 0);
+        // Parts are the only selectable element. Sub-part selection is gone from
+        // the surface rather than merely defaulted away: every tool, command and
+        // native screen pick reads this combo, so pinning it to Part is what
+        // makes vertex, edge and face selection unreachable in one place instead
+        // of in each of them. The control keeps existing and stays out of the
+        // layout, because the pick paths read its value.
+        ConfigureCombo(_selectionTarget, new object[] { "Part" }, selectedIndex: 0);
+        _selectionTarget.Visible = false;
+        // Add, not Replace: the reader builds a part selection up across several
+        // clicks far more often than they restart it, and Replace made every
+        // click throw the previous part away.
+        ConfigureCombo(_selectionOperation, new object[] { "Add", "Replace", "Subtract", "Toggle" }, selectedIndex: 0);
         // Brush is the drag-shape default, matching the host combo's default;
         // picking here drives the viewport directly, and the host's tool_state
         // only re-adopts the value when its own combo actually changes.
         ConfigureCombo(_selectionShape, new object[] { "Brush", "Rectangle", "Lasso" }, selectedIndex: 0);
+        // ConfigureCombo assigns SelectedIndex before the handler below exists,
+        // so the viewport never heard the default and stayed on its own
+        // "rectangle" while the combo read "Brush".
+        _viewport.SetSelectionDragMode(SelectionText(_selectionShape, "brush"));
         _selectionShape.SelectedIndexChanged += (_, _) =>
         {
             _viewport.SetSelectionDragMode(SelectionText(_selectionShape, "brush"));
@@ -732,9 +752,8 @@ internal sealed partial class ExperimentForm : Form
         var selectionSection = AddHelpSection(
             leftStack,
             "Selection",
-            "Choose Vertex, Edge, Face, or Part; then click the mesh or drag a selection box. X-Ray selects through the mesh.",
+            "Click a part, or drag with the chosen shape to select several. Selection is whole parts only. X-Ray selects through the mesh.",
             out _,
-            LabeledControl("Selection target", _selectionTarget),
             LabeledControl("Select shape", _selectionShape),
             LabeledControl("Selection mode", _selectionOperation),
             _xray,
@@ -787,9 +806,9 @@ internal sealed partial class ExperimentForm : Form
         var topologySection = AddHelpSection(
             leftStack,
             "Topology",
-            "Acts on the current Selection target. Delete and Duplicate remove or copy the selected "
-            + "vertices, edges, faces or parts; Subdivide and Refine Smooth add density to the "
-            + "selection, to the selected parts, or to the whole mesh when nothing is selected.",
+            "Acts on the selected parts. Delete and Duplicate remove or copy them; "
+            + "Subdivide and Refine Smooth add density to them, or to the whole mesh "
+            + "when nothing is selected.",
             out _,
             ButtonRow(deleteSelectionButton, duplicateSelectionButton),
             ButtonRow(subdivideButton, refineButton));
@@ -800,10 +819,11 @@ internal sealed partial class ExperimentForm : Form
         _viewportSection = AddHelpSection(
             rightStack,
             "Viewport",
-            "Choose the preview mode, topology appearance, or a camera preset. Mouse and keyboard bindings update with the active tool.",
+            "Choose the preview mode, topology appearance, viewport background, or a camera preset. Mouse and keyboard bindings update with the active tool.",
             out var viewportHelpMarker,
             PreviewModeControl(),
             OverlayAppearanceControls(),
+            ViewportColorControls(),
             // Four rows of three rather than three plus a lone Orbit: the whole
             // group has to fit above the fold, or the camera presets are behind
             // a scroll on a 1080p column.
@@ -1014,13 +1034,13 @@ internal sealed partial class ExperimentForm : Form
 
     private string SelectionTarget()
     {
-        var selected = SelectionText(_selectionTarget, "vertex");
+        var selected = SelectionText(_selectionTarget, "part");
         return selected == "part" ? "source" : selected;
     }
 
     private string SelectionOperation()
     {
-        return SelectionText(_selectionOperation, "replace");
+        return SelectionText(_selectionOperation, "add");
     }
 
     private string SelectionDepthMode()
@@ -1102,10 +1122,12 @@ internal sealed partial class MeshViewport : Control
     private int _hoverEdgeId = -1;
     private bool _edgeDragActive;
     private bool _placementDragActive;
-    private string _selectionDragTargetMode = "edge";
-    // How a Select drag resolves: rectangle (default), brush paint, or lasso.
-    // Host state from the builder's Selection combo via tool_state.
-    private string _selectionDragMode = "rectangle";
+    private string _selectionDragTargetMode = "source";
+    // How a Select drag resolves: brush paint (default), rectangle, or lasso.
+    // Matches the Select shape combo's own default, so the two agree before
+    // anything has been picked. Host state from the builder's Selection combo
+    // via tool_state.
+    private string _selectionDragMode = "brush";
     // Instant local echo of a paint/click selection, drawn until the
     // authoritative native result lands (~one protocol round trip later).
     private readonly Dictionary<int, HashSet<int>> _provisionalSelectedVertices = new();
@@ -1114,6 +1136,10 @@ internal sealed partial class MeshViewport : Control
     private string _selectionPaintFirstOperation = "add";
     private string _selectionPaintOperation = "add";
     private Point _selectionPaintLastSample;
+    // Where the local tint has been painted up to. It runs ahead of
+    // _selectionPaintLastSample, which is where the host was last asked for an
+    // authoritative result.
+    private Point _selectionPaintLastEcho;
     private long _selectionPaintLastSampleTicks;
     private readonly List<Point> _selectionLassoPoints = new();
     private Point _edgeDragStart;
