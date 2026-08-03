@@ -130,13 +130,43 @@ internal static partial class HeadlessGpuSparseSoak
             && state.AcceptAuthoritativePlacementFrame()
             && !state.HasProvisionalPlacement
             && MatrixNearlyEqual(state.RoleViewModelMatrix(0), expectedProvisional);
+        var editInteractionApplied = ApplyInteractionProof(
+            state,
+            requestId: 3,
+            generation: 4,
+            interactionMode: "mesh_edit",
+            comparisonMode: "side_by_side",
+            out var editInteractionRejection);
+        var editInteractionPreservedScene = editInteractionApplied
+            && editInteractionRejection.Length == 0
+            && string.Equals(state.InteractionMode, "mesh_edit", StringComparison.Ordinal)
+            && string.Equals(state.ComparisonMode, "replacement_only", StringComparison.Ordinal)
+            && MatrixNearlyEqual(state.RoleViewModelMatrix(0), expectedProvisional)
+            && MatrixNearlyEqual(state.RoleViewModelMatrix(1), referenceMatrix)
+            && VectorNearlyEqual(state.GridOrigin, gridOrigin);
+        var placementInteractionApplied = ApplyInteractionProof(
+            state,
+            requestId: 4,
+            generation: 5,
+            interactionMode: "placement",
+            comparisonMode: "side_by_side",
+            out var placementInteractionRejection);
+        var finishReturnedToTwoPanePlacement = placementInteractionApplied
+            && placementInteractionRejection.Length == 0
+            && string.Equals(state.InteractionMode, "placement", StringComparison.Ordinal)
+            && string.Equals(state.ComparisonMode, "side_by_side", StringComparison.Ordinal)
+            && MatrixNearlyEqual(state.RoleViewModelMatrix(0), expectedProvisional)
+            && MatrixNearlyEqual(state.RoleViewModelMatrix(1), referenceMatrix)
+            && VectorNearlyEqual(state.GridOrigin, gridOrigin);
         var ok = editableMovedImmediately
             && referenceUnchanged
             && pivotMovedWithTranslation
             && nonzeroSourceAnchorStayedAtPivot
             && staleAuthorityRetainedProvisional
             && residentGridStayedFixed
-            && matchingAuthorityAccepted;
+            && matchingAuthorityAccepted
+            && editInteractionPreservedScene
+            && finishReturnedToTwoPanePlacement;
         return new Dictionary<string, object?>
         {
             ["ok"] = ok,
@@ -147,6 +177,8 @@ internal static partial class HeadlessGpuSparseSoak
             ["stale_authority_retained_newer_provisional_drag"] = staleAuthorityRetainedProvisional,
             ["resident_world_grid_stayed_fixed"] = residentGridStayedFixed,
             ["matching_authority_completed_provisional_drag"] = matchingAuthorityAccepted,
+            ["interaction_only_transition_preserved_scene"] = editInteractionPreservedScene,
+            ["finish_returned_to_two_pane_placement"] = finishReturnedToTwoPanePlacement,
         };
     }
 
@@ -697,6 +729,33 @@ internal static partial class HeadlessGpuSparseSoak
             document.RootElement,
             documentSubmeshCount: 2,
             out rejectionReason);
+    }
+
+    private static bool ApplyInteractionProof(
+        NetSceneState state,
+        long requestId,
+        long generation,
+        string interactionMode,
+        string comparisonMode,
+        out string rejectionReason)
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            ["session_id"] = "resident-placement-proof",
+            ["source_identity"] = "resident-placement-source",
+            ["request_id"] = requestId,
+            ["scene_generation"] = generation,
+            ["interaction_mode"] = interactionMode,
+            ["comparison_mode"] = comparisonMode,
+            ["gizmo"] = new Dictionary<string, object?>
+            {
+                ["visible"] = true,
+                ["tool"] = "move",
+                ["space"] = "world",
+            },
+        };
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(payload));
+        return state.TryApplyResidentInteractionUpdate(document.RootElement, out rejectionReason);
     }
 
     private static Dictionary<string, object?> PlacementProofRole(Matrix4x4 matrix) => new()

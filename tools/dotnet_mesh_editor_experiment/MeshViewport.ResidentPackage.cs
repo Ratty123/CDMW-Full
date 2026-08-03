@@ -12,11 +12,7 @@ internal sealed partial class MeshViewport
     /// </summary>
     internal string InitialResidentDisplayMode(bool hasTextureResources)
     {
-        if (_options.SimplePreview)
-        {
-            return hasTextureResources ? "textured" : "untextured_wire";
-        }
-        return hasTextureResources ? "textured_wire" : "untextured_wire";
+        return hasTextureResources ? "textured" : "untextured_wire";
     }
 
     /// <summary>
@@ -40,7 +36,7 @@ internal sealed partial class MeshViewport
         return DisplayMode switch
         {
             "textured" => "untextured_faces",
-            "textured_wire" => "untextured_wire",
+            "textured_wire" => "untextured_faces",
             _ => DisplayMode,
         };
     }

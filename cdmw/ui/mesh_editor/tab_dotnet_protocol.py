@@ -549,6 +549,8 @@ class MeshEditorDotNetProtocolMixin(
         if not matches:
             return False
         status = str(payload.get("status", "") or "").strip().lower()
+        finish_matcher = getattr(self, "_dotnet_finish_scene_matches", None)
+        finish_matches = bool(callable(finish_matcher) and finish_matcher(payload))
         self.standalone_dotnet_scene_pending = None
         if status != "applied":
             self.standalone_dotnet_scene_candidate = None
@@ -557,6 +559,10 @@ class MeshEditorDotNetProtocolMixin(
                 + str(payload.get("reason", "unknown reason") or "unknown reason"),
                 error=True,
             )
+            if finish_matches:
+                self._fail_embedded_dotnet_edit_mode_finish(
+                    "Resident placement mode transition could not be queued."
+                )
             return False
         self.standalone_dotnet_scene_acknowledged_generation = int(
             payload.get("scene_generation", 0) or 0
@@ -570,6 +576,8 @@ class MeshEditorDotNetProtocolMixin(
             request_id=int(payload.get("request_id", 0) or 0),
             scene_generation=self.standalone_dotnet_scene_acknowledged_generation,
         )
+        if finish_matches:
+            self._complete_embedded_dotnet_edit_mode_finish()
         if not self._sync_embedded_builder_presentation_state():
             self._send_dotnet_presentation_state()
         return True
