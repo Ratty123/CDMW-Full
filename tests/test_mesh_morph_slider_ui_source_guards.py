@@ -51,6 +51,7 @@ def _resident_morph_source() -> str:
         ROOT / "native" / "cdmw_mesh_core" / "src" / "owners" / "session_morph_01.cpp",
         ROOT / "native" / "cdmw_mesh_core" / "src" / "owners" / "session_state_05.cpp",
         ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphRefit.cs",
+        ROOT / "tools" / "dotnet_mesh_editor_experiment" / "MorphAuthorWizard.cs",
         ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MutationAuthority.cs",
         ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.Protocol.cs",
         ROOT / "tools" / "dotnet_mesh_editor_experiment" / "Program.cs",
@@ -78,15 +79,22 @@ class MeshMorphSliderUiSourceGuardTests(unittest.TestCase):
         resident_source = _resident_morph_source()
 
         self.assertIn('StyledButton("▾  Morph & Refit"', resident_source)
-        self.assertIn('LabeledControl("Definition profile", _morphProfile)', resident_source)
+        self.assertIn('LabeledControl("Profile", _morphProfile)', resident_source)
         self.assertIn('LabeledControl("Value preset", _morphPreset)', resident_source)
-        self.assertIn('StyledActionButton("Set Driver"', resident_source)
-        self.assertIn('StyledActionButton("Bind Selected Parts"', resident_source)
+        self.assertIn('StyledActionButton("1. Set Selected Driver Parts"', resident_source)
+        self.assertIn('StyledActionButton("2. Bind Selected Garment Parts"', resident_source)
         self.assertIn('StyledActionButton("Clear Refit"', resident_source)
-        self.assertIn('StyledActionButton("Reset All"', resident_source)
+        self.assertIn('StyledActionButton("Reset"', resident_source)
         self.assertIn('StyledActionButton("Bake"', resident_source)
-        self.assertIn('WriteCommandRequest("morph_author_definition"', resident_source)
+        self.assertIn('Name = "MorphProfileWizard"', resident_source)
+        self.assertIn('"1. Profile", "2. Parts", "3. Deformation", "4. Preview & Save"', resident_source)
+        self.assertIn('Name = "MorphWizardSelectedPartChips"', resident_source)
+        self.assertIn('Text = "Save Profile"', resident_source)
+        self.assertIn('("morph_author_definition", MorphAuthorPayload(', resident_source)
         self.assertIn('"morph_delete_definition"', resident_source)
+        self.assertIn("_profileId.ReadOnly = true", resident_source)
+        self.assertIn("_definitionId.ReadOnly = true", resident_source)
+        self.assertIn("Saving a profile never bakes the mesh", resident_source)
         self.assertIn("RequestFinishEditMesh", resident_source)
         self.assertNotIn("import_body_slider_profile(", legacy_source)
         self.assertNotIn("import_single_morph_slider_profile(", legacy_source)
@@ -107,9 +115,33 @@ class MeshMorphSliderUiSourceGuardTests(unittest.TestCase):
         self.assertIn('case "morph_state_update":', source)
         self.assertIn('"morph_state_update_ack"', source)
         self.assertIn("requestId <= _morphStateRequestId", source)
-        self.assertIn('payload["preserve_selection"] = definition.HasValue', source)
+        self.assertIn('payload["preserve_selection"] = false', source)
+        self.assertIn('["preserve_selection"] = true', source)
+        self.assertIn("SelectedMorphParts", source)
+        self.assertIn("BeginMorphWizardCommandSequence", source)
         self.assertIn('"morph_state_update" => $"{message.EventName}|{sessionId}"', source)
         self.assertNotIn("Process.Start", (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphRefit.cs").read_text(encoding="utf-8"))
+
+    def test_morph_wizard_serializes_correlated_preview_and_save_commands(self) -> None:
+        source = (
+            ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphRefit.cs"
+        ).read_text(encoding="utf-8")
+        preview_start = source.index("    private void PreviewMorphAuthorDialog(")
+        preview_end = source.index("    private static Dictionary<string, object?> MorphWizardChangePayload(", preview_start)
+        preview_body = source[preview_start:preview_end]
+        sequence_start = source.index("    private bool BeginMorphWizardCommandSequence(")
+        sequence_end = source.index("    private static Dictionary<string, object?> MorphAuthorPayload(", sequence_start)
+        sequence_body = source[sequence_start:sequence_end]
+
+        self.assertIn('commands.Add(("morph_author_definition",', preview_body)
+        self.assertIn('commands.Add(("morph_change",', preview_body)
+        self.assertIn("BeginMorphWizardCommandSequence(", preview_body)
+        self.assertNotIn("WriteCommandRequest(", preview_body)
+        self.assertIn("_morphWizardSequenceActive = true", sequence_body)
+        self.assertIn("_morphWizardCommandQueue.Enqueue", sequence_body)
+        self.assertIn("_morphWizardCommandRequestId = WriteCommandRequest(command, payload)", sequence_body)
+        self.assertIn("BeginInvoke((Action)SendNextMorphWizardCommand)", source)
+        self.assertIn("CompleteMorphWizardCommandSequence(accepted: false)", source)
 
     def test_vortice_vertex_overlay_reuses_resident_geometry_buffers(self) -> None:
         overlay_source = (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")

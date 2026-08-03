@@ -43,7 +43,7 @@ def test_python_authoring_sender_correlates_revisions_through_shared_controller(
     assert '"event": "resident_state_resync"' in queue
     assert "_remove_paths(self._active_paths)" in queue
     assert "_handle_dotnet_update_ack_timeout" in tab
-    assert "standalone_dotnet_update_ack_timer.start(1_000)" in tab
+    assert "standalone_dotnet_update_ack_timer.start(5_000)" in tab
     assert "def update_mesh_edit_vertices" in host
     assert "send_correlated" in host
     assert "def send_authoring_message" in controller

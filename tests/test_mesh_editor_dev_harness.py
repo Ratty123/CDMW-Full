@@ -516,11 +516,11 @@ class MeshHarnessRealArchiveTests(unittest.TestCase):
             )
             evidence = json.loads((output_dir / "evidence_report.json").read_text(encoding="utf-8"))
 
-        run_dotnet.assert_called_once_with(game_root, output_dir, timeout_seconds=180.0)
+        run_dotnet.assert_called_once_with(game_root, output_dir, timeout_seconds=360.0)
         run_zoom.assert_called_once_with(
             game_root,
             output_dir / "camera_zoom",
-            timeout_seconds=180.0,
+            timeout_seconds=360.0,
         )
         self.assertTrue(result["ok"])
         self.assertTrue(result["real_archive_mesh_editor_dotnet_edit"]["backend_gate_ok"])

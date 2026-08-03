@@ -68,7 +68,7 @@ _LEFT_CATEGORY_LABELS = {
 
 _SLOW_FRAME_MS = 1000.0 / 60.0
 _MODE_ACTION_BY_TEXT = {"object": "mode_object", "edit": "mode_edit", "sculpt": "mode_sculpt"}
-_SELECTION_ACTION_BY_TEXT = {"vertex": "select_vertex", "edge": "select_edge", "face": "select_face"}
+_SELECTION_ACTION_BY_TEXT = {"brush": "select_parts", "rectangle": "select_parts", "lasso": "select_parts"}
 _SKELETON_PANEL_BONE_LIMIT = 512
 _SKELETON_PANEL_WEIGHT_LIMIT = 32
 
@@ -196,7 +196,7 @@ class WorkspaceStateMixin:
         self._native_editor_available = bool(native_editor_available)
         self.setEnabled(bool(has_target))
         self._sync_combo(self.mode_combo, str(mode or "object"))
-        self._sync_combo(self.selection_combo, str(active_selection_mode or "vertex"))
+        self._sync_combo(self.selection_combo, str(active_selection_mode or "brush"))
         current_mode = str(mode or "").strip().lower()
         for action in self._actions_by_key.values():
             enabled = bool(has_target)

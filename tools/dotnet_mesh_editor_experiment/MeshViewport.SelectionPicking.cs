@@ -25,7 +25,34 @@ internal sealed partial class MeshViewport
     /// </summary>
     private void MaybeEmitSelectionPaintSample(Point point, bool final = false)
     {
+        var toggleGesture = _selectionPaintFirstOperation == "toggle";
         var now = Environment.TickCount64;
+        if (toggleGesture)
+        {
+            var previousEcho = _selectionPaintPainted ? _selectionPaintLastEcho : point;
+            var echoMoved = Math.Abs(point.X - previousEcho.X) + Math.Abs(point.Y - previousEcho.Y)
+                >= SelectionPaintSampleMinimumStepPixels;
+            if (!_selectionPaintPainted || echoMoved || final)
+            {
+                if (_selectionPaintPathPoints.Count == 0 || _selectionPaintPathPoints[^1] != point)
+                {
+                    _selectionPaintPathPoints.Add(point);
+                }
+                UpdateProvisionalPaintHits(
+                    previousEcho,
+                    point,
+                    SelectionPaintRadiusPixels(),
+                    "toggle");
+                _selectionPaintLastEcho = point;
+                _selectionPaintPainted = true;
+            }
+            if (!final)
+            {
+                return;
+            }
+            EmitFinalTogglePaintSelection();
+            return;
+        }
         if (!final && _selectionPaintPainted)
         {
             var tooSoon = now - _selectionPaintLastSampleTicks < (long)SelectionPaintSampleIntervalMs;
@@ -66,6 +93,7 @@ internal sealed partial class MeshViewport
         if (!_selectionPaintPainted && operation == "replace")
         {
             _provisionalSelectedVertices.Clear();
+            _provisionalSelectedSources.Clear();
         }
         UpdateProvisionalPaintHits(
             _selectionPaintPainted ? previous : point,
@@ -93,6 +121,29 @@ internal sealed partial class MeshViewport
         _selectionPaintLastSample = point;
         _selectionPaintLastEcho = point;
         _selectionPaintLastSampleTicks = now;
+    }
+
+    private void EmitFinalTogglePaintSelection()
+    {
+        var path = _selectionPaintPathPoints.Count > 0
+            ? _selectionPaintPathPoints
+            : new List<Point> { _selectionPaintLastEcho };
+        var region = ScreenDragPayload(path[0], path[^1]);
+        region["mode"] = "brush";
+        region["selection_mode"] = "brush";
+        region["points"] = path
+            .Select(pathPoint => new[] { (double)pathPoint.X, (double)pathPoint.Y })
+            .ToArray();
+        region["radius_pixels"] = SelectionPaintRadiusPixels();
+        EditorEventRequested?.Invoke("select_request", new Dictionary<string, object?>
+        {
+            ["operation"] = "toggle",
+            ["target_mode"] = _selectionDragTargetMode,
+            ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
+            ["paint_sample"] = true,
+            ["paint_final"] = true,
+            ["screen_region"] = region,
+        });
     }
 
     private void EmitSelectionSweepQuad(
@@ -135,22 +186,6 @@ internal sealed partial class MeshViewport
         return Math.Clamp(NumberOption(options, "radius", 24.0), 2.0, 256.0);
     }
 
-    private const int ProvisionalSelectionVertexBudget = 200_000;
-
-    private bool ProvisionalSelectionAffordable()
-    {
-        var total = 0;
-        for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount && submeshIndex < _document.Submeshes.Count; submeshIndex++)
-        {
-            total += _document.Submeshes[submeshIndex].Vertices.Count;
-            if (total > ProvisionalSelectionVertexBudget)
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
     /// <summary>
     /// Everything a paint drag needs about the scene that does not change while
     /// it lasts: where each editable vertex lands on screen, and whether any
@@ -169,10 +204,17 @@ internal sealed partial class MeshViewport
     private sealed class PaintProjectionCache
     {
         public required Matrix4x4 Camera { get; init; }
+        public required int GridColumns { get; init; }
+        public required int GridRows { get; init; }
         public Dictionary<int, PointF[]> Points { get; } = new();
-        public Dictionary<int, bool[]> FrontFacing { get; } = new();
+        public Dictionary<int, bool[]> FrontFacingFaces { get; } = new();
+        public Dictionary<int, RectangleF> PartBounds { get; } = new();
+        public Dictionary<int, int[][]> FaceBuckets { get; } = new();
+        public Dictionary<int, int[]> FaceVisitMarks { get; } = new();
+        public Dictionary<int, int> FaceVisitGenerations { get; } = new();
     }
 
+    private const int PaintProjectionCellPixels = 32;
     private PaintProjectionCache? _paintProjection;
 
     /// <summary>
@@ -191,7 +233,13 @@ internal sealed partial class MeshViewport
         {
             return cached;
         }
-        var cache = new PaintProjectionCache { Camera = camera.WorldViewProjection };
+        var viewport = ActivePaneBounds();
+        var cache = new PaintProjectionCache
+        {
+            Camera = camera.WorldViewProjection,
+            GridColumns = Math.Max(1, (viewport.Width + PaintProjectionCellPixels - 1) / PaintProjectionCellPixels),
+            GridRows = Math.Max(1, (viewport.Height + PaintProjectionCellPixels - 1) / PaintProjectionCellPixels),
+        };
         for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount && submeshIndex < _document.Submeshes.Count; submeshIndex++)
         {
             if (!IsSubmeshVisibleForViewportSelection(submeshIndex))
@@ -205,7 +253,16 @@ internal sealed partial class MeshViewport
                 points[vertexIndex] = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
             }
             cache.Points[submeshIndex] = points;
-            var frontFacing = new bool[points.Length];
+            if (points.Length > 0)
+            {
+                var minX = points.Min(point => point.X);
+                var minY = points.Min(point => point.Y);
+                var maxX = points.Max(point => point.X);
+                var maxY = points.Max(point => point.Y);
+                cache.PartBounds[submeshIndex] = RectangleF.FromLTRB(minX, minY, maxX, maxY);
+            }
+            var frontFacing = new bool[submesh.Faces.Count];
+            var pendingBuckets = new List<int>?[cache.GridColumns * cache.GridRows];
             for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
             {
                 var face = submesh.Faces[faceIndex];
@@ -222,91 +279,234 @@ internal sealed partial class MeshViewport
                 }
                 var area = ((points[b].X - points[a].X) * (points[c].Y - points[a].Y))
                     - ((points[b].Y - points[a].Y) * (points[c].X - points[a].X));
-                if (area >= -0.01f)
+                frontFacing[faceIndex] = area < -0.01f;
+                var faceLeft = Math.Min(points[a].X, Math.Min(points[b].X, points[c].X));
+                var faceRight = Math.Max(points[a].X, Math.Max(points[b].X, points[c].X));
+                var faceTop = Math.Min(points[a].Y, Math.Min(points[b].Y, points[c].Y));
+                var faceBottom = Math.Max(points[a].Y, Math.Max(points[b].Y, points[c].Y));
+                if (faceRight < 0.0f || faceBottom < 0.0f || faceLeft >= viewport.Width || faceTop >= viewport.Height)
                 {
                     continue;
                 }
-                frontFacing[a] = true;
-                frontFacing[b] = true;
-                frontFacing[c] = true;
+                var left = Math.Clamp((int)MathF.Floor(faceLeft / PaintProjectionCellPixels), 0, cache.GridColumns - 1);
+                var right = Math.Clamp((int)MathF.Floor(faceRight / PaintProjectionCellPixels), 0, cache.GridColumns - 1);
+                var top = Math.Clamp((int)MathF.Floor(faceTop / PaintProjectionCellPixels), 0, cache.GridRows - 1);
+                var bottom = Math.Clamp((int)MathF.Floor(faceBottom / PaintProjectionCellPixels), 0, cache.GridRows - 1);
+                for (var row = top; row <= bottom; row++)
+                {
+                    for (var column = left; column <= right; column++)
+                    {
+                        var bucketIndex = row * cache.GridColumns + column;
+                        (pendingBuckets[bucketIndex] ??= new List<int>()).Add(faceIndex);
+                    }
+                }
             }
-            cache.FrontFacing[submeshIndex] = frontFacing;
+            cache.FrontFacingFaces[submeshIndex] = frontFacing;
+            var buckets = new int[pendingBuckets.Length][];
+            for (var bucketIndex = 0; bucketIndex < buckets.Length; bucketIndex++)
+            {
+                buckets[bucketIndex] = pendingBuckets[bucketIndex]?.ToArray() ?? Array.Empty<int>();
+            }
+            cache.FaceBuckets[submeshIndex] = buckets;
+            cache.FaceVisitMarks[submeshIndex] = new int[submesh.Faces.Count];
+            cache.FaceVisitGenerations[submeshIndex] = 0;
         }
         _paintProjection = cache;
         return cache;
     }
 
     /// <summary>
-    /// Instant local echo of one paint dab or sweep: the vertices the segment
-    /// from <paramref name="start"/> to <paramref name="end"/> (a point, for a
-    /// dab) covers are tinted immediately, then replaced when the
-    /// authoritative native result lands one round trip later. Skipped above
-    /// a vertex budget, where the projection walk would cost more than the
-    /// latency it hides.
+    /// Instant local echo of one paint dab or sweep: every part whose visible
+    /// triangles intersect the swept band is tinted immediately, then replaced when the
+    /// authoritative native result lands one round trip later. Projection,
+    /// face orientation, and broad part bounds are immutable for the drag and
+    /// built once, so dense meshes never lose their realtime echo merely
+    /// because they cross an arbitrary vertex threshold.
     /// </summary>
     private void UpdateProvisionalPaintHits(Point start, Point end, double radius, string operation)
     {
-        if (!ProvisionalSelectionAffordable())
-        {
-            return;
-        }
         var cache = EnsurePaintProjectionCache(CurrentCamera());
-        var radiusSquared = radius * radius;
-        var segmentX = (double)(end.X - start.X);
-        var segmentY = (double)(end.Y - start.Y);
-        var segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
-        var subtract = operation == "subtract";
+        var bandBounds = RectangleF.FromLTRB(
+            (float)(Math.Min(start.X, end.X) - radius),
+            (float)(Math.Min(start.Y, end.Y) - radius),
+            (float)(Math.Max(start.X, end.X) + radius),
+            (float)(Math.Max(start.Y, end.Y) + radius));
         foreach (var pair in cache.Points)
         {
             var submeshIndex = pair.Key;
             var points = pair.Value;
-            var frontFacing = cache.FrontFacing.GetValueOrDefault(submeshIndex);
-            HashSet<int>? bucket = null;
-            for (var vertexIndex = 0; vertexIndex < points.Length; vertexIndex++)
+            if (!cache.PartBounds.TryGetValue(submeshIndex, out var partBounds)
+                || !partBounds.IntersectsWith(bandBounds))
             {
-                var projected = points[vertexIndex];
-                double deltaX;
-                double deltaY;
-                if (segmentLengthSquared <= 0.0001)
+                continue;
+            }
+            var submesh = _document.Submeshes[submeshIndex];
+            var frontFacingFaces = cache.FrontFacingFaces[submeshIndex];
+            var faceBuckets = cache.FaceBuckets[submeshIndex];
+            var visitMarks = cache.FaceVisitMarks[submeshIndex];
+            var visitGeneration = cache.FaceVisitGenerations[submeshIndex] == int.MaxValue
+                ? 1
+                : cache.FaceVisitGenerations[submeshIndex] + 1;
+            cache.FaceVisitGenerations[submeshIndex] = visitGeneration;
+            if (visitGeneration == 1)
+            {
+                Array.Clear(visitMarks);
+            }
+            var hit = false;
+            var left = Math.Clamp((int)MathF.Floor(bandBounds.Left / PaintProjectionCellPixels), 0, cache.GridColumns - 1);
+            var right = Math.Clamp((int)MathF.Floor(bandBounds.Right / PaintProjectionCellPixels), 0, cache.GridColumns - 1);
+            var top = Math.Clamp((int)MathF.Floor(bandBounds.Top / PaintProjectionCellPixels), 0, cache.GridRows - 1);
+            var bottom = Math.Clamp((int)MathF.Floor(bandBounds.Bottom / PaintProjectionCellPixels), 0, cache.GridRows - 1);
+            for (var row = top; row <= bottom && !hit; row++)
+            {
+                for (var column = left; column <= right && !hit; column++)
                 {
-                    deltaX = projected.X - start.X;
-                    deltaY = projected.Y - start.Y;
-                }
-                else
-                {
-                    var t = Math.Clamp(
-                        ((projected.X - start.X) * segmentX + (projected.Y - start.Y) * segmentY) / segmentLengthSquared,
-                        0.0,
-                        1.0);
-                    deltaX = projected.X - (start.X + t * segmentX);
-                    deltaY = projected.Y - (start.Y + t * segmentY);
-                }
-                if (deltaX * deltaX + deltaY * deltaY > radiusSquared)
-                {
-                    continue;
-                }
-                if (!ShowXRay && (frontFacing is null || !frontFacing[vertexIndex]))
-                {
-                    continue;
-                }
-                if (subtract)
-                {
-                    if (_provisionalSelectedVertices.TryGetValue(submeshIndex, out var existing))
+                    foreach (var faceIndex in faceBuckets[row * cache.GridColumns + column])
                     {
-                        existing.Remove(vertexIndex);
+                        if (visitMarks[faceIndex] == visitGeneration)
+                        {
+                            continue;
+                        }
+                        visitMarks[faceIndex] = visitGeneration;
+                        var face = submesh.Faces[faceIndex];
+                        if (face.Corners.Length != 3)
+                        {
+                            continue;
+                        }
+                        var aIndex = face.Corners[0].VertexIndex;
+                        var bIndex = face.Corners[1].VertexIndex;
+                        var cIndex = face.Corners[2].VertexIndex;
+                        if (aIndex < 0 || bIndex < 0 || cIndex < 0
+                            || aIndex >= points.Length || bIndex >= points.Length || cIndex >= points.Length)
+                        {
+                            continue;
+                        }
+                        var a = points[aIndex];
+                        var b = points[bIndex];
+                        var c = points[cIndex];
+                        if (!ShowXRay && !frontFacingFaces[faceIndex])
+                        {
+                            continue;
+                        }
+                        if (SweptBandIntersectsTriangle(start, end, radius, a, b, c))
+                        {
+                            hit = true;
+                            break;
+                        }
                     }
                 }
-                else
+            }
+            if (!hit)
+            {
+                continue;
+            }
+            if (operation == "subtract")
+            {
+                _provisionalSelectedSources.Remove(submeshIndex);
+            }
+            else if (operation == "toggle")
+            {
+                if (!_selectionPaintToggleTouchedSources.Add(submeshIndex))
                 {
-                    bucket ??= _provisionalSelectedVertices.TryGetValue(submeshIndex, out var current)
-                        ? current
-                        : _provisionalSelectedVertices[submeshIndex] = new HashSet<int>();
-                    bucket.Add(vertexIndex);
+                    continue;
+                }
+                if (!_provisionalSelectedSources.Remove(submeshIndex))
+                {
+                    _provisionalSelectedSources.Add(submeshIndex);
                 }
             }
+            else
+            {
+                _provisionalSelectedSources.Add(submeshIndex);
+            }
         }
+        _provisionalPartSelectionActive = true;
         UpdateGpuViewport();
         Invalidate();
+    }
+
+    private static bool SweptBandIntersectsTriangle(
+        Point start,
+        Point end,
+        double radius,
+        PointF a,
+        PointF b,
+        PointF c)
+    {
+        if (SelectionPointInTriangle(start, a, b, c) || SelectionPointInTriangle(end, a, b, c))
+        {
+            return true;
+        }
+        var radiusSquared = radius * radius;
+        return SegmentDistanceSquared(start, end, a, a) <= radiusSquared
+            || SegmentDistanceSquared(start, end, b, b) <= radiusSquared
+            || SegmentDistanceSquared(start, end, c, c) <= radiusSquared
+            || SegmentDistanceSquared(start, end, a, b) <= radiusSquared
+            || SegmentDistanceSquared(start, end, b, c) <= radiusSquared
+            || SegmentDistanceSquared(start, end, c, a) <= radiusSquared;
+    }
+
+    private static bool SelectionPointInTriangle(Point point, PointF a, PointF b, PointF c)
+    {
+        static float Sign(float px, float py, PointF first, PointF second) =>
+            (px - second.X) * (first.Y - second.Y) - (first.X - second.X) * (py - second.Y);
+        var d1 = Sign(point.X, point.Y, a, b);
+        var d2 = Sign(point.X, point.Y, b, c);
+        var d3 = Sign(point.X, point.Y, c, a);
+        var hasNegative = d1 < 0.0f || d2 < 0.0f || d3 < 0.0f;
+        var hasPositive = d1 > 0.0f || d2 > 0.0f || d3 > 0.0f;
+        return !(hasNegative && hasPositive);
+    }
+
+    private static double SegmentDistanceSquared(Point firstStart, Point firstEnd, PointF secondStart, PointF secondEnd)
+    {
+        if (SelectionSegmentsIntersect(firstStart, firstEnd, secondStart, secondEnd))
+        {
+            return 0.0;
+        }
+        return Math.Min(
+            Math.Min(PointSegmentDistanceSquared(firstStart.X, firstStart.Y, secondStart, secondEnd),
+                PointSegmentDistanceSquared(firstEnd.X, firstEnd.Y, secondStart, secondEnd)),
+            Math.Min(PointSegmentDistanceSquared(secondStart.X, secondStart.Y, firstStart, firstEnd),
+                PointSegmentDistanceSquared(secondEnd.X, secondEnd.Y, firstStart, firstEnd)));
+    }
+
+    private static double PointSegmentDistanceSquared(float x, float y, PointF start, PointF end)
+    {
+        var dx = end.X - start.X;
+        var dy = end.Y - start.Y;
+        var lengthSquared = dx * dx + dy * dy;
+        var t = lengthSquared <= 0.000001f
+            ? 0.0f
+            : Math.Clamp(((x - start.X) * dx + (y - start.Y) * dy) / lengthSquared, 0.0f, 1.0f);
+        var nearestX = start.X + t * dx;
+        var nearestY = start.Y + t * dy;
+        var deltaX = x - nearestX;
+        var deltaY = y - nearestY;
+        return deltaX * deltaX + deltaY * deltaY;
+    }
+
+    internal static bool SelectionSegmentsIntersect(PointF a, PointF b, PointF c, PointF d)
+    {
+        static float Cross(PointF first, PointF second, PointF third) =>
+            (second.X - first.X) * (third.Y - first.Y) - (second.Y - first.Y) * (third.X - first.X);
+        static bool OnSegment(PointF point, PointF start, PointF end) =>
+            point.X >= Math.Min(start.X, end.X) - 0.00001f
+            && point.X <= Math.Max(start.X, end.X) + 0.00001f
+            && point.Y >= Math.Min(start.Y, end.Y) - 0.00001f
+            && point.Y <= Math.Max(start.Y, end.Y) + 0.00001f;
+        var abC = Cross(a, b, c);
+        var abD = Cross(a, b, d);
+        var cdA = Cross(c, d, a);
+        var cdB = Cross(c, d, b);
+        if (Math.Sign(abC) != Math.Sign(abD) && Math.Sign(cdA) != Math.Sign(cdB))
+        {
+            return true;
+        }
+        return (Math.Abs(abC) <= 0.00001f && OnSegment(c, a, b))
+            || (Math.Abs(abD) <= 0.00001f && OnSegment(d, a, b))
+            || (Math.Abs(cdA) <= 0.00001f && OnSegment(a, c, d))
+            || (Math.Abs(cdB) <= 0.00001f && OnSegment(b, c, d));
     }
 
     private (int SubmeshIndex, int ItemIndex)? PickVertexAt(Point point)
@@ -492,6 +692,7 @@ internal sealed partial class MeshViewport
             if (clickOperation == "replace")
             {
                 _provisionalSelectedVertices.Clear();
+                _provisionalSelectedSources.Clear();
             }
             UpdateProvisionalPaintHits(point, point, SelectionClickRadiusPixels, clickOperation);
             payload["screen_brush"] = ScreenPayload(point, SelectionClickRadiusPixels);

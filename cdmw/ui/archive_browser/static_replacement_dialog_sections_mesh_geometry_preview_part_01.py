@@ -208,7 +208,7 @@ def _mesh_geometry_preview_step_004(_state):
     _state.mesh_edit_part_combo.setToolTip(_state.mesh_edit_action_control_text['part_combo_tooltip'])
     _state.mesh_edit_tool_combo = _state.QComboBox()
     _state._populate_combo_options_helper(_state.mesh_edit_tool_combo, _state.MESH_EDIT_TOOL_OPTIONS)
-    _state.mesh_edit_tool_combo.setCurrentIndex(_state.max(0, _state.mesh_edit_tool_combo.findData('vertex')))
+    _state.mesh_edit_tool_combo.setCurrentIndex(_state.max(0, _state.mesh_edit_tool_combo.findData('orbit')))
     _state.mesh_edit_tool_combo.setVisible(False)
     _state.mesh_edit_tool_palette = _state.QFrame(_state.mesh_edit_group)
     _state.mesh_edit_tool_palette.setObjectName('MeshEditVerticalToolPalette')
@@ -222,7 +222,7 @@ def _mesh_geometry_preview_step_004(_state):
         _state.button.setToolButtonStyle(_state.Qt.ToolButtonTextOnly)
         _state.button.setCheckable(True)
         _state.button.setAutoExclusive(True)
-        _state.button.setChecked(_state.tool == 'vertex')
+        _state.button.setChecked(False)
         _state.button.setMinimumHeight(24)
         _state.button.setSizePolicy(_state.QSizePolicy.Expanding, _state.QSizePolicy.Fixed)
         _state.button.setToolTip(_state.tooltip)
@@ -366,13 +366,16 @@ def _mesh_geometry_preview_step_007(_state):
     _state.mesh_edit_selection_button_row.addWidget(_state.mesh_edit_shrink_selection_button)
     _state.mesh_edit_selection_button_row.addWidget(_state.mesh_edit_smooth_selection_button)
     _state.mesh_edit_layout.addWidget(_state.mesh_edit_clear_selection_button)
-    _state.mesh_edit_layout.addWidget(_state.mesh_edit_select_part_button)
-    _state.mesh_edit_layout.addWidget(_state.mesh_edit_invert_selection_button)
-    _state.mesh_edit_layout.addWidget(_state.mesh_edit_selection_actions_widget)
-    _state.mesh_edit_layout.addWidget(_state.mesh_edit_subdivide_selection_button)
-    _state.mesh_edit_layout.addWidget(_state.mesh_edit_refine_smooth_selection_button)
-    _state.mesh_edit_layout.addWidget(_state.mesh_edit_split_selection_button)
-    _state.mesh_edit_layout.addWidget(_state.mesh_edit_delete_faces_button)
+    for _state.element_only_control in (
+        _state.mesh_edit_select_part_button,
+        _state.mesh_edit_invert_selection_button,
+        _state.mesh_edit_selection_actions_widget,
+        _state.mesh_edit_subdivide_selection_button,
+        _state.mesh_edit_refine_smooth_selection_button,
+        _state.mesh_edit_split_selection_button,
+        _state.mesh_edit_delete_faces_button,
+    ):
+        _state.element_only_control.setVisible(False)
     _state.mesh_edit_button_row = _state.QHBoxLayout()
     _state.mesh_edit_button_row.setContentsMargins(0, 0, 0, 0)
     _state.mesh_edit_button_row.setSpacing(3)

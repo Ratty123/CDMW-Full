@@ -451,23 +451,24 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
         action_bar.button_for_key("mode_edit").click()
         action_bar.button_for_key("mode_sculpt").click()
-        loop_cut_button = action_bar.button_for_key("loop_cut")
+        select_parts_button = action_bar.button_for_key("select_parts")
 
         self.assertEqual(["mode_edit", "mode_sculpt"], [getattr(action, "key", "") for action in emitted])
         self.assertFalse(action_bar.button_for_key("mode_edit").isChecked())
         self.assertTrue(action_bar.button_for_key("mode_sculpt").isChecked())
-        self.assertIsNotNone(loop_cut_button)
-        assert loop_cut_button is not None
-        self.assertFalse(loop_cut_button.icon().isNull())
-        self.assertEqual(Qt.ToolButtonStyle.ToolButtonTextUnderIcon, loop_cut_button.toolButtonStyle())
-        self.assertEqual("Loop Cut", loop_cut_button.text())
-        self.assertEqual("loop_cut", loop_cut_button.property("meshEditorCommand"))
-        self.assertEqual("edit", loop_cut_button.property("meshEditorMode"))
-        self.assertEqual("edge", loop_cut_button.property("meshEditorSelectionMode"))
-        self.assertEqual("loop_cut", loop_cut_button.property("meshEditorIconKey"))
-        self.assertEqual("Ctrl+R", loop_cut_button.property("meshEditorShortcut"))
-        self.assertEqual("Ctrl+R", loop_cut_button.shortcut().toString(QKeySequence.SequenceFormat.PortableText))
-        self.assertIn("Shortcut: Ctrl+R", loop_cut_button.toolTip())
+        self.assertIsNotNone(select_parts_button)
+        assert select_parts_button is not None
+        self.assertFalse(select_parts_button.icon().isNull())
+        self.assertEqual(Qt.ToolButtonStyle.ToolButtonTextUnderIcon, select_parts_button.toolButtonStyle())
+        self.assertEqual("Parts", select_parts_button.text())
+        self.assertEqual("select", select_parts_button.property("meshEditorCommand"))
+        self.assertEqual("", select_parts_button.property("meshEditorSelectionMode"))
+        self.assertEqual("select_parts", select_parts_button.property("meshEditorIconKey"))
+        self.assertEqual("1", select_parts_button.property("meshEditorShortcut"))
+        self.assertEqual("1", select_parts_button.shortcut().toString(QKeySequence.SequenceFormat.PortableText))
+        self.assertIn("Shortcut: 1", select_parts_button.toolTip())
+        for hidden_key in ("select_vertex", "select_edge", "select_face", "loop_cut", "edge_split", "bridge"):
+            self.assertIsNone(action_bar.button_for_key(hidden_key))
         app.processEvents()
         action_bar.deleteLater()
 
@@ -485,7 +486,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
         self.assertTrue(action_bar.button_for_key("brush_smooth").isChecked())
         self.assertFalse(action_bar.button_for_key("brush_inflate").isChecked())
-        self.assertFalse(action_bar.button_for_key("select_vertex").isChecked())
+        self.assertFalse(action_bar.button_for_key("select_parts").isChecked())
         self.assertIn("QToolButton:checked", action_bar.styleSheet())
         self.assertIn("#1769aa", action_bar.styleSheet())
 
@@ -499,18 +500,18 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
         self.assertFalse(action_bar.button_for_key("brush_smooth").isChecked())
         self.assertTrue(action_bar.button_for_key("brush_inflate").isChecked())
-        self.assertFalse(action_bar.button_for_key("select_vertex").isChecked())
+        self.assertFalse(action_bar.button_for_key("select_parts").isChecked())
 
         action_bar.update_action_state(
             has_target=True,
             selection_empty=False,
             mode="edit",
             active_selection_mode="face",
-            active_tool_key="",
+            active_tool_key="select_parts",
         )
 
         self.assertFalse(action_bar.button_for_key("brush_inflate").isChecked())
-        self.assertTrue(action_bar.button_for_key("select_face").isChecked())
+        self.assertTrue(action_bar.button_for_key("select_parts").isChecked())
         app.processEvents()
         action_bar.deleteLater()
 
@@ -544,14 +545,20 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app = QApplication.instance() or QApplication([])
         action_bar = MeshEditorActionBar()
 
-        action_bar.update_action_state(has_target=True, selection_empty=True, mode="edit", active_selection_mode="face")
+        action_bar.update_action_state(
+            has_target=True,
+            selection_empty=True,
+            mode="edit",
+            active_selection_mode="brush",
+            active_tool_key="select_parts",
+        )
 
         self.assertTrue(action_bar.button_for_key("mode_edit").isChecked())
-        self.assertTrue(action_bar.button_for_key("select_face").isChecked())
+        self.assertTrue(action_bar.button_for_key("select_parts").isChecked())
         self.assertTrue(action_bar.button_for_key("mode_sculpt").isEnabled())
         self.assertTrue(action_bar.button_for_key("brush_grab").isEnabled())
         self.assertFalse(action_bar.button_for_key("recalculate_normals").isEnabled())
-        self.assertFalse(action_bar.button_for_key("extrude").isEnabled())
+        self.assertFalse(action_bar.button_for_key("split").isEnabled())
         self.assertFalse(action_bar.button_for_key("material_assign").isEnabled())
         self.assertFalse(action_bar.button_for_key("undo").isEnabled())
         self.assertFalse(action_bar.button_for_key("redo").isEnabled())
@@ -560,15 +567,16 @@ class MeshEditorActionBarTests(unittest.TestCase):
             has_target=True,
             selection_empty=False,
             mode="sculpt",
-            active_selection_mode="vertex",
+            active_selection_mode="brush",
+            active_tool_key="select_parts",
             undo_count=1,
             redo_count=1,
         )
 
         self.assertTrue(action_bar.button_for_key("mode_sculpt").isChecked())
-        self.assertTrue(action_bar.button_for_key("select_vertex").isChecked())
+        self.assertTrue(action_bar.button_for_key("select_parts").isChecked())
         self.assertTrue(action_bar.button_for_key("brush_grab").isEnabled())
-        self.assertFalse(action_bar.button_for_key("extrude").isEnabled())
+        self.assertFalse(action_bar.button_for_key("split").isEnabled())
         self.assertFalse(action_bar.button_for_key("uv_transform").isEnabled())
         self.assertFalse(action_bar.button_for_key("material_assign").isEnabled())
         self.assertFalse(action_bar.button_for_key("material_copy").isEnabled())
@@ -589,10 +597,9 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(tab.action_bar.isEnabled())
         self.assertTrue(tab.action_bar.isHidden())
 
-        tab.action_bar.button_for_key("extrude").click()
+        self.assertIsNone(tab.action_bar.button_for_key("extrude"))
         tab.action_bar.button_for_key("mode_edit").click()
 
-        self.assertFalse(tab.action_bar.button_for_key("extrude").isEnabled())
         self.assertEqual(["mode_edit"], [getattr(action, "key", "") for action in emitted])
         app.processEvents()
         tab.deleteLater()
@@ -1455,7 +1462,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         assert left_pages is not None
         self.assertEqual(["Tools", "Edit", "UV", "Rig"], [left_pages.tabText(index) for index in range(left_pages.count())])
 
-        button = workspace.findChild(QToolButton, "MeshEditorWorkspaceAction_select_edge")
+        button = workspace.findChild(QToolButton, "MeshEditorWorkspaceAction_select_parts")
         brush_button = workspace.findChild(QToolButton, "MeshEditorWorkspaceAction_brush_grab")
         skeleton_button = workspace.findChild(QToolButton, "MeshEditorPreviewSkeletonButton")
         pose_preview_button = workspace.findChild(QToolButton, "MeshEditorPreviewPoseButton")
@@ -1464,10 +1471,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
         assert skeleton_button is not None
         assert pose_preview_button is not None
         self.assertEqual(Qt.ToolButtonStyle.ToolButtonIconOnly, button.toolButtonStyle())
-        self.assertIn("Shortcut: 2", button.toolTip())
+        self.assertIn("Shortcut: 1", button.toolTip())
+        for legacy_key in ("select_vertex", "select_edge", "select_face"):
+            self.assertIsNone(workspace.findChild(QToolButton, f"MeshEditorWorkspaceAction_{legacy_key}"))
         button.click()
 
-        self.assertEqual(["select_edge"], [getattr(action, "key", "") for action in emitted])
+        self.assertEqual(["select_parts"], [getattr(action, "key", "") for action in emitted])
         app.processEvents()
         tab.deleteLater()
 
@@ -4474,7 +4483,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             screen_payload = captured[-1].params["_native_screen_selection_payload"]
             self.assertIsInstance(screen_payload, dict)
             self.assertEqual("visible", screen_payload["selection_depth_mode"])
-            self.assertEqual("face", screen_payload["target_mode"])
+            self.assertEqual("source", screen_payload["target_mode"])
             self.assertTrue(any(b'"event":"command_result"' in write for write in process.stdin_writes))
 
             process.emit_stdout('{"event":"command_request","command":"delete","session_id":"stale"}\n')
@@ -4633,15 +4642,15 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.update_editor_session_state(view, active_selection_mode=controller.active_selection_mode)
 
         self.assertTrue(tab.action_bar.button_for_key("mode_edit").isChecked())
-        self.assertFalse(tab.action_bar.button_for_key("extrude").isEnabled())
+        self.assertFalse(tab.action_bar.button_for_key("split").isEnabled())
         self.assertFalse(tab.action_bar.button_for_key("undo").isEnabled())
         self.assertIn("Edit: edit", tab.session_label.text())
 
-        controller.select(vertices_by_submesh={0: (0,)})
+        controller.select(source_indices=(0,))
         tab.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
 
-        self.assertTrue(tab.action_bar.button_for_key("select_vertex").isChecked())
-        self.assertTrue(tab.action_bar.button_for_key("extrude").isEnabled())
+        self.assertFalse(tab.action_bar.button_for_key("select_parts").isChecked())
+        self.assertTrue(tab.action_bar.button_for_key("split").isEnabled())
         self.assertTrue(tab.action_bar.button_for_key("brush_grab").isEnabled())
 
         controller.apply_editor_action("transform_move", translate=(0.0, 0.0, 0.25))
@@ -4659,7 +4668,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             tab.open_mesh_session(build_synthetic_mesh(), session_id="native-unavailable-ui", mode="edit")
             native_available.reset_mock()
             assert tab.standalone_controller is not None
-            tab.standalone_controller.select(vertices_by_submesh={0: (0,)})
+            tab.standalone_controller.select(source_indices=(0,))
             tab.update_editor_session_state(
                 tab.standalone_controller.session_view(),
                 active_selection_mode=tab.standalone_controller.active_selection_mode,
@@ -4668,7 +4677,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
             self.assertIn("Native Mesh Editor unavailable", tab.standalone_status_label.text())
             self.assertTrue(tab.action_bar.button_for_key("mode_edit").isEnabled())
-            self.assertTrue(tab.action_bar.button_for_key("select_vertex").isEnabled())
+            self.assertTrue(tab.action_bar.button_for_key("select_parts").isEnabled())
             self.assertFalse(tab.action_bar.button_for_key("delete").isEnabled())
             self.assertFalse(tab.action_bar.button_for_key("subdivide").isEnabled())
             self.assertFalse(tab.action_bar.button_for_key("brush_grab").isEnabled())
@@ -4680,7 +4689,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             workspace_delete = tab.standalone_workspace.button_for_key("delete")
             workspace_transform = tab.standalone_workspace.button_for_key("transform_move")
             workspace_weighted = tab.standalone_workspace.button_for_key("weighted_normals")
-            workspace_select = tab.standalone_workspace.button_for_key("select_vertex")
+            workspace_select = tab.standalone_workspace.button_for_key("select_parts")
             assert workspace_delete is not None
             assert workspace_transform is not None
             assert workspace_weighted is not None
@@ -4693,7 +4702,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 self.assertTrue(tab._run_standalone_action(mesh_editor_actions_by_key()["delete"]))
                 self.assertTrue(tab._run_standalone_action(mesh_editor_actions_by_key()["transform_move"]))
             self.assertFalse(tab._handle_part_context_action("duplicate", 0))
-            self.assertEqual((), tab.standalone_controller.session_view().selection.source_indices)
+            self.assertEqual((0,), tab.standalone_controller.session_view().selection.source_indices)
             self.assertIn("Native Mesh Editor C++ core is missing", tab.standalone_status_label.text())
 
         app.processEvents()
@@ -4707,18 +4716,18 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.set_active_tool_state(mode="sculpt", active_selection_mode="edge")
 
         self.assertEqual("sculpt", tab.current_edit_mode)
-        self.assertEqual("edge", tab.current_selection_mode)
+        self.assertEqual("brush", tab.current_selection_mode)
         self.assertTrue(tab.action_bar.button_for_key("mode_sculpt").isChecked())
-        self.assertTrue(tab.action_bar.button_for_key("select_edge").isChecked())
+        self.assertFalse(tab.action_bar.button_for_key("select_parts").isChecked())
 
         tab.set_active_tool_state(mode="sculpt", active_tool_key="brush_smooth")
         self.assertTrue(tab.action_bar.button_for_key("brush_smooth").isChecked())
-        self.assertFalse(tab.action_bar.button_for_key("select_edge").isChecked())
+        self.assertFalse(tab.action_bar.button_for_key("select_parts").isChecked())
 
-        tab.set_active_tool_state(active_selection_mode="vertex", active_tool_key="")
-        self.assertEqual("", tab.current_tool_action_key)
+        tab.set_active_tool_state(active_selection_mode="vertex", active_tool_key="select_parts")
+        self.assertEqual("select_parts", tab.current_tool_action_key)
         self.assertFalse(tab.action_bar.button_for_key("brush_smooth").isChecked())
-        self.assertTrue(tab.action_bar.button_for_key("select_vertex").isChecked())
+        self.assertTrue(tab.action_bar.button_for_key("select_parts").isChecked())
         app.processEvents()
         tab.deleteLater()
 
@@ -4736,11 +4745,11 @@ class MeshEditorActionBarTests(unittest.TestCase):
         )
 
         self.assertEqual("edit", tab.current_edit_mode)
-        self.assertEqual("face", tab.current_selection_mode)
+        self.assertEqual("brush", tab.current_selection_mode)
         self.assertFalse(tab.current_selection_empty)
         self.assertTrue(tab.action_bar.button_for_key("mode_edit").isChecked())
-        self.assertTrue(tab.action_bar.button_for_key("select_face").isChecked())
-        self.assertTrue(tab.action_bar.button_for_key("extrude").isEnabled())
+        self.assertFalse(tab.action_bar.button_for_key("select_parts").isChecked())
+        self.assertTrue(tab.action_bar.button_for_key("split").isEnabled())
         self.assertTrue(tab.action_bar.button_for_key("material_assign").isEnabled())
         self.assertTrue(tab.action_bar.button_for_key("undo").isEnabled())
         self.assertTrue(tab.action_bar.button_for_key("redo").isEnabled())
@@ -4754,8 +4763,9 @@ class MeshEditorActionBarTests(unittest.TestCase):
         )
 
         self.assertTrue(tab.action_bar.button_for_key("mode_object").isChecked())
-        self.assertTrue(tab.action_bar.button_for_key("select_vertex").isChecked())
-        self.assertFalse(tab.action_bar.button_for_key("extrude").isEnabled())
+        self.assertEqual("brush", tab.current_selection_mode)
+        self.assertFalse(tab.action_bar.button_for_key("select_parts").isChecked())
+        self.assertFalse(tab.action_bar.button_for_key("split").isEnabled())
         self.assertFalse(tab.action_bar.button_for_key("brush_grab").isEnabled())
         self.assertFalse(tab.action_bar.button_for_key("undo").isEnabled())
         self.assertFalse(tab.action_bar.button_for_key("redo").isEnabled())
@@ -4773,10 +4783,10 @@ class MeshEditorActionBarTests(unittest.TestCase):
         shell._mesh_editor_action_requested(actions["select_edge"])
 
         self.assertEqual("sculpt", tab.current_edit_mode)
-        self.assertEqual("edge", tab.current_selection_mode)
+        self.assertEqual("brush", tab.current_selection_mode)
         self.assertTrue(tab.action_bar.button_for_key("mode_sculpt").isChecked())
-        self.assertTrue(tab.action_bar.button_for_key("select_edge").isChecked())
-        self.assertEqual(("Mesh Editor tool selected: Edge.", False), shell.messages[-1])
+        self.assertTrue(tab.action_bar.button_for_key("select_parts").isChecked())
+        self.assertEqual(("Mesh Editor tool selected: Select Parts.", False), shell.messages[-1])
         app.processEvents()
         tab.deleteLater()
 
@@ -4851,9 +4861,9 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
         shell._mesh_editor_action_requested(actions["select_edge"])
 
-        self.assertEqual("vertex", tab.current_selection_mode)
+        self.assertEqual("brush", tab.current_selection_mode)
         self.assertEqual(
-            ("Mesh Editor action is not available in the embedded builder yet: Edge.", False),
+            ("Mesh Editor action is not available in the embedded builder yet: Select Parts.", False),
             shell.messages[-1],
         )
         app.processEvents()

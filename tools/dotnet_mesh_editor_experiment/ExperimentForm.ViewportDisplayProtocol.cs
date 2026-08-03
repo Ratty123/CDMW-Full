@@ -23,6 +23,7 @@ internal sealed partial class ExperimentForm
             WriteViewportDisplayResult(root, "viewport_display_failed", sessionId, mode, "invalid_mode", error);
             return;
         }
+        _viewport.MarkHostDisplayModeAuthoritative();
         SyncPreviewModeSelection(_viewport.DisplayMode);
         _statusLabel.Text = JsonBoolean(root, "texture_request_pending")
             ? "Loading textures in the resident viewport..."

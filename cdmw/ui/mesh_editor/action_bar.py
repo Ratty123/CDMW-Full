@@ -8,19 +8,16 @@ from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QFont, QKeySequence
 from PySide6.QtWidgets import QButtonGroup, QFrame, QGridLayout, QHBoxLayout, QSizePolicy, QToolButton, QWidget
 
-from cdmw.ui.mesh_editor.actions import MESH_EDITOR_ACTIONS, NATIVE_EDITOR_SESSION_COMMANDS, MeshEditorAction
+from cdmw.ui.mesh_editor.actions import MESH_EDITOR_VISIBLE_ACTIONS, NATIVE_EDITOR_SESSION_COMMANDS, MeshEditorAction
 from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
 
 
 _CATEGORY_ORDER = ("mode", "selection", "transform", "sculpt", "topology", "cleanup", "normals", "uv", "material", "history")
-_EXCLUSIVE_CATEGORIES = {"mode", "selection"}
+_EXCLUSIVE_CATEGORIES = {"mode"}
 _MODE_ACTION_BY_MODE = {"object": "mode_object", "edit": "mode_edit", "sculpt": "mode_sculpt"}
-_SELECTION_ACTION_BY_MODE = {"vertex": "select_vertex", "edge": "select_edge", "face": "select_face"}
-_TOOL_ACTION_KEYS = {"transform_move", "brush_grab", "brush_smooth", "brush_inflate", "brush_pinch"}
+_TOOL_ACTION_KEYS = {"select_parts", "transform_move", "brush_grab", "brush_smooth", "brush_inflate", "brush_pinch"}
 _BUTTON_LABELS = {
-    "select_vertex": "Vertex",
-    "select_edge": "Edge",
-    "select_face": "Face",
+    "select_parts": "Parts",
     "transform_move": "Move",
     "transform_rotate": "Rotate",
     "transform_scale": "Scale",
@@ -63,7 +60,7 @@ _BUTTON_LABELS = {
 class MeshEditorActionBar(QFrame):
     action_requested = Signal(object)
 
-    def __init__(self, actions: Sequence[MeshEditorAction] = MESH_EDITOR_ACTIONS, parent: QWidget | None = None) -> None:
+    def __init__(self, actions: Sequence[MeshEditorAction] = MESH_EDITOR_VISIBLE_ACTIONS, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("MeshEditorActionBar")
         self.setStyleSheet(
@@ -76,7 +73,6 @@ class MeshEditorActionBar(QFrame):
         self.buttons_by_key: dict[str, QToolButton] = {}
         self._actions_by_key = {action.key: action for action in actions}
         self._button_groups: list[QButtonGroup] = []
-        self._selection_button_group: QButtonGroup | None = None
         self._tool_button_group = QButtonGroup(self)
         self._tool_button_group.setExclusive(True)
         self._button_groups.append(self._tool_button_group)
@@ -149,11 +145,9 @@ class MeshEditorActionBar(QFrame):
         self.set_active_action(_MODE_ACTION_BY_MODE.get(str(mode or "").strip().lower(), ""))
         active_tool = str(active_tool_key or "").strip()
         if active_tool in _TOOL_ACTION_KEYS:
-            self._clear_button_group(self._selection_button_group)
             self.set_active_action(active_tool)
         else:
             self._clear_button_group(self._tool_button_group)
-            self.set_active_action(_SELECTION_ACTION_BY_MODE.get(str(active_selection_mode or "").strip().lower(), ""))
 
     def _build_category(self, category: str, actions: Sequence[MeshEditorAction]) -> QWidget:
         frame = QFrame(self)
@@ -167,8 +161,6 @@ class MeshEditorActionBar(QFrame):
         if button_group is not None:
             button_group.setExclusive(True)
             self._button_groups.append(button_group)
-            if category == "selection":
-                self._selection_button_group = button_group
         for index, action in enumerate(actions):
             button = QToolButton(frame)
             button.setObjectName(f"MeshEditorAction_{action.key}")

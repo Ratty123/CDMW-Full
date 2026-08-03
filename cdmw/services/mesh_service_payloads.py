@@ -77,6 +77,10 @@ def _add_native_editor_screen_selection_payload(
         payload["screen_region"] = _native_editor_screen_payload(raw_screen_region)
     if "falloff" in raw_screen_payload:
         payload["falloff"] = str(raw_screen_payload.get("falloff") or "smooth")
+    if "paint_sample" in raw_screen_payload:
+        payload["paint_sample"] = bool(raw_screen_payload.get("paint_sample"))
+    if "paint_final" in raw_screen_payload:
+        payload["paint_final"] = bool(raw_screen_payload.get("paint_final"))
     if "target_mode" in raw_screen_payload:
         payload["target_mode"] = str(raw_screen_payload.get("target_mode") or "vertex")
     if "selection_depth_mode" in raw_screen_payload:

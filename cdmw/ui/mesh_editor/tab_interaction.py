@@ -395,7 +395,7 @@ class MeshEditorInteractionMixin:
         except TypeError:
             has_groups_for_reuse = False
         resident_selection_active = False
-        if tool in {"move", "vertex", "grab"}:
+        if tool in {"move", "vertex", "grab", "smooth", "inflate", "pinch"}:
             # A resident .NET stroke must keep the Python-authoritative
             # selection instead of replacing it with the helper's broad
             # screen/candidate set.  Legacy native-host strokes still own and
@@ -428,6 +428,22 @@ class MeshEditorInteractionMixin:
             "stroke_phase": normalized_phase,
             "stroke_id": stroke_id,
         }
+        raw_scope = payload.get("scope_source_indices")
+        if normalized_phase == "begin" and not isinstance(raw_scope, (Mapping, str, bytes)):
+            try:
+                scope_source_indices = sorted(
+                    {
+                        self._standalone_native_payload_int(value, -1)
+                        for value in tuple(raw_scope or ())  # type: ignore[arg-type]
+                    }
+                )
+            except TypeError:
+                scope_source_indices = []
+            scope_source_indices = [index for index in scope_source_indices if index >= 0]
+            if scope_source_indices:
+                params["_native_selection_payload"] = {
+                    "source_indices": scope_source_indices,
+                }
         if tool in {"move", "vertex"}:
             raw_screen_drag = payload.get("screen_drag")
             if not isinstance(raw_screen_drag, Mapping):

@@ -21,6 +21,7 @@ internal sealed partial class ExperimentForm
     private long _lastObservedSessionRevision;
     private long _outgoingMutationRequestSequence;
     private long _residentProcessGeneration;
+    private long _activationRequestId;
     private bool _applyingResidentStateResync;
     private readonly Queue<ParsedProtocolMessage> _parsedProtocolMessages = new();
     private readonly Dictionary<string, ParsedProtocolMessage> _latestParsedProtocolMessages = new(StringComparer.Ordinal);
@@ -524,6 +525,7 @@ internal sealed partial class ExperimentForm
                     HandleResidentPackageLoadRequest(root);
                     break;
                 case "deactivate_request":
+                    _activationRequestId = 0;
                     _embeddedViewportActive = false;
                     Hide();
                     WriteProtocolEvent("deactivated");
@@ -532,6 +534,7 @@ internal sealed partial class ExperimentForm
                     HandleReembedRequest(root);
                     break;
                 case "activate_request":
+                    _activationRequestId = JsonLongValue(root, "activation_request_id");
                     var requestedMaterialSignature = JsonString(root, "material_signature");
                     if (requestedMaterialSignature.Length > 0 && !string.Equals(requestedMaterialSignature, _materials.Signature, StringComparison.Ordinal))
                     {
@@ -779,6 +782,11 @@ internal sealed partial class ExperimentForm
             WriteEditRevisionAck(root, "preview_vertex_update_ack", "rejected", revision, 0, rejectionReason);
             return;
         }
+        if (!CanAcceptProvisionalStrokeUpdate(root, revision))
+        {
+            WriteEditRevisionAck(root, "preview_vertex_update_ack", "rejected", revision, 0, "stale_or_uncorrelated_stroke");
+            return;
+        }
         IReadOnlyList<PreviewVertexGroup> parsedGroups;
         if (vertexUpdatePrepared)
         {
@@ -875,6 +883,7 @@ internal sealed partial class ExperimentForm
                 JsonLongValue(root, "request_id"));
         }
         MarkEditRevisionApplied(revision);
+        CompleteCorrelatedStrokeGeometry(root, revision);
         WriteEditRevisionAck(
             root,
             "preview_vertex_update_ack",
@@ -1038,6 +1047,7 @@ internal sealed partial class ExperimentForm
         {
             _lastAppliedEditRevision = revision;
         }
+        _viewport.SetAuthoritativeEditRevision(_lastAppliedEditRevision);
     }
 
     private void WriteEditRevisionAck(
