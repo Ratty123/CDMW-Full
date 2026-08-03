@@ -39,11 +39,12 @@ internal static class MeshViewportBackgroundPreferences
         "CrimsonDesertModWorkbench",
         "mesh-editor-viewport-background.json");
 
-    internal static MeshViewportBackgroundColors Load()
+    internal static MeshViewportBackgroundColors Load() => Load(SettingsPath);
+
+    internal static MeshViewportBackgroundColors Load(string path)
     {
         try
         {
-            var path = SettingsPath;
             if (!File.Exists(path))
             {
                 return MeshViewportBackgroundColors.Default;
@@ -67,9 +68,14 @@ internal static class MeshViewportBackgroundPreferences
         }
     }
 
-    internal static bool TrySave(MeshViewportBackgroundColors colors, out string error)
+    internal static bool TrySave(MeshViewportBackgroundColors colors, out string error) =>
+        TrySave(colors, SettingsPath, out error);
+
+    internal static bool TrySave(
+        MeshViewportBackgroundColors colors,
+        string path,
+        out string error)
     {
-        var path = SettingsPath;
         var staging = $"{path}.{Environment.ProcessId}.tmp";
         try
         {

@@ -45,6 +45,7 @@ def _sync_mesh_edit_preview_settings(_state, _callbacks, ) -> None:
     )
     tool = _state._mesh_edit_current_tool()
     target_mode = _callbacks._mesh_edit_target_mode_for_tool()
+    tool_enabled = active and tool != "orbit"
     delete_mode = str(_state.mesh_edit_delete_mode_combo.currentData() or "release")
     if _callbacks._alignment_d3d11_mesh_edit_commands_active():
         if active:
@@ -57,7 +58,7 @@ def _sync_mesh_edit_preview_settings(_state, _callbacks, ) -> None:
             )
             _state.alignment_d3d11_preview_host.set_alignment_preview_transform()
         _state.alignment_d3d11_preview_host.set_mesh_edit_state(
-            enabled=active,
+            enabled=tool_enabled,
             scope_mode=_state._mesh_edit_scope_mode(),
             source_submesh_indices=allowed_indices,
             target_mode=target_mode,
@@ -68,6 +69,7 @@ def _sync_mesh_edit_preview_settings(_state, _callbacks, ) -> None:
             falloff=str(_state.mesh_edit_falloff_combo.currentData() or "smooth"),
             show_vertices=bool(_state.mesh_edit_show_vertices_checkbox.isChecked()),
             selection_mode=_state._mesh_edit_selection_mode(),
+            selection_operation="add",
             selection_depth_mode=_state._mesh_edit_selection_depth_mode(),
             smooth_iterations=int(_state.mesh_edit_iterations_spin.value()),
         )

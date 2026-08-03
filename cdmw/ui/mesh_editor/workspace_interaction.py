@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import replace
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
@@ -68,7 +69,7 @@ _LEFT_CATEGORY_LABELS = {
 
 _SLOW_FRAME_MS = 1000.0 / 60.0
 _MODE_ACTION_BY_TEXT = {"object": "mode_object", "edit": "mode_edit", "sculpt": "mode_sculpt"}
-_SELECTION_ACTION_BY_TEXT = {"vertex": "select_vertex", "edge": "select_edge", "face": "select_face"}
+_SELECTION_ACTION_BY_TEXT = {"brush": "select_parts", "rectangle": "select_parts", "lasso": "select_parts"}
 _SKELETON_PANEL_BONE_LIMIT = 512
 _SKELETON_PANEL_WEIGHT_LIMIT = 32
 
@@ -321,9 +322,11 @@ class WorkspaceInteractionMixin:
     def _selection_changed(self, text: str) -> None:
         if self._updating_state:
             return
-        action = mesh_editor_actions_by_key().get(_SELECTION_ACTION_BY_TEXT.get(str(text or "").strip().lower(), ""))
+        selection_shape = str(text or "brush").strip().lower()
+        action = mesh_editor_actions_by_key().get(_SELECTION_ACTION_BY_TEXT.get(selection_shape, ""))
         if action is not None:
-            self.action_requested.emit(action)
+            self.setProperty("meshEditorSelectionShape", selection_shape)
+            self.action_requested.emit(replace(action, selection_mode=selection_shape))
 
     def _sync_combo(self, combo: QComboBox, value: str) -> None:
         normalized = str(value or "").strip().lower()

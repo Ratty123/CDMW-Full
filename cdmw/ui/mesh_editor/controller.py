@@ -109,7 +109,7 @@ class MeshEditorController:
         self.mesh_service = mesh_service or MeshService()
         self.active_session_id = ""
         self.active_action_key = ""
-        self.active_selection_mode = "vertex"
+        self.active_selection_mode = "brush"
 
     def open_mesh(self, mesh: ParsedMesh, *, session_id: str | None = None, mode: str = "object") -> MeshEditSessionView:
         view = self.mesh_service.open_edit_session(mesh, session_id=session_id, mode=mode)
@@ -532,7 +532,7 @@ class MeshEditorController:
                 selection_groups=selection_groups,
                 refresh_selection=True,
             )
-        if result.ok and native_vertex_groups:
+        if result.ok and native_vertex_groups and not result.topology_changed:
             return MeshEditorNativeUpdate(
                 vertex_groups=native_vertex_groups,
                 selection_groups=selection_groups,

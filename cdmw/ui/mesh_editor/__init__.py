@@ -7,6 +7,7 @@ from importlib import import_module
 
 _EXPORTS = {
     "MESH_EDITOR_ACTIONS": ("cdmw.ui.mesh_editor.actions", "MESH_EDITOR_ACTIONS"),
+    "MESH_EDITOR_VISIBLE_ACTIONS": ("cdmw.ui.mesh_editor.actions", "MESH_EDITOR_VISIBLE_ACTIONS"),
     "MeshEditorAction": ("cdmw.ui.mesh_editor.actions", "MeshEditorAction"),
     "MeshEditorActionBar": ("cdmw.ui.mesh_editor.action_bar", "MeshEditorActionBar"),
     "MeshEditorActionExecution": ("cdmw.ui.mesh_editor.controller", "MeshEditorActionExecution"),
@@ -37,6 +38,7 @@ def __dir__() -> list[str]:
 
 __all__ = [
     "MESH_EDITOR_ACTIONS",
+    "MESH_EDITOR_VISIBLE_ACTIONS",
     "MeshEditorAction",
     "MeshEditorActionBar",
     "MeshEditorActionExecution",

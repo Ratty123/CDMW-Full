@@ -97,7 +97,7 @@ PROVIDER_SOURCE_HASHES = {
     'cdmw/ui/archive_browser/ui_formatting.py': '1e3e3f4c24c42400b845f24d1cb3c5ee32c80492acf20c85c3ee3d6aeda05b72',
     'cdmw/ui/archive_browser/virtual_path_lookup.py': 'f8566b0aeb2e13b2adc6071edc0b4c14d42eb2b3f560b0b03c676ac4a0fefc6d',
     'cdmw/ui/archive_browser/workers.py': 'be6927fb8653e304c5aacab54a12fae8900b936735d1345f2a368dac171fa1b0',
-    'cdmw/ui/mesh_editor/shell_bridge.py': 'c36044489e3162bbb35fe00f744d7fc712b0109fd4d0f19989c2ec1bc95389e2',
+    'cdmw/ui/mesh_editor/shell_bridge.py': '4d750827ad45e8951c19e5691f178815aa2167478ce42e4a3a94b583e453c77a',
     'cdmw/ui/shell/about_controller.py': '88ed22fe86aa7a55e9da3145febea19647ddaa616818379b90898e59f1eb7643',
     'cdmw/ui/shell/about_documentation.py': '2e0085e052855c808dbd0c842f18b7bdec7af578fc31af5587f633bf66f94716',
     'cdmw/ui/shell/about_documentation_de.py': 'efb9943216395a0e715f45d56351dbe132c896d60aeefd4174dd2768ddf348e4',

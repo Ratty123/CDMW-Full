@@ -335,8 +335,8 @@ def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
         "edit_backend_ok": native_mesh_core_available() and not state.fallback_counts,
         "protocol_ready": bool(state.protocol_ready),
         "tool_state_applied": bool(state.tool_state_event),
-        "part_selection_optional": bool(
-            state.initial_part_selection_empty and state.face_selection_keeps_part_unselected
+        "part_only_selection": bool(
+            state.initial_part_selection_empty and state.part_selection_armed
         ),
         "real_texture_provenance": bool(state.real_texture_provenance_ok),
         "real_textures_bound_and_decoded": renderer_texture_ok,
@@ -380,7 +380,7 @@ def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
 def _part_selection_evidence(state: SimpleNamespace) -> dict[str, bool]:
     return {
         "initially_empty": state.initial_part_selection_empty,
-        "face_selection_keeps_part_unselected": state.face_selection_keeps_part_unselected,
+        "selected_whole_part": state.part_selection_armed,
     }
 
 __all__ = ['_base_error', '_drive_viewport_stroke', '_has_real_archive_texture_provenance', '_part_selection_evidence', '_prepare_real_asset', '_pump_for', '_pump_until', '_record_stroke_geometry_evidence', '_result_gates', '_revision_ack_tail', '_wait_protocol_event']

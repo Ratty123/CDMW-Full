@@ -14,7 +14,11 @@ internal sealed partial class ExperimentForm
         public required long ProcessGeneration { get; init; }
         public string Command { get; init; } = string.Empty;
         public string Phase { get; init; } = string.Empty;
+        public string StrokeId { get; init; } = string.Empty;
+        public bool PaintSample { get; init; }
         public bool SelectionApplied { get; set; }
+        public bool AuthoritativeGeometryPending { get; set; }
+        public bool GeometryApplied { get; set; }
         public bool CommandAccepted { get; set; }
     }
 
@@ -39,6 +43,8 @@ internal sealed partial class ExperimentForm
             ProcessGeneration = Math.Max(0, DictionaryLong(envelope, "process_generation")),
             Command = Convert.ToString(envelope.GetValueOrDefault("command"), CultureInfo.InvariantCulture)?.Trim().ToLowerInvariant() ?? string.Empty,
             Phase = Convert.ToString(envelope.GetValueOrDefault("phase"), CultureInfo.InvariantCulture)?.Trim().ToLowerInvariant() ?? string.Empty,
+            StrokeId = Convert.ToString(envelope.GetValueOrDefault("stroke_id"), CultureInfo.InvariantCulture)?.Trim() ?? string.Empty,
+            PaintSample = Convert.ToBoolean(envelope.GetValueOrDefault("paint_sample") ?? false, CultureInfo.InvariantCulture),
         };
         _pendingMutationRequests[requestId] = pending;
         if (IsProvisionalSelectionRequest(normalizedEvent))
@@ -48,6 +54,14 @@ internal sealed partial class ExperimentForm
         else if (normalizedEvent == "placement_transform_request")
         {
             _scene.TrackProvisionalPlacementRequest(requestId);
+        }
+        else if (IsStrokeMutationRequest(normalizedEvent))
+        {
+            _viewport.RegisterProvisionalStrokeRequest(
+                pending.RequestId,
+                pending.BaseRevision,
+                pending.StrokeId,
+                pending.EventName);
         }
         PrunePendingMutationRequests();
     }
@@ -63,6 +77,15 @@ internal sealed partial class ExperimentForm
         var accepted = IsAcceptedMutationStatus(status);
         if (!accepted)
         {
+            if (IsStrokeMutationRequest(pending.EventName))
+            {
+                _viewport.CompleteProvisionalStrokeRequest(
+                    pending.RequestId,
+                    pending.StrokeId,
+                    pending.EventName,
+                    accepted: false,
+                    status: status);
+            }
             var restored = false;
             if (IsProvisionalSelectionRequest(pending.EventName)
                 && _viewport.RejectProvisionalSelection(pending.RequestId))
@@ -85,11 +108,28 @@ internal sealed partial class ExperimentForm
         }
 
         pending.CommandAccepted = true;
+        pending.AuthoritativeGeometryPending = JsonBoolean(root, "authoritative_geometry_pending");
+        if (IsStrokeMutationRequest(pending.EventName))
+        {
+            _viewport.CompleteProvisionalStrokeRequest(
+                pending.RequestId,
+                pending.StrokeId,
+                pending.EventName,
+                accepted: true,
+                status: status,
+                authoritativeGeometryPending: pending.AuthoritativeGeometryPending,
+                revision: Math.Max(pending.BaseRevision, Math.Max(
+                    JsonLongValue(root, "revision"),
+                    JsonLongValue(root, "edit_revision"))));
+        }
         CompleteMorphCommandResult(pending, accepted: true);
+        var waitsForStrokeGeometry = IsStrokeMutationRequest(pending.EventName)
+            && pending.AuthoritativeGeometryPending
+            && !pending.GeometryApplied;
         if (status == "coalesced"
             || pending.EventName == "placement_transform_request"
-            || !MutationMayReturnSelection(pending)
-            || pending.SelectionApplied)
+            || (!waitsForStrokeGeometry
+                && (!MutationMayReturnSelection(pending) || pending.SelectionApplied)))
         {
             _pendingMutationRequests.Remove(pending.RequestId);
         }
@@ -114,6 +154,24 @@ internal sealed partial class ExperimentForm
     private void CompleteCorrelatedSelectionUpdate(PendingMutationRequest pending)
     {
         pending.SelectionApplied = true;
+        if (pending.CommandAccepted || pending.PaintSample)
+        {
+            _pendingMutationRequests.Remove(pending.RequestId);
+        }
+    }
+
+    private void CompleteCorrelatedStrokeGeometry(JsonElement root, long revision)
+    {
+        if (!TryMatchPendingMutation(root, out var pending, out _)
+            || !IsStrokeMutationRequest(pending.EventName))
+        {
+            return;
+        }
+        pending.GeometryApplied = true;
+        _viewport.CompleteProvisionalAuthoritativeUpdate(
+            pending.RequestId,
+            pending.StrokeId,
+            revision);
         if (pending.CommandAccepted)
         {
             _pendingMutationRequests.Remove(pending.RequestId);
@@ -195,6 +253,23 @@ internal sealed partial class ExperimentForm
 
     private static bool IsProvisionalSelectionRequest(string eventName) =>
         eventName is "select_request" or "selection_request";
+
+    private static bool IsStrokeMutationRequest(string eventName) =>
+        eventName is "stroke_begin" or "stroke_update" or "stroke_end" or "stroke_cancel";
+
+    private bool CanAcceptProvisionalStrokeUpdate(JsonElement root, long revision)
+    {
+        if (!_viewport.HasProvisionalStroke)
+        {
+            return true;
+        }
+        return TryMatchPendingMutation(root, out var pending, out _)
+            && IsStrokeMutationRequest(pending.EventName)
+            && _viewport.AcceptProvisionalStrokeUpdate(
+                pending.RequestId,
+                pending.StrokeId,
+                Math.Max(revision, pending.BaseRevision));
+    }
 
     /// <summary>
     /// Whether the host may answer this request with a correlated

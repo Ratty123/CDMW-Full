@@ -273,8 +273,14 @@ class MeshMorphServiceMixin:
                 definition_basis = existing_definition.local_basis
             else:
                 selected = session.selection.vertex_map()
+                if not selected and session.selection.source_indices:
+                    selected = {
+                        source_index: tuple(range(len(mesh.submeshes[source_index].vertices)))
+                        for source_index in session.selection.source_indices
+                        if 0 <= source_index < len(mesh.submeshes)
+                    }
                 if not selected:
-                    raise ValueError("Author Slider requires a vertex selection in the existing Edit Mesh view.")
+                    raise ValueError("Select at least one part before creating a Morph profile slider.")
                 weighted = build_weighted_morph_selection(
                     mesh,
                     selected,
@@ -491,10 +497,40 @@ class MeshMorphServiceMixin:
             return deleted
 
     def set_refit_driver(self, session_id: str, submesh_indices: Sequence[object]) -> tuple[MeshEditResult, MeshMorphState]:
-        return self._simple_morph_command(session_id, "morph_set_driver", {"submesh_indices": _indices(submesh_indices)}, "Set Refit Driver", False)
+        driver_indices = _indices(submesh_indices)
+        session = self._session(session_id)
+        with session.export_lock:
+            data = self._required_morph_data(session)
+            garment_indices = data.state.refit.garment_submesh_indices if data.state is not None else ()
+            overlap = tuple(sorted(set(driver_indices).intersection(garment_indices)))
+            if overlap:
+                raise ValueError(f"Refit driver parts cannot also be garment parts: {', '.join(str(index) for index in overlap)}")
+            report = self._run_morph_command_locked(
+                session,
+                "morph_set_driver",
+                {"submesh_indices": driver_indices},
+                history_label="Set Refit Driver",
+                record_history=False,
+            )
+            return self._morph_result_and_state_locked(session, "morph_set_driver", report)
 
     def bind_refit(self, session_id: str, garment_submesh_indices: Sequence[object]) -> tuple[MeshEditResult, MeshMorphState]:
-        return self._simple_morph_command(session_id, "morph_bind", {"garment_submesh_indices": _indices(garment_submesh_indices)}, "Bind Garment Refit", True)
+        garment_indices = _indices(garment_submesh_indices)
+        session = self._session(session_id)
+        with session.export_lock:
+            data = self._required_morph_data(session)
+            driver_indices = data.state.driver_submesh_indices if data.state is not None else ()
+            overlap = tuple(sorted(set(garment_indices).intersection(driver_indices)))
+            if overlap:
+                raise ValueError(f"Garment parts cannot also be refit driver parts: {', '.join(str(index) for index in overlap)}")
+            report = self._run_morph_command_locked(
+                session,
+                "morph_bind",
+                {"garment_submesh_indices": garment_indices},
+                history_label="Bind Garment Refit",
+                record_history=True,
+            )
+            return self._morph_result_and_state_locked(session, "morph_bind", report)
 
     def clear_refit(self, session_id: str) -> tuple[MeshEditResult, MeshMorphState]:
         return self._simple_morph_command(session_id, "morph_clear_refit", {}, "Clear Garment Refit", True)

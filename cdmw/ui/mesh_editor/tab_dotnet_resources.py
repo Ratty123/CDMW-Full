@@ -29,6 +29,54 @@ class MeshEditorDotNetResourceProtocolMixin(
     MeshEditorDotNetMaterialCompilationMixin,
     MeshEditorDotNetPayloadMixin,
 ):
+    @staticmethod
+    def _dotnet_material_role_key(role: object) -> str:
+        normalized = str(role or "replacement").strip().lower().replace("-", "_")
+        if normalized in {"original", "reference", "original_reference"}:
+            return "original_reference"
+        return "editable_imported"
+
+    def _dotnet_required_material_roles(self) -> tuple[str, ...]:
+        package = getattr(self, "standalone_dotnet_experiment_package", None)
+        try:
+            has_reference = int(getattr(package, "reference_submesh_count", 0) or 0) > 0
+        except (TypeError, ValueError):
+            has_reference = False
+        return (
+            ("editable_imported", "original_reference")
+            if has_reference
+            else ("editable_imported",)
+        )
+
+    def _dotnet_material_roles_ready(self) -> bool:
+        applied = self.standalone_dotnet_applied_material_generation_by_role
+        desired = self.standalone_dotnet_material_generation_by_role
+        completed = self.standalone_dotnet_completed_material_generation_by_role
+        return all(
+            int(applied.get(role, 0) or 0) > 0
+            and int(applied.get(role, 0) or 0) >= int(desired.get(role, 0) or 0)
+            and int(completed.get(role, 0) or 0) >= int(desired.get(role, 0) or 0)
+            for role in self._dotnet_required_material_roles()
+        )
+
+    def _dotnet_missing_material_roles(self) -> tuple[str, ...]:
+        if self._dotnet_material_roles_ready():
+            return ()
+        applied = self.standalone_dotnet_applied_material_generation_by_role
+        desired = self.standalone_dotnet_material_generation_by_role
+        completed = self.standalone_dotnet_completed_material_generation_by_role
+        return tuple(
+            role
+            for role in self._dotnet_required_material_roles()
+            if int(applied.get(role, 0) or 0) <= 0
+            or int(applied.get(role, 0) or 0) < int(desired.get(role, 0) or 0)
+            or int(completed.get(role, 0) or 0) < int(desired.get(role, 0) or 0)
+        )
+
+    @staticmethod
+    def _dotnet_material_role_label(role: str) -> str:
+        return "Original" if role == "original_reference" else "Imported"
+
     def _handle_dotnet_material_protocol_event(
         self,
         payload: Mapping[str, object],
@@ -53,13 +101,24 @@ class MeshEditorDotNetResourceProtocolMixin(
             ):
                 return False
             self.standalone_dotnet_completed_material_generation = generation
+            role = self.standalone_dotnet_material_role_by_generation.get(
+                generation,
+                self._dotnet_material_role_key(payload.get("role", "replacement")),
+            )
+            self.standalone_dotnet_completed_material_generation_by_role[role] = max(
+                int(self.standalone_dotnet_completed_material_generation_by_role.get(role, 0) or 0),
+                generation,
+            )
         if event == "material_state_applied":
             if not _material_commit.commit_acknowledged_material_resources(self, payload):
                 return False
             self.standalone_dotnet_applied_material_generation = generation
+            self.standalone_dotnet_applied_material_generation_by_role[role] = generation
             self.standalone_dotnet_material_signature = str(
                 payload.get("material_signature", self.standalone_dotnet_material_signature) or ""
             )
+            self.standalone_dotnet_material_signature_by_role[role] = self.standalone_dotnet_material_signature
+            self.standalone_dotnet_material_error_by_role.pop(role, None)
             self.standalone_dotnet_lifecycle_counts["material_state_applied_count"] += 1
             self._set_dotnet_status(
                 f"Mesh materials updated in the resident .NET session (generation {generation})."
@@ -76,6 +135,7 @@ class MeshEditorDotNetResourceProtocolMixin(
                 payload.get("message", payload.get("reason", "Material update failed."))
                 or "Material update failed."
             )
+            self.standalone_dotnet_material_error_by_role[role] = message
             if (
                 self.standalone_dotnet_target_embedded
                 and self.standalone_dotnet_embedded_state == "launching"
@@ -84,12 +144,12 @@ class MeshEditorDotNetResourceProtocolMixin(
                 self._set_embedded_dotnet_state("ready", active=True)
                 self._notify_embedded_dotnet_ready()
             self._set_dotnet_status(
-                f"Mesh material update failed; keeping last valid resources: {message}",
+                f"{self._dotnet_material_role_label(role)} pane material update failed; keeping last valid resources: {message}",
                 error=True,
             )
             self._finish_pending_textured_view(
                 success=False,
-                reason="material_state_failed",
+                reason=f"{role}_material_state_failed",
             )
             QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
             return False
@@ -121,7 +181,7 @@ class MeshEditorDotNetResourceProtocolMixin(
         requested_mode = str(
             getattr(self, "standalone_dotnet_deferred_textured_view_mode", "") or ""
         )
-        if not requested_mode or bool(
+        if not requested_mode or not self._dotnet_material_roles_ready() or bool(
             getattr(self, "standalone_dotnet_pending_textured_view", False)
         ):
             return False
@@ -146,6 +206,9 @@ class MeshEditorDotNetResourceProtocolMixin(
 
     def _finish_pending_textured_view(self, *, success: bool, reason: str = "") -> None:
         if not bool(getattr(self, "standalone_dotnet_pending_textured_view", False)):
+            return
+        if success and not self._dotnet_material_roles_ready():
+            self._arm_pending_textured_view_watchdog()
             return
         self.standalone_dotnet_pending_textured_view = False
         self.standalone_dotnet_pending_textured_view_extensions = 0
@@ -202,6 +265,7 @@ class MeshEditorDotNetResourceProtocolMixin(
                 self.standalone_dotnet_applied_material_generation
             ),
             material_compile_active=bool(self._dotnet_material_compile_active()),
+            missing_material_roles=self._dotnet_missing_material_roles(),
         )
         self.sync_viewport_display_combos(
             untextured_fallback_display_mode(requested_mode)
@@ -435,6 +499,7 @@ class MeshEditorDotNetResourceProtocolMixin(
                 ),
                 submesh_index_offset=max(0, int(submesh_index_offset)),
             )
+            role_key = self._dotnet_material_role_key(role)
             effective_material_signature = str(
                 material_signature
                 or _tab.mesh_dotnet_material_input_signature(immutable_inputs)
@@ -442,10 +507,11 @@ class MeshEditorDotNetResourceProtocolMixin(
             )
             if (
                 effective_material_signature
-                and effective_material_signature == self.standalone_dotnet_material_signature
-                and self.standalone_dotnet_applied_material_generation > 0
-                and self.standalone_dotnet_material_generation
-                <= self.standalone_dotnet_completed_material_generation
+                and effective_material_signature
+                == self.standalone_dotnet_material_signature_by_role.get(role_key, "")
+                and int(self.standalone_dotnet_applied_material_generation_by_role.get(role_key, 0) or 0) > 0
+                and int(self.standalone_dotnet_material_generation_by_role.get(role_key, 0) or 0)
+                <= int(self.standalone_dotnet_completed_material_generation_by_role.get(role_key, 0) or 0)
             ):
                 self.standalone_dotnet_lifecycle_counts["material_state_deduplicated_count"] += 1
                 # Nothing goes out, so no material_state_applied is coming. A
@@ -488,6 +554,9 @@ class MeshEditorDotNetResourceProtocolMixin(
             )
             return False
         self.standalone_dotnet_material_generation = generation
+        self.standalone_dotnet_material_role_by_generation[generation] = role_key
+        self.standalone_dotnet_material_generation_by_role[role_key] = generation
+        self.standalone_dotnet_material_error_by_role.pop(role_key, None)
         return self._queue_dotnet_material_compile(
             request,
             committed_resources=committed_resources,

@@ -73,7 +73,7 @@ _LEFT_CATEGORY_LABELS = {
 
 _SLOW_FRAME_MS = 1000.0 / 60.0
 _MODE_ACTION_BY_TEXT = {"object": "mode_object", "edit": "mode_edit", "sculpt": "mode_sculpt"}
-_SELECTION_ACTION_BY_TEXT = {"vertex": "select_vertex", "edge": "select_edge", "face": "select_face"}
+_SELECTION_ACTION_BY_TEXT = {"brush": "select_parts", "rectangle": "select_parts", "lasso": "select_parts"}
 _SKELETON_PANEL_BONE_LIMIT = 512
 _SKELETON_PANEL_WEIGHT_LIMIT = 32
 
@@ -111,7 +111,7 @@ class WorkspaceShellBuilderMixin:
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
         self.mode_combo = self._combo("MeshEditorModeCombo", ("Object", "Edit", "Sculpt"))
-        self.selection_combo = self._combo("MeshEditorSelectionCombo", ("Vertex", "Edge", "Face"))
+        self.selection_combo = self._combo("MeshEditorSelectionCombo", ("Brush", "Rectangle", "Lasso"))
         # Snap, Pivot and Orient are built but not shown. Nothing anywhere reads them:
         # no `connect`, no consumer in `cdmw/`, `tools/` or the .NET helper -- picking
         # Grid or Local changed the dropdown and nothing else, which is a control that
@@ -148,7 +148,7 @@ class WorkspaceShellBuilderMixin:
             )
         controls = [
             ("Mode", self.mode_combo),
-            ("Select", self.selection_combo),
+            ("Shape", self.selection_combo),
         ]
         if self._embedded_controls_only:
             controls.append(("View", self.viewport_display_combo))

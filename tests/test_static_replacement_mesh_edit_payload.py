@@ -151,7 +151,7 @@ def test_mesh_edit_action_control_text_preserves_copy() -> None:
     assert text["full_reset_mesh"] == "Full Reset Mesh"
     assert "mouse-up" in text["delete_mode_tooltip"]
     assert "Smooth/Relax passes" in text["iterations_tooltip"]
-    assert "Select Vertices" in text["selection_mode_tooltip"]
+    assert text["selection_mode_tooltip"] == "Selection shape for the Select Parts tool."
     assert "X-Ray" in text["selection_depth_tooltip"]
     assert "editable Mesh Editing scope" in text["select_part_tooltip"]
     assert "editable Mesh Editing scope" in text["invert_selection_tooltip"]
@@ -231,7 +231,9 @@ def test_mesh_edit_mode_and_tool_helpers_normalize_combo_values() -> None:
     assert mesh_edit_scope_mode("selected") == "selected"
     assert mesh_edit_scope_mode("bad") == "all"
     assert mesh_edit_tool(" smooth ") == "smooth"
-    assert mesh_edit_tool("bad") == "grab"
+    assert mesh_edit_tool("bad") == "orbit"
+    assert mesh_edit_target_mode_for_tool("orbit") == "source"
+    assert mesh_edit_target_mode_for_tool("select") == "source"
     assert mesh_edit_target_mode_for_tool("vertex") == "vertex"
     assert mesh_edit_target_mode_for_tool("grab") == "brush"
     assert mesh_edit_selection_mode("rectangle") == "rectangle"

@@ -153,6 +153,14 @@ class MeshEditorActionsMixin:
                 mode=str(getattr(action, "mode", "") or ""),
                 active_tool_key=key,
             )
+            if key == "select_parts":
+                controller.apply_editor_action(action)
+                self.update_editor_session_state(
+                    controller.session_view(),
+                    active_selection_mode=controller.active_selection_mode,
+                )
+                self.status_message_requested.emit("Select Parts active.", False)
+                return True
         if self._native_editor_action_blocked(str(getattr(action, "command", "") or "")):
             return True
         if self._should_run_standalone_action_worker(action, controller):

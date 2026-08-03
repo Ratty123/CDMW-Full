@@ -8,6 +8,9 @@ from cdmw.ui.mesh_editor import tab_dotnet_material_commit as _material_commit
 from cdmw.ui.mesh_editor.tab_dotnet_part_colour import MeshEditorDotNetPartColourMixin
 from cdmw.ui.mesh_editor.tab_dotnet_resources import MeshEditorDotNetResourceProtocolMixin
 from cdmw.ui.mesh_editor.process_io import DOTNET_PROTOCOL_EVENT_LIMIT
+from cdmw.ui.mesh_editor.tab_support import (
+    STANDALONE_NATIVE_TOOL_STATE as _STANDALONE_NATIVE_TOOL_STATE,
+)
 
 
 _CORRELATED_HELPER_REQUEST_EVENTS = frozenset(
@@ -127,6 +130,7 @@ class MeshEditorDotNetProtocolMixin(
         _write_dotnet_protocol_trail(payload)
 
     def _connect_dotnet_protocol(self, process: _tab.QProcess) -> None:
+        self.standalone_dotnet_update_ack_start_timer.stop()
         self.standalone_dotnet_update_ack_timer.stop()
         self.standalone_dotnet_update_queue.reset()
         self.standalone_texture_region_queue.reset()
@@ -216,7 +220,10 @@ class MeshEditorDotNetProtocolMixin(
     def _sync_dotnet_update_ack_timer(self) -> None:
         metrics = self.standalone_dotnet_update_queue.metrics()
         if int(metrics.get("active_revision", 0) or 0) > 0:
-            self.standalone_dotnet_update_ack_timer.start(1_000)
+            # Dense real-PAC topology updates can take longer than one second
+            # in the renderer even though they are progressing normally. Keep
+            # recovery bounded without racing a valid acknowledgement.
+            self.standalone_dotnet_update_ack_timer.start(5_000)
         else:
             self.standalone_dotnet_update_ack_timer.stop()
     def _handle_dotnet_update_ack_timeout(self) -> None:
@@ -312,13 +319,25 @@ class MeshEditorDotNetProtocolMixin(
             # Mesh. Unless the builder adopts what it armed, the next control
             # refresh republishes the builder's own tool and undoes the choice.
             adopt = getattr(self.active_builder(), "_mesh_editor_dotnet_tool_changed", None)
-            if not callable(adopt):
+            if callable(adopt):
+                try:
+                    return bool(adopt(dict(payload)))
+                except Exception as exc:
+                    self._record_runtime_event("mesh_editor_dotnet_tool_changed_failed", error=str(exc))
+                    return False
+            tool = str(payload.get("tool", "") or "").strip().lower()
+            action_key, edit_mode = next(
+                (
+                    (key, mode)
+                    for key, (native_tool, _target_mode, mode) in _STANDALONE_NATIVE_TOOL_STATE.items()
+                    if native_tool == tool
+                ),
+                ("", ""),
+            )
+            if tool != "orbit" and not action_key:
                 return False
-            try:
-                return bool(adopt(dict(payload)))
-            except Exception as exc:
-                self._record_runtime_event("mesh_editor_dotnet_tool_changed_failed", error=str(exc))
-                return False
+            self.set_active_tool_state(mode=edit_mode, active_tool_key=action_key)
+            return True
         if event == "viewport_display_request":
             return self._handle_embedded_viewport_display_mode(
                 str(payload.get("mode", "") or "")

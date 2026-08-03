@@ -27,8 +27,12 @@ def create_session_callbacks(state: SimpleNamespace, callbacks: SimpleNamespace)
 
 
 def _mesh_edit_target_mode_for_tool(_state, _callbacks, ) -> str:
-    if str(_state.mesh_editor_action_bar_active_tool_key.get("value") or "") == "transform_move":
+    if _state._mesh_edit_current_tool() == "orbit":
+        return "source"
+    if _state._mesh_edit_current_tool() == "move":
         return "selection"
+    if _state._mesh_edit_current_tool() == "select":
+        return "source"
     if _state._mesh_edit_current_tool() == "vertex":
         return str(_state.mesh_editor_action_bar_selection_mode.get("value") or "vertex")
     return _state._mesh_edit_target_mode_for_tool_helper(_state._mesh_edit_current_tool())

@@ -202,6 +202,10 @@ internal sealed partial class ExperimentForm
         _viewport.Focus();
         WriteProtocolEvent("activated", new Dictionary<string, object?>
         {
+            ["activation_request_id"] = _activationRequestId,
+            ["session_id"] = _residentMaterialSessionId,
+            ["process_generation"] = _residentProcessGeneration,
+            ["package_generation"] = Interlocked.Read(ref _residentPackageLoadGeneration),
             ["material_signature"] = _materials.Signature,
             ["generation"] = _materials.Generation,
             ["renderer"] = RendererStatusWithLifecycle(),
@@ -421,6 +425,7 @@ internal sealed partial class ExperimentForm
             _residentSessionProvisional = false;
             _residentSessionReleased = false;
             _residentSessionRebound = true;
+            ResetSelectionGestureDefaultsForSession();
             // Neither a placeholder's history nor the released session's belongs
             // to anything the arriving session did.
             _lastObservedSessionRevision = ProtocolEditRevision(root);

@@ -46,6 +46,7 @@ internal sealed partial class MeshViewport
 
     public void ResetSelectionAuthority()
     {
+        ClearProvisionalEditorStroke();
         RestoreAcknowledgedSelection();
         _provisionalSelectionRequestId = 0;
         _provisionalSelectionBaseRevision = 0;
@@ -76,8 +77,16 @@ internal sealed partial class MeshViewport
             new HashSet<int>(_selectedSources),
             Math.Max(0, requestId),
             Math.Max(0, revision));
-        // The authoritative selection replaces the instant local echo.
+        // The authoritative selection replaces the instant local echo. A live
+        // brush stroke immediately rebases that echo on the acknowledged
+        // parts so the next dab continues an Add/Subtract sweep smoothly.
         _provisionalSelectedVertices.Clear();
+        _provisionalSelectedSources.Clear();
+        _provisionalPartSelectionActive = _selectionPaintActive;
+        if (_selectionPaintActive)
+        {
+            _provisionalSelectedSources.UnionWith(_selectedSources);
+        }
         if (requestId <= 0 || requestId == _provisionalSelectionRequestId)
         {
             _provisionalSelectionRequestId = 0;
@@ -93,6 +102,8 @@ internal sealed partial class MeshViewport
     private void RestoreAcknowledgedSelection()
     {
         _provisionalSelectedVertices.Clear();
+        _provisionalSelectedSources.Clear();
+        _provisionalPartSelectionActive = false;
         ReplaceSelectionMap(_selectedVertices, _acknowledgedSelection.Vertices);
         ReplaceSelectionMap(_selectedFaces, _acknowledgedSelection.Faces);
         _selectedEdges.Clear();

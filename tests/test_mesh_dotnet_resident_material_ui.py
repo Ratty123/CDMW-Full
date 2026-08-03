@@ -72,6 +72,23 @@ def _wait_for_material_compile_idle(
     app.processEvents()
 
 
+def _acknowledge_editable_materials(tab: MeshEditorTab, process: _FakeProcess) -> None:
+    tab.standalone_dotnet_material_generation = 1
+    tab.standalone_dotnet_material_generation_by_role["editable_imported"] = 1
+    tab.standalone_dotnet_material_role_by_generation[1] = "editable_imported"
+    process.emit_stdout(
+        json.dumps(
+            {
+                "event": "material_state_applied",
+                "generation": 1,
+                "role": "replacement",
+                "material_signature": "editable-materials",
+            }
+        )
+        + "\n"
+    )
+
+
 def test_mesh_editor_reactivation_syncs_changed_materials_without_restart_v2() -> None:
     app = QApplication.instance() or QApplication([])
     tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetResidentMaterialRefresh"))
@@ -180,7 +197,7 @@ def test_textured_view_waits_for_resident_material_ack_without_reload() -> None:
     assert "textured" not in display_modes
     assert tab.standalone_dotnet_pending_textured_view is True
 
-    tab._finish_pending_textured_view(success=True)
+    _acknowledge_editable_materials(tab, process)
     writes = [json.loads(raw.decode("utf-8")) for raw in process.stdin_writes]
     display_modes = [
         payload.get("mode")
@@ -247,7 +264,7 @@ def test_builder_textured_selector_resolves_materials_before_presentation_update
     assert tab.standalone_dotnet_pending_textured_view is True
     assert tab.standalone_dotnet_pending_textured_view_uses_presentation is True
 
-    tab._finish_pending_textured_view(success=True)
+    _acknowledge_editable_materials(tab, process)
     assert tab.standalone_dotnet_presentation_desired["display"]["mode"] == "textured"
     assert tab.standalone_dotnet_presentation_queued is True
 

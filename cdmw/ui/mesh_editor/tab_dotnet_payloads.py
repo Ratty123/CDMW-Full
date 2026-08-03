@@ -32,7 +32,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             "process_generation": self.standalone_dotnet_process_generation,
             "mode": view.mode,
             "revision": view.revision,
-            "selection_mode": str(getattr(controller, "active_selection_mode", "") or self.current_selection_mode or "vertex"),
+            "selection_mode": str(getattr(controller, "active_selection_mode", "") or self.current_selection_mode or "brush"),
             "selection": self._dotnet_selection_payload(selection),
             "submesh_count": view.submesh_count,
             "vertex_count": view.vertex_count,
@@ -278,6 +278,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
         revision: int | None = None,
         diagnostics: Sequence[object] = (),
         request_payload: Mapping[str, object] | None = None,
+        authoritative_geometry_pending: bool = False,
     ) -> bool:
         payload: dict[str, object] = {
             "event": "command_result",
@@ -286,6 +287,8 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             "status": status,
             "diagnostics": [str(item) for item in diagnostics],
         }
+        if authoritative_geometry_pending:
+            payload["authoritative_geometry_pending"] = True
         if revision is not None:
             payload["revision"] = int(revision)
             payload["edit_revision"] = int(revision)
@@ -363,8 +366,11 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                 "selection_groups": update.selection_groups,
             })
         self.standalone_dotnet_update_queue.enqueue(int(revision or 0), edit_packets)
-        QTimer.singleShot(0, self._sync_dotnet_update_ack_timer)
+        self.standalone_dotnet_update_ack_start_timer.start(0)
         if result is not None:
+            request_event = str(
+                request_payload.get("event", "") if request_payload is not None else ""
+            ).strip().lower()
             self._send_dotnet_command_result(
                 result.action,
                 ok=str(result.status or "").strip().lower() != "error",
@@ -372,6 +378,11 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                 revision=result.revision,
                 diagnostics=result.diagnostics,
                 request_payload=request_payload,
+                authoritative_geometry_pending=(
+                    request_event
+                    in {"stroke_begin", "stroke_update", "stroke_end", "stroke_cancel"}
+                    and bool(update.vertex_groups)
+                ),
             )
     def _dotnet_screen_selection_payload(self, payload: Mapping[str, object]) -> dict[str, object]:
         screen_payload: dict[str, object] = {}
@@ -383,8 +394,14 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             screen_payload["screen_region"] = self._native_screen_payload(raw_screen_region)
         if "falloff" in payload:
             screen_payload["falloff"] = str(payload.get("falloff") or "smooth")
-        if "target_mode" in payload:
-            screen_payload["target_mode"] = str(payload.get("target_mode") or "vertex")
+        if "paint_sample" in payload:
+            screen_payload["paint_sample"] = bool(payload.get("paint_sample"))
+        if "paint_final" in payload:
+            screen_payload["paint_final"] = bool(payload.get("paint_final"))
+        # User-facing resident selection is whole-part only. Older helpers may
+        # still publish vertex/edge/face here; retain those native maps for
+        # compatibility, but never let the stale target re-arm element picking.
+        screen_payload["target_mode"] = "source"
         depth_mode = str(payload.get("selection_depth_mode", "visible") or "visible").strip().lower()
         screen_payload["selection_depth_mode"] = "xray" if depth_mode == "xray" else "visible"
         return screen_payload

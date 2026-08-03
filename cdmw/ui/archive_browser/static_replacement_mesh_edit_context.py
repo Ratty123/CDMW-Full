@@ -311,8 +311,8 @@ def _initialize_runtime_state(state: SimpleNamespace) -> None:
     state.mesh_edit_preview_model_dirty = {"value": False}
     state.mesh_edit_native_result_submesh_counts = {"value": ()}
     state.mesh_edit_selected_edges_by_submesh = {}
-    state.mesh_editor_action_bar_selection_mode = {"value": "vertex"}
-    state.mesh_editor_action_bar_active_tool_key = {"value": "brush_grab"}
+    state.mesh_editor_action_bar_selection_mode = {"value": "brush"}
+    state.mesh_editor_action_bar_active_tool_key = {"value": ""}
     state.mesh_edit_topology_worker_state = {
         "request_id": 0,
         "thread": None,

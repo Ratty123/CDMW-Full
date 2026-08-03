@@ -144,13 +144,19 @@ class MeshEditorDotNetMaterialCompilationMixin:
                 self.standalone_dotnet_completed_material_generation,
                 int(request.generation),
             )
+            role = self._dotnet_material_role_key(request.role)
+            self.standalone_dotnet_completed_material_generation_by_role[role] = max(
+                int(self.standalone_dotnet_completed_material_generation_by_role.get(role, 0) or 0),
+                int(request.generation),
+            )
+            self.standalone_dotnet_material_error_by_role[role] = "Compiled material payload could not be sent."
             self._notify_dotnet_material_resources_finished(
                 request.generation,
                 False,
                 self.standalone_dotnet_material_update_active_resources,
             )
             self._set_dotnet_status(
-                "Could not send the compiled resident material payload.",
+                f"Could not send the compiled {self._dotnet_material_role_label(role)} pane material payload.",
                 error=True,
             )
             self._finish_pending_textured_view(
@@ -167,6 +173,7 @@ class MeshEditorDotNetMaterialCompilationMixin:
         self.standalone_dotnet_lifecycle_counts["material_state_update_count"] += 1
         self._record_mesh_dotnet_event(
             "mesh_dotnet_material_state_update",
+            role=self._dotnet_material_role_key(request.role),
             generation=int(request.generation),
             edit_revision=int(request.edit_revision),
             material_signature=str(correlated.get("material_signature", "") or ""),
@@ -190,6 +197,12 @@ class MeshEditorDotNetMaterialCompilationMixin:
             self.standalone_dotnet_completed_material_generation,
             int(request.generation),
         )
+        role = self._dotnet_material_role_key(request.role)
+        self.standalone_dotnet_completed_material_generation_by_role[role] = max(
+            int(self.standalone_dotnet_completed_material_generation_by_role.get(role, 0) or 0),
+            int(request.generation),
+        )
+        self.standalone_dotnet_material_error_by_role[role] = str(message)
         self.standalone_dotnet_lifecycle_counts["material_compile_failed_count"] += 1
         self.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
         self._notify_dotnet_material_resources_finished(
@@ -198,12 +211,12 @@ class MeshEditorDotNetMaterialCompilationMixin:
             self.standalone_dotnet_material_update_active_resources,
         )
         self._set_dotnet_status(
-            f"Could not compile resident PAC materials: {message}",
+            f"Could not compile resident PAC materials for the {self._dotnet_material_role_label(role)} pane: {message}",
             error=True,
         )
         self._finish_pending_textured_view(
             success=False,
-            reason=f"material_compile_failed: {message}",
+            reason=f"{role}_material_compile_failed: {message}",
         )
         QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
 

@@ -110,7 +110,9 @@ internal sealed partial class ExperimentForm : Form
     private DateTime _lastMetricsProtocolUtc = DateTime.MinValue;
     private string _lastMetricsUiText = string.Empty;
     private bool _meshEditInteractionActive;
+    private bool _meshEditDisplayInitialized;
     private string _lastHostSelectionDragMode = "";
+    private string _lastHostSelectionOperation = "";
     private bool _syncingOverlayAppearanceControls;
     private bool _applyingToolPanelLayout;
     private MeshOverlaySettings _overlaySettings = MeshOverlayPreferences.Load();
@@ -509,6 +511,11 @@ internal sealed partial class ExperimentForm : Form
             ["capabilities"] = _viewport.ActiveCapabilities(),
             ["profile"] = _options.Profile,
             ["selection_depth_mode"] = "visible",
+            ["tool_enabled"] = !string.Equals(_viewport.ActiveTool, "orbit", StringComparison.OrdinalIgnoreCase),
+            ["tool"] = _viewport.ActiveTool,
+            ["target_mode"] = _viewport.CurrentTargetMode(),
+            ["selection_mode"] = SelectionText(_selectionShape, "brush"),
+            ["selection_operation"] = SelectionOperation(),
             ["material_signature"] = _materials.Signature,
             ["material_generation"] = _materials.Generation,
             ["texture_state"] = textureState,
@@ -1099,6 +1106,8 @@ internal sealed partial class MeshViewport : Control
     private Vec3 _center;
     private NetViewportCamera _camera;
     private Point _strokePrevious;
+    private Point _strokeProtocolPrevious;
+    private long _strokeLastProtocolTicks;
     private Point _pointerLocation;
     private bool _pointerInside;
     private int _strokeId;
@@ -1131,16 +1140,23 @@ internal sealed partial class MeshViewport : Control
     // Instant local echo of a paint/click selection, drawn until the
     // authoritative native result lands (~one protocol round trip later).
     private readonly Dictionary<int, HashSet<int>> _provisionalSelectedVertices = new();
+    private readonly HashSet<int> _provisionalSelectedSources = new();
+    private bool _provisionalPartSelectionActive;
     private bool _selectionPaintActive;
     private bool _selectionPaintPainted;
     private string _selectionPaintFirstOperation = "add";
     private string _selectionPaintOperation = "add";
+    // Toggle is a gesture operation: crossing the same part twice in one
+    // Brush stroke must not toggle it back off. The final exact part set is
+    // published once, so the host records one selection-history entry.
+    private readonly HashSet<int> _selectionPaintToggleTouchedSources = new();
     private Point _selectionPaintLastSample;
     // Where the local tint has been painted up to. It runs ahead of
     // _selectionPaintLastSample, which is where the host was last asked for an
     // authoritative result.
     private Point _selectionPaintLastEcho;
     private long _selectionPaintLastSampleTicks;
+    private readonly List<Point> _selectionPaintPathPoints = new();
     private readonly List<Point> _selectionLassoPoints = new();
     private Point _edgeDragStart;
     private Point _edgeDragCurrent;

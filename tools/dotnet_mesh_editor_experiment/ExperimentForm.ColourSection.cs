@@ -34,7 +34,6 @@ internal sealed partial class ExperimentForm
     private bool _loadingPartColourControls;
     // One texture request per page visit: the host answers asynchronously, so
     // re-asking on every refresh would spam the resident material lane.
-    private bool _colourDisplayModeRequested;
 
     private static readonly Color NeutralPartColour = Color.White;
 

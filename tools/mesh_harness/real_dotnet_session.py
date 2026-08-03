@@ -26,6 +26,8 @@ from tools.mesh_harness.real_dotnet_evidence import (
 def _install_timing_probes(state: SimpleNamespace) -> None:
     state.measure_stroke_handlers = False
     state.stroke_handler_timings = []
+    state.stroke_completion_timings = []
+    state.stroke_completion_stage_timings = []
     state.stroke_results = []
     original_handler = state.tab._handle_dotnet_stroke_event
 
@@ -70,12 +72,49 @@ def _install_timing_probes(state: SimpleNamespace) -> None:
 
     state.tab._send_dotnet_protocol_message = record_protocol_send
 
+    def record_completion_stage(method_name: str) -> None:
+        original = getattr(state.tab, method_name)
+
+        def timed(*args: object, **kwargs: object) -> object:
+            started = time.perf_counter()
+            try:
+                return original(*args, **kwargs)
+            finally:
+                state.stroke_completion_stage_timings.append(
+                    {
+                        "stage": method_name,
+                        "elapsed_ms": (time.perf_counter() - started) * 1000.0,
+                    }
+                )
+
+        setattr(state.tab, method_name, timed)
+
+    for method_name in (
+        "_apply_embedded_native_update",
+        "_refresh_embedded_workspace_from_builder",
+        "_send_dotnet_native_update",
+        "_send_dotnet_session_state",
+    ):
+        record_completion_stage(method_name)
+
     original_completed = state.tab._handle_dotnet_live_stroke_completed
 
     def record_completed(outcome: object, *args: object, **kwargs: object) -> None:
         if str(getattr(outcome, "source", "") or "") == "dotnet":
             state.stroke_results.append(getattr(outcome, "result", None))
-        original_completed(outcome, *args, **kwargs)
+        started = time.perf_counter()
+        try:
+            original_completed(outcome, *args, **kwargs)
+        finally:
+            update = getattr(outcome, "native_update", None)
+            state.stroke_completion_timings.append(
+                {
+                    "phase": str(getattr(outcome, "phase", "") or ""),
+                    "revision": int(getattr(getattr(outcome, "result", None), "revision", 0) or 0),
+                    "vertex_group_count": len(tuple(getattr(update, "vertex_groups", ()) or ())),
+                    "elapsed_ms": (time.perf_counter() - started) * 1000.0,
+                }
+            )
 
     state.tab._handle_dotnet_stroke_event = timed_handler
     state.tab._apply_dotnet_result_update = record_result

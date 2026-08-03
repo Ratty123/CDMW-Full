@@ -72,6 +72,45 @@ def test_sustained_frame_pacing_cli_and_evidence_contract_are_versioned() -> Non
     assert "capture.InputsReceived > 0" in report
 
 
+def test_interaction_soak_drives_real_provisional_paths_and_required_gates() -> None:
+    entry = _source("ProgramEntry.cs")
+    soak = _source("HeadlessGpuInteractionSoak.cs")
+    probe = _source("MeshViewport.InteractionSoak.cs")
+    strokes = _source("MeshViewport.ProvisionalStrokes.cs")
+    picking = _source("MeshViewport.SelectionPicking.cs")
+    input_source = _source("MeshViewport.Input.cs")
+
+    assert entry.index("HeadlessGpuInteractionSoak.IsRequested(args)") < entry.index(
+        "LaunchOptions.Parse(args)"
+    )
+    assert '"--headless-gpu-interaction-soak"' in entry
+    for mode in ("select_brush", "move", "grab", "inflate"):
+        assert f'"{mode}"' in soak + probe
+    assert "BeginSelectionDrag(start, \"source\")" in probe
+    assert "BeginEditorStroke(start)" in probe
+    assert "UpdateProvisionalEditorStroke(point)" in probe
+    assert "FinishEdgeDrag(point)" in probe
+    assert "CommitInteractionSoakGeometry" in probe
+    assert "CompleteProvisionalAuthoritativeUpdate" in probe
+    assert "SpatialBuckets" in strokes
+    assert "GrabIndices" in strokes
+    assert "FaceBuckets" in picking
+    assert "EditorStrokeProtocolIntervalMs = 16.0" in input_source
+    assert "_strokeProtocolPrevious" in input_source
+    for gate in (
+        "input_to_present_p95_at_most_13_89_ms",
+        "no_frame_over_20_83_ms",
+        "host_heartbeat_at_most_33_3_ms",
+        "protocol_pending_depth_at_most_one",
+        "no_lost_cursor_coverage",
+        "stale_result_did_not_roll_back_live_stroke",
+        "zero_gen1_collections",
+        "zero_gen2_collections",
+        "final_authority_matches_visible_provisional_result",
+    ):
+        assert f'["{gate}"]' in soak
+
+
 def test_metric_capture_hot_paths_use_fixed_storage_and_deferred_statistics() -> None:
     metrics = _source("RuntimeSupport.cs")
     capture = _source("PreviewPerformanceCapture.cs")
@@ -103,6 +142,23 @@ def test_metric_capture_hot_paths_use_fixed_storage_and_deferred_statistics() ->
     assert 'PreviewPerformancePhase.SyntheticDriver => "synthetic_driver"' in _source(
         "PreviewPerformanceReport.cs"
     )
+
+
+def test_capture_samples_gc_before_allocating_snapshot_arrays() -> None:
+    capture = _source("PreviewPerformanceCapture.cs")
+    stop = capture.split(
+        "public PreviewPerformanceCaptureSnapshot StopAndSnapshot()", maxsplit=1
+    )[1].split("public void DisposeWithoutSnapshot()", maxsplit=1)[0]
+
+    counter_sample = stop.index("var gcCount0Stop = GC.CollectionCount(0);")
+    first_snapshot_array = stop.index(
+        "var frames = new PreviewPerformanceFrameSample[frameCount];"
+    )
+    report = stop.index("return new PreviewPerformanceCaptureSnapshot(")
+
+    assert counter_sample < first_snapshot_array < report
+    assert "new[] { gcCount0Stop, gcCount1Stop, gcCount2Stop }" in stop
+    assert "new[] { GC.CollectionCount(0)" not in stop
 
 
 def test_gpu_timing_is_delayed_nonblocking_and_allocation_free_in_frame_capture() -> None:

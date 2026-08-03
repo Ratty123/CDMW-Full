@@ -298,6 +298,7 @@ _CSHARP_WRAPPER_ARG_INDEXES: dict[str, tuple[int, ...] | None] = {
     "ChooseOverlayColor": (0,),
     "CommandButton": (0,),
     "ConfigureCheckBox": (1,),
+    "ConfigureCombo": (1, 2, 3, 4, 5, 6),
     "ConfigureMorphStatusLabel": (1,),
     "CreateDockHeader": (1,),
     "CreateMorphCompactCard": (0, 1),

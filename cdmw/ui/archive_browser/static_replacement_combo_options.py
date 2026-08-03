@@ -104,21 +104,22 @@ MESH_EDIT_SCOPE_OPTIONS: tuple[ComboOption, ...] = (
 )
 
 MESH_EDIT_TOOL_OPTIONS: tuple[ComboOption, ...] = (
-    ("Move", "grab"),
+    ("Orbit", "orbit"),
+    ("Select Parts", "select"),
+    ("Move", "move"),
+    ("Grab", "grab"),
     ("Smooth", "smooth"),
     ("Push/Pull", "inflate"),
     ("Pinch/Relax", "pinch"),
-    ("Remove Faces", "remove"),
-    ("Select Vertices", "vertex"),
 )
 
 MESH_EDIT_TOOL_BUTTON_OPTIONS: tuple[ToolButtonOption, ...] = (
-    ("Move", "grab", "Move vertices inside the brush radius."),
+    ("Select Parts", "select", "Select complete mesh parts with click, Brush, Rectangle, or Lasso."),
+    ("Move", "move", "Move the selected parts in real time."),
+    ("Grab", "grab", "Grab the selected parts or the part first hit by the brush."),
     ("Smooth", "smooth", "Smooth vertices inside the brush radius."),
     ("Push/Pull", "inflate", "Push or pull vertices along their normals."),
     ("Pinch/Relax", "pinch", "Pinch vertices toward the brush center, or relax with inverted strokes."),
-    ("Remove Faces", "remove", "Cut away faces touched by the brush. Boundaries stay open."),
-    ("Select Vertices", "vertex", "Paint vertex selection for Delete Selected Faces."),
 )
 
 MESH_EDIT_DELETE_MODE_OPTIONS: tuple[ComboOption, ...] = (

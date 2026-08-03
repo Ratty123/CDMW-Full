@@ -76,6 +76,7 @@ internal sealed partial class MeshViewport
     private long _presentationGeneration;
 
     public string ActivePresentationView => _activePresentationView;
+    public bool HostDisplayModeAuthoritative => _hostDisplayModeAuthoritative;
     public bool PresentationInteractionAllowed =>
         !string.Equals(_activeCameraContextId, "reference", StringComparison.OrdinalIgnoreCase);
 
@@ -274,6 +275,11 @@ internal sealed partial class MeshViewport
         UpdateGpuViewport();
         Invalidate();
         return true;
+    }
+
+    public void MarkHostDisplayModeAuthoritative()
+    {
+        _hostDisplayModeAuthoritative = true;
     }
 
     private void ApplyPresentationCamera(JsonElement camera)
