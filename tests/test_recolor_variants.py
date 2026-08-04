@@ -436,7 +436,7 @@ class RecolorVariantTests(unittest.TestCase):
         self.assertIn("from cdmw.ui.recolor_variants_tab import RecolorVariantsTab", main_source)
         self.assertIn("self.recolor_variants_tab = self._add_lazy_shell_tool(", main_source)
         self.assertIn(
-            'self.texture_tabs, "Recolor Variants", "recolor_variants", self._create_recolor_variants_tab',
+            '"Texture Recolor",\n            "recolor_variants",',
             main_source,
         )
         self.assertIn('self._register_detachable_tool("recolor_variants"', main_source)

@@ -34,13 +34,13 @@ FORBIDDEN_PUBLIC_MODULES = (
 )
 FIRST_TAB_PARENTS = {
     "item_icons_tab": "assets_tabs",
-    "mesh_editor_tab": "assets_tabs",
+    "mesh_editor_tab": "main_tabs",
     "model_library_tab": "assets_tabs",
     "mod_package_retrofit_tab": "tools_tabs",
     "recolor_variants_tab": "texture_tabs",
     "replace_assistant_tab": "texture_tabs",
-    "research_tab": "research_tabs",
-    "text_search_tab": "research_tabs",
+    "research_tab": "tools_tabs",
+    "text_search_tab": "tools_tabs",
     "texture_editor_tab": "texture_tabs",
 }
 

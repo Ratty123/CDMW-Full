@@ -87,7 +87,7 @@ the combined mod. `.paac` strings are length-prefixed (`<len+1><ASCII><NUL>`),
 verified 30 of 30 across the corpus, which is what makes a same-length retarget
 provably safe rather than folklore.
 
-Open it from the **Placement & Animation Studio** tab, or standalone with
+Open it from the **Placement & Animations** tab, or standalone with
 `python scripts/placement_studio.py`. 163 unit tests cover it and none need a
 game install.
 

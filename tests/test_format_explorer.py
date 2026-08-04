@@ -61,9 +61,12 @@ class RowTests(unittest.TestCase):
 
     def test_known_formats_name_the_tool_that_edits_them(self) -> None:
         by_extension = {row.extension: row for row in self.rows}
-        self.assertEqual(by_extension[".paloc"].tool, "Tools > Translation Studio")
-        self.assertEqual(by_extension[".dds"].tool, "Textures > Replacer / Editor")
-        self.assertEqual(by_extension[".pac"].tool, "Assets > Mesh Editor")
+        self.assertEqual(by_extension[".paloc"].tool, "Tools > Translations")
+        self.assertEqual(
+            by_extension[".dds"].tool,
+            "Texture Upscaling & Editing > Texture Replacer / Texture Editor",
+        )
+        self.assertEqual(by_extension[".pac"].tool, "Mesh Editor")
         self.assertEqual(by_extension[".hkx"].tool, "Archive Browser > Edit HKX...")
 
     def test_an_undecoded_format_offers_no_tool(self) -> None:
@@ -197,7 +200,7 @@ class PanelTests(unittest.TestCase):
         panel.table.selectRow(0)
         detail = panel.detail.toHtml()
         self.assertIn("What this rests on", detail)
-        self.assertIn("Translation Studio", detail)
+        self.assertIn("Tools &gt; Translations", detail)
 
     def test_an_empty_result_says_so_instead_of_showing_stale_detail(self) -> None:
         panel = self._panel()

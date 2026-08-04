@@ -176,14 +176,14 @@ def _verify_mesh_editor_asset_dotnet_startup_smoke(mesh_editor_tab: object) -> N
 
 
 def verify_mesh_editor_startup_smoke_target(window: object, app: QApplication) -> None:
-    assets_tabs = getattr(window, "assets_tabs", None)
+    main_tabs = getattr(window, "main_tabs", None)
     mesh_editor_tab = getattr(window, "mesh_editor_tab", None)
-    if assets_tabs is None or mesh_editor_tab is None:
+    if main_tabs is None or mesh_editor_tab is None:
         raise RuntimeError("Mesh Editor startup smoke failed: Mesh Editor tab is not registered.")
-    index = int(assets_tabs.indexOf(mesh_editor_tab))
+    index = int(main_tabs.indexOf(mesh_editor_tab))
     if index < 0:
-        raise RuntimeError("Mesh Editor startup smoke failed: Mesh Editor tab is not in the Assets tabs.")
-    assets_tabs.setCurrentIndex(index)
+        raise RuntimeError("Mesh Editor startup smoke failed: Mesh Editor is not a top-level tab.")
+    main_tabs.setCurrentIndex(index)
     app.processEvents()
     workspace = getattr(mesh_editor_tab, "standalone_workspace", None)
     if workspace is None:

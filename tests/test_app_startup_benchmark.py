@@ -8,12 +8,23 @@ from pathlib import Path
 
 import pytest
 
-from tools.benchmark_app_startup import _stage_probe_summaries, percentile, summarize_timings
+from tools.benchmark_app_startup import (
+    FIRST_TAB_PARENTS,
+    _stage_probe_summaries,
+    percentile,
+    summarize_timings,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "tools" / "benchmark_app_startup.py"
 SCHEMA = ROOT / "schemas" / "startup" / "app-startup-benchmark.schema.json"
+
+
+def test_first_tab_parents_follow_shell_navigation() -> None:
+    assert FIRST_TAB_PARENTS["mesh_editor_tab"] == "main_tabs"
+    assert FIRST_TAB_PARENTS["research_tab"] == "tools_tabs"
+    assert FIRST_TAB_PARENTS["text_search_tab"] == "tools_tabs"
 
 
 def test_percentile_and_timing_summary_are_deterministic() -> None:

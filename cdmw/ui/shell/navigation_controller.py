@@ -174,8 +174,8 @@ class NavigationControllerMixin:
         except ValueError:
             return tab_widget.count()
         # Where the tool sat when the shell built it. Zero is only right for a tab bar that
-        # holds nothing but tools; `main_tabs` also holds the Assets/Textures/Research/Tools
-        # groups, so a tool living there would otherwise reattach in front of Assets.
+        # holds nothing but tools; `main_tabs` also holds grouped and direct workspaces, so
+        # a detachable workspace there would otherwise reattach in front of Assets.
         preferred_index = self._tool_tab_home_index_by_key.get(key, 0)
         for previous_key in self._detachable_tool_order[:order_index]:
             if self._tool_tab_widgets_by_key.get(previous_key, self.main_tabs) is not tab_widget:

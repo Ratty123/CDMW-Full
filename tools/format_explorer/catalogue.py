@@ -6,7 +6,7 @@ schemas directory, so the person it would help most has never seen it.
 
 This module turns it into rows a modder can act on, and adds the part the manifest does
 not carry: which tool in the app handles a format. A row that says `.paloc` is
-read/write is only useful next to "Translation Studio".
+read/write is only useful next to "Translations".
 """
 
 from __future__ import annotations
@@ -26,12 +26,12 @@ MANIFEST = REPO_ROOT / "schemas" / "archive_content_capabilities.v1.json"
 #: `tests/test_format_explorer.py` checks each segment against the shell sources,
 #: so renaming a tab or an action breaks a test instead of leaving a stale path.
 TOOLS: Mapping[str, str] = {
-    ".paloc": "Tools > Translation Studio",
-    ".dds": "Textures > Replacer / Editor",
-    ".png": "Textures > Replacer / Editor",
-    ".pac": "Assets > Mesh Editor",
-    ".pam": "Assets > Mesh Editor",
-    ".pamlod": "Assets > Mesh Editor",
+    ".paloc": "Tools > Translations",
+    ".dds": "Texture Upscaling & Editing > Texture Replacer / Texture Editor",
+    ".png": "Texture Upscaling & Editing > Texture Replacer / Texture Editor",
+    ".pac": "Mesh Editor",
+    ".pam": "Mesh Editor",
+    ".pamlod": "Mesh Editor",
     ".pac_xml": "Archive Browser > Edit Material Values...",
     ".pam_xml": "Archive Browser > Edit Material Values...",
     ".pamlod_xml": "Archive Browser > Edit Material Values...",
@@ -39,10 +39,10 @@ TOOLS: Mapping[str, str] = {
     ".prefab": "Archive Browser > Open Prefab Inspector...",
     ".hkx": "Archive Browser > Edit HKX...",
     ".hkt": "Archive Browser > Edit HKX...",
-    ".paa": "Placement & Animation Studio",
-    ".pab": "Placement & Animation Studio",
-    ".paac": "Placement & Animation Studio",
-    ".papr": "Placement & Animation Studio > Driven bones",
+    ".paa": "Placement & Animations",
+    ".pab": "Placement & Animations",
+    ".paac": "Placement & Animations",
+    ".papr": "Placement & Animations > Driven bones",
     ".wem": "Archive Browser > Import WAV + Patch to Game...",
 }
 

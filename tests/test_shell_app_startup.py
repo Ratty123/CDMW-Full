@@ -311,7 +311,7 @@ class ShellAppStartupTests(unittest.TestCase):
             child = QWidget(workspace)
             child.setObjectName(object_name)
         window.mesh_editor_tab = mesh_editor_tab
-        window.assets_tabs = _TabsStub(mesh_editor_tab)
+        window.main_tabs = _TabsStub(mesh_editor_tab)
         mesh_editor_tab.standalone_workspace = workspace  # type: ignore[attr-defined]
 
         with patch.dict(
@@ -320,7 +320,7 @@ class ShellAppStartupTests(unittest.TestCase):
         ):
             self.assertTrue(finish_gui_startup_smoke_if_requested(window, app))  # type: ignore[arg-type]
 
-        self.assertEqual(0, window.assets_tabs.current_index)
+        self.assertEqual(0, window.main_tabs.current_index)
         self.assertTrue(window.finalized)
         mesh_editor_tab.deleteLater()
 
@@ -362,7 +362,7 @@ class ShellAppStartupTests(unittest.TestCase):
             child = QWidget(workspace)
             child.setObjectName(object_name)
         window.mesh_editor_tab = mesh_editor_tab
-        window.assets_tabs = _TabsStub(mesh_editor_tab)
+        window.main_tabs = _TabsStub(mesh_editor_tab)
         mesh_editor_tab.standalone_workspace = workspace  # type: ignore[attr-defined]
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -403,7 +403,7 @@ class ShellAppStartupTests(unittest.TestCase):
             child = QWidget(workspace)
             child.setObjectName(object_name)
         window.mesh_editor_tab = mesh_editor_tab
-        window.assets_tabs = _TabsStub(mesh_editor_tab)
+        window.main_tabs = _TabsStub(mesh_editor_tab)
         mesh_editor_tab.standalone_workspace = workspace  # type: ignore[attr-defined]
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -455,7 +455,7 @@ class ShellAppStartupTests(unittest.TestCase):
             child = QWidget(workspace)
             child.setObjectName(object_name)
         window.mesh_editor_tab = mesh_editor_tab
-        window.assets_tabs = _TabsStub(mesh_editor_tab)
+        window.main_tabs = _TabsStub(mesh_editor_tab)
         mesh_editor_tab.standalone_workspace = workspace  # type: ignore[attr-defined]
 
         with tempfile.TemporaryDirectory() as temp_dir:

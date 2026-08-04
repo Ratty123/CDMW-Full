@@ -105,26 +105,33 @@ class TextureWorkflowUiSourceGuards(unittest.TestCase):
         theme_source = THEMES.read_text(encoding="utf-8")
 
         assets_nav = 'self.main_tabs.addTab(self.assets_tabs, "Assets")'
-        textures_nav = 'self.main_tabs.addTab(self.texture_tabs, "Textures")'
-        research_nav = 'self.main_tabs.addTab(self.research_tabs, "Research")'
         tools_nav = 'self.main_tabs.addTab(self.tools_tabs, "Tools")'
-        for nav_label in (assets_nav, textures_nav, research_nav, tools_nav):
+        for nav_label in (assets_nav, tools_nav):
             self.assertIn(nav_label, main_source)
+        self.assertIn('self.texture_tabs, "Texture Upscaling & Editing"', main_source)
+        self.assertIn("as_label(self.main_tabs.tabText(texture_tab_index))", main_source)
+        self.assertNotIn("self.research_tabs", main_source)
         self.assertNotIn('self.main_tabs.addTab(self.dashboard_tab, "Dashboard")', main_source)
-        self.assertLess(main_source.index(assets_nav), main_source.index(textures_nav))
-        self.assertLess(main_source.index(textures_nav), main_source.index(research_nav))
-        self.assertLess(main_source.index(research_nav), main_source.index(tools_nav))
-        self.assertIn('self.texture_tabs.addTab(self.workflow_tab, "Workflow")', main_source)
+        self.assertIn('self.texture_tabs.addTab(self.workflow_tab, "Texture Workflow")', main_source)
         self.assertIn('self.assets_tabs.addTab(self.archive_browser_tab, "Archive Browser")', main_source)
         for expected in (
-            'self.texture_tabs, "Replacer", "replace_assistant", self._create_replace_assistant_tab',
-            'self.texture_tabs, "Editor", "texture_editor", self._create_texture_editor_tab',
             'self.assets_tabs, "Model Library", "model_library", self._create_model_library_tab',
             'self.assets_tabs, "Icon Creator", "item_icons", self._create_item_icons_tab',
-            'self.research_tabs, "Texture Research", "research", self._create_research_tab',
-            'self.research_tabs, "Text Search", "text_search", self._create_text_search_tab',
+            'self.tools_tabs, "Research", "research", self._create_research_tab',
+            'self.tools_tabs, "Text Search", "text_search", self._create_text_search_tab',
         ):
             self.assertIn(expected, main_source)
+        for expected in (
+            '"Mesh Editor",\n            "mesh_editor",',
+            '"Placement & Animations",\n            "placement_studio",',
+            '"Texture Replacer",\n            "replace_assistant",',
+            '"Texture Recolor",\n            "recolor_variants",',
+            '"Texture Editor",\n            "texture_editor",',
+            '"Translations",\n            "translation_studio",',
+        ):
+            self.assertIn(expected, main_source)
+        self.assertIn("index=1,", main_source)
+        self.assertIn("index=2,", main_source)
         self.assertIn('"Retrofit/Repackage",', main_source)
         self.assertIn('"mod_package_retrofit",', main_source)
         self.assertIn("self._create_mod_package_retrofit_tab,", main_source)

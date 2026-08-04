@@ -29,7 +29,6 @@ class SettingsAutosaveMixin:
         self.main_tabs.currentChanged.connect(self._handle_main_tab_changed)
         self.texture_tabs.currentChanged.connect(self._handle_tool_group_tab_changed)
         self.assets_tabs.currentChanged.connect(self._handle_tool_group_tab_changed)
-        self.research_tabs.currentChanged.connect(self._handle_tool_group_tab_changed)
         self.tools_tabs.currentChanged.connect(self._handle_tool_group_tab_changed)
         self.content_tabs.currentChanged.connect(self._handle_workflow_content_tab_changed)
         self.workflow_splitter.splitterMoved.connect(lambda *_args: self.schedule_settings_save())
