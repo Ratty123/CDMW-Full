@@ -65,6 +65,201 @@ ClosestTrianglePointNative closest_triangle_point_native(
     return {{1.0 - v - w, v, w}, distance_squared_vec3(point, closest)};
 }
 
+struct RefitSpatialTriangleNative {
+    int driver_submesh_index = -1;
+    std::array<int, 3> driver_vertices{-1, -1, -1};
+    std::array<Vec3, 3> corners{};
+    Vec3 minimum{0.0, 0.0, 0.0};
+    Vec3 maximum{0.0, 0.0, 0.0};
+    Vec3 centroid{0.0, 0.0, 0.0};
+    std::size_t source_order = 0;
+};
+
+struct RefitSpatialNodeNative {
+    Vec3 minimum{0.0, 0.0, 0.0};
+    Vec3 maximum{0.0, 0.0, 0.0};
+    std::size_t begin = 0;
+    std::size_t end = 0;
+    int left = -1;
+    int right = -1;
+};
+
+struct RefitSpatialIndexNative {
+    std::vector<RefitSpatialTriangleNative> triangles;
+    std::vector<std::size_t> triangle_order;
+    std::vector<RefitSpatialNodeNative> nodes;
+    int root = -1;
+};
+
+double refit_aabb_distance_squared_native(
+    const Vec3& point,
+    const Vec3& minimum,
+    const Vec3& maximum
+) {
+    double result = 0.0;
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+        const double delta = point[axis] < minimum[axis]
+            ? minimum[axis] - point[axis]
+            : point[axis] > maximum[axis]
+                ? point[axis] - maximum[axis]
+                : 0.0;
+        result += delta * delta;
+    }
+    return result;
+}
+
+int refit_build_spatial_node_native(
+    RefitSpatialIndexNative& index,
+    std::size_t begin,
+    std::size_t end
+) {
+    RefitSpatialNodeNative node;
+    node.begin = begin;
+    node.end = end;
+    const RefitSpatialTriangleNative& first = index.triangles[index.triangle_order[begin]];
+    node.minimum = first.minimum;
+    node.maximum = first.maximum;
+    Vec3 centroid_minimum = first.centroid;
+    Vec3 centroid_maximum = first.centroid;
+    for (std::size_t position = begin + 1; position < end; ++position) {
+        const RefitSpatialTriangleNative& triangle = index.triangles[index.triangle_order[position]];
+        for (std::size_t axis = 0; axis < 3; ++axis) {
+            node.minimum[axis] = std::min(node.minimum[axis], triangle.minimum[axis]);
+            node.maximum[axis] = std::max(node.maximum[axis], triangle.maximum[axis]);
+            centroid_minimum[axis] = std::min(centroid_minimum[axis], triangle.centroid[axis]);
+            centroid_maximum[axis] = std::max(centroid_maximum[axis], triangle.centroid[axis]);
+        }
+    }
+    const int node_index = static_cast<int>(index.nodes.size());
+    index.nodes.push_back(node);
+    if (end - begin <= 8) return node_index;
+    std::size_t split_axis = 0;
+    for (std::size_t axis = 1; axis < 3; ++axis) {
+        if (centroid_maximum[axis] - centroid_minimum[axis]
+            > centroid_maximum[split_axis] - centroid_minimum[split_axis]) {
+            split_axis = axis;
+        }
+    }
+    std::stable_sort(
+        index.triangle_order.begin() + static_cast<std::ptrdiff_t>(begin),
+        index.triangle_order.begin() + static_cast<std::ptrdiff_t>(end),
+        [&index, split_axis](std::size_t left, std::size_t right) {
+            const auto& a = index.triangles[left];
+            const auto& b = index.triangles[right];
+            if (a.centroid[split_axis] != b.centroid[split_axis]) {
+                return a.centroid[split_axis] < b.centroid[split_axis];
+            }
+            return a.source_order < b.source_order;
+        }
+    );
+    const std::size_t middle = begin + (end - begin) / 2;
+    index.nodes[static_cast<std::size_t>(node_index)].left = refit_build_spatial_node_native(index, begin, middle);
+    index.nodes[static_cast<std::size_t>(node_index)].right = refit_build_spatial_node_native(index, middle, end);
+    return node_index;
+}
+
+RefitSpatialIndexNative build_refit_spatial_index_native(
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::set<int>& drivers
+) {
+    RefitSpatialIndexNative index;
+    for (const int driver_index : drivers) {
+        const auto found = submeshes.find(driver_index);
+        if (found == submeshes.end()) continue;
+        for (const auto& face : found->second.faces) {
+            if (face[0] < 0 || face[1] < 0 || face[2] < 0
+                || static_cast<std::size_t>(face[0]) >= found->second.vertices.size()
+                || static_cast<std::size_t>(face[1]) >= found->second.vertices.size()
+                || static_cast<std::size_t>(face[2]) >= found->second.vertices.size()) continue;
+            RefitSpatialTriangleNative triangle;
+            triangle.driver_submesh_index = driver_index;
+            triangle.driver_vertices = face;
+            triangle.source_order = index.triangles.size();
+            for (std::size_t corner = 0; corner < 3; ++corner) {
+                triangle.corners[corner] = found->second.vertices[static_cast<std::size_t>(face[corner])];
+            }
+            triangle.minimum = triangle.maximum = triangle.corners[0];
+            triangle.centroid = Vec3{0.0, 0.0, 0.0};
+            for (const Vec3& corner : triangle.corners) {
+                triangle.centroid = add_vec3(triangle.centroid, scale_vec3(corner, 1.0 / 3.0));
+                for (std::size_t axis = 0; axis < 3; ++axis) {
+                    triangle.minimum[axis] = std::min(triangle.minimum[axis], corner[axis]);
+                    triangle.maximum[axis] = std::max(triangle.maximum[axis], corner[axis]);
+                }
+            }
+            index.triangles.push_back(std::move(triangle));
+        }
+    }
+    index.triangle_order.reserve(index.triangles.size());
+    for (std::size_t position = 0; position < index.triangles.size(); ++position) {
+        index.triangle_order.push_back(position);
+    }
+    if (!index.triangles.empty()) {
+        index.nodes.reserve(index.triangles.size() * 2);
+        index.root = refit_build_spatial_node_native(index, 0, index.triangles.size());
+    }
+    return index;
+}
+
+void query_refit_spatial_node_native(
+    const RefitSpatialIndexNative& index,
+    int node_index,
+    const Vec3& point,
+    ClosestTrianglePointNative& closest,
+    std::size_t& closest_order,
+    MeshRefitVertexBindingRuntime& binding,
+    long long& candidate_tests
+) {
+    const RefitSpatialNodeNative& node = index.nodes[static_cast<std::size_t>(node_index)];
+    if (refit_aabb_distance_squared_native(point, node.minimum, node.maximum) > closest.distance_squared) return;
+    if (node.left < 0 || node.right < 0) {
+        for (std::size_t position = node.begin; position < node.end; ++position) {
+            const RefitSpatialTriangleNative& triangle = index.triangles[index.triangle_order[position]];
+            ++candidate_tests;
+            const ClosestTrianglePointNative candidate = closest_triangle_point_native(
+                point, triangle.corners[0], triangle.corners[1], triangle.corners[2]
+            );
+            if (candidate.distance_squared < closest.distance_squared
+                || (candidate.distance_squared == closest.distance_squared && triangle.source_order < closest_order)) {
+                closest = candidate;
+                closest_order = triangle.source_order;
+                binding.driver_submesh_index = triangle.driver_submesh_index;
+                binding.driver_vertices = triangle.driver_vertices;
+                binding.barycentric = candidate.barycentric;
+            }
+        }
+        return;
+    }
+    const auto& left = index.nodes[static_cast<std::size_t>(node.left)];
+    const auto& right = index.nodes[static_cast<std::size_t>(node.right)];
+    const double left_distance = refit_aabb_distance_squared_native(point, left.minimum, left.maximum);
+    const double right_distance = refit_aabb_distance_squared_native(point, right.minimum, right.maximum);
+    const int first = left_distance <= right_distance ? node.left : node.right;
+    const int second = left_distance <= right_distance ? node.right : node.left;
+    query_refit_spatial_node_native(index, first, point, closest, closest_order, binding, candidate_tests);
+    query_refit_spatial_node_native(index, second, point, closest, closest_order, binding, candidate_tests);
+}
+
+MeshRefitVertexBindingRuntime closest_refit_binding_native(
+    const Vec3& point,
+    const RefitSpatialIndexNative& index,
+    long long& candidate_tests
+) {
+    ClosestTrianglePointNative closest;
+    std::size_t closest_order = std::numeric_limits<std::size_t>::max();
+    MeshRefitVertexBindingRuntime binding;
+    if (index.root >= 0) {
+        query_refit_spatial_node_native(
+            index, index.root, point, closest, closest_order, binding, candidate_tests
+        );
+    }
+    if (binding.driver_submesh_index < 0 || !std::isfinite(closest.distance_squared)) {
+        throw std::runtime_error("garment refit could not bind every vertex to a driver triangle");
+    }
+    binding.distance = std::sqrt(std::max(0.0, closest.distance_squared));
+    return binding;
+}
+
 NativeWeightTransferSample closest_source_weight_sample_native(
     const Vec3& target,
     const std::vector<Vec3>& source_vertices,
