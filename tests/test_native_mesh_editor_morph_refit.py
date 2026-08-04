@@ -681,3 +681,158 @@ def test_dense_refit_binding_uses_exact_spatial_pruning_instead_of_every_triangl
     assert refit["driver_triangle_count"] == driver_triangles
     assert refit["candidate_triangle_tests"] < exhaustive_tests // 10
     assert refit["maximum_distance"] == pytest.approx(0.05)
+
+
+def test_refit_settings_are_per_garment_and_enabled_intensity_is_undoable() -> None:
+    mesh = _driver_garment_mesh()
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", _profile_payload(mesh))
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0, 1]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [2, 3]})
+        configured = _command(
+            session_id,
+            "morph_configure_refit",
+            {
+                "garment_submesh_indices": [2],
+                "enabled": True,
+                "intensity_percent": 50.0,
+                "mode": "surface",
+                "clearance_percent": 0.0,
+            },
+        )
+        _change(session_id, 100.0, "end", "per-garment")
+        after_intensity = _snapshot(mesh, session_id)
+        disabled = _command(
+            session_id,
+            "morph_configure_refit",
+            {
+                "garment_submesh_indices": [2],
+                "enabled": False,
+                "intensity_percent": 50.0,
+                "mode": "surface",
+                "clearance_percent": 0.0,
+            },
+        )
+        after_disabled = _snapshot(mesh, session_id)
+        undo = mesh_native_core.undo_native_mesh_editor_session(session_id, timeout_seconds=15.0)
+        after_undo = _snapshot(mesh, session_id)
+        state_after_undo = _state(session_id)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+    settings = {
+        item["submesh_index"]: item
+        for item in configured["morph_state"]["refit"]["garment_settings"]  # type: ignore[index]
+    }
+    assert settings[2] == {
+        "submesh_index": 2,
+        "enabled": True,
+        "intensity_percent": 50,
+        "mode": "surface",
+        "clearance_percent": 0,
+    }
+    assert settings[3]["intensity_percent"] == 100
+    assert configured["history_published"] is True
+    assert disabled["history_published"] is True
+    _assert_positions_close(
+        after_intensity.submeshes[2].vertices,
+        [(x, y, z + 0.5) for x, y, z in mesh.submeshes[2].vertices],
+    )
+    _assert_positions_close(
+        after_intensity.submeshes[3].vertices,
+        [(x, y, z + 1.0) for x, y, z in mesh.submeshes[3].vertices],
+    )
+    _assert_positions_close(after_disabled.submeshes[2].vertices, mesh.submeshes[2].vertices)
+    assert undo is not None
+    _assert_positions_close(after_undo.submeshes[2].vertices, after_intensity.submeshes[2].vertices)
+    restored = {
+        item["submesh_index"]: item
+        for item in state_after_undo["refit"]["garment_settings"]
+    }
+    assert restored[2]["enabled"] is True
+    assert restored[2]["intensity_percent"] == 50
+
+
+def test_rigid_refit_mode_preserves_face_local_distance_for_hard_surface_parts() -> None:
+    mesh = _tilt_mesh()
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", _tilt_profile_payload(0.6))
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [1]})
+        _command(
+            session_id,
+            "morph_configure_refit",
+            {
+                "garment_submesh_indices": [1],
+                "enabled": True,
+                "intensity_percent": 100.0,
+                "mode": "rigid",
+                "clearance_percent": 0.0,
+            },
+        )
+        _command(
+            session_id,
+            "morph_change",
+            {"definition_id": "tilt", "value": 100.0, "phase": "end", "change_id": "rigid-tilt"},
+        )
+        after = _snapshot(mesh, session_id)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+    baseline_centroid = tuple(
+        sum(vertex[axis] for vertex in mesh.submeshes[0].vertices) / 3.0
+        for axis in range(3)
+    )
+    current_driver = [(0.0, 0.0, 0.6), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]
+    current_centroid = tuple(
+        sum(vertex[axis] for vertex in current_driver) / 3.0
+        for axis in range(3)
+    )
+    baseline_distance = sum(
+        (mesh.submeshes[1].vertices[1][axis] - baseline_centroid[axis]) ** 2
+        for axis in range(3)
+    ) ** 0.5
+    current_distance = sum(
+        (after.submeshes[1].vertices[1][axis] - current_centroid[axis]) ** 2
+        for axis in range(3)
+    ) ** 0.5
+    assert current_distance == pytest.approx(baseline_distance)
+
+
+def test_refit_clearance_relief_pushes_a_stationary_garment_out_of_a_moving_driver() -> None:
+    mesh = _tilt_mesh()
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_upload", _tilt_profile_payload(0.6))
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        _command(session_id, "morph_bind", {"garment_submesh_indices": [1]})
+        _command(
+            session_id,
+            "morph_configure_refit",
+            {
+                "garment_submesh_indices": [1],
+                "enabled": True,
+                "intensity_percent": 0.0,
+                "mode": "surface",
+                "clearance_percent": 1.0,
+            },
+        )
+        _command(
+            session_id,
+            "morph_change",
+            {"definition_id": "tilt", "value": 100.0, "phase": "end", "change_id": "clearance-tilt"},
+        )
+        after = _snapshot(mesh, session_id)
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+    normal_scale = (0.6 * 0.6 + 0.6 * 0.6 + 1.0) ** 0.5
+    normal = (0.6 / normal_scale, 0.6 / normal_scale, 1.0 / normal_scale)
+    surface = (1.0 / 3.0, 1.0 / 3.0, 0.2)
+    signed_clearance = sum(
+        (after.submeshes[1].vertices[0][axis] - surface[axis]) * normal[axis]
+        for axis in range(3)
+    )
+    assert signed_clearance == pytest.approx((2.0**0.5) * 0.01)

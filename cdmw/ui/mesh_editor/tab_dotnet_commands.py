@@ -412,6 +412,18 @@ class MeshEditorDotNetCommandMixin:
             params["submesh_indices"] = tuple(local_selection.source_indices)
         elif command == "morph_bind":
             params["garment_submesh_indices"] = tuple(local_selection.source_indices)
+        elif command == "morph_configure_refit":
+            params.update({
+                "garment_submesh_indices": tuple(local_selection.source_indices),
+                "enabled": bool(payload.get("enabled", True)),
+                "intensity_percent": self._standalone_native_payload_float(
+                    payload.get("intensity_percent"), 100.0
+                ),
+                "mode": str(payload.get("mode") or "surface").strip().lower(),
+                "clearance_percent": self._standalone_native_payload_float(
+                    payload.get("clearance_percent"), 0.0
+                ),
+            })
         elif command == "morph_author_definition":
             for key in (
                 "profile_id", "profile_name", "definition_id", "label", "category",
@@ -423,7 +435,9 @@ class MeshEditorDotNetCommandMixin:
                     params[key] = payload[key]
         worker_command = _tab.MeshEditCommand(
             command,
-            selection=local_selection if command in {"morph_author_definition", "morph_set_driver", "morph_bind"} else None,
+            selection=local_selection if command in {
+                "morph_author_definition", "morph_set_driver", "morph_bind", "morph_configure_refit",
+            } else None,
             params=params,
             label=command.removeprefix("morph_").replace("_", " ").title(),
         )

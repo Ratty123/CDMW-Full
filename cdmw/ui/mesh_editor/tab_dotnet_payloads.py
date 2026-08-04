@@ -120,6 +120,18 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                 "p95_distance": state.refit.p95_distance,
                 "warning_distance": state.refit.warning_distance,
                 "distance_warning": state.refit.distance_warning,
+                "driver_triangle_count": state.refit.driver_triangle_count,
+                "candidate_triangle_tests": state.refit.candidate_triangle_tests,
+                "garment_settings": [
+                    {
+                        "submesh_index": settings.submesh_index,
+                        "enabled": settings.enabled,
+                        "intensity_percent": settings.intensity_percent,
+                        "mode": settings.mode,
+                        "clearance_percent": settings.clearance_percent,
+                    }
+                    for settings in state.refit.garment_settings
+                ],
             },
             "unbaked": state.unbaked,
             "topology_blocked": state.topology_blocked,

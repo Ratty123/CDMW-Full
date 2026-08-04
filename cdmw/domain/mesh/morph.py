@@ -189,6 +189,34 @@ class MeshMorphValuePreset:
 
 
 @dataclass(frozen=True, slots=True)
+class MeshRefitGarmentSettings:
+    submesh_index: int
+    enabled: bool = True
+    intensity_percent: float = 100.0
+    mode: str = "surface"
+    clearance_percent: float = 0.0
+
+    def __post_init__(self) -> None:
+        submesh_index = int(self.submesh_index)
+        intensity = float(self.intensity_percent)
+        mode = str(self.mode or "surface").strip().lower()
+        clearance = float(self.clearance_percent)
+        if submesh_index < 0:
+            raise ValueError("Refit garment submesh index must be non-negative.")
+        if not math.isfinite(intensity) or not 0.0 <= intensity <= 200.0:
+            raise ValueError("Refit intensity must be between 0 and 200 percent.")
+        if mode not in {"surface", "rigid"}:
+            raise ValueError("Refit mode must be 'surface' or 'rigid'.")
+        if not math.isfinite(clearance) or not 0.0 <= clearance <= 5.0:
+            raise ValueError("Refit clearance must be between 0 and 5 percent of driver size.")
+        object.__setattr__(self, "submesh_index", submesh_index)
+        object.__setattr__(self, "enabled", bool(self.enabled))
+        object.__setattr__(self, "intensity_percent", intensity)
+        object.__setattr__(self, "mode", mode)
+        object.__setattr__(self, "clearance_percent", clearance)
+
+
+@dataclass(frozen=True, slots=True)
 class MeshRefitBindingSummary:
     driver_submesh_indices: tuple[int, ...] = ()
     garment_submesh_indices: tuple[int, ...] = ()
@@ -197,6 +225,9 @@ class MeshRefitBindingSummary:
     p95_distance: float = 0.0
     warning_distance: float = 0.0
     distance_warning: bool = False
+    driver_triangle_count: int = 0
+    candidate_triangle_tests: int = 0
+    garment_settings: tuple[MeshRefitGarmentSettings, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -561,6 +592,7 @@ __all__ = [
     "MeshMorphValuePreset",
     "MeshMorphVertexWeight",
     "MeshRefitBindingSummary",
+    "MeshRefitGarmentSettings",
     "build_weighted_morph_selection",
     "clamp_morph_value",
     "generate_procedural_morph_fields",

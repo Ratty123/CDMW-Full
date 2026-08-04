@@ -193,6 +193,7 @@ internal sealed partial class ExperimentForm : Form
             if (!_syncingSubmeshListSelection)
             {
                 _viewport.SelectPartsFromList(_submeshList.SelectedIndices.Cast<int>());
+                ApplySelectedMorphRefitSettings();
             }
         };
         _submeshList.MouseDown += (_, eventArgs) =>
@@ -951,6 +952,7 @@ internal sealed partial class ExperimentForm : Form
             _syncingSubmeshListSelection = false;
         }
         LoadPartColourControls();
+        ApplySelectedMorphRefitSettings();
     }
 
     [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]

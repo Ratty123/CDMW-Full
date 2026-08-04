@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+- **Morph & Refit now has per-garment fitting controls for cloth and hard parts.** After binding, select one or more garment parts and apply an Enabled toggle, 0-200% follow intensity, Surface or Rigid mode, and 0-5% clearance measured against the driver's bounding-box diagonal. Surface is the existing flexible barycentric behavior; Rigid transports each vertex in its bound triangle's orthonormal local frame so armour and other hard pieces do not inherit triangle stretch. Clearance runs after either mode and pushes a vertex outward when the moving body would penetrate it, including at 0% follow. Each application is one undoable resident edit, different bound garments can keep different settings, Reset and Bake rebase them, and existing bindings default to Enabled, Surface, 100%, and zero clearance.
+
 ### Changed
 - **Edit Mesh binds dense Morph & Refit garments without scanning every body triangle for every vertex.** The resident native core now uses an exact deterministic bounding-volume hierarchy while preserving the same closest-triangle and tie-breaking result. On the synthetic 100 x 100 regression mesh, binding tests 211,065 triangle candidates instead of an exhaustive 196,020,000 (928.7x fewer) and took 0.018 seconds instead of 2.21 seconds; the candidate and driver-triangle counts are carried in the native refit report so the acceleration is guarded without a timing-dependent test.
 

@@ -45,6 +45,9 @@ std::string run_mesh_editor_session(const JsonValue& root) {
     if (command == "morph_bind") {
         return mesh_editor_morph_bind_session_report(root, session_id, session, started);
     }
+    if (command == "morph_configure_refit") {
+        return mesh_editor_morph_configure_refit_session_report(root, session_id, session, started);
+    }
     if (command == "morph_clear_refit" || command == "morph_reset"
         || command == "morph_bake" || command == "morph_finish") {
         return mesh_editor_morph_reset_or_bake_session_report(command, root, session_id, session, started);

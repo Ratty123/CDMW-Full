@@ -198,22 +198,49 @@ void mesh_editor_add_refit_layer(
         }
     }
     for (const MeshRefitVertexBindingRuntime& binding : morph.refit->bindings) {
+        MeshRefitGarmentSettingsRuntime settings;
+        const auto configured = morph.refit->garment_settings.find(binding.garment_submesh_index);
+        if (configured != morph.refit->garment_settings.end()) settings = configured->second;
+        if (!settings.enabled) continue;
         const auto target = submeshes.find(binding.garment_submesh_index);
-        if (target == submeshes.end() || binding.garment_vertex_index < 0
+        const auto target_residual = residual.find(binding.garment_submesh_index);
+        if (target == submeshes.end() || target_residual == residual.end() || binding.garment_vertex_index < 0
             || static_cast<std::size_t>(binding.garment_vertex_index) >= target->second.vertices.size()) {
             throw std::runtime_error("garment refit target topology changed");
         }
         std::vector<Vec3>& target_layer = layer[binding.garment_submesh_index];
         if (target_layer.empty()) target_layer = mesh_editor_zero_morph_layer(target->second.vertices.size());
+        const std::size_t target_vertex_index = static_cast<std::size_t>(binding.garment_vertex_index);
         const Vec3 current_point = mesh_editor_refit_driver_point(binding, driver_visible);
         const Vec3 baseline_point = mesh_editor_refit_driver_point(binding, morph.refit->driver_baseline_positions);
-        target_layer[static_cast<std::size_t>(binding.garment_vertex_index)] = add_vec3(
-            target_layer[static_cast<std::size_t>(binding.garment_vertex_index)],
-            add_vec3(
-                sub_vec3(current_point, baseline_point),
-                refit_normal_correction_native(binding, driver_visible)
-            )
+        Vec3 refit_delta = add_vec3(
+            sub_vec3(current_point, baseline_point),
+            refit_normal_correction_native(binding, driver_visible)
         );
+        if (settings.mode == "rigid") {
+            Vec3 rigid_delta{0.0, 0.0, 0.0};
+            if (refit_rigid_delta_native(
+                    binding, morph.refit->driver_baseline_positions, driver_visible, rigid_delta
+                )) refit_delta = rigid_delta;
+        }
+        const double intensity = settings.intensity_percent / 100.0;
+        if (intensity != 1.0) refit_delta = scale_vec3(refit_delta, intensity);
+        const double clearance = morph.refit->driver_diagonal * settings.clearance_percent / 100.0;
+        if (clearance > 0.0) {
+            Vec3 outward = refit_binding_face_normal_native(binding, driver_visible);
+            if (binding.normal_height < 0.0) outward = scale_vec3(outward, -1.0);
+            if (dot_vec3(outward, outward) > 0.0) {
+                const Vec3 predicted = add_vec3(
+                    add_vec3(target_residual->second[target_vertex_index], target_layer[target_vertex_index]),
+                    refit_delta
+                );
+                const double signed_clearance = dot_vec3(sub_vec3(predicted, current_point), outward);
+                if (signed_clearance < clearance) {
+                    refit_delta = add_vec3(refit_delta, scale_vec3(outward, clearance - signed_clearance));
+                }
+            }
+        }
+        target_layer[target_vertex_index] = add_vec3(target_layer[target_vertex_index], refit_delta);
     }
 }
 
@@ -398,6 +425,25 @@ void mesh_editor_write_morph_index_set(std::ostream& out, const std::set<int>& i
     out << ']';
 }
 
+void mesh_editor_write_refit_settings(std::ostream& out, const MeshRefitRuntime& refit) {
+    out << '[';
+    bool wrote = false;
+    for (const int submesh_index : refit.garment_submesh_indices) {
+        MeshRefitGarmentSettingsRuntime settings;
+        const auto found = refit.garment_settings.find(submesh_index);
+        if (found != refit.garment_settings.end()) settings = found->second;
+        if (wrote) out << ',';
+        wrote = true;
+        out << "{\"submesh_index\":" << submesh_index
+            << ",\"enabled\":" << (settings.enabled ? "true" : "false")
+            << ",\"intensity_percent\":" << std::setprecision(17) << settings.intensity_percent
+            << ",\"mode\":";
+        write_escaped(out, settings.mode);
+        out << ",\"clearance_percent\":" << std::setprecision(17) << settings.clearance_percent << '}';
+    }
+    out << ']';
+}
+
 void mesh_editor_write_morph_state(std::ostream& out, const MeshEditorSession& session) {
     const MeshMorphRuntime empty;
     const MeshMorphRuntime& morph = session.morph ? *session.morph : empty;
@@ -427,11 +473,13 @@ void mesh_editor_write_morph_state(std::ostream& out, const MeshEditorSession& s
             << ",\"warning_distance\":" << morph.refit->warning_distance
             << ",\"distance_warning\":" << (morph.refit->distance_warning ? "true" : "false")
             << ",\"driver_triangle_count\":" << morph.refit->driver_triangle_count
-            << ",\"candidate_triangle_tests\":" << morph.refit->candidate_triangle_tests;
+            << ",\"candidate_triangle_tests\":" << morph.refit->candidate_triangle_tests
+            << ",\"garment_settings\":";
+        mesh_editor_write_refit_settings(out, *morph.refit);
     } else {
         out << "\"driver_submesh_indices\":[],\"garment_submesh_indices\":[],\"bound_vertex_count\":0,"
                "\"maximum_distance\":0,\"p95_distance\":0,\"warning_distance\":0,\"distance_warning\":false,"
-               "\"driver_triangle_count\":0,\"candidate_triangle_tests\":0";
+               "\"driver_triangle_count\":0,\"candidate_triangle_tests\":0,\"garment_settings\":[]";
     }
     out << "},\"unbaked\":" << (morph.unbaked ? "true" : "false")
         << ",\"topology_blocked\":" << (morph.unbaked ? "true" : "false")
@@ -711,112 +759,6 @@ std::string mesh_editor_morph_set_driver_session_report(
     return mesh_editor_morph_report_json("morph_set_driver", session_id, session, {}, {}, false, "", false, started);
 }
 
-double mesh_editor_driver_diagonal(
-    const std::map<int, MeshSessionSubmesh>& submeshes,
-    const std::set<int>& drivers
-) {
-    bool initialized = false;
-    Vec3 minimum{0.0, 0.0, 0.0};
-    Vec3 maximum{0.0, 0.0, 0.0};
-    for (const int index : drivers) {
-        const auto found = submeshes.find(index);
-        if (found == submeshes.end()) continue;
-        for (const Vec3& vertex : found->second.vertices) {
-            if (!initialized) {
-                minimum = maximum = vertex;
-                initialized = true;
-            } else {
-                for (std::size_t axis = 0; axis < 3; ++axis) {
-                    minimum[axis] = std::min(minimum[axis], vertex[axis]);
-                    maximum[axis] = std::max(maximum[axis], vertex[axis]);
-                }
-            }
-        }
-    }
-    return initialized ? length_vec3(sub_vec3(maximum, minimum)) : 0.0;
-}
-
-std::tuple<long long, long long, long long> mesh_editor_refit_cell(const Vec3& point, double tolerance) {
-    return {
-        static_cast<long long>(std::floor(point[0] / tolerance)),
-        static_cast<long long>(std::floor(point[1] / tolerance)),
-        static_cast<long long>(std::floor(point[2] / tolerance)),
-    };
-}
-
-std::shared_ptr<const MeshRefitRuntime> mesh_editor_build_refit(
-    const std::map<int, MeshSessionSubmesh>& submeshes,
-    const std::set<int>& drivers,
-    const std::set<int>& garments
-) {
-    for (const int index : garments) {
-        if (drivers.find(index) != drivers.end()) throw std::runtime_error("garment refit driver and garment selections must not overlap");
-    }
-    auto refit = std::make_shared<MeshRefitRuntime>();
-    refit->driver_submesh_indices = drivers;
-    refit->garment_submesh_indices = garments;
-    std::vector<Vec3> all_driver_vertices;
-    for (const int driver_index : drivers) {
-        const auto found = submeshes.find(driver_index);
-        if (found == submeshes.end() || found->second.faces.empty()) {
-            throw std::runtime_error("garment refit drivers require editable triangles");
-        }
-        refit->driver_baseline_positions[driver_index] = found->second.vertices;
-        all_driver_vertices.insert(all_driver_vertices.end(), found->second.vertices.begin(), found->second.vertices.end());
-    }
-    const double diagonal = mesh_editor_driver_diagonal(submeshes, drivers);
-    const double cohort_tolerance = std::max(1.0e-6, diagonal * 1.0e-7);
-    refit->warning_distance = skin_transfer_distance_limit_native(all_driver_vertices);
-    const RefitSpatialIndexNative spatial_index = build_refit_spatial_index_native(submeshes, drivers);
-    refit->driver_triangle_count = static_cast<long long>(spatial_index.triangles.size());
-    std::map<std::tuple<long long, long long, long long>, std::vector<std::pair<Vec3, MeshRefitVertexBindingRuntime>>> cohorts;
-    std::vector<double> distances;
-    for (const int garment_index : garments) {
-        const auto garment = submeshes.find(garment_index);
-        if (garment == submeshes.end()) throw std::runtime_error("garment refit target is not editable");
-        for (std::size_t vertex_index = 0; vertex_index < garment->second.vertices.size(); ++vertex_index) {
-            const Vec3 point = garment->second.vertices[vertex_index];
-            const auto cell = mesh_editor_refit_cell(point, cohort_tolerance);
-            MeshRefitVertexBindingRuntime binding;
-            bool reused = false;
-            for (long long dx = -1; dx <= 1 && !reused; ++dx) {
-                for (long long dy = -1; dy <= 1 && !reused; ++dy) {
-                    for (long long dz = -1; dz <= 1 && !reused; ++dz) {
-                        const auto found = cohorts.find({std::get<0>(cell) + dx, std::get<1>(cell) + dy, std::get<2>(cell) + dz});
-                        if (found == cohorts.end()) continue;
-                        for (const auto& candidate : found->second) {
-                            if (distance_squared_vec3(point, candidate.first) <= cohort_tolerance * cohort_tolerance) {
-                                binding = candidate.second;
-                                reused = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            if (!reused) {
-                binding = closest_refit_binding_native(point, spatial_index, refit->candidate_triangle_tests);
-                cohorts[cell].push_back({point, binding});
-            }
-            const Vec3 bound_point = mesh_editor_refit_driver_point(
-                binding,
-                refit->driver_baseline_positions
-            );
-            binding.distance = length_vec3(sub_vec3(point, bound_point));
-            binding.garment_submesh_index = garment_index;
-            binding.garment_vertex_index = static_cast<int>(vertex_index);
-            refit_bind_normal_height_native(binding, refit->driver_baseline_positions, point);
-            distances.push_back(binding.distance);
-            refit->bindings.push_back(std::move(binding));
-        }
-    }
-    if (refit->bindings.empty()) throw std::runtime_error("garment refit target selection contains no vertices");
-    refit->maximum_distance = *std::max_element(distances.begin(), distances.end());
-    refit->p95_distance = percentile_95_native(distances);
-    refit->distance_warning = refit->maximum_distance > refit->warning_distance || refit->p95_distance > refit->warning_distance;
-    return refit;
-}
-
 std::string mesh_editor_morph_bind_session_report(
     const JsonValue& root,
     const std::string& session_id,
@@ -836,6 +778,64 @@ std::string mesh_editor_morph_bind_session_report(
     session.morph = std::move(next);
     const bool history_published = mesh_editor_publish_morph_history(session, std::move(history), {}, "", false);
     return mesh_editor_morph_report_json("morph_bind", session_id, session, {}, {}, history_published, "", false, started);
+}
+
+std::string mesh_editor_morph_configure_refit_session_report(
+    const JsonValue& root,
+    const std::string& session_id,
+    MeshEditorSession& session,
+    const std::chrono::steady_clock::time_point& started
+) {
+    if (!session.morph || !session.morph->refit) {
+        throw std::runtime_error("Bind a garment before changing its refit settings");
+    }
+    const auto& submeshes = mesh_editor_submeshes(session);
+    const std::set<int> garments = mesh_editor_valid_submesh_set(
+        root.get("garment_submesh_indices"), submeshes, "garment refit settings"
+    );
+    for (const int index : garments) {
+        if (session.morph->refit->garment_submesh_indices.find(index)
+            == session.morph->refit->garment_submesh_indices.end()) {
+            throw std::runtime_error("garment refit settings require a bound garment part");
+        }
+    }
+    MeshRefitGarmentSettingsRuntime settings;
+    settings.enabled = bool_or(root.get("enabled"), true);
+    settings.intensity_percent = number_or(root.get("intensity_percent"), 100.0);
+    settings.mode = lower_ascii(string_or(root.get("mode"), "surface"));
+    settings.clearance_percent = number_or(root.get("clearance_percent"), 0.0);
+    if (!std::isfinite(settings.intensity_percent)
+        || settings.intensity_percent < 0.0 || settings.intensity_percent > 200.0) {
+        throw std::runtime_error("garment refit intensity must be between 0 and 200 percent");
+    }
+    if (settings.mode != "surface" && settings.mode != "rigid") {
+        throw std::runtime_error("garment refit mode must be surface or rigid");
+    }
+    if (!std::isfinite(settings.clearance_percent)
+        || settings.clearance_percent < 0.0 || settings.clearance_percent > 5.0) {
+        throw std::runtime_error("garment refit clearance must be between 0 and 5 percent of driver size");
+    }
+    auto next = mesh_editor_clone_morph_runtime(session);
+    auto next_refit = std::make_shared<MeshRefitRuntime>(*next->refit);
+    for (const int index : garments) next_refit->garment_settings[index] = settings;
+    next->refit = std::move(next_refit);
+    next->change_id = "configure-refit";
+    next->state_revision = ++session.morph_state_revision;
+    MeshEditorHistoryEntry history;
+    history.operation = "morph_configure_refit";
+    history.morph_before = session.morph;
+    std::map<int, MeshSessionSubmesh> before = mesh_editor_capture_morph_submeshes(session, *next);
+    const std::string delta_output_dir = string_or(root.get("delta_output_dir"), "");
+    std::vector<SubmeshMeshEditResult> results = mesh_editor_recompose_morph(
+        session, *next, "morph_configure_refit", delta_output_dir, session_id
+    );
+    session.morph = std::move(next);
+    const bool history_published = mesh_editor_publish_morph_history(session, std::move(history), before, "", false);
+    if (!results.empty()) ++session.edit_revision;
+    return mesh_editor_morph_report_json(
+        "morph_configure_refit", session_id, session, results, mesh_editor_morph_result_indices(results),
+        history_published, delta_output_dir, bool_or(root.get("include_edit_report"), true), started
+    );
 }
 
 std::shared_ptr<const MeshRefitRuntime> mesh_editor_rebased_refit(

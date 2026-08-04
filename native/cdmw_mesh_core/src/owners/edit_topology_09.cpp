@@ -372,6 +372,54 @@ Vec3 refit_face_normal_native(const Vec3& a, const Vec3& b, const Vec3& c) {
     return scale_vec3(normal, 1.0 / std::sqrt(length_squared));
 }
 
+struct RefitFaceFrameNative {
+    Vec3 origin{0.0, 0.0, 0.0};
+    Vec3 tangent{0.0, 0.0, 0.0};
+    Vec3 bitangent{0.0, 0.0, 0.0};
+    Vec3 normal{0.0, 0.0, 0.0};
+    bool valid = false;
+};
+
+RefitFaceFrameNative refit_face_frame_native(const std::array<Vec3, 3>& triangle) {
+    RefitFaceFrameNative frame;
+    frame.origin = scale_vec3(
+        add_vec3(triangle[0], add_vec3(triangle[1], triangle[2])),
+        1.0 / 3.0
+    );
+    frame.normal = refit_face_normal_native(triangle[0], triangle[1], triangle[2]);
+    Vec3 tangent = sub_vec3(triangle[1], triangle[0]);
+    if (dot_vec3(tangent, tangent) <= 1.0e-20) tangent = sub_vec3(triangle[2], triangle[0]);
+    const double tangent_length_squared = dot_vec3(tangent, tangent);
+    if (dot_vec3(frame.normal, frame.normal) <= 0.0 || tangent_length_squared <= 1.0e-20) return frame;
+    frame.tangent = scale_vec3(tangent, 1.0 / std::sqrt(tangent_length_squared));
+    frame.bitangent = Vec3{
+        frame.normal[1] * frame.tangent[2] - frame.normal[2] * frame.tangent[1],
+        frame.normal[2] * frame.tangent[0] - frame.normal[0] * frame.tangent[2],
+        frame.normal[0] * frame.tangent[1] - frame.normal[1] * frame.tangent[0],
+    };
+    frame.valid = true;
+    return frame;
+}
+
+Vec3 refit_frame_local_point_native(const RefitFaceFrameNative& frame, const Vec3& point) {
+    const Vec3 offset = sub_vec3(point, frame.origin);
+    return Vec3{
+        dot_vec3(offset, frame.tangent),
+        dot_vec3(offset, frame.bitangent),
+        dot_vec3(offset, frame.normal),
+    };
+}
+
+Vec3 refit_frame_world_point_native(const RefitFaceFrameNative& frame, const Vec3& local) {
+    return add_vec3(
+        frame.origin,
+        add_vec3(
+            scale_vec3(frame.tangent, local[0]),
+            add_vec3(scale_vec3(frame.bitangent, local[1]), scale_vec3(frame.normal, local[2]))
+        )
+    );
+}
+
 bool refit_barycentric_point_native(
     const MeshRefitVertexBindingRuntime& binding,
     const std::map<int, std::vector<Vec3>>& positions,
@@ -406,11 +454,20 @@ void refit_bind_normal_height_native(
 ) {
     binding.baseline_normal = Vec3{0.0, 0.0, 0.0};
     binding.normal_height = 0.0;
+    binding.rigid_local_offset = Vec3{0.0, 0.0, 0.0};
+    binding.rigid_frame_valid = false;
+    std::array<Vec3, 3> triangle{};
+    if (!refit_triangle_corners_native(baseline, binding.driver_submesh_index, binding.driver_vertices, triangle)) return;
+    const RefitFaceFrameNative frame = refit_face_frame_native(triangle);
+    if (!frame.valid) return;
     Vec3 point{0.0, 0.0, 0.0};
-    const Vec3 normal = refit_binding_face_normal_native(binding, baseline);
-    if (dot_vec3(normal, normal) <= 0.0 || !refit_barycentric_point_native(binding, baseline, point)) return;
-    binding.baseline_normal = normal;
-    binding.normal_height = dot_vec3(sub_vec3(garment_rest, point), normal);
+    for (std::size_t corner = 0; corner < 3; ++corner) {
+        point = add_vec3(point, scale_vec3(triangle[corner], binding.barycentric[corner]));
+    }
+    binding.baseline_normal = frame.normal;
+    binding.normal_height = dot_vec3(sub_vec3(garment_rest, point), frame.normal);
+    binding.rigid_local_offset = refit_frame_local_point_native(frame, garment_rest);
+    binding.rigid_frame_valid = true;
 }
 
 Vec3 refit_normal_correction_native(
@@ -423,6 +480,31 @@ Vec3 refit_normal_correction_native(
     // rather than snapping the vertex onto the driver surface.
     if (dot_vec3(normal, normal) <= 0.0) return Vec3{0.0, 0.0, 0.0};
     return scale_vec3(sub_vec3(normal, binding.baseline_normal), binding.normal_height);
+}
+
+bool refit_rigid_delta_native(
+    const MeshRefitVertexBindingRuntime& binding,
+    const std::map<int, std::vector<Vec3>>& baseline,
+    const std::map<int, std::vector<Vec3>>& current,
+    Vec3& delta
+) {
+    if (!binding.rigid_frame_valid) return false;
+    std::array<Vec3, 3> baseline_triangle{};
+    std::array<Vec3, 3> current_triangle{};
+    if (!refit_triangle_corners_native(
+            baseline, binding.driver_submesh_index, binding.driver_vertices, baseline_triangle
+        )
+        || !refit_triangle_corners_native(
+            current, binding.driver_submesh_index, binding.driver_vertices, current_triangle
+        )) return false;
+    const RefitFaceFrameNative baseline_frame = refit_face_frame_native(baseline_triangle);
+    const RefitFaceFrameNative current_frame = refit_face_frame_native(current_triangle);
+    if (!baseline_frame.valid || !current_frame.valid) return false;
+    delta = sub_vec3(
+        refit_frame_world_point_native(current_frame, binding.rigid_local_offset),
+        refit_frame_world_point_native(baseline_frame, binding.rigid_local_offset)
+    );
+    return true;
 }
 
 double skin_transfer_distance_limit_native(const std::vector<Vec3>& vertices) {
@@ -450,6 +532,120 @@ double percentile_95_native(std::vector<double> values) {
     std::sort(values.begin(), values.end());
     const std::size_t rank = std::max<std::size_t>(1, static_cast<std::size_t>(std::ceil(values.size() * 0.95)));
     return values[std::min(values.size() - 1, rank - 1)];
+}
+
+double mesh_editor_driver_diagonal(
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::set<int>& drivers
+) {
+    bool initialized = false;
+    Vec3 minimum{0.0, 0.0, 0.0};
+    Vec3 maximum{0.0, 0.0, 0.0};
+    for (const int index : drivers) {
+        const auto found = submeshes.find(index);
+        if (found == submeshes.end()) continue;
+        for (const Vec3& vertex : found->second.vertices) {
+            if (!initialized) {
+                minimum = maximum = vertex;
+                initialized = true;
+            } else {
+                for (std::size_t axis = 0; axis < 3; ++axis) {
+                    minimum[axis] = std::min(minimum[axis], vertex[axis]);
+                    maximum[axis] = std::max(maximum[axis], vertex[axis]);
+                }
+            }
+        }
+    }
+    return initialized ? length_vec3(sub_vec3(maximum, minimum)) : 0.0;
+}
+
+std::tuple<long long, long long, long long> mesh_editor_refit_cell(const Vec3& point, double tolerance) {
+    return {
+        static_cast<long long>(std::floor(point[0] / tolerance)),
+        static_cast<long long>(std::floor(point[1] / tolerance)),
+        static_cast<long long>(std::floor(point[2] / tolerance)),
+    };
+}
+
+std::shared_ptr<const MeshRefitRuntime> mesh_editor_build_refit(
+    const std::map<int, MeshSessionSubmesh>& submeshes,
+    const std::set<int>& drivers,
+    const std::set<int>& garments
+) {
+    for (const int index : garments) {
+        if (drivers.find(index) != drivers.end()) {
+            throw std::runtime_error("garment refit driver and garment selections must not overlap");
+        }
+    }
+    auto refit = std::make_shared<MeshRefitRuntime>();
+    refit->driver_submesh_indices = drivers;
+    refit->garment_submesh_indices = garments;
+    std::vector<Vec3> all_driver_vertices;
+    for (const int driver_index : drivers) {
+        const auto found = submeshes.find(driver_index);
+        if (found == submeshes.end() || found->second.faces.empty()) {
+            throw std::runtime_error("garment refit drivers require editable triangles");
+        }
+        refit->driver_baseline_positions[driver_index] = found->second.vertices;
+        all_driver_vertices.insert(all_driver_vertices.end(), found->second.vertices.begin(), found->second.vertices.end());
+    }
+    refit->driver_diagonal = mesh_editor_driver_diagonal(submeshes, drivers);
+    const double cohort_tolerance = std::max(1.0e-6, refit->driver_diagonal * 1.0e-7);
+    refit->warning_distance = skin_transfer_distance_limit_native(all_driver_vertices);
+    const RefitSpatialIndexNative spatial_index = build_refit_spatial_index_native(submeshes, drivers);
+    refit->driver_triangle_count = static_cast<long long>(spatial_index.triangles.size());
+    std::map<std::tuple<long long, long long, long long>, std::vector<std::pair<Vec3, MeshRefitVertexBindingRuntime>>> cohorts;
+    std::vector<double> distances;
+    for (const int garment_index : garments) {
+        const auto garment = submeshes.find(garment_index);
+        if (garment == submeshes.end()) throw std::runtime_error("garment refit target is not editable");
+        refit->garment_settings[garment_index] = MeshRefitGarmentSettingsRuntime{};
+        for (std::size_t vertex_index = 0; vertex_index < garment->second.vertices.size(); ++vertex_index) {
+            const Vec3 point = garment->second.vertices[vertex_index];
+            const auto cell = mesh_editor_refit_cell(point, cohort_tolerance);
+            MeshRefitVertexBindingRuntime binding;
+            bool reused = false;
+            for (long long dx = -1; dx <= 1 && !reused; ++dx) {
+                for (long long dy = -1; dy <= 1 && !reused; ++dy) {
+                    for (long long dz = -1; dz <= 1 && !reused; ++dz) {
+                        const auto found = cohorts.find({
+                            std::get<0>(cell) + dx,
+                            std::get<1>(cell) + dy,
+                            std::get<2>(cell) + dz,
+                        });
+                        if (found == cohorts.end()) continue;
+                        for (const auto& candidate : found->second) {
+                            if (distance_squared_vec3(point, candidate.first) <= cohort_tolerance * cohort_tolerance) {
+                                binding = candidate.second;
+                                reused = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            if (!reused) {
+                binding = closest_refit_binding_native(point, spatial_index, refit->candidate_triangle_tests);
+                cohorts[cell].push_back({point, binding});
+            }
+            Vec3 bound_point{0.0, 0.0, 0.0};
+            if (!refit_barycentric_point_native(binding, refit->driver_baseline_positions, bound_point)) {
+                throw std::runtime_error("garment refit driver topology changed during binding");
+            }
+            binding.distance = length_vec3(sub_vec3(point, bound_point));
+            binding.garment_submesh_index = garment_index;
+            binding.garment_vertex_index = static_cast<int>(vertex_index);
+            refit_bind_normal_height_native(binding, refit->driver_baseline_positions, point);
+            distances.push_back(binding.distance);
+            refit->bindings.push_back(std::move(binding));
+        }
+    }
+    if (refit->bindings.empty()) throw std::runtime_error("garment refit target selection contains no vertices");
+    refit->maximum_distance = *std::max_element(distances.begin(), distances.end());
+    refit->p95_distance = percentile_95_native(distances);
+    refit->distance_warning = refit->maximum_distance > refit->warning_distance
+        || refit->p95_distance > refit->warning_distance;
+    return refit;
 }
 
 void refit_rebind_bindings_native(
@@ -481,6 +677,8 @@ void refit_rebind_bindings_native(
             || !refit_barycentric_point_native(binding, refit.driver_baseline_positions, point)) {
             binding.baseline_normal = Vec3{0.0, 0.0, 0.0};
             binding.normal_height = 0.0;
+            binding.rigid_local_offset = Vec3{0.0, 0.0, 0.0};
+            binding.rigid_frame_valid = false;
             continue;
         }
         const Vec3& rest = garment->second.vertices[static_cast<std::size_t>(binding.garment_vertex_index)];
@@ -489,6 +687,7 @@ void refit_rebind_bindings_native(
         distances.push_back(binding.distance);
     }
     refit.warning_distance = skin_transfer_distance_limit_native(driver_vertices);
+    refit.driver_diagonal = mesh_editor_driver_diagonal(submeshes, refit.driver_submesh_indices);
     refit.maximum_distance = distances.empty()
         ? 0.0
         : *std::max_element(distances.begin(), distances.end());
