@@ -10106,7 +10106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/root_layout.py",
-          "line": 22,
+          "line": 24,
           "sink": "addTab"
         }
       ]
@@ -27473,11 +27473,6 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 550,
           "sink": "setHeaderLabels"
-        },
-        {
-          "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 392,
-          "sink": "_add_lazy_shell_tool"
         }
       ]
     },
@@ -34061,7 +34056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 415,
+          "line": 423,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -37326,7 +37321,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 383,
+          "line": 387,
           "sink": "_add_lazy_shell_tool"
         },
         {
@@ -49026,7 +49021,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 380,
+          "line": 384,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -61230,14 +61225,19 @@
       "key": "Placement & Animation Studio",
       "origins": [
         {
-          "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 408,
-          "sink": "_add_lazy_shell_tool"
-        },
-        {
           "path": "tools/placement_studio/window.py",
           "line": 123,
           "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Placement & Animations",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/tool_tabs.py",
+          "line": 416,
+          "sink": "_add_lazy_shell_tool"
         }
       ]
     },
@@ -67723,13 +67723,8 @@
     },
     {
       "key": "Recolor Variants",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 389,
-          "sink": "_add_lazy_shell_tool"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Recolor analysis cancelled.",
@@ -70402,16 +70397,6 @@
       ]
     },
     {
-      "key": "Replacer",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 386,
-          "sink": "_add_lazy_shell_tool"
-        }
-      ]
-    },
-    {
       "key": "Replaces the mesh currently selected in Archive Browser.",
       "origins": [
         {
@@ -70620,9 +70605,9 @@
           "sink": "setHtml"
         },
         {
-          "path": "cdmw/ui/shell/root_layout.py",
-          "line": 29,
-          "sink": "addTab"
+          "path": "cdmw/ui/shell/tool_tabs.py",
+          "line": 435,
+          "sink": "_add_lazy_shell_tool"
         }
       ]
     },
@@ -86451,7 +86436,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 398,
+          "line": 438,
           "sink": "_add_lazy_shell_tool"
         },
         {
@@ -86668,6 +86653,11 @@
           "path": "cdmw/ui/shell/help_dialogs.py",
           "line": 245,
           "sink": "setHtml"
+        },
+        {
+          "path": "cdmw/ui/shell/tool_tabs.py",
+          "line": 402,
+          "sink": "_add_lazy_shell_tool"
         }
       ]
     },
@@ -87062,6 +87052,16 @@
       ]
     },
     {
+      "key": "Texture Recolor",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/tool_tabs.py",
+          "line": 396,
+          "sink": "_add_lazy_shell_tool"
+        }
+      ]
+    },
+    {
       "key": "Texture Replacer",
       "origins": [
         {
@@ -87103,6 +87103,11 @@
           "path": "cdmw/ui/shell/help_dialogs.py",
           "line": 245,
           "sink": "setHtml"
+        },
+        {
+          "path": "cdmw/ui/shell/tool_tabs.py",
+          "line": 390,
+          "sink": "_add_lazy_shell_tool"
         }
       ]
     },
@@ -87143,13 +87148,8 @@
     },
     {
       "key": "Texture Research",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 395,
-          "sink": "_add_lazy_shell_tool"
-        }
-      ]
+      "origins": [],
+      "manual": true
     },
     {
       "key": "Texture Set Grouper",
@@ -87178,6 +87178,16 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 641,
           "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Texture Upscaling & Editing",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/root_layout.py",
+          "line": 26,
+          "sink": "addTab"
         }
       ]
     },
@@ -87238,6 +87248,11 @@
           "path": "cdmw/ui/shell/help_dialogs.py",
           "line": 443,
           "sink": "python-return:_section_category"
+        },
+        {
+          "path": "cdmw/ui/shell/texture_workspace_layout.py",
+          "line": 59,
+          "sink": "addTab"
         }
       ]
     },
@@ -87798,11 +87813,6 @@
           "path": "cdmw/ui/research/tab_builders.py",
           "line": 648,
           "sink": "setHeaderLabels"
-        },
-        {
-          "path": "cdmw/ui/shell/root_layout.py",
-          "line": 27,
-          "sink": "addTab"
         }
       ]
     },
@@ -90001,7 +90011,7 @@
         },
         {
           "path": "cdmw/ui/shell/root_layout.py",
-          "line": 31,
+          "line": 34,
           "sink": "addTab"
         },
         {
@@ -90342,16 +90352,6 @@
       ]
     },
     {
-      "key": "Translation Studio",
-      "origins": [
-        {
-          "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 421,
-          "sink": "_add_lazy_shell_tool"
-        }
-      ]
-    },
-    {
       "key": "Translation for {value_0} exceeds the {value_1}-character safety limit.",
       "origins": [
         {
@@ -90423,6 +90423,16 @@
           "path": "cdmw/ui/localization.py",
           "line": 1180,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "Translations",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/tool_tabs.py",
+          "line": 429,
+          "sink": "_add_lazy_shell_tool"
         }
       ]
     },
@@ -91416,7 +91426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/settings_autosave.py",
-          "line": 110,
+          "line": 109,
           "sink": "ValueError"
         },
         {
@@ -96138,11 +96148,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 24,
           "sink": "python-return:_build_about_sections"
-        },
-        {
-          "path": "cdmw/ui/shell/texture_workspace_layout.py",
-          "line": 59,
-          "sink": "addTab"
         },
         {
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",

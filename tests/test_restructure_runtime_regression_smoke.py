@@ -72,14 +72,43 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             for index in range(self.window.main_tabs.count())
             if self.window.main_tabs.isTabVisible(index)
         ]
-        # Placement & Animation Studio is a top-level tab, not a member of a group: it is a
-        # whole application, so nesting it put a second tab bar directly above its own. The
-        # doubled ampersand is how a tab bar stores a literal one — a single `&` is a
-        # mnemonic marker, and drew the name as "Placement_Animation Studio".
+        # Mesh Editor and Placement are direct workspaces rather than members of a group.
+        # Doubled ampersands are how a Qt tab bar stores literal ampersands.
         self.assertEqual(
-            ["Assets", "Placement && Animation Studio", "Textures", "Research", "Tools"],
+            [
+                "Assets",
+                "Mesh Editor",
+                "Placement && Animations",
+                "Texture Upscaling && Editing",
+                "Tools",
+            ],
             visible_main_tabs,
         )
+        self.assertEqual(1, self.window.main_tabs.indexOf(self.window.mesh_editor_tab))
+        self.assertEqual(2, self.window.main_tabs.indexOf(self.window.placement_studio_tab))
+        self.assertEqual(-1, self.window.assets_tabs.indexOf(self.window.mesh_editor_tab))
+        self.assertEqual(
+            ["Archive Browser", "Model Library", "Icon Creator"],
+            [
+                self.window.assets_tabs.tabText(index)
+                for index in range(self.window.assets_tabs.count())
+            ],
+        )
+        self.assertEqual(
+            ["Texture Workflow", "Texture Replacer", "Texture Recolor", "Texture Editor"],
+            [
+                self.window.texture_tabs.tabText(index)
+                for index in range(self.window.texture_tabs.count())
+            ],
+        )
+        self.assertEqual(
+            ["Retrofit/Repackage", "Format Explorer", "Translations", "Research", "Text Search"],
+            [
+                self.window.tools_tabs.tabText(index)
+                for index in range(self.window.tools_tabs.count())
+            ],
+        )
+        self.assertFalse(hasattr(self.window, "research_tabs"))
         self.assertFalse(self.window.main_tabs.isTabVisible(self.window.main_tabs.indexOf(self.window.settings_tab)))
         window_actions = [
             action.text().replace("&", "")
@@ -115,6 +144,17 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
                 self.window.main_tabs.indexOf(self.window.assets_tabs)
             ),
         )
+        for widget, source in (
+            (self.window.mesh_editor_tab, "Mesh Editor"),
+            (self.window.placement_studio_tab, "Placement & Animations"),
+            (self.window.texture_tabs, "Texture Upscaling & Editing"),
+            (self.window.tools_tabs, "Tools"),
+        ):
+            self.assertEqual(
+                self.window.ui_localizer.translate_mnemonic(source.replace("&", "&&")),
+                self.window.main_tabs.tabText(self.window.main_tabs.indexOf(widget)),
+                source,
+            )
         # The Settings page is closed, so it is deliberately left at the old
         # revision and translated when it is opened; asserting its text here
         # would require walking every hidden page on every language change.

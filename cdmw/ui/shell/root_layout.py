@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 
+from cdmw.ui.shell.lazy_tool_tab import as_label
+
 
 class ShellRootLayoutMixin:
     """Build the main tab shell and top-level tool groups."""
@@ -20,19 +22,19 @@ class ShellRootLayoutMixin:
 
         self.assets_tabs = QTabWidget()
         self.main_tabs.addTab(self.assets_tabs, "Assets")
-        # Placement & Animation Studio is added here in `tool_tabs.py`, at index 1, rather than
-        # inside the Tools group: it is a whole application — a viewport, seven panes and its
-        # own status bar — so nesting it put a second tab bar directly above its own.
         self.texture_tabs = QTabWidget()
-        self.main_tabs.addTab(self.texture_tabs, "Textures")
-        self.research_tabs = QTabWidget()
-        self.main_tabs.addTab(self.research_tabs, "Research")
+        texture_tab_index = self.main_tabs.addTab(
+            self.texture_tabs, "Texture Upscaling & Editing"
+        )
+        self.main_tabs.setTabText(
+            texture_tab_index,
+            as_label(self.main_tabs.tabText(texture_tab_index)),
+        )
         self.tools_tabs = QTabWidget()
         self.main_tabs.addTab(self.tools_tabs, "Tools")
         self._tool_group_tabs = (
             self.assets_tabs,
             self.texture_tabs,
-            self.research_tabs,
             self.tools_tabs,
         )
         return central
