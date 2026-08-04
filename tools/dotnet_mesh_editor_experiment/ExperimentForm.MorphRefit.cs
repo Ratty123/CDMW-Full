@@ -15,6 +15,12 @@ internal sealed partial class ExperimentForm
         public override string ToString() => Name;
     }
 
+    private sealed record MorphRefitGarmentState(
+        bool Enabled,
+        double IntensityPercent,
+        string Mode,
+        double ClearancePercent);
+
     private sealed class MorphSliderControls
     {
         public required string DefinitionId { get; init; }
@@ -32,6 +38,10 @@ internal sealed partial class ExperimentForm
     private readonly Label _morphDriverStatus = new();
     private readonly Label _morphBindingStatus = new();
     private readonly Label _morphDiagnosticStatus = new();
+    private readonly CheckBox _morphRefitEnabled = new();
+    private readonly ComboBox _morphRefitMode = new();
+    private readonly NumericUpDown _morphRefitIntensity = new();
+    private readonly NumericUpDown _morphRefitClearance = new();
     private readonly Dictionary<string, MorphSliderControls> _morphSliders = new(StringComparer.Ordinal);
     private readonly List<Button> _topologyMutationButtons = new();
     private TableLayoutPanel? _morphSectionLayout;
@@ -47,6 +57,7 @@ internal sealed partial class ExperimentForm
     private Control? _morphPresetControl;
     private Control? _morphPresetActions;
     private Control? _morphBindingActions;
+    private Control? _morphRefitSettingsControl;
     private Control? _morphCommitActions;
     private GroupBox? _morphDefinitionCard;
     private GroupBox? _morphPresetCard;
@@ -84,6 +95,8 @@ internal sealed partial class ExperimentForm
     private string _pendingMorphUpdateChangeId = string.Empty;
     private long _morphUpdateRequestId;
     private readonly HashSet<int> _morphDriverPartIndices = new();
+    private readonly HashSet<int> _morphBoundGarmentPartIndices = new();
+    private readonly Dictionary<int, MorphRefitGarmentState> _morphGarmentSettings = new();
     private readonly Queue<(string Command, Dictionary<string, object?> Payload)> _morphWizardCommandQueue = new();
     private bool _morphWizardSequenceActive;
     private long _morphWizardCommandRequestId;
@@ -117,6 +130,33 @@ internal sealed partial class ExperimentForm
         ConfigureMorphStatusLabel(_morphDriverStatus, "Driver: not set");
         ConfigureMorphStatusLabel(_morphBindingStatus, "Garment: not bound");
         ConfigureMorphStatusLabel(_morphDiagnosticStatus, "Select or author a topology-matched profile.");
+        ConfigureCheckBox(_morphRefitEnabled, "Refit enabled for selected garments", isChecked: true);
+        _morphRefitEnabled.Name = "MorphRefitEnabledCheckBox";
+        ConfigureCombo(
+            _morphRefitMode,
+            new object[]
+            {
+                new MorphChoice("surface", "Surface (flexible)"),
+                new MorphChoice("rigid", "Rigid (hard surface)"),
+            },
+            selectedIndex: 0);
+        _morphRefitMode.Name = "MorphRefitModeSelector";
+        ConfigureNumeric(
+            _morphRefitIntensity,
+            decimalPlaces: 1,
+            minimum: 0m,
+            maximum: 200m,
+            value: 100m,
+            increment: 5m);
+        _morphRefitIntensity.Name = "MorphRefitIntensityNumeric";
+        ConfigureNumeric(
+            _morphRefitClearance,
+            decimalPlaces: 2,
+            minimum: 0m,
+            maximum: 5m,
+            value: 0m,
+            increment: 0.05m);
+        _morphRefitClearance.Name = "MorphRefitClearanceNumeric";
         // Wrap inside the narrowest column this section is shown in. A wider
         // bound leaves the tail of every diagnostic clipped by the tool rail's
         // property column instead of wrapping onto a second line.
@@ -155,6 +195,7 @@ internal sealed partial class ExperimentForm
         var setDriver = StyledActionButton("1. Set Selected Driver Parts", RequestMorphSetDriver);
         var bind = StyledActionButton("2. Bind Selected Garment Parts", RequestMorphBind);
         var clear = StyledActionButton("Clear Refit", () => RequestMorphUiCommand("morph_clear_refit"));
+        var applyRefitSettings = StyledActionButton("Apply to Selected Garments", RequestMorphConfigureRefit);
         var reset = StyledActionButton("Reset", () => RequestMorphUiCommand("morph_reset"));
         var bake = StyledActionButton("Bake", () => RequestMorphUiCommand("morph_bake"));
         reset.Name = "MorphResetButton";
@@ -165,6 +206,18 @@ internal sealed partial class ExperimentForm
         _helpToolTip.SetToolTip(setDriver, "Make the selected parts the driver body that bound garments follow.");
         _helpToolTip.SetToolTip(bind, "Refit the selected garment parts against the driver whenever a slider moves.");
         _helpToolTip.SetToolTip(clear, "Unbind every refit garment.");
+        _helpToolTip.SetToolTip(
+            _morphRefitMode,
+            "Surface follows the bound body triangle. Rigid transports each vertex in the triangle's local frame for armour and other hard parts.");
+        _helpToolTip.SetToolTip(
+            _morphRefitIntensity,
+            "Scale how strongly the selected bound garments follow the driver. Zero leaves them stationary unless clearance relief is needed.");
+        _helpToolTip.SetToolTip(
+            _morphRefitClearance,
+            "Push penetration outward to this percentage of the driver's bounding-box diagonal after refit.");
+        _helpToolTip.SetToolTip(
+            applyRefitSettings,
+            "Apply Enabled, mode, intensity, and clearance to the selected bound garment parts as one undoable edit.");
         _helpToolTip.SetToolTip(reset, "Discard all live slider values.");
         _helpToolTip.SetToolTip(bake, "Write the visible slider result permanently into the mesh topology.");
         _morphWorkflowHint = new Label
@@ -193,6 +246,13 @@ internal sealed partial class ExperimentForm
         _morphPresetControl = LabeledControl("Value preset", _morphPreset);
         _morphPresetActions = ButtonRow(savePreset, deletePreset);
         _morphBindingActions = ButtonRow(setDriver, bind, clear);
+        _morphRefitSettingsControl = StackControls(
+            _morphRefitEnabled,
+            LabeledControl("Refit mode", _morphRefitMode),
+            LabeledControl("Follow intensity (%)", _morphRefitIntensity),
+            LabeledControl("Clearance (% driver size)", _morphRefitClearance),
+            ButtonRow(applyRefitSettings));
+        _morphRefitSettingsControl.Enabled = false;
         _morphCommitActions = ButtonRow(reset, bake);
         var body = (TableLayoutPanel)StackControls(
             _morphWorkflowHint,
@@ -206,6 +266,7 @@ internal sealed partial class ExperimentForm
             _morphDriverStatus,
             _morphBindingStatus,
             _morphBindingActions,
+            _morphRefitSettingsControl,
             _morphStepKeep,
             _morphCommitActions,
             _morphDiagnosticStatus);
@@ -403,6 +464,7 @@ internal sealed partial class ExperimentForm
             || _morphPresetControl is null
             || _morphPresetActions is null
             || _morphBindingActions is null
+            || _morphRefitSettingsControl is null
             || _morphCommitActions is null)
         {
             return;
@@ -425,7 +487,8 @@ internal sealed partial class ExperimentForm
                 _morphRefitCardBody,
                 _morphDriverStatus,
                 _morphBindingStatus,
-                _morphBindingActions);
+                _morphBindingActions,
+                _morphRefitSettingsControl);
             PopulateMorphCompactCard(
                 _morphCommitCardBody,
                 _morphCommitActions,
@@ -518,6 +581,7 @@ internal sealed partial class ExperimentForm
             || _morphPresetControl is null
             || _morphPresetActions is null
             || _morphBindingActions is null
+            || _morphRefitSettingsControl is null
             || _morphCommitActions is null)
         {
             return;
@@ -551,6 +615,7 @@ internal sealed partial class ExperimentForm
             AddStackRow(_morphSectionBody, _morphDriverStatus);
             AddStackRow(_morphSectionBody, _morphBindingStatus);
             AddStackRow(_morphSectionBody, _morphBindingActions);
+            AddStackRow(_morphSectionBody, _morphRefitSettingsControl);
             AddMorphStepRow(_morphStepKeep);
             AddStackRow(_morphSectionBody, _morphCommitActions);
             AddStackRow(_morphSectionBody, _morphDiagnosticStatus);
@@ -739,6 +804,12 @@ internal sealed partial class ExperimentForm
         _morphUnbaked = false;
         _morphBusy = false;
         _morphDriverPartIndices.Clear();
+        _morphBoundGarmentPartIndices.Clear();
+        _morphGarmentSettings.Clear();
+        if (_morphRefitSettingsControl is not null)
+        {
+            _morphRefitSettingsControl.Enabled = false;
+        }
         foreach (var button in _topologyMutationButtons)
         {
             button.Enabled = true;
@@ -1278,6 +1349,12 @@ internal sealed partial class ExperimentForm
         var drivers = JsonIntValues(root, "driver_submesh_indices");
         _morphDriverPartIndices.Clear();
         _morphDriverPartIndices.UnionWith(drivers);
+        _morphBoundGarmentPartIndices.Clear();
+        _morphGarmentSettings.Clear();
+        if (_morphRefitSettingsControl is not null)
+        {
+            _morphRefitSettingsControl.Enabled = false;
+        }
         _morphDriverStatus.Text = drivers.Count > 0
             ? $"Driver: {string.Join(", ", drivers.Select(MorphPartDisplayName))}"
             : "Driver: not set";
@@ -1288,17 +1365,80 @@ internal sealed partial class ExperimentForm
         }
         var garments = JsonIntValues(refit, "garment_submesh_indices");
         var bound = JsonLongValue(refit, "bound_vertex_count");
+        _morphBoundGarmentPartIndices.UnionWith(garments);
         if (garments.Count == 0 || bound <= 0)
         {
             _morphBindingStatus.Text = "Garment: not bound";
             _morphBindingStatus.ForeColor = ThemeMutedText;
             return;
         }
+        if (refit.TryGetProperty("garment_settings", out var rawSettings)
+            && rawSettings.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in rawSettings.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+                var submeshIndex = (int)JsonLongValue(item, "submesh_index");
+                if (!_morphBoundGarmentPartIndices.Contains(submeshIndex))
+                {
+                    continue;
+                }
+                var enabled = !item.TryGetProperty("enabled", out _) || JsonBoolean(item, "enabled");
+                _morphGarmentSettings[submeshIndex] = new MorphRefitGarmentState(
+                    enabled,
+                    JsonDoubleValue(item, "intensity_percent", 100.0),
+                    JsonString(item, "mode").Trim().ToLowerInvariant() is { Length: > 0 } mode ? mode : "surface",
+                    JsonDoubleValue(item, "clearance_percent", 0.0));
+            }
+        }
+        foreach (var garment in garments)
+        {
+            _morphGarmentSettings.TryAdd(garment, new MorphRefitGarmentState(true, 100.0, "surface", 0.0));
+        }
         var maximum = JsonDoubleValue(refit, "maximum_distance", 0.0);
         var p95 = JsonDoubleValue(refit, "p95_distance", 0.0);
         var warning = JsonBoolean(refit, "distance_warning");
         _morphBindingStatus.Text = $"Garment: {string.Join(", ", garments.Select(MorphPartDisplayName))} | {bound} vertices | max {maximum:G4} | p95 {p95:G4}";
         _morphBindingStatus.ForeColor = warning ? Color.Gold : ThemeMutedText;
+        if (_morphRefitSettingsControl is not null)
+        {
+            _morphRefitSettingsControl.Enabled = true;
+        }
+        ApplySelectedMorphRefitSettings();
+    }
+
+    private void ApplySelectedMorphRefitSettings()
+    {
+        var selected = SelectedMorphParts()
+            .Where(part => _morphGarmentSettings.ContainsKey(part.Index))
+            .Select(part => _morphGarmentSettings[part.Index])
+            .ToArray();
+        if (selected.Length == 0 && _morphGarmentSettings.Count == 1)
+        {
+            selected = new[] { _morphGarmentSettings.Values.Single() };
+        }
+        if (selected.Length == 0 || selected.Skip(1).Any(settings => settings != selected[0]))
+        {
+            return;
+        }
+        var current = selected[0];
+        _morphRefitEnabled.Checked = current.Enabled;
+        _morphRefitIntensity.Value = Math.Clamp(
+            (decimal)current.IntensityPercent,
+            _morphRefitIntensity.Minimum,
+            _morphRefitIntensity.Maximum);
+        _morphRefitClearance.Value = Math.Clamp(
+            (decimal)current.ClearancePercent,
+            _morphRefitClearance.Minimum,
+            _morphRefitClearance.Maximum);
+        var modeIndex = _morphRefitMode.Items.Cast<object>()
+            .Select((item, index) => (item, index))
+            .FirstOrDefault(pair => pair.item is MorphChoice choice
+                && string.Equals(choice.Id, current.Mode, StringComparison.OrdinalIgnoreCase)).index;
+        _morphRefitMode.SelectedIndex = Math.Max(0, modeIndex);
     }
 
     private IReadOnlyList<MorphPartChoice> SelectedMorphParts()
@@ -1354,6 +1494,32 @@ internal sealed partial class ExperimentForm
             return;
         }
         RequestMorphUiCommand("morph_bind");
+    }
+
+    private void RequestMorphConfigureRefit()
+    {
+        var selected = SelectedMorphParts();
+        if (selected.Count == 0)
+        {
+            _morphDiagnosticStatus.ForeColor = Color.Salmon;
+            _morphDiagnosticStatus.Text = "Select one or more bound garment parts in the viewport, then apply the refit settings.";
+            return;
+        }
+        var unbound = selected.Where(part => !_morphBoundGarmentPartIndices.Contains(part.Index)).ToArray();
+        if (unbound.Length > 0)
+        {
+            _morphDiagnosticStatus.ForeColor = Color.Salmon;
+            _morphDiagnosticStatus.Text = $"Refit settings only apply to bound garments: {string.Join(", ", unbound.Select(part => part.Name))}.";
+            return;
+        }
+        var mode = _morphRefitMode.SelectedItem is MorphChoice choice ? choice.Id : "surface";
+        RequestMorphUiCommand("morph_configure_refit", new Dictionary<string, object?>
+        {
+            ["enabled"] = _morphRefitEnabled.Checked,
+            ["intensity_percent"] = (double)_morphRefitIntensity.Value,
+            ["mode"] = mode,
+            ["clearance_percent"] = (double)_morphRefitClearance.Value,
+        });
     }
 
     private void ShowMorphAuthorDialog(JsonElement? definition = null)

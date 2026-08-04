@@ -26,6 +26,7 @@ MESH_MORPH_ACTIONS = (
     "morph_delete_preset",
     "morph_set_driver",
     "morph_bind",
+    "morph_configure_refit",
     "morph_clear_refit",
     "morph_reset",
     "morph_bake",

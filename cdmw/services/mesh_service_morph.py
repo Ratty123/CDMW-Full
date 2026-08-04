@@ -17,6 +17,7 @@ from cdmw.domain.mesh import (
     MeshMorphState,
     MeshMorphValuePreset,
     MeshRefitBindingSummary,
+    MeshRefitGarmentSettings,
     build_weighted_morph_selection,
     clamp_morph_value,
     generate_procedural_morph_fields,
@@ -123,6 +124,16 @@ class MeshMorphServiceMixin:
         if action == "morph_bind":
             indices = params.get("garment_submesh_indices") or selection.source_indices
             return self.bind_refit(session.session_id, tuple(indices or ()))[0]  # type: ignore[arg-type]
+        if action == "morph_configure_refit":
+            indices = params.get("garment_submesh_indices") or selection.source_indices
+            return self.configure_refit(
+                session.session_id,
+                tuple(indices or ()),  # type: ignore[arg-type]
+                enabled=params.get("enabled", True),
+                intensity_percent=params.get("intensity_percent", 100.0),
+                mode=params.get("mode", "surface"),
+                clearance_percent=params.get("clearance_percent", 0.0),
+            )[0]
         if action == "morph_clear_refit":
             return self.clear_refit(session.session_id)[0]
         if action == "morph_reset":
@@ -569,6 +580,48 @@ class MeshMorphServiceMixin:
             )
             return self._morph_result_and_state_locked(session, "morph_bind", report)
 
+    def configure_refit(
+        self,
+        session_id: str,
+        garment_submesh_indices: Sequence[object],
+        *,
+        enabled: object,
+        intensity_percent: object,
+        mode: object,
+        clearance_percent: object,
+    ) -> tuple[MeshEditResult, MeshMorphState]:
+        garment_indices = _indices(garment_submesh_indices)
+        if not garment_indices:
+            raise ValueError("Refit settings require at least one bound garment part.")
+        settings = MeshRefitGarmentSettings(
+            submesh_index=garment_indices[0],
+            enabled=bool(enabled),
+            intensity_percent=float(intensity_percent),
+            mode=str(mode or "surface"),
+            clearance_percent=float(clearance_percent),
+        )
+        session = self._session(session_id)
+        with session.export_lock:
+            data = self._required_morph_data(session)
+            bound = set(data.state.refit.garment_submesh_indices if data.state is not None else ())
+            missing = tuple(index for index in garment_indices if index not in bound)
+            if missing:
+                raise ValueError(f"Refit settings require bound garment parts: {', '.join(str(index) for index in missing)}")
+            report = self._run_morph_command_locked(
+                session,
+                "morph_configure_refit",
+                {
+                    "garment_submesh_indices": garment_indices,
+                    "enabled": settings.enabled,
+                    "intensity_percent": settings.intensity_percent,
+                    "mode": settings.mode,
+                    "clearance_percent": settings.clearance_percent,
+                },
+                history_label="Configure Garment Refit",
+                record_history=True,
+            )
+            return self._morph_result_and_state_locked(session, "morph_configure_refit", report)
+
     def clear_refit(self, session_id: str) -> tuple[MeshEditResult, MeshMorphState]:
         return self._simple_morph_command(session_id, "morph_clear_refit", {}, "Clear Garment Refit", True)
 
@@ -853,6 +906,17 @@ class MeshMorphServiceMixin:
         data.preset_id = raw_preset_id if raw_preset_id in available_preset_ids else ""
         raw_refit = raw_state.get("refit")
         refit = raw_refit if isinstance(raw_refit, Mapping) else {}
+        garment_settings = tuple(
+            MeshRefitGarmentSettings(
+                submesh_index=int(item.get("submesh_index", -1)),
+                enabled=bool(item.get("enabled", True)),
+                intensity_percent=float(item.get("intensity_percent", 100.0)),
+                mode=str(item.get("mode") or "surface"),
+                clearance_percent=float(item.get("clearance_percent", 0.0)),
+            )
+            for item in tuple(refit.get("garment_settings") or ())
+            if isinstance(item, Mapping)
+        )
         diagnostics = tuple(dict.fromkeys(
             str(item)
             for item in (
@@ -881,6 +945,9 @@ class MeshMorphServiceMixin:
                 p95_distance=float(refit.get("p95_distance", 0.0) or 0.0),
                 warning_distance=float(refit.get("warning_distance", 0.0) or 0.0),
                 distance_warning=bool(refit.get("distance_warning")),
+                driver_triangle_count=int(refit.get("driver_triangle_count", 0) or 0),
+                candidate_triangle_tests=int(refit.get("candidate_triangle_tests", 0) or 0),
+                garment_settings=tuple(sorted(garment_settings, key=lambda item: item.submesh_index)),
             ),
             unbaked=bool(raw_state.get("unbaked")),
             topology_blocked=bool(raw_state.get("topology_blocked")),

@@ -649,6 +649,16 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   mutates driver or reference batches. Topology commands stay disabled while a
   procedural layer is unbaked; Reset removes that layer without adding hidden
   history, while Bake folds it into the resident base and normal history.
+  Every bound garment keeps its own Enabled flag, 0-200% follow intensity,
+  Surface or Rigid mode, and 0-5% clearance relative to the driver's bounding-box
+  diagonal. Surface is the compatibility default and retains the barycentric
+  translation plus rotating normal standoff. Rigid reconstructs the vertex from
+  an orthonormal frame on its bound triangle, avoiding inherited triangle scale
+  for armour and other hard pieces. Clearance is evaluated last against the live
+  driver normal and pushes only a penetrating vertex outward. Applying settings
+  to the explicitly selected bound parts recomposes the resident layer through
+  the existing action worker and creates one undoable history unit; Reset, Bake,
+  undo, and redo retain or restore the per-garment settings with the refit state.
   Version 2 profiles and presets publish atomically under the settings-owned
   `mesh_slider_profiles` directory. Legacy version 1 regions migrate in memory;
   legacy target-import data is omitted with a diagnostic and the old file is

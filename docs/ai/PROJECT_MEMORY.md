@@ -67,11 +67,8 @@ Last updated: 2026-08-04
 - Non-topology edits use sparse channel/index deltas. Topology edits use
   copy-on-write affected-submesh snapshots. History is bounded to 64 whole
   operations and 256 MiB while preserving exact undo/redo.
-- Procedural Morph & Refit stays inside the resident Edit Mesh workflow: C# owns
-  the Profile -> Parts -> Deformation -> Preview & Save wizard, C++ owns live
-  body-rule fields and selected-garment barycentric refit, and Python owns correlated transport plus atomic v2 profile/preset persistence. Part choices
-  expand to vertices only at the service boundary; preview always returns to
-  zero on save/cancel, saving never bakes, and driver/garment overlap is refused.
+- Procedural Morph & Refit stays resident: C# owns authoring and garment controls; C++ owns fields, exact BVH binding, Surface/Rigid transport, per-garment settings, and history; Python owns correlated transport and atomic v2 persistence.
+  Selections expand only at the service boundary; defaults are Surface/100%/zero clearance, preview returns to zero, and driver/garment overlap is refused.
   Compose baked base + ordinary-edit residual + procedural layer; block topology
   while unbaked, keep reference batches immutable, and never restore target import.
 - Skinned PAC OBJ round-trips require the matching sidecar even for one submesh.

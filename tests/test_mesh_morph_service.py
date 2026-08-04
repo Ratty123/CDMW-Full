@@ -140,6 +140,50 @@ def test_refit_rejects_a_part_used_as_both_driver_and_garment(tmp_path) -> None:
         service.close_edit_session(view.session_id)
 
 
+def test_refit_garment_settings_are_validated_and_preserved_in_service_state(tmp_path) -> None:
+    service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
+    session_id = service.open_edit_session(_driver_garment_mesh(), mode="edit").session_id
+    try:
+        assert service.apply_command(session_id, _author_command()).ok
+        assert service.set_refit_driver(session_id, (0, 1))[0].ok
+        assert service.bind_refit(session_id, (2,))[0].ok
+        result = service.apply_command(
+            session_id,
+            MeshEditCommand(
+                "morph_configure_refit",
+                selection=MeshEditSelection.from_maps(source_indices=(2,)),
+                params={
+                    "enabled": True,
+                    "intensity_percent": 65.0,
+                    "mode": "rigid",
+                    "clearance_percent": 0.75,
+                },
+            ),
+        )
+        state = service.cached_morph_state(session_id)
+        with pytest.raises(ValueError, match="bound garment"):
+            service.configure_refit(
+                session_id,
+                (3,),
+                enabled=True,
+                intensity_percent=100.0,
+                mode="surface",
+                clearance_percent=0.0,
+            )
+    finally:
+        service.close_edit_session(session_id)
+
+    assert result.ok
+    assert state is not None
+    assert len(state.refit.garment_settings) == 1
+    settings = state.refit.garment_settings[0]
+    assert settings.submesh_index == 2
+    assert settings.enabled is True
+    assert settings.intensity_percent == pytest.approx(65.0)
+    assert settings.mode == "rigid"
+    assert settings.clearance_percent == pytest.approx(0.75)
+
+
 def test_mesh_service_owns_authoring_resident_values_refit_persistence_history_and_cleanup(tmp_path) -> None:
     service = MeshService(settings=_Settings(tmp_path / "settings.ini"))
     view = service.open_edit_session(_driver_garment_mesh(), mode="edit")
