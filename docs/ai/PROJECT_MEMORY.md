@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-07-23
+Last updated: 2026-08-04
 
 ## Repository rules
 
@@ -74,6 +74,9 @@ Last updated: 2026-07-23
   zero on save/cancel, saving never bakes, and driver/garment overlap is refused.
   Compose baked base + ordinary-edit residual + procedural layer; block topology
   while unbaked, keep reference batches immutable, and never restore target import.
+- Skinned PAC OBJ round-trips require the matching sidecar even for one submesh.
+  A proven target-donor map preserves exact original influence rows, and rebuild
+  rejects changes to PAC vertex bytes outside declared position/normal/UV0 edits.
 - Mesh session views expose one ordered applied/undone timeline for geometry,
   replacement, rigging, and selection changes. User selection is source-part
   only: Orbit opens neutral, Select Parts uses Add + Brush by default, and legacy
