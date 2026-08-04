@@ -425,10 +425,13 @@ void mesh_editor_write_morph_state(std::ostream& out, const MeshEditorSession& s
             << ",\"maximum_distance\":" << std::setprecision(17) << morph.refit->maximum_distance
             << ",\"p95_distance\":" << morph.refit->p95_distance
             << ",\"warning_distance\":" << morph.refit->warning_distance
-            << ",\"distance_warning\":" << (morph.refit->distance_warning ? "true" : "false");
+            << ",\"distance_warning\":" << (morph.refit->distance_warning ? "true" : "false")
+            << ",\"driver_triangle_count\":" << morph.refit->driver_triangle_count
+            << ",\"candidate_triangle_tests\":" << morph.refit->candidate_triangle_tests;
     } else {
         out << "\"driver_submesh_indices\":[],\"garment_submesh_indices\":[],\"bound_vertex_count\":0,"
-               "\"maximum_distance\":0,\"p95_distance\":0,\"warning_distance\":0,\"distance_warning\":false";
+               "\"maximum_distance\":0,\"p95_distance\":0,\"warning_distance\":0,\"distance_warning\":false,"
+               "\"driver_triangle_count\":0,\"candidate_triangle_tests\":0";
     }
     out << "},\"unbaked\":" << (morph.unbaked ? "true" : "false")
         << ",\"topology_blocked\":" << (morph.unbaked ? "true" : "false")
@@ -733,42 +736,6 @@ double mesh_editor_driver_diagonal(
     return initialized ? length_vec3(sub_vec3(maximum, minimum)) : 0.0;
 }
 
-MeshRefitVertexBindingRuntime mesh_editor_closest_refit_binding(
-    const Vec3& point,
-    const std::map<int, MeshSessionSubmesh>& submeshes,
-    const std::set<int>& drivers
-) {
-    ClosestTrianglePointNative closest;
-    MeshRefitVertexBindingRuntime binding;
-    for (const int driver_index : drivers) {
-        const auto found = submeshes.find(driver_index);
-        if (found == submeshes.end()) continue;
-        for (const auto& face : found->second.faces) {
-            if (face[0] < 0 || face[1] < 0 || face[2] < 0
-                || static_cast<std::size_t>(face[0]) >= found->second.vertices.size()
-                || static_cast<std::size_t>(face[1]) >= found->second.vertices.size()
-                || static_cast<std::size_t>(face[2]) >= found->second.vertices.size()) continue;
-            const ClosestTrianglePointNative candidate = closest_triangle_point_native(
-                point,
-                found->second.vertices[static_cast<std::size_t>(face[0])],
-                found->second.vertices[static_cast<std::size_t>(face[1])],
-                found->second.vertices[static_cast<std::size_t>(face[2])]
-            );
-            if (candidate.distance_squared < closest.distance_squared) {
-                closest = candidate;
-                binding.driver_submesh_index = driver_index;
-                binding.driver_vertices = face;
-                binding.barycentric = candidate.barycentric;
-            }
-        }
-    }
-    if (binding.driver_submesh_index < 0 || !std::isfinite(closest.distance_squared)) {
-        throw std::runtime_error("garment refit could not bind every vertex to a driver triangle");
-    }
-    binding.distance = std::sqrt(std::max(0.0, closest.distance_squared));
-    return binding;
-}
-
 std::tuple<long long, long long, long long> mesh_editor_refit_cell(const Vec3& point, double tolerance) {
     return {
         static_cast<long long>(std::floor(point[0] / tolerance)),
@@ -800,6 +767,8 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_build_refit(
     const double diagonal = mesh_editor_driver_diagonal(submeshes, drivers);
     const double cohort_tolerance = std::max(1.0e-6, diagonal * 1.0e-7);
     refit->warning_distance = skin_transfer_distance_limit_native(all_driver_vertices);
+    const RefitSpatialIndexNative spatial_index = build_refit_spatial_index_native(submeshes, drivers);
+    refit->driver_triangle_count = static_cast<long long>(spatial_index.triangles.size());
     std::map<std::tuple<long long, long long, long long>, std::vector<std::pair<Vec3, MeshRefitVertexBindingRuntime>>> cohorts;
     std::vector<double> distances;
     for (const int garment_index : garments) {
@@ -826,7 +795,7 @@ std::shared_ptr<const MeshRefitRuntime> mesh_editor_build_refit(
                 }
             }
             if (!reused) {
-                binding = mesh_editor_closest_refit_binding(point, submeshes, drivers);
+                binding = closest_refit_binding_native(point, spatial_index, refit->candidate_triangle_tests);
                 cohorts[cell].push_back({point, binding});
             }
             const Vec3 bound_point = mesh_editor_refit_driver_point(

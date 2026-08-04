@@ -641,8 +641,11 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   Apply. Refit separately captures named driver and garment part selections,
   rejects overlap, and prevents binding until both roles are valid. Garment
   binding is explicit and selected-submesh-only. C++ projects garment
-  vertices to the closest driver triangles, stores barycentric bindings and
-  seam cohorts, and reports maximum and p95 bind distance warnings. Refit never
+  vertices to the closest driver triangles through an exact, deterministic
+  bounding-volume hierarchy, stores barycentric bindings and seam cohorts, and
+  reports maximum and p95 bind distance warnings. The bind report also records
+  the driver-triangle and tested-candidate counts so dense-mesh pruning remains
+  directly testable without a timing threshold. Refit never
   mutates driver or reference batches. Topology commands stay disabled while a
   procedural layer is unbaked; Reset removes that layer without adding hidden
   history, while Bake folds it into the resident base and normal history.

@@ -87,6 +87,8 @@ struct MeshRefitRuntime {
     double p95_distance = 0.0;
     double warning_distance = 0.0;
     bool distance_warning = false;
+    long long driver_triangle_count = 0;
+    long long candidate_triangle_tests = 0;
 };
 
 struct MeshMorphRuntime {

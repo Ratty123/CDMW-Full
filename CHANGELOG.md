@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Changed
+- **Edit Mesh binds dense Morph & Refit garments without scanning every body triangle for every vertex.** The resident native core now uses an exact deterministic bounding-volume hierarchy while preserving the same closest-triangle and tie-breaking result. On the synthetic 100 x 100 regression mesh, binding tests 211,065 triangle candidates instead of an exhaustive 196,020,000 (928.7x fewer) and took 0.018 seconds instead of 2.21 seconds; the candidate and driver-triangle counts are carried in the native refit report so the acceleration is guarded without a timing-dependent test.
+
 ### Fixed
 - **Edit Mesh and static replacement now preserve exact PAC skin rows for proven OBJ round-trips.** When the matching `mesh_roundtrip_manifest_v2` sidecar supplies an authoritative source-vertex map, rebuild copies each original influence row instead of estimating weights by surface proximity. Skinned PAC OBJ imports without that sidecar now stop with recovery guidance, and PAC output is rejected if a rebuild changes vertex-record bytes outside the declared position, normal, or UV0 edits.
 
