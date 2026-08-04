@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+- **Edit Mesh and static replacement now preserve exact PAC skin rows for proven OBJ round-trips.** When the matching `mesh_roundtrip_manifest_v2` sidecar supplies an authoritative source-vertex map, rebuild copies each original influence row instead of estimating weights by surface proximity. Skinned PAC OBJ imports without that sidecar now stop with recovery guidance, and PAC output is rejected if a rebuild changes vertex-record bytes outside the declared position, normal, or UV0 edits.
+
 ## [0.11.0-alpha.3] - 2026-08-03
 
 ### Added

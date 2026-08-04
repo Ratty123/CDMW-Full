@@ -256,6 +256,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   `max_influences` require a complete `source_vertex_map` for influence
   preservation. This blocks visual-only OBJ packages from pretending they can
   preserve real bone rows.
+- A skinned PAC target requires its matching OBJ sidecar even when it contains
+  only one submesh. When that sidecar proves target-donor lineage, static
+  replacement copies the original PAC influence rows by `source_vertex_map`
+  instead of running spatial weight transfer.
 - OBJ import records sidecar warnings when edited OBJ material names or MTL
   texture paths differ from the sidecar. Export validation surfaces those as
   warnings so preview can continue while rebuild/report UI stays explicit about
@@ -275,6 +279,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   blocked when no explicit operation list is attached. When an original mesh is
   available, export validation and direct rebuild also block channel changes
   that are not covered by the attached operation list.
+- After an OBJ operation rebuild, PAC output is checked against the original
+  vertex records. Only byte ranges owned by declared position, normal, and UV0
+  operations may differ; changes to skinning or other protected vertex bytes
+  fail the rebuild.
 - Built-in same-count editor actions append undo/redo-aware operation entries:
   transform and brush actions record position edits, normal tools record normal
   edits, tangent generation records tangent edits, and UV transforms record UV0
