@@ -237,6 +237,24 @@ class MeshEditorController:
     def bind_refit(self, garment_submesh_indices: Sequence[object]) -> tuple[MeshEditResult, MeshMorphState]:
         return self.mesh_service.bind_refit(self._session_id(), garment_submesh_indices)
 
+    def configure_refit(
+        self,
+        garment_submesh_indices: Sequence[object],
+        *,
+        enabled: object,
+        intensity_percent: object,
+        mode: object,
+        clearance_percent: object,
+    ) -> tuple[MeshEditResult, MeshMorphState]:
+        return self.mesh_service.configure_refit(
+            self._session_id(),
+            garment_submesh_indices,
+            enabled=enabled,
+            intensity_percent=intensity_percent,
+            mode=mode,
+            clearance_percent=clearance_percent,
+        )
+
     def clear_refit(self) -> tuple[MeshEditResult, MeshMorphState]:
         return self.mesh_service.clear_refit(self._session_id())
 

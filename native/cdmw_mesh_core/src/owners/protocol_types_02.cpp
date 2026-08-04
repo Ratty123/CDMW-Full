@@ -76,6 +76,15 @@ struct MeshRefitVertexBindingRuntime {
     // face was degenerate and the normal term is disabled for this binding.
     Vec3 baseline_normal{0.0, 0.0, 0.0};
     double normal_height = 0.0;
+    Vec3 rigid_local_offset{0.0, 0.0, 0.0};
+    bool rigid_frame_valid = false;
+};
+
+struct MeshRefitGarmentSettingsRuntime {
+    bool enabled = true;
+    double intensity_percent = 100.0;
+    std::string mode = "surface";
+    double clearance_percent = 0.0;
 };
 
 struct MeshRefitRuntime {
@@ -83,6 +92,8 @@ struct MeshRefitRuntime {
     std::set<int> garment_submesh_indices;
     std::map<int, std::vector<Vec3>> driver_baseline_positions;
     std::vector<MeshRefitVertexBindingRuntime> bindings;
+    std::map<int, MeshRefitGarmentSettingsRuntime> garment_settings;
+    double driver_diagonal = 0.0;
     double maximum_distance = 0.0;
     double p95_distance = 0.0;
     double warning_distance = 0.0;

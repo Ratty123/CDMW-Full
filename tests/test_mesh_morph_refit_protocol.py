@@ -16,6 +16,7 @@ from cdmw.domain.mesh import (
     MeshMorphState,
     MeshMorphVertexWeight,
     MeshRefitBindingSummary,
+    MeshRefitGarmentSettings,
 )
 from cdmw.ui.mesh_editor.controller import MeshEditorNativeUpdate
 from cdmw.ui.mesh_editor.live_stroke_dispatcher import (
@@ -63,6 +64,17 @@ def test_morph_state_payload_and_ack_require_the_latest_correlated_envelope() ->
             p95_distance=0.2,
             warning_distance=0.1,
             distance_warning=True,
+            driver_triangle_count=48,
+            candidate_triangle_tests=120,
+            garment_settings=(
+                MeshRefitGarmentSettings(
+                    submesh_index=1,
+                    enabled=True,
+                    intensity_percent=80.0,
+                    mode="rigid",
+                    clearance_percent=0.5,
+                ),
+            ),
         ),
         unbaked=True,
         topology_blocked=True,
@@ -88,6 +100,17 @@ def test_morph_state_payload_and_ack_require_the_latest_correlated_envelope() ->
         assert payload["change_id"] == "drag-11"
         assert payload["definitions"][0]["category"] == "Torso"  # type: ignore[index]
         assert payload["refit"]["garment_submesh_indices"] == [1]  # type: ignore[index]
+        assert payload["refit"]["driver_triangle_count"] == 48  # type: ignore[index]
+        assert payload["refit"]["candidate_triangle_tests"] == 120  # type: ignore[index]
+        assert payload["refit"]["garment_settings"] == [  # type: ignore[index]
+            {
+                "submesh_index": 1,
+                "enabled": True,
+                "intensity_percent": 80.0,
+                "mode": "rigid",
+                "clearance_percent": 0.5,
+            }
+        ]
 
         acknowledgement = {
             "event": "morph_state_update_ack",
@@ -162,6 +185,28 @@ def test_morph_protocol_routes_local_selection_and_authoring_parameters() -> Non
         assert tab._handle_dotnet_protocol_event(
             request(
                 3,
+                "morph_configure_refit",
+                local_selection={"source_indices": [3]},
+                enabled=False,
+                intensity_percent=60.0,
+                mode="rigid",
+                clearance_percent=0.25,
+            )
+        )
+        configured = captured[-1][0]
+        assert configured.selection is not None
+        assert configured.selection.source_indices == (3,)
+        assert configured.params == {
+            "garment_submesh_indices": (3,),
+            "enabled": False,
+            "intensity_percent": 60.0,
+            "mode": "rigid",
+            "clearance_percent": 0.25,
+        }
+
+        assert tab._handle_dotnet_protocol_event(
+            request(
+                4,
                 "morph_author_definition",
                 local_selection={"vertices_by_submesh": {"0": [1, 2]}},
                 profile_id="body",
