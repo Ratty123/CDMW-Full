@@ -621,3 +621,63 @@ def test_binding_reports_far_distance_and_rejects_noneditable_indices_without_om
     assert refit["maximum_distance"] >= 10.0
     assert refit["p95_distance"] >= 10.0
     assert refit["distance_warning"] is True
+
+
+def _dense_refit_grid(size: int = 28) -> ParsedMesh:
+    vertices = [
+        (float(column), float(row), 0.0)
+        for row in range(size)
+        for column in range(size)
+    ]
+    faces: list[tuple[int, int, int]] = []
+    for row in range(size - 1):
+        for column in range(size - 1):
+            top_left = row * size + column
+            faces.extend(
+                (
+                    (top_left, top_left + 1, top_left + size),
+                    (top_left + 1, top_left + size + 1, top_left + size),
+                )
+            )
+    driver = _part(
+        "dense-body",
+        vertices,
+        faces,
+        material="skin",
+        texture="skin.dds",
+    )
+    garment = _part(
+        "dense-shirt",
+        [(x, y, z + 0.05) for x, y, z in vertices],
+        faces,
+        material="shirt",
+        texture="shirt.dds",
+    )
+    return ParsedMesh(
+        path="dense-refit.pac",
+        format="pac",
+        submeshes=[driver, garment],
+        total_vertices=len(driver.vertices) + len(garment.vertices),
+        total_faces=len(driver.faces) + len(garment.faces),
+        has_uvs=True,
+        has_bones=True,
+    )
+
+
+def test_dense_refit_binding_uses_exact_spatial_pruning_instead_of_every_triangle() -> None:
+    mesh = _dense_refit_grid()
+    session_id = _open(mesh)
+    try:
+        _command(session_id, "morph_set_driver", {"submesh_indices": [0]})
+        bound = _command(session_id, "morph_bind", {"garment_submesh_indices": [1]})
+    finally:
+        mesh_native_core.close_native_mesh_editor_session(session_id)
+
+    refit = bound["morph_state"]["refit"]  # type: ignore[index]
+    bound_vertices = len(mesh.submeshes[1].vertices)
+    driver_triangles = len(mesh.submeshes[0].faces)
+    exhaustive_tests = bound_vertices * driver_triangles
+    assert refit["bound_vertex_count"] == bound_vertices
+    assert refit["driver_triangle_count"] == driver_triangles
+    assert refit["candidate_triangle_tests"] < exhaustive_tests // 10
+    assert refit["maximum_distance"] == pytest.approx(0.05)
