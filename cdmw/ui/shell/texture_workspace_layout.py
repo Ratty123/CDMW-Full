@@ -56,7 +56,7 @@ class TextureWorkspaceLayoutMixin:
         workflow_layout = QVBoxLayout(self.workflow_tab)
         workflow_layout.setContentsMargins(0, 0, 0, 0)
         workflow_layout.setSpacing(10)
-        self.texture_tabs.addTab(self.workflow_tab, "Workflow")
+        self.texture_tabs.addTab(self.workflow_tab, "Texture Workflow")
         pump_startup_splash("Preparing texture workflow...")
 
         self.workflow_splitter = QSplitter(Qt.Horizontal)

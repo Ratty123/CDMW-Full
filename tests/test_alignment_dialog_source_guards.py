@@ -691,7 +691,7 @@ def _mesh_editor_shell_bridge_source() -> str:
 
 
 class AlignmentDialogSourceGuardTests(unittest.TestCase):
-    def test_assets_mesh_editor_tab_is_registered_as_primary_workspace(self) -> None:
+    def test_mesh_editor_tab_is_registered_as_top_level_primary_workspace(self) -> None:
         source = _main_window_source() + "\n" + _mesh_editor_shell_bridge_source()
         mesh_editor_source = _mesh_editor_source()
         mesh_editor_session_source = _mesh_editor_session_source()
@@ -699,7 +699,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("from cdmw.ui.mesh_editor.session import MeshEditorSessionRequest", source)
         self.assertIn("from cdmw.ui.mesh_editor.tab import MeshEditorTab", source)
         self.assertIn("tab = MeshEditorTab(", source)
-        self.assertIn('self.assets_tabs, "Mesh Editor", "mesh_editor", self._create_mesh_editor_tab', source)
+        self.assertIn('"Mesh Editor",\n            "mesh_editor",', source)
+        self.assertIn("index=1,", source)
         self.assertIn('self._register_detachable_tool("mesh_editor", self.mesh_editor_tab, "Mesh Editor")', source)
         self.assertIn("tab.modify_original_requested.connect(self._mesh_editor_modify_original_requested)", source)
         self.assertIn("tab.import_replacement_requested.connect(self._mesh_editor_import_replacement_requested)", source)

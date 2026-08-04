@@ -375,7 +375,11 @@ class ShellToolTabsMixin:
 
         pump_startup_splash("Registering optional tools...")
         self.mesh_editor_tab = self._add_lazy_shell_tool(
-            self.assets_tabs, "Mesh Editor", "mesh_editor", self._create_mesh_editor_tab
+            self.main_tabs,
+            "Mesh Editor",
+            "mesh_editor",
+            self._create_mesh_editor_tab,
+            index=1,
         )
         self.model_library_tab = self._add_lazy_shell_tool(
             self.assets_tabs, "Model Library", "model_library", self._create_model_library_tab
@@ -384,19 +388,22 @@ class ShellToolTabsMixin:
             self.assets_tabs, "Icon Creator", "item_icons", self._create_item_icons_tab
         )
         self.replace_assistant_tab = self._add_lazy_shell_tool(
-            self.texture_tabs, "Replacer", "replace_assistant", self._create_replace_assistant_tab
+            self.texture_tabs,
+            "Texture Replacer",
+            "replace_assistant",
+            self._create_replace_assistant_tab,
         )
         self.recolor_variants_tab = self._add_lazy_shell_tool(
-            self.texture_tabs, "Recolor Variants", "recolor_variants", self._create_recolor_variants_tab
+            self.texture_tabs,
+            "Texture Recolor",
+            "recolor_variants",
+            self._create_recolor_variants_tab,
         )
         self.texture_editor_tab = self._add_lazy_shell_tool(
-            self.texture_tabs, "Editor", "texture_editor", self._create_texture_editor_tab
-        )
-        self.research_tab = self._add_lazy_shell_tool(
-            self.research_tabs, "Texture Research", "research", self._create_research_tab
-        )
-        self.text_search_tab = self._add_lazy_shell_tool(
-            self.research_tabs, "Text Search", "text_search", self._create_text_search_tab
+            self.texture_tabs,
+            "Texture Editor",
+            "texture_editor",
+            self._create_texture_editor_tab,
         )
         self.mod_package_retrofit_tab = self._add_lazy_shell_tool(
             self.tools_tabs,
@@ -404,13 +411,14 @@ class ShellToolTabsMixin:
             "mod_package_retrofit",
             self._create_mod_package_retrofit_tab,
         )
-        # Top level, immediately after Assets — not inside Tools. See `root_layout.py`.
+        # Mesh Editor and Placement are complete workspaces, so both sit directly in the
+        # main strip instead of adding a second tab bar above their own workspace controls.
         self.placement_studio_tab = self._add_lazy_shell_tool(
             self.main_tabs,
-            "Placement & Animation Studio",
+            "Placement & Animations",
             "placement_studio",
             self._create_placement_studio_tab,
-            index=1,
+            index=2,
         )
         self.format_explorer_tab = self._add_lazy_shell_tool(
             self.tools_tabs,
@@ -420,9 +428,15 @@ class ShellToolTabsMixin:
         )
         self.translation_studio_tab = self._add_lazy_shell_tool(
             self.tools_tabs,
-            "Translation Studio",
+            "Translations",
             "translation_studio",
             self._create_translation_studio_tab,
+        )
+        self.research_tab = self._add_lazy_shell_tool(
+            self.tools_tabs, "Research", "research", self._create_research_tab
+        )
+        self.text_search_tab = self._add_lazy_shell_tool(
+            self.tools_tabs, "Text Search", "text_search", self._create_text_search_tab
         )
 
     def _register_shell_tool_tabs(self) -> None:
