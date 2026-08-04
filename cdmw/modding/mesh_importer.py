@@ -183,6 +183,21 @@ def _prepare_mesh_for_rebuild(
         except Exception:
             original_mesh = None
     if original_mesh is not None:
+        if (
+            fmt == "pac"
+            and bool(getattr(mesh, "_cdmw_imported_from_obj", False))
+            and not bool(getattr(mesh, "_cdmw_obj_sidecar_present", False))
+            and any(
+                bool(tuple(getattr(submesh, "bone_indices", ()) or ()))
+                or bool(tuple(getattr(submesh, "bone_weights", ()) or ()))
+                or bool(str(getattr(submesh, "source_skin_weight_layout", "") or "").strip())
+                for submesh in tuple(getattr(original_mesh, "submeshes", ()) or ())
+            )
+        ):
+            raise ValueError(
+                "Skinned PAC OBJ round-trip requires the matching <edited>.obj.meta.json sidecar. "
+                "Keep or rename the sidecar beside the Blender-exported OBJ, then import it as Round-trip edit."
+            )
         _validate_mesh_rebuild_operations(mesh, original_mesh=original_mesh)
         return fmt, _apply_operation_channels_to_original(original_mesh, mesh), original_mesh
     else:
@@ -191,6 +206,7 @@ def _prepare_mesh_for_rebuild(
 
 
 def _build_prepared_mesh_bytes(fmt: str, mesh: ParsedMesh, original_data: bytes) -> bytes:
+    native_data = None
     try:
         from cdmw.core.mesh_native import build_mesh_native
 
@@ -206,17 +222,86 @@ def _build_prepared_mesh_bytes(fmt: str, mesh: ParsedMesh, original_data: bytes)
                 parsed_native = None
             if parsed_native is None or len(parsed_native.submeshes) != len(mesh.submeshes):
                 native_data = None
-        if native_data is not None:
-            return native_data
     except Exception:
-        pass
-    if fmt == "pac":
-        return build_pac(mesh, original_data)
-    if fmt == "pam":
-        return build_pam(mesh, original_data)
-    if fmt == "pamlod":
-        return build_pamlod(mesh, original_data)
-    raise ValueError(f"Unsupported mesh format for rebuild: {fmt}")
+        native_data = None
+    if native_data is not None:
+        rebuilt = native_data
+    elif fmt == "pac":
+        rebuilt = build_pac(mesh, original_data)
+    elif fmt == "pam":
+        rebuilt = build_pam(mesh, original_data)
+    elif fmt == "pamlod":
+        rebuilt = build_pamlod(mesh, original_data)
+    else:
+        raise ValueError(f"Unsupported mesh format for rebuild: {fmt}")
+    _validate_pac_obj_protected_vertex_bytes(fmt, mesh, original_data, rebuilt)
+    return rebuilt
+
+
+def _validate_pac_obj_protected_vertex_bytes(
+    fmt: str,
+    mesh: ParsedMesh,
+    original_data: bytes,
+    rebuilt_data: bytes,
+) -> None:
+    if (
+        fmt != "pac"
+        or not bool(getattr(mesh, "_cdmw_imported_from_obj", False))
+        or not bool(getattr(mesh, "_cdmw_obj_sidecar_present", False))
+    ):
+        return
+    operations = mesh_edit_operations_from_dicts(getattr(mesh, "_cdmw_edit_operations", ()) or ())
+    if not operations:
+        return
+    if len(rebuilt_data) != len(original_data):
+        raise ValueError(
+            "OBJ round-trip changed the PAC file size; protected vertex-byte preservation could not be proven."
+        )
+
+    editable_ranges = {
+        "positions": range(0, 6),
+        "uv0": range(8, 12),
+        "normals": range(16, 20),
+    }
+    editable_by_submesh: dict[int, set[int]] = {}
+    for operation in operations:
+        channel = mesh_edit_operation_changed_channel(operation.operation)
+        byte_range = editable_ranges.get(channel)
+        if byte_range is None or operation.submesh_index < 0:
+            continue
+        editable_by_submesh.setdefault(operation.submesh_index, set()).update(byte_range)
+
+    for submesh_index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ())):
+        stride = int(getattr(submesh, "source_vertex_stride", 0) or 0)
+        offsets = tuple(int(value) for value in tuple(getattr(submesh, "source_vertex_offsets", ()) or ()))
+        vertices = tuple(getattr(submesh, "vertices", ()) or ())
+        if stride < 20 or len(offsets) != len(vertices):
+            raise ValueError(
+                "OBJ round-trip could not prove protected PAC vertex-byte preservation for "
+                f"submesh {submesh_index}: source offsets or stride are incomplete."
+            )
+        editable = editable_by_submesh.get(submesh_index, set())
+        protected_spans: list[tuple[int, int]] = []
+        span_start = -1
+        for byte_index in range(stride + 1):
+            protected = byte_index < stride and byte_index not in editable
+            if protected and span_start < 0:
+                span_start = byte_index
+            elif not protected and span_start >= 0:
+                protected_spans.append((span_start, byte_index))
+                span_start = -1
+        for vertex_index, offset in enumerate(offsets):
+            if offset < 0 or offset + stride > len(original_data):
+                raise ValueError(
+                    "OBJ round-trip could not prove protected PAC vertex-byte preservation for "
+                    f"submesh {submesh_index} vertex {vertex_index}: source record is outside the file."
+                )
+            for start, end in protected_spans:
+                if original_data[offset + start : offset + end] != rebuilt_data[offset + start : offset + end]:
+                    raise ValueError(
+                        "OBJ round-trip changed protected PAC vertex bytes for "
+                        f"submesh {submesh_index} vertex {vertex_index} at record bytes {start}:{end}."
+                    )
 
 
 def _build_rebuild_report(

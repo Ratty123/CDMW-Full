@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from cdmw.modding.mesh_native_rigging import find_native_mesh_core_binary
+from cdmw.modding.mesh_importer import build_mesh
 from cdmw.modding.mesh_pac_builder import _choose_pac_donor_indices, build_pac
 from cdmw.modding.mesh_pam_builder import build_pam
 from cdmw.modding.mesh_parser import (
@@ -162,6 +163,67 @@ def test_static_replacement_transfers_after_alignment_and_reparses() -> None:
     assert first[1] == pytest.approx(64 / 255.0)
     assert first[2] == pytest.approx(64 / 255.0)
     assert sum(first.values()) == pytest.approx(1.0)
+
+
+def test_static_replacement_preserves_exact_target_rows_from_roundtrip_map() -> None:
+    if find_native_mesh_core_binary() is None:
+        pytest.skip("cdmw_mesh_core is not built")
+    raw, original = _skinned_pac()
+    replacement = _replacement([(0.25, 0.25, 0.0), (0.5, 0.25, 0.0), (0.25, 0.5, 0.0)])
+    replacement.submeshes[0].source_vertex_map = [0, 1, 2]
+    replacement.submeshes[0].source_vertex_map_authority = "target_donor_record"
+
+    rebuilt, report = build_static_mesh_replacement(raw, original, replacement, _static_options())
+    reparsed = parse_pac(rebuilt, "target.pac")
+
+    assert [_weight_map(reparsed.submeshes[0], index) for index in range(3)] == [
+        {0: pytest.approx(1.0)},
+        {1: pytest.approx(1.0)},
+        {2: pytest.approx(1.0)},
+    ]
+    assert any("preserved 3 exact donor rows" in line for line in report.alignment_summary)
+
+
+def test_single_submesh_skinned_pac_roundtrip_requires_matching_sidecar() -> None:
+    raw, _original = _skinned_pac()
+    imported = _replacement([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)])
+    imported.path = "target.pac"
+    imported.format = "pac"
+    setattr(imported, "_cdmw_imported_from_obj", True)
+    setattr(imported, "_cdmw_obj_sidecar_present", False)
+
+    with pytest.raises(ValueError, match=r"Skinned PAC OBJ round-trip requires .*\.obj\.meta\.json"):
+        build_mesh(imported, raw)
+
+
+def test_obj_roundtrip_rejects_rebuilt_pac_that_changes_protected_vertex_bytes() -> None:
+    raw, original = _skinned_pac()
+    imported = copy.deepcopy(original)
+    imported.submeshes[0].vertices[0] = (0.25, 0.0, 0.0)
+    setattr(imported, "_cdmw_imported_from_obj", True)
+    setattr(imported, "_cdmw_obj_sidecar_present", True)
+    setattr(
+        imported,
+        "_cdmw_edit_operations",
+        (
+            {
+                "operation": "replace_positions_same_count",
+                "lod_index": 0,
+                "submesh_index": 0,
+                "vertex_count": len(imported.submeshes[0].vertices),
+                "source": "target.obj",
+            },
+        ),
+    )
+    corrupted = bytearray(raw)
+    protected_offset = original.submeshes[0].source_vertex_offsets[0] + PAC_SKIN_SLOT_GROUPS[0]
+    corrupted[protected_offset] ^= 0x01
+
+    with (
+        patch("cdmw.core.mesh_native.build_mesh_native", return_value=bytes(corrupted)),
+        pytest.raises(ValueError, match="changed protected PAC vertex bytes"),
+    ):
+        build_mesh(imported, raw)
 
 
 def test_static_replacement_blocks_far_skin_transfer() -> None:

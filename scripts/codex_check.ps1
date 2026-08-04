@@ -144,6 +144,7 @@ $TestsByArea = @{
         "tests/test_mesh_body_region_atlas.py",
         "tests/test_native_morph_field_generation.py",
         "tests/test_pac_skin_layout_regression.py",
+        "tests/test_static_skin_weight_export.py",
         "tests/test_mesh_selection_tools.py",
         "tests/test_archive_structured_asset_preview.py",
         "tests/test_rigging_binary_parsers.py"
