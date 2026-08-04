@@ -122,6 +122,21 @@ def ensure_final_target_skin_weights(
             f"Cannot author skin weights for target {target_index} ({label}): "
             "the proven PAC skin layout has no decoded donor influence rows."
         )
+    if source_vertex_map_is_target_donor_lineage(target, merged):
+        donor_indices = [int(value) for value in merged.source_vertex_map]
+        merged.bone_indices = [tuple(target.bone_indices[index]) for index in donor_indices]
+        merged.bone_weights = [tuple(target.bone_weights[index]) for index in donor_indices]
+        if not has_valid_target_skin_weights(merged):
+            raise ValueError(
+                f"Cannot preserve skin weights for target {target_index} ({label}): "
+                "the exact target-donor map references an invalid donor influence row."
+            )
+        if summary is not None:
+            summary.append(
+                f"Skin weights target {target_index} ({label}): "
+                f"preserved {len(donor_indices):,} exact donor rows."
+            )
+        return
     if has_valid_target_skin_weights(merged):
         if summary is not None:
             summary.append(f"Skin weights target {target_index} ({label}): preserved valid target-rig weights.")
