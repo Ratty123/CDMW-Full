@@ -32,9 +32,11 @@ internal sealed partial class MeshViewport
         using var normalPen = new Pen(
             Color.FromArgb(ShowXRay ? 240 : 225, activeWireColor),
             _overlaySettings.Sizing.WireWidthPixels);
-        using var selectedPen = new Pen(Color.FromArgb(245, 211, 95), 1.6f);
+        using var selectedPen = new Pen(GdiSelectionColor(_overlaySettings, live: false, 245), 1.6f);
+        using var liveSelectionPen = new Pen(GdiSelectionColor(_overlaySettings, live: true, 245), 1.6f);
         using var normalBrush = new SolidBrush(Color.FromArgb(normalAlpha, 79, 112, 152));
-        using var selectedBrush = new SolidBrush(Color.FromArgb(190, 225, 190, 58));
+        using var selectedBrush = new SolidBrush(GdiSelectionColor(_overlaySettings, live: false, 190));
+        using var liveSelectionBrush = new SolidBrush(GdiSelectionColor(_overlaySettings, live: true, 170));
         var points = new PointF[3];
         var camera = CurrentCamera();
 
@@ -65,14 +67,17 @@ internal sealed partial class MeshViewport
                 if (valid)
                 {
                     var faceSelected = IsFaceSelected(submeshIndex, faceIndex);
-                    var faceBrush = faceSelected ? selectedBrush : brush;
-                    var facePen = faceSelected ? selectedPen : pen;
-                    var textured = ShowSolid && !faceSelected && TryDrawTexturedFace(e.Graphics, submeshIndex, submesh, face, points);
-                    if ((ShowSolid || faceSelected) && !textured)
+                    var faceLive = _provisionalSelectedFaces.TryGetValue(submeshIndex, out var liveFaces)
+                        && liveFaces.Contains(faceIndex);
+                    var faceBrush = faceLive ? liveSelectionBrush : faceSelected ? selectedBrush : brush;
+                    var facePen = faceLive ? liveSelectionPen : faceSelected ? selectedPen : pen;
+                    var textured = ShowSolid && !faceSelected && !faceLive
+                        && TryDrawTexturedFace(e.Graphics, submeshIndex, submesh, face, points);
+                    if ((ShowSolid || faceSelected || faceLive) && !textured)
                     {
                         e.Graphics.FillPolygon(faceBrush, points);
                     }
-                    if (ShowWire || ShowXRay || faceSelected)
+                    if (ShowWire || ShowXRay || faceSelected || faceLive)
                     {
                         e.Graphics.DrawPolygon(facePen, points);
                     }
@@ -82,6 +87,7 @@ internal sealed partial class MeshViewport
 
         DrawSelectedEdges(e.Graphics, camera);
         DrawSelectedVertices(e.Graphics, camera);
+        DrawProvisionalVertices(e.Graphics, camera);
         DrawEdgeSelectionRectangle(e.Graphics);
         if (_pointerInside && ActiveTool is "grab" or "smooth" or "inflate" or "pinch")
         {
@@ -183,21 +189,22 @@ internal sealed partial class MeshViewport
             return;
         }
         var rectangle = EdgeDragRectangle();
-        using var pen = new Pen(Color.FromArgb(190, 96, 202, 255), 1.0f) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash };
-        using var brush = new SolidBrush(Color.FromArgb(36, 96, 202, 255));
+        using var pen = new Pen(GdiSelectionColor(_overlaySettings, live: true, 190), 1.0f) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash };
+        using var brush = new SolidBrush(GdiSelectionColor(_overlaySettings, live: true, 36));
         graphics.FillRectangle(brush, rectangle);
         graphics.DrawRectangle(pen, rectangle);
     }
 
     private void DrawSelectedEdges(Graphics graphics, NetViewportCamera camera)
     {
-        using var selectedPen = new Pen(Color.FromArgb(245, 255, 224, 92), 2.2f);
-        using var hoverPen = new Pen(Color.FromArgb(245, 96, 202, 255), 2.0f);
+        using var selectedPen = new Pen(GdiSelectionColor(_overlaySettings, live: false, 245), 2.2f);
+        using var hoverPen = new Pen(GdiSelectionColor(_overlaySettings, live: true, 245), 2.0f);
         foreach (var edge in _edgeTopology.Edges)
         {
             var selected = _selectedEdges.Contains(edge.Id);
             var hovered = edge.Id == _hoverEdgeId;
-            if (!selected && !hovered)
+            var live = _provisionalSelectedEdges.Contains(edge.Id);
+            if (!selected && !hovered && !live)
             {
                 continue;
             }
@@ -212,13 +219,13 @@ internal sealed partial class MeshViewport
             }
             var a = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexA]);
             var b = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexB]);
-            graphics.DrawLine(hovered ? hoverPen : selectedPen, a, b);
+            graphics.DrawLine(hovered || live ? hoverPen : selectedPen, a, b);
         }
     }
 
     private void DrawSelectedVertices(Graphics graphics, NetViewportCamera camera)
     {
-        using var brush = new SolidBrush(Color.FromArgb(235, 255, 224, 92));
+        using var brush = new SolidBrush(GdiSelectionColor(_overlaySettings, live: false, 235));
         using var pen = new Pen(Color.FromArgb(255, 44, 25, 10), 1.0f);
         for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount; submeshIndex++)
         {
@@ -236,4 +243,64 @@ internal sealed partial class MeshViewport
             }
         }
     }
+
+    private void DrawProvisionalVertices(Graphics graphics, NetViewportCamera camera)
+    {
+        using var brush = new SolidBrush(GdiSelectionColor(_overlaySettings, live: true, 220));
+        using var pen = new Pen(Color.FromArgb(255, 20, 35, 45), 1.0f);
+        foreach (var pair in _provisionalSelectedVertices)
+        {
+            if (pair.Key < 0 || pair.Key >= _document.Submeshes.Count)
+            {
+                continue;
+            }
+            var submesh = _document.Submeshes[pair.Key];
+            foreach (var vertexIndex in pair.Value)
+            {
+                if (vertexIndex < 0 || vertexIndex >= submesh.Vertices.Count)
+                {
+                    continue;
+                }
+                var point = SceneProjectedPoint(camera, pair.Key, submesh.Vertices[vertexIndex]);
+                var rect = new RectangleF(point.X - 3.0f, point.Y - 3.0f, 6.0f, 6.0f);
+                graphics.FillEllipse(brush, rect);
+                graphics.DrawEllipse(pen, rect);
+            }
+        }
+    }
+
+    internal static Dictionary<string, object?> GdiSelectionOverlayColorProofPayload(
+        MeshOverlaySettings settings)
+    {
+        var normalized = settings.Normalized();
+        using var committedFace = new SolidBrush(GdiSelectionColor(normalized, live: false, 190));
+        using var liveFace = new SolidBrush(GdiSelectionColor(normalized, live: true, 170));
+        using var committedWire = new Pen(GdiSelectionColor(normalized, live: false, 245), 2.2f);
+        using var liveWire = new Pen(GdiSelectionColor(normalized, live: true, 245), 2.0f);
+        using var committedVertex = new SolidBrush(GdiSelectionColor(normalized, live: false, 235));
+        using var liveVertex = new SolidBrush(GdiSelectionColor(normalized, live: true, 220));
+        return new Dictionary<string, object?>
+        {
+            ["committed_faces"] = SameRgb(committedFace.Color, normalized.Colors.Selection),
+            ["committed_wires"] = SameRgb(committedWire.Color, normalized.Colors.Selection),
+            ["committed_vertices"] = SameRgb(committedVertex.Color, normalized.Colors.Selection),
+            ["live_faces"] = SameRgb(liveFace.Color, normalized.Colors.LiveSelection),
+            ["live_wires"] = SameRgb(liveWire.Color, normalized.Colors.LiveSelection),
+            ["live_vertices"] = SameRgb(liveVertex.Color, normalized.Colors.LiveSelection),
+            ["committed_color"] = MeshOverlayColors.Hex(Color.FromArgb(
+                normalized.Colors.Selection.R,
+                normalized.Colors.Selection.G,
+                normalized.Colors.Selection.B)),
+            ["live_color"] = MeshOverlayColors.Hex(Color.FromArgb(
+                normalized.Colors.LiveSelection.R,
+                normalized.Colors.LiveSelection.G,
+                normalized.Colors.LiveSelection.B)),
+        };
+    }
+
+    private static Color GdiSelectionColor(MeshOverlaySettings settings, bool live, int alpha) =>
+        Color.FromArgb(alpha, live ? settings.Colors.LiveSelection : settings.Colors.Selection);
+
+    private static bool SameRgb(Color actual, Color expected) =>
+        actual.R == expected.R && actual.G == expected.G && actual.B == expected.B;
 }

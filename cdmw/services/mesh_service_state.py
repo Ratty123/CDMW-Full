@@ -23,6 +23,15 @@ class _MeshVertexPositionDelta:
     before_positions_binary: Mapping[str, object] | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class _MeshGeometryLayer:
+    layer_id: str
+    name: str
+    submesh_indices: tuple[int, ...]
+    visible: bool = True
+    base: bool = False
+
+
 @dataclass(slots=True)
 class _MeshHistorySnapshot:
     mesh: ParsedMesh | None
@@ -36,6 +45,9 @@ class _MeshHistorySnapshot:
     history_action: str = ""
     history_label: str = ""
     selection_only: bool = False
+    geometry_layers: tuple[_MeshGeometryLayer, ...] | None = None
+    active_geometry_layer_id: str | None = None
+    geometry_layer_copy_counter: int | None = None
     material_generation: int | None = None
     committed_texture_resources: tuple[_MeshCommittedTextureResource, ...] | None = None
     retained_bytes: int = 0
@@ -47,6 +59,7 @@ class _MeshRestoreOutcome:
     changed_vertices_by_submesh: dict[int, Sequence[int] | set[int]] = field(default_factory=dict)
     native_preview_vertex_update_groups: tuple[Mapping[str, object], ...] = ()
     native_preview_triangle_groups: tuple[Mapping[str, object], ...] = ()
+    native_selection_groups: tuple[Mapping[str, object], ...] = ()
     topology_changed: bool = False
     affected_submesh_indices: set[int] = field(default_factory=set)
     submesh_count_delta: int = 0
@@ -61,6 +74,8 @@ class _NativeEditorApplyResult:
     metrics: dict[str, float] = field(default_factory=dict)
     native_preview_vertex_update_groups: tuple[Mapping[str, object], ...] = ()
     native_preview_triangle_groups: tuple[Mapping[str, object], ...] = ()
+    native_selection: MeshEditSelection | None = None
+    native_selection_groups: tuple[Mapping[str, object], ...] = ()
     native_stroke_id: str = ""
     native_stroke_phase: str = ""
     native_stroke_cancelled: bool = False
@@ -159,6 +174,21 @@ class _MeshEditSession:
     base_mesh_is_original_parse: bool = False
     mode: str = "object"
     selection: MeshEditSelection = field(default_factory=MeshEditSelection)
+    geometry_layers: tuple[_MeshGeometryLayer, ...] = ()
+    active_geometry_layer_id: str = "base"
+    geometry_layer_copy_counter: int = 0
+    geometry_layer_revision: int = 0
+    native_clipboard_ready: bool = False
+    mesh_layer_project_path: Path | None = None
+    mesh_layer_workspace_manifest_path: Path | None = None
+    mesh_layer_workspace_mode: str = ""
+    mesh_layer_autosave_timer: threading.Timer | None = field(default=None, repr=False)
+    mesh_layer_autosave_thread: threading.Thread | None = field(default=None, repr=False)
+    mesh_layer_autosave_stop_event: threading.Event | None = field(default=None, repr=False)
+    mesh_layer_autosave_requested_key: tuple[int, int] = (-1, -1)
+    mesh_layer_autosave_saved_key: tuple[int, int] = (-1, -1)
+    mesh_layer_autosave_error: str = ""
+    mesh_layer_loaded_generation: str = ""
     skeleton: object | None = None
     skeleton_source: str = ""
     skeleton_descriptor_source: str = ""
@@ -185,6 +215,9 @@ class _MeshEditSession:
     closed: bool = False
     native_editor_session_ready: bool = False
     native_editor_selection_signature: tuple[object, ...] = ()
+    selection_stroke_id: str = ""
+    selection_stroke_sequence: int = -1
+    selection_stroke_start: MeshEditSelection | None = None
     native_editor_active_stroke_id: str = ""
     native_editor_mesh_signature: tuple[object, ...] = ()
     native_editor_mesh_dirty: bool = False
@@ -224,4 +257,5 @@ class _MeshCommandExecution:
     native_editor_result: _NativeEditorApplyResult | None = None
     native_preview_vertex_update_groups: tuple[Mapping[str, object], ...] = ()
     native_preview_triangle_groups: tuple[Mapping[str, object], ...] = ()
+    native_selection_groups: tuple[Mapping[str, object], ...] = ()
     native_submesh_counts: tuple[tuple[int, int], ...] = ()

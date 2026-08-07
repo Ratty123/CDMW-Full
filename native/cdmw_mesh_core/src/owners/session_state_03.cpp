@@ -5,9 +5,18 @@ MeshEditorSelection mesh_editor_selection_from_json(const JsonValue* raw_selecti
     }
     const JsonValue* raw_brush = raw_selection->get("screen_brush");
     const JsonValue* raw_region = raw_selection->get("screen_region");
-    const bool projected_screen_selection =
+    const JsonValue* raw_brushes = raw_selection->get("screen_brushes");
+    const JsonValue* raw_regions = raw_selection->get("screen_regions");
+    bool projected_screen_selection =
         mesh_editor_has_projection_payload(raw_brush, -1)
         || mesh_editor_has_projection_payload(raw_region, -1);
+    for (const JsonValue* items : {raw_brushes, raw_regions}) {
+        if (items == nullptr || items->type != JsonValue::Type::Array) continue;
+        for (const JsonValue& item : items->array_value) {
+            projected_screen_selection = projected_screen_selection
+                || mesh_editor_has_projection_payload(&item, -1);
+        }
+    }
     if (!projected_screen_selection) {
         mesh_editor_read_index_groups(raw_selection->get("vertices_by_submesh"), "vertices", selection.vertices);
         mesh_editor_read_vertex_weight_groups(raw_selection->get("vertices_by_submesh"), selection.vertex_weights);
@@ -27,6 +36,24 @@ MeshEditorSelection mesh_editor_selection_from_json(const JsonValue* raw_selecti
     }
     mesh_editor_add_screen_brush_selection(session, raw_selection, selection);
     mesh_editor_add_screen_region_selection(session, raw_selection, selection);
+    if (raw_brushes != nullptr && raw_brushes->type == JsonValue::Type::Array) {
+        for (const JsonValue& brush : raw_brushes->array_value) {
+            if (brush.type != JsonValue::Type::Object) continue;
+            JsonValue item = *raw_selection;
+            item.object_value["screen_brush"] = brush;
+            item.object_value.erase("screen_region");
+            mesh_editor_add_screen_brush_selection(session, &item, selection);
+        }
+    }
+    if (raw_regions != nullptr && raw_regions->type == JsonValue::Type::Array) {
+        for (const JsonValue& region : raw_regions->array_value) {
+            if (region.type != JsonValue::Type::Object) continue;
+            JsonValue item = *raw_selection;
+            item.object_value["screen_region"] = region;
+            item.object_value.erase("screen_brush");
+            mesh_editor_add_screen_region_selection(session, &item, selection);
+        }
+    }
     mesh_editor_prune_vertex_weights_to_selection(selection);
     return selection;
 }
@@ -355,6 +382,21 @@ std::size_t mesh_editor_history_entry_retained_bytes(const MeshEditorHistoryEntr
     for (const auto& item : entry.deltas) retained += sizeof(item) + mesh_editor_submesh_delta_retained_bytes(item.second);
     retained += entry.absent_before.size() * (sizeof(int) + 3 * sizeof(void*));
     retained += entry.append_source_indices.size() * (2 * sizeof(int) + 3 * sizeof(void*));
+    if (entry.selection_snapshot) {
+        retained += entry.selection_before.source_indices.size() * (sizeof(int) + 3 * sizeof(void*));
+        for (const auto& item : entry.selection_before.vertices) {
+            retained += sizeof(item) + item.second.size() * (sizeof(int) + 3 * sizeof(void*));
+        }
+        for (const auto& item : entry.selection_before.faces) {
+            retained += sizeof(item) + item.second.size() * (sizeof(int) + 3 * sizeof(void*));
+        }
+        for (const auto& item : entry.selection_before.edges) {
+            retained += sizeof(item) + item.second.size() * (sizeof(std::array<int, 2>) + 3 * sizeof(void*));
+        }
+        for (const auto& item : entry.selection_before.vertex_weights) {
+            retained += sizeof(item) + item.second.size() * (sizeof(int) + sizeof(double) + 3 * sizeof(void*));
+        }
+    }
     return retained;
 }
 

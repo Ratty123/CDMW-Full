@@ -4,7 +4,7 @@ import threading
 import time
 from collections.abc import Mapping
 
-from cdmw.domain.mesh import MeshEditCommand, MeshEditResult
+from cdmw.domain.mesh import MeshEditCommand, MeshEditResult, MeshEditSelection
 from cdmw.ui.mesh_editor.controller import MeshEditorNativeUpdate
 from cdmw.ui.mesh_editor.live_stroke_dispatcher import MeshLiveStrokeDispatcher
 
@@ -69,6 +69,31 @@ def _drag_command(start_x: int, end_x: int) -> MeshEditCommand:
     )
 
 
+def _selection_command(phase: str, sequence: int) -> MeshEditCommand:
+    params: dict[str, object] = {
+        "marker": "begin" if phase == "begin" else f"{phase}-{sequence}",
+        "selection_stroke_id": "two-minute-selection",
+        "selection_stroke_phase": phase,
+        "selection_stroke_sequence": sequence,
+        "operation": "add",
+        "record_history": phase == "end",
+    }
+    if phase == "update":
+        params["_native_screen_selection_payload"] = {
+            "target_mode": "vertex",
+            "screen_brush": {
+                "x": sequence,
+                "y": 20,
+                "radius_pixels": 12,
+            },
+        }
+    return MeshEditCommand(
+        action="select",
+        selection=MeshEditSelection(),
+        params=params,
+    )
+
+
 def test_live_stroke_dispatcher_coalesces_pending_updates_latest_wins() -> None:
     controller = _BlockingController()
     dispatcher = MeshLiveStrokeDispatcher()
@@ -96,6 +121,12 @@ def test_live_stroke_dispatcher_coalesces_pending_updates_latest_wins() -> None:
 def test_live_stroke_dispatcher_preserves_cumulative_drag_when_updates_coalesce() -> None:
     controller = _BlockingController()
     dispatcher = MeshLiveStrokeDispatcher()
+    coalesced_request_ids: list[int] = []
+    dispatcher.coalesced.connect(
+        lambda notice: coalesced_request_ids.extend(
+            int(payload["request_id"]) for payload in notice.request_payloads
+        )
+    )
     try:
         assert dispatcher.submit(controller, _command("begin"), "begin", source="dotnet") > 0
         assert controller.begin_started.wait(1.0)
@@ -110,19 +141,64 @@ def test_live_stroke_dispatcher_preserves_cumulative_drag_when_updates_coalesce(
             ) > 0
         assert dispatcher.submit(controller, _command("end"), "end", source="dotnet") > 0
         pending_update = next(item for item in dispatcher._controls if item.phase == "update")
-        assert tuple(payload["request_id"] for payload in pending_update.request_payloads) == (
-            1,
-            2,
-            3,
-            4,
-            5,
-        )
+        assert tuple(payload["request_id"] for payload in pending_update.request_payloads) == (5,)
+        assert coalesced_request_ids == [1, 2, 3, 4]
 
         controller.release_begin.set()
         assert dispatcher.wait_idle(2.0)
         assert controller.calls == ["begin", "update-5", "end"]
         assert controller.screen_drags == [(0.0, 5.0)]
         assert dispatcher.metrics()["coalesced_updates"] == 4
+    finally:
+        controller.release_begin.set()
+        assert dispatcher.stop()
+
+
+def test_two_minute_equivalent_selection_stream_keeps_one_pending_update_and_all_coverage() -> None:
+    controller = _BlockingController()
+    dispatcher = MeshLiveStrokeDispatcher()
+    update_count = 120 * 20
+    try:
+        assert dispatcher.submit(
+            controller,
+            _selection_command("begin", 0),
+            "begin",
+            source="dotnet_selection",
+        ) > 0
+        assert controller.begin_started.wait(1.0)
+
+        started = time.perf_counter()
+        for sequence in range(1, update_count + 1):
+            assert dispatcher.submit(
+                controller,
+                _selection_command("update", sequence),
+                "update",
+                source="dotnet_selection",
+            ) > 0
+            metrics = dispatcher.metrics()
+            assert metrics["active"] == 1
+            assert metrics["queue_depth"] == 1
+            assert metrics["control_depth"] == 0
+        assert time.perf_counter() - started < 2.0
+
+        assert dispatcher.submit(
+            controller,
+            _selection_command("end", update_count + 1),
+            "end",
+            source="dotnet_selection",
+        ) > 0
+        metrics = dispatcher.metrics()
+        assert metrics["queue_depth"] == 0
+        assert metrics["control_depth"] == 2
+        assert metrics["coalesced_updates"] == update_count - 1
+        queued_update = next(item for item in dispatcher._controls if item.phase == "update")
+        screen = queued_update.command.params["_native_screen_selection_payload"]
+        assert isinstance(screen, Mapping)
+        assert len(screen["screen_brushes"]) == update_count  # type: ignore[arg-type]
+
+        controller.release_begin.set()
+        assert dispatcher.wait_idle(5.0)
+        assert controller.calls == ["begin", f"update-{update_count}", f"end-{update_count + 1}"]
     finally:
         controller.release_begin.set()
         assert dispatcher.stop()

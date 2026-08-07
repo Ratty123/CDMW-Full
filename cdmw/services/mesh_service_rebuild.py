@@ -371,6 +371,14 @@ class MeshRebuildServiceMixin:
                 )
             if int(session.revision) != captured_revision:
                 raise RuntimeError("mesh export session changed during snapshot capture")
+            visible_submeshes = set(_service_call("_visible_geometry_layer_indices", session))
+            if session.geometry_layers and len(visible_submeshes) < len(mesh.submeshes):
+                mesh.submeshes = [
+                    submesh
+                    for submesh_index, submesh in enumerate(mesh.submeshes)
+                    if submesh_index in visible_submeshes
+                ]
+                _service_call("refresh_mesh_totals", mesh)
             _raise_if_cancelled(stop_event)
             texture_resources = self._capture_texture_resources(session, mesh)
             base_mesh = session.base_mesh if session.base_mesh_is_original_parse else None

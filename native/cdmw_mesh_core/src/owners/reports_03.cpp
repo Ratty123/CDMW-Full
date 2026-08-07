@@ -88,6 +88,34 @@ std::vector<SubmeshSelectionPreviewResult> mesh_editor_selection_preview_report_
     return results;
 }
 
+void mesh_editor_write_selection_state_fields(
+    std::ostream& out,
+    const MeshEditorSession& session,
+    const std::string& output_dir,
+    const std::string& session_id
+) {
+    const std::vector<SubmeshSelectionPruneResult> state =
+        mesh_editor_selection_report_items(session.selection, output_dir, session_id);
+    const std::vector<SubmeshSelectionPreviewResult> groups =
+        mesh_editor_selection_preview_report_items(session, output_dir, session_id);
+    out << "\"source_indices\":";
+    write_int_vector(
+        out,
+        std::vector<int>(session.selection.source_indices.begin(), session.selection.source_indices.end())
+    );
+    out << ",\"selection_state\":[";
+    for (std::size_t index = 0; index < state.size(); ++index) {
+        if (index) out << ',';
+        write_selection_prune_item(out, state[index]);
+    }
+    out << "],\"selection_groups\":[";
+    for (std::size_t index = 0; index < groups.size(); ++index) {
+        if (index) out << ',';
+        write_selection_preview_group(out, groups[index]);
+    }
+    out << ']';
+}
+
 std::string mesh_editor_select_report_json(
     const MeshEditorSession& session,
     const std::string& session_id,

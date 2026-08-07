@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import time
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -778,8 +779,12 @@ def test_real_dotnet_display_mode_flags_match_the_dotnet_mode_table() -> None:
     assert all(_DISPLAY_MODE_COUNTERS.values())
     for mode, flags in _DISPLAY_MODE_FLAGS.items():
         rendered = ", ".join("true" if value else "false" for value in flags)
-        assert f'"{mode}"' in source
-        assert f"({rendered})" in source, f"{mode} expects ({rendered})"
+        entry = re.search(
+            rf'^\s*[^\r\n]*"{re.escape(mode)}"[^\r\n]*=>\s*new\([^,]+,\s*{re.escape(rendered)}\),\s*$',
+            source,
+            re.MULTILINE,
+        )
+        assert entry is not None, f"{mode} expects named display state ({rendered})"
 
 
 def test_real_assignment_preserves_source_dds_format_and_mips(tmp_path: Path) -> None:

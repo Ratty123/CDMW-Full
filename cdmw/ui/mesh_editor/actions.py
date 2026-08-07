@@ -15,7 +15,7 @@ LEGACY_PART_SELECTION_ACTION_KEYS = frozenset(
     {"select_vertex", "select_edge", "select_face"}
 )
 _USER_HIDDEN_ACTION_KEYS = LEGACY_PART_SELECTION_ACTION_KEYS | frozenset(
-    {"loop_cut", "edge_split", "bridge", "extrude", "inset", "merge", "weld", "fill"}
+    {"loop_cut", "edge_split", "bridge", "extrude", "inset", "merge", "weld", "fill", "copy", "paste", "layer_delete"}
 )
 
 
@@ -53,6 +53,9 @@ _SHORTCUTS = {
     "split": "Y",
     "separate": "Shift+Y",
     "duplicate": "Shift+D",
+    "copy": "Ctrl+C",
+    "paste": "Ctrl+V",
+    "layer_delete": "Ctrl+Shift+Delete",
     "mirror": "Ctrl+M",
     "extrude": "E",
     "inset": "I",
@@ -97,16 +100,16 @@ _SHORTCUTS = {
 
 _TOOLTIPS = {
     "mode_object": "Object mode for whole-part editing.",
-    "mode_edit": "Edit mode for whole-part selection, transforms, UV, and topology tools.",
+    "mode_edit": "Edit mode for element selection, transforms, UV, and topology tools.",
     "mode_sculpt": "Sculpt mode for brush-based surface edits.",
-    "select_parts": "Select complete mesh parts in the viewport.",
-    "transform_move": "Move selected mesh parts.",
-    "transform_rotate": "Rotate selected mesh parts.",
-    "transform_scale": "Scale selected mesh parts.",
-    "brush_grab": "Grab vertices within the selected parts or the initially hit part.",
-    "brush_smooth": "Smooth vertices within the selected parts or the initially hit part.",
-    "brush_inflate": "Inflate vertices within the selected parts or the initially hit part.",
-    "brush_pinch": "Pinch vertices within the selected parts or the initially hit part.",
+    "select_parts": "Select mesh vertices, wires, or faces in the viewport. Whole parts are selected only in Parts & Routing.",
+    "transform_move": "Move selected mesh elements or explicit PARTS rows.",
+    "transform_rotate": "Rotate selected mesh elements or explicit PARTS rows.",
+    "transform_scale": "Scale selected mesh elements or explicit PARTS rows.",
+    "brush_grab": "Grab selected vertices or the initially hit mesh region.",
+    "brush_smooth": "Smooth selected vertices or the initially hit mesh region.",
+    "brush_inflate": "Inflate selected vertices or the initially hit mesh region.",
+    "brush_pinch": "Pinch selected vertices or the initially hit mesh region.",
     "uv_island_transform": "Transform the connected UV island from the current selection.",
     "uv_rotate_90": "Rotate selected UVs around the texture center.",
     "uv_normalize": "Normalize selected UVs into the 0-1 texture tile.",
@@ -123,6 +126,9 @@ _TOOLTIPS = {
     "sharpen_normals": "Set selected vertices to selected face normals for hard-edge inspection.",
     "soften_normals": "Re-average normals on selected parts.",
     "copy_normals": "Copy normals from the original/source mesh onto the current selection.",
+    "copy": "Copy complete selected faces into the Mesh Editor's internal clipboard.",
+    "paste": "Paste the Mesh Editor's immutable internal selection copy as one geometry layer.",
+    "layer_delete": "Delete one copied geometry layer as a single history action.",
     "remove_doubles": "Merge duplicate vertices within a tiny distance threshold.",
     "delete_loose_vertices": "Delete vertices not referenced by valid faces.",
     "compact_orphans": "Compact orphan vertices and invalid face references.",
@@ -155,7 +161,9 @@ MESH_EDITOR_ACTIONS = tuple(_with_palette_metadata(action) for action in (
     MeshEditorAction("mode_object", "Object", "set_mode", "mode", mode="object"),
     MeshEditorAction("mode_edit", "Edit", "set_mode", "mode", mode="edit"),
     MeshEditorAction("mode_sculpt", "Sculpt", "set_mode", "mode", mode="sculpt"),
-    MeshEditorAction("select_parts", "Select Parts", "select", "selection"),
+    # The historical key is retained for settings and dynamic callers; it now
+    # arms element Select. Whole-part selection belongs only to the part lists.
+    MeshEditorAction("select_parts", "Select", "select", "selection"),
     MeshEditorAction("transform_move", "Move", "transform", "transform", requires_selection=True),
     MeshEditorAction("transform_rotate", "Rotate", "transform", "transform", params=(("rotate", (0.0, 0.0, 15.0)),), requires_selection=True),
     MeshEditorAction("transform_scale", "Scale", "transform", "transform", params=(("scale", (1.1, 1.1, 1.1)),), requires_selection=True),
@@ -165,11 +173,35 @@ MESH_EDITOR_ACTIONS = tuple(_with_palette_metadata(action) for action in (
     MeshEditorAction("brush_pinch", "Pinch", "brush", "sculpt", mode="sculpt", params=(("tool", "pinch"),)),
     MeshEditorAction("delete", "Delete", "delete", "topology", mode="edit", requires_selection=True),
     MeshEditorAction("dissolve", "Dissolve", "dissolve", "topology", mode="edit", requires_selection=True),
-    MeshEditorAction("subdivide", "Subdivide", "subdivide", "topology", mode="edit", requires_selection=True),
-    MeshEditorAction("refine_smooth", "Refine Smooth", "refine_smooth", "topology", mode="edit", params=(("smooth_iterations", 2), ("smooth_strength", 0.5)), requires_selection=True),
+    MeshEditorAction(
+        "subdivide",
+        "Subdivide",
+        "subdivide",
+        "topology",
+        mode="edit",
+        params=(("max_faces_per_submesh", 200_000), ("recompute_normals", True)),
+        requires_selection=True,
+    ),
+    MeshEditorAction(
+        "refine_smooth",
+        "Refine Smooth",
+        "refine_smooth",
+        "topology",
+        mode="edit",
+        params=(
+            ("max_faces_per_submesh", 200_000),
+            ("recompute_normals", True),
+            ("smooth_iterations", 2),
+            ("smooth_strength", 0.5),
+        ),
+        requires_selection=True,
+    ),
     MeshEditorAction("split", "Split", "split", "topology", mode="edit", requires_selection=True),
     MeshEditorAction("separate", "Separate", "separate", "topology", mode="edit", requires_selection=True),
     MeshEditorAction("duplicate", "Duplicate", "duplicate", "topology", mode="edit", requires_selection=True),
+    MeshEditorAction("copy", "Copy", "copy", "topology", mode="edit", requires_selection=True),
+    MeshEditorAction("paste", "Paste", "paste", "topology", mode="edit"),
+    MeshEditorAction("layer_delete", "Delete Layer", "layer_delete", "topology", mode="edit"),
     MeshEditorAction("mirror", "Mirror", "mirror", "topology", mode="edit", requires_selection=True),
     MeshEditorAction("extrude", "Extrude", "extrude", "topology", mode="edit", requires_selection=True),
     MeshEditorAction("inset", "Inset", "inset", "topology", mode="edit", requires_selection=True),

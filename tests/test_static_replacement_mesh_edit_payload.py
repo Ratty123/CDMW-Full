@@ -151,10 +151,10 @@ def test_mesh_edit_action_control_text_preserves_copy() -> None:
     assert text["full_reset_mesh"] == "Full Reset Mesh"
     assert "mouse-up" in text["delete_mode_tooltip"]
     assert "Smooth/Relax passes" in text["iterations_tooltip"]
-    assert text["selection_mode_tooltip"] == "Selection shape for the Select Parts tool."
+    assert text["selection_mode_tooltip"] == "Selection shape for the Select tool."
     assert "X-Ray" in text["selection_depth_tooltip"]
-    assert "editable Mesh Editing scope" in text["select_part_tooltip"]
-    assert "editable Mesh Editing scope" in text["invert_selection_tooltip"]
+    assert "active target" in text["select_part_tooltip"]
+    assert "vertex, wire, or face target" in text["invert_selection_tooltip"]
     assert "triangle density" in text["subdivide_selection_tooltip"]
     assert "smooth the new detail" in text["refine_smooth_selection_tooltip"]
     assert "new replacement source part" in text["split_selection_tooltip"]
@@ -177,7 +177,7 @@ def test_mesh_edit_prompt_and_status_text_preserves_copy() -> None:
 
     subdivide_text = mesh_edit_subdivide_text()
     assert subdivide_text["morph_blocker"] == "Bake or reset Morph Sliders before subdividing mesh detail."
-    assert subdivide_text["select_vertices"] == "Select vertices or faces before subdividing mesh detail."
+    assert subdivide_text["select_vertices"] == "Select vertices, wires, or faces before subdividing mesh detail."
     assert subdivide_text["no_selected_vertices"] == "No faces touched the selected Mesh Editing elements."
     assert mesh_edit_subdivided_selection_status(9) == "Subdivided 9 new face(s) for Mesh Editing detail."
     assert mesh_edit_refined_selection_status(9) == "Refined and smoothed 9 new face(s) for Mesh Editing detail."

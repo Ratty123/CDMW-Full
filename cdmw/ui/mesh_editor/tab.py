@@ -91,7 +91,12 @@ _LAZY_EXPORT_GROUPS = (
     ("cdmw.ui.mesh_editor.native_preview_payloads", ("mesh_pose_to_native_preview",)),
     (
         "cdmw.ui.mesh_editor.live_stroke_dispatcher",
-        ("MeshLiveStrokeDispatcher", "MeshLiveStrokeFailure", "MeshLiveStrokeOutcome"),
+        (
+            "MeshLiveStrokeCoalesced",
+            "MeshLiveStrokeDispatcher",
+            "MeshLiveStrokeFailure",
+            "MeshLiveStrokeOutcome",
+        ),
     ),
     ("cdmw.ui.mesh_editor.dotnet_update_queue", ("DotNetRevisionUpdateQueue",)),
     (

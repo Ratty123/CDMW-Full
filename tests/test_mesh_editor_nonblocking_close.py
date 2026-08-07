@@ -7,8 +7,9 @@ import time
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QDialog
 
+from cdmw.ui.archive_browser.static_replacement_dialog_prompt_shell import _MeshEditorSaveAwareDialog
 from cdmw.ui.mesh_editor.tab import MeshEditorTab
 
 
@@ -54,6 +55,35 @@ def test_close_standalone_session_detaches_slow_controller_without_waiting() -> 
     assert not controller.close_called
     tab.standalone_live_stroke_dispatcher = None
     tab.deleteLater()
+    app.processEvents()
+
+
+def test_geometry_layer_close_defers_dialog_disposal_until_background_save_finishes() -> None:
+    app = QApplication.instance() or QApplication([])
+    dialog = _MeshEditorSaveAwareDialog()
+    saved: list[bool] = []
+
+    def save(_force_without_saving: bool) -> None:
+        time.sleep(0.2)
+
+    dialog.configureMeshEditorClose(save, lambda: saved.append(True))
+    dialog.show()
+    app.processEvents()
+
+    started = time.perf_counter()
+    dialog.done(QDialog.Rejected)
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 0.05
+    assert dialog.isVisible()
+    deadline = time.perf_counter() + 2.0
+    while time.perf_counter() < deadline and not saved:
+        app.processEvents()
+        time.sleep(0.005)
+    app.processEvents()
+    assert saved == [True]
+    assert not dialog.isVisible()
+    dialog.deleteLater()
     app.processEvents()
 
 

@@ -885,7 +885,7 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     assert "RequestFinishEditMesh();" in program_source
     assert 'WriteProtocolEvent("save_request")' in morph_source
     assert 'AddSection(stack, "Clipboard"' not in program_source
-    assert 'ConfigureCombo(_selectionTarget, new object[] { "Vertex" }, selectedIndex: 0);' in program_source
+    assert 'ConfigureCombo(_selectionTarget, new object[] { "Vertices", "Wires", "Faces" }, selectedIndex: 0);' in program_source
     assert '_selectionTarget.SelectedItem = "Part";' not in program_source
     assert "RefreshSubmeshList();" in protocol_source
     assert material_source.count("RefreshSubmeshList();") >= 2
@@ -950,7 +950,7 @@ def test_dotnet_editor_starts_and_can_return_to_no_part_selection() -> None:
     committed_selection = selection_picking_source.split("private void FinishEdgeDrag(Point point)", 1)[1].split(
         "private Rectangle EdgeDragRectangle", 1
     )[0]
-    assert 'EditorEventRequested?.Invoke("select_request", payload);' in committed_selection
+    assert 'EmitSelectionRequest(payload, "end");' in committed_selection
     assert "ApplyPartSelectionOperation" not in committed_selection
     assert "ApplySelectionMapOperation" not in committed_selection
     assert "ApplyEdgeSelectionOperation" not in committed_selection
@@ -958,7 +958,7 @@ def test_dotnet_editor_starts_and_can_return_to_no_part_selection() -> None:
     assert "new HashSet<int> { SelectedSubmeshIndex }" not in selection_commands_source
     assert "SyncSelectedPartFocus();" in topology_source
     assert "DrawSelectedSourcesOverlay();" in overlay_source
-    assert "OverlayColor(70, 155, 255, _overlayShowXRay ? 64 : 42)" in overlay_source
+    assert "OverlayColor(_overlaySettings.Colors.Selection, _overlayShowXRay ? 64 : 42)" in overlay_source
 
 
 def test_dotnet_embedded_ready_requires_a_verified_native_parent() -> None:
@@ -1135,11 +1135,17 @@ def test_host_tool_state_cannot_rewrite_the_selection_target_combo() -> None:
 
     The host republishes tool_state on every control refresh, and "vertex" is
     the one target_mode value that matches a combo item -- so writing it into
-    the combo reset a reader's Face/Edge/Part choice back to Vertex after
-    every selection. The combo belongs to the editor.
+    the combo reset a reader's Faces/Wires choice back to Vertices after
+    every selection. The combo belongs to the editor after its fresh-session
+    default is applied.
     """
     host_state_source = _source("ExperimentForm.HostState.cs")
-    assert "_selectionTarget" not in host_state_source
+    apply_host_state = host_state_source.split("private void ApplyHostToolState", maxsplit=1)[1]
+    assert "_selectionTarget" not in apply_host_state
+    reset_defaults = host_state_source.split(
+        "private void ResetSelectionGestureDefaultsForSession", maxsplit=1
+    )[1].split("private void ApplyHostToolState", maxsplit=1)[0]
+    assert "_selectionTarget.SelectedIndex = 0;" in reset_defaults
 
 
 def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
@@ -1209,7 +1215,7 @@ def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
     assert 'region["mode"] = "brush";' in toggle_finish
     assert 'region["points"] = path' in toggle_finish
     assert 'region["radius_pixels"] = SelectionPaintRadiusPixels();' in toggle_finish
-    assert 'EditorEventRequested?.Invoke("select_request"' in toggle_finish
+    assert '}, "end");' in toggle_finish
     assert '["operation"] = "toggle"' in toggle_finish
     assert '["local_selection"]' not in toggle_finish
     assert "ProvisionalSelectionVertexBudget" not in picking_source
@@ -1226,7 +1232,9 @@ def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
     )
     assert "(brushTool || selectPaint) && _pointerInside" in renderer_source
     assert "(IReadOnlyList<Point>)_selectionLassoPoints" in renderer_source
-    assert "_selectionPaintActive ? _provisionalSelectedVertices : null" in renderer_source
+    assert "_provisionalSelectedVertices," in renderer_source
+    assert "_provisionalSelectedFaces," in renderer_source
+    assert "_provisionalSelectedEdges);" in renderer_source
     assert "_presentedSources.UnionWith(ProvisionalStrokeSourceIndices);" not in renderer_source
     overlay_source = _source("D3D11MaterialViewport.Overlay.cs")
     assert "private void DrawSelectionLassoOverlay()" in overlay_source

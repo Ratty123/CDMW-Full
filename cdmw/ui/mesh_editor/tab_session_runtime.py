@@ -180,6 +180,8 @@ class MeshEditorSessionMixin:
         self.standalone_animation_last_tick = 0.0
         controller = self.standalone_controller
         self.standalone_controller = None
+        self.standalone_native_selection_stroke_id = ""
+        self.standalone_pending_dotnet_topology_request = None
         self.standalone_native_editor_available = None
         dispatcher = self.standalone_live_stroke_dispatcher
         if dispatcher is not None:
@@ -275,7 +277,7 @@ class MeshEditorSessionMixin:
                 retain_package(self.standalone_native_package_dir)
             batch_count = int(payload.get("batch_count", 0) or 0)
             vertex_count = int(payload.get("vertex_count", 0) or 0)
-            self._request_standalone_native_part_picking(True, retries=2)
+            self._request_standalone_native_part_picking(False)
             self.standalone_status_label.setText(
                 f".NET/Vortice preview loaded: {batch_count:,} batches, {vertex_count:,} vertices."
             )

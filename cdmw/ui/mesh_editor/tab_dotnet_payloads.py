@@ -26,6 +26,15 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             return False
         actions = sorted(mesh_editor_actions_by_key().keys())
         selection = view.selection
+        try:
+            geometry_layers = controller.geometry_layer_state()
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+            geometry_layers = {
+                "revision": 0,
+                "active_layer_id": "base",
+                "clipboard_ready": False,
+                "layers": (),
+            }
         payload = {
             "event": "session_state",
             "session_id": view.session_id,
@@ -50,6 +59,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             ],
             "actions": actions,
             "selection_depth_mode": "visible",
+            "geometry_layers": geometry_layers,
         }
         return self._send_dotnet_protocol_message(payload)
 

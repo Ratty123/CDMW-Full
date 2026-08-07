@@ -29,6 +29,44 @@ def _host_widget_hwnd(host_widget: object | None) -> int:
 
 
 class MeshEditorDotNetCommandMixin:
+    def _queue_dotnet_topology_after_selection(
+        self,
+        command_name: str,
+        request_payload: Mapping[str, object],
+    ) -> bool:
+        if command_name not in {"subdivide", "subdivide_selection", "refine", "refine_smooth"}:
+            return False
+        if not str(self.standalone_native_selection_stroke_id or "").strip():
+            return False
+        if self.standalone_pending_dotnet_topology_request is not None:
+            self._send_dotnet_command_result(
+                command_name,
+                ok=False,
+                status="busy",
+                diagnostics=("A topology command is already waiting for the selection gesture.",),
+                request_payload=request_payload,
+            )
+            return True
+        self.standalone_pending_dotnet_topology_request = dict(request_payload)
+        self._set_dotnet_status("Finishing the selection gesture before applying topology...")
+        return True
+
+    def _retry_pending_dotnet_topology_command(self) -> None:
+        payload = self.standalone_pending_dotnet_topology_request
+        if payload is None or str(self.standalone_native_selection_stroke_id or "").strip():
+            return
+        dispatcher = self.standalone_live_stroke_dispatcher
+        if dispatcher is not None:
+            try:
+                metrics = dispatcher.metrics()
+            except (AttributeError, RuntimeError):
+                metrics = {"active": 1}
+            if any(int(metrics.get(key, 0) or 0) > 0 for key in ("active", "control_depth", "queue_depth")):
+                _tab.QTimer.singleShot(10, self._retry_pending_dotnet_topology_command)
+                return
+        self.standalone_pending_dotnet_topology_request = None
+        self._handle_dotnet_command_request(payload)
+
     def _reject_dotnet_mutation_while_busy(
         self,
         command_name: str,
@@ -96,18 +134,44 @@ class MeshEditorDotNetCommandMixin:
         if controller is None:
             self._reject_dotnet_request_without_session("select", payload)
             return False
-        if bool(payload.get("paint_sample")) and not bool(payload.get("paint_final")):
-            # An intermediate dab of a brush-select drag: applied inline, off
-            # the worker path. The worker's busy rejection would answer a
-            # command_result per dab and drop samples mid-flight, which reads
-            # as holes in the painted sweep; the native select is milliseconds
-            # and the drag's final dab still takes the worker path below, so
-            # one drag records one selection-history unit.
-            return self._apply_dotnet_paint_select_sample(controller, payload)
-        if self._reject_dotnet_mutation_while_busy("select", payload):
-            return True
+        phase = str(payload.get("phase", "") or "").strip().lower()
+        stroke_id = str(payload.get("stroke_id", "") or "").strip()
+        try:
+            stroke_sequence = int(payload.get("sequence", -1))
+        except (TypeError, ValueError, OverflowError):
+            stroke_sequence = -1
+        if phase not in {"begin", "update", "end", "cancel"} or not stroke_id or stroke_sequence < 0:
+            self._send_dotnet_command_result(
+                "select",
+                ok=False,
+                status="error",
+                diagnostics=("Selection request requires stroke_id, sequence, and begin/update/end/cancel phase.",),
+                request_payload=payload,
+            )
+            return False
+        active_stroke_id = str(self.standalone_native_selection_stroke_id or "").strip()
+        if phase == "begin":
+            if active_stroke_id and active_stroke_id != stroke_id:
+                self._send_dotnet_command_result(
+                    "select",
+                    ok=False,
+                    status="busy",
+                    diagnostics=("Finish the active selection gesture first.",),
+                    request_payload=payload,
+                )
+                return True
+            self.standalone_native_selection_stroke_id = stroke_id
+        elif active_stroke_id != stroke_id:
+            self._send_dotnet_command_result(
+                "select",
+                ok=False,
+                status="stale",
+                diagnostics=("Selection gesture is stale or belongs to another session.",),
+                request_payload=payload,
+            )
+            return False
         screen_payload = self._dotnet_screen_selection_payload(payload)
-        if not any(key in screen_payload for key in ("screen_brush", "screen_region")):
+        if phase == "update" and not any(key in screen_payload for key in ("screen_brush", "screen_region")):
             self._send_dotnet_command_result("select", ok=False, status="error", diagnostics=("Missing screen selection payload.",), request_payload=payload)
             return False
         operation = str(payload.get("operation", payload.get("selection_operation", "replace")) or "replace").strip().lower()
@@ -118,6 +182,10 @@ class MeshEditorDotNetCommandMixin:
                 params={
                     "operation": operation,
                     "_native_screen_selection_payload": screen_payload,
+                    "selection_stroke_id": stroke_id,
+                    "selection_stroke_phase": phase,
+                    "selection_stroke_sequence": stroke_sequence,
+                    "record_history": phase == "end",
                 },
                 label="Select Mesh",
             )
@@ -125,47 +193,25 @@ class MeshEditorDotNetCommandMixin:
             self._set_dotnet_status(f"Mesh .NET editor selection failed: {exc}", error=True)
             self._send_dotnet_command_result("select", ok=False, status="error", diagnostics=(str(exc),), request_payload=payload)
             return False
-        return self._start_dotnet_action_worker(
+        sequence = self._ensure_standalone_live_stroke_dispatcher().submit(
             controller,
             command,
-            command_name="select",
+            phase,
+            source="dotnet_selection",
             request_payload=payload,
         )
-    def _apply_dotnet_paint_select_sample(self, controller: object, payload: Mapping[str, object]) -> bool:
-        screen_payload = self._dotnet_screen_selection_payload(payload)
-        # A dab is a screen_brush disc; a fast sweep arrives as a screen_region
-        # quad covering the segment the cursor crossed between samples, so the
-        # painted band has no holes at any cursor speed.
-        if not any(key in screen_payload for key in ("screen_brush", "screen_region")):
-            return False
-        if self._native_editor_action_blocked("select", embedded=self.standalone_dotnet_target_embedded):
-            return False
-        if self._standalone_action_worker_active():
-            # A heavy action owns the session; one dropped dab is better than
-            # queueing selects behind a subdivide.
+        if sequence > 0:
             return True
-        operation = str(payload.get("operation", "add") or "add").strip().lower()
-        try:
-            result = controller.apply(
-                "select",
-                selection=_tab.MeshEditSelection(),
-                operation=operation,
-                _native_screen_selection_payload=screen_payload,
-            )
-            update = controller.native_update_for_result(result)
-        except Exception as exc:
-            self._set_dotnet_status(f"Mesh .NET editor selection failed: {exc}", error=True)
-            return False
-        if not result.ok:
-            return False
-        if self.standalone_dotnet_target_embedded:
-            self._apply_embedded_native_update(update)
-        else:
-            self._send_dotnet_native_update(
-                update,
-                request_payload=payload,
-            )
-        return True
+        if phase in {"begin", "end", "cancel"}:
+            self.standalone_native_selection_stroke_id = ""
+        self._send_dotnet_command_result(
+            "select",
+            ok=False,
+            status="cancelled",
+            diagnostics=("Mesh Editor selection dispatcher is stopping.",),
+            request_payload=payload,
+        )
+        return False
     def _handle_dotnet_local_selection_request(self, payload: Mapping[str, object]) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None or not isinstance(payload.get("local_selection"), Mapping):
@@ -236,8 +282,29 @@ class MeshEditorDotNetCommandMixin:
             request_payload=payload,
         )
         return False
+    def _handle_dotnet_live_stroke_coalesced(self, notice: object) -> None:
+        if not isinstance(notice, _tab.MeshLiveStrokeCoalesced):
+            return
+        controller = self._dotnet_target_controller()
+        if controller is None or notice.controller is not controller:
+            return
+        command_name = (
+            "morph_change"
+            if notice.source == "dotnet_morph"
+            else "select"
+            if notice.source == "dotnet_selection"
+            else str(notice.command_name or "stroke")
+        )
+        for request_payload in notice.request_payloads:
+            self._send_dotnet_command_result(
+                command_name,
+                ok=True,
+                status="coalesced",
+                diagnostics=("Merged into the next cumulative stroke update.",),
+                request_payload=request_payload,
+            )
     def _handle_dotnet_live_stroke_completed(self, outcome: object) -> None:
-        if not isinstance(outcome, _tab.MeshLiveStrokeOutcome) or outcome.source not in {"dotnet", "dotnet_morph"}:
+        if not isinstance(outcome, _tab.MeshLiveStrokeOutcome) or outcome.source not in {"dotnet", "dotnet_morph", "dotnet_selection"}:
             return
         controller = self._dotnet_target_controller()
         if controller is None or outcome.controller is not controller:
@@ -288,19 +355,24 @@ class MeshEditorDotNetCommandMixin:
         if outcome.phase in {"end", "cancel"}:
             if outcome.source == "dotnet_morph":
                 self.standalone_dotnet_morph_change_id = ""
+            elif outcome.source == "dotnet_selection":
+                self.standalone_native_selection_stroke_id = ""
             else:
                 self.standalone_native_mesh_edit_stroke_id = ""
             self._send_dotnet_session_state()
             self._retry_pending_dotnet_finish()
+            self._retry_pending_dotnet_topology_command()
     def _handle_dotnet_live_stroke_failed(self, failure: object) -> None:
-        if not isinstance(failure, _tab.MeshLiveStrokeFailure) or failure.source not in {"dotnet", "dotnet_morph"}:
+        if not isinstance(failure, _tab.MeshLiveStrokeFailure) or failure.source not in {"dotnet", "dotnet_morph", "dotnet_selection"}:
             return
         controller = self._dotnet_target_controller()
         if controller is None or failure.controller is not controller:
             return
-        if failure.phase in {"begin", "end", "cancel"}:
+        if failure.phase in {"begin", "end", "cancel"} or failure.source == "dotnet_selection":
             if failure.source == "dotnet_morph":
                 self.standalone_dotnet_morph_change_id = ""
+            elif failure.source == "dotnet_selection":
+                self.standalone_native_selection_stroke_id = ""
             else:
                 self.standalone_native_mesh_edit_stroke_id = ""
         if failure.cancelled:
@@ -310,7 +382,7 @@ class MeshEditorDotNetCommandMixin:
         request_payloads = tuple(failure.request_payloads) or (None,)
         for request_payload in request_payloads:
             self._send_dotnet_command_result(
-                "morph_change" if failure.source == "dotnet_morph" else "stroke",
+                "morph_change" if failure.source == "dotnet_morph" else "select" if failure.source == "dotnet_selection" else "stroke",
                 ok=False,
                 status="error",
                 diagnostics=(failure.message,),
@@ -321,6 +393,7 @@ class MeshEditorDotNetCommandMixin:
                 request_payload=request_payloads[-1],
                 failure=failure.message,
             )
+        self._retry_pending_dotnet_topology_command()
 
     def _handle_dotnet_morph_command_request(
         self,
@@ -512,17 +585,58 @@ class MeshEditorDotNetCommandMixin:
             return False
         if command.startswith("morph_"):
             return self._handle_dotnet_morph_command_request(controller, command, payload)
+        if self._queue_dotnet_topology_after_selection(command, payload):
+            return True
         if self._reject_dotnet_mutation_while_busy(command, payload):
             return True
-        if command in {"copy", "paste"}:
-            self._send_dotnet_command_result(
-                command,
-                ok=False,
-                status="disabled",
-                diagnostics=("Mesh clipboard is disabled until metadata-preserving paste is proved; use Duplicate for same-selection copies.",),
+        if command == "layer_delete":
+            layer_id = str(payload.get("layer_id", "") or "").strip()
+            return self._start_dotnet_action_worker(
+                controller,
+                _tab.MeshEditCommand(
+                    "layer_delete",
+                    params={"layer_id": layer_id},
+                    mode="edit",
+                    label="Delete Layer",
+                ),
+                command_name=command,
                 request_payload=payload,
             )
-            return False
+        if command in {"layer_activate", "layer_rename", "layer_visibility", "layer_move"}:
+            layer_id = str(payload.get("layer_id", "") or "").strip()
+            try:
+                if command == "layer_activate":
+                    controller.activate_geometry_layer(layer_id)
+                elif command == "layer_rename":
+                    controller.rename_geometry_layer(layer_id, str(payload.get("name", "") or ""))
+                elif command == "layer_visibility":
+                    controller.set_geometry_layer_visibility(layer_id, bool(payload.get("visible", False)))
+                else:
+                    controller.move_geometry_layer(
+                        layer_id,
+                        self._standalone_native_payload_int(payload.get("direction"), 0),
+                    )
+                revision = controller.session_view().revision
+            except Exception as exc:
+                self._set_dotnet_status(f"Mesh .NET editor layer command failed: {exc}", error=True)
+                self._send_dotnet_command_result(
+                    command,
+                    ok=False,
+                    status="error",
+                    diagnostics=(str(exc),),
+                    request_payload=payload,
+                )
+                self._send_dotnet_session_state()
+                return False
+            self._send_dotnet_command_result(
+                command,
+                ok=True,
+                status="applied",
+                revision=revision,
+                request_payload=payload,
+            )
+            self._send_dotnet_session_state()
+            return True
         local_selection = self._dotnet_local_selection_payload_to_selection(payload)
         selection_supplied = isinstance(payload.get("local_selection"), Mapping) or isinstance(
             payload.get("selection"), Mapping
@@ -538,7 +652,27 @@ class MeshEditorDotNetCommandMixin:
         if embedded_result is not None:
             return embedded_result
         try:
-            if command == "clear_selection":
+            if command == "copy":
+                return self._start_dotnet_action_worker(
+                    controller,
+                    _tab.MeshEditCommand(
+                        "copy",
+                        selection=local_selection if selection_supplied else None,
+                        params={"target_mode": target_mode},
+                        mode="edit",
+                        label="Copy Selection",
+                    ),
+                    command_name=command,
+                    request_payload=payload,
+                )
+            elif command == "paste":
+                return self._start_dotnet_action_worker(
+                    controller,
+                    _tab.MeshEditCommand("paste", mode="edit", label="Paste Selection"),
+                    command_name=command,
+                    request_payload=payload,
+                )
+            elif command == "clear_selection":
                 return self._start_dotnet_action_worker(
                     controller,
                     _tab.MeshEditCommand(
@@ -589,7 +723,8 @@ class MeshEditorDotNetCommandMixin:
                     "pinch": "brush_pinch",
                 }
                 action_key = aliases.get(command, command)
-                params: dict[str, object] = {}
+                action = mesh_editor_actions_by_key().get(action_key)
+                params: dict[str, object] = dict(action.params) if action is not None else {}
                 if (
                     action_key in {"transform_move", "delete", "duplicate", "subdivide", "refine_smooth"}
                     and selection_supplied
@@ -614,7 +749,6 @@ class MeshEditorDotNetCommandMixin:
                         params["delta"] = (step if axis == "x" else 0.0, step if axis == "y" else 0.0, step if axis == "z" else 0.0)
                     if "axis" in payload:
                         params["axis"] = str(payload.get("axis") or "").strip().lower()
-                action = mesh_editor_actions_by_key().get(action_key)
                 if (
                     action is not None
                     and self._standalone_action_can_run_in_background(action)

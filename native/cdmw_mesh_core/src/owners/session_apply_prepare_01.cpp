@@ -16,6 +16,7 @@ struct MeshEditorApplyState {
     bool record_history = true;
     JsonValue edit_root;
     MeshEditorHistoryEntry history;
+    MeshEditorSelection selection_before;
     std::map<int, MeshSessionSubmesh> pre_edit_submeshes;
     std::map<int, MeshEditorPreEditChannels> pre_edit_channels;
     std::set<int> candidate_indices;
@@ -336,6 +337,7 @@ void mesh_editor_initialize_apply_operation(
     state.history.operation = state.operation;
     state.history.stroke_id = state.stroke_id;
     state.history.stroke_update_count = state.stroke_phase.empty() ? 0 : 1;
+    state.selection_before = session.selection;
     mesh_editor_capture_morph_before_apply(session, state);
     mesh_editor_capture_apply_history(session, edit, native_session, state);
 }

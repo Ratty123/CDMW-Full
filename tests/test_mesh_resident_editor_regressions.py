@@ -883,7 +883,16 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
-        captured: list[MeshEditCommand] = []
+        captured: list[tuple[MeshEditCommand, str]] = []
+
+        def submit(
+            _controller: object,
+            command: MeshEditCommand,
+            phase: str,
+            **_kwargs: object,
+        ) -> int:
+            captured.append((command, phase))
+            return len(captured)
 
         with (
             patch.object(
@@ -893,14 +902,29 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
             ),
             patch.object(
                 tab,
-                "_start_dotnet_action_worker",
-                side_effect=lambda _controller, command, **_kwargs: captured.append(command) or True,
+                "_ensure_standalone_live_stroke_dispatcher",
+                return_value=SimpleNamespace(submit=submit),
             ),
         ):
             self.assertTrue(
                 tab._handle_dotnet_select_request(
                     {
                         "event": "select_request",
+                        "phase": "begin",
+                        "stroke_id": "background-selection-1",
+                        "sequence": 0,
+                        "operation": "add",
+                        "target_mode": "face",
+                    }
+                )
+            )
+            self.assertTrue(
+                tab._handle_dotnet_select_request(
+                    {
+                        "event": "select_request",
+                        "phase": "update",
+                        "stroke_id": "background-selection-1",
+                        "sequence": 1,
                         "operation": "add",
                         "target_mode": "face",
                         "selection_depth_mode": "visible",
@@ -916,10 +940,11 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
                 )
             )
 
-        self.assertEqual(1, len(captured))
-        self.assertEqual("select", captured[0].action)
-        self.assertEqual("add", captured[0].params["operation"])
-        self.assertIn("_native_screen_selection_payload", captured[0].params)
+        self.assertEqual(["begin", "update"], [phase for _command, phase in captured])
+        self.assertEqual("select", captured[1][0].action)
+        self.assertEqual("add", captured[1][0].params["operation"])
+        self.assertEqual("background-selection-1", captured[1][0].params["selection_stroke_id"])
+        self.assertIn("_native_screen_selection_payload", captured[1][0].params)
         _APP.processEvents()
         tab.deleteLater()
 

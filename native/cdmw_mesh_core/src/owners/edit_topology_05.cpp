@@ -390,15 +390,20 @@ SubmeshMeshEditResult run_subdivide_edit_for_submesh(const JsonValue& item, cons
     }
     const std::vector<int> source_faces = mesh_source_face_indices_from_item(item, original_faces.size());
     std::set<int> split_faces = selected_faces_from_topology_json(item, original_faces, result.vertices.size());
-    const int face_limit = std::max(1, int_or(edit.get("max_faces_per_submesh"), 256));
-    while (static_cast<int>(split_faces.size()) > face_limit) {
-        auto last = split_faces.end();
-        --last;
-        split_faces.erase(last);
-    }
+    const int face_limit = std::max(1, int_or(edit.get("max_faces_per_submesh"), 200000));
     if (split_faces.empty()) {
         result.vertices.clear();
         return result;
+    }
+    const long long predicted_face_count = static_cast<long long>(original_faces.size())
+        + 3LL * static_cast<long long>(split_faces.size());
+    if (predicted_face_count > static_cast<long long>(face_limit)) {
+        throw std::runtime_error(
+            "subdivide would exceed the per-submesh face limit: submesh="
+            + std::to_string(result.index)
+            + ", predicted_faces=" + std::to_string(predicted_face_count)
+            + ", limit=" + std::to_string(face_limit)
+        );
     }
 
     const int old_vertex_count = static_cast<int>(result.vertices.size());
@@ -433,6 +438,7 @@ SubmeshMeshEditResult run_subdivide_edit_for_submesh(const JsonValue& item, cons
         if (split_faces.find(static_cast<int>(face_index)) == split_faces.end()) {
             result.faces.push_back(face);
             result.source_face_indices.push_back(source_face_index);
+            result.topology_source_face_indices.push_back(static_cast<int>(face_index));
             continue;
         }
         const int a = face[0];
@@ -455,6 +461,10 @@ SubmeshMeshEditResult run_subdivide_edit_for_submesh(const JsonValue& item, cons
         result.source_face_indices.push_back(source_face_index);
         result.source_face_indices.push_back(source_face_index);
         result.source_face_indices.push_back(source_face_index);
+        result.topology_source_face_indices.push_back(static_cast<int>(face_index));
+        result.topology_source_face_indices.push_back(static_cast<int>(face_index));
+        result.topology_source_face_indices.push_back(static_cast<int>(face_index));
+        result.topology_source_face_indices.push_back(static_cast<int>(face_index));
         result.added_faces += 3;
     }
 
