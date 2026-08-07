@@ -853,6 +853,9 @@ class MeshMorphServiceMixin:
             session.native_editor_mesh_dirty_counts = counts
             _apply_native_editor_dirty_counts(session)
             session.revision += 1
+            autosave = getattr(self, "_schedule_mesh_layer_autosave", None)
+            if callable(autosave):
+                autosave(session)
         metrics = _native_editor_metrics(report)
         result = self._result(
             session,
@@ -861,6 +864,7 @@ class MeshMorphServiceMixin:
             changed=changed,
             native_preview_vertex_update_groups=preview_vertices,
             native_preview_triangle_groups=preview_triangles,
+            submesh_counts=counts,
             diagnostics=tuple(str(item) for item in tuple(report.get("diagnostics") or ()) if str(item).strip()),
             metrics=metrics,
         )

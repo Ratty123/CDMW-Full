@@ -65,7 +65,7 @@ internal sealed partial class ExperimentForm
             Name = "DotNetMeshEditorLayoutHost",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 4,
             Margin = new Padding(0),
             Padding = new Padding(0),
             BackColor = ThemeWindowBackground,
@@ -359,7 +359,7 @@ internal sealed partial class ExperimentForm
             BackColor = ThemePanelBackground,
         };
         _sceneInspectorColumn.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        for (var row = 0; row < 3; row++)
+        for (var row = 0; row < 4; row++)
         {
             _sceneInspectorColumn.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         }
@@ -493,8 +493,9 @@ internal sealed partial class ExperimentForm
 
             // Right: the scene groups every tool reads and changes, all visible.
             AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);
-            AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 1);
-            AddRailSection(_sceneInspectorColumn, _viewportSection, row: 2);
+            AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);
+            AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);
+            AddRailSection(_sceneInspectorColumn, _viewportSection, row: 3);
 
             _compactSessionBar.Visible = true;
             _editMeshLayoutHost.RowStyles[0].Height = ScaleToolPanelWidth(46);
@@ -778,7 +779,7 @@ internal sealed partial class ExperimentForm
         // made a tool click feel like it lagged. Every other layout switch here
         // already holds a batch; this was the one that did not, and it is the
         // one on the click path.
-        using var redraw = BeginRedrawBatch();
+        using var redraw = BeginRedrawBatch(_toolDock);
         foreach (var pair in _toolRailPages)
         {
             RevealToolRailPage(pair.Value, pair.Key == page);
@@ -801,6 +802,59 @@ internal sealed partial class ExperimentForm
         {
             ApplyToolRailSplitterLayout();
         }
+    }
+
+    internal Dictionary<string, object?> MorphPageActivationStabilityProof()
+    {
+        BuildAuthoringToolPanels();
+        ActivateToolRailLayout();
+        ShowToolRailPage(null);
+        PerformLayout();
+        var before = MorphPageActivationSnapshot();
+
+        ShowToolRailPage(ToolRailPage.MorphRefit);
+        PerformLayout();
+        var after = MorphPageActivationSnapshot();
+        var unchanged = before.Keys.All(key => string.Equals(
+            System.Text.Json.JsonSerializer.Serialize(before[key]),
+            System.Text.Json.JsonSerializer.Serialize(after[key]),
+            StringComparison.Ordinal));
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = unchanged
+                && _selectedToolRailPage == ToolRailPage.MorphRefit
+                && _toolRailPages.GetValueOrDefault(ToolRailPage.MorphRefit)?.Parent is not null,
+            ["redraw_scope"] = "tool_column",
+            ["before"] = before,
+            ["after"] = after,
+        };
+    }
+
+    private Dictionary<string, object?> MorphPageActivationSnapshot()
+    {
+        var renderer = _viewport.RendererStatusPayload();
+        var viewport = (Dictionary<string, object?>)renderer["viewport"]!;
+        var presentation = (Dictionary<string, object?>)renderer["presentation"]!;
+        var resources = (Dictionary<string, object?>)renderer["geometry_resources"]!;
+        return new Dictionary<string, object?>
+        {
+            ["source_parse_count"] = _sourceParseCount,
+            ["geometry_upload_count"] = _viewport.GeometryUploadCount,
+            ["device_reset_count"] = _viewport.DeviceResetCount,
+            ["device_reset_attempt_count"] = _viewport.DeviceResetAttemptCount,
+            ["device_identity"] = resources.GetValueOrDefault("device_identity"),
+            ["geometry_buffer_identity"] = resources.GetValueOrDefault("geometry_buffer_identity"),
+            ["render_surface_identity"] = resources.GetValueOrDefault("render_surface_identity"),
+            ["full_geometry_rebuilds"] = resources.GetValueOrDefault("full_geometry_rebuilds"),
+            ["helper_pid"] = Environment.ProcessId,
+            ["viewport_hwnd"] = viewport.GetValueOrDefault("hwnd"),
+            ["form_hwnd"] = viewport.GetValueOrDefault("form_hwnd"),
+            ["active_tool"] = _viewport.ActiveTool,
+            ["presentation_generation"] = presentation.GetValueOrDefault("presentation_generation"),
+            ["presentation_fingerprint"] = presentation.GetValueOrDefault("presentation_fingerprint"),
+            ["active_camera_context"] = presentation.GetValueOrDefault("active_camera_context"),
+            ["view_contexts"] = presentation.GetValueOrDefault("view_contexts"),
+        };
     }
 
     /// <summary>
@@ -954,7 +1008,7 @@ internal sealed partial class ExperimentForm
         // Freezing the window here is what makes opening a tool one step rather
         // than a visible sequence: without it the reader sees the splitter move,
         // then the column re-lay out, then the page paint into it.
-        using var redraw = BeginRedrawBatch();
+        using var redraw = BeginRedrawBatch(_toolDock);
         try
         {
             _editMeshLayoutHost?.PerformLayout();

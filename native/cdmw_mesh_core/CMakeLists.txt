@@ -46,6 +46,7 @@ set(MESH_CORE_OWNER_SOURCES
     src/owners/session_apply_prepare_01.cpp
     src/owners/session_morph_01.cpp
     src/owners/session_morph_fields_01.cpp
+    src/owners/session_clipboard_01.cpp
     src/owners/session_apply_execute_01.cpp
     src/owners/session_apply_commit_01.cpp
     src/owners/session_apply_01.cpp

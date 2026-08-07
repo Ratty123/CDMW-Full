@@ -10,6 +10,7 @@ from cdmw.ui.mesh_editor.actions import (
     mesh_editor_actions_for_category,
     validate_mesh_editor_actions,
 )
+from cdmw.ui.mesh_editor.tab_support import STANDALONE_NATIVE_TOOL_STATE
 
 
 class MeshEditorActionsTests(unittest.TestCase):
@@ -28,6 +29,13 @@ class MeshEditorActionsTests(unittest.TestCase):
         self.assertTrue(all(action.tooltip for action in MESH_EDITOR_ACTIONS))
         self.assertTrue(commands.issubset(set(MESH_EDIT_ACTIONS) | {"undo", "redo"}))
         self.assertEqual(set(MESH_EDIT_MODES), modes)
+
+    def test_legacy_select_parts_key_arms_element_selection_only(self) -> None:
+        action = mesh_editor_actions_by_key()["select_parts"]
+
+        self.assertEqual("Select", action.text)
+        self.assertEqual(("select", "vertex", "edit"), STANDALONE_NATIVE_TOOL_STATE["select_parts"])
+        self.assertNotIn("complete mesh parts in the viewport", action.tooltip.lower())
 
     def test_action_palette_covers_v1_tool_surface(self) -> None:
         actions = mesh_editor_actions_by_key()
@@ -108,7 +116,19 @@ class MeshEditorActionsTests(unittest.TestCase):
         self.assertEqual("edge", topology["bridge"].selection_mode)
         self.assertEqual("Ctrl+R", topology["loop_cut"].shortcut)
         self.assertEqual("Ctrl+Shift+E", topology["refine_smooth"].shortcut)
-        self.assertEqual((("smooth_iterations", 2), ("smooth_strength", 0.5)), topology["refine_smooth"].params)
+        self.assertEqual(
+            (("max_faces_per_submesh", 200_000), ("recompute_normals", True)),
+            topology["subdivide"].params,
+        )
+        self.assertEqual(
+            (
+                ("max_faces_per_submesh", 200_000),
+                ("recompute_normals", True),
+                ("smooth_iterations", 2),
+                ("smooth_strength", 0.5),
+            ),
+            topology["refine_smooth"].params,
+        )
         self.assertEqual((("rotate", (0.0, 0.0, 15.0)),), transform["transform_rotate"].params)
         self.assertEqual((("scale", (1.1, 1.1, 1.1)),), transform["transform_scale"].params)
         self.assertEqual("edit", topology["extrude"].mode)

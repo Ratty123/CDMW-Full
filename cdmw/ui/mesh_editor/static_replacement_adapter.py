@@ -44,8 +44,8 @@ class StaticReplacementMeshEditSession:
         self.mesh = mesh
         self.submesh_counts = _mesh_counts(self.mesh)
 
-    def close(self) -> None:
-        self.controller.close_active_session()
+    def close(self, *, force_without_saving: bool = False) -> None:
+        self.controller.close_active_session(force_without_saving=force_without_saving)
 
     def sync_working_mesh(self) -> ParsedMesh:
         # The service-owned working mesh is already the independent compatibility

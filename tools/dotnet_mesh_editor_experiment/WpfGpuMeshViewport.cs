@@ -44,6 +44,35 @@ internal sealed class WpfGpuMeshViewport : IDisposable
         _overlaySettings = settings.Normalized();
     }
 
+    public Dictionary<string, object?> SelectionOverlayColorProofPayload()
+    {
+        bool ShapeUses<TShape>(SD.Color expected) where TShape : Shape =>
+            _overlay.Children.OfType<TShape>().Any(shape => ShapeUsesColor(shape, expected));
+
+        return new Dictionary<string, object?>
+        {
+            ["committed_faces"] = ShapeUses<Polygon>(_overlaySettings.Colors.Selection),
+            ["committed_wires"] = ShapeUses<Line>(_overlaySettings.Colors.Selection),
+            ["committed_vertices"] = ShapeUses<Ellipse>(_overlaySettings.Colors.Selection),
+            ["live_faces"] = ShapeUses<Polygon>(_overlaySettings.Colors.LiveSelection),
+            ["live_wires"] = ShapeUses<Line>(_overlaySettings.Colors.LiveSelection),
+            ["live_vertices"] = ShapeUses<Ellipse>(_overlaySettings.Colors.LiveSelection),
+            ["committed_color"] = MeshOverlayColors.Hex(_overlaySettings.Colors.Selection),
+            ["live_color"] = MeshOverlayColors.Hex(_overlaySettings.Colors.LiveSelection),
+        };
+    }
+
+    private static bool ShapeUsesColor(Shape shape, SD.Color expected)
+    {
+        static bool Matches(System.Windows.Media.Brush? brush, SD.Color color) =>
+            brush is SolidColorBrush solid
+            && solid.Color.R == color.R
+            && solid.Color.G == color.G
+            && solid.Color.B == color.B;
+
+        return Matches(shape.Fill, expected) || Matches(shape.Stroke, expected);
+    }
+
     public void RefreshGeometry()
     {
         var scene = new Model3DGroup();
@@ -104,7 +133,10 @@ internal sealed class WpfGpuMeshViewport : IDisposable
         int selectedSubmeshIndex,
         bool showWire,
         bool showXRay,
-        Func<Vec3, SD.PointF> project)
+        Func<Vec3, SD.PointF> project,
+        IReadOnlyDictionary<int, HashSet<int>> provisionalVertices,
+        IReadOnlyDictionary<int, HashSet<int>> provisionalFaces,
+        IReadOnlySet<int> provisionalEdges)
     {
         _overlay.Children.Clear();
         if (showWire || showXRay)
@@ -142,7 +174,39 @@ internal sealed class WpfGpuMeshViewport : IDisposable
             var hovered = edge.Id == hoverEdgeId;
             if (selected || hovered)
             {
-                AddEdgeLine(edge, project, hovered ? WpfColor.FromArgb(245, 96, 202, 255) : WpfColor.FromArgb(245, 255, 224, 92), hovered ? 2.4 : 2.2);
+                AddEdgeLine(
+                    edge,
+                    project,
+                    hovered
+                        ? OverlayColor(_overlaySettings.Colors.LiveSelection, 245)
+                        : OverlayColor(_overlaySettings.Colors.Selection, 245),
+                    hovered ? 2.4 : 2.2);
+            }
+        }
+        foreach (var pair in provisionalFaces)
+        {
+            if (pair.Key < 0 || pair.Key >= _document.Submeshes.Count)
+            {
+                continue;
+            }
+            var submesh = _document.Submeshes[pair.Key];
+            foreach (var faceIndex in pair.Value)
+            {
+                if (faceIndex >= 0 && faceIndex < submesh.Faces.Count)
+                {
+                    AddFacePolygon(submesh, submesh.Faces[faceIndex], project, live: true);
+                }
+            }
+        }
+        foreach (var edge in edgeTopology.Edges)
+        {
+            if (provisionalEdges.Contains(edge.Id))
+            {
+                AddEdgeLine(
+                    edge,
+                    project,
+                    OverlayColor(_overlaySettings.Colors.LiveSelection, 220),
+                    2.2);
             }
         }
         if (edgeSelectionRectangle.HasValue)
@@ -164,6 +228,21 @@ internal sealed class WpfGpuMeshViewport : IDisposable
                 }
                 var point = project(submesh.Vertices[vertexIndex]);
                 AddVertexMarker(point);
+            }
+        }
+        foreach (var pair in provisionalVertices)
+        {
+            if (pair.Key < 0 || pair.Key >= _document.Submeshes.Count)
+            {
+                continue;
+            }
+            var submesh = _document.Submeshes[pair.Key];
+            foreach (var vertexIndex in pair.Value)
+            {
+                if (vertexIndex >= 0 && vertexIndex < submesh.Vertices.Count)
+                {
+                    AddVertexMarker(project(submesh.Vertices[vertexIndex]), live: true);
+                }
             }
         }
     }
@@ -445,7 +524,11 @@ internal sealed class WpfGpuMeshViewport : IDisposable
         });
     }
 
-    private void AddFacePolygon(ObjSubmesh submesh, ObjFace face, Func<Vec3, SD.PointF> project)
+    private void AddFacePolygon(
+        ObjSubmesh submesh,
+        ObjFace face,
+        Func<Vec3, SD.PointF> project,
+        bool live = false)
     {
         if (face.Corners.Length != 3)
         {
@@ -453,8 +536,12 @@ internal sealed class WpfGpuMeshViewport : IDisposable
         }
         var polygon = new Polygon
         {
-            Fill = new SolidColorBrush(WpfColor.FromArgb(68, 255, 224, 92)),
-            Stroke = new SolidColorBrush(WpfColor.FromArgb(180, 255, 224, 92)),
+            Fill = new SolidColorBrush(OverlayColor(
+                live ? _overlaySettings.Colors.LiveSelection : _overlaySettings.Colors.Selection,
+                68)),
+            Stroke = new SolidColorBrush(OverlayColor(
+                live ? _overlaySettings.Colors.LiveSelection : _overlaySettings.Colors.Selection,
+                180)),
             StrokeThickness = 1.0,
             IsHitTestVisible = false,
         };
@@ -476,8 +563,8 @@ internal sealed class WpfGpuMeshViewport : IDisposable
         {
             Width = Math.Max(1, rectangle.Width),
             Height = Math.Max(1, rectangle.Height),
-            Fill = new SolidColorBrush(WpfColor.FromArgb(34, 96, 202, 255)),
-            Stroke = new SolidColorBrush(WpfColor.FromArgb(190, 96, 202, 255)),
+            Fill = new SolidColorBrush(OverlayColor(_overlaySettings.Colors.LiveSelection, 34)),
+            Stroke = new SolidColorBrush(OverlayColor(_overlaySettings.Colors.LiveSelection, 190)),
             StrokeThickness = 1.0,
             StrokeDashArray = new DoubleCollection { 3.0, 2.0 },
             IsHitTestVisible = false,
@@ -487,13 +574,15 @@ internal sealed class WpfGpuMeshViewport : IDisposable
         _overlay.Children.Add(shape);
     }
 
-    private void AddVertexMarker(SD.PointF point)
+    private void AddVertexMarker(SD.PointF point, bool live = false)
     {
         var ellipse = new Ellipse
         {
             Width = 7,
             Height = 7,
-            Fill = new SolidColorBrush(WpfColor.FromRgb(255, 224, 92)),
+            Fill = new SolidColorBrush(OverlayColor(
+                live ? _overlaySettings.Colors.LiveSelection : _overlaySettings.Colors.Selection,
+                live ? (byte)220 : (byte)255)),
             Stroke = new SolidColorBrush(WpfColor.FromRgb(44, 25, 10)),
             StrokeThickness = 1.0,
             IsHitTestVisible = false,
@@ -502,6 +591,9 @@ internal sealed class WpfGpuMeshViewport : IDisposable
         Canvas.SetTop(ellipse, point.Y - 3.5);
         _overlay.Children.Add(ellipse);
     }
+
+    private static WpfColor OverlayColor(SD.Color color, byte alpha) =>
+        WpfColor.FromArgb(alpha, color.R, color.G, color.B);
 
     private static WpfColor FallbackColor(int index)
     {

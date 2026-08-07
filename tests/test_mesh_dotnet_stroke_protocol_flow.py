@@ -217,10 +217,14 @@ def test_layout_transitions_paint_once_instead_of_step_by_step() -> None:
     # SuspendLayout defers measurement but not painting, so the batch has to
     # hold WM_SETREDRAW and force one settled repaint on release.
     assert "WmSetRedraw" in redraw_source
-    assert "_control.PerformLayout()" not in redraw_source
-    assert "_form.PerformLayout();" in redraw_source
-    assert "_form.Invalidate(invalidateChildren: true);" in redraw_source
-    assert "_form.Update();" in redraw_source
+    form_batch = redraw_source.split("internal readonly struct RedrawBatch", maxsplit=1)[1].split(
+        "internal readonly struct ControlRedrawBatch", maxsplit=1
+    )[0]
+    assert "_control.PerformLayout()" not in form_batch
+    assert "_form.PerformLayout();" in form_batch
+    assert "_form.Invalidate(invalidateChildren: true);" in form_batch
+    assert "_form.Update();" in form_batch
+    assert "internal readonly struct ControlRedrawBatch" in redraw_source
 
     # Nested batches must not thaw the window early.
     assert "_redrawBatchDepth" in redraw_source

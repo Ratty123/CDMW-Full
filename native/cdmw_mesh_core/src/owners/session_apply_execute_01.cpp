@@ -136,6 +136,8 @@ void mesh_editor_execute_apply_operation(
 ) {
     if (state.delete_parts_operation) {
         state.results = mesh_editor_delete_selected_parts(session, native_session);
+    } else if (state.operation == "paste") {
+        state.results = mesh_editor_paste_results(session, state.delta_output_dir, state.editor_session_id);
     } else if (state.operation == "transform") {
         state.edit_root.object_value["operation"] = mesh_editor_json_string("transform");
         state.edit_root.object_value["transform"] = edit;

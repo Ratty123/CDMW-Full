@@ -347,6 +347,7 @@ from cdmw.modding.mesh_native_session_api import open_native_mesh_editor_session
 
 
 from cdmw.modding.mesh_native_session_api import select_native_mesh_editor_session as select_native_mesh_editor_session
+from cdmw.modding.mesh_native_session_api import copy_native_mesh_editor_session as copy_native_mesh_editor_session
 
 
 from cdmw.modding.mesh_native_session_api import native_mesh_editor_session_selection_from_report as native_mesh_editor_session_selection_from_report
@@ -635,6 +636,7 @@ __all__ = [
     "apply_native_mesh_auto_uv",
     "apply_native_mesh_affine_transform_submeshes",
     "apply_native_mesh_editor_session",
+    "copy_native_mesh_editor_session",
     "apply_native_mesh_bridge",
     "apply_native_mesh_brush",
     "apply_native_mesh_brush_binary_selection",

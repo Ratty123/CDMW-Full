@@ -1,162 +1,115 @@
-"""Intermediate brush-select dabs apply inline, off the action-worker path.
-
-The worker path answers every request with a command_result and rejects
-requests while busy; at paint cadence that is a busy-spam reply per dab and
-holes in the painted sweep. Intermediate dabs therefore run inline through
-`_apply_dotnet_paint_select_sample`, and the drag's final dab keeps the
-ordinary worker path so one drag records one selection-history unit.
-"""
+"""Selection samples use the correlated background stroke path, never inline dabs."""
 
 from __future__ import annotations
 
-import cdmw.ui.mesh_editor.tab  # noqa: F401  (loads the tab facade globals)
+import cdmw.ui.mesh_editor.tab  # noqa: F401  (loads facade globals)
 from cdmw.ui.mesh_editor.tab_dotnet_commands import MeshEditorDotNetCommandMixin
 
 
-class _Result:
-    def __init__(self, ok: bool = True) -> None:
-        self.ok = ok
-        self.diagnostics = ()
-        self.metrics = {}
+class _Dispatcher:
+    def __init__(self) -> None:
+        self.requests: list[dict[str, object]] = []
+
+    def submit(
+        self,
+        controller: object,
+        command: object,
+        phase: str,
+        *,
+        source: str,
+        request_payload: object,
+    ) -> int:
+        self.requests.append(
+            {
+                "controller": controller,
+                "command": command,
+                "phase": phase,
+                "source": source,
+                "request_payload": request_payload,
+            }
+        )
+        return len(self.requests)
 
 
-class _Controller:
-    def __init__(self, ok: bool = True) -> None:
-        self.ok = ok
-        self.applied: list[dict[str, object]] = []
-
-    def apply(self, action: str, **kwargs: object) -> _Result:
-        self.applied.append({"action": action, **kwargs})
-        return _Result(self.ok)
-
-    def native_update_for_result(self, result: _Result) -> str:
-        return "native-update"
-
-
-class _Host:
-    """The minimum surface `_apply_dotnet_paint_select_sample` touches."""
-
-    _apply_dotnet_paint_select_sample = MeshEditorDotNetCommandMixin._apply_dotnet_paint_select_sample
-
-    def __init__(self, *, embedded: bool = True, worker_active: bool = False, blocked: bool = False) -> None:
-        self.standalone_dotnet_target_embedded = embedded
-        self._worker_active = worker_active
-        self._blocked = blocked
-        self.embedded_updates: list[object] = []
-        self.standalone_updates: list[object] = []
+class _Host(MeshEditorDotNetCommandMixin):
+    def __init__(self, *, controller: object | None = None) -> None:
+        self.controller = controller
+        self.dispatcher = _Dispatcher()
+        self.standalone_native_selection_stroke_id = ""
+        self.command_results: list[dict[str, object]] = []
         self.statuses: list[str] = []
 
-    def _dotnet_screen_selection_payload(self, payload: object) -> dict[str, object]:
-        result: dict[str, object] = {}
-        if isinstance(payload, dict):
-            for key in ("screen_brush", "screen_region"):
-                raw = payload.get(key)
-                if isinstance(raw, dict):
-                    result[key] = dict(raw)
-        return result
+    def _dotnet_target_controller(self):
+        return self.controller
 
-    def _native_editor_action_blocked(self, command: str, *, embedded: bool = False) -> bool:
-        return self._blocked
+    def _ensure_standalone_live_stroke_dispatcher(self) -> _Dispatcher:
+        return self.dispatcher
 
-    def _standalone_action_worker_active(self) -> bool:
-        return self._worker_active
+    @staticmethod
+    def _dotnet_screen_selection_payload(payload: object) -> dict[str, object]:
+        if not isinstance(payload, dict):
+            return {}
+        return {
+            key: value
+            for key, value in payload.items()
+            if key in {"screen_brush", "screen_region", "target_mode"}
+        }
+
+    def _send_dotnet_command_result(self, command: str, **payload: object) -> None:
+        self.command_results.append({"command": command, **payload})
 
     def _set_dotnet_status(self, message: str, *, error: bool = False) -> None:
         self.statuses.append(message)
 
-    def _apply_embedded_native_update(self, update: object) -> None:
-        self.embedded_updates.append(update)
 
-    def _apply_standalone_native_update(self, update: object) -> bool:
-        self.standalone_updates.append(update)
-        return True
-
-    def _send_dotnet_native_update(
-        self,
-        update: object,
-        *,
-        request_payload: object = None,
-    ) -> None:
-        self.standalone_updates.append((update, request_payload))
-
-
-def _payload(operation: str = "add") -> dict[str, object]:
-    return {
-        "operation": operation,
-        "paint_sample": True,
-        "paint_final": False,
-        "screen_brush": {"x": 10, "y": 20, "radius": 24},
-    }
-
-
-def test_a_dab_applies_the_select_and_pushes_the_update_embedded() -> None:
-    host = _Host(embedded=True)
-    controller = _Controller()
-
-    assert host._apply_dotnet_paint_select_sample(controller, _payload()) is True
-
-    assert controller.applied and controller.applied[0]["action"] == "select"
-    assert controller.applied[0]["operation"] == "add"
-    assert host.embedded_updates == ["native-update"]
-    assert not host.standalone_updates
-
-
-def test_a_dab_routes_to_the_standalone_update_when_not_embedded() -> None:
-    host = _Host(embedded=False)
-    controller = _Controller()
-
-    assert host._apply_dotnet_paint_select_sample(controller, _payload("subtract")) is True
-
-    assert controller.applied[0]["operation"] == "subtract"
-    assert host.standalone_updates == [("native-update", _payload("subtract"))]
-
-
-def test_a_dab_is_dropped_quietly_while_a_heavy_action_runs() -> None:
-    host = _Host(worker_active=True)
-    controller = _Controller()
-
-    assert host._apply_dotnet_paint_select_sample(controller, _payload()) is True
-    assert not controller.applied
-
-
-def test_a_blocked_editor_refuses_the_dab() -> None:
-    host = _Host(blocked=True)
-    controller = _Controller()
-
-    assert host._apply_dotnet_paint_select_sample(controller, _payload()) is False
-    assert not controller.applied
-
-
-def test_a_dab_without_a_brush_payload_is_refused() -> None:
-    host = _Host()
-    controller = _Controller()
-
-    assert host._apply_dotnet_paint_select_sample(controller, {"paint_sample": True}) is False
-    assert not controller.applied
-
-
-def test_a_sweep_quad_region_is_accepted_like_a_dab() -> None:
-    """A fast cursor step arrives as a swept-segment `screen_region` quad
-    instead of a disc; the inline fast path applies it the same way so the
-    painted band never gets holes at speed.
-    """
-    host = _Host(embedded=True)
-    controller = _Controller()
-    payload = {
+def _payload(phase: str, sequence: int, *, target: str = "vertex") -> dict[str, object]:
+    payload: dict[str, object] = {
+        "phase": phase,
+        "stroke_id": "selection-stroke-1",
+        "sequence": sequence,
         "operation": "add",
-        "paint_sample": True,
-        "paint_final": False,
-        "screen_region": {"mode": "lasso", "points": [[0, 0], [50, 0], [50, 48], [0, 48]]},
+        "target_mode": target,
     }
+    if phase == "update":
+        payload["screen_brush"] = {"x": sequence, "y": 20, "radius": 24}
+    return payload
 
-    assert host._apply_dotnet_paint_select_sample(controller, payload) is True
-    assert controller.applied and controller.applied[0]["action"] == "select"
-    assert host.embedded_updates == ["native-update"]
+
+def test_selection_phases_queue_correlated_background_requests() -> None:
+    controller = object()
+    host = _Host(controller=controller)
+
+    for sequence, phase in enumerate(("begin", "update", "end")):
+        assert host._handle_dotnet_select_request(_payload(phase, sequence, target="face")) is True
+
+    assert [item["phase"] for item in host.dispatcher.requests] == ["begin", "update", "end"]
+    assert all(item["source"] == "dotnet_selection" for item in host.dispatcher.requests)
+    update_command = host.dispatcher.requests[1]["command"]
+    assert update_command.params["selection_stroke_id"] == "selection-stroke-1"
+    assert update_command.params["selection_stroke_sequence"] == 1
+    assert update_command.params["record_history"] is False
+    assert update_command.params["_native_screen_selection_payload"]["target_mode"] == "face"
+    assert host.dispatcher.requests[2]["command"].params["record_history"] is True
 
 
-def test_a_failed_native_select_reports_false_without_updates() -> None:
-    host = _Host()
-    controller = _Controller(ok=False)
+def test_legacy_per_dab_request_is_rejected_instead_of_running_inline() -> None:
+    host = _Host(controller=object())
 
-    assert host._apply_dotnet_paint_select_sample(controller, _payload()) is False
-    assert not host.embedded_updates
+    assert host._handle_dotnet_select_request(
+        {
+            "paint_sample": True,
+            "paint_final": False,
+            "screen_brush": {"x": 10, "y": 20, "radius": 24},
+        }
+    ) is False
+
+    assert not host.dispatcher.requests
+    assert host.command_results[0]["status"] == "error"
+    assert "stroke_id" in host.command_results[0]["diagnostics"][0]
+
+
+def test_selection_request_without_session_receives_an_authoritative_failure() -> None:
+    host = _Host(controller=None)
+
+    assert host._handle_dotnet_select_request(_payload("begin", 0)) is False
+    assert host.command_results[0]["status"] == "unavailable"

@@ -5,18 +5,26 @@ using System.Text.Json;
 
 namespace Cdmw.MeshEditorExperiment;
 
-internal readonly record struct MeshOverlayColors(Color Wire, Color Vertex)
+internal readonly record struct MeshOverlayColors(
+    Color Wire,
+    Color Vertex,
+    Color Selection,
+    Color LiveSelection)
 {
     public static MeshOverlayColors Default { get; } = new(
         Color.FromArgb(0, 0, 0),
-        Color.FromArgb(255, 174, 40));
+        Color.FromArgb(255, 174, 40),
+        Color.FromArgb(255, 224, 92),
+        Color.FromArgb(96, 202, 255));
 
     public static Color AutomaticXRayWire { get; } = Color.FromArgb(245, 248, 252);
     public static Color AutomaticXRayVertex { get; } = Color.FromArgb(255, 88, 214);
 
     public MeshOverlayColors Normalized() => new(
         Color.FromArgb(Wire.R, Wire.G, Wire.B),
-        Color.FromArgb(Vertex.R, Vertex.G, Vertex.B));
+        Color.FromArgb(Vertex.R, Vertex.G, Vertex.B),
+        Color.FromArgb(Selection.R, Selection.G, Selection.B),
+        Color.FromArgb(LiveSelection.R, LiveSelection.G, LiveSelection.B));
 
     public Color ActiveWire(bool xray) => xray ? AutomaticXRayWire : Wire;
 
@@ -56,7 +64,8 @@ internal readonly record struct MeshOverlaySettings(MeshOverlayColors Colors, Me
 
 internal static class MeshOverlayPreferences
 {
-    internal const string Schema = "cdmw_mesh_overlay_preferences_v2";
+    internal const string Schema = "cdmw_mesh_overlay_preferences_v3";
+    internal const string LegacySizingSchema = "cdmw_mesh_overlay_preferences_v2";
     internal const string LegacyColorSchema = "cdmw_mesh_overlay_colors_v1";
 
     internal static string SettingsPath => Path.Combine(
@@ -64,11 +73,11 @@ internal static class MeshOverlayPreferences
         "CrimsonDesertModWorkbench",
         "mesh-editor-overlay-colors.json");
 
-    internal static MeshOverlaySettings Load()
+    internal static MeshOverlaySettings Load(string? settingsPath = null)
     {
         try
         {
-            var path = SettingsPath;
+            var path = string.IsNullOrWhiteSpace(settingsPath) ? SettingsPath : Path.GetFullPath(settingsPath);
             if (!File.Exists(path))
             {
                 return MeshOverlaySettings.Default;
@@ -79,14 +88,18 @@ internal static class MeshOverlayPreferences
                 ? schemaValue.GetString() ?? string.Empty
                 : string.Empty;
             if (!string.Equals(schema, Schema, StringComparison.Ordinal)
+                && !string.Equals(schema, LegacySizingSchema, StringComparison.Ordinal)
                 && !string.Equals(schema, LegacyColorSchema, StringComparison.Ordinal))
             {
                 return MeshOverlaySettings.Default;
             }
             var colors = new MeshOverlayColors(
                 ParseColor(root, "wire_color", MeshOverlayColors.Default.Wire),
-                ParseColor(root, "vertex_color", MeshOverlayColors.Default.Vertex));
+                ParseColor(root, "vertex_color", MeshOverlayColors.Default.Vertex),
+                ParseColor(root, "selection_color", MeshOverlayColors.Default.Selection),
+                ParseColor(root, "live_selection_color", MeshOverlayColors.Default.LiveSelection));
             var sizing = string.Equals(schema, Schema, StringComparison.Ordinal)
+                || string.Equals(schema, LegacySizingSchema, StringComparison.Ordinal)
                 ? new MeshOverlaySizing(
                     ParseSingle(root, "wire_width_pixels", MeshOverlaySizing.Default.WireWidthPixels),
                     ParseSingle(root, "vertex_marker_size_pixels", MeshOverlaySizing.Default.VertexMarkerSizePixels))
@@ -99,9 +112,12 @@ internal static class MeshOverlayPreferences
         }
     }
 
-    internal static bool TrySave(MeshOverlaySettings settings, out string error)
+    internal static bool TrySave(
+        MeshOverlaySettings settings,
+        out string error,
+        string? settingsPath = null)
     {
-        var path = SettingsPath;
+        var path = string.IsNullOrWhiteSpace(settingsPath) ? SettingsPath : Path.GetFullPath(settingsPath);
         var staging = $"{path}.{Environment.ProcessId}.tmp";
         try
         {
@@ -112,6 +128,8 @@ internal static class MeshOverlayPreferences
                 ["schema"] = Schema,
                 ["wire_color"] = MeshOverlayColors.Hex(normalized.Colors.Wire),
                 ["vertex_color"] = MeshOverlayColors.Hex(normalized.Colors.Vertex),
+                ["selection_color"] = MeshOverlayColors.Hex(normalized.Colors.Selection),
+                ["live_selection_color"] = MeshOverlayColors.Hex(normalized.Colors.LiveSelection),
                 ["wire_width_pixels"] = normalized.Sizing.WireWidthPixels,
                 ["vertex_marker_size_pixels"] = normalized.Sizing.VertexMarkerSizePixels,
             };

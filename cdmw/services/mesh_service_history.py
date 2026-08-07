@@ -29,6 +29,9 @@ def _history_snapshot_retained_bytes(snapshot: _MeshHistorySnapshot) -> int:
             snapshot.native_submesh_snapshot,
             snapshot.native_editor_history,
             snapshot.native_editor_stroke_id,
+            snapshot.geometry_layers,
+            snapshot.active_geometry_layer_id,
+            snapshot.geometry_layer_copy_counter,
             snapshot.material_generation,
             snapshot.committed_texture_resources,
         )
@@ -158,6 +161,7 @@ class MeshHistoryServiceMixin:
             "undo",
             affected=outcome.affected_submesh_indices,
             changed=outcome.changed_vertices_by_submesh,
+            native_selection_groups=outcome.native_selection_groups,
             native_preview_vertex_update_groups=outcome.native_preview_vertex_update_groups,
             native_preview_triangle_groups=outcome.native_preview_triangle_groups,
             topology_changed=outcome.topology_changed,
@@ -167,6 +171,9 @@ class MeshHistoryServiceMixin:
         )
         final_metrics = dict(result.metrics)
         final_metrics["service_total_ms"] = max(0.0, (time.perf_counter() - service_started) * 1000.0)
+        autosave = getattr(self, "_schedule_mesh_layer_autosave", None)
+        if callable(autosave):
+            autosave(session)
         return replace(result, metrics=final_metrics)
 
     def redo(self, session_id: str) -> MeshEditResult:
@@ -215,6 +222,7 @@ class MeshHistoryServiceMixin:
             "redo",
             affected=outcome.affected_submesh_indices,
             changed=outcome.changed_vertices_by_submesh,
+            native_selection_groups=outcome.native_selection_groups,
             native_preview_vertex_update_groups=outcome.native_preview_vertex_update_groups,
             native_preview_triangle_groups=outcome.native_preview_triangle_groups,
             topology_changed=outcome.topology_changed,
@@ -224,6 +232,9 @@ class MeshHistoryServiceMixin:
         )
         final_metrics = dict(result.metrics)
         final_metrics["service_total_ms"] = max(0.0, (time.perf_counter() - service_started) * 1000.0)
+        autosave = getattr(self, "_schedule_mesh_layer_autosave", None)
+        if callable(autosave):
+            autosave(session)
         return replace(result, metrics=final_metrics)
 
     def _session(self, session_id: str) -> _MeshEditSession:

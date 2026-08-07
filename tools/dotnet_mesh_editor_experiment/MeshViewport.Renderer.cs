@@ -243,7 +243,24 @@ internal sealed partial class MeshViewport
             var lassoDragPath = _edgeDragActive && _selectionLassoPoints.Count >= 2
                 ? (IReadOnlyList<Point>)_selectionLassoPoints
                 : null;
-            _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive && !_selectionPaintActive && lassoDragPath is null ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, _presentedSources, presentedSourceIndex, ShowWire, ShowVertices, ShowXRay, (brushTool || selectPaint) && _pointerInside ? _pointerLocation : null, brushRadius, lassoDragPath, _selectionPaintActive ? _provisionalSelectedVertices : null);
+            _d3d11Viewport.UpdateOverlay(
+                _edgeTopology,
+                _selectedEdges,
+                _hoverEdgeId,
+                _edgeDragActive && !_selectionPaintActive && lassoDragPath is null ? EdgeDragRectangle() : null,
+                _selectedVertices,
+                _selectedFaces,
+                _presentedSources,
+                presentedSourceIndex,
+                ShowWire,
+                ShowVertices,
+                ShowXRay,
+                (brushTool || selectPaint) && _pointerInside ? _pointerLocation : null,
+                brushRadius,
+                lassoDragPath,
+                _provisionalSelectedVertices,
+                _provisionalSelectedFaces,
+                _provisionalSelectedEdges);
             return;
         }
         var viewport = _gpuViewport;
@@ -263,7 +280,10 @@ internal sealed partial class MeshViewport
             SelectedSubmeshIndex,
             ShowWire,
             ShowXRay,
-            _camera.Project);
+            _camera.Project,
+            _provisionalSelectedVertices,
+            _provisionalSelectedFaces,
+            _provisionalSelectedEdges);
     }
 
     private int MinimumPresentedSourceIndex()

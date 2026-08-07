@@ -241,6 +241,8 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_native_part_picking_enabled = False
         self.standalone_native_mesh_edit_state_signature: tuple[object, ...] = ()
         self.standalone_native_mesh_edit_stroke_id = ""
+        self.standalone_native_selection_stroke_id = ""
+        self.standalone_pending_dotnet_topology_request: dict[str, object] | None = None
         self.standalone_native_mesh_edit_stroke_changed = False
         self.standalone_live_stroke_dispatcher: _tab.MeshLiveStrokeDispatcher | None = None
         self.embedded_workspace: MeshEditorWorkspace | None = None

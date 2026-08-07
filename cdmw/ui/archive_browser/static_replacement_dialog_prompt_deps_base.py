@@ -16,7 +16,7 @@ from html import escape
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from PySide6.QtCore import QEvent, QModelIndex, QObject, QProcess, Qt, QThread, QTimer, Slot
+from PySide6.QtCore import QEvent, QModelIndex, QObject, QProcess, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtGui import QBrush, QColor, QImageReader, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,

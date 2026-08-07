@@ -240,6 +240,10 @@ internal sealed partial class MeshViewport
         }
         finally
         {
+            if (_edgeDragActive)
+            {
+                CancelSelectionStroke();
+            }
             _rotating = false;
             _panning = false;
             _edgeDragActive = false;
@@ -511,6 +515,7 @@ internal sealed partial class MeshViewport
     /// </summary>
     internal void CancelActiveStroke()
     {
+        CancelSelectionStroke();
         EndEditorStroke(_strokePrevious, cancelled: true);
         _rotating = false;
         _panning = false;
@@ -666,10 +671,15 @@ internal sealed partial class MeshViewport
         _selectionPaintActive = false;
         _selectionPaintPainted = false;
         _selectionPaintToggleTouchedVertices.Clear();
+        _selectionPaintToggleTouchedFaces.Clear();
+        _selectionPaintToggleTouchedEdges.Clear();
         _selectionPaintPathPoints.Clear();
         _selectionPaintPathPoints.Add(point);
         _selectionLassoPoints.Clear();
         ReplaceSelectionMap(_provisionalSelectedVertices, _selectedVertices);
+        ReplaceSelectionMap(_provisionalSelectedFaces, _selectedFaces);
+        _provisionalSelectedEdges.Clear();
+        _provisionalSelectedEdges.UnionWith(_selectedEdges);
         _provisionalSelectedSources.Clear();
         _provisionalSelectedSources.UnionWith(_selectedSources);
         _provisionalPartSelectionActive = string.Equals(
@@ -681,6 +691,7 @@ internal sealed partial class MeshViewport
         // drags keep their rectangle semantics whatever the combo says.
         if (string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase))
         {
+            BeginSelectionStroke();
             if (_selectionDragMode == "brush")
             {
                 var operation = CurrentSelectionOperation();

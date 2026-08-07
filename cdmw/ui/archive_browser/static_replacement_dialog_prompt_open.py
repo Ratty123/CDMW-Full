@@ -49,6 +49,23 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
         alignment_modeless_dialog_callbacks._modeless_alignment_dialog_finished
     )
 
+    mesh_editor_session_state = context.get("mesh_editor_static_replacement_session_state")
+    if isinstance(mesh_editor_session_state, dict) and callable(
+        getattr(dialog, "configureMeshEditorClose", None)
+    ):
+        def _close_mesh_editor_session(force_without_saving: bool) -> None:
+            session = mesh_editor_session_state.get("session")
+            if session is not None and callable(getattr(session, "close", None)):
+                session.close(force_without_saving=bool(force_without_saving))
+
+        def _mesh_editor_session_closed() -> None:
+            mesh_editor_session_state.clear()
+
+        dialog.configureMeshEditorClose(
+            _close_mesh_editor_session,
+            _mesh_editor_session_closed,
+        )
+
     dialog.finished.connect(_modeless_alignment_dialog_finished)
     setattr(
         dialog,

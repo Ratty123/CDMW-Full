@@ -91,7 +91,7 @@ def test_static_combo_options_keep_expected_order_and_values() -> None:
     assert MESH_EDIT_SCOPE_OPTIONS == (("All editable parts", "all"), ("Selected part only", "selected"))
     assert MESH_EDIT_TOOL_OPTIONS == (
         ("Orbit", "orbit"),
-        ("Select Parts", "select"),
+        ("Select", "select"),
         ("Move", "move"),
         ("Grab", "grab"),
         ("Smooth", "smooth"),

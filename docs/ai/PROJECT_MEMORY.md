@@ -74,12 +74,11 @@ Last updated: 2026-08-04
 - Skinned PAC OBJ round-trips require the matching sidecar even for one submesh.
   A proven target-donor map preserves exact original influence rows, and rebuild
   rejects changes to PAC vertex bytes outside declared position/normal/UV0 edits.
-- Mesh session views expose one ordered applied/undone timeline for geometry,
-  replacement, rigging, and selection changes. User selection is source-part
-  only: Orbit opens neutral, Select Parts uses Add + Brush by default, and legacy
-  vertex/edge/face action IDs are aliases only. Click, Brush, Rectangle, Lasso,
-  and X-Ray resolve parts; sculpt uses selected parts or its initial hit part.
-  Selection history stores descriptors without hydrating resident geometry.
+- Fresh/resumed mesh sessions open in Orbit without restoring camera, tool, element selection, or history. Viewport part-pick signals are inert; PARTS is the sole whole-part selector. Click, Brush, Rectangle, and Lasso target active-
+  layer vertices, wires, or faces without requiring a part filter. Correlated
+  strokes keep one active and one cumulative pending request, preserve newer
+  provisional tails across stale replies, and create one history entry at end.
+  Topology drains the gesture first; failure restores its pre-stroke selection.
 - Live edit packets have monotonic revisions. One sender per preview source has
   queue depth one, latest-wins coalescing, ack pacing, stale-revision rejection,
   and cleanup of superseded payload files. Revisionless bundled readers remain
@@ -90,8 +89,9 @@ Last updated: 2026-08-04
   BGRA8 uploads after first copy-on-write resource creation, and acknowledged
   cleanup. Preparation failure must advance pending work and every lease is
   released exactly once.
-- The sole .NET/Vortice renderer retains mesh/GPU buffers, corner mappings, SRV arrays, and immutable draw resources. Sparse edits update affected ranges; topology edits rebuild affected batches and preserve original material lineage. Brush selection paints a local part overlay; Move applies a local part transform; Grab/sculpt patch a transient vertex buffer from immutable stroke candidates. Matching stroke ID/request/revision reconciles authority, Cancel restores baseline, and one history unit lands at stroke end. Active interaction uses ordered controls plus one latest cumulative pending update. Present never self-schedules; VSync and maximum frame latency one remain. Performance capture samples GC before snapshot allocation and reports render/Present/GPU p95/p99.
-- Mesh Editor wire, vertex, background, and grid colors are locally persisted and user-selectable. Background/grid overrides outrank host presentation replay. X-Ray remains independent per presentation context and renders overlays without depth rejection.
+- The sole .NET/Vortice renderer retains mesh/GPU buffers, corner mappings, SRV arrays, and immutable draw resources. Sparse edits update affected ranges; topology edits rebuild affected batches and preserve original material lineage. Subdivide owns a 200,000-face/submesh cap, expands wire/vertex regions to incident faces, and atomically histories geometry plus remapped selection. Move applies a local part transform; Grab/sculpt patch a transient vertex buffer from immutable stroke candidates. Present never self-schedules; VSync and maximum frame latency one remain. `Wire + Vertices` emits no solid draw, and opening Morph & Refit must not change source parse/upload, device/surface, helper PID/HWND, camera, or presentation generation.
+- Mesh Editor overlay preferences v3 persist wire, vertex, background, grid, committed-selection, and live-selection colors; v1/v2 migrate. Selection colors reach D3D11, GDI, and WPF. Background/grid overrides outrank host replay; X-Ray remains presentation-context-local.
+- Native geometry layers preserve complete fragment metadata. Base mesh is permanent; only the active layer is editable, visible copies export, hidden copies remain saved, and Paste/Delete are one geometry-history action. Rename/order/visibility persist outside geometry Undo. `mesh_layer_project_v1` publishes checksum-addressed native snapshots atomically with previous-generation recovery; exact-source Modify Original drafts autosave after 750 ms, become persistent on first layer, and never restore runtime selection/camera/tool/history.
 - Preview packages use singleflight, leases, atomic publication, consume/ack cleanup, and safe pruning. Source-stamped PAMT indexes have parse fallback; per-job material maps release while bounded decoded entries remain reusable.
 - External material factors are immutable per synthesized texture: normalize and scan material parameters once, then apply the resolved factors per pixel. Preserve byte-identical roughness/metalness/specular outputs and cancellation checks.
 - .NET helper-authored OBJ/package/operation paths and generated sidecars stay under the package output root after canonical link-aware resolution. Archive Preview expected stops are keyed by exact process plus generation; unmatched nonzero exits and device loss remain failures.

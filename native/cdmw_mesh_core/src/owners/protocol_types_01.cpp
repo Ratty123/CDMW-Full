@@ -716,6 +716,9 @@ struct SubmeshMeshEditResult {
     std::vector<int> changed_source_vertex_ids;
     std::vector<int> source_vertex_offsets;
     std::vector<int> source_face_indices;
+    // Internal topology-history remap: output face -> pre-operation local face.
+    // It is not serialized as source-asset provenance.
+    std::vector<int> topology_source_face_indices;
     std::vector<Vec3> tangents;
     std::vector<double> tangent_signs;
     BoneAssignments bones;

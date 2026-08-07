@@ -80,6 +80,8 @@ internal sealed partial class D3D11MaterialViewport : Control
     private float _overlayBrushRadius = 24.0f;
     private IReadOnlyList<Point>? _overlayLassoPath;
     private IReadOnlyDictionary<int, HashSet<int>>? _overlayProvisionalVertices;
+    private IReadOnlyDictionary<int, HashSet<int>>? _overlayProvisionalFaces;
+    private IReadOnlySet<int>? _overlayProvisionalEdges;
     private int _materialDebugMode;
     private long _texturedSolidBatchDrawCount;
     private long _untexturedSolidBatchDrawCount;
@@ -166,7 +168,9 @@ internal sealed partial class D3D11MaterialViewport : Control
         Point? brushCursor,
         float brushRadius,
         IReadOnlyList<Point>? lassoPath = null,
-        IReadOnlyDictionary<int, HashSet<int>>? provisionalVertices = null)
+        IReadOnlyDictionary<int, HashSet<int>>? provisionalVertices = null,
+        IReadOnlyDictionary<int, HashSet<int>>? provisionalFaces = null,
+        IReadOnlySet<int>? provisionalEdges = null)
     {
         _overlayTopology = topology;
         _overlaySelectedEdges = selectedEdges as HashSet<int> ?? new HashSet<int>(selectedEdges);
@@ -185,6 +189,8 @@ internal sealed partial class D3D11MaterialViewport : Control
         _overlayBrushRadius = Math.Clamp(brushRadius, 1.0f, 512.0f);
         _overlayLassoPath = lassoPath;
         _overlayProvisionalVertices = provisionalVertices;
+        _overlayProvisionalFaces = provisionalFaces;
+        _overlayProvisionalEdges = provisionalEdges;
     }
 
     public void UpdateCamera(NetViewportCamera camera)

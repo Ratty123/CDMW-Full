@@ -87,20 +87,15 @@ internal sealed partial class D3D11MaterialViewport
         _camera = pane.Camera;
         _materialDebugMode = Math.Clamp(pane.MaterialDebugMode, 0, 12);
         var mode = pane.DisplayMode ?? "textured";
-        ShowSolid = !string.Equals(mode, "wire", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(mode, "vertices", StringComparison.OrdinalIgnoreCase);
-        TexturesEnabled = pane.TexturesEnabled
-            && (string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase));
-        _overlayShowWire = string.Equals(mode, "wire", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "untextured_wire", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "wire_vertices", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "xray", StringComparison.OrdinalIgnoreCase);
-        _overlayShowVertices = string.Equals(mode, "vertices", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "wire_vertices", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "xray", StringComparison.OrdinalIgnoreCase);
-        _overlayShowXRay = pane.XRay;
+        if (!MeshDisplayModeState.TryResolve(mode, out var display, out _))
+        {
+            _ = MeshDisplayModeState.TryResolve("textured", out display, out _);
+        }
+        ShowSolid = display.Solid;
+        TexturesEnabled = pane.TexturesEnabled && display.Textures;
+        _overlayShowWire = display.Wire;
+        _overlayShowVertices = display.Vertices;
+        _overlayShowXRay = pane.XRay || display.XRay;
         _overlayShowWire = _overlayShowWire || _overlayShowXRay;
         _context?.RSSetViewport(new Viewport(
             pane.Bounds.X,

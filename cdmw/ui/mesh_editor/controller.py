@@ -125,13 +125,40 @@ class MeshEditorController:
         self.active_session_id = view.session_id
         return view
 
-    def close_active_session(self) -> None:
+    def close_active_session(self, *, force_without_saving: bool = False) -> None:
         if self.active_session_id:
-            self.mesh_service.close_edit_session(self.active_session_id)
+            self.mesh_service.close_edit_session(
+                self.active_session_id,
+                force_without_saving=force_without_saving,
+            )
         self.active_session_id = ""
 
     def session_view(self) -> MeshEditSessionView:
         return self.mesh_service.session_view(self._session_id())
+
+    def geometry_layer_state(self) -> dict[str, object]:
+        return self.mesh_service.geometry_layer_state(self._session_id())
+
+    def copy_selection(self, *, target: str) -> MeshEditResult:
+        return self.mesh_service.copy_selection(self._session_id(), target=target)
+
+    def paste_selection(self) -> MeshEditResult:
+        return self.mesh_service.paste_selection(self._session_id())
+
+    def activate_geometry_layer(self, layer_id: str) -> dict[str, object]:
+        return self.mesh_service.activate_geometry_layer(self._session_id(), layer_id)
+
+    def rename_geometry_layer(self, layer_id: str, name: str) -> dict[str, object]:
+        return self.mesh_service.rename_geometry_layer(self._session_id(), layer_id, name)
+
+    def set_geometry_layer_visibility(self, layer_id: str, visible: bool) -> dict[str, object]:
+        return self.mesh_service.set_geometry_layer_visibility(self._session_id(), layer_id, visible)
+
+    def move_geometry_layer(self, layer_id: str, direction: int) -> dict[str, object]:
+        return self.mesh_service.move_geometry_layer(self._session_id(), layer_id, direction)
+
+    def delete_geometry_layer(self, layer_id: str) -> MeshEditResult:
+        return self.mesh_service.delete_geometry_layer(self._session_id(), layer_id)
 
     def native_editor_mesh_dirty(self) -> bool:
         return self.mesh_service.native_editor_mesh_dirty(self._session_id())

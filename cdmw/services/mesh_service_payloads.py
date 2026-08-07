@@ -16,7 +16,9 @@ from cdmw.services.mesh_service_state import _MeshEditSession
 _LEGACY_SCREEN_CAMERA_FIELDS = frozenset(
     {"camera_world", "yaw_degrees", "pitch_degrees", "distance", "vertical_fov_degrees", "pan"}
 )
-_NATIVE_EDITOR_SCREEN_PAYLOAD_KEYS = frozenset({"screen_drag", "screen_brush", "screen_radius", "screen_region"})
+_NATIVE_EDITOR_SCREEN_PAYLOAD_KEYS = frozenset(
+    {"screen_drag", "screen_brush", "screen_brushes", "screen_radius", "screen_region", "screen_regions"}
+)
 _NATIVE_MATERIAL_OVERRIDE_KEYS = frozenset(
     {
         "texture_brightness",
@@ -62,6 +64,8 @@ def _native_editor_select_payload_for_params(
         _add_native_editor_screen_selection_payload(payload, raw_screen_payload)
     if "target_mode" in params:
         payload["target_mode"] = str(params.get("target_mode") or "vertex")
+    if "allowed_submesh_indices" in params:
+        payload["allowed_submesh_indices"] = tuple(params.get("allowed_submesh_indices") or ())
     return payload
 
 
@@ -75,6 +79,24 @@ def _add_native_editor_screen_selection_payload(
     raw_screen_region = raw_screen_payload.get("screen_region")
     if isinstance(raw_screen_region, Mapping):
         payload["screen_region"] = _native_editor_screen_payload(raw_screen_region)
+    raw_screen_brushes = raw_screen_payload.get("screen_brushes")
+    if isinstance(raw_screen_brushes, (tuple, list)):
+        brushes = [
+            _native_editor_screen_payload(item)
+            for item in raw_screen_brushes
+            if isinstance(item, Mapping)
+        ]
+        if brushes:
+            payload["screen_brushes"] = brushes
+    raw_screen_regions = raw_screen_payload.get("screen_regions")
+    if isinstance(raw_screen_regions, (tuple, list)):
+        regions = [
+            _native_editor_screen_payload(item)
+            for item in raw_screen_regions
+            if isinstance(item, Mapping)
+        ]
+        if regions:
+            payload["screen_regions"] = regions
     if "falloff" in raw_screen_payload:
         payload["falloff"] = str(raw_screen_payload.get("falloff") or "smooth")
     if "paint_sample" in raw_screen_payload:

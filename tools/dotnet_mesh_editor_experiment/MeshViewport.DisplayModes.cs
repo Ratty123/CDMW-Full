@@ -1,5 +1,41 @@
 namespace Cdmw.MeshEditorExperiment;
 
+internal readonly record struct MeshDisplayModeState(
+    string Mode,
+    bool Solid,
+    bool Wire,
+    bool Vertices,
+    bool XRay,
+    bool Textures)
+{
+    internal static bool TryResolve(string? mode, out MeshDisplayModeState state, out string error)
+    {
+        var normalized = (mode ?? string.Empty).Trim().ToLowerInvariant().Replace('-', '_');
+        if (normalized is "textured_wire" or "solid_wire")
+        {
+            normalized = "textured";
+        }
+        state = normalized switch
+        {
+            "textured" => new(normalized, true, false, false, false, true),
+            "untextured_faces" or "faces" => new("untextured_faces", true, false, false, false, false),
+            "untextured_wire" => new(normalized, true, true, false, false, false),
+            "wire" => new(normalized, false, true, false, false, false),
+            "vertices" => new(normalized, false, false, true, false, false),
+            "wire_vertices" => new(normalized, false, true, true, false, false),
+            "xray" => new(normalized, false, true, true, true, false),
+            _ => default,
+        };
+        if (string.IsNullOrEmpty(state.Mode))
+        {
+            error = $"Unknown viewport display mode: {mode}";
+            return false;
+        }
+        error = string.Empty;
+        return true;
+    }
+}
+
 internal sealed partial class MeshViewport
 {
     public void SetOverlaySettings(MeshOverlaySettings settings)
@@ -40,35 +76,12 @@ internal sealed partial class MeshViewport
 
     private bool TryApplyDisplayModeState(string mode, out string error)
     {
-        var normalized = (mode ?? string.Empty).Trim().ToLowerInvariant().Replace('-', '_');
-        if (normalized is "textured_wire" or "solid_wire")
+        if (!MeshDisplayModeState.TryResolve(mode, out var state, out error))
         {
-            normalized = "textured";
-        }
-        (bool Solid, bool Wire, bool Vertices, bool XRay, bool Textures) state = normalized switch
-        {
-            "textured" => (true, false, false, false, true),
-            "untextured_faces" or "faces" => (true, false, false, false, false),
-            "untextured_wire" => (true, true, false, false, false),
-            "wire" => (false, true, false, false, false),
-            "vertices" => (false, false, true, false, false),
-            "wire_vertices" => (false, true, true, false, false),
-            "xray" => (false, true, true, true, false),
-            _ => default,
-        };
-        if (normalized is not (
-            "textured" or "untextured_faces" or "faces" or "untextured_wire"
-            or "wire" or "vertices" or "wire_vertices" or "xray"))
-        {
-            error = $"Unknown viewport display mode: {mode}";
             return false;
         }
 
-        DisplayMode = normalized switch
-        {
-            "faces" => "untextured_faces",
-            _ => normalized,
-        };
+        DisplayMode = state.Mode;
         ShowSolid = state.Solid;
         ShowWire = state.Wire;
         ShowVertices = state.Vertices;

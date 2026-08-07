@@ -179,6 +179,7 @@ MESH_TOPOLOGY_ACTIONS = {
     "split",
     "separate",
     "duplicate",
+    "paste",
     "mirror",
     "extrude",
     "inset",

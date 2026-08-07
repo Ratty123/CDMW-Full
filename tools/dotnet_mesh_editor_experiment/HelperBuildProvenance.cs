@@ -16,6 +16,8 @@ internal static class HelperBuildProvenance
         "mesh_edit_revision_ack_v1",
         "resident_mutation_envelope_v2",
         "host_tool_state_v1",
+        "correlated_selection_strokes_v1",
+        "geometry_layers_v1",
         // A prewarmed authoring helper handshakes with a placeholder session the
         // first real Edit Mesh replaces. Hosts gate the early prewarm on this,
         // rather than requiring it, so an older helper still runs -- it just pays
@@ -64,6 +66,8 @@ internal static class HelperBuildProvenance
                 "mesh_edit_revision_ack_v1"
                 or "resident_mutation_envelope_v2"
                 or "host_tool_state_v1"
+                or "correlated_selection_strokes_v1"
+                or "geometry_layers_v1"
                 or "authoring_provisional_session_v1"
                 or "authoring_session_handoff_v1"));
         }

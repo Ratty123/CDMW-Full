@@ -4,6 +4,7 @@ import copy
 import hashlib
 import math
 import os
+import threading
 import time
 from dataclasses import dataclass, field, replace
 from functools import wraps
@@ -53,6 +54,7 @@ from cdmw.modding.mesh_edit_ops import (
 from cdmw.modding.mesh_native_core import (
     NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR,
     apply_native_mesh_editor_session,
+    copy_native_mesh_editor_session,
     last_native_mesh_core_job_error,
     last_native_mesh_editor_apply_error,
     apply_native_mesh_pose_preview,
@@ -97,11 +99,17 @@ from cdmw.models import RunCancelled
 from cdmw.services.mesh_service_state import (
     _MeshCommandExecution,
     _MeshEditSession,
+    _MeshGeometryLayer,
     _MeshHistorySnapshot,
     _MeshRestoreOutcome,
     _MeshVertexPositionDelta,
     _NativeEditorApplyResult,
     MeshPreparedWorkingMeshReplacement,
+)
+from cdmw.services.mesh_layer_project_service import (
+    discover_mesh_layer_project_context,
+    load_mesh_layer_project,
+    save_mesh_layer_project,
 )
 from cdmw.services.mesh_service_rigging import (
     MeshRiggingServiceMixin,
@@ -231,6 +239,130 @@ _LEGACY_DISPLAY_CLEANUP_ACTIONS = frozenset({"triangulate_display", "quadrangula
 _NATIVE_EDITOR_SESSION_ACTIONS = frozenset({"select"}) | (
     frozenset(MESH_GEOMETRY_ACTIONS) - _LEGACY_DISPLAY_CLEANUP_ACTIONS
 )
+
+
+def _active_geometry_layer_indices(session: _MeshEditSession) -> tuple[int, ...]:
+    for layer in session.geometry_layers:
+        if layer.layer_id == session.active_geometry_layer_id:
+            return layer.submesh_indices
+    return session.geometry_layers[0].submesh_indices if session.geometry_layers else ()
+
+
+def _visible_geometry_layer_indices(session: _MeshEditSession) -> tuple[int, ...]:
+    visible: set[int] = set()
+    for layer in session.geometry_layers:
+        if layer.base or layer.visible:
+            visible.update(layer.submesh_indices)
+    return tuple(sorted(visible))
+
+
+def _geometry_layer_state_payload(session: _MeshEditSession) -> dict[str, object]:
+    return {
+        "revision": session.geometry_layer_revision,
+        "active_layer_id": session.active_geometry_layer_id,
+        "clipboard_ready": session.native_clipboard_ready,
+        "autosave_pending": (
+            session.mesh_layer_project_path is not None
+            and (session.revision, session.geometry_layer_revision) != session.mesh_layer_autosave_saved_key
+        ),
+        "autosave_error": session.mesh_layer_autosave_error,
+        "workspace_mode": session.mesh_layer_workspace_mode,
+        "loaded_generation": session.mesh_layer_loaded_generation,
+        "layers": [
+            {
+                "layer_id": layer.layer_id,
+                "name": layer.name,
+                "submesh_indices": layer.submesh_indices,
+                "visible": layer.visible,
+                "base": layer.base,
+                "active": layer.layer_id == session.active_geometry_layer_id,
+            }
+            for layer in session.geometry_layers
+        ],
+    }
+
+
+def _geometry_layers_from_project_payload(
+    payload: Mapping[str, object],
+    submesh_count: int,
+) -> tuple[_MeshGeometryLayer, ...]:
+    raw_layers = payload.get("layers")
+    if not isinstance(raw_layers, list):
+        raise ValueError("Mesh layer project omitted its layer list")
+    layers: list[_MeshGeometryLayer] = []
+    seen_ids: set[str] = set()
+    assigned_indices: set[int] = set()
+    for raw_layer in raw_layers:
+        if not isinstance(raw_layer, Mapping):
+            raise ValueError("Mesh layer project contains a malformed layer")
+        layer_id = str(raw_layer.get("layer_id") or "").strip()
+        name = str(raw_layer.get("name") or "").strip()
+        raw_indices = raw_layer.get("submesh_indices")
+        if not layer_id or layer_id in seen_ids or not name or not isinstance(raw_indices, (list, tuple)):
+            raise ValueError("Mesh layer project contains invalid layer identity metadata")
+        try:
+            indices = tuple(sorted({int(value) for value in raw_indices}))
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("Mesh layer project contains invalid submesh indices") from exc
+        if any(index < 0 or index >= submesh_count for index in indices):
+            raise ValueError("Mesh layer project layer indices exceed the saved mesh")
+        if assigned_indices.intersection(indices):
+            raise ValueError("Mesh layer project assigns one submesh to multiple layers")
+        base = bool(raw_layer.get("base", False))
+        visible = True if base else bool(raw_layer.get("visible", True))
+        layers.append(
+            _MeshGeometryLayer(
+                layer_id=layer_id,
+                name=name,
+                submesh_indices=indices,
+                visible=visible,
+                base=base,
+            )
+        )
+        seen_ids.add(layer_id)
+        assigned_indices.update(indices)
+    if not layers or layers[0].layer_id != "base" or not layers[0].base:
+        raise ValueError("Mesh layer project must begin with Base mesh")
+    if assigned_indices != set(range(submesh_count)):
+        raise ValueError("Mesh layer project does not account for every saved submesh")
+    return tuple(layers)
+
+
+def _project_non_negative_int(value: object, *, field: str) -> int:
+    try:
+        parsed = int(value or 0)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"Mesh layer project contains an invalid {field}") from exc
+    if parsed < 0:
+        raise ValueError(f"Mesh layer project contains an invalid {field}")
+    return parsed
+
+
+def _selection_params_for_active_geometry_layer(
+    session: _MeshEditSession,
+    params: Mapping[str, object],
+) -> dict[str, object]:
+    result = dict(params)
+    allowed = _active_geometry_layer_indices(session)
+    result["allowed_submesh_indices"] = allowed
+    raw_screen = result.get("_native_screen_selection_payload")
+    if not isinstance(raw_screen, Mapping):
+        return result
+    screen = dict(raw_screen)
+    for key in ("screen_brush", "screen_region"):
+        value = screen.get(key)
+        if isinstance(value, Mapping):
+            screen[key] = {**dict(value), "source_submesh_indices": allowed}
+    for key in ("screen_brushes", "screen_regions"):
+        value = screen.get(key)
+        if isinstance(value, (tuple, list)):
+            screen[key] = [
+                {**dict(item), "source_submesh_indices": allowed}
+                for item in value
+                if isinstance(item, Mapping)
+            ]
+    result["_native_screen_selection_payload"] = screen
+    return result
 
 
 def _with_mesh_session_export_lock(method):
@@ -425,21 +557,51 @@ class MeshService(
         mode = _mode(mode)
         session_key = str(session_id or uuid4())
         original_data = bytes(getattr(mesh, "_cdmw_original_data", b"") or b"")
+        discovered_project = discover_mesh_layer_project_context(mesh)
+        source_asset_hash = str(
+            getattr(mesh, "_cdmw_mesh_asset_source_hash", "")
+            or getattr(mesh, "_cdmw_sidecar_source_asset_hash", "")
+            or discovered_project.get("source_asset_sha256", "")
+            or (hashlib.sha256(original_data).hexdigest() if original_data else "")
+        ).strip().lower()
+        project_path_text = str(
+            getattr(mesh, "_cdmw_mesh_layer_project_path", "")
+            or discovered_project.get("project_path", "")
+            or ""
+        ).strip()
+        project_path = Path(project_path_text).expanduser().resolve() if project_path_text else None
+        workspace_manifest_text = str(
+            getattr(mesh, "_cdmw_modify_original_workspace_manifest_path", "")
+            or discovered_project.get("manifest_path", "")
+            or ""
+        ).strip()
+        workspace_manifest_path = (
+            Path(workspace_manifest_text).expanduser().resolve() if workspace_manifest_text else None
+        )
         working_mesh, base_mesh = _clone_mesh_pair_for_session_open(mesh)
+        loaded_layer_project: Mapping[str, object] | None = None
+        if project_path is not None and project_path.is_file():
+            loaded_layer_project = load_mesh_layer_project(
+                working_mesh,
+                project_path,
+                expected_source_asset_sha256=source_asset_hash,
+            )
+            if loaded_layer_project is not None:
+                base_mesh = _clone_mesh_for_service_native_snapshot(
+                    working_mesh,
+                    "session.layer_project_base_clone",
+                    "Python layer-project base clone fallback blocked while native mesh core is available",
+                )
         _copy_mesh_validation_metadata(mesh, working_mesh)
         _copy_mesh_validation_metadata(mesh, base_mesh)
         refresh_mesh_totals(working_mesh)
-        self._sessions[session_key] = _MeshEditSession(
+        session = _MeshEditSession(
             session_id=session_key,
             base_mesh=base_mesh,
             working_mesh=working_mesh,
             original_data=original_data,
             mesh_asset_parse_confidence=str(getattr(mesh, "_cdmw_mesh_asset_parse_confidence", "") or ""),
-            mesh_asset_source_hash=str(
-                getattr(mesh, "_cdmw_mesh_asset_source_hash", "")
-                or getattr(mesh, "_cdmw_sidecar_source_asset_hash", "")
-                or (hashlib.sha256(original_data).hexdigest() if original_data else "")
-            ),
+            mesh_asset_source_hash=source_asset_hash,
             mesh_asset_source_size=(
                 _positive_int(getattr(mesh, "_cdmw_sidecar_source_asset_size", 0)) or len(original_data)
             ),
@@ -454,16 +616,500 @@ class MeshService(
             ),
             base_mesh_is_original_parse=_native_source_parse_eligible(mesh, original_data),
             mode=mode,
+            mesh_layer_project_path=project_path,
+            mesh_layer_workspace_manifest_path=workspace_manifest_path,
+            mesh_layer_workspace_mode=str(
+                getattr(mesh, "_cdmw_modify_original_workspace_mode", "")
+                or discovered_project.get("workspace_mode", "")
+                or ""
+            ),
         )
+        if loaded_layer_project is not None:
+            session.geometry_layers = _geometry_layers_from_project_payload(
+                loaded_layer_project,
+                len(working_mesh.submeshes),
+            )
+            session.active_geometry_layer_id = str(
+                loaded_layer_project.get("active_layer_id") or "base"
+            )
+            if not any(
+                layer.layer_id == session.active_geometry_layer_id and layer.visible
+                for layer in session.geometry_layers
+            ):
+                session.active_geometry_layer_id = "base"
+            session.geometry_layer_copy_counter = _project_non_negative_int(
+                loaded_layer_project.get("copy_counter"),
+                field="copy counter",
+            )
+            session.geometry_layer_revision = _project_non_negative_int(
+                loaded_layer_project.get("layer_revision"),
+                field="layer revision",
+            )
+            session.mesh_layer_loaded_generation = str(
+                loaded_layer_project.get("loaded_generation") or ""
+            )
+            session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
+        else:
+            session.geometry_layers = (
+                _MeshGeometryLayer(
+                    layer_id="base",
+                    name="Base mesh",
+                    submesh_indices=tuple(range(len(working_mesh.submeshes))),
+                    visible=True,
+                    base=True,
+                ),
+            )
+        self._sessions[session_key] = session
         return self.session_view(session_key)
 
-    def close_edit_session(self, session_id: str) -> None:
+    def geometry_layer_state(self, session_id: str) -> dict[str, object]:
+        session = self._session(session_id)
+        with session.export_lock:
+            return _geometry_layer_state_payload(session)
+
+    def copy_selection(
+        self,
+        session_id: str,
+        *,
+        target: str = "vertex",
+        selection: MeshEditSelection | None = None,
+        stop_event: threading.Event | None = None,
+    ) -> MeshEditResult:
+        session = self._session(session_id)
+        with session.export_lock:
+            normalized_target = str(target or "vertex").strip().lower()
+            normalized_target = {"vertices": "vertex", "wires": "edge", "wire": "edge", "edges": "edge", "faces": "face"}.get(
+                normalized_target, normalized_target
+            )
+            if normalized_target not in {"vertex", "edge", "face"}:
+                raise ValueError(f"Unsupported Mesh Editor copy target: {target}")
+            if not native_mesh_core_available():
+                raise RuntimeError("native Mesh Editor clipboard is unavailable")
+            _refresh_native_editor_session_if_mesh_changed(session)
+            if not session.native_editor_session_ready:
+                opened = open_native_mesh_editor_session(
+                    session.working_mesh,
+                    session.session_id,
+                    stop_event=stop_event,
+                    timeout_seconds=10.0,
+                )
+                if opened is None:
+                    raise RuntimeError("native Mesh Editor clipboard session failed to open")
+                session.native_editor_session_ready = True
+                session.native_editor_mesh_signature = _native_editor_mesh_storage_signature(session.working_mesh)
+            effective_selection = selection if selection is not None else session.selection
+            effective_selection = _prune_selection_to_mesh(session.working_mesh, effective_selection)
+            selection_payload = _native_editor_selection_payload(effective_selection)
+            selected = select_native_mesh_editor_session(
+                session.session_id,
+                selection_payload,
+                operation="replace",
+                stop_event=stop_event,
+                timeout_seconds=5.0,
+            )
+            if selected is None:
+                raise RuntimeError("native Mesh Editor clipboard selection sync failed")
+            report = copy_native_mesh_editor_session(
+                session.session_id,
+                target=normalized_target,
+                stop_event=stop_event,
+                timeout_seconds=5.0,
+            )
+            if report is None:
+                message = str(last_native_mesh_core_job_error() or "").strip()
+                if "No complete faces selected to copy" in message:
+                    raise RuntimeError("No complete faces selected to copy")
+                raise RuntimeError(message or "native Mesh Editor copy failed")
+            session.native_editor_selection_signature = _mesh_edit_selection_signature(effective_selection)
+            session.native_clipboard_ready = True
+            return self._result(session, "copy", metrics=_native_editor_metrics(report))
+
+    def paste_selection(self, session_id: str) -> MeshEditResult:
+        session = self._session(session_id)
+        with session.export_lock:
+            if not session.native_clipboard_ready:
+                raise RuntimeError("Mesh Editor clipboard is empty")
+            layers_before = session.geometry_layers
+            active_before = session.active_geometry_layer_id
+            counter_before = session.geometry_layer_copy_counter
+            result = self.apply_command(
+                session_id,
+                MeshEditCommand(
+                    action="paste",
+                    selection=session.selection,
+                    params={"_geometry_layer_paste_internal": True},
+                    mode="edit",
+                    label="Paste",
+                ),
+            )
+            if not result.ok:
+                return result
+            pasted_indices = tuple(sorted(set(result.affected_submesh_indices)))
+            if not pasted_indices:
+                raise RuntimeError("Mesh Editor paste returned no geometry")
+            session.geometry_layer_copy_counter += 1
+            layer_id = f"selection-copy-{session.geometry_layer_copy_counter}"
+            session.geometry_layers = session.geometry_layers + (
+                _MeshGeometryLayer(
+                    layer_id=layer_id,
+                    name=f"Selection copy {session.geometry_layer_copy_counter}",
+                    submesh_indices=pasted_indices,
+                ),
+            )
+            session.active_geometry_layer_id = layer_id
+            session.geometry_layer_revision += 1
+            if session.undo_stack and session.undo_stack[-1].native_editor_history:
+                marker = session.undo_stack[-1]
+                marker.geometry_layers = layers_before
+                marker.active_geometry_layer_id = active_before
+                marker.geometry_layer_copy_counter = counter_before
+                marker.retained_bytes = 0
+                marker.retained_bytes = _history_snapshot_retained_bytes(marker)
+            self._schedule_mesh_layer_autosave(session)
+            return result
+
+    def activate_geometry_layer(self, session_id: str, layer_id: str) -> dict[str, object]:
+        session = self._session(session_id)
+        with session.export_lock:
+            requested = str(layer_id or "").strip()
+            if not any(layer.layer_id == requested for layer in session.geometry_layers):
+                raise KeyError(f"Unknown Mesh Editor layer: {requested}")
+            if session.active_geometry_layer_id != requested:
+                session.active_geometry_layer_id = requested
+                self._clear_geometry_layer_selection_locked(session)
+                session.geometry_layer_revision += 1
+                self._schedule_mesh_layer_autosave(session)
+            return _geometry_layer_state_payload(session)
+
+    def rename_geometry_layer(self, session_id: str, layer_id: str, name: str) -> dict[str, object]:
+        session = self._session(session_id)
+        with session.export_lock:
+            requested = str(layer_id or "").strip()
+            normalized_name = str(name or "").strip()
+            if not normalized_name:
+                raise ValueError("Layer name cannot be empty")
+            updated: list[_MeshGeometryLayer] = []
+            found = False
+            for layer in session.geometry_layers:
+                if layer.layer_id != requested:
+                    updated.append(layer)
+                    continue
+                found = True
+                if layer.base:
+                    raise ValueError("Base mesh cannot be renamed")
+                updated.append(replace(layer, name=normalized_name))
+            if not found:
+                raise KeyError(f"Unknown Mesh Editor layer: {requested}")
+            session.geometry_layers = tuple(updated)
+            session.geometry_layer_revision += 1
+            self._schedule_mesh_layer_autosave(session)
+            return _geometry_layer_state_payload(session)
+
+    def set_geometry_layer_visibility(
+        self,
+        session_id: str,
+        layer_id: str,
+        visible: bool,
+    ) -> dict[str, object]:
+        session = self._session(session_id)
+        with session.export_lock:
+            requested = str(layer_id or "").strip()
+            updated: list[_MeshGeometryLayer] = []
+            changed = False
+            found = False
+            for layer in session.geometry_layers:
+                if layer.layer_id != requested:
+                    updated.append(layer)
+                    continue
+                found = True
+                if layer.base and not visible:
+                    raise ValueError("Base mesh is always visible")
+                replacement = replace(layer, visible=bool(visible))
+                changed = replacement != layer
+                updated.append(replacement)
+            if not found:
+                raise KeyError(f"Unknown Mesh Editor layer: {requested}")
+            session.geometry_layers = tuple(updated)
+            if changed and not visible and session.active_geometry_layer_id == requested:
+                session.active_geometry_layer_id = "base"
+                self._clear_geometry_layer_selection_locked(session)
+            if changed:
+                session.geometry_layer_revision += 1
+                self._schedule_mesh_layer_autosave(session)
+            return _geometry_layer_state_payload(session)
+
+    def move_geometry_layer(self, session_id: str, layer_id: str, direction: int) -> dict[str, object]:
+        session = self._session(session_id)
+        with session.export_lock:
+            requested = str(layer_id or "").strip()
+            layers = list(session.geometry_layers)
+            index = next((offset for offset, layer in enumerate(layers) if layer.layer_id == requested), -1)
+            if index < 0:
+                raise KeyError(f"Unknown Mesh Editor layer: {requested}")
+            if layers[index].base:
+                raise ValueError("Base mesh cannot be reordered")
+            destination = index + (-1 if int(direction) < 0 else 1)
+            destination = max(1, min(len(layers) - 1, destination))
+            if destination != index:
+                layers.insert(destination, layers.pop(index))
+                session.geometry_layers = tuple(layers)
+                session.geometry_layer_revision += 1
+                self._schedule_mesh_layer_autosave(session)
+            return _geometry_layer_state_payload(session)
+
+    def delete_geometry_layer(self, session_id: str, layer_id: str) -> MeshEditResult:
+        session = self._session(session_id)
+        with session.export_lock:
+            requested = str(layer_id or "").strip()
+            layer = next((item for item in session.geometry_layers if item.layer_id == requested), None)
+            if layer is None:
+                raise KeyError(f"Unknown Mesh Editor layer: {requested}")
+            if layer.base:
+                raise ValueError("Base mesh cannot be deleted")
+            layers_before = session.geometry_layers
+            active_before = session.active_geometry_layer_id
+            counter_before = session.geometry_layer_copy_counter
+            selection = MeshEditSelection.from_maps(source_indices=layer.submesh_indices)
+            result = self.apply_command(
+                session_id,
+                MeshEditCommand(
+                    action="delete",
+                    selection=selection,
+                    params={"delete_parts": True, "geometry_layer_delete": True},
+                    mode="edit",
+                    label="Delete Layer",
+                ),
+            )
+            if not result.ok:
+                return result
+            deleted_indices = tuple(sorted(set(layer.submesh_indices)))
+            deleted_set = set(deleted_indices)
+
+            def remap_index(index: int) -> int | None:
+                if index in deleted_set:
+                    return None
+                return index - sum(1 for deleted in deleted_indices if deleted < index)
+
+            remapped_layers: list[_MeshGeometryLayer] = []
+            for item in session.geometry_layers:
+                if item.layer_id == requested:
+                    continue
+                remapped = tuple(
+                    mapped
+                    for source_index in item.submesh_indices
+                    if (mapped := remap_index(source_index)) is not None
+                )
+                remapped_layers.append(replace(item, submesh_indices=remapped))
+            session.geometry_layers = tuple(remapped_layers)
+            session.active_geometry_layer_id = "base"
+            session.geometry_layer_revision += 1
+            if session.undo_stack and session.undo_stack[-1].native_editor_history:
+                marker = session.undo_stack[-1]
+                marker.geometry_layers = layers_before
+                marker.active_geometry_layer_id = active_before
+                marker.geometry_layer_copy_counter = counter_before
+                marker.retained_bytes = 0
+                marker.retained_bytes = _history_snapshot_retained_bytes(marker)
+            self._schedule_mesh_layer_autosave(session)
+            return result
+
+    def _clear_geometry_layer_selection_locked(self, session: _MeshEditSession) -> None:
+        session.selection = MeshEditSelection()
+        session.selection_stroke_id = ""
+        session.selection_stroke_sequence = -1
+        session.selection_stroke_start = None
+        session.native_editor_selection_signature = ()
+        if not session.native_editor_session_ready:
+            return
+        report = select_native_mesh_editor_session(
+            session.session_id,
+            _native_editor_selection_payload(session.selection),
+            operation="replace",
+            timeout_seconds=5.0,
+        )
+        if report is None:
+            session.native_editor_session_ready = False
+
+    def _reconcile_geometry_layers_after_topology(
+        self,
+        session: _MeshEditSession,
+        *,
+        action: str,
+        command: MeshEditCommand,
+        selection: MeshEditSelection,
+        before_count: int,
+        after_count: int,
+    ) -> bool:
+        if action == "paste" or _truthy(command.params.get("geometry_layer_delete")):
+            return False
+        layers = list(session.geometry_layers)
+        if not layers or before_count == after_count:
+            return False
+        if after_count < before_count:
+            if action != "delete" or not _truthy(command.params.get("delete_parts")):
+                return False
+            removed = tuple(sorted({int(index) for index in selection.source_indices if 0 <= int(index) < before_count}))
+            if before_count - len(removed) != after_count:
+                return False
+            removed_set = set(removed)
+
+            def remap_index(index: int) -> int | None:
+                if index in removed_set:
+                    return None
+                return index - sum(1 for removed_index in removed if removed_index < index)
+
+            layers = [
+                replace(
+                    layer,
+                    submesh_indices=tuple(
+                        mapped
+                        for index in layer.submesh_indices
+                        if (mapped := remap_index(index)) is not None
+                    ),
+                )
+                for layer in layers
+            ]
+        assigned = {index for layer in layers for index in layer.submesh_indices if 0 <= index < after_count}
+        missing = tuple(index for index in range(after_count) if index not in assigned)
+        if missing:
+            active_index = next(
+                (index for index, layer in enumerate(layers) if layer.layer_id == session.active_geometry_layer_id),
+                0,
+            )
+            active = layers[active_index]
+            layers[active_index] = replace(
+                active,
+                submesh_indices=tuple(sorted(set(active.submesh_indices).union(missing))),
+            )
+        updated = tuple(layers)
+        if updated == session.geometry_layers:
+            return False
+        session.geometry_layers = updated
+        session.geometry_layer_revision += 1
+        return True
+
+    def _schedule_mesh_layer_autosave(self, session: _MeshEditSession) -> None:
+        if session.mesh_layer_project_path is None or len(session.mesh_asset_source_hash) != 64:
+            return
+        session.mesh_layer_autosave_requested_key = (session.revision, session.geometry_layer_revision)
+        session.mesh_layer_autosave_error = ""
+        timer = session.mesh_layer_autosave_timer
+        if timer is not None:
+            timer.cancel()
+        if session.mesh_layer_autosave_stop_event is not None:
+            session.mesh_layer_autosave_stop_event.set()
+        timer = threading.Timer(0.75, self._start_mesh_layer_autosave, args=(session.session_id,))
+        timer.daemon = True
+        session.mesh_layer_autosave_timer = timer
+        timer.start()
+
+    def _start_mesh_layer_autosave(self, session_id: str) -> None:
+        session = self._sessions.get(str(session_id))
+        if session is None or session.closed:
+            return
+        running = session.mesh_layer_autosave_thread
+        if running is not None and running.is_alive():
+            if session.mesh_layer_autosave_stop_event is not None:
+                session.mesh_layer_autosave_stop_event.set()
+            retry = threading.Timer(0.05, self._start_mesh_layer_autosave, args=(session.session_id,))
+            retry.daemon = True
+            session.mesh_layer_autosave_timer = retry
+            retry.start()
+            return
+        expected_key = session.mesh_layer_autosave_requested_key
+        stop_event = threading.Event()
+        session.mesh_layer_autosave_stop_event = stop_event
+        worker = threading.Thread(
+            target=self._run_mesh_layer_autosave,
+            args=(session.session_id, expected_key, stop_event),
+            name=f"mesh-layer-autosave-{session.session_id}",
+            daemon=True,
+        )
+        session.mesh_layer_autosave_thread = worker
+        worker.start()
+
+    def _run_mesh_layer_autosave(
+        self,
+        session_id: str,
+        expected_key: tuple[int, int],
+        stop_event: threading.Event,
+    ) -> None:
+        session = self._sessions.get(str(session_id))
+        if session is None:
+            return
+        try:
+            with session.export_lock:
+                if session.closed or expected_key != session.mesh_layer_autosave_requested_key:
+                    return
+                self._save_mesh_layer_project_locked(session, stop_event=stop_event)
+        except RunCancelled:
+            return
+        except Exception as exc:
+            with session.export_lock:
+                if expected_key == session.mesh_layer_autosave_requested_key:
+                    session.mesh_layer_autosave_error = f"{type(exc).__name__}: {exc}"
+
+    def _save_mesh_layer_project_locked(
+        self,
+        session: _MeshEditSession,
+        *,
+        stop_event: threading.Event | None = None,
+    ) -> None:
+        if session.mesh_layer_project_path is None:
+            return
+        layer_payload = _geometry_layer_state_payload(session)
+        promote = len(session.geometry_layers) > 1
+        descriptor = save_mesh_layer_project(
+            session_id=session.session_id,
+            mesh=session.working_mesh,
+            project_path=session.mesh_layer_project_path,
+            source_asset_sha256=session.mesh_asset_source_hash,
+            layers=layer_payload["layers"],
+            active_layer_id=session.active_geometry_layer_id,
+            copy_counter=session.geometry_layer_copy_counter,
+            mesh_revision=session.revision,
+            layer_revision=session.geometry_layer_revision,
+            workspace_manifest_path=session.mesh_layer_workspace_manifest_path,
+            promote_persistent_draft=promote,
+            stop_event=stop_event,
+        )
+        session.mesh_layer_loaded_generation = str(descriptor.get("current_generation") or "")
+        session.mesh_layer_autosave_saved_key = (session.revision, session.geometry_layer_revision)
+        session.mesh_layer_autosave_error = ""
+        if promote and session.mesh_layer_workspace_mode == "internal_app_session":
+            session.mesh_layer_workspace_mode = "persistent_app_draft"
+
+    def retry_mesh_layer_autosave(self, session_id: str) -> None:
+        session = self._session(session_id)
+        with session.export_lock:
+            session.mesh_layer_autosave_requested_key = (session.revision, session.geometry_layer_revision)
+            self._save_mesh_layer_project_locked(session)
+
+    def close_edit_session(self, session_id: str, *, force_without_saving: bool = False) -> None:
         session_key = str(session_id)
         session = self._sessions.get(session_key)
         if session is not None:
             with session.export_lock:
                 if self._sessions.get(session_key) is not session:
                     return
+                timer = session.mesh_layer_autosave_timer
+                if timer is not None:
+                    timer.cancel()
+                if session.mesh_layer_autosave_stop_event is not None:
+                    session.mesh_layer_autosave_stop_event.set()
+                current_key = (session.revision, session.geometry_layer_revision)
+                if (
+                    not force_without_saving
+                    and session.mesh_layer_project_path is not None
+                    and current_key != session.mesh_layer_autosave_saved_key
+                ):
+                    try:
+                        self._save_mesh_layer_project_locked(session)
+                    except Exception as exc:
+                        session.mesh_layer_autosave_error = f"{type(exc).__name__}: {exc}"
+                        raise RuntimeError(
+                            "Mesh Editor has unsaved geometry layers; retry saving or explicitly close without saving"
+                        ) from exc
                 self._sessions.pop(session_key, None)
                 self._morph_sessions.pop(session_key, None)
                 session.closed = True
@@ -752,6 +1398,20 @@ class MeshService(
         action = str(edit_command.action or "").strip().lower()
         if action not in (*MESH_EDIT_ACTIONS, *MESH_MORPH_ACTIONS):
             raise ValueError(f"Unsupported mesh edit action: {edit_command.action!r}")
+        if action == "copy":
+            return self.copy_selection(
+                session.session_id,
+                target=str(edit_command.params.get("target_mode", "vertex") or "vertex"),
+                selection=_command_selection(edit_command),
+                stop_event=_stop_event_from_params(edit_command.params),
+            )
+        if action == "paste" and not _truthy(edit_command.params.get("_geometry_layer_paste_internal")):
+            return self.paste_selection(session.session_id)
+        if action == "layer_delete":
+            return self.delete_geometry_layer(
+                session.session_id,
+                str(edit_command.params.get("layer_id", "") or ""),
+            )
         if action in MESH_MORPH_ACTIONS:
             return self._apply_morph_edit_command_locked(session, edit_command)
         if action == "set_mode":
@@ -801,11 +1461,69 @@ class MeshService(
         command: MeshEditCommand,
         selection: MeshEditSelection | None,
     ) -> MeshEditResult:
-        params = dict(command.params or {})
+        params = _selection_params_for_active_geometry_layer(session, command.params or {})
         metrics: dict[str, float] = {}
         operation = params.get("operation", params.get("selection_operation", "replace"))
         stop_event = _stop_event_from_params(params)
         fallback_event_start = len(native_mesh_core_fallback_events())
+        stroke_id = str(params.get("selection_stroke_id", params.get("stroke_id", "")) or "").strip()
+        stroke_phase = str(params.get("selection_stroke_phase", params.get("stroke_phase", "")) or "").strip().lower()
+        try:
+            stroke_sequence = int(params.get("selection_stroke_sequence", params.get("stroke_sequence", -1)))
+        except (TypeError, ValueError, OverflowError):
+            stroke_sequence = -1
+        if stroke_phase:
+            if stroke_phase not in {"begin", "update", "end", "cancel"} or not stroke_id or stroke_sequence < 0:
+                return self._result(
+                    session,
+                    "select",
+                    status="error",
+                    diagnostics=("Selection stroke requires an id, non-negative sequence, and valid phase.",),
+                )
+            if stroke_phase == "begin":
+                if session.selection_stroke_id and session.selection_stroke_id != stroke_id:
+                    return self._result(
+                        session,
+                        "select",
+                        status="error",
+                        diagnostics=("Another selection stroke is still active.",),
+                    )
+                session.selection_stroke_id = stroke_id
+                session.selection_stroke_sequence = stroke_sequence
+                session.selection_stroke_start = session.selection
+                return self._result(session, "select")
+            if session.selection_stroke_id != stroke_id or session.selection_stroke_start is None:
+                return self._result(
+                    session,
+                    "select",
+                    status="error",
+                    diagnostics=("Selection stroke is stale or was retired.",),
+                )
+            if stroke_sequence <= session.selection_stroke_sequence:
+                return self._result(session, "select", status="noop")
+            session.selection_stroke_sequence = stroke_sequence
+            if stroke_phase == "cancel":
+                baseline = session.selection_stroke_start
+                selected, groups, diagnostics, metrics = _apply_native_editor_session_selection_operation(
+                    session,
+                    baseline,
+                    "replace",
+                    native_selection_payload=_native_editor_selection_payload(baseline),
+                    stop_event=stop_event,
+                )
+                if selected is None:
+                    return self._result(session, "select", status="error", diagnostics=diagnostics, metrics=metrics)
+                session.selection = selected
+                session.selection_stroke_id = ""
+                session.selection_stroke_sequence = -1
+                session.selection_stroke_start = None
+                return self._result(
+                    session,
+                    "select",
+                    diagnostics=_native_blocked_fallback_diagnostics(fallback_event_start) + diagnostics,
+                    native_selection_groups=groups,
+                    metrics=metrics,
+                )
         previous_selection = session.selection
         if native_mesh_core_available():
             native_payload = _native_editor_select_payload_for_params(selection or MeshEditSelection(), params)
@@ -818,7 +1536,18 @@ class MeshService(
             )
             if selected is None:
                 return self._result(session, "select", status="error", diagnostics=diagnostics, metrics=metrics)
-            if _records_history(command):
+            if stroke_phase == "end":
+                baseline = session.selection_stroke_start or previous_selection
+                self._record_selection_history(
+                    session,
+                    baseline,
+                    selected,
+                    label=_history_action_label("select", command),
+                )
+                session.selection_stroke_id = ""
+                session.selection_stroke_sequence = -1
+                session.selection_stroke_start = None
+            elif not stroke_phase and _records_history(command):
                 self._record_selection_history(
                     session,
                     previous_selection,
@@ -876,6 +1605,9 @@ class MeshService(
         command_mode: str,
     ) -> MeshEditResult:
         service_started = time.perf_counter()
+        geometry_layers_before = session.geometry_layers
+        active_geometry_layer_before = session.active_geometry_layer_id
+        geometry_layer_copy_counter_before = session.geometry_layer_copy_counter
         if require_native and not native_mesh_core_available():
             raise RuntimeError(f"native mesh editor unavailable for {action}; Python mesh-edit fallback is disabled")
         topology_started = time.perf_counter()
@@ -925,7 +1657,31 @@ class MeshService(
             },
         )
         self._dispatch_geometry_command(execution, command_for_apply, require_native)
-        return self._finish_geometry_command(execution)
+        result = self._finish_geometry_command(execution)
+        if result.ok and result.topology_changed and topology_before is not None:
+            after_count = (
+                len(result.submesh_counts)
+                if result.submesh_counts
+                else max(0, len(topology_before) + int(result.submesh_count_delta or 0))
+            )
+            layers_changed = self._reconcile_geometry_layers_after_topology(
+                session,
+                action=action,
+                command=command,
+                selection=selection,
+                before_count=len(topology_before),
+                after_count=after_count,
+            )
+            if layers_changed:
+                if execution.history_pushed and session.undo_stack:
+                    marker = session.undo_stack[-1]
+                    marker.geometry_layers = geometry_layers_before
+                    marker.active_geometry_layer_id = active_geometry_layer_before
+                    marker.geometry_layer_copy_counter = geometry_layer_copy_counter_before
+                    marker.retained_bytes = 0
+                    marker.retained_bytes = _history_snapshot_retained_bytes(marker)
+                self._schedule_mesh_layer_autosave(session)
+        return result
 
     def _dispatch_geometry_command(
         self,
@@ -1024,6 +1780,13 @@ class MeshService(
         execution.affected, execution.changed = result.affected, result.changed
         execution.native_preview_vertex_update_groups = result.native_preview_vertex_update_groups
         execution.native_preview_triangle_groups = result.native_preview_triangle_groups
+        execution.native_selection_groups = result.native_selection_groups
+        # Geometry commands may carry the operation's explicit target selection
+        # even when they are no-ops. Only topology results own/remap the live
+        # selection; non-topology commands must not turn their target argument
+        # into a persistent session selection.
+        if result.native_selection is not None and bool(result.topology_changed):
+            execution.session.selection = result.native_selection
         execution.native_submesh_counts = result.submesh_counts
         execution.result_metrics.update(result.metrics)
         execution.used_native_editor_session = True
@@ -1061,6 +1824,7 @@ class MeshService(
             execution.action,
             affected=execution.affected,
             changed=execution.changed,
+            native_selection_groups=execution.native_selection_groups,
             native_preview_vertex_update_groups=execution.native_preview_vertex_update_groups,
             native_preview_triangle_groups=execution.native_preview_triangle_groups,
             topology_changed=topology_changed
@@ -1141,6 +1905,7 @@ class MeshService(
             diagnostics = self._finalize_changed_geometry(execution, topology_changed)
             if topology_changed:
                 self._invalidate_morph_after_topology_locked(session)
+            self._schedule_mesh_layer_autosave(session)
             return diagnostics
         return ()
 
@@ -1512,6 +2277,9 @@ def _restore_native_editor_history(
     current_mode = session.mode
     current_selection = session.selection
     current_edit_operations = tuple(session.edit_operations)
+    current_geometry_layers = session.geometry_layers
+    current_active_geometry_layer_id = session.active_geometry_layer_id
+    current_geometry_layer_copy_counter = session.geometry_layer_copy_counter
     dirty_at_start = session.native_editor_mesh_dirty
     before_signature = (
         session.native_editor_mesh_dirty_counts
@@ -1530,6 +2298,18 @@ def _restore_native_editor_history(
         raise RuntimeError(f"native mesh editor {command} failed")
     native_preview_vertex_update_groups = native_mesh_editor_session_preview_vertex_update_groups(report)
     native_preview_triangle_groups = native_mesh_editor_session_preview_triangle_groups(report)
+    native_selection_payload = native_mesh_editor_session_selection_from_report(report)
+    native_selection = (
+        MeshEditSelection.from_maps(
+            vertices_by_submesh=native_selection_payload.get("vertices_by_submesh"),  # type: ignore[arg-type]
+            edges_by_submesh=native_selection_payload.get("edges_by_submesh"),  # type: ignore[arg-type]
+            faces_by_submesh=native_selection_payload.get("faces_by_submesh"),  # type: ignore[arg-type]
+            source_indices=native_selection_payload.get("source_indices"),  # type: ignore[arg-type]
+        )
+        if native_selection_payload is not None
+        else None
+    )
+    native_selection_groups = native_mesh_editor_session_selection_groups_from_report(report)
     apply_started = time.perf_counter()
     current_submesh_count = len(before_signature)
     dirty_counts = _native_editor_dirty_counts_from_report(
@@ -1552,8 +2332,29 @@ def _restore_native_editor_history(
         session.native_editor_mesh_signature = _native_editor_mesh_storage_signature(session.working_mesh)
     affected, changed_vertices_by_submesh = applied
     session.mode = snapshot.mode
-    session.selection = snapshot.selection
+    session.selection = native_selection if native_selection is not None else snapshot.selection
     session.edit_operations = tuple(snapshot.edit_operations)
+    if snapshot.geometry_layers is not None:
+        session.geometry_layers = _restore_geometry_layer_structure(
+            snapshot.geometry_layers,
+            current_geometry_layers,
+        )
+        layer_action_changes_active = (
+            str(snapshot.history_action or "").strip().lower() == "paste"
+            or str(snapshot.history_label or "").strip().lower() == "delete layer"
+        )
+        requested_active = (
+            snapshot.active_geometry_layer_id
+            if layer_action_changes_active
+            else current_active_geometry_layer_id
+        ) or "base"
+        session.active_geometry_layer_id = (
+            requested_active
+            if any(layer.layer_id == requested_active for layer in session.geometry_layers)
+            else "base"
+        )
+        session.geometry_layer_copy_counter = int(snapshot.geometry_layer_copy_counter or 0)
+        session.geometry_layer_revision += 1
     session.native_editor_selection_signature = ()
     after_signature = session.native_editor_mesh_dirty_counts if session.native_editor_mesh_dirty else _mesh_structure_signature(session.working_mesh)
     topology_changed, topology_affected, submesh_count_delta = _restore_topology_delta(
@@ -1579,6 +2380,13 @@ def _restore_native_editor_history(
             native_editor_stroke_id=snapshot.native_editor_stroke_id,
             history_action=snapshot.history_action,
             history_label=snapshot.history_label,
+            geometry_layers=(current_geometry_layers if snapshot.geometry_layers is not None else None),
+            active_geometry_layer_id=(
+                current_active_geometry_layer_id if snapshot.geometry_layers is not None else None
+            ),
+            geometry_layer_copy_counter=(
+                current_geometry_layer_copy_counter if snapshot.geometry_layers is not None else None
+            ),
         ),
     )
     _restore_history_material_state(session, snapshot)
@@ -1587,12 +2395,66 @@ def _restore_native_editor_history(
         changed_vertices_by_submesh=dict(changed_vertices_by_submesh),
         native_preview_vertex_update_groups=native_preview_vertex_update_groups,
         native_preview_triangle_groups=native_preview_triangle_groups,
+        native_selection_groups=native_selection_groups,
         topology_changed=topology_changed,
         affected_submesh_indices=set(affected) | topology_affected,
         submesh_count_delta=submesh_count_delta,
         submesh_counts=after_signature,
         metrics=metrics,
     )
+
+
+def _restore_geometry_layer_structure(
+    target_layers: tuple[_MeshGeometryLayer, ...],
+    current_layers: tuple[_MeshGeometryLayer, ...],
+) -> tuple[_MeshGeometryLayer, ...]:
+    """Restore geometry membership without rolling back non-history metadata."""
+
+    current_by_id = {layer.layer_id: layer for layer in current_layers}
+    target_by_id = {layer.layer_id: layer for layer in target_layers}
+    restored_by_id = {
+        layer.layer_id: (
+            replace(
+                layer,
+                name=current_by_id[layer.layer_id].name,
+                visible=current_by_id[layer.layer_id].visible,
+            )
+            if layer.layer_id in current_by_id
+            else layer
+        )
+        for layer in target_layers
+    }
+
+    # Existing layers keep the user's current Move Up/Down order. A layer that
+    # the geometry action removed is reinserted beside its closest historical
+    # neighbour, so Undo Delete restores its former position without moving the
+    # layers that remained editable in the meantime.
+    ordered_ids = [layer.layer_id for layer in current_layers if layer.layer_id in target_by_id]
+    for target_index, target in enumerate(target_layers):
+        if target.layer_id in ordered_ids:
+            continue
+        previous = next(
+            (
+                target_layers[index].layer_id
+                for index in range(target_index - 1, -1, -1)
+                if target_layers[index].layer_id in ordered_ids
+            ),
+            None,
+        )
+        if previous is not None:
+            ordered_ids.insert(ordered_ids.index(previous) + 1, target.layer_id)
+            continue
+        following = next(
+            (
+                target_layers[index].layer_id
+                for index in range(target_index + 1, len(target_layers))
+                if target_layers[index].layer_id in ordered_ids
+            ),
+            None,
+        )
+        ordered_ids.insert(ordered_ids.index(following) if following is not None else len(ordered_ids), target.layer_id)
+
+    return tuple(restored_by_id[layer_id] for layer_id in ordered_ids)
 
 
 def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot) -> _MeshRestoreOutcome:
@@ -1913,7 +2775,12 @@ def _apply_native_editor_session_geometry_action(
         # fresh session instead.
         _abandon_lost_native_editor_session(session)
         dirty_at_start = False
-    if dirty_at_start and action == "delete" and _truthy(params.get("delete_parts")):
+    if (
+        dirty_at_start
+        and action == "delete"
+        and _truthy(params.get("delete_parts"))
+        and not _truthy(params.get("geometry_layer_delete"))
+    ):
         _native_editor_refusal(session, action, "delete_parts_while_mesh_dirty")
         return None
     stroke_phase = _native_editor_stroke_phase(params)
@@ -2125,6 +2992,18 @@ def _apply_native_editor_session_geometry_action(
     elif native_stroke_phase == "update" and native_stroke_id:
         session.native_editor_active_stroke_id = native_stroke_id
     report_topology_changed = bool(report.get("topology_changed")) if "topology_changed" in report else None
+    native_selection_payload = native_mesh_editor_session_selection_from_report(report)
+    native_selection = (
+        MeshEditSelection.from_maps(
+            vertices_by_submesh=native_selection_payload.get("vertices_by_submesh"),  # type: ignore[arg-type]
+            edges_by_submesh=native_selection_payload.get("edges_by_submesh"),  # type: ignore[arg-type]
+            faces_by_submesh=native_selection_payload.get("faces_by_submesh"),  # type: ignore[arg-type]
+            source_indices=native_selection_payload.get("source_indices"),  # type: ignore[arg-type]
+        )
+        if native_selection_payload is not None
+        else None
+    )
+    native_selection_groups = native_mesh_editor_session_selection_groups_from_report(report)
     if report_topology_changed:
         session.native_editor_selection_signature = ()
     elif selection_inlined:
@@ -2135,6 +3014,8 @@ def _apply_native_editor_session_geometry_action(
         metrics,
         native_preview_vertex_update_groups=native_preview_vertex_update_groups,
         native_preview_triangle_groups=native_preview_triangle_groups,
+        native_selection=native_selection,
+        native_selection_groups=native_selection_groups,
         native_stroke_id=native_stroke_id,
         native_stroke_phase=native_stroke_phase,
         native_stroke_cancelled=native_stroke_cancelled,

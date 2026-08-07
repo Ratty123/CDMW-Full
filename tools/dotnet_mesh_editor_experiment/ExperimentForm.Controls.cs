@@ -290,43 +290,85 @@ internal sealed partial class ExperimentForm
 
     private Control OverlayAppearanceControls()
     {
-        _wireColorButton = OverlayColorButton("Wire", wire: true);
-        _vertexColorButton = OverlayColorButton("Vertices", wire: false);
-        ConfigureNumeric(
-            _wireOverlayWidth,
-            decimalPlaces: 2,
-            minimum: (decimal)MeshOverlaySizing.MinimumWireWidthPixels,
-            maximum: (decimal)MeshOverlaySizing.MaximumWireWidthPixels,
-            value: (decimal)_overlaySettings.Sizing.WireWidthPixels,
-            increment: 0.05M);
-        ConfigureNumeric(
-            _vertexMarkerSize,
-            decimalPlaces: 1,
-            minimum: (decimal)MeshOverlaySizing.MinimumVertexMarkerSizePixels,
-            maximum: (decimal)MeshOverlaySizing.MaximumVertexMarkerSizePixels,
-            value: (decimal)_overlaySettings.Sizing.VertexMarkerSizePixels,
-            increment: 0.5M);
-        _wireOverlayWidth.Name = "WireOverlayWidthControl";
-        _wireOverlayWidth.AccessibleName = "Wire width in pixels";
-        _vertexMarkerSize.Name = "VertexMarkerSizeControl";
-        _vertexMarkerSize.AccessibleName = "Vertex size in pixels";
+        _wireColorButton = OverlayColorButton("Wire", "wire");
+        _vertexColorButton = OverlayColorButton("Vertices", "vertex");
+        _selectionColorButton = OverlayColorButton("Selected", "selection");
+        _liveSelectionColorButton = OverlayColorButton("Live", "live_selection");
+        ConfigureOverlaySizingControls(_wireOverlayWidth, _vertexMarkerSize, _overlaySettings);
         _wireOverlayWidth.ValueChanged += (_, _) => ApplyOverlaySizing(
             $"Wire width set to {_wireOverlayWidth.Value:0.##} px.");
         _vertexMarkerSize.ValueChanged += (_, _) => ApplyOverlaySizing(
             $"Vertex size set to {_vertexMarkerSize.Value:0.#} px.");
         var reset = StyledActionButton("Reset", ResetOverlayAppearance);
+        reset.Name = "OverlayAppearanceResetButton";
+        return BuildOverlayAppearanceLayout(
+            _wireColorButton,
+            _vertexColorButton,
+            _selectionColorButton,
+            _liveSelectionColorButton,
+            reset,
+            _wireOverlayWidth,
+            _vertexMarkerSize);
+    }
+
+    private static void ConfigureOverlaySizingControls(
+        NumericUpDown wireWidth,
+        NumericUpDown vertexSize,
+        MeshOverlaySettings settings)
+    {
+        ConfigureNumeric(
+            wireWidth,
+            decimalPlaces: 2,
+            minimum: (decimal)MeshOverlaySizing.MinimumWireWidthPixels,
+            maximum: (decimal)MeshOverlaySizing.MaximumWireWidthPixels,
+            value: (decimal)settings.Sizing.WireWidthPixels,
+            increment: 0.05M);
+        ConfigureNumeric(
+            vertexSize,
+            decimalPlaces: 1,
+            minimum: (decimal)MeshOverlaySizing.MinimumVertexMarkerSizePixels,
+            maximum: (decimal)MeshOverlaySizing.MaximumVertexMarkerSizePixels,
+            value: (decimal)settings.Sizing.VertexMarkerSizePixels,
+            increment: 0.5M);
+        wireWidth.Name = "WireOverlayWidthControl";
+        wireWidth.AccessibleName = "Wire width in pixels";
+        vertexSize.Name = "VertexMarkerSizeControl";
+        vertexSize.AccessibleName = "Vertex size in pixels";
+    }
+
+    private static Control BuildOverlayAppearanceLayout(
+        Button wire,
+        Button vertex,
+        Button selection,
+        Button liveSelection,
+        Button reset,
+        NumericUpDown wireWidth,
+        NumericUpDown vertexSize)
+    {
         // Each of these rows owns the section's full width. Nesting them under a
         // shared "Topology appearance" label pushed the sizing row past the
         // inspector edge, which clipped the vertex-size control out of reach.
         // The two sizes share a row: a row each pushed the presets below the fold.
         return StackControls(
-            ButtonRow(_wireColorButton, _vertexColorButton, reset),
+            ButtonRow(wire, vertex),
+            ButtonRow(selection, liveSelection, reset),
             ButtonRow(
-                LabeledControl("Wire px", _wireOverlayWidth),
-                LabeledControl("Vertex px", _vertexMarkerSize)));
+                LabeledControl("Wire px", wireWidth),
+                LabeledControl("Vertex px", vertexSize)));
     }
 
-    private Button OverlayColorButton(string label, bool wire)
+    private Button OverlayColorButton(string label, string role) =>
+        CreateOverlayColorButton(
+            label,
+            role,
+            OverlayColorForRole(role),
+            (_, _) => ChooseOverlayColor(label, role));
+
+    private static Button CreateOverlayColorButton(
+        string label,
+        string role,
+        Color color,
+        EventHandler onClick)
     {
         var button = StyledButton(label);
         button.AutoSize = false;
@@ -334,12 +376,95 @@ internal sealed partial class ExperimentForm
         button.MinimumSize = new Size(0, 40);
         button.Padding = new Padding(2, 0, 2, 0);
         button.Font = new Font(button.Font.FontFamily, 8f);
-        button.Click += (_, _) => ChooseOverlayColor(label, wire);
+        button.Name = role switch
+        {
+            "wire" => "WireOverlayColorButton",
+            "vertex" => "VertexOverlayColorButton",
+            "selection" => "CommittedSelectionColorButton",
+            _ => "LiveSelectionColorButton",
+        };
+        button.AccessibleName = role switch
+        {
+            "wire" => "Wire overlay color",
+            "vertex" => "Vertex overlay color",
+            "selection" => "Committed selection color",
+            _ => "Live selection color",
+        };
+        button.Click += onClick;
         ApplyOverlayColorButtonStyle(
             button,
             label,
-            wire ? _overlaySettings.Colors.Wire : _overlaySettings.Colors.Vertex);
+            color);
         return button;
+    }
+
+    internal static Dictionary<string, object?> OverlayAppearanceConstructionProof()
+    {
+        var settings = new MeshOverlaySettings(
+            new MeshOverlayColors(
+                Color.FromArgb(0x10, 0x20, 0x30),
+                Color.FromArgb(0x40, 0x50, 0x60),
+                Color.FromArgb(0x70, 0x80, 0x90),
+                Color.FromArgb(0xA0, 0xB0, 0xC0)),
+            new MeshOverlaySizing(2.25f, 11.5f));
+        var wireWidth = new NumericUpDown();
+        var vertexSize = new NumericUpDown();
+        ConfigureOverlaySizingControls(wireWidth, vertexSize, settings);
+        var wire = CreateOverlayColorButton("Wire", "wire", settings.Colors.Wire, (_, _) => { });
+        var vertex = CreateOverlayColorButton("Vertices", "vertex", settings.Colors.Vertex, (_, _) => { });
+        var selection = CreateOverlayColorButton("Selected", "selection", settings.Colors.Selection, (_, _) => { });
+        var liveSelection = CreateOverlayColorButton("Live", "live_selection", settings.Colors.LiveSelection, (_, _) => { });
+        var reset = StyledActionButton("Reset", () => { });
+        reset.Name = "OverlayAppearanceResetButton";
+        using var root = BuildOverlayAppearanceLayout(
+            wire,
+            vertex,
+            selection,
+            liveSelection,
+            reset,
+            wireWidth,
+            vertexSize);
+        _ = root.Handle;
+        var requiredNames = new[]
+        {
+            "WireOverlayColorButton",
+            "VertexOverlayColorButton",
+            "CommittedSelectionColorButton",
+            "LiveSelectionColorButton",
+            "OverlayAppearanceResetButton",
+            "WireOverlayWidthControl",
+            "VertexMarkerSizeControl",
+        };
+        if (requiredNames.Any(name => root.Controls.Find(name, searchAllChildren: true).Length != 1))
+        {
+            throw new InvalidOperationException("Viewport selection appearance controls are missing or duplicated.");
+        }
+        var labels = Descendants(root).OfType<Label>().Select(item => item.Text).ToArray();
+        if (!labels.Contains("Wire px", StringComparer.Ordinal)
+            || !labels.Contains("Vertex px", StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException("Viewport selection appearance sizing labels were not constructed.");
+        }
+        return new Dictionary<string, object?>
+        {
+            ["control_count"] = requiredNames.Length,
+            ["wire_width"] = (float)wireWidth.Value,
+            ["vertex_size"] = (float)vertexSize.Value,
+            ["selection_color"] = MeshOverlayColors.Hex(selection.BackColor),
+            ["live_selection_color"] = MeshOverlayColors.Hex(liveSelection.BackColor),
+        };
+
+        static IEnumerable<Control> Descendants(Control parent)
+        {
+            foreach (Control child in parent.Controls)
+            {
+                yield return child;
+                foreach (var descendant in Descendants(child))
+                {
+                    yield return descendant;
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -418,9 +543,17 @@ internal sealed partial class ExperimentForm
             : $"{status} Preference save failed: {error}";
     }
 
-    private void ChooseOverlayColor(string label, bool wire)
+    private Color OverlayColorForRole(string role) => role switch
     {
-        var current = wire ? _overlaySettings.Colors.Wire : _overlaySettings.Colors.Vertex;
+        "wire" => _overlaySettings.Colors.Wire,
+        "vertex" => _overlaySettings.Colors.Vertex,
+        "selection" => _overlaySettings.Colors.Selection,
+        _ => _overlaySettings.Colors.LiveSelection,
+    };
+
+    private void ChooseOverlayColor(string label, string role)
+    {
+        var current = OverlayColorForRole(role);
         using var dialog = new ColorDialog
         {
             Color = current,
@@ -433,9 +566,13 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
-        var colors = wire
-            ? _overlaySettings.Colors with { Wire = dialog.Color }
-            : _overlaySettings.Colors with { Vertex = dialog.Color };
+        var colors = role switch
+        {
+            "wire" => _overlaySettings.Colors with { Wire = dialog.Color },
+            "vertex" => _overlaySettings.Colors with { Vertex = dialog.Color },
+            "selection" => _overlaySettings.Colors with { Selection = dialog.Color },
+            _ => _overlaySettings.Colors with { LiveSelection = dialog.Color },
+        };
         _overlaySettings = _overlaySettings with { Colors = colors };
         ApplyOverlaySettings($"{label} color set to {MeshOverlayColors.Hex(dialog.Color)}.");
     }
@@ -458,7 +595,7 @@ internal sealed partial class ExperimentForm
     private void ResetOverlayAppearance()
     {
         _overlaySettings = MeshOverlaySettings.Default;
-        ApplyOverlaySettings("Topology appearance reset to black wire, amber vertices, 1.35 px wire, and 7 px vertices.");
+        ApplyOverlaySettings("Viewport selection appearance reset to the default topology, selected, and live colors.");
     }
 
     private void ApplyOverlaySettings(string status)
@@ -472,6 +609,14 @@ internal sealed partial class ExperimentForm
         if (_vertexColorButton is not null)
         {
             ApplyOverlayColorButtonStyle(_vertexColorButton, "Vertices", _overlaySettings.Colors.Vertex);
+        }
+        if (_selectionColorButton is not null)
+        {
+            ApplyOverlayColorButtonStyle(_selectionColorButton, "Selected", _overlaySettings.Colors.Selection);
+        }
+        if (_liveSelectionColorButton is not null)
+        {
+            ApplyOverlayColorButtonStyle(_liveSelectionColorButton, "Live", _overlaySettings.Colors.LiveSelection);
         }
         _syncingOverlayAppearanceControls = true;
         try
@@ -996,6 +1141,22 @@ internal sealed partial class ExperimentForm
         if (_meshEditInteractionActive && (keyData & Keys.Control) == Keys.Control)
         {
             var keyCode = keyData & Keys.KeyCode;
+            if (keyCode == Keys.C)
+            {
+                if (_viewport.HasEditableSelection)
+                {
+                    WriteCommandRequest("copy");
+                }
+                return true;
+            }
+            if (keyCode == Keys.V)
+            {
+                if (_layerPasteButton?.Enabled == true)
+                {
+                    WriteCommandRequest("paste");
+                }
+                return true;
+            }
             var redo = keyCode == Keys.Y
                 || (keyCode == Keys.Z && (keyData & Keys.Shift) == Keys.Shift);
             if (redo)

@@ -25,6 +25,7 @@ internal sealed partial class ExperimentForm
     private int _redrawBatchDepth;
 
     private RedrawBatch BeginRedrawBatch() => new(this);
+    private static ControlRedrawBatch BeginRedrawBatch(Control? control) => new(control);
 
     /// <summary>
     /// Refcounted so batches can nest: the layout activations each hold one, and
@@ -69,6 +70,32 @@ internal sealed partial class ExperimentForm
             _ = SendRedrawMessage(_form.Handle, WmSetRedraw, new IntPtr(1), IntPtr.Zero);
             _form.Invalidate(invalidateChildren: true);
             _form.Update();
+        }
+    }
+
+    internal readonly struct ControlRedrawBatch : IDisposable
+    {
+        private readonly Control? _control;
+
+        internal ControlRedrawBatch(Control? control)
+        {
+            _control = control is { IsHandleCreated: true } ? control : null;
+            if (_control is not null)
+            {
+                _ = SendRedrawMessage(_control.Handle, WmSetRedraw, IntPtr.Zero, IntPtr.Zero);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_control is null || !_control.IsHandleCreated)
+            {
+                return;
+            }
+            _control.PerformLayout();
+            _ = SendRedrawMessage(_control.Handle, WmSetRedraw, new IntPtr(1), IntPtr.Zero);
+            _control.Invalidate(invalidateChildren: true);
+            _control.Update();
         }
     }
 }

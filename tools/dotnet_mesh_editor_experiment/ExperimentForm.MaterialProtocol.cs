@@ -400,6 +400,7 @@ internal sealed partial class ExperimentForm
             _residentSessionProvisional = provisional;
             _residentSessionReleased = false;
             _lastObservedSessionRevision = ProtocolEditRevision(root);
+            ResetSelectionGestureDefaultsForSession();
             // A textured mode picked before this session existed is owed now.
             ReplayPendingResidentDisplayRequest();
             return;

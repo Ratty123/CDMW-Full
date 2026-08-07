@@ -86,6 +86,27 @@ std::string mesh_editor_summary_report(
     return out.str();
 }
 
+void mesh_editor_filter_selection_to_submeshes(
+    MeshEditorSelection& selection,
+    const std::set<int>& allowed
+) {
+    if (allowed.empty()) return;
+    for (auto* mapping : {&selection.vertices, &selection.faces}) {
+        for (auto item = mapping->begin(); item != mapping->end();) {
+            item = allowed.find(item->first) == allowed.end() ? mapping->erase(item) : std::next(item);
+        }
+    }
+    for (auto item = selection.vertex_weights.begin(); item != selection.vertex_weights.end();) {
+        item = allowed.find(item->first) == allowed.end() ? selection.vertex_weights.erase(item) : std::next(item);
+    }
+    for (auto item = selection.edges.begin(); item != selection.edges.end();) {
+        item = allowed.find(item->first) == allowed.end() ? selection.edges.erase(item) : std::next(item);
+    }
+    for (auto item = selection.source_indices.begin(); item != selection.source_indices.end();) {
+        item = allowed.find(*item) == allowed.end() ? selection.source_indices.erase(item) : std::next(item);
+    }
+}
+
 std::string mesh_editor_select_session_report(
     const JsonValue& root,
     const std::string& session_id,
@@ -130,6 +151,12 @@ std::string mesh_editor_select_session_report(
             session,
             incoming,
             normalized_selection_operation(selection_operation)
+        );
+    }
+    if (raw_selection != nullptr && raw_selection->type == JsonValue::Type::Object) {
+        mesh_editor_filter_selection_to_submeshes(
+            session.selection,
+            mesh_editor_indices_from_json(raw_selection->get("allowed_submesh_indices"))
         );
     }
     if (selection_changed) {

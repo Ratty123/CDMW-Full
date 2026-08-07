@@ -169,6 +169,8 @@ internal sealed partial class MeshViewport
             "mesh_edit_revision_ack_v1",
             "resident_mutation_envelope_v2",
             "host_tool_state_v1",
+            "correlated_selection_strokes_v1",
+            "geometry_layers_v1",
             "authoring_provisional_session_v1",
             "authoring_session_handoff_v1",
             "resident_material_updates_v2",
@@ -222,6 +224,8 @@ internal sealed partial class MeshViewport
                 or "mesh_edit_revision_ack_v1"
                 or "resident_mutation_envelope_v2"
                 or "host_tool_state_v1"
+                or "correlated_selection_strokes_v1"
+                or "geometry_layers_v1"
                 or "authoring_provisional_session_v1"
                 or "authoring_session_handoff_v1"
                 or "procedural_morph_refit_v2");

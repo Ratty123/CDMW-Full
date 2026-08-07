@@ -4622,7 +4622,16 @@ class MeshServiceEditingTests(unittest.TestCase):
 
         selected.assert_called_once()
         self.assertEqual("toggle", selected.call_args.kwargs["operation"])
-        self.assertEqual({"vertices_by_submesh": {0: {1, 2}}, "edges_by_submesh": {}, "faces_by_submesh": {}, "source_indices": (0,)}, selected.call_args.args[1])
+        self.assertEqual(
+            {
+                "vertices_by_submesh": {0: {1, 2}},
+                "edges_by_submesh": {},
+                "faces_by_submesh": {},
+                "source_indices": (0,),
+                "allowed_submesh_indices": (0,),
+            },
+            selected.call_args.args[1],
+        )
         selection = service.session_view(view.session_id).selection
         self.assertEqual({0: {0, 2}}, selection.vertex_map())
         self.assertEqual((), selection.source_indices)
@@ -4662,7 +4671,13 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertIs(native_select_mock.call_args.kwargs["stop_event"], stop_event)
         self.assertEqual("grow", native_select_mock.call_args.kwargs["operation"])
         self.assertEqual(
-            {"vertices_by_submesh": {0: {0}}, "edges_by_submesh": {0: {(1, 2)}}, "faces_by_submesh": {0: {1}}, "source_indices": (0,)},
+            {
+                "vertices_by_submesh": {0: {0}},
+                "edges_by_submesh": {0: {(1, 2)}},
+                "faces_by_submesh": {0: {1}},
+                "source_indices": (0,),
+                "allowed_submesh_indices": (0,),
+            },
             native_select_mock.call_args.args[1],
         )
         self.assertEqual(2.5, result.metrics["cpp_ms"])
@@ -4704,7 +4719,12 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertTrue(service._session(view.session_id).native_editor_session_ready)
         self.assertEqual("replace", selected.call_args.kwargs["operation"])
         self.assertEqual(
-            {"vertices_by_submesh": {0: {0}}, "edges_by_submesh": {}, "faces_by_submesh": {0: {1}}},
+            {
+                "vertices_by_submesh": {0: {0}},
+                "edges_by_submesh": {},
+                "faces_by_submesh": {0: {1}},
+                "allowed_submesh_indices": (0,),
+            },
             selected.call_args.args[1],
         )
         self.assertEqual(3.0, result.metrics["cpp_ms"])
@@ -4794,11 +4814,12 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertEqual((1,), selected.source_indices)
         self.assertTrue(selection_undo.ok)
         self.assertEqual(2, view_after_selection_undo.submesh_count)
-        self.assertTrue(view_after_selection_undo.selection.is_empty())
+        self.assertEqual({0: {0}}, view_after_selection_undo.selection.face_map())
         self.assertTrue(geometry_undo.ok)
         self.assertEqual(1, view_after_undo.submesh_count)
         self.assertEqual(2, view_after_undo.redo_count)
-        self.assertTrue(view_after_undo.selection.is_empty())
+        self.assertEqual({0: {0}}, view_after_undo.selection.face_map())
+        self.assertEqual((), view_after_undo.selection.source_indices)
 
     def test_undo_redo_restore_selection_context_snapshots(self) -> None:
         service = MeshService()
@@ -16012,6 +16033,15 @@ class MeshServiceEditingTests(unittest.TestCase):
                 command = MeshEditCommand(action, selection=selection, mode="sculpt" if action == "set_mode" else None)
                 if action == "material_copy":
                     command = MeshEditCommand(action, selection=MeshEditSelection.from_maps(source_indices=(1,)), params={"source_submesh_index": 0})
+                elif action in {"paste", "layer_delete"}:
+                    service.apply_command(
+                        view.session_id,
+                        MeshEditCommand("copy", selection=selection, params={"target_mode": "vertex"}),
+                    )
+                    service.apply_command(view.session_id, MeshEditCommand("paste"))
+                    if action == "layer_delete":
+                        copied_layer = service.geometry_layer_state(view.session_id)["active_layer_id"]
+                        command = MeshEditCommand("layer_delete", params={"layer_id": copied_layer})
                 result = service.apply_command(view.session_id, command)
                 self.assertIn(result.status, {"ok", "noop"})
 

@@ -159,7 +159,7 @@ class MeshEditorActionsMixin:
                     controller.session_view(),
                     active_selection_mode=controller.active_selection_mode,
                 )
-                self.status_message_requested.emit("Select Parts active.", False)
+                self.status_message_requested.emit("Select active. Choose Vertices, Wires, or Faces in the viewport.", False)
                 return True
         if self._native_editor_action_blocked(str(getattr(action, "command", "") or "")):
             return True

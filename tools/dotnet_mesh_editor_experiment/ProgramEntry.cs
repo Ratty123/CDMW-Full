@@ -38,6 +38,11 @@ internal static class Program
                 ApplicationConfiguration.Initialize();
                 return EditMeshLayoutSmoke.Run(args);
             }
+            if (MorphPageStabilitySmoke.IsRequested(args))
+            {
+                ApplicationConfiguration.Initialize();
+                return MorphPageStabilitySmoke.Run(args);
+            }
             if (UiLocalizationContractSmoke.IsRequested(args))
             {
                 return UiLocalizationContractSmoke.Run(args);
@@ -107,6 +112,7 @@ internal static class Program
             var suppressDialog = IsEmbedded(args) || Array.Exists(args, arg =>
                 string.Equals(arg, "--headless-smoke", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-edit-mesh-layout-smoke", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(arg, "--headless-morph-page-stability-smoke", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-ui-localization-contract", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-frame-pacing-soak", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-interaction-soak", StringComparison.OrdinalIgnoreCase)

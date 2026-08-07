@@ -486,6 +486,10 @@ class MeshEditorDotNetResourceProtocolMixin(
             executable,
             payload,
             require_manifest=bool(getattr(sys, "frozen", False) or manifest_path.is_file()),
+            required_capabilities=(
+                "correlated_selection_strokes_v1",
+                "geometry_layers_v1",
+            ),
         )
         if blockers:
             text = "Mesh .NET helper provenance blocked: " + "; ".join(blockers)

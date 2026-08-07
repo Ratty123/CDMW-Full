@@ -17,7 +17,7 @@ _EXCLUSIVE_CATEGORIES = {"mode"}
 _MODE_ACTION_BY_MODE = {"object": "mode_object", "edit": "mode_edit", "sculpt": "mode_sculpt"}
 _TOOL_ACTION_KEYS = {"select_parts", "transform_move", "brush_grab", "brush_smooth", "brush_inflate", "brush_pinch"}
 _BUTTON_LABELS = {
-    "select_parts": "Parts",
+    "select_parts": "Select",
     "transform_move": "Move",
     "transform_rotate": "Rotate",
     "transform_scale": "Scale",

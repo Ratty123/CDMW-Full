@@ -48,8 +48,12 @@ converts edit results into native preview update payloads.
 
 `actions.py` and `action_bar.py` own the Mesh Editor command palette and Qt tool
 surface. They map visible tools to service command keys without applying edits.
-Topology tools include local Subdivide and Refine Smooth, which adds connected
-detail before smoothing the affected area for less pointy surfaces.
+Topology tools include local Subdivide and Refine Smooth. Their shared action
+descriptor owns the 200,000-faces-per-submesh safety cap, which is merged into
+resident requests before caller overrides. Faces subdivide exactly; selected
+wires and vertices expand to incident faces and remap back to the split wires or
+the original/generated vertices. Geometry and selection are one native history
+pair, so one Undo or Redo restores both.
 Normal tools include service-routed recalc, tangent generation, flip,
 sharpen/soften, weighted normals, and source-normal copy commands; cleanup
 tools include remove doubles, delete loose vertices, compact orphans, winding
@@ -68,29 +72,28 @@ update packaging for action-bar consumers.
 `MeshEditorController.export_validation_report()` exposes the service-backed
 pre-export validator for the active session.
 `MeshEditorController.workspace_summary()` exposes the service-backed part,
-material route, UV channel, and skinning summary for panel rendering. The
-Outliner and Parts & Routing panel both support persistent whole-part selection:
-clicking a part toggles it on/off without clearing other selected parts, and the
-part context menu routes clone/delete/normal/texture actions through
-`MeshEditorController` and `MeshService`. The Parts & Routing panel also shows
+material route, UV channel, and skinning summary for panel rendering. Whole-part
+selection belongs to the explicit Parts & Routing/PARTS lists: clicking a row
+toggles it without clearing other selected rows, and the part context menu
+routes clone/delete/normal/texture actions through `MeshEditorController` and
+`MeshService`. The Parts & Routing panel also shows
 selected-part count, names, material routes, and textures, exposes visible
 select-all/clear/invert and clone/delete/normal/texture buttons, and disables
 unavailable texture actions when the current selected part has no texture.
 `MeshEditorController.compare_summary()` exposes source-vs-edited topology,
 bounds, scale, orientation, material, texture, and UV mismatch data for the
 workspace Compare panel.
-Native D3D11 viewport part-pick events route into the same persistent
-whole-part selection and context-menu path used by the Outliner and Parts &
-Routing panel. The tab replays native part-picking enablement after preview
-load/reload and reports unavailable picker state in the workspace. UI code still
-delegates clone/delete/normals/texture work through `MeshEditorController` and
-`MeshService`.
+Native D3D11 viewport part-pick and part-context events are compatibility no-ops.
+They cannot change a PARTS selection or open its menu. The historical
+`select_parts` action key is retained for settings/dynamic callers but presents
+as Select and arms vertex selection, never source-part picking.
 Production .NET stores separate `reference` (Original) and `editable`
 (Imported/Modify) presentation contexts over one document/resource owner.
 Placement can use any supported preview mode. Edit Mesh always presents only
 Imported/Modify, pins navigation to its editable camera context, and disables
 the Original selector. Entering Edit Mesh defaults its editable viewport to
-Wire + Vertices; leaving Edit Mesh restores the Builder's selected
+Wire + Vertices, which draws only wires and vertices and never solid fill;
+leaving Edit Mesh restores the Builder's selected
 placement preview mode without restarting the resident renderer.
 After that initial default, the selected display mode is authoritative: tool,
 selection, scene, material, and tab-visibility publications add their overlays
@@ -133,11 +136,14 @@ font/label size, and handle size. Those values apply live through the resident
 presentation payload and persist with the main Preview Settings config.
 Display, topology, X-Ray, grid, material, texture, and lighting controls stay
 on their owning .NET/Builder viewport surfaces instead of being duplicated in
-this modal. The viewport's own background and grid colors are picked in the
-editor's Viewport section beside the wire and vertex swatches, persist in
-`mesh-editor-viewport-background.json` next to the topology appearance, and
-override the host presentation snapshot so an accepted scene frame cannot
-replace them. Archive Browser Preview Settings use a separate resident .NET target
+this modal. The viewport's own background, grid, wire, vertex, committed
+selection, and live-selection colors are picked in the editor's Viewport
+section. Overlay preferences use schema v3 and migrate the v1/v2 wire and vertex
+values while defaulting the new swatches to gold and cyan. The same chosen
+selection colors feed face, wire, and vertex overlays in the D3D11, WPF, and GDI
+paths. Background/grid values persist in
+`mesh-editor-viewport-background.json`; overlay colors and sizing persist beside
+it, and both override host presentation replay. Archive Browser Preview Settings use a separate resident .NET target
 and likewise show only Camera Input; texture loading remains on the Archive
 Preview toolbar. Reset Camera Input restores the two sensitivity values while
 preserving the inversion choices, Gizmo appearance, and every hidden renderer
@@ -286,37 +292,32 @@ Cancel restores zero and removes the temporary definition. The main section
 then stays linear: profile sliders, optional Refit, Review and Apply. Refit
 names its driver and garment part selections and rejects overlap; Reset and
 Bake remain explicit, and saving never bakes geometry.
+Opening Morph & Refit batches redraw only for the tool column. It does not
+reparse the source, upload geometry, recreate the D3D device/surface, change the
+helper PID/HWND, touch camera contexts, or advance presentation generation.
+Morph commits reuse the submesh counts already returned by native core instead
+of attempting a disabled geometry hydration.
 Edit Mesh separates mesh-region selection from whole-part selection. The
-visible Select tool targets mesh vertices with Click, Brush, Rectangle, and
-Lasso; only an explicit row action in PARTS selects a whole part. Legacy edge
-and face target maps remain accepted internally, but `source` and `part` are
-never valid viewport targets. X-Ray changes only the visibility filter. A new
-editor opens in Orbit with no selection armed, operation Add, and shape Brush.
-Operation and shape remain sticky while tools change, while a newly opened
-editor restores those defaults. The sculpt brushes act on selected mesh
-elements, or use the initial hit region as an internal stroke scope without
-changing PARTS when none is selected.
-The builder's Selection combo (Brush/Lasso/Rectangle) is honored by the
-resident editor: a brush-mode Select drag paints renderer-local vertex highlights
-on every pointer update while sending throttled add/subtract
-`screen_brush` dabs that native unions over the swept path (Replace starts the
-new selection on the first dab; Subtract erases; a plain click keeps the
-precise 14px click pick), and a cursor step longer than the brush radius is
-sent as a swept-segment `screen_region` quad instead of a disc, so the painted
-band has no holes at any cursor speed — the 30ms cadence bounds message rate,
-never coverage. A lasso-mode drag draws the polygon actually swept in the
-overlay and sends it as `screen_region` mode "lasso" with rectangle endpoints
-kept as the older-core fallback. Helper-raised screen selections have exactly
-one native authority: the tab's protocol handler applies them, answers the
-helper's pending request, and commits the result back through the builder;
-the builder's own screen-selection route is legacy-panel-only. Intermediate
-paint dabs apply inline off the action-worker path; the final dab records the
-one selection-history unit for the drag. Toggle records each crossed vertex once
-per gesture, so crossing the same vertex again cannot undo the first pass. The old
-D3D11 vertex/edge/face hover
-candidate projectors are removed; Mesh Edit overlay drawing keeps the cursor
-ring and selected geometry while hit resolution stays in native screen
-selection.
+Selection target control offers Vertices, Wires (`edge` on the protocol), and
+Faces. Click, Brush, Rectangle, and Lasso all honor that target and restrict
+hits to the active geometry layer; they do not require a PARTS filter. Only an
+explicit row action in Parts & Routing/PARTS selects a whole part. `source` and
+`part` are never valid viewport targets. X-Ray changes only the visibility
+filter. Every fresh or resumed editor opens in Orbit with no selection armed;
+runtime tool, selection, camera, and Undo/Redo state are not restored from a
+draft. Moving between tool pages inside the same live session preserves the
+current tool.
+Selection gestures use the background latest-wins stroke dispatcher. Immutable
+begin/update/end/cancel requests carry stroke ID, sequence, target, operation,
+and every unsent swept brush/region sample. One update may run while one merged
+update waits; native selection never runs inline on the Qt UI thread. Provisional
+geometry stays ahead of the last acknowledged base, and an old acknowledgement
+cannot clear a newer tail. The matching final acknowledgement creates exactly
+one selection-history entry; cancellation, failure, or session retirement
+restores the pre-stroke selection and clears the correlated provisional state.
+Lasso simplifies redundant points, uses cached projection bounds for its local
+polygon tests, and publishes an immediate target-specific result on mouse-up
+that remains visible until native authority answers.
 `MeshEditorTab` routes those events to a resident native `select` command
 through `MeshService`, C++ expands the requested selection mask from the D3D11
 projection matrix, composes D3D11 per-source world transforms when alignment
@@ -324,12 +325,35 @@ preview transforms are active, ignores leaked legacy groups for projected
 screen selection including source-specific projection override arrays, prevents
 non-overridden sources from using legacy camera defaults, treats region edge
 selection as projected segment hits with hit-point depth checks,
-treats region face/source selection as projected triangle hits, applies native
+treats region face selection as projected triangle hits, applies native
 visible-depth filtering when requested for brush or region selection, and pushes
 the resulting selection groups back to the D3D11 preview host.
-D3D11 brush candidate weight sidecars are forwarded as native selection weights,
-so C++ applies host-computed screen/depth falloff instead of recomputing it in
-Python or from object-space distance.
+Topology commands first drain the final correlated selection request, so a late
+brush result cannot land above Subdivide in native history.
+
+Copy/Paste is an internal Mesh Editor clipboard (`Ctrl+C`/`Ctrl+V`), not the OS
+clipboard. Faces copy exactly; vertex or wire selections copy only fully
+enclosed faces and otherwise report `No complete faces selected to copy`.
+Paste preserves material/source fragments and all native vertex attributes under
+one logical `Selection copy N` layer. The LAYERS list keeps an immutable,
+always-visible Base mesh plus named copied layers with active-layer isolation,
+Rename, visibility, Move Up/Down, and Delete. Visible layers participate in
+build/export; hidden layers remain saved. Paste and Delete are one geometry
+history action each. Name, order, visibility, and active-layer metadata persist
+immediately without becoming geometry Undo entries or being rolled back by a
+later topology Undo.
+
+Layer projects use an atomic `mesh_layer_project_v1` descriptor and checksummed
+native binary snapshot generations. A 750 ms cancellable latest-wins autosave
+writes a complete new generation before switching the descriptor and retains
+the previous good generation for recovery. The first copied layer promotes a
+temporary Modify Original clone to `persistent_app_draft`. Draft discovery is
+exact-source-SHA-256 only, newest first, and offers Resume or Start New without
+deleting older or incompatible drafts. Camera, selection, active tool, and
+Undo/Redo history are runtime-only. Closing with dirty state waits off the UI
+thread; a failed save leaves the editor open for Retry or an explicitly
+confirmed Close Without Saving.
+
 `MeshEditorController.uv_summary()` exposes service-backed UV island bounds,
 selection, and texture routing for the workspace UV panel.
 The workspace UV tab includes a non-mutating `MeshUvCanvas` that paints the

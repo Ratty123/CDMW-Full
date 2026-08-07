@@ -105,7 +105,7 @@ MESH_EDIT_SCOPE_OPTIONS: tuple[ComboOption, ...] = (
 
 MESH_EDIT_TOOL_OPTIONS: tuple[ComboOption, ...] = (
     ("Orbit", "orbit"),
-    ("Select Parts", "select"),
+    ("Select", "select"),
     ("Move", "move"),
     ("Grab", "grab"),
     ("Smooth", "smooth"),
@@ -114,7 +114,7 @@ MESH_EDIT_TOOL_OPTIONS: tuple[ComboOption, ...] = (
 )
 
 MESH_EDIT_TOOL_BUTTON_OPTIONS: tuple[ToolButtonOption, ...] = (
-    ("Select Parts", "select", "Select complete mesh parts with click, Brush, Rectangle, or Lasso."),
+    ("Select", "select", "Select vertices, wires, or faces with click, Brush, Rectangle, or Lasso."),
     ("Move", "move", "Move the selected parts in real time."),
     ("Grab", "grab", "Grab the selected parts or the part first hit by the brush."),
     ("Smooth", "smooth", "Smooth vertices inside the brush radius."),

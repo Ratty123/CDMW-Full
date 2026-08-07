@@ -194,8 +194,26 @@ def select_native_mesh_editor_session(
         return None
 
 
+def copy_native_mesh_editor_session(
+    session_id: str,
+    *,
+    target: object = "vertex",
+    stop_event: threading.Event | None = None,
+    timeout_seconds: float = 5.0,
+) -> dict[str, object] | None:
+    return native_mesh_editor_session_command(
+        "copy",
+        session_id,
+        {"target": str(target or "vertex").strip().lower() or "vertex"},
+        stop_event=stop_event,
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def native_mesh_editor_session_selection_from_report(report: Mapping[str, object]) -> dict[str, object] | None:
-    raw_items = report.get("submeshes")
+    raw_items = report.get("selection_state")
+    if not isinstance(raw_items, list):
+        raw_items = report.get("submeshes")
     if not isinstance(raw_items, list):
         return None
     max_index = 2_147_483_647

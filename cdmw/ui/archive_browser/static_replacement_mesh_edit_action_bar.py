@@ -47,7 +47,7 @@ def _mesh_editor_apply_action_bar_service_action(_state, _callbacks,
     if require_selection and not selected_vertices and not selected_faces and not selected_edges and not selected_sources:
         _state.self.set_status_message(
             f"Select adjacent vertices, faces, or edges before using {action_text}." if edge_action
-            else f"Select vertices or faces before using {action_text}.",
+            else f"Select vertices, wires, or faces before using {action_text}.",
             error=True,
         )
         return True

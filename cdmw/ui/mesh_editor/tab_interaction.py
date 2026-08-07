@@ -150,34 +150,15 @@ class MeshEditorInteractionMixin:
             self.status_message_requested.emit("Mesh Editor UV lasso selected.", False)
         return True
     def _handle_native_source_part_selected(self, part_index: int) -> bool:
-        try:
-            normalized_index = int(part_index)
-        except (TypeError, ValueError):
-            normalized_index = -1
-        if normalized_index < 0:
-            return False
-        return self._handle_part_selection(normalized_index, "toggle")
+        # Whole-part selection is intentionally list-only. Keep accepting the
+        # legacy renderer signal so an already-running helper cannot turn a
+        # stale event into a PARTS selection.
+        _ = part_index
+        return False
+
     def _handle_native_source_part_context_requested(self, part_index: int, x: int, y: int) -> bool:
-        controller = self.standalone_controller
-        if controller is None:
-            return False
-        try:
-            normalized_index = int(part_index)
-        except (TypeError, ValueError):
-            normalized_index = -1
-        if normalized_index < 0:
-            return False
-        if self._selection_for_part_context(controller, normalized_index) is None:
-            return False
-        global_pos = self._standalone_native_global_pos(x, y)
-        QTimer.singleShot(
-            0,
-            lambda index=normalized_index, position=global_pos: self.standalone_workspace.show_part_context_menu_for_part(
-                index,
-                position,
-            ),
-        )
-        return True
+        _ = (part_index, x, y)
+        return False
     def _standalone_native_global_pos(self, x: int, y: int) -> object | None:
         host = self.standalone_native_host
         cursor = getattr(host, "cursor", None)
@@ -313,12 +294,21 @@ class MeshEditorInteractionMixin:
             self._handle_standalone_live_stroke_failed,
             Qt.ConnectionType.QueuedConnection,
         )
+        dispatcher.coalesced.connect(
+            self._handle_standalone_live_stroke_coalesced,
+            Qt.ConnectionType.QueuedConnection,
+        )
         self.standalone_live_stroke_dispatcher = dispatcher
         return dispatcher
+    def _handle_standalone_live_stroke_coalesced(self, notice: object) -> None:
+        if not isinstance(notice, _tab.MeshLiveStrokeCoalesced):
+            return
+        if notice.source in {"dotnet", "dotnet_morph", "dotnet_selection"}:
+            self._handle_dotnet_live_stroke_coalesced(notice)
     def _handle_standalone_live_stroke_completed(self, outcome: object) -> None:
         if not isinstance(outcome, _tab.MeshLiveStrokeOutcome):
             return
-        if outcome.source in {"dotnet", "dotnet_morph"}:
+        if outcome.source in {"dotnet", "dotnet_morph", "dotnet_selection"}:
             self._handle_dotnet_live_stroke_completed(outcome)
             return
         controller = self.standalone_controller
@@ -368,7 +358,7 @@ class MeshEditorInteractionMixin:
     def _handle_standalone_live_stroke_failed(self, failure: object) -> None:
         if not isinstance(failure, _tab.MeshLiveStrokeFailure):
             return
-        if failure.source in {"dotnet", "dotnet_morph"}:
+        if failure.source in {"dotnet", "dotnet_morph", "dotnet_selection"}:
             self._handle_dotnet_live_stroke_failed(failure)
             return
         if failure.controller is not self.standalone_controller:

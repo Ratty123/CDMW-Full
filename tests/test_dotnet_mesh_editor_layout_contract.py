@@ -410,10 +410,11 @@ def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
         ("MorphRefit", "_morphRefitSection"),
     ):
         assert f"AddRailSection(_toolRailPages[ToolRailPage.{page}], {section});" in activate
-    # The scene column keeps its order and is always on screen.
-    assert "AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);" in activate
-    assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 1);" in activate
-    assert "AddRailSection(_sceneInspectorColumn, _viewportSection, row: 2);" in activate
+        # The scene column keeps its order and is always on screen.
+        assert "AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);" in activate
+        assert "AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);" in activate
+        assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);" in activate
+        assert "AddRailSection(_sceneInspectorColumn, _viewportSection, row: 3);" in activate
 
     # Both flanks are in use: the mesh is tall and narrow, so width is the
     # cheap axis and the viewport keeps the full window height.
@@ -690,8 +691,8 @@ def test_edit_mesh_captions_and_inputs_survive_theming_and_resize() -> None:
     overlay = overlay.split("private Button OverlayColorButton", 1)[0]
     assert 'LabeledControl(\n            "Topology appearance",' not in overlay
     # The two sizes share a row so the camera presets stay above the fold.
-    assert 'LabeledControl("Wire px", _wireOverlayWidth)' in overlay
-    assert 'LabeledControl("Vertex px", _vertexMarkerSize)' in overlay
+    assert 'LabeledControl("Wire px", wireWidth)' in overlay
+    assert 'LabeledControl("Vertex px", vertexSize)' in overlay
 
 
 def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:

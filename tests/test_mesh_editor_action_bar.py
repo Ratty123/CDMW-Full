@@ -464,7 +464,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         assert select_parts_button is not None
         self.assertFalse(select_parts_button.icon().isNull())
         self.assertEqual(Qt.ToolButtonStyle.ToolButtonTextUnderIcon, select_parts_button.toolButtonStyle())
-        self.assertEqual("Parts", select_parts_button.text())
+        self.assertEqual("Select", select_parts_button.text())
         self.assertEqual("select", select_parts_button.property("meshEditorCommand"))
         self.assertEqual("", select_parts_button.property("meshEditorSelectionMode"))
         self.assertEqual("select_parts", select_parts_button.property("meshEditorIconKey"))
@@ -1640,7 +1640,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_native_preview_part_pick_uses_persistent_part_selection(self) -> None:
+    def test_mesh_editor_native_preview_part_events_cannot_change_parts_selection(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNativePartPick"))
         host = _StandaloneNativePickHost()
@@ -1655,10 +1655,10 @@ class MeshEditorActionBarTests(unittest.TestCase):
         assert tab.standalone_controller is not None
 
         host.source_part_selected.emit(0)
-        self.assertEqual((0,), tab.standalone_controller.session_view().selection.source_indices)
+        self.assertEqual((), tab.standalone_controller.session_view().selection.source_indices)
 
         host.source_part_selected.emit(1)
-        self.assertEqual((0, 1), tab.standalone_controller.session_view().selection.source_indices)
+        self.assertEqual((), tab.standalone_controller.session_view().selection.source_indices)
 
         with patch.object(
             tab.standalone_workspace,
@@ -1668,11 +1668,11 @@ class MeshEditorActionBarTests(unittest.TestCase):
             host.source_part_context_requested.emit(1, 12, 34)
             app.processEvents()
 
-        self.assertEqual((0, 1), tab.standalone_controller.session_view().selection.source_indices)
-        self.assertEqual(1, shown_menus[-1][0])
+        self.assertEqual((), tab.standalone_controller.session_view().selection.source_indices)
+        self.assertEqual([], shown_menus)
 
         host.source_part_selected.emit(1)
-        self.assertEqual((0,), tab.standalone_controller.session_view().selection.source_indices)
+        self.assertEqual((), tab.standalone_controller.session_view().selection.source_indices)
         with patch.object(
             tab.standalone_workspace,
             "show_part_context_menu_for_part",
@@ -1681,15 +1681,16 @@ class MeshEditorActionBarTests(unittest.TestCase):
             host.source_part_context_requested.emit(1, 22, 44)
             app.processEvents()
 
-        self.assertEqual((1,), tab.standalone_controller.session_view().selection.source_indices)
-        self.assertEqual(1, shown_menus[-1][0])
+        self.assertEqual((), tab.standalone_controller.session_view().selection.source_indices)
+        self.assertEqual([], shown_menus)
 
         tab.load_standalone_native_preview_package(
             Path("C:/tmp/mesh-editor-native-pick-package"),
             Path("C:/tmp/mesh-editor-native-pick-status.json"),
             reset_view=False,
         )
-        self.assertIn(("part_picking", True), host.calls)
+        self.assertNotIn(("part_picking", True), host.calls)
+        self.assertIn(("part_picking", False), host.calls)
         app.processEvents()
         tab.deleteLater()
 
@@ -1855,7 +1856,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_native_preview_part_pick_replays_after_loaded_status(self) -> None:
+    def test_mesh_editor_native_preview_part_pick_stays_disabled_after_loaded_status(self) -> None:
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as temp_dir:
             tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNativePartPickReplay"))
@@ -1873,14 +1874,14 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
             tab.load_standalone_native_preview_package(package_dir, status_file, reset_view=False)
             self.assertFalse(bool(status.property("nativePartPickingAvailable")))
-            self.assertIn("unavailable", status.text())
+            self.assertIn("preview off", status.text())
 
             status_file.write_text(json.dumps({"event": "loaded", "batch_count": 2, "vertex_count": 12}), encoding="utf-8")
             tab._poll_standalone_native_preview_status()
 
-            self.assertGreaterEqual(host.calls.count(("part_picking", True)), 2)
-            self.assertTrue(bool(status.property("nativePartPickingAvailable")))
-            self.assertIn("ready", status.text())
+            self.assertNotIn(("part_picking", True), host.calls)
+            self.assertFalse(bool(status.property("nativePartPickingAvailable")))
+            self.assertIn("preview off", status.text())
             app.processEvents()
             tab.deleteLater()
 
@@ -4811,7 +4812,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertEqual("brush", tab.current_selection_mode)
         self.assertTrue(tab.action_bar.button_for_key("mode_sculpt").isChecked())
         self.assertTrue(tab.action_bar.button_for_key("select_parts").isChecked())
-        self.assertEqual(("Mesh Editor tool selected: Select Parts.", False), shell.messages[-1])
+        self.assertEqual(("Mesh Editor tool selected: Select.", False), shell.messages[-1])
         app.processEvents()
         tab.deleteLater()
 
@@ -4888,7 +4889,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
         self.assertEqual("brush", tab.current_selection_mode)
         self.assertEqual(
-            ("Mesh Editor action is not available in the embedded builder yet: Select Parts.", False),
+            ("Mesh Editor action is not available in the embedded builder yet: Select.", False),
             shell.messages[-1],
         )
         app.processEvents()

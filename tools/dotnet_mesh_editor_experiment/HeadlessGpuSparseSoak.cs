@@ -98,6 +98,11 @@ internal static partial class HeadlessGpuSparseSoak
             camera,
             host.ClientSize,
             options.Smoke);
+        var fallbackSelectionColorProof = ApplyFallbackSelectionColorProof(
+            document,
+            materials,
+            textures,
+            camera);
         var untexturedReadabilityProof = D3D11UntexturedReadabilityProof.Run();
         var texturedMetalReadabilityProof = D3D11TexturedMetalReadabilityProof.Run();
         var materialLayerOrientationProof = D3D11MaterialLayerOrientationProof.Run();
@@ -200,6 +205,12 @@ internal static partial class HeadlessGpuSparseSoak
             xrayOverlayProof.GetValueOrDefault("xray_ok") is true;
         gates["configurable_wire_width_and_vertex_size"] =
             xrayOverlayProof.GetValueOrDefault("configured_sizing_active") is true;
+        gates["wire_vertices_draws_no_solid_fill"] =
+            xrayOverlayProof.GetValueOrDefault("wire_vertices_no_solid_fill") is true;
+        gates["custom_selection_colors_reach_d3d11_draws"] =
+            xrayOverlayProof.GetValueOrDefault("selection_colors_reached_draws") is true;
+        gates["custom_selection_colors_reach_wpf_and_gdi_paths"] =
+            fallbackSelectionColorProof.GetValueOrDefault("ok") is true;
         var ok = gates.Values.All(value => value);
         var report = BuildReport(
             options,
@@ -228,10 +239,68 @@ internal static partial class HeadlessGpuSparseSoak
         report["fit_relative_overlay_proof"] = fitRelativeOverlayProof;
         report["dotnet_view_mode_proof"] = dotnetViewModeProof;
         report["xray_overlay_proof"] = xrayOverlayProof;
+        report["fallback_selection_color_proof"] = fallbackSelectionColorProof;
         report["untextured_readability_proof"] = untexturedReadabilityProof;
         report["textured_metal_readability_proof"] = texturedMetalReadabilityProof;
         report["material_layer_orientation_proof"] = materialLayerOrientationProof;
         return (report, ok);
+    }
+
+    private static Dictionary<string, object?> ApplyFallbackSelectionColorProof(
+        ObjDocument document,
+        NetMaterialSet materials,
+        NetTextureSet textures,
+        NetViewportCamera camera)
+    {
+        var colors = new MeshOverlayColors(
+            System.Drawing.Color.FromArgb(12, 34, 56),
+            System.Drawing.Color.FromArgb(78, 90, 123),
+            System.Drawing.Color.FromArgb(145, 156, 167),
+            System.Drawing.Color.FromArgb(178, 189, 200));
+        var settings = new MeshOverlaySettings(colors, MeshOverlaySizing.Default);
+        var topology = NetEdgeTopology.Build(document);
+        var selectedEdges = topology.Edges.Count > 0
+            ? new HashSet<int> { topology.Edges[0].Id }
+            : new HashSet<int>();
+        var provisionalEdges = topology.Edges.Count > 1
+            ? new HashSet<int> { topology.Edges[1].Id }
+            : new HashSet<int>(selectedEdges);
+        using var wpf = new WpfGpuMeshViewport(document, materials, textures);
+        wpf.SetOverlaySettings(settings);
+        wpf.UpdateCamera(camera);
+        wpf.UpdateOverlay(
+            topology,
+            selectedEdges,
+            -1,
+            null,
+            new Dictionary<int, HashSet<int>> { [0] = new() { 0 } },
+            new Dictionary<int, HashSet<int>> { [0] = new() { 0 } },
+            new HashSet<int>(),
+            -1,
+            showWire: true,
+            showXRay: false,
+            project: vertex => camera.Project(vertex),
+            provisionalVertices: new Dictionary<int, HashSet<int>> { [0] = new() { 1 } },
+            provisionalFaces: new Dictionary<int, HashSet<int>> { [0] = new() { 0 } },
+            provisionalEdges: provisionalEdges);
+        var wpfProof = wpf.SelectionOverlayColorProofPayload();
+        var gdiProof = MeshViewport.GdiSelectionOverlayColorProofPayload(settings);
+        static bool AllDomains(Dictionary<string, object?> proof) =>
+            new[]
+            {
+                "committed_faces",
+                "committed_wires",
+                "committed_vertices",
+                "live_faces",
+                "live_wires",
+                "live_vertices",
+            }.All(key => proof.GetValueOrDefault(key) is true);
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = AllDomains(wpfProof) && AllDomains(gdiProof),
+            ["wpf"] = wpfProof,
+            ["gdi"] = gdiProof,
+        };
     }
 
     private static void ConfigureSmokeViewport(
@@ -289,6 +358,8 @@ internal static partial class HeadlessGpuSparseSoak
                 ["ok"] = true,
                 ["xray_ok"] = true,
                 ["configured_sizing_active"] = true,
+                ["wire_vertices_no_solid_fill"] = true,
+                ["selection_colors_reached_draws"] = true,
                 ["exercised"] = false,
                 ["reason"] = "The dedicated X-Ray draw proof runs in smoke mode.",
             };
@@ -296,11 +367,24 @@ internal static partial class HeadlessGpuSparseSoak
 
         var configuredColors = new MeshOverlayColors(
             System.Drawing.Color.FromArgb(12, 34, 56),
-            System.Drawing.Color.FromArgb(78, 90, 123));
+            System.Drawing.Color.FromArgb(78, 90, 123),
+            System.Drawing.Color.FromArgb(145, 156, 167),
+            System.Drawing.Color.FromArgb(178, 189, 200));
         var configuredSizing = new MeshOverlaySizing(
             WireWidthPixels: 2.75f,
             VertexMarkerSizePixels: 11.0f);
         viewport.SetOverlaySettings(new MeshOverlaySettings(configuredColors, configuredSizing));
+        var topology = NetEdgeTopology.Build(document);
+        var selectedEdges = topology.Edges.Count > 0
+            ? new HashSet<int> { topology.Edges[0].Id }
+            : new HashSet<int>();
+        var provisionalEdges = topology.Edges.Count > 1
+            ? new HashSet<int> { topology.Edges[1].Id }
+            : new HashSet<int>(selectedEdges);
+        var selectedVertices = new Dictionary<int, HashSet<int>> { [0] = new() { 0 } };
+        var provisionalVertices = new Dictionary<int, HashSet<int>> { [0] = new() { 1 } };
+        var selectedFaces = new Dictionary<int, HashSet<int>> { [0] = new() { 0 } };
+        var provisionalFaces = new Dictionary<int, HashSet<int>> { [0] = new() { 0 } };
         var before = viewport.ResourceMetricsPayload();
         viewport.UpdateRenderPanes(new[]
         {
@@ -309,27 +393,86 @@ internal static partial class HeadlessGpuSparseSoak
                 camera,
                 "editable",
                 "wire_vertices",
-                0,
-                false,
-                true,
-                false,
-                true,
-                true),
+                MaterialDebugMode: 0,
+                TexturesEnabled: false,
+                GridVisible: false,
+                GizmoVisible: false,
+                XRay: false,
+                InteractionAllowed: true),
         });
         viewport.UpdateOverlay(
-            NetEdgeTopology.Build(document),
-            new HashSet<int>(),
+            topology,
+            selectedEdges,
             -1,
             null,
-            new Dictionary<int, HashSet<int>>(),
-            new Dictionary<int, HashSet<int>>(),
+            selectedVertices,
+            selectedFaces,
+            new HashSet<int>(),
+            -1,
+            showWire: true,
+            showVertices: true,
+            showXRay: false,
+            brushCursor: null,
+            brushRadius: 24.0f,
+            provisionalVertices: provisionalVertices,
+            provisionalFaces: provisionalFaces,
+            provisionalEdges: provisionalEdges);
+        if (!viewport.TryRunHeadlessFrame(out var wireVerticesFrameMs, out _, out var wireVerticesError))
+        {
+            throw new InvalidOperationException($"Hidden D3D11 Wire + Vertices proof failed: {wireVerticesError}");
+        }
+        var wireVerticesAfter = viewport.ResourceMetricsPayload();
+        var wireVerticesNoSolidFill =
+            Metric(wireVerticesAfter, "textured_solid_batch_draws") == Metric(before, "textured_solid_batch_draws")
+            && Metric(wireVerticesAfter, "untextured_solid_batch_draws") == Metric(before, "untextured_solid_batch_draws")
+            && Metric(wireVerticesAfter, "transparent_solid_batch_draws") == Metric(before, "transparent_solid_batch_draws")
+            && Metric(wireVerticesAfter, "wire_overlay_draws") > Metric(before, "wire_overlay_draws")
+            && Metric(wireVerticesAfter, "vertex_overlay_batch_draws") > Metric(before, "vertex_overlay_batch_draws");
+        var selectionColorsReachedDraws =
+            Metric(wireVerticesAfter, "committed_selection_overlay_primitives")
+                > Metric(before, "committed_selection_overlay_primitives")
+            && Metric(wireVerticesAfter, "live_selection_overlay_primitives")
+                > Metric(before, "live_selection_overlay_primitives")
+            && string.Equals(
+                wireVerticesAfter.GetValueOrDefault("last_committed_selection_primitive_color") as string,
+                "#919CA7",
+                StringComparison.Ordinal)
+            && string.Equals(
+                wireVerticesAfter.GetValueOrDefault("last_live_selection_primitive_color") as string,
+                "#B2BDC8",
+                StringComparison.Ordinal);
+
+        viewport.UpdateRenderPanes(new[]
+        {
+            new D3D11RenderPane(
+                new Rectangle(Point.Empty, clientSize),
+                camera,
+                "editable",
+                "wire_vertices",
+                MaterialDebugMode: 0,
+                TexturesEnabled: false,
+                GridVisible: false,
+                GizmoVisible: false,
+                XRay: true,
+                InteractionAllowed: true),
+        });
+        viewport.UpdateOverlay(
+            topology,
+            selectedEdges,
+            -1,
+            null,
+            selectedVertices,
+            selectedFaces,
             new HashSet<int>(),
             -1,
             showWire: true,
             showVertices: true,
             showXRay: true,
             brushCursor: null,
-            brushRadius: 24.0f);
+            brushRadius: 24.0f,
+            provisionalVertices: provisionalVertices,
+            provisionalFaces: provisionalFaces,
+            provisionalEdges: provisionalEdges);
         if (!viewport.TryRunHeadlessFrame(out var frameMs, out _, out var error))
         {
             throw new InvalidOperationException($"Hidden D3D11 X-Ray overlay proof failed: {error}");
@@ -343,9 +486,9 @@ internal static partial class HeadlessGpuSparseSoak
             && string.Equals(after.GetValueOrDefault("xray_wire_overlay_color") as string, "#F5F8FC", StringComparison.Ordinal)
             && string.Equals(after.GetValueOrDefault("xray_vertex_overlay_color") as string, "#FF58D6", StringComparison.Ordinal);
         var wireNoDepthAdvanced =
-            Metric(after, "xray_wire_no_depth_draws") > Metric(before, "xray_wire_no_depth_draws");
+            Metric(after, "xray_wire_no_depth_draws") > Metric(wireVerticesAfter, "xray_wire_no_depth_draws");
         var vertexNoDepthAdvanced =
-            Metric(after, "xray_vertex_no_depth_passes") > Metric(before, "xray_vertex_no_depth_passes");
+            Metric(after, "xray_vertex_no_depth_passes") > Metric(wireVerticesAfter, "xray_vertex_no_depth_passes");
         var configuredSizingActive =
             Math.Abs(
                 Convert.ToSingle(after.GetValueOrDefault("wire_overlay_width_pixels"), CultureInfo.InvariantCulture)
@@ -376,6 +519,25 @@ internal static partial class HeadlessGpuSparseSoak
             ["wire_no_depth_draw_advanced"] = wireNoDepthAdvanced,
             ["vertex_no_depth_pass_advanced"] = vertexNoDepthAdvanced,
             ["configured_sizing_active"] = configuredSizingActive,
+            ["wire_vertices_no_solid_fill"] = wireVerticesNoSolidFill,
+            ["wire_vertices_frame_ms"] = wireVerticesFrameMs,
+            ["selection_colors_reached_draws"] = selectionColorsReachedDraws,
+            ["configured_selection_color"] = wireVerticesAfter.GetValueOrDefault("selection_overlay_color"),
+            ["configured_live_selection_color"] = wireVerticesAfter.GetValueOrDefault("live_selection_overlay_color"),
+            ["last_committed_selection_draw_color"] = wireVerticesAfter.GetValueOrDefault(
+                "last_committed_selection_primitive_color"),
+            ["last_live_selection_draw_color"] = wireVerticesAfter.GetValueOrDefault(
+                "last_live_selection_primitive_color"),
+            ["committed_selection_primitives_before"] = Metric(
+                before,
+                "committed_selection_overlay_primitives"),
+            ["committed_selection_primitives_after"] = Metric(
+                wireVerticesAfter,
+                "committed_selection_overlay_primitives"),
+            ["live_selection_primitives_before"] = Metric(before, "live_selection_overlay_primitives"),
+            ["live_selection_primitives_after"] = Metric(
+                wireVerticesAfter,
+                "live_selection_overlay_primitives"),
             ["configured_wire_width_pixels"] = after.GetValueOrDefault("wire_overlay_width_pixels"),
             ["configured_vertex_marker_size_pixels"] = after.GetValueOrDefault("vertex_marker_fit_size_pixels"),
             ["configured_wire_color"] = after.GetValueOrDefault("wire_overlay_color"),

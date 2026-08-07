@@ -1054,29 +1054,36 @@ class MeshEditorControllerTests(unittest.TestCase):
         self.assertEqual(0.45, groups[(1,)]["roughness"])
         self.assertEqual(0.1, groups[(1,)]["metalness"])
 
-    def test_controller_history_refresh_clears_pruned_native_selection_payload(self) -> None:
+    def test_controller_topology_undo_restores_operation_selection_atomically(self) -> None:
         controller = MeshEditorController()
         controller.open_mesh(build_synthetic_mesh(), session_id="native-history-selection-prune", mode="edit")
         controller.apply("duplicate", selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}))
-        controller.select(faces_by_submesh={1: (0,)}, source_indices=(1,))
 
-        selection_undo = controller.undo()
-        with patch.object(controller, "working_mesh", side_effect=AssertionError("full mesh refresh")):
-            selection_update = controller.native_update_for_result(selection_undo)
         undo = controller.undo()
         with patch.object(controller, "working_mesh", side_effect=AssertionError("full mesh refresh")):
             update = controller.native_update_for_result(undo)
+        redo = controller.redo()
+        with patch.object(controller, "working_mesh", side_effect=AssertionError("full mesh refresh")):
+            redo_update = controller.native_update_for_result(redo)
 
-        self.assertTrue(selection_undo.ok)
-        self.assertFalse(selection_update.triangle_groups)
-        self.assertTrue(selection_update.refresh_selection)
-        self.assertFalse(selection_update.selection_groups)
         self.assertTrue(undo.ok)
         self.assertEqual((False, 1), (update.replace_all_triangles, update.final_submesh_count))
         self.assertEqual((1,), update.triangle_source_submesh_indices)
         self.assertEqual((), update.triangle_groups)
         self.assertTrue(update.refresh_selection)
-        self.assertFalse(update.selection_groups)
+        self.assertEqual(1, len(update.selection_groups))
+        self.assertEqual(0, update.selection_groups[0]["source_submesh_index"])
+        self.assertEqual(0, update.selection_groups[0]["source_face_start"])
+        self.assertEqual(1, update.selection_groups[0]["source_face_count"])
+        self.assertTrue(redo.ok)
+        self.assertFalse(redo_update.replace_all_triangles)
+        self.assertEqual((1,), redo_update.triangle_source_submesh_indices)
+        self.assertEqual(1, len(redo_update.triangle_groups))
+        self.assertTrue(redo_update.refresh_selection)
+        self.assertEqual(1, len(redo_update.selection_groups))
+        self.assertEqual(0, redo_update.selection_groups[0]["source_submesh_index"])
+        self.assertEqual(0, redo_update.selection_groups[0]["source_face_start"])
+        self.assertEqual(1, redo_update.selection_groups[0]["source_face_count"])
 
     def test_controller_negative_native_topology_groups_include_removed_sources_without_working_mesh_refresh(self) -> None:
         controller = MeshEditorController()
@@ -1183,9 +1190,18 @@ class MeshEditorControllerTests(unittest.TestCase):
         self.assertEqual([0], _selection_i32_values(undo_update.selection_groups[0], "source_face_indices", "source_face_indices_binary"))
         self.assertEqual(0, undo_update.selection_groups[0]["source_submesh_index"])
         self.assertTrue(redo.ok)
-        self.assertEqual((), redo_update.triangle_groups)
-        self.assertEqual([0], _selection_i32_values(redo_update.selection_groups[0], "source_face_indices", "source_face_indices_binary"))
+        self.assertFalse(redo_update.triangle_source_submesh_indices)
+        self.assertFalse(redo_update.triangle_groups)
+        self.assertEqual(1, len(redo_update.selection_groups))
         self.assertEqual(1, redo_update.selection_groups[0]["source_submesh_index"])
+        self.assertEqual(
+            [0],
+            _selection_i32_values(
+                redo_update.selection_groups[0],
+                "source_face_indices",
+                "source_face_indices_binary",
+            ),
+        )
 
     def test_controller_history_restores_mode_before_action_palette_switch(self) -> None:
         controller = MeshEditorController()
@@ -1526,6 +1542,31 @@ class MeshEditorControllerTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "Unknown Mesh Editor action"):
             controller.apply_editor_action("not-real")
+
+    def test_controller_merges_subdivide_descriptor_before_request_overrides(self) -> None:
+        controller = MeshEditorController()
+        controller.open_mesh(build_synthetic_mesh(), session_id="subdivide-descriptor", mode="edit")
+        selection = MeshEditSelection.from_maps(faces_by_submesh={0: (0,)})
+
+        with patch.object(
+            controller,
+            "apply",
+            return_value=MeshEditResult(action="subdivide", status="ok", revision=0),
+        ) as apply_mock:
+            result = controller.apply_editor_action(
+                "subdivide",
+                selection=selection,
+                max_faces_per_submesh=1_234,
+            )
+
+        self.assertTrue(result.ok)
+        apply_mock.assert_called_once_with(
+            "subdivide",
+            selection=selection,
+            mode="edit",
+            max_faces_per_submesh=1_234,
+            recompute_normals=True,
+        )
 
     def test_controller_rejects_legacy_display_cleanup_actions(self) -> None:
         controller = MeshEditorController()

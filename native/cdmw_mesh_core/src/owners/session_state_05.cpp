@@ -55,6 +55,9 @@ std::string run_mesh_editor_session(const JsonValue& root) {
     if (command == "select") {
         return mesh_editor_select_session_report(root, session_id, session, started);
     }
+    if (command == "copy") {
+        return mesh_editor_copy_session_report(root, session_id, session, started);
+    }
     if (command == "undo" || command == "redo") {
         return mesh_editor_history_session_report(command, root, session_id, session, started);
     }

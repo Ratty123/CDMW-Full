@@ -12,6 +12,8 @@ void mesh_editor_collect_apply_result_indices(MeshEditorApplyState& state) {
     if (!state.record_history || !state.history.topology_changed) {
         return;
     }
+    state.history.selection_before = state.selection_before;
+    state.history.selection_snapshot = true;
     for (const int index : state.existing_result_indices) {
         const auto before = state.pre_edit_submeshes.find(index);
         if (before == state.pre_edit_submeshes.end()) {
@@ -19,6 +21,76 @@ void mesh_editor_collect_apply_result_indices(MeshEditorApplyState& state) {
         }
         state.history.before[index] = before->second;
     }
+}
+
+MeshEditorSelection mesh_editor_remap_subdivide_selection(
+    const MeshEditorSelection& before,
+    const std::vector<SubmeshMeshEditResult>& results
+) {
+    MeshEditorSelection remapped = before;
+    for (const SubmeshMeshEditResult& result : results) {
+        if (!result.topology_changed
+            || (result.action != "subdivide" && result.action != "refine_smooth")
+            || result.index < 0) {
+            continue;
+        }
+        const int submesh_index = result.index;
+        const auto selected_faces = before.faces.find(submesh_index);
+        if (selected_faces != before.faces.end()) {
+            remapped.faces.erase(submesh_index);
+            std::set<int> mapped;
+            for (std::size_t output_index = 0;
+                output_index < result.topology_source_face_indices.size();
+                ++output_index) {
+                if (selected_faces->second.find(result.topology_source_face_indices[output_index])
+                    != selected_faces->second.end()) {
+                    mapped.insert(static_cast<int>(output_index));
+                }
+            }
+            if (!mapped.empty()) remapped.faces[submesh_index] = std::move(mapped);
+        }
+
+        const auto selected_edges = before.edges.find(submesh_index);
+        if (selected_edges != before.edges.end()) {
+            remapped.edges.erase(submesh_index);
+            std::map<std::array<int, 2>, int> midpoint_by_edge;
+            for (const VertexBlend& blend : result.vertex_blends) {
+                midpoint_by_edge[edge_key(blend.left, blend.right)] = blend.index;
+            }
+            const std::set<std::array<int, 2>> result_edges = face_edge_set(result.faces);
+            std::set<std::array<int, 2>> mapped;
+            for (const std::array<int, 2>& selected : selected_edges->second) {
+                const std::array<int, 2> key = edge_key(selected[0], selected[1]);
+                const auto midpoint = midpoint_by_edge.find(key);
+                if (midpoint != midpoint_by_edge.end()) {
+                    mapped.insert(edge_key(selected[0], midpoint->second));
+                    mapped.insert(edge_key(midpoint->second, selected[1]));
+                } else if (result_edges.find(key) != result_edges.end()) {
+                    mapped.insert(key);
+                }
+            }
+            if (!mapped.empty()) remapped.edges[submesh_index] = std::move(mapped);
+        }
+
+        const auto selected_vertices = before.vertices.find(submesh_index);
+        if (selected_vertices != before.vertices.end()) {
+            remapped.vertices.erase(submesh_index);
+            remapped.vertex_weights.erase(submesh_index);
+            std::set<int> mapped;
+            for (const int vertex : selected_vertices->second) {
+                if (vertex >= 0 && static_cast<std::size_t>(vertex) < result.vertices.size()) {
+                    mapped.insert(vertex);
+                }
+            }
+            for (const VertexBlend& blend : result.vertex_blends) {
+                if (blend.index >= 0 && static_cast<std::size_t>(blend.index) < result.vertices.size()) {
+                    mapped.insert(blend.index);
+                }
+            }
+            if (!mapped.empty()) remapped.vertices[submesh_index] = std::move(mapped);
+        }
+    }
+    return remapped;
 }
 
 void mesh_editor_delete_apply_parts(
@@ -223,7 +295,27 @@ void mesh_editor_commit_apply_results(
     mesh_editor_publish_apply_history(session, state);
     if (state.applied_topology_changed) {
         ++session.topology_revision;
-        session.selection = MeshEditorSelection{};
+        if (state.operation == "subdivide" || state.operation == "refine_smooth") {
+            session.selection = mesh_editor_remap_subdivide_selection(state.selection_before, state.results);
+        } else if (state.operation == "paste") {
+            session.selection = MeshEditorSelection{};
+            for (const SubmeshMeshEditResult& result : state.results) {
+                if (!result.append_submesh || result.index < 0) continue;
+                const std::vector<int> faces = result.source_face_indices.size() == result.faces.size()
+                    ? result.source_face_indices
+                    : identity_indices(result.faces.size());
+                session.selection.faces[result.index] = std::set<int>(faces.begin(), faces.end());
+            }
+        } else if (state.operation == "delete") {
+            session.selection = MeshEditorSelection{};
+        } else {
+            session.selection = state.selection_before;
+            session.selection = mesh_editor_prune_and_combine_selection(
+                session,
+                state.selection_before,
+                "replace"
+            );
+        }
         ++session.selection_revision;
     }
     ++session.edit_revision;
