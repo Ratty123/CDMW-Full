@@ -15,6 +15,7 @@ internal sealed partial class ExperimentForm
         public string Command { get; init; } = string.Empty;
         public string Phase { get; init; } = string.Empty;
         public string StrokeId { get; init; } = string.Empty;
+        public long StrokeSequence { get; init; } = -1;
         public bool PaintSample { get; init; }
         public bool SelectionApplied { get; set; }
         public bool AuthoritativeGeometryPending { get; set; }
@@ -44,12 +45,18 @@ internal sealed partial class ExperimentForm
             Command = Convert.ToString(envelope.GetValueOrDefault("command"), CultureInfo.InvariantCulture)?.Trim().ToLowerInvariant() ?? string.Empty,
             Phase = Convert.ToString(envelope.GetValueOrDefault("phase"), CultureInfo.InvariantCulture)?.Trim().ToLowerInvariant() ?? string.Empty,
             StrokeId = Convert.ToString(envelope.GetValueOrDefault("stroke_id"), CultureInfo.InvariantCulture)?.Trim() ?? string.Empty,
+            StrokeSequence = DictionaryLong(envelope, "sequence", -1),
             PaintSample = Convert.ToBoolean(envelope.GetValueOrDefault("paint_sample") ?? false, CultureInfo.InvariantCulture),
         };
         _pendingMutationRequests[requestId] = pending;
         if (IsProvisionalSelectionRequest(normalizedEvent))
         {
-            _viewport.BeginProvisionalSelection(requestId, pending.BaseRevision);
+            _viewport.BeginProvisionalSelection(
+                requestId,
+                pending.BaseRevision,
+                pending.StrokeId,
+                pending.StrokeSequence,
+                pending.Phase);
         }
         else if (normalizedEvent == "placement_transform_request")
         {
@@ -301,7 +308,8 @@ internal sealed partial class ExperimentForm
         "select_request" or "selection_request" => true,
         "command_request" => pending.Command is
             "clear_selection" or "select_all" or "grow" or "shrink" or "invert" or
-            "undo" or "redo" or "delete" or "duplicate" or "subdivide" or "refine_smooth",
+            "undo" or "redo" or "delete" or "duplicate" or "subdivide" or "refine_smooth" or
+            "paste" or "layer_delete",
         _ => false,
     };
 
@@ -311,11 +319,11 @@ internal sealed partial class ExperimentForm
         _ => false,
     };
 
-    private static long DictionaryLong(IReadOnlyDictionary<string, object?> values, string key)
+    private static long DictionaryLong(IReadOnlyDictionary<string, object?> values, string key, long fallback = 0)
     {
         if (!values.TryGetValue(key, out var value) || value is null || value is bool)
         {
-            return 0;
+            return fallback;
         }
         try
         {
@@ -323,7 +331,7 @@ internal sealed partial class ExperimentForm
         }
         catch (Exception ex) when (ex is FormatException or InvalidCastException or OverflowException)
         {
-            return 0;
+            return fallback;
         }
     }
 

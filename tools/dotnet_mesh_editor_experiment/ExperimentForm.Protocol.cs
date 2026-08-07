@@ -559,6 +559,7 @@ internal sealed partial class ExperimentForm
                 case "session_state":
                     ObserveResidentSession(root);
                     ApplyHistoryState(root);
+                    ApplyGeometryLayerState(root);
                     ApplySelectionUpdate(root, requireCorrelation: false);
                     _statusLabel.Text = "Live MeshService bridge connected.";
                     RequestMorphStateRefresh();
@@ -1278,7 +1279,16 @@ internal sealed partial class ExperimentForm
         }
         var sources = JsonIntSet(selection, "source_indices");
         var requestId = requireCorrelation ? JsonLongValue(root, "request_id") : 0;
-        if (!_viewport.UpdateSelection(vertices, faces, edges, sources, requestId, revision))
+        if (!_viewport.UpdateSelection(
+            vertices,
+            faces,
+            edges,
+            sources,
+            requestId,
+            revision,
+            pending?.StrokeId ?? string.Empty,
+            pending?.StrokeSequence ?? -1,
+            pending?.Phase ?? string.Empty))
         {
             return false;
         }

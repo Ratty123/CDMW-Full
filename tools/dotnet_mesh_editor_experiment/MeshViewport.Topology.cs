@@ -273,7 +273,10 @@ internal sealed partial class MeshViewport
         Dictionary<int, HashSet<(int A, int B)>> edges,
         HashSet<int> sources,
         long requestId = 0,
-        long revision = 0)
+        long revision = 0,
+        string selectionStrokeId = "",
+        long selectionStrokeSequence = -1,
+        string selectionStrokePhase = "")
     {
         if (!CanAcceptAuthoritativeSelection(requestId, revision))
         {
@@ -298,11 +301,20 @@ internal sealed partial class MeshViewport
         {
             _selectedSources.Add(source);
         }
-        if (!AcceptAuthoritativeSelection(requestId, revision))
+        if (!AcceptAuthoritativeSelection(
+            requestId,
+            revision,
+            selectionStrokeId,
+            selectionStrokeSequence,
+            selectionStrokePhase))
         {
             return false;
         }
-        if (!HasNewerProvisionalSelection(requestId))
+        if (!HasNewerProvisionalSelection(
+            requestId,
+            selectionStrokeId,
+            selectionStrokeSequence,
+            selectionStrokePhase))
         {
             SyncSelectedPartFocus();
         }

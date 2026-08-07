@@ -21,7 +21,13 @@ internal sealed partial class ExperimentForm
         {
             _selectionOperation.SelectedIndex = 0;
         }
+        if (_selectionTarget.Items.Count > 0)
+        {
+            _selectionTarget.SelectedIndex = 0;
+        }
         _viewport.SetSelectionDragMode("brush");
+        ActivateTool("orbit", "Orbit");
+        ShowToolRailPage(null);
     }
 
     private void ApplyHostToolState(JsonElement root)

@@ -516,13 +516,27 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("def _start_archive_mesh_patch(", patch_source)
         self.assertIn("self._open_mesh_editor_for_entry(", patch_source)
         start = modify_source.index("    def _start_archive_modify_original_workspace(")
-        task_start = modify_source.index("        def _task(", start)
-        pre_task = modify_source[start:task_start]
-        task_body = modify_source[task_start:modify_source.index("        def _handle_complete(", task_start)]
-        self.assertIn("cleanup_stale_sessions = True", pre_task)
-        self.assertNotIn("self._cleanup_stale_modify_original_sessions()", pre_task)
-        self.assertIn("self._cleanup_stale_modify_original_sessions(", task_body)
-        self.assertIn("on_log=emit", task_body)
+        launch = modify_source.index("    def _launch_archive_modify_original_workspace(", start)
+        inspect_body = modify_source[start:launch]
+        self.assertIn("def _inspect_source(", inspect_body)
+        self.assertIn("self._cleanup_stale_modify_original_sessions(on_log=log)", inspect_body)
+        self.assertIn("read_modify_original_source_asset(", inspect_body)
+        self.assertIn("discover_modify_original_drafts(session_root, source_hash)", inspect_body)
+        self.assertIn("task=_inspect_source", inspect_body)
+        self.assertIn("on_complete=_source_inspected", inspect_body)
+
+        task_start = modify_source.index("        def _task(", launch)
+        complete_start = modify_source.index("        def _handle_complete(", task_start)
+        task_body = modify_source[task_start:complete_start]
+        complete_body = modify_source[
+            complete_start:modify_source.index("        self._run_utility_task(", complete_start)
+        ]
+        self.assertIn("cleanup_stale_sessions=False", modify_source[launch:task_start])
+        self.assertIn("prepare_modify_original_workspace(", task_body)
+        self.assertIn("stop_event=stop_event", task_body)
+        self.assertNotIn("_open_modify_original_mesh_setup", task_body)
+        self.assertIn("self._open_modify_original_mesh_setup(", complete_body)
+        self.assertIn("QTimer.singleShot(", complete_body)
 
     def test_modify_original_in_app_clone_skips_obj_skeleton_resolution(self) -> None:
         archive_modding_source = (

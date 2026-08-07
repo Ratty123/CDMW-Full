@@ -281,6 +281,7 @@ internal static class EditMeshLayoutSmoke
         RequireBrushFalloffProfile();
         var morphWizard = RequireMorphAuthorWizardContract();
         var viewportColorPreferences = RequireViewportColorPreferenceContract();
+        var overlayAppearance = RequireOverlayAppearanceContract();
 
         // The rail is one flat list: every armable tool is its own button, and
         // clicking one arms exactly that tool. Edit Mesh boots on "orbit", and
@@ -420,6 +421,7 @@ internal static class EditMeshLayoutSmoke
             },
             ["morph_profile_wizard"] = morphWizard,
             ["viewport_color_preferences"] = viewportColorPreferences,
+            ["overlay_appearance"] = overlayAppearance,
             ["tool_column_width"] = ToolColumnWidthReport(),
             ["tool_list_row_count"] = EditMeshToolListContract.RowOrder.Length,
             ["zero_size_splitter_construction"] = true,
@@ -822,6 +824,86 @@ internal static class EditMeshLayoutSmoke
             {
                 // The acceptance result already reflects the actual preference
                 // contract; temp cleanup must not turn it into a false failure.
+            }
+        }
+    }
+
+    private static Dictionary<string, object?> RequireOverlayAppearanceContract()
+    {
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"cdmw-mesh-overlay-{Environment.ProcessId}-{Guid.NewGuid():N}.json");
+        try
+        {
+            Require(
+                MeshOverlayPreferences.Load(path) == MeshOverlaySettings.Default,
+                "A missing overlay preference did not use selection renderer defaults.");
+            var chosen = new MeshOverlaySettings(
+                new MeshOverlayColors(
+                    Color.FromArgb(1, 2, 3),
+                    Color.FromArgb(4, 5, 6),
+                    Color.FromArgb(7, 8, 9),
+                    Color.FromArgb(10, 11, 12)),
+                new MeshOverlaySizing(2.4f, 12.5f));
+            Require(
+                MeshOverlayPreferences.TrySave(chosen, out var saveError, path),
+                $"Overlay preference save failed: {saveError}");
+            Require(
+                MeshOverlayPreferences.Load(path) == chosen,
+                "Committed/live selection colours or overlay sizing did not survive reload.");
+
+            File.WriteAllText(
+                path,
+                "{\"schema\":\"cdmw_mesh_overlay_preferences_v2\",\"wire_color\":\"#112233\",\"vertex_color\":\"#445566\",\"wire_width_pixels\":3.5,\"vertex_marker_size_pixels\":9}",
+                System.Text.Encoding.UTF8);
+            var migratedV2 = MeshOverlayPreferences.Load(path);
+            Require(
+                migratedV2.Colors.Wire == Color.FromArgb(0x11, 0x22, 0x33)
+                    && migratedV2.Colors.Vertex == Color.FromArgb(0x44, 0x55, 0x66)
+                    && migratedV2.Colors.Selection == MeshOverlayColors.Default.Selection
+                    && migratedV2.Colors.LiveSelection == MeshOverlayColors.Default.LiveSelection
+                    && migratedV2.Sizing == new MeshOverlaySizing(3.5f, 9.0f),
+                "Overlay v2 preferences did not migrate selection colours with their defaults.");
+
+            File.WriteAllText(
+                path,
+                "{\"schema\":\"cdmw_mesh_overlay_colors_v1\",\"wire_color\":\"#203040\",\"vertex_color\":\"#506070\"}",
+                System.Text.Encoding.UTF8);
+            var migratedV1 = MeshOverlayPreferences.Load(path);
+            Require(
+                migratedV1.Colors.Wire == Color.FromArgb(0x20, 0x30, 0x40)
+                    && migratedV1.Colors.Vertex == Color.FromArgb(0x50, 0x60, 0x70)
+                    && migratedV1.Colors.Selection == MeshOverlayColors.Default.Selection
+                    && migratedV1.Colors.LiveSelection == MeshOverlayColors.Default.LiveSelection
+                    && migratedV1.Sizing == MeshOverlaySizing.Default,
+                "Overlay v1 preferences did not preserve their legacy fields and new defaults.");
+
+            var construction = ExperimentForm.OverlayAppearanceConstructionProof();
+            Require(
+                Convert.ToInt32(construction["control_count"]) == 7
+                    && Math.Abs(Convert.ToSingle(construction["wire_width"]) - 2.25f) < 0.001f
+                    && Math.Abs(Convert.ToSingle(construction["vertex_size"]) - 11.5f) < 0.001f
+                    && string.Equals(Convert.ToString(construction["selection_color"]), "#708090", StringComparison.Ordinal)
+                    && string.Equals(Convert.ToString(construction["live_selection_color"]), "#A0B0C0", StringComparison.Ordinal),
+                "Viewport selection appearance controls did not construct with the configured values.");
+            return new Dictionary<string, object?>
+            {
+                ["schema"] = MeshOverlayPreferences.Schema,
+                ["save_load"] = true,
+                ["v1_migration"] = true,
+                ["v2_migration"] = true,
+                ["controls"] = construction,
+            };
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch
+            {
+                // Temp cleanup must not replace the actual preference result.
             }
         }
     }

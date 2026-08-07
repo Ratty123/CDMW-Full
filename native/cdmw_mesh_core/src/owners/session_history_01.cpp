@@ -195,6 +195,8 @@ std::string mesh_editor_history_report_json(
     out << ',';
     mesh_editor_write_submesh_summaries(out, session);
     out << ',';
+    mesh_editor_write_selection_state_fields(out, session, state.delta_output_dir, state.session_id);
+    out << ',';
     mesh_editor_write_metrics(out, cpp_ms, io_serialization_ms);
     if (include_edit_report) {
         out << ",\"edit_report\":" << edit_report;
@@ -231,6 +233,11 @@ std::string mesh_editor_history_session_report(
     state.material = state.operation == "material_assign" || state.operation == "material_copy";
     if (state.topology_changed) {
         mesh_editor_apply_topology_history(entry, session, state);
+        if (entry.selection_snapshot) {
+            MeshEditorSelection reverse_selection = std::move(session.selection);
+            session.selection = std::move(entry.selection_before);
+            entry.selection_before = std::move(reverse_selection);
+        }
     } else {
         mesh_editor_apply_sparse_history(entry, session, state);
     }
@@ -245,7 +252,6 @@ std::string mesh_editor_history_session_report(
     mesh_editor_trim_session_history(session);
     if (state.topology_changed) {
         ++session.topology_revision;
-        session.selection = MeshEditorSelection{};
         ++session.selection_revision;
     }
     ++session.edit_revision;

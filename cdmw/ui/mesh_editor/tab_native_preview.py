@@ -53,7 +53,7 @@ class MeshEditorNativePreviewMixin:
             self.standalone_native_status_file = status_path
             if host is getattr(self, "standalone_native_host_frame", None):
                 self.standalone_preview_stack.setCurrentWidget(self.standalone_native_host_frame)
-            self._request_standalone_native_part_picking(True, retries=3)
+            self._request_standalone_native_part_picking(False)
             self._sync_standalone_native_mesh_edit_state(force=True)
             self.standalone_status_label.setText(f".NET/Vortice preview loading: {package_path}")
         return ok

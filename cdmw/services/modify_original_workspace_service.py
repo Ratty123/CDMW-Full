@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import threading
 import time
@@ -43,6 +44,109 @@ class ModifyOriginalWorkspacePreparationRequest:
     related_entries: tuple[ArchiveEntry, ...] = ()
     model_texture_references: tuple[object, ...] = ()
     asset_family_graph: object | None = None
+    source_asset_data: bytes = b""
+    source_asset_sha256: str = ""
+    resume_manifest_path: Path | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ModifyOriginalDraft:
+    manifest_path: Path
+    workspace_dir: Path
+    editable_obj: Path
+    mesh_layer_project_path: Path
+    source_asset_sha256: str
+    workspace_mode: str
+    updated_at: float
+
+
+def read_modify_original_source_asset(
+    entry: ArchiveEntry,
+    *,
+    stop_event: threading.Event | None = None,
+) -> tuple[bytes, str]:
+    stop = stop_event or threading.Event()
+    data = read_archive_entry_baseline_data(
+        entry,
+        read_entry_data=lambda archive_entry: read_archive_entry_data(
+            archive_entry,
+            stop_event=stop,
+        ),
+    ).data
+    raise_if_cancelled(stop, "Modify Original source inspection cancelled.")
+    return data, hashlib.sha256(data).hexdigest()
+
+
+def discover_modify_original_drafts(
+    session_root: Path,
+    source_asset_sha256: str,
+) -> tuple[ModifyOriginalDraft, ...]:
+    """List valid persistent drafts for one exact source fingerprint."""
+
+    root = Path(session_root).expanduser().resolve()
+    source_hash = str(source_asset_sha256 or "").strip().lower()
+    if len(source_hash) != 64 or not root.is_dir():
+        return ()
+    drafts: list[ModifyOriginalDraft] = []
+    for workspace in tuple(root.iterdir()):
+        if not workspace.is_dir():
+            continue
+        draft = _read_modify_original_draft(workspace / "modify_original_workspace.json")
+        if draft is None or draft.source_asset_sha256 != source_hash:
+            continue
+        if draft.workspace_mode != "persistent_app_draft":
+            continue
+        drafts.append(draft)
+    return tuple(sorted(drafts, key=lambda item: item.updated_at, reverse=True))
+
+
+def _read_modify_original_draft(manifest_path: Path) -> ModifyOriginalDraft | None:
+    manifest = Path(manifest_path).expanduser().resolve()
+    if not manifest.is_file():
+        return None
+    try:
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(payload, Mapping) or payload.get("format") != "cdmw_modify_original_workspace_v1":
+        return None
+    workspace = manifest.parent.resolve()
+
+    def workspace_path(field: str, fallback: Path | None = None) -> Path | None:
+        raw = str(payload.get(field) or "").strip()
+        candidate = Path(raw).expanduser() if raw else fallback
+        if candidate is None:
+            return None
+        if not candidate.is_absolute():
+            candidate = workspace / candidate
+        resolved = candidate.resolve()
+        if resolved != workspace and workspace not in resolved.parents:
+            return None
+        return resolved
+
+    editable_obj = workspace_path("editable_obj")
+    layer_project = workspace_path(
+        "mesh_layer_project",
+        workspace / "mesh_layers" / "mesh_layer_project.json",
+    )
+    if editable_obj is None or layer_project is None or not editable_obj.is_file() or not layer_project.is_file():
+        return None
+    source_hash = str(payload.get("source_asset_sha256") or "").strip().lower()
+    if len(source_hash) != 64:
+        return None
+    try:
+        updated_at = float(payload.get("updated_at", payload.get("created_at", manifest.stat().st_mtime)) or 0.0)
+    except (TypeError, ValueError, OSError):
+        updated_at = 0.0
+    return ModifyOriginalDraft(
+        manifest_path=manifest,
+        workspace_dir=workspace,
+        editable_obj=editable_obj,
+        mesh_layer_project_path=layer_project,
+        source_asset_sha256=source_hash,
+        workspace_mode=str(payload.get("workspace_mode") or ""),
+        updated_at=updated_at,
+    )
 
 
 def prepare_modify_original_workspace(
@@ -68,12 +172,75 @@ def prepare_modify_original_workspace(
     create_workspace = bool(request.create_workspace)
     include_family = bool(request.include_family_files)
     open_after = bool(create_workspace and request.open_workspace_after_create)
+    original_data = bytes(request.source_asset_data or b"")
+    requested_source_hash = str(request.source_asset_sha256 or "").strip().lower()
 
     raise_if_cancelled(stop, "Modify Original preparation cancelled.")
     total_steps = 5
-    report(1, total_steps, "Modify Original: creating safe clone folder...")
+    report(1, total_steps, "Modify Original: verifying source asset...")
     if request.cleanup_stale_sessions and cleanup_stale_sessions is not None:
         cleanup_stale_sessions(emit)
+    if original_data:
+        source_asset_sha256 = hashlib.sha256(original_data).hexdigest()
+    else:
+        original_data, source_asset_sha256 = read_modify_original_source_asset(
+            entry,
+            stop_event=stop,
+        )
+    if requested_source_hash and requested_source_hash != source_asset_sha256:
+        raise ValueError("Modify Original source fingerprint changed before the workspace opened")
+
+    resume_manifest = (
+        Path(request.resume_manifest_path).expanduser().resolve()
+        if request.resume_manifest_path is not None
+        else None
+    )
+    if resume_manifest is not None:
+        draft = _read_modify_original_draft(resume_manifest)
+        if draft is None or draft.source_asset_sha256 != source_asset_sha256:
+            raise ValueError("Modify Original draft is unavailable or belongs to a different source asset")
+        workspace_dir = draft.workspace_dir
+        obj_path = draft.editable_obj
+        emit(f"Resuming Modify Original geometry draft: {workspace_dir}")
+        report(2, total_steps, "Modify Original: loading saved geometry draft...")
+        scene_import_result = import_scene_mesh_with_report(obj_path, stop_event=stop)
+        report(3, total_steps, "Modify Original: restoring exact source context...")
+        original_mesh = parse_mesh(original_data, entry.path)
+        report(4, total_steps, "Modify Original: loading draft references...")
+        supplemental_files = tuple(
+            Path(path)
+            for path in (
+                collect_supplemental_files(workspace_dir, stop)
+                if collect_supplemental_files is not None
+                else ()
+            )
+        )
+        raise_if_cancelled(stop, "Modify Original preparation cancelled.")
+        report(5, total_steps, "Modify Original: opening saved Geometry workspace...")
+        return {
+            "workspace_dir": workspace_dir,
+            "obj_path": obj_path,
+            "readme_path": (
+                workspace_dir / "MODIFY_ORIGINAL_README.txt"
+                if (workspace_dir / "MODIFY_ORIGINAL_README.txt").is_file()
+                else None
+            ),
+            "manifest_path": draft.manifest_path,
+            "mesh_layer_project_path": draft.mesh_layer_project_path,
+            "source_asset_sha256": source_asset_sha256,
+            "workspace_mode": draft.workspace_mode,
+            "create_workspace": False,
+            "resumed_draft": True,
+            "output_paths": (obj_path,),
+            "summary_lines": (f"Resumed geometry draft: {workspace_dir.name}",),
+            "related_count": 0,
+            "supplemental_files": supplemental_files,
+            "scene_import_result": scene_import_result,
+            "source_skeleton": None,
+            "original_mesh": original_mesh,
+        }
+
+    report(1, total_steps, "Modify Original: creating safe clone folder...")
     workspace_dir.parent.mkdir(parents=True, exist_ok=True)
     emit(
         f"Creating Modify Original workspace: {workspace_dir}"
@@ -112,13 +279,6 @@ def prepare_modify_original_workspace(
     scene_import_result = import_scene_mesh_with_report(obj_path, stop_event=stop)
     emit("Preloading original archive mesh for Geometry alignment...")
     report(4, total_steps, "Modify Original: loading original archive mesh...")
-    original_data = read_archive_entry_baseline_data(
-        entry,
-        read_entry_data=lambda archive_entry: read_archive_entry_data(
-            archive_entry,
-            stop_event=stop,
-        ),
-    ).data
     original_mesh = parse_mesh(original_data, entry.path)
     source_skeleton = None
     supplemental_files = tuple(
@@ -133,6 +293,7 @@ def prepare_modify_original_workspace(
 
     readme_path: Path | None = None
     manifest_path = workspace_dir / "modify_original_workspace.json"
+    mesh_layer_project_path = workspace_dir / "mesh_layers" / "mesh_layer_project.json"
     if create_workspace:
         readme_path = workspace_dir / "MODIFY_ORIGINAL_README.txt"
         atomic_write_text(
@@ -168,8 +329,10 @@ def prepare_modify_original_workspace(
                 "create_workspace": create_workspace,
                 "source_archive_path": entry.path,
                 "source_package": entry.package_label,
+                "source_asset_sha256": source_asset_sha256,
                 "workspace_dir": str(workspace_dir),
                 "editable_obj": str(obj_path),
+                "mesh_layer_project": str(mesh_layer_project_path) if create_workspace else "",
                 "related_file_count": len(request.related_entries),
                 "supplemental_file_count": len(supplemental_files),
                 "include_family_files": include_family,
@@ -188,6 +351,9 @@ def prepare_modify_original_workspace(
         "obj_path": obj_path,
         "readme_path": readme_path,
         "manifest_path": manifest_path,
+        "mesh_layer_project_path": mesh_layer_project_path,
+        "source_asset_sha256": source_asset_sha256,
+        "workspace_mode": "user_workspace" if create_workspace else "internal_app_session",
         "create_workspace": create_workspace,
         "output_paths": tuple(export_result.output_paths),
         "summary_lines": tuple(export_result.summary_lines),
@@ -200,6 +366,9 @@ def prepare_modify_original_workspace(
 
 
 __all__ = [
+    "ModifyOriginalDraft",
     "ModifyOriginalWorkspacePreparationRequest",
+    "discover_modify_original_drafts",
     "prepare_modify_original_workspace",
+    "read_modify_original_source_asset",
 ]

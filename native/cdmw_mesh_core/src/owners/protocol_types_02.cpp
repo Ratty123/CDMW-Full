@@ -128,6 +128,8 @@ struct MeshEditorHistoryEntry {
     std::string stroke_id;
     int stroke_update_count = 0;
     bool topology_changed = false;
+    MeshEditorSelection selection_before;
+    bool selection_snapshot = false;
     std::shared_ptr<const MeshMorphRuntime> morph_before;
     std::shared_ptr<const MeshMorphRuntime> morph_after;
     bool morph_state_changed = false;
@@ -141,10 +143,16 @@ struct MeshEditorStroke {
     int update_count = 0;
 };
 
+struct MeshEditorClipboardFragment {
+    int source_index = -1;
+    MeshSessionSubmesh submesh;
+};
+
 struct MeshEditorSession {
     std::string native_session_id;
     MeshEditorSelection selection;
     MeshEditorStroke active_stroke;
+    std::vector<MeshEditorClipboardFragment> clipboard;
     std::vector<MeshEditorHistoryEntry> undo_stack;
     std::vector<MeshEditorHistoryEntry> redo_stack;
     int topology_revision = 0;

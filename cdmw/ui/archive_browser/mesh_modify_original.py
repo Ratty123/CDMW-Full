@@ -17,6 +17,7 @@ from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QFileDialog,
     QGridLayout,
@@ -41,8 +42,11 @@ from cdmw.services.mesh_workflow_service import ParsedMesh, parse_mesh
 from cdmw.services.mesh_workflow_service import SceneImportResult
 from cdmw.services.mesh_workflow_service import StaticMeshReplacementOptions, StaticSubmeshMapping
 from cdmw.services.modify_original_workspace_service import (
+    ModifyOriginalDraft,
     ModifyOriginalWorkspacePreparationRequest,
+    discover_modify_original_drafts,
     prepare_modify_original_workspace,
+    read_modify_original_source_asset,
 )
 from cdmw.services.diagnostics_service import process_is_alive as _process_is_alive
 from cdmw.services.workspace_layout import workspace_paths
@@ -410,14 +414,138 @@ class ArchiveMeshModifyOriginalMixin:
         workspace_mode = _modify_original_workspace_mode(self, selection)
         if workspace_mode is None:
             return
+        create_workspace, _include_family, _open_after = workspace_mode
+        if create_workspace:
+            self._launch_archive_modify_original_workspace(
+                entry,
+                selection,
+                workspace_mode,
+            )
+            return
+
+        session_root = workspace_paths(self.settings_file_path.parent)["modify_original_sessions_root"]
+
+        def _inspect_source(
+            log: Callable[[str], None],
+            _progress: Callable[[int, int, str], None],
+            stop_event: threading.Event,
+        ) -> dict[str, object]:
+            self._cleanup_stale_modify_original_sessions(on_log=log)
+            source_data, source_hash = read_modify_original_source_asset(
+                entry,
+                stop_event=stop_event,
+            )
+            return {
+                "source_data": source_data,
+                "source_hash": source_hash,
+                "drafts": discover_modify_original_drafts(session_root, source_hash),
+            }
+
+        def _source_inspected(result: object) -> None:
+            if not isinstance(result, Mapping):
+                self.set_status_message("Modify Original source inspection returned an unexpected result.", error=True)
+                return
+            source_data = result.get("source_data")
+            source_hash = str(result.get("source_hash") or "")
+            drafts = tuple(
+                item for item in tuple(result.get("drafts") or ()) if isinstance(item, ModifyOriginalDraft)
+            )
+            choice = self._prompt_modify_original_draft_choice(entry, drafts) if drafts else (False, None)
+            if choice is None:
+                return
+            resume, manifest_path = choice
+            self._launch_archive_modify_original_workspace(
+                entry,
+                selection,
+                workspace_mode,
+                source_asset_data=bytes(source_data) if isinstance(source_data, (bytes, bytearray)) else b"",
+                source_asset_sha256=source_hash,
+                resume_manifest_path=manifest_path if resume else None,
+            )
+
+        self._run_utility_task(
+            status_message=f"Checking Modify Original drafts for {entry.basename}...",
+            task=_inspect_source,
+            on_complete=_source_inspected,
+            show_archive_progress=True,
+            task_accepts_progress=True,
+            task_accepts_cancel=True,
+        )
+
+    def _prompt_modify_original_draft_choice(
+        self,
+        entry: ArchiveEntry,
+        drafts: tuple[ModifyOriginalDraft, ...],
+    ) -> Optional[tuple[bool, Path | None]]:
+        if not drafts:
+            return False, None
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Resume Mesh Editor Draft")
+        dialog.setModal(True)
+        dialog.resize(680, 220)
+        layout = QVBoxLayout(dialog)
+        intro = QLabel(
+            f"Saved geometry-layer drafts match the exact source fingerprint for {entry.basename}. "
+            "Resume one, or start a separate new draft. Existing drafts are kept."
+        )
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+        draft_combo = QComboBox(dialog)
+        for draft in drafts:
+            saved = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(draft.updated_at))
+            draft_combo.addItem(f"{draft.workspace_dir.name} — saved {saved}", draft)
+        layout.addWidget(draft_combo)
+        path_label = QLabel(str(drafts[0].workspace_dir))
+        path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        path_label.setWordWrap(True)
+        layout.addWidget(path_label)
+        draft_combo.currentIndexChanged.connect(
+            lambda index: path_label.setText(str(drafts[max(0, int(index))].workspace_dir))
+        )
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        resume_button = QPushButton("Resume", dialog)
+        start_new_button = QPushButton("Start New", dialog)
+        cancel_button = QPushButton("Cancel", dialog)
+        buttons.addWidget(resume_button)
+        buttons.addWidget(start_new_button)
+        buttons.addWidget(cancel_button)
+        layout.addLayout(buttons)
+        choice: dict[str, object] = {"resume": True}
+        resume_button.setDefault(True)
+        resume_button.clicked.connect(dialog.accept)
+
+        def _start_new() -> None:
+            choice["resume"] = False
+            dialog.accept()
+
+        start_new_button.clicked.connect(_start_new)
+        cancel_button.clicked.connect(dialog.reject)
+        if dialog.exec() != QDialog.Accepted:
+            return None
+        selected = draft_combo.currentData()
+        if bool(choice["resume"]) and isinstance(selected, ModifyOriginalDraft):
+            return True, selected.manifest_path
+        return False, None
+
+    def _launch_archive_modify_original_workspace(
+        self,
+        entry: ArchiveEntry,
+        selection: ModifyOriginalWorkflowSelection,
+        workspace_mode: tuple[bool, bool, bool],
+        *,
+        source_asset_data: bytes = b"",
+        source_asset_sha256: str = "",
+        resume_manifest_path: Path | None = None,
+    ) -> None:
         create_workspace, include_family, open_after = workspace_mode
         workspace_name = self._archive_modify_original_workspace_name(entry)
-        cleanup_stale_sessions = False
-        if create_workspace:
+        if resume_manifest_path is not None:
+            workspace_dir = Path(resume_manifest_path).expanduser().resolve().parent
+        elif create_workspace:
             parent_root = selection.workspace_parent or (Path(self._suggest_workspace_base_dir()).expanduser() / "modify_original")
             workspace_dir = find_available_output_path(parent_root / workspace_name)
         else:
-            cleanup_stale_sessions = True
             session_root = workspace_paths(self.settings_file_path.parent)["modify_original_sessions_root"]
             workspace_dir = find_available_output_path(session_root / workspace_name)
         related_entries: Tuple[ArchiveEntry, ...] = ()
@@ -449,12 +577,15 @@ class ArchiveMeshModifyOriginalMixin:
             create_workspace=create_workspace,
             include_family_files=include_family,
             open_workspace_after_create=open_after,
-            cleanup_stale_sessions=cleanup_stale_sessions,
+            cleanup_stale_sessions=False,
             archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
             archive_entries_by_basename=self.archive_entries_by_basename,
             related_entries=related_entries,
             model_texture_references=cached_texture_references,
             asset_family_graph=cached_family_graph,
+            source_asset_data=bytes(source_asset_data),
+            source_asset_sha256=str(source_asset_sha256 or ""),
+            resume_manifest_path=resume_manifest_path,
         )
 
         def _task(
@@ -491,6 +622,8 @@ class ArchiveMeshModifyOriginalMixin:
                 QDesktopServices.openUrl(QUrl.fromLocalFile(str(workspace.resolve())))
             if create_workspace:
                 self.set_status_message(f"Modify Original workspace ready: {obj_path.name}. Opening Mesh Replacement setup...")
+            elif bool(result.get("resumed_draft")):
+                self.set_status_message(f"Modify Original draft resumed: {obj_path.name}. Opening Geometry...")
             else:
                 self.set_status_message(f"Modify Original in-app clone ready: {obj_path.name}. Opening Geometry...")
             QTimer.singleShot(
@@ -505,7 +638,11 @@ class ArchiveMeshModifyOriginalMixin:
             status_message=(
                 f"Creating Modify Original workspace for {entry.basename}..."
                 if create_workspace
-                else f"Preparing Modify Original in-app session for {entry.basename}..."
+                else (
+                    f"Resuming Modify Original draft for {entry.basename}..."
+                    if resume_manifest_path is not None
+                    else f"Preparing Modify Original in-app session for {entry.basename}..."
+                )
             ),
             task=_task,
             on_complete=_handle_complete,
@@ -529,6 +666,29 @@ class ArchiveMeshModifyOriginalMixin:
         scene_import_result = result.get("scene_import_result")
         if not isinstance(scene_import_result, SceneImportResult):
             scene_import_result = None
+        elif isinstance(scene_import_result.mesh, ParsedMesh):
+            layer_project_path = result.get("mesh_layer_project_path")
+            workspace_manifest_path = result.get("manifest_path")
+            setattr(
+                scene_import_result.mesh,
+                "_cdmw_mesh_layer_project_path",
+                str(layer_project_path) if isinstance(layer_project_path, Path) else "",
+            )
+            setattr(
+                scene_import_result.mesh,
+                "_cdmw_modify_original_workspace_manifest_path",
+                str(workspace_manifest_path) if isinstance(workspace_manifest_path, Path) else "",
+            )
+            setattr(
+                scene_import_result.mesh,
+                "_cdmw_modify_original_workspace_mode",
+                str(result.get("workspace_mode", "") or ""),
+            )
+            setattr(
+                scene_import_result.mesh,
+                "_cdmw_mesh_asset_source_hash",
+                str(result.get("source_asset_sha256", "") or ""),
+            )
         source_skeleton = result.get("source_skeleton")
         original_mesh = result.get("original_mesh")
         if not isinstance(original_mesh, ParsedMesh):

@@ -2139,7 +2139,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('if command == "material_copy":', mesh_edit_callback_source)
         self.assertIn("params_factory=lambda: _callbacks._mesh_editor_material_copy_params(text)", mesh_edit_callback_source)
         self.assertIn("Select adjacent vertices, faces, or edges before using {action_text}.", mesh_edit_callback_source)
-        self.assertIn("Select vertices or faces before using {action_text}.", mesh_edit_callback_source)
+        self.assertIn("Select vertices, wires, or faces before using {action_text}.", mesh_edit_callback_source)
         self.assertIn("_mesh_editor_commit_action_bar_service_result(", mesh_edit_callback_source)
         self.assertIn('if command == "undo":', mesh_edit_callback_source)
         self.assertIn("_callbacks._mesh_edit_undo()", mesh_edit_callback_source)

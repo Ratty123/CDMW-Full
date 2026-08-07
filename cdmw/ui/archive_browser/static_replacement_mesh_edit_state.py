@@ -93,10 +93,10 @@ def mesh_edit_action_control_text() -> dict[str, str]:
         "full_reset_mesh": "Full Reset Mesh",
         "delete_mode_tooltip": "Remove Faces behavior. On release makes one cut at mouse-up; During drag cuts continuously.",
         "iterations_tooltip": "Smooth/Relax passes per brush sample.",
-        "selection_mode_tooltip": "Selection shape for the Select Parts tool.",
-        "selection_depth_tooltip": "Visible Only selects front-facing parts; X-Ray includes occluded parts.",
-        "select_part_tooltip": "Select every vertex in the current editable Mesh Editing scope.",
-        "invert_selection_tooltip": "Invert the selected vertices inside the current editable Mesh Editing scope.",
+        "selection_mode_tooltip": "Selection shape for the Select tool.",
+        "selection_depth_tooltip": "Visible Only selects front-facing elements; X-Ray includes occluded elements.",
+        "select_part_tooltip": "Select every element of the active target in the current editable Mesh Editing scope.",
+        "invert_selection_tooltip": "Invert the active vertex, wire, or face target inside the current editable Mesh Editing scope.",
         "subdivide_selection_tooltip": "Add local triangle density around selected vertices, then keep sculpting.",
         "refine_smooth_selection_tooltip": "Add local triangle density around selected vertices, then smooth the new detail.",
         "split_selection_tooltip": "Move selected faces into a new replacement source part.",
@@ -124,7 +124,7 @@ def mesh_edit_delete_faces_text() -> dict[str, str]:
 def mesh_edit_subdivide_text() -> dict[str, str]:
     return {
         "morph_blocker": "Bake or reset Morph Sliders before subdividing mesh detail.",
-        "select_vertices": "Select vertices or faces before subdividing mesh detail.",
+        "select_vertices": "Select vertices, wires, or faces before subdividing mesh detail.",
         "no_selected_vertices": "No faces touched the selected Mesh Editing elements.",
     }
 

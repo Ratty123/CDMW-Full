@@ -64,6 +64,8 @@ _AUTHORING_PROTOCOL_CAPABILITIES = (
     "mesh_edit_revision_ack_v1",
     "resident_mutation_envelope_v2",
     "host_tool_state_v1",
+    "correlated_selection_strokes_v1",
+    "geometry_layers_v1",
 )
 
 

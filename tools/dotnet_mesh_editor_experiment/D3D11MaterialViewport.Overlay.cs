@@ -12,6 +12,8 @@ internal sealed partial class D3D11MaterialViewport
     private MeshOverlaySettings _overlaySettings = MeshOverlaySettings.Default;
     private Vector4 _wireOverlayColor = OverlayColor(0, 0, 0, 225);
     private Vector4 _vertexOverlayColor = OverlayColor(255, 174, 40, 255);
+    private Vector4 _selectionOverlayColor = OverlayColor(255, 224, 92, 245);
+    private Vector4 _liveSelectionOverlayColor = OverlayColor(96, 202, 255, 245);
     private static readonly Vector4 XRayWireOverlayColor = OverlayColor(245, 248, 252, 240);
     private static readonly Vector4 XRayVertexOverlayColor = OverlayColor(255, 88, 214, 255);
     private static readonly uint OverlayVertexStride = (uint)Marshal.SizeOf<D3D11OverlayVertex>();
@@ -25,6 +27,10 @@ internal sealed partial class D3D11MaterialViewport
     private long _overlayBatchedDrawCount;
     private long _xRayWireNoDepthDrawCount;
     private long _xRayVertexNoDepthPassCount;
+    private long _committedSelectionOverlayPrimitiveCount;
+    private long _liveSelectionOverlayPrimitiveCount;
+    private System.Drawing.Color _lastCommittedSelectionPrimitiveColor = System.Drawing.Color.Empty;
+    private System.Drawing.Color _lastLiveSelectionPrimitiveColor = System.Drawing.Color.Empty;
     private readonly List<Vector3> _overlayScratchA = new(InitialOverlayVertexCapacity);
     private readonly List<Vector3> _overlayScratchB = new(InitialOverlayVertexCapacity);
     private readonly List<Vector3> _overlayFrameVertices = new(InitialOverlayVertexCapacity);
@@ -67,6 +73,16 @@ internal sealed partial class D3D11MaterialViewport
             colors.Vertex.G,
             colors.Vertex.B,
             255);
+        _selectionOverlayColor = OverlayColor(
+            colors.Selection.R,
+            colors.Selection.G,
+            colors.Selection.B,
+            245);
+        _liveSelectionOverlayColor = OverlayColor(
+            colors.LiveSelection.R,
+            colors.LiveSelection.G,
+            colors.LiveSelection.B,
+            245);
     }
 
     private void DisposeOverlayDynamicResources()
@@ -141,6 +157,8 @@ internal sealed partial class D3D11MaterialViewport
             DrawSelectedFacesOverlay();
             DrawSelectedEdgesOverlay();
             DrawSelectedVerticesOverlay();
+            DrawProvisionalFacesOverlay();
+            DrawProvisionalEdgesOverlay();
             DrawProvisionalVerticesOverlay();
         }
 
@@ -157,6 +175,8 @@ internal sealed partial class D3D11MaterialViewport
             DrawSelectedFacesOverlay();
             DrawSelectedEdgesOverlay();
             DrawSelectedVerticesOverlay();
+            DrawProvisionalFacesOverlay();
+            DrawProvisionalEdgesOverlay();
             DrawProvisionalVerticesOverlay();
         }
         if (ActivePaneInteractionAllowed)
@@ -400,8 +420,8 @@ internal sealed partial class D3D11MaterialViewport
             }
             AddSubmeshFaceVertices(submeshIndex, triangles, lines);
         }
-        DrawOverlayPrimitive(PrimitiveTopology.TriangleList, triangles, OverlayColor(70, 155, 255, _overlayShowXRay ? 64 : 42), _camera.WorldViewProjection);
-        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(70, 155, 255, _overlayShowXRay ? 230 : 185), _camera.WorldViewProjection);
+        DrawOverlayPrimitive(PrimitiveTopology.TriangleList, triangles, OverlayColor(_overlaySettings.Colors.Selection, _overlayShowXRay ? 64 : 42), _camera.WorldViewProjection);
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(_overlaySettings.Colors.Selection, _overlayShowXRay ? 230 : 185), _camera.WorldViewProjection);
     }
 
     private void DrawSelectedFacesOverlay()
@@ -428,8 +448,8 @@ internal sealed partial class D3D11MaterialViewport
                 AddFaceVertices(pair.Key, submesh, submesh.Faces[faceIndex], triangles, lines);
             }
         }
-        DrawOverlayPrimitive(PrimitiveTopology.TriangleList, triangles, OverlayColor(255, 224, 92, _overlayShowXRay ? 88 : 58), _camera.WorldViewProjection);
-        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(255, 224, 92, 235), _camera.WorldViewProjection);
+        DrawOverlayPrimitive(PrimitiveTopology.TriangleList, triangles, OverlayColor(_overlaySettings.Colors.Selection, _overlayShowXRay ? 88 : 58), _camera.WorldViewProjection);
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(_overlaySettings.Colors.Selection, 235), _camera.WorldViewProjection);
     }
 
     private void DrawSelectedEdgesOverlay()
@@ -456,8 +476,8 @@ internal sealed partial class D3D11MaterialViewport
                 AddEdgeLineVertices(edge, selected);
             }
         }
-        DrawOverlayPrimitive(PrimitiveTopology.LineList, selected, OverlayColor(226, 196, 72, 245), _camera.WorldViewProjection);
-        DrawOverlayPrimitive(PrimitiveTopology.LineList, hovered, OverlayColor(96, 202, 255, 245), _camera.WorldViewProjection);
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, selected, _selectionOverlayColor, _camera.WorldViewProjection);
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, hovered, _liveSelectionOverlayColor, _camera.WorldViewProjection);
     }
 
     private void DrawSelectedVerticesOverlay()
@@ -486,7 +506,7 @@ internal sealed partial class D3D11MaterialViewport
             DrawOverlayPrimitive(
                 PrimitiveTopology.PointList,
                 points,
-                OverlayColor(255, 230, 88, 245),
+                _selectionOverlayColor,
                 ActivePaneModelMatrix(pair.Key) * _camera.WorldViewProjection,
                 SelectedVertexMarkerRadiusPixels);
         }
@@ -528,10 +548,76 @@ internal sealed partial class D3D11MaterialViewport
             DrawOverlayPrimitive(
                 PrimitiveTopology.PointList,
                 points,
-                OverlayColor(96, 202, 255, 180),
+                OverlayColor(_overlaySettings.Colors.LiveSelection, 180),
                 ActivePaneModelMatrix(pair.Key) * _camera.WorldViewProjection,
                 SelectedVertexMarkerRadiusPixels);
         }
+    }
+
+    private void DrawProvisionalFacesOverlay()
+    {
+        var provisional = _overlayProvisionalFaces;
+        if (provisional is null || provisional.Count == 0)
+        {
+            return;
+        }
+        var triangles = ResetScratchA();
+        var lines = ResetScratchB();
+        foreach (var pair in provisional)
+        {
+            if (pair.Key < 0
+                || pair.Key >= _document.Submeshes.Count
+                || !ActivePaneIncludes(pair.Key)
+                || _materials.ParametersForSubmesh(pair.Key).Visible is false)
+            {
+                continue;
+            }
+            var submesh = _document.Submeshes[pair.Key];
+            foreach (var faceIndex in pair.Value)
+            {
+                if (faceIndex >= 0 && faceIndex < submesh.Faces.Count)
+                {
+                    AddFaceVertices(pair.Key, submesh, submesh.Faces[faceIndex], triangles, lines);
+                }
+            }
+        }
+        DrawOverlayPrimitive(
+            PrimitiveTopology.TriangleList,
+            triangles,
+            OverlayColor(_overlaySettings.Colors.LiveSelection, _overlayShowXRay ? 80 : 52),
+            _camera.WorldViewProjection);
+        DrawOverlayPrimitive(
+            PrimitiveTopology.LineList,
+            lines,
+            OverlayColor(_overlaySettings.Colors.LiveSelection, 220),
+            _camera.WorldViewProjection);
+    }
+
+    private void DrawProvisionalEdgesOverlay()
+    {
+        var provisional = _overlayProvisionalEdges;
+        if (provisional is null || provisional.Count == 0)
+        {
+            return;
+        }
+        var lines = ResetScratchA();
+        foreach (var edge in _overlayTopology.Edges)
+        {
+            if (!provisional.Contains(edge.Id)
+                || edge.SubmeshIndex < 0
+                || edge.SubmeshIndex >= _document.Submeshes.Count
+                || !ActivePaneIncludes(edge.SubmeshIndex)
+                || _materials.ParametersForSubmesh(edge.SubmeshIndex).Visible is false)
+            {
+                continue;
+            }
+            AddEdgeLineVertices(edge, lines);
+        }
+        DrawOverlayPrimitive(
+            PrimitiveTopology.LineList,
+            lines,
+            OverlayColor(_overlaySettings.Colors.LiveSelection, 220),
+            _camera.WorldViewProjection);
     }
 
     private void DrawSelectionRectangleOverlay()
@@ -543,10 +629,10 @@ internal sealed partial class D3D11MaterialViewport
         var rect = _overlaySelectionRectangle.Value;
         var triangles = ResetScratchA();
         AddScreenQuad(rect.Left, rect.Top, rect.Right, rect.Bottom, triangles);
-        DrawOverlayPrimitive(PrimitiveTopology.TriangleList, triangles, OverlayColor(96, 202, 255, 36), Matrix4x4.Identity);
+        DrawOverlayPrimitive(PrimitiveTopology.TriangleList, triangles, OverlayColor(_overlaySettings.Colors.LiveSelection, 36), Matrix4x4.Identity);
         var lines = ResetScratchA();
         AddScreenRectangle(rect.Left, rect.Top, rect.Right, rect.Bottom, lines);
-        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(96, 202, 255, 210), Matrix4x4.Identity);
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(_overlaySettings.Colors.LiveSelection, 210), Matrix4x4.Identity);
     }
 
     /// <summary>
@@ -566,12 +652,12 @@ internal sealed partial class D3D11MaterialViewport
         {
             AddScreenLine(path[index - 1].X, path[index - 1].Y, path[index].X, path[index].Y, lines);
         }
-        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(96, 202, 255, 210), Matrix4x4.Identity);
+        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(_overlaySettings.Colors.LiveSelection, 210), Matrix4x4.Identity);
         if (path.Count >= 3)
         {
             var closing = ResetScratchA();
             AddScreenLine(path[^1].X, path[^1].Y, path[0].X, path[0].Y, closing);
-            DrawOverlayPrimitive(PrimitiveTopology.LineList, closing, OverlayColor(96, 202, 255, 110), Matrix4x4.Identity);
+            DrawOverlayPrimitive(PrimitiveTopology.LineList, closing, OverlayColor(_overlaySettings.Colors.LiveSelection, 110), Matrix4x4.Identity);
         }
     }
 
@@ -778,6 +864,16 @@ internal sealed partial class D3D11MaterialViewport
         {
             return;
         }
+        if (OverlayRgbMatches(color, _overlaySettings.Colors.Selection))
+        {
+            _committedSelectionOverlayPrimitiveCount++;
+            _lastCommittedSelectionPrimitiveColor = _overlaySettings.Colors.Selection;
+        }
+        else if (OverlayRgbMatches(color, _overlaySettings.Colors.LiveSelection))
+        {
+            _liveSelectionOverlayPrimitiveCount++;
+            _lastLiveSelectionPrimitiveColor = _overlaySettings.Colors.LiveSelection;
+        }
         var startVertex = _overlayFrameVertices.Count;
         for (var index = 0; index < positions.Count; index++)
         {
@@ -792,6 +888,11 @@ internal sealed partial class D3D11MaterialViewport
             _overlayCommandDepthMode,
             lineWidthPixels));
     }
+
+    private static bool OverlayRgbMatches(Vector4 color, System.Drawing.Color expected) =>
+        MathF.Abs(color.X - (expected.R / 255.0f)) < 0.0001f
+        && MathF.Abs(color.Y - (expected.G / 255.0f)) < 0.0001f
+        && MathF.Abs(color.Z - (expected.B / 255.0f)) < 0.0001f;
 
     private unsafe void FlushOverlayPrimitives()
     {
@@ -911,6 +1012,9 @@ internal sealed partial class D3D11MaterialViewport
             Math.Clamp(blue, 0, 255) * scale,
             Math.Clamp(alpha, 0, 255) * scale);
     }
+
+    private static Vector4 OverlayColor(System.Drawing.Color color, int alpha) =>
+        OverlayColor(color.R, color.G, color.B, alpha);
 
     private static Vector4 ScaleOverlayAlpha(Vector4 color, float opacityScale) =>
         new(color.X, color.Y, color.Z, Math.Clamp(color.W * opacityScale, 0.0f, 1.0f));

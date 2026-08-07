@@ -10,6 +10,53 @@ internal sealed partial class MeshViewport
     private const double SelectionPaintSampleIntervalMs = 30.0;
     private const int SelectionPaintSampleMinimumStepPixels = 3;
 
+    private void BeginSelectionStroke()
+    {
+        _selectionStrokeId = Guid.NewGuid().ToString("N");
+        _selectionStrokeSequence = 0;
+        EmitSelectionRequest(
+            new Dictionary<string, object?>
+            {
+                ["operation"] = CurrentSelectionOperation(),
+                ["target_mode"] = _selectionDragTargetMode,
+                ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
+            },
+            "begin");
+    }
+
+    private void EmitSelectionRequest(Dictionary<string, object?> payload, string phase)
+    {
+        if (string.IsNullOrWhiteSpace(_selectionStrokeId))
+        {
+            return;
+        }
+        var normalizedPhase = (phase ?? string.Empty).Trim().ToLowerInvariant();
+        payload["stroke_id"] = _selectionStrokeId;
+        payload["phase"] = normalizedPhase;
+        payload["sequence"] = _selectionStrokeSequence++;
+        EditorEventRequested?.Invoke("select_request", payload);
+        if (normalizedPhase is "end" or "cancel")
+        {
+            _selectionStrokeId = string.Empty;
+        }
+    }
+
+    private void CancelSelectionStroke()
+    {
+        if (string.IsNullOrWhiteSpace(_selectionStrokeId))
+        {
+            return;
+        }
+        EmitSelectionRequest(
+            new Dictionary<string, object?>
+            {
+                ["operation"] = "replace",
+                ["target_mode"] = _selectionDragTargetMode,
+                ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
+            },
+            "cancel");
+    }
+
     /// <summary>
     /// One sample of a brush-select drag, throttled to the stroke protocol
     /// cadence and a minimum step. A short step is an add/subtract
@@ -82,6 +129,16 @@ internal sealed partial class MeshViewport
         }
         if (final && _selectionPaintPainted && point == _selectionPaintLastSample)
         {
+            EmitSelectionRequest(
+                new Dictionary<string, object?>
+                {
+                    ["operation"] = _selectionPaintOperation,
+                    ["target_mode"] = _selectionDragTargetMode,
+                    ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
+                    ["paint_sample"] = true,
+                    ["paint_final"] = true,
+                },
+                "end");
             return;
         }
         var radius = SelectionPaintRadiusPixels();
@@ -92,8 +149,7 @@ internal sealed partial class MeshViewport
         var stepLength = Math.Sqrt(stepX * stepX + stepY * stepY);
         if (!_selectionPaintPainted && operation == "replace")
         {
-            _provisionalSelectedVertices.Clear();
-            _provisionalSelectedSources.Clear();
+            ClearProvisionalSelectionEcho();
         }
         UpdateProvisionalPaintHits(
             _selectionPaintPainted ? previous : point,
@@ -116,7 +172,7 @@ internal sealed partial class MeshViewport
             ["paint_final"] = final,
             ["screen_brush"] = ScreenPayload(point, radius),
         };
-        EditorEventRequested?.Invoke("select_request", payload);
+        EmitSelectionRequest(payload, final ? "end" : "update");
         _selectionPaintPainted = true;
         _selectionPaintLastSample = point;
         _selectionPaintLastEcho = point;
@@ -135,7 +191,7 @@ internal sealed partial class MeshViewport
             .Select(pathPoint => new[] { (double)pathPoint.X, (double)pathPoint.Y })
             .ToArray();
         region["radius_pixels"] = SelectionPaintRadiusPixels();
-        EditorEventRequested?.Invoke("select_request", new Dictionary<string, object?>
+        EmitSelectionRequest(new Dictionary<string, object?>
         {
             ["operation"] = "toggle",
             ["target_mode"] = _selectionDragTargetMode,
@@ -143,7 +199,7 @@ internal sealed partial class MeshViewport
             ["paint_sample"] = true,
             ["paint_final"] = true,
             ["screen_region"] = region,
-        });
+        }, "end");
     }
 
     private void EmitSelectionSweepQuad(
@@ -169,7 +225,7 @@ internal sealed partial class MeshViewport
             new[] { extendedEndX - normalX, extendedEndY - normalY },
             new[] { extendedStartX - normalX, extendedStartY - normalY },
         };
-        EditorEventRequested?.Invoke("select_request", new Dictionary<string, object?>
+        EmitSelectionRequest(new Dictionary<string, object?>
         {
             ["operation"] = operation,
             ["target_mode"] = _selectionDragTargetMode,
@@ -177,7 +233,7 @@ internal sealed partial class MeshViewport
             ["paint_sample"] = true,
             ["paint_final"] = false,
             ["screen_region"] = region,
-        });
+        }, "update");
     }
 
     private double SelectionPaintRadiusPixels()
@@ -301,10 +357,10 @@ internal sealed partial class MeshViewport
     }
 
     /// <summary>
-    /// Instant local echo of one paint dab or sweep. Edit Mesh paints vertices;
-    /// whole-part selection is reserved for the explicit PARTS list. Projection,
-    /// visibility and spatial buckets are immutable for the drag, so dense
-    /// meshes do not turn each pointer sample into a whole-mesh scan.
+    /// Instant local echo of one paint dab or sweep. The active target owns the
+    /// provisional domain; whole-part selection remains reserved for PARTS.
+    /// Projection, visibility and spatial buckets are immutable for the drag,
+    /// so dense meshes do not turn each pointer sample into a whole-mesh scan.
     /// </summary>
     private void UpdateProvisionalPaintHits(Point start, Point end, double radius, string operation)
     {
@@ -314,6 +370,31 @@ internal sealed partial class MeshViewport
             (float)(Math.Min(start.Y, end.Y) - radius),
             (float)(Math.Max(start.X, end.X) + radius),
             (float)(Math.Max(start.Y, end.Y) + radius));
+        if (_selectionDragTargetMode == "edge")
+        {
+            foreach (var edge in _edgeTopology.Edges)
+            {
+                if (!cache.Points.TryGetValue(edge.SubmeshIndex, out var points)
+                    || !cache.PartBounds.TryGetValue(edge.SubmeshIndex, out var partBounds)
+                    || !partBounds.IntersectsWith(bandBounds)
+                    || edge.VertexA < 0
+                    || edge.VertexA >= points.Length
+                    || edge.VertexB < 0
+                    || edge.VertexB >= points.Length
+                    || (!ShowXRay
+                        && !cache.FrontFacingVertices[edge.SubmeshIndex][edge.VertexA]
+                        && !cache.FrontFacingVertices[edge.SubmeshIndex][edge.VertexB])
+                    || SegmentDistanceSquared(start, end, points[edge.VertexA], points[edge.VertexB]) > radius * radius)
+                {
+                    continue;
+                }
+                ApplyProvisionalHit(_provisionalSelectedEdges, edge.Id, operation, _selectionPaintToggleTouchedEdges);
+            }
+            _provisionalPartSelectionActive = false;
+            UpdateGpuViewport();
+            Invalidate();
+            return;
+        }
         foreach (var pair in cache.Points)
         {
             var submeshIndex = pair.Key;
@@ -324,6 +405,52 @@ internal sealed partial class MeshViewport
                 continue;
             }
             var frontFacing = cache.FrontFacingVertices[submeshIndex];
+            if (_selectionDragTargetMode == "face")
+            {
+                var submesh = _document.Submeshes[submeshIndex];
+                if (!_provisionalSelectedFaces.TryGetValue(submeshIndex, out var selectedFaces))
+                {
+                    selectedFaces = new HashSet<int>();
+                    if (operation != "subtract")
+                    {
+                        _provisionalSelectedFaces[submeshIndex] = selectedFaces;
+                    }
+                }
+                for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
+                {
+                    var face = submesh.Faces[faceIndex];
+                    if (face.Corners.Length != 3)
+                    {
+                        continue;
+                    }
+                    var a = face.Corners[0].VertexIndex;
+                    var b = face.Corners[1].VertexIndex;
+                    var c = face.Corners[2].VertexIndex;
+                    if (a < 0 || b < 0 || c < 0 || a >= points.Length || b >= points.Length || c >= points.Length)
+                    {
+                        continue;
+                    }
+                    if (!ShowXRay && !frontFacing[a] && !frontFacing[b] && !frontFacing[c])
+                    {
+                        continue;
+                    }
+                    if (!SweptBandIntersectsTriangle(start, end, radius, points[a], points[b], points[c]))
+                    {
+                        continue;
+                    }
+                    ApplyProvisionalHit(
+                        selectedFaces,
+                        faceIndex,
+                        operation,
+                        _selectionPaintToggleTouchedFaces,
+                        (submeshIndex, faceIndex));
+                }
+                if (selectedFaces.Count == 0)
+                {
+                    _provisionalSelectedFaces.Remove(submeshIndex);
+                }
+                continue;
+            }
             var vertexBuckets = cache.VertexBuckets[submeshIndex];
             if (!_provisionalSelectedVertices.TryGetValue(submeshIndex, out var selected))
             {
@@ -381,6 +508,65 @@ internal sealed partial class MeshViewport
         _provisionalPartSelectionActive = false;
         UpdateGpuViewport();
         Invalidate();
+    }
+
+    private static void ApplyProvisionalHit<T>(
+        HashSet<T> selected,
+        T value,
+        string operation,
+        HashSet<T> toggleTouched)
+        where T : notnull
+    {
+        if (operation == "subtract")
+        {
+            selected.Remove(value);
+        }
+        else if (operation == "toggle")
+        {
+            if (toggleTouched.Add(value) && !selected.Remove(value))
+            {
+                selected.Add(value);
+            }
+        }
+        else
+        {
+            selected.Add(value);
+        }
+    }
+
+    private static void ApplyProvisionalHit<TValue, TTouch>(
+        HashSet<TValue> selected,
+        TValue value,
+        string operation,
+        HashSet<TTouch> toggleTouched,
+        TTouch touchValue)
+        where TValue : notnull
+        where TTouch : notnull
+    {
+        if (operation == "subtract")
+        {
+            selected.Remove(value);
+        }
+        else if (operation == "toggle")
+        {
+            if (toggleTouched.Add(touchValue) && !selected.Remove(value))
+            {
+                selected.Add(value);
+            }
+        }
+        else
+        {
+            selected.Add(value);
+        }
+    }
+
+    private void ClearProvisionalSelectionEcho()
+    {
+        _provisionalSelectedVertices.Clear();
+        _provisionalSelectedFaces.Clear();
+        _provisionalSelectedEdges.Clear();
+        _provisionalSelectedSources.Clear();
+        _provisionalPartSelectionActive = false;
     }
 
     private static bool SweptBandIntersectsTriangle(
@@ -598,9 +784,10 @@ internal sealed partial class MeshViewport
         var paintActive = _selectionPaintActive;
         var paintPainted = _selectionPaintPainted;
         _selectionPaintActive = false;
-        var lassoPoints = _selectionLassoPoints.Count >= 3
-            ? _selectionLassoPoints.ToArray()
-            : null;
+        var simplifiedLasso = _selectionLassoPoints.Count >= 3
+            ? SimplifyLassoPoints(_selectionLassoPoints)
+            : Array.Empty<Point>();
+        var lassoPoints = simplifiedLasso.Length >= 3 ? simplifiedLasso : null;
         _selectionLassoPoints.Clear();
         var draggedBeyondClick = rectangle.Width >= 4 || rectangle.Height >= 4;
         if (paintActive && (paintPainted || draggedBeyondClick))
@@ -649,12 +836,11 @@ internal sealed partial class MeshViewport
             var clickOperation = CurrentSelectionOperation();
             if (clickOperation == "replace")
             {
-                _provisionalSelectedVertices.Clear();
-                _provisionalSelectedSources.Clear();
+                ClearProvisionalSelectionEcho();
             }
             UpdateProvisionalPaintHits(point, point, SelectionClickRadiusPixels, clickOperation);
             payload["screen_brush"] = ScreenPayload(point, SelectionClickRadiusPixels);
-            EditorEventRequested?.Invoke("select_request", payload);
+            EmitSelectionRequest(payload, "end");
             StatusRequested?.Invoke($"{targetMode} selection awaiting authoritative depth-resolved result.");
             UpdateGpuViewport();
             Invalidate();
@@ -674,12 +860,243 @@ internal sealed partial class MeshViewport
                 .Select(lassoPoint => new[] { (double)lassoPoint.X, (double)lassoPoint.Y })
                 .ToArray();
         }
+        UpdateProvisionalRegionHits(lassoPoints, rectangle, CurrentSelectionOperation());
         payload["screen_region"] = region;
-        EditorEventRequested?.Invoke("select_request", payload);
+        EmitSelectionRequest(payload, "end");
         StatusRequested?.Invoke($"{targetMode} region selection awaiting authoritative depth-resolved result.");
         _hoverEdgeId = -1;
         UpdateGpuViewport();
         Invalidate();
+    }
+
+    private static Point[] SimplifyLassoPoints(IReadOnlyList<Point> points)
+    {
+        var simplified = new List<Point>(points.Count);
+        foreach (var point in points)
+        {
+            if (simplified.Count > 0)
+            {
+                var previous = simplified[^1];
+                var dx = point.X - previous.X;
+                var dy = point.Y - previous.Y;
+                if (dx * dx + dy * dy <= 4)
+                {
+                    continue;
+                }
+            }
+            while (simplified.Count >= 2)
+            {
+                var first = simplified[^2];
+                var second = simplified[^1];
+                var cross = (second.X - first.X) * (point.Y - second.Y)
+                    - (second.Y - first.Y) * (point.X - second.X);
+                if (Math.Abs(cross) > 2)
+                {
+                    break;
+                }
+                simplified.RemoveAt(simplified.Count - 1);
+            }
+            simplified.Add(point);
+        }
+        if (simplified.Count >= 3)
+        {
+            return simplified.ToArray();
+        }
+        return points.Distinct().ToArray();
+    }
+
+    private void UpdateProvisionalRegionHits(
+        IReadOnlyList<Point>? lassoPoints,
+        Rectangle rectangle,
+        string operation)
+    {
+        if (operation == "replace")
+        {
+            ClearProvisionalSelectionEcho();
+        }
+        var polygon = lassoPoints is { Count: >= 3 }
+            ? lassoPoints
+            : new[]
+            {
+                new Point(rectangle.Left, rectangle.Top),
+                new Point(rectangle.Right, rectangle.Top),
+                new Point(rectangle.Right, rectangle.Bottom),
+                new Point(rectangle.Left, rectangle.Bottom),
+            };
+        var bounds = RectangleF.FromLTRB(
+            polygon.Min(point => point.X),
+            polygon.Min(point => point.Y),
+            polygon.Max(point => point.X),
+            polygon.Max(point => point.Y));
+        var cache = EnsurePaintProjectionCache(CurrentCamera());
+        if (_selectionDragTargetMode == "edge")
+        {
+            foreach (var edge in _edgeTopology.Edges)
+            {
+                if (!cache.Points.TryGetValue(edge.SubmeshIndex, out var points)
+                    || !cache.PartBounds.TryGetValue(edge.SubmeshIndex, out var partBounds)
+                    || !partBounds.IntersectsWith(bounds)
+                    || edge.VertexA < 0
+                    || edge.VertexA >= points.Length
+                    || edge.VertexB < 0
+                    || edge.VertexB >= points.Length
+                    || (!ShowXRay
+                        && !cache.FrontFacingVertices[edge.SubmeshIndex][edge.VertexA]
+                        && !cache.FrontFacingVertices[edge.SubmeshIndex][edge.VertexB])
+                    || !SelectionPolygonIntersectsSegment(polygon, points[edge.VertexA], points[edge.VertexB]))
+                {
+                    continue;
+                }
+                ApplyProvisionalHit(_provisionalSelectedEdges, edge.Id, operation, _selectionPaintToggleTouchedEdges);
+            }
+        }
+        else
+        {
+            foreach (var pair in cache.Points)
+            {
+                var submeshIndex = pair.Key;
+                var points = pair.Value;
+                if (!cache.PartBounds.TryGetValue(submeshIndex, out var partBounds)
+                    || !partBounds.IntersectsWith(bounds))
+                {
+                    continue;
+                }
+                var frontFacing = cache.FrontFacingVertices[submeshIndex];
+                if (_selectionDragTargetMode == "face")
+                {
+                    var submesh = _document.Submeshes[submeshIndex];
+                    if (!_provisionalSelectedFaces.TryGetValue(submeshIndex, out var selectedFaces))
+                    {
+                        selectedFaces = new HashSet<int>();
+                        if (operation != "subtract")
+                        {
+                            _provisionalSelectedFaces[submeshIndex] = selectedFaces;
+                        }
+                    }
+                    for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
+                    {
+                        var face = submesh.Faces[faceIndex];
+                        if (face.Corners.Length != 3)
+                        {
+                            continue;
+                        }
+                        var a = face.Corners[0].VertexIndex;
+                        var b = face.Corners[1].VertexIndex;
+                        var c = face.Corners[2].VertexIndex;
+                        if (a < 0 || b < 0 || c < 0 || a >= points.Length || b >= points.Length || c >= points.Length
+                            || (!ShowXRay && !frontFacing[a] && !frontFacing[b] && !frontFacing[c])
+                            || !SelectionPolygonIntersectsTriangle(polygon, points[a], points[b], points[c]))
+                        {
+                            continue;
+                        }
+                        ApplyProvisionalHit(
+                            selectedFaces,
+                            faceIndex,
+                            operation,
+                            _selectionPaintToggleTouchedFaces,
+                            (submeshIndex, faceIndex));
+                    }
+                    if (selectedFaces.Count == 0)
+                    {
+                        _provisionalSelectedFaces.Remove(submeshIndex);
+                    }
+                    continue;
+                }
+                if (!_provisionalSelectedVertices.TryGetValue(submeshIndex, out var selectedVertices))
+                {
+                    selectedVertices = new HashSet<int>();
+                    if (operation != "subtract")
+                    {
+                        _provisionalSelectedVertices[submeshIndex] = selectedVertices;
+                    }
+                }
+                for (var vertexIndex = 0; vertexIndex < points.Length; vertexIndex++)
+                {
+                    if ((!ShowXRay && !frontFacing[vertexIndex])
+                        || !SelectionPointInPolygon(points[vertexIndex], polygon))
+                    {
+                        continue;
+                    }
+                    ApplyProvisionalHit(
+                        selectedVertices,
+                        vertexIndex,
+                        operation,
+                        _selectionPaintToggleTouchedVertices,
+                        (submeshIndex, vertexIndex));
+                }
+                if (selectedVertices.Count == 0)
+                {
+                    _provisionalSelectedVertices.Remove(submeshIndex);
+                }
+            }
+        }
+        _provisionalPartSelectionActive = false;
+        UpdateGpuViewport();
+        Invalidate();
+    }
+
+    private static bool SelectionPolygonIntersectsTriangle(
+        IReadOnlyList<Point> polygon,
+        PointF a,
+        PointF b,
+        PointF c)
+    {
+        var center = new PointF((a.X + b.X + c.X) / 3.0f, (a.Y + b.Y + c.Y) / 3.0f);
+        if (SelectionPointInPolygon(a, polygon)
+            || SelectionPointInPolygon(b, polygon)
+            || SelectionPointInPolygon(c, polygon)
+            || SelectionPointInPolygon(center, polygon))
+        {
+            return true;
+        }
+        foreach (var point in polygon)
+        {
+            if (SelectionPointInTriangle(point, a, b, c))
+            {
+                return true;
+            }
+        }
+        return SelectionPolygonIntersectsSegment(polygon, a, b)
+            || SelectionPolygonIntersectsSegment(polygon, b, c)
+            || SelectionPolygonIntersectsSegment(polygon, c, a);
+    }
+
+    private static bool SelectionPolygonIntersectsSegment(
+        IReadOnlyList<Point> polygon,
+        PointF start,
+        PointF end)
+    {
+        if (SelectionPointInPolygon(start, polygon) || SelectionPointInPolygon(end, polygon))
+        {
+            return true;
+        }
+        for (var index = 0; index < polygon.Count; index++)
+        {
+            var first = polygon[index];
+            var second = polygon[(index + 1) % polygon.Count];
+            if (SelectionSegmentsIntersect(start, end, first, second))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool SelectionPointInPolygon(PointF point, IReadOnlyList<Point> polygon)
+    {
+        var inside = false;
+        for (var index = 0; index < polygon.Count; index++)
+        {
+            var first = polygon[index];
+            var second = polygon[(index + polygon.Count - 1) % polygon.Count];
+            if ((first.Y > point.Y) != (second.Y > point.Y)
+                && point.X < (second.X - first.X) * (point.Y - first.Y)
+                    / (second.Y - first.Y) + first.X)
+            {
+                inside = !inside;
+            }
+        }
+        return inside;
     }
 
     private Rectangle EdgeDragRectangle()
@@ -873,6 +1290,7 @@ internal sealed partial class MeshViewport
     {
         return submeshIndex >= 0
             && submeshIndex < _document.Submeshes.Count
+            && IsSelectableGeometryLayerSubmesh(submeshIndex)
             && ActivePaneIncludesForPicking(submeshIndex)
             && _materials.ParametersForSubmesh(submeshIndex).Visible is not false;
     }

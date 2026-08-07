@@ -53,6 +53,8 @@ internal sealed partial class ExperimentForm : Form
     private readonly CheckBox _xray = new();
     private Button? _wireColorButton;
     private Button? _vertexColorButton;
+    private Button? _selectionColorButton;
+    private Button? _liveSelectionColorButton;
     private Button? _backgroundColorButton;
     private Button? _gridColorButton;
     private readonly NumericUpDown _wireOverlayWidth = new();
@@ -161,7 +163,11 @@ internal sealed partial class ExperimentForm : Form
         if (options.SimplePreview)
         {
             _overlaySettings = new MeshOverlaySettings(
-                new MeshOverlayColors(Color.FromArgb(48, 60, 74), MeshOverlayColors.Default.Vertex),
+                new MeshOverlayColors(
+                    Color.FromArgb(48, 60, 74),
+                    MeshOverlayColors.Default.Vertex,
+                    MeshOverlayColors.Default.Selection,
+                    MeshOverlayColors.Default.LiveSelection),
                 new MeshOverlaySizing(1.0f, MeshOverlaySizing.Default.VertexMarkerSizePixels));
             _ = _viewport.TrySetSynchronizedDisplayMode(
                 _viewport.InitialResidentDisplayMode(HasResidentTextureResources()),
@@ -205,13 +211,9 @@ internal sealed partial class ExperimentForm : Form
         };
 
         ConfigureNumeric(_translateStep, decimalPlaces: 4, minimum: -10, maximum: 10, value: 0.0100M, increment: 0.0100M);
-        // Edit Mesh exposes one Select tool rather than topology-mode buttons.
-        // Its viewport target is vertices; whole-part selection is owned only by
-        // the explicit PARTS list. Keeping the internal combo lets the native v2
-        // protocol retain its existing target field without exposing stale
-        // Vertex/Edge/Face UI controls.
-        ConfigureCombo(_selectionTarget, new object[] { "Vertex" }, selectedIndex: 0);
-        _selectionTarget.Visible = false;
+        // Whole-part selection is owned only by the explicit PARTS list. The
+        // viewport Select tool operates on one element domain at a time.
+        ConfigureCombo(_selectionTarget, new object[] { "Vertices", "Wires", "Faces" }, selectedIndex: 0);
         // Add, not Replace: the reader paints a mesh region across several
         // gestures more often than they restart it.
         ConfigureCombo(_selectionOperation, new object[] { "Add", "Replace", "Subtract", "Toggle" }, selectedIndex: 0);
@@ -740,9 +742,8 @@ internal sealed partial class ExperimentForm : Form
         _meshEditOnlySections.Add(_actionHistorySection);
         _morphRefitSection = BuildMorphRefitSection(rightStack);
         // The Part Pick section is gone: the Parts panel on the right is the
-        // part-selection surface, and part picking itself is always available
-        // (the host publishes part_pick_enabled with every display update).
-        // The hidden checkbox stays because the pick paths read its state.
+        // only part-selection surface. The hidden compatibility control remains
+        // unchecked so no viewport input path can arm source-part picking.
         _partPick.Visible = false;
         _partPickSection = null;
         var duplicatePartButton = CommandButton("Duplicate", "duplicate");
@@ -752,11 +753,15 @@ internal sealed partial class ExperimentForm : Form
         _partsSection = BuildPartsSection(rightStack, duplicatePartButton, deletePartButton);
         _partsSection.Name = "CompactPartsSection";
         _meshEditOnlySections.Add(_partsSection);
+        _layersSection = BuildGeometryLayersSection(rightStack);
+        _layersSection.Name = "CompactGeometryLayersSection";
+        _meshEditOnlySections.Add(_layersSection);
         var selectionSection = AddHelpSection(
             leftStack,
             "Selection",
-            "Click or drag on the mesh to select vertices. Brush, Rectangle and Lasso never select PARTS; X-Ray selects through the mesh.",
+            "Click or drag on the mesh to select vertices, wires, or faces. Brush, Rectangle and Lasso never select PARTS; X-Ray selects through the mesh.",
             out _,
+            LabeledControl("Selection target", _selectionTarget),
             LabeledControl("Select shape", _selectionShape),
             LabeledControl("Selection mode", _selectionOperation),
             _xray,
@@ -967,7 +972,7 @@ internal sealed partial class ExperimentForm : Form
             return 0;
         }
         var normalizedCommand = (command ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalizedCommand is "transform_move" or "delete" or "duplicate" or "subdivide" or "refine_smooth"
+        if (normalizedCommand is "transform_move" or "delete" or "duplicate" or "subdivide" or "refine_smooth" or "copy"
             && !_viewport.HasEditableSelection)
         {
             _statusLabel.Text = normalizedCommand == "transform_move"
@@ -1048,8 +1053,12 @@ internal sealed partial class ExperimentForm : Form
 
     private string SelectionTarget()
     {
-        var selected = SelectionText(_selectionTarget, "vertex");
-        return selected == "part" ? "source" : selected;
+        return SelectionText(_selectionTarget, "vertices") switch
+        {
+            "wires" => "edge",
+            "faces" => "face",
+            _ => "vertex",
+        };
     }
 
     private string SelectionOperation()
@@ -1147,6 +1156,8 @@ internal sealed partial class MeshViewport : Control
     // Instant local echo of a paint/click selection, drawn until the
     // authoritative native result lands (~one protocol round trip later).
     private readonly Dictionary<int, HashSet<int>> _provisionalSelectedVertices = new();
+    private readonly Dictionary<int, HashSet<int>> _provisionalSelectedFaces = new();
+    private readonly HashSet<int> _provisionalSelectedEdges = new();
     private readonly HashSet<int> _provisionalSelectedSources = new();
     private bool _provisionalPartSelectionActive;
     private bool _selectionPaintActive;
@@ -1157,6 +1168,8 @@ internal sealed partial class MeshViewport : Control
     // Brush stroke must not toggle it back off. The final exact vertex set is
     // published once, so the host records one selection-history entry.
     private readonly HashSet<(int SubmeshIndex, int VertexIndex)> _selectionPaintToggleTouchedVertices = new();
+    private readonly HashSet<(int SubmeshIndex, int FaceIndex)> _selectionPaintToggleTouchedFaces = new();
+    private readonly HashSet<int> _selectionPaintToggleTouchedEdges = new();
     private Point _selectionPaintLastSample;
     // Where the local tint has been painted up to. It runs ahead of
     // _selectionPaintLastSample, which is where the host was last asked for an
@@ -1165,6 +1178,8 @@ internal sealed partial class MeshViewport : Control
     private long _selectionPaintLastSampleTicks;
     private readonly List<Point> _selectionPaintPathPoints = new();
     private readonly List<Point> _selectionLassoPoints = new();
+    private string _selectionStrokeId = string.Empty;
+    private long _selectionStrokeSequence;
     private Point _edgeDragStart;
     private Point _edgeDragCurrent;
     private D3D11MaterialViewport? _d3d11Viewport;

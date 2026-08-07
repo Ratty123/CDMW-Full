@@ -181,7 +181,11 @@ internal static class D3D11UntexturedReadabilityProof
             CaptureSize,
             CaptureSize);
         var overlay = new MeshOverlaySettings(
-            new MeshOverlayColors(Color.FromArgb(48, 60, 74), MeshOverlayColors.Default.Vertex),
+            new MeshOverlayColors(
+                Color.FromArgb(48, 60, 74),
+                MeshOverlayColors.Default.Vertex,
+                MeshOverlayColors.Default.Selection,
+                MeshOverlayColors.Default.LiveSelection),
             new MeshOverlaySizing(1.0f, MeshOverlaySizing.Default.VertexMarkerSizePixels));
         viewport.SetOverlaySettings(overlay);
         viewport.UpdateRenderPanes(new[]
