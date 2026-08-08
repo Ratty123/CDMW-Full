@@ -574,6 +574,10 @@ internal sealed partial class ExperimentForm
             _ => _overlaySettings.Colors with { LiveSelection = dialog.Color },
         };
         _overlaySettings = _overlaySettings with { Colors = colors };
+        // A colour picked here outranks Preview Settings for the rest of the
+        // session. Without the pin, the host republishes its presentation payload
+        // after every accepted frame and this choice would last one frame.
+        _viewport.PinOverlayColorsFromReader();
         ApplyOverlaySettings($"{label} color set to {MeshOverlayColors.Hex(dialog.Color)}.");
     }
 
@@ -595,6 +599,7 @@ internal sealed partial class ExperimentForm
     private void ResetOverlayAppearance()
     {
         _overlaySettings = MeshOverlaySettings.Default;
+        _viewport.PinOverlayColorsFromReader();
         ApplyOverlaySettings("Viewport selection appearance reset to the default topology, selected, and live colors.");
     }
 

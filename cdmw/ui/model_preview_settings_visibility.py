@@ -100,6 +100,8 @@ _DOTNET_SETTING_EFFECTS = {
     "gizmo_handle_size_pixels": "sets Gizmo handle size and hit geometry",
     "d3d11_background_color": "sets the resident viewport background color",
     "d3d11_grid_color": "sets the resident viewport grid color",
+    "d3d11_wire_color": "sets the resident viewport wireframe color",
+    "d3d11_vertex_color": "sets the resident viewport vertex marker color",
     "d3d11_grid_spacing_scale": "scales the resident viewport grid spacing",
     "d3d11_grid_line_count": "sets how many grid lines the resident viewport draws",
 }

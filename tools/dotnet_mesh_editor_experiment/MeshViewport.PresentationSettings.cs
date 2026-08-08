@@ -111,7 +111,72 @@ internal sealed partial class MeshViewport
         // without the override the reader's colour lasted until the next frame.
         ApplyViewportColorOverrides();
         ApplyGizmoAppearanceFromPresentation(quality);
+        ApplyOverlayColorsFromPresentation(quality);
         _d3d11Viewport?.ApplyPresentationSettings(_residentPresentationSettings);
+    }
+
+    private bool _overlayColorsPinnedByReader;
+
+    /// <summary>
+    /// Stop honouring host-supplied overlay colours for the rest of the session.
+    /// The Edit Mesh colour buttons call this so a reader's own choice is not
+    /// overwritten by the next presentation republish, matching how an
+    /// in-viewport background choice outranks the host snapshot.
+    /// </summary>
+    internal void PinOverlayColorsFromReader() => _overlayColorsPinnedByReader = true;
+
+    /// <summary>
+    /// Adopt the wireframe and vertex-marker colours chosen in Preview Settings.
+    /// The host republishes this payload after every accepted scene frame, so an
+    /// unconditional apply would invalidate the viewport once per frame: only a
+    /// changed colour is pushed through.
+    /// </summary>
+    private void ApplyOverlayColorsFromPresentation(JsonElement quality)
+    {
+        if (_overlayColorsPinnedByReader)
+        {
+            return;
+        }
+        var current = _overlaySettings.Colors;
+        var wire = PresentationOverlayColor(quality, "d3d11_wire_color", current.Wire);
+        var vertex = PresentationOverlayColor(quality, "d3d11_vertex_color", current.Vertex);
+        if (wire == current.Wire && vertex == current.Vertex)
+        {
+            return;
+        }
+        SetOverlaySettings(_overlaySettings with
+        {
+            Colors = current with { Wire = wire, Vertex = vertex },
+        });
+    }
+
+    /// <summary>
+    /// Reads an #RRGGBB overlay colour as plain sRGB bytes. Absent or malformed
+    /// keeps the colour already in force rather than snapping to a default.
+    /// </summary>
+    private static System.Drawing.Color PresentationOverlayColor(
+        JsonElement quality,
+        string name,
+        System.Drawing.Color fallback)
+    {
+        var text = JsonText(quality, name, string.Empty);
+        if (text.StartsWith('#'))
+        {
+            text = text[1..];
+        }
+        if (text.Length != 6
+            || !uint.TryParse(
+                text,
+                System.Globalization.NumberStyles.HexNumber,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var packed))
+        {
+            return fallback;
+        }
+        return System.Drawing.Color.FromArgb(
+            (int)((packed >> 16) & 0xFF),
+            (int)((packed >> 8) & 0xFF),
+            (int)(packed & 0xFF));
     }
 
     private Vector3? _backgroundColorOverride;

@@ -976,17 +976,17 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 154,
+          "line": 160,
           "sink": "setSuffix"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 154,
+          "line": 160,
           "sink": "setSuffix"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 154,
+          "line": 160,
           "sink": "setSuffix"
         },
         {
@@ -1036,12 +1036,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 154,
+          "line": 160,
           "sink": "setSuffix"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 154,
+          "line": 160,
           "sink": "setSuffix"
         }
       ]
@@ -4306,12 +4306,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 139,
+          "line": 145,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 157,
+          "line": 163,
           "sink": "addRow"
         }
       ]
@@ -4906,7 +4906,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 322,
+          "line": 324,
           "sink": "setText"
         }
       ]
@@ -7841,7 +7841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 297,
+          "line": 299,
           "sink": "setText"
         }
       ]
@@ -8366,7 +8366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 194,
+          "line": 202,
           "sink": "_set_archive_load_progress"
         }
       ]
@@ -8801,17 +8801,17 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 770,
+          "line": 778,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 771,
+          "line": 779,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 772,
+          "line": 780,
           "sink": "append_archive_log"
         }
       ]
@@ -8886,7 +8886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 578,
+          "line": 586,
           "sink": "set_status_message"
         }
       ]
@@ -9186,7 +9186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 542,
+          "line": 550,
           "sink": "set_status_message"
         }
       ]
@@ -9206,7 +9206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 730,
+          "line": 738,
           "sink": "append_archive_log"
         }
       ]
@@ -11466,7 +11466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 179,
+          "line": 187,
           "sink": "_write_crash_report"
         }
       ]
@@ -14601,7 +14601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 190,
+          "line": 198,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -14771,7 +14771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 214,
+          "line": 216,
           "sink": "setTabText"
         }
       ]
@@ -14781,7 +14781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 289,
+          "line": 291,
           "sink": "setText"
         }
       ]
@@ -14791,7 +14791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 289,
+          "line": 291,
           "sink": "setText"
         }
       ]
@@ -16666,7 +16666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 68,
+          "line": 72,
           "sink": "getColor"
         }
       ]
@@ -18331,7 +18331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 538,
+          "line": 546,
           "sink": "append_archive_log"
         }
       ]
@@ -19621,7 +19621,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1374,
+          "line": 1379,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -20611,7 +20611,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 214,
+          "line": 216,
           "sink": "setTabText"
         }
       ]
@@ -21376,7 +21376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 82,
+          "line": 90,
           "sink": "set_status_message"
         }
       ]
@@ -21926,12 +21926,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 119,
+          "line": 127,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 124,
+          "line": 132,
           "sink": "on_error"
         }
       ]
@@ -22227,7 +22227,7 @@
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
           "line": 637,
-          "sink": "_run_utility_task"
+          "sink": "_run_utility_task_when_idle"
         }
       ]
     },
@@ -23066,7 +23066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 111,
+          "line": 115,
           "sink": "QLabel"
         }
       ]
@@ -25021,7 +25021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_preview_shell.py",
-          "line": 263,
+          "line": 275,
           "sink": "setToolTip"
         }
       ]
@@ -25291,7 +25291,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 318,
+          "line": 320,
           "sink": "setText"
         },
         {
@@ -25316,7 +25316,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 316,
+          "line": 318,
           "sink": "setText"
         },
         {
@@ -25336,7 +25336,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 317,
+          "line": 319,
           "sink": "setText"
         },
         {
@@ -26552,11 +26552,26 @@
       ]
     },
     {
+      "key": "ERROR: Skipped this action because another background task is still running: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/utility_controller.py",
+          "line": 38,
+          "sink": "append_log"
+        },
+        {
+          "path": "cdmw/ui/shell/utility_controller.py",
+          "line": 40,
+          "sink": "append_archive_log"
+        }
+      ]
+    },
+    {
       "key": "ERROR: Utility error handler failed: {value_0}",
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 169,
+          "line": 177,
           "sink": "append_log"
         }
       ]
@@ -26626,27 +26641,27 @@
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 83,
+          "line": 91,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 120,
+          "line": 128,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 122,
+          "line": 130,
           "sink": "append_archive_log"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 186,
+          "line": 194,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 188,
+          "line": 196,
           "sink": "append_archive_log"
         },
         {
@@ -26941,7 +26956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_preview_shell.py",
-          "line": 231,
+          "line": 243,
           "sink": "QCheckBox"
         },
         {
@@ -28096,7 +28111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_preview_shell.py",
-          "line": 234,
+          "line": 246,
           "sink": "setToolTip"
         }
       ]
@@ -31556,7 +31571,7 @@
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 194,
+          "line": 202,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -33701,7 +33716,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1345,
+          "line": 1350,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -33711,7 +33726,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1345,
+          "line": 1350,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -34056,12 +34071,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 139,
+          "line": 145,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 157,
+          "line": 163,
           "sink": "addRow"
         }
       ]
@@ -35486,12 +35501,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 139,
+          "line": 145,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 157,
+          "line": 163,
           "sink": "addRow"
         },
         {
@@ -35506,12 +35521,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 139,
+          "line": 145,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 157,
+          "line": 163,
           "sink": "addRow"
         }
       ]
@@ -35531,12 +35546,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 139,
+          "line": 145,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 157,
+          "line": 163,
           "sink": "addRow"
         }
       ]
@@ -36321,12 +36336,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 139,
+          "line": 145,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 157,
+          "line": 163,
           "sink": "addRow"
         }
       ]
@@ -37841,7 +37856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 286,
+          "line": 288,
           "sink": "setText"
         }
       ]
@@ -37866,7 +37881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 288,
+          "line": 290,
           "sink": "setText"
         }
       ]
@@ -37891,7 +37906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 287,
+          "line": 289,
           "sink": "setText"
         }
       ]
@@ -40326,7 +40341,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 337,
+          "line": 339,
           "sink": "setText"
         }
       ]
@@ -41891,12 +41906,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 139,
+          "line": 145,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 157,
+          "line": 163,
           "sink": "addRow"
         }
       ]
@@ -42346,7 +42361,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 814,
+          "line": 819,
           "sink": "csharp:AccessibleName="
         },
         {
@@ -42696,12 +42711,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 139,
+          "line": 145,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 157,
+          "line": 163,
           "sink": "addRow"
         }
       ]
@@ -42916,7 +42931,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 619,
+          "line": 624,
           "sink": "csharp:csharp-wrapper:ApplyOverlayColorButtonStyle[1]"
         }
       ]
@@ -45961,7 +45976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 300,
+          "line": 302,
           "sink": "setText"
         }
       ]
@@ -50551,7 +50566,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1008,
+          "line": 1013,
           "sink": "csharp:.Text="
         },
         {
@@ -58416,7 +58431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 308,
+          "line": 310,
           "sink": "setText"
         }
       ]
@@ -59046,12 +59061,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 139,
+          "line": 145,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 157,
+          "line": 163,
           "sink": "addRow"
         }
       ]
@@ -59071,7 +59086,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1345,
+          "line": 1350,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -63567,7 +63582,7 @@
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
           "line": 637,
-          "sink": "_run_utility_task"
+          "sink": "_run_utility_task_when_idle"
         }
       ]
     },
@@ -64841,7 +64856,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 334,
+          "line": 336,
           "sink": "setText"
         }
       ]
@@ -65101,7 +65116,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1266,
+          "line": 1271,
           "sink": "csharp:.Text="
         }
       ]
@@ -67446,7 +67461,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 770,
+          "line": 778,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -67531,7 +67546,7 @@
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 238,
+          "line": 246,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -67846,7 +67861,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 319,
+          "line": 321,
           "sink": "setText"
         }
       ]
@@ -70401,7 +70416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 695,
+          "line": 703,
           "sink": "set_status_message"
         }
       ]
@@ -70636,7 +70651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 294,
+          "line": 296,
           "sink": "setText"
         }
       ]
@@ -70656,7 +70671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 506,
+          "line": 514,
           "sink": "setToolTip"
         }
       ]
@@ -71521,7 +71536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 314,
+          "line": 316,
           "sink": "setText"
         }
       ]
@@ -71531,7 +71546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 311,
+          "line": 313,
           "sink": "setText"
         }
       ]
@@ -71571,7 +71586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 159,
+          "line": 165,
           "sink": "QPushButton"
         }
       ]
@@ -71696,7 +71711,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 340,
+          "line": 342,
           "sink": "setText"
         }
       ]
@@ -71721,7 +71736,7 @@
         },
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 343,
+          "line": 345,
           "sink": "setText"
         }
       ]
@@ -71741,7 +71756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 547,
+          "line": 555,
           "sink": "set_status_message"
         }
       ]
@@ -71986,7 +72001,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 815,
+          "line": 820,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -71996,7 +72011,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 816,
+          "line": 821,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -72662,7 +72677,7 @@
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
           "line": 637,
-          "sink": "_run_utility_task"
+          "sink": "_run_utility_task_when_idle"
         }
       ]
     },
@@ -78881,7 +78896,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 615,
+          "line": 620,
           "sink": "csharp:csharp-wrapper:ApplyOverlayColorButtonStyle[1]"
         }
       ]
@@ -85356,7 +85371,7 @@
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 175,
+          "line": 183,
           "sink": "_set_archive_load_progress"
         },
         {
@@ -88466,7 +88481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 760,
+          "line": 768,
           "sink": "append_archive_log"
         }
       ]
@@ -88476,7 +88491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 782,
+          "line": 790,
           "sink": "append_archive_log"
         }
       ]
@@ -88821,7 +88836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 163,
+          "line": 169,
           "sink": "QLabel"
         }
       ]
@@ -90821,7 +90836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 549,
+          "line": 557,
           "sink": "set_status_message"
         }
       ]
@@ -90831,7 +90846,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1014,
+          "line": 1019,
           "sink": "csharp:.Text="
         }
       ]
@@ -91471,7 +91486,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1345,
+          "line": 1350,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -92646,7 +92661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_settings.py",
-          "line": 693,
+          "line": 701,
           "sink": "set_status_message"
         }
       ]
@@ -93761,7 +93776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_settings_visibility.py",
-          "line": 325,
+          "line": 327,
           "sink": "setText"
         }
       ]
@@ -94602,6 +94617,21 @@
       ]
     },
     {
+      "key": "Vertex marker color",
+      "origins": [
+        {
+          "path": "cdmw/ui/model_preview_gizmo_settings.py",
+          "line": 145,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/model_preview_gizmo_settings.py",
+          "line": 163,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Vertex overlay color",
       "origins": [
         {
@@ -94681,7 +94711,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 611,
+          "line": 616,
           "sink": "csharp:csharp-wrapper:ApplyOverlayColorButtonStyle[1]"
         },
         {
@@ -94806,7 +94836,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1372,
+          "line": 1377,
           "sink": "csharp:.Text="
         }
       ]
@@ -94826,12 +94856,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 139,
+          "line": 145,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 157,
+          "line": 163,
           "sink": "addRow"
         }
       ]
@@ -95411,12 +95441,12 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 114,
+          "line": 122,
           "sink": "append_log"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 116,
+          "line": 124,
           "sink": "append_archive_log"
         }
       ]
@@ -95426,7 +95456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 79,
+          "line": 87,
           "sink": "append_log"
         }
       ]
@@ -96916,7 +96946,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 607,
+          "line": 612,
           "sink": "csharp:csharp-wrapper:ApplyOverlayColorButtonStyle[1]"
         }
       ]
@@ -96958,6 +96988,21 @@
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
           "line": 334,
           "sink": "csharp:AccessibleName="
+        }
+      ]
+    },
+    {
+      "key": "Wireframe color",
+      "origins": [
+        {
+          "path": "cdmw/ui/model_preview_gizmo_settings.py",
+          "line": 145,
+          "sink": "addRow"
+        },
+        {
+          "path": "cdmw/ui/model_preview_gizmo_settings.py",
+          "line": 163,
+          "sink": "addRow"
         }
       ]
     },
@@ -97251,12 +97296,12 @@
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 154,
+          "line": 162,
           "sink": "_set_archive_load_progress"
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 155,
+          "line": 163,
           "sink": "set_status_message"
         },
         {
@@ -98296,12 +98341,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 139,
+          "line": 145,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 157,
+          "line": 163,
           "sink": "addRow"
         }
       ]
@@ -98441,12 +98486,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 139,
+          "line": 145,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 157,
+          "line": 163,
           "sink": "addRow"
         }
       ]
@@ -98641,12 +98686,12 @@
       "origins": [
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 139,
+          "line": 145,
           "sink": "addRow"
         },
         {
           "path": "cdmw/ui/model_preview_gizmo_settings.py",
-          "line": 157,
+          "line": 163,
           "sink": "addRow"
         }
       ]
@@ -103251,7 +103296,7 @@
         },
         {
           "path": "cdmw/ui/settings_tab.py",
-          "line": 2176,
+          "line": 2186,
           "sink": "python-return:current_language_code"
         }
       ]
@@ -105376,7 +105421,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1012,
+          "line": 1017,
           "sink": "csharp:.Text="
         }
       ]
@@ -106166,7 +106211,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1012,
+          "line": 1017,
           "sink": "csharp:.Text="
         }
       ]
@@ -111011,7 +111056,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1012,
+          "line": 1017,
           "sink": "csharp:.Text="
         }
       ]
@@ -111291,7 +111336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 1247,
+          "line": 1249,
           "sink": "emit"
         },
         {
@@ -188771,7 +188816,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1012,
+          "line": 1017,
           "sink": "csharp:.Text="
         }
       ]
@@ -190536,7 +190581,7 @@
         },
         {
           "path": "cdmw/ui/shell/utility_controller.py",
-          "line": 190,
+          "line": 198,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -192221,7 +192266,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1136,
+          "line": 1141,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -193131,7 +193176,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 633,
+          "line": 638,
           "sink": "csharp:.Text="
         }
       ]
@@ -193256,7 +193301,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1013,
+          "line": 1018,
           "sink": "csharp:.Text="
         }
       ]

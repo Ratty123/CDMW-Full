@@ -52,6 +52,10 @@ def test_every_visible_dotnet_setting_has_transport_parser_and_runtime_consumer(
             _source("D3D11MaterialViewport.PresentationSettings.cs"),
             _source("D3D11MaterialViewport.Panes.cs"),
             _source("D3D11MaterialViewport.cs"),
+            # Grid and topology-overlay colours are drawn here. Leaving this out
+            # is why the viewport-appearance settings had no registered runtime
+            # consumer and this contract failed for six fields.
+            _source("D3D11MaterialViewport.Overlay.cs"),
             _source("D3D11MaterialShaders.hlsl"),
             _source("MeshViewport.Input.cs"),
             _source("MeshViewport.Presentation.cs"),
@@ -77,6 +81,14 @@ def test_every_visible_dotnet_setting_has_transport_parser_and_runtime_consumer(
         # which is what lets a middle-drag or right-drag orbit instead of pan.
         "camera_middle_drag": ("CameraMiddleDrag", "IsPanGesture"),
         "camera_right_drag": ("CameraRightDrag", "IsOrbitOverrideGesture"),
+        # Resident viewport appearance: the clear colour, the grid, and the
+        # topology overlay a solid+wire display is read through.
+        "d3d11_background_color": ("BackgroundColor",),
+        "d3d11_grid_color": ("GridColor",),
+        "d3d11_grid_spacing_scale": ("GridSpacingScale",),
+        "d3d11_grid_line_count": ("GridLineCount",),
+        "d3d11_wire_color": ("_wireOverlayColor",),
+        "d3d11_vertex_color": ("_vertexOverlayColor",),
         "gizmo_x_axis_color": ("XAxis",),
         "gizmo_y_axis_color": ("YAxis",),
         "gizmo_z_axis_color": ("ZAxis",),
@@ -482,9 +494,16 @@ def test_texture_toggle_and_view_mode_are_synchronized_across_resident_role_pane
     assert "context.TexturesEnabled," in split
     assert "context.XRay," in split
     assert "TexturesEnabled = pane.TexturesEnabled" in panes
-    assert "_overlayShowXRay = pane.XRay;" in panes
-    assert 'string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase)' in panes
-    assert 'string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase)' in panes
+    # A pane takes x-ray from its own context or from the host display mode,
+    # so a mode carrying x-ray reaches an inactive pane too.
+    assert "_overlayShowXRay = pane.XRay || display.XRay;" in panes
+    # Which modes carry textures is now resolved once in MeshDisplayModeState
+    # rather than by per-pane string comparisons, so the pane cannot disagree
+    # with the mode the host asked for.
+    display_modes = _source("MeshViewport.DisplayModes.cs")
+    assert 'if (normalized is "textured_wire" or "solid_wire")' in display_modes
+    assert '"textured" => new(normalized, true, false, false, false, true)' in display_modes
+    assert "TexturesEnabled = pane.TexturesEnabled && display.Textures;" in panes
 
 
 def test_a_host_display_mode_update_fans_out_like_the_helpers_own_combo() -> None:

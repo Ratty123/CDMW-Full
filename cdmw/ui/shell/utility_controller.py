@@ -30,6 +30,14 @@ class UtilityControllerMixin:
                     "Another background task is still running. Wait for it to finish before starting this action.",
                     error=True,
                 )
+            # A refusal that only reaches the status field is invisible: the field is
+            # transient, and the log the user actually reads simply stops. Name the
+            # action that was dropped. `_utility_updates_archive_progress` is still the
+            # previous task's value here, so the archive log follows the argument.
+            refusal = f"ERROR: Skipped this action because another background task is still running: {status_message}"
+            self.append_log(refusal)
+            if show_archive_progress:
+                self.append_archive_log(refusal)
             return
 
         self.set_status_message(status_message)

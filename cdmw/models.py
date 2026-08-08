@@ -1782,6 +1782,14 @@ class ModelPreviewRenderSettings:
     # lightened variant), a multiplier on the scene grid spacing, and lines
     # each side of the origin. Defaults reproduce the fixed grid exactly.
     d3d11_grid_color: str = "#5A6978"
+    # Topology overlay colours for the resident viewport. These are what makes a
+    # solid+wire display readable: the untextured solid renders blue-grey, so a
+    # wire close to it melts into the surface. Defaults match the renderer's own
+    # MeshOverlayColors.Default so an unset preference changes nothing. The Edit
+    # Mesh colour buttons still override these for the session, the same way the
+    # in-viewport background choice outranks this payload.
+    d3d11_wire_color: str = "#000000"
+    d3d11_vertex_color: str = "#FFAE28"
     d3d11_grid_spacing_scale: float = 1.0
     d3d11_grid_line_count: int = 10
     d3d11_view_mode: str = "lit"
@@ -1928,6 +1936,8 @@ def clamp_model_preview_render_settings(
         "gizmo_label_color",
         "d3d11_background_color",
         "d3d11_grid_color",
+        "d3d11_wire_color",
+        "d3d11_vertex_color",
     ):
         fallback = str(getattr(defaults, field_name))
         candidate = str(getattr(value, field_name, fallback) or "").strip()

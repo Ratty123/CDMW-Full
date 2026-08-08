@@ -1503,6 +1503,8 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         self.settings.setValue("preview/d3d11_mip_lod_bias", preview_settings.d3d11_mip_lod_bias)
         self.settings.setValue("preview/d3d11_background_color", preview_settings.d3d11_background_color)
         self.settings.setValue("preview/d3d11_grid_color", preview_settings.d3d11_grid_color)
+        self.settings.setValue("preview/d3d11_wire_color", preview_settings.d3d11_wire_color)
+        self.settings.setValue("preview/d3d11_vertex_color", preview_settings.d3d11_vertex_color)
         self.settings.setValue("preview/d3d11_grid_spacing_scale", preview_settings.d3d11_grid_spacing_scale)
         self.settings.setValue("preview/d3d11_grid_line_count", preview_settings.d3d11_grid_line_count)
         self.settings.setValue("preview/ambient_strength", preview_settings.ambient_strength)
@@ -1907,6 +1909,14 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
                 d3d11_grid_color=str(
                     self.settings.value("preview/d3d11_grid_color", defaults.d3d11_grid_color)
                     or defaults.d3d11_grid_color
+                ),
+                d3d11_wire_color=str(
+                    self.settings.value("preview/d3d11_wire_color", defaults.d3d11_wire_color)
+                    or defaults.d3d11_wire_color
+                ),
+                d3d11_vertex_color=str(
+                    self.settings.value("preview/d3d11_vertex_color", defaults.d3d11_vertex_color)
+                    or defaults.d3d11_vertex_color
                 ),
                 d3d11_grid_spacing_scale=self._read_float(
                     "preview/d3d11_grid_spacing_scale", defaults.d3d11_grid_spacing_scale

@@ -106,11 +106,20 @@ class MeshBuilderDriver:
         modify_original_clone_mode: bool = False,
         dialog_title: str = "Mesh Builder driver",
         placement_context_note: str = "",
+        settings: object | None = None,
     ) -> None:
         self.modify_original_clone_mode = bool(modify_original_clone_mode)
         self._temp = tempfile.TemporaryDirectory(prefix="cdmw-mesh-builder-driver-")
         self.root = Path(self._temp.name)
-        self.settings = create_settings(settings_file_path=self.root / "builder.cfg")
+        # Each driver gets its own settings file unless a caller passes one in,
+        # which is how a test reopens the Builder over a preference the previous
+        # one wrote. Never reach for the real user settings: a persisted control
+        # would then read whatever the developer last clicked.
+        self.settings = (
+            settings
+            if settings is not None
+            else create_settings(settings_file_path=self.root / "builder.cfg")
+        )
         self.window = MainWindow(
             app_context=AppContext(
                 settings=self.settings,
@@ -305,12 +314,18 @@ def open_mesh_builder(
     modify_original_clone_mode: bool = False,
     dialog_title: str = "Mesh Builder driver",
     placement_context_note: str = "",
+    settings: object | None = None,
 ) -> Iterator[MeshBuilderDriver]:
-    """Construct the Builder offscreen, yield it, then assert clean teardown."""
+    """Construct the Builder offscreen, yield it, then assert clean teardown.
+
+    Pass ``settings`` to reopen over an existing settings object, which is what
+    a test of a persisted preview control needs.
+    """
     driver = MeshBuilderDriver(
         modify_original_clone_mode=modify_original_clone_mode,
         dialog_title=dialog_title,
         placement_context_note=placement_context_note,
+        settings=settings,
     )
     try:
         yield driver
