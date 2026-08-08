@@ -96,6 +96,13 @@ def test_wire_vertices_and_custom_selection_colors_render_in_all_backends() -> N
     assert report["gates"]["custom_selection_colors_reach_d3d11_draws"] is True
     assert report["gates"]["custom_selection_colors_reach_wpf_and_gdi_paths"] is True
     d3d = report["xray_overlay_proof"]
+    # X-Ray draws the chosen colours, and falls back to the automatic
+    # high-contrast palette only for an untouched preference. Both directions
+    # matter: dropping either one is a defect the reader sees immediately.
+    assert d3d["chosen_palette_active"] is True
+    assert d3d["xray_wire_color"] == "#0C2238"
+    assert d3d["xray_vertex_color"] == "#4E5A7B"
+    assert d3d["automatic_palette_active"] is True
     assert d3d["configured_selection_color"] == "#919CA7"
     assert d3d["configured_live_selection_color"] == "#B2BDC8"
     assert d3d["last_committed_selection_draw_color"] == "#919CA7"

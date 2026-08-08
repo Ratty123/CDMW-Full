@@ -14,8 +14,18 @@ internal sealed partial class D3D11MaterialViewport
     private Vector4 _vertexOverlayColor = OverlayColor(255, 174, 40, 255);
     private Vector4 _selectionOverlayColor = OverlayColor(255, 224, 92, 245);
     private Vector4 _liveSelectionOverlayColor = OverlayColor(96, 202, 255, 245);
-    private static readonly Vector4 XRayWireOverlayColor = OverlayColor(245, 248, 252, 240);
-    private static readonly Vector4 XRayVertexOverlayColor = OverlayColor(255, 88, 214, 255);
+    // Derived from the overlay settings rather than fixed, so a chosen wire or
+    // vertex colour survives X-Ray. MeshOverlayColors decides when the automatic
+    // high-contrast colour still applies; this must not make that call again.
+    private Vector4 _xrayWireOverlayColor = XRayOverlayColor(
+        MeshOverlaySettings.Default.Colors.ActiveWire(true),
+        240);
+    private Vector4 _xrayVertexOverlayColor = XRayOverlayColor(
+        MeshOverlaySettings.Default.Colors.ActiveVertex(true),
+        255);
+
+    private static Vector4 XRayOverlayColor(System.Drawing.Color color, int alpha) =>
+        OverlayColor(color.R, color.G, color.B, alpha);
     private static readonly uint OverlayVertexStride = (uint)Marshal.SizeOf<D3D11OverlayVertex>();
     private ID3D11Buffer? _overlayVertexBuffer;
     private int _overlayVertexCapacity;
@@ -73,6 +83,8 @@ internal sealed partial class D3D11MaterialViewport
             colors.Vertex.G,
             colors.Vertex.B,
             255);
+        _xrayWireOverlayColor = XRayOverlayColor(colors.ActiveWire(true), 240);
+        _xrayVertexOverlayColor = XRayOverlayColor(colors.ActiveVertex(true), 255);
         _selectionOverlayColor = OverlayColor(
             colors.Selection.R,
             colors.Selection.G,
@@ -331,7 +343,7 @@ internal sealed partial class D3D11MaterialViewport
             PrimitiveTopology.LineList,
             cache.Lines,
             ScaleOverlayAlpha(
-                _overlayShowXRay ? XRayWireOverlayColor : _wireOverlayColor,
+                _overlayShowXRay ? _xrayWireOverlayColor : _wireOverlayColor,
                 overlayStyle.WireOpacityScale),
             _camera.WorldViewProjection,
             lineWidthPixels: _overlaySettings.Sizing.WireWidthPixels);
@@ -375,7 +387,7 @@ internal sealed partial class D3D11MaterialViewport
         var constants = new D3D11OverlayConstants
         {
             WorldViewProjection = _camera.WorldViewProjection,
-            Color = _overlayShowXRay ? XRayVertexOverlayColor : _vertexOverlayColor,
+            Color = _overlayShowXRay ? _xrayVertexOverlayColor : _vertexOverlayColor,
             MarkerSettings = new Vector4(
                 Math.Max(1.0f, _camera.ViewportWidth),
                 Math.Max(1.0f, _camera.ViewportHeight),

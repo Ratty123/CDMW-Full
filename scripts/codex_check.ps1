@@ -147,6 +147,7 @@ $TestsByArea = @{
         "tests/test_modify_original_draft_chain_async.py",
         "tests/test_mesh_editor_camera_only_on_open.py",
         "tests/test_preview_overlay_color_settings.py",
+        "tests/test_xray_overlay_color_follows_preference.py",
         "tests/test_dotnet_preview_settings_contract.py",
         # Also unregistered until 2026-08-08; its embedded-dialog, part-pick and
         # flip-V needles had drifted from the source they guard.
