@@ -481,10 +481,14 @@ internal static partial class HeadlessGpuSparseSoak
         var normalColorsRetained =
             string.Equals(after.GetValueOrDefault("wire_overlay_color") as string, "#0C2238", StringComparison.Ordinal)
             && string.Equals(after.GetValueOrDefault("vertex_overlay_color") as string, "#4E5A7B", StringComparison.Ordinal);
-        var automaticPaletteActive =
+        // X-Ray draws the colours the reader chose. The automatic high-contrast
+        // palette is the fallback for an untouched preference only, proved
+        // against the restored defaults below; asserting it here regardless is
+        // what let a chosen wire colour be discarded in X-Ray unnoticed.
+        var chosenPaletteActive =
             after.GetValueOrDefault("xray_overlay_active") is true
-            && string.Equals(after.GetValueOrDefault("xray_wire_overlay_color") as string, "#F5F8FC", StringComparison.Ordinal)
-            && string.Equals(after.GetValueOrDefault("xray_vertex_overlay_color") as string, "#FF58D6", StringComparison.Ordinal);
+            && string.Equals(after.GetValueOrDefault("xray_wire_overlay_color") as string, "#0C2238", StringComparison.Ordinal)
+            && string.Equals(after.GetValueOrDefault("xray_vertex_overlay_color") as string, "#4E5A7B", StringComparison.Ordinal);
         var wireNoDepthAdvanced =
             Metric(after, "xray_wire_no_depth_draws") > Metric(wireVerticesAfter, "xray_wire_no_depth_draws");
         var vertexNoDepthAdvanced =
@@ -496,17 +500,24 @@ internal static partial class HeadlessGpuSparseSoak
             && Math.Abs(
                 Convert.ToSingle(after.GetValueOrDefault("vertex_marker_fit_size_pixels"), CultureInfo.InvariantCulture)
                 - configuredSizing.VertexMarkerSizePixels) <= 0.0001f;
-        var xrayOk = normalColorsRetained
-            && automaticPaletteActive
-            && wireNoDepthAdvanced
-            && vertexNoDepthAdvanced;
-
         viewport.SetOverlaySettings(MeshOverlaySettings.Default);
         ConfigureSmokeViewport(viewport, camera, clientSize, smoke: true);
         if (!viewport.TryRunHeadlessFrame(out _, out _, out var restoreError))
         {
             throw new InvalidOperationException($"Hidden D3D11 X-Ray overlay proof restore failed: {restoreError}");
         }
+        // The other direction: an untouched preference keeps the automatic
+        // palette, because the default wire is black and X-Ray draws it through
+        // the surface where black is unreadable.
+        var restored = viewport.ResourceMetricsPayload();
+        var automaticPaletteActive =
+            string.Equals(restored.GetValueOrDefault("xray_wire_overlay_color") as string, "#F5F8FC", StringComparison.Ordinal)
+            && string.Equals(restored.GetValueOrDefault("xray_vertex_overlay_color") as string, "#FF58D6", StringComparison.Ordinal);
+        var xrayOk = normalColorsRetained
+            && chosenPaletteActive
+            && automaticPaletteActive
+            && wireNoDepthAdvanced
+            && vertexNoDepthAdvanced;
 
         return new Dictionary<string, object?>
         {
@@ -515,6 +526,7 @@ internal static partial class HeadlessGpuSparseSoak
             ["exercised"] = true,
             ["frame_ms"] = frameMs,
             ["normal_colors_retained"] = normalColorsRetained,
+            ["chosen_palette_active"] = chosenPaletteActive,
             ["automatic_palette_active"] = automaticPaletteActive,
             ["wire_no_depth_draw_advanced"] = wireNoDepthAdvanced,
             ["vertex_no_depth_pass_advanced"] = vertexNoDepthAdvanced,

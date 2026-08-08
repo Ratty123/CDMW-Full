@@ -111,8 +111,13 @@ internal sealed partial class D3D11MaterialViewport
                 _lastLiveSelectionPrimitiveColor),
             ["committed_selection_overlay_primitives"] = _committedSelectionOverlayPrimitiveCount,
             ["live_selection_overlay_primitives"] = _liveSelectionOverlayPrimitiveCount,
-            ["xray_wire_overlay_color"] = MeshOverlayColors.Hex(MeshOverlayColors.AutomaticXRayWire),
-            ["xray_vertex_overlay_color"] = MeshOverlayColors.Hex(MeshOverlayColors.AutomaticXRayVertex),
+            // The colour X-Ray would actually draw, which is the automatic one
+            // only while the reader has not chosen their own. Reporting the
+            // constant hid that the chosen colour was being ignored.
+            ["xray_wire_overlay_color"] = MeshOverlayColors.Hex(
+                _overlaySettings.Colors.ActiveWire(true)),
+            ["xray_vertex_overlay_color"] = MeshOverlayColors.Hex(
+                _overlaySettings.Colors.ActiveVertex(true)),
             ["xray_overlay_active"] = _overlayShowXRay,
             ["xray_wire_no_depth_draws"] = _xRayWireNoDepthDrawCount,
             ["xray_vertex_no_depth_passes"] = _xRayVertexNoDepthPassCount,

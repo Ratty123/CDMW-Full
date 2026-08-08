@@ -26,9 +26,18 @@ internal readonly record struct MeshOverlayColors(
         Color.FromArgb(Selection.R, Selection.G, Selection.B),
         Color.FromArgb(LiveSelection.R, LiveSelection.G, LiveSelection.B));
 
-    public Color ActiveWire(bool xray) => xray ? AutomaticXRayWire : Wire;
+    /// <summary>
+    /// The overlay colour for the current display. X-Ray draws the topology
+    /// through the surface, where the default black wire is unreadable, so an
+    /// untouched preference falls back to the high-contrast automatic colour.
+    /// A colour the reader actually chose is theirs in every mode: overriding it
+    /// here is what made the Preview Settings wire colour look ignored.
+    /// </summary>
+    public Color ActiveWire(bool xray) =>
+        xray && Wire.ToArgb() == Default.Wire.ToArgb() ? AutomaticXRayWire : Wire;
 
-    public Color ActiveVertex(bool xray) => xray ? AutomaticXRayVertex : Vertex;
+    public Color ActiveVertex(bool xray) =>
+        xray && Vertex.ToArgb() == Default.Vertex.ToArgb() ? AutomaticXRayVertex : Vertex;
 
     public static string Hex(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
 }
