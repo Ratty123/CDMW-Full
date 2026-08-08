@@ -5,7 +5,8 @@ Use this file to choose the right doc before opening everything.
 ## Root Docs
 
 - `architecture.md`: stable architecture, package boundaries, ownership, and
-  safety rules.
+  safety rules, with diagrams for the process topology, the import layering, the
+  resident preview session, and the archive mutation path.
 - `project-map.md`: compact navigation map for code owners, tests, and docs.
 - `project-map-detailed.md`: long historical/file-level ownership map. Use it
   only when `project-map.md` is not enough.

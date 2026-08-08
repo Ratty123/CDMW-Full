@@ -4,6 +4,63 @@ Crimson Desert Mod Workbench uses a composed PySide window with focused app,
 shell, feature, service, domain, and worker packages. Public imports stay stable
 behind compatibility wrappers.
 
+This document is the contributor reference: search it for an ownership boundary,
+a dependency rule, or a stable contract, and read that section. The README's
+[Architecture](../README.md#architecture) section is the short reader-facing
+version of the same system.
+
+## System Shape
+
+One Python process owns the UI and the domain rules. Everything
+performance- or platform-critical lives in a verified helper process, and no
+surface silently falls back to a different renderer or a slower path: a helper
+that cannot do the job reports an explicit unavailable state.
+
+```mermaid
+flowchart LR
+    subgraph host["Python host process"]
+        direction TB
+        UI["cdmw/ui<br/>shell · features"]
+        SVC["cdmw/services<br/>cdmw/domain"]
+        WRK["cdmw/workers<br/>QThread jobs"]
+        UI --> SVC --> WRK
+    end
+
+    subgraph nativep["Native projects"]
+        direction TB
+        PREV["cdmw_preview_core<br/>C++<br/>decode · package"]
+        MESH["cdmw_mesh_core<br/>C++<br/>edit authority"]
+        ACC["cdmw_archive_accelerator<br/>C++"]
+        TEX["cd_texture_dx<br/>C++<br/>DirectXTex"]
+        HKX["cd_hkx<br/>Rust<br/>Havok"]
+    end
+
+    subgraph dotnet[".NET 10 publishes"]
+        direction TB
+        EDITOR["Mesh Editor host<br/>D3D11 · Vortice<br/>presentation · input"]
+        ARCH["FullArchive.Worker<br/>catalogue backend"]
+    end
+
+    WRK -->|stdio| PREV
+    WRK -->|stdio| ARCH
+    SVC -->|commands| MESH
+    WRK --> ACC
+    WRK --> TEX
+    WRK --> HKX
+    UI -->|embedded HWND| EDITOR
+    PREV -->|schema-8 packages| EDITOR
+```
+
+Four of the native projects build through CMake and `cd_hkx` builds through
+Cargo; a release compiles those and publishes the two self-contained .NET
+helpers before it packages anything.
+
+Three edges are the only route to what they reach, and each has a test that says
+so. Archive writes reach the game only through `ArchiveMutationService`. Resident
+mesh geometry changes only through `cdmw_mesh_core`. Every visible model preview
+is drawn only by the .NET/Vortice host; the retired native renderer is forbidden
+by source and release-package guards.
+
 ## Package Map
 
 - `cdmw_app.py`: tiny command entrypoint.
@@ -141,6 +198,33 @@ lines.
 
 ## Layer Rules
 
+Imports point one way. A layer may use the one below it and never the one above,
+and the dotted edges below are the ones the import-boundary tests reject.
+
+```mermaid
+flowchart TD
+    ENTRY["cdmw_app.py<br/>cdmw/app"]
+    SHELL["cdmw/ui/shell"]
+    ARCHV["cdmw/ui/archive_browser"]
+    TEXW["cdmw/ui/texture_workflow"]
+    SVC["cdmw/services"]
+    DOM["cdmw/domain<br/>pure, no Qt"]
+    WRK["cdmw/workers"]
+    IMPL["cdmw/core<br/>cdmw/modding<br/>cdmw/rendering"]
+
+    ENTRY --> SHELL
+    SHELL --> ARCHV
+    SHELL --> TEXW
+    ARCHV --> SVC
+    TEXW --> SVC
+    SVC --> DOM
+    SVC --> WRK --> IMPL
+    SVC --> IMPL
+    ARCHV -.->|rejected| IMPL
+    ARCHV -.->|rejected| TEXW
+    DOM -.->|rejected| SHELL
+```
+
 - Entry code imports `cdmw.app.bootstrap`, not feature tabs or core internals.
 - App bootstrap does not import feature tab internals.
 - UI shell can import PySide, feature tabs, services, and shared widgets.
@@ -189,6 +273,42 @@ and pure classification/search/note transitions live in
 `cdmw/domain/research/`; focused archive analysis, classification, references,
 and report owners live under `cdmw/core/research_*.py`. Research UI code cannot
 import the facade, including through relative imports.
+
+## The Facade And Owner Pattern
+
+Many of the sections in this document are instances of one shape. A module that
+grew past its ceiling became a thin facade over focused owners, and the facade
+keeps the public import path so no call site moved.
+
+```mermaid
+flowchart LR
+    CALLER["call sites<br/>unchanged import"]
+    FACADE["archive_hkx.py<br/>direct re-exports<br/>no logic"]
+    O1["archive_hkx_parser.py"]
+    O2["archive_hkx_editing.py"]
+    O3["archive_hkx_corpus_*.py"]
+
+    CALLER --> FACADE
+    FACADE --> O1
+    FACADE --> O2
+    FACADE --> O3
+```
+
+Three properties make it safe to keep splitting, and each is guarded:
+
+- The facade re-exports the owner's original objects, so `facade.thing is
+  owner.thing` holds whichever module is imported first.
+- Owners resolve the facade's established monkeypatch seams at call time, so
+  existing test seams stay live.
+- Owners use the 1,000-line default ceiling and cap every function at 150 lines.
+
+Surfaces built this way include `cdmw.core.archive`, `archive_modding`,
+`archive_hkx`, `archive_binary_preview`, `archive_model_textures`,
+`archive_mesh_import_preview`, `prefab_json`, `prefab_corpus`,
+`cdmw.core.research`, `mesh_native_core`, `mesh_service`, the static-replacement
+callback and section factories, and the HKX editor dialog. Where a facade is
+compatibility-only rather than a split owner, importing it from inside its own
+package is an architecture-test failure.
 
 ## Feature Ownership
 
@@ -286,6 +406,56 @@ must remain unopened during startup and close.
 and sibling asset-tree format. Saves stage and read back a complete fresh pair,
 then publish with rollback so failed saves preserve the prior readable project.
 
+## Resident Preview Sessions
+
+One controller owns one verified `QProcess`. `cdmw/ui/preview/dotnet_session.py`
+publishes these states, and the two failure lanes are the part worth knowing
+before touching it.
+
+```mermaid
+stateDiagram-v2
+    [*] --> empty
+    empty --> launching: load package
+    empty --> prewarmed: idle prewarm
+    prewarmed --> preparing: first real package
+    launching --> connecting: process started
+    connecting --> preparing: protocol ready
+    preparing --> ready: activated
+    ready --> preparing: replace package
+    ready --> inactive: hidden
+    inactive --> resuming: shown
+    resuming --> ready
+    preparing --> package_error: package or material failed
+    package_error --> preparing: retry
+    connecting --> retrying: process or protocol failed
+    ready --> retrying: process or device failed
+    retrying --> launching
+    connecting --> closed: provenance or profile blocked
+    ready --> closed: owner closed
+    closed --> [*]
+```
+
+The lanes differ in what they discard:
+
+- **Package and material failure** keeps the process, keeps the accepted scene
+  on screen, and offers a retry. A healthy helper is never recycled for it, and
+  helper-level protocol rejections (stale session, invalid tool state) are
+  reported to the consumer without touching the process at all.
+- **Process, device, provenance, or protocol failure** drops the process and
+  enters recovery. A wrong profile or blocked provenance is a static failure: it
+  does not retry, because the next attempt would fail identically.
+
+A replacement package prepares while the accepted scene stays visible, so
+switching entries never blanks the viewport. Package identity is resolved path
+plus material and scene signatures; repeating it is an activation-only no-op and
+a duplicate `Ready` is consumed once per process.
+
+The `preview` profile exposes read-only presentation, picking, overlays,
+resident package replacement, and capture. The `authoring` profile adds the Mesh
+Editor mutation protocol and rehydrates from authoritative `MeshService` state
+after a recovery. `Edit Mesh` changes mutation permission; it does not choose or
+restart the renderer.
+
 ## Services
 
 `ServiceContainer` creates bounded service objects for archives, archive
@@ -320,12 +490,33 @@ developer-only process override. The transition release retains legacy code and
 caches, but fallback is never automatic: a publication failure may offer a
 process-local legacy choice that cancels v2 requests and shuts down the worker.
 
-The runtime cache has two stable top-level lanes: `cache/index/catalogue_v2/`
-owns Full archive generations, while `cache/preview/` groups `item-icons/`,
-`models/`, `native/`, and `textures/directxtex/`. Startup conservatively moves known
-legacy top-level cache directories into this shape only when each destination
-is absent; conflicts remain untouched. Native DDS/PAMT/material-graph scratch
-data stays separate from durable decoded and .NET/Vortice model packages.
+The runtime cache has two stable top-level lanes, owned by
+`cdmw/services/cache_layout.py`:
+
+```mermaid
+flowchart TD
+    ROOT["cache/"]
+    IDX["index/"]
+    CAT["catalogue_v2/<br/>Full archive<br/>generations"]
+    PRE["preview/"]
+    ICON["item-icons/"]
+    MOD["models/<br/>.NET packages"]
+    NAT["native/<br/>scratch"]
+    TXT["textures/"]
+    DXT["directxtex/"]
+
+    ROOT --> IDX --> CAT
+    ROOT --> PRE
+    PRE --> ICON
+    PRE --> MOD
+    PRE --> NAT
+    PRE --> TXT --> DXT
+```
+
+Startup conservatively moves known legacy top-level cache directories into this
+shape only when each destination is absent; conflicts remain untouched. Native
+DDS/PAMT/material-graph scratch data stays separate from durable decoded and
+.NET/Vortice model packages.
 
 `ResearchService` composes explicit archive-analysis, reference-query,
 texture-analysis/report, preview, and note-persistence surfaces. UI handlers
@@ -442,7 +633,32 @@ single-instance scope and temp root, then reads the atomic startup result. Only
 ## Workers
 
 Shared worker contracts live under `cdmw/workers/`. Use `WorkerSuccess`,
-`WorkerFailure`, and `CancellationToken` for new long-running work. Asset
+`WorkerFailure`, and `CancellationToken` for new long-running work.
+
+Long-running work is latest-wins and correlated by request ID, so a slow older
+result can never replace current state. Every consumer named below implements
+the same shape:
+
+```mermaid
+sequenceDiagram
+    participant UI as UI thread
+    participant CTL as Request controller
+    participant W1 as Worker id 7
+    participant W2 as Worker id 8
+
+    UI->>CTL: request A
+    CTL->>W1: start, id 7
+    UI->>CTL: request B
+    CTL->>W1: cancel token
+    CTL->>W2: start, id 8
+    W1-->>CTL: result id 7
+    Note over CTL: stale, dropped
+    W2-->>CTL: result id 8
+    CTL-->>UI: apply, queued signal
+```
+
+The result crosses back to the UI thread through a Qt signal; workers never
+mutate widgets. Asset
 authoring workers keep Material Maker CLI export and optional OpenImageIO
 metadata/convert/diff subprocess execution out of UI code. Worker-heavy tabs
 expose `request_shutdown()` and `iter_shutdown_workers()`.
@@ -515,6 +731,26 @@ output, temporary job/report roots are removed after the report is consumed.
 Archive mutation remains explicit, confirmed, backed up, and recoverable. Browse,
 preview, extract, scan, and package build paths must not silently rewrite game
 archives.
+
+Every write to a game archive takes this path, and `ArchiveMutationService` is
+the only holder of the last three steps. Destructive Archive Browser flows do
+not call the core patcher directly.
+
+```mermaid
+flowchart LR
+    UIA["UI action"]
+    CMD["prepare<br/>command"]
+    PLAN["validate<br/>plan"]
+    CONF["user<br/>confirmation"]
+    BAK["create<br/>backup"]
+    PATCH["apply<br/>patch"]
+    REST["restore<br/>available"]
+
+    UIA --> CMD --> PLAN --> CONF --> BAK --> PATCH --> REST
+    PLAN -.->|invalid| UIA
+    CONF -.->|declined| UIA
+    PATCH -.->|failed| REST
+```
 
 ## Adding A New Tab
 

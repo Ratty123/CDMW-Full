@@ -48,19 +48,53 @@ is smaller and safer to hand to someone who is not modding.
 
 ## What it does
 
+The main strip has five entries. Mesh Editor and Placement & Animations are
+complete workspaces and sit there directly; the other three group related tools.
+
+```mermaid
+flowchart TD
+    MAIN["Main strip"]
+    A["Assets"]
+    M["Mesh Editor"]
+    P["Placement &<br/>Animations"]
+    T["Texture Upscaling<br/>& Editing"]
+    O["Tools"]
+
+    MAIN --> A
+    MAIN --> M
+    MAIN --> P
+    MAIN --> T
+    MAIN --> O
+
+    A --> A1["Archive Browser"]
+    A --> A2["Model Library"]
+    A --> A3["Icon Creator"]
+    T --> T1["Texture Workflow"]
+    T --> T2["Texture Replacer"]
+    T --> T3["Texture Recolor"]
+    T --> T4["Texture Editor"]
+    O --> O1["Retrofit/Repackage"]
+    O --> O2["Format Explorer"]
+    O --> O3["Translations"]
+    O --> O4["Research"]
+    O --> O5["Text Search"]
+```
+
+Every tool can be detached into its own window and restored from the Window menu.
+
 | Workspace | What you can do |
 |---|---|
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
-| **Mesh Preview & Editor** | Preview `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path with the game's layered materials composited as layers, inspect referenced textures, edit resident meshes through the native edit core, with OBJ/FBX export and OBJ/DAE/glTF/GLB import preview. |
+| **Mesh Editor** | Preview `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path with the game's layered materials composited as layers, inspect referenced textures, and edit resident meshes through the native edit core: vertex/wire/face selection with brush, rectangle and lasso, persistent geometry layers with a mesh-internal clipboard, morph profiles with per-garment refit, OBJ/FBX export, and OBJ/DAE/glTF/GLB import preview. |
 | **Texture Workflow** | Rebuild DDS with the bundled `cd-texture-dx.exe` native DirectXTex helper, upscale through Real-ESRGAN NCNN or chaiNNer, plan texture policy, compare before/after, and export mod packages. |
 | **Texture Replacer** | Replace edited PNG/DDS textures using the original game DDS as rebuild authority, with package-prefixed loose output and manager metadata. |
-| **Image Editor** | Edit visible textures in-app: layered projects, selections, masks, adjustment layers, channel locks, brush tools, clone/heal, smudge, sharpen, soften, flattened PNG export. Finished work goes to `Texture Replacer` or `Icon Creator` from the Send To menu. |
+| **Texture Editor** | Edit visible textures in-app: layered projects, selections, masks, adjustment layers, channel locks, brush tools, clone/heal, smudge, sharpen, soften, flattened PNG export. Finished work goes to `Texture Replacer` or `Icon Creator` from the Send To menu. |
 | **Material Authority** | Build and audit material/mesh replacement packages with source-owned material routing, runtime XML preservation, diagnostics, and final package preview. |
-| **Placement & Animation Studio** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
+| **Placement & Animations** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
 | **Format Explorer** | What every game file format can and cannot do, and which tool does it, read from the same capability manifest the [decoding status](#file-format-decoding-status) below is generated from, so it cannot drift from what the code actually supports. |
-| **Supporting tools** | Model Library, Icon Creator, Recolor Variants, Texture Research, Text Search, Retrofit/Repackage, settings/profile export, diagnostic bundles, detachable tabs. |
+| **Supporting tools** | Model Library, Icon Creator, Texture Recolor, Research, Text Search, Translations, Retrofit/Repackage, settings/profile export, diagnostic bundles, detachable tabs. |
 
-### Placement & Animation Studio
+### Placement & Animations
 
 Where a weapon hangs, which socket it routes to, and which clip plays when it is
 drawn are all editable, and none of it requires decoding a Havok tagfile. Four
@@ -202,12 +236,13 @@ flowchart LR
         APP --> SHELL --> FEAT --> SVC --> WRK
     end
 
-    subgraph native["Native helpers (C++)"]
+    subgraph native["Native helpers"]
         direction TB
-        PREV["cdmw_preview_core<br/>archive decode<br/>name index<br/>packaging"]
-        MESH["cdmw_mesh_core<br/>mesh edit authority"]
-        TEX["cd_texture_dx<br/>DirectXTex"]
-        HKX["cd_hkx<br/>Havok containers"]
+        PREV["cdmw_preview_core<br/>C++<br/>archive decode<br/>name index<br/>packaging"]
+        MESH["cdmw_mesh_core<br/>C++<br/>mesh edit authority"]
+        ACC["cdmw_archive_accelerator<br/>C++<br/>archive primitives"]
+        TEX["cd_texture_dx<br/>C++<br/>DirectXTex"]
+        HKX["cd_hkx<br/>Rust<br/>Havok containers"]
     end
 
     subgraph dotnet[".NET 10 helpers"]
@@ -219,6 +254,7 @@ flowchart LR
     WRK -->|stdio| PREV
     WRK -->|stdio| ARCH
     SVC -->|commands| MESH
+    WRK --> ACC
     WRK --> TEX
     WRK --> HKX
     FEAT -->|embedded HWND| EDITOR
@@ -296,7 +332,7 @@ flowchart LR
     UIB --> NATIVE_T
 ```
 
-Bazel builds the shipped executable end to end: all five native C++ helpers,
+Bazel builds the shipped executable end to end: all five native projects,
 both self-contained .NET publishes, and the PyInstaller package. It is additive,
 so the PowerShell release path is untouched and still owns the release gates. Bazel is installed repo-locally in `.tools/bazel/`; there is no
 system-wide install. See [docs/bazel-migration.md](docs/bazel-migration.md).
@@ -410,7 +446,7 @@ cdmw/                    application code
   domain/                pure rules: archive safety, texture policy, manifests
   workers/               worker protocols, result types, cancellation
   core/ modding/ rendering/   archive, DDS, import/export, packaging logic
-native/                  C++ helpers (preview core, mesh core, texture, hkx)
+native/                  C++ helpers, plus the Rust cd_hkx backend
 tools/                   .NET 10 helper sources, audit and research scripts
 tools/dotnet_*           D3D11 host, archive worker, build UI -- all source
 schemas/                 versioned capability and package schemas
@@ -450,7 +486,7 @@ as download or help links.
 ## Known limitations
 
 **Placement editing is deliberately bounded.** The operations listed under
-[Placement & Animation Studio](#placement--animation-studio) are the whole
+[Placement & Animations](#placement--animations) are the whole
 vocabulary. Anything outside it (full PAAC graph swaps, `ItemInfo`/`EquipSlot`
 edits, new keyframe data, any binary write that changes file length) is out of
 scope by design rather than a feature gap, and the editor refuses it with an

@@ -21,7 +21,17 @@ internal sealed partial class MeshViewport
                 ? uvValue
                 : display;
         var defaults = _residentPresentationSettings;
-        var texturesEnabled = JsonBool(quality, "use_textures_by_default", TexturesEnabled);
+        // The display mode already decided this. "textured" is the one mode that
+        // samples the material, and TryApplyDisplayModeState set TexturesEnabled
+        // from it immediately before this runs. use_textures_by_default is the
+        // archive preview's "load textures automatically after geometry"
+        // default, for a payload that names no mode at all; letting it outrank a
+        // named mode is what made Solid (Textured) draw flat, because the
+        // Builder publishes mode "textured" beside use_textures_by_default false
+        // on every republish -- one after every accepted scene frame.
+        var texturesEnabled = PayloadNamesDisplayMode(display)
+            ? TexturesEnabled
+            : JsonBool(quality, "use_textures_by_default", TexturesEnabled);
         var hasDotNetViewMode = quality.TryGetProperty("dotnet_view_mode", out _);
         var hasLegacyViewMode = quality.TryGetProperty("d3d11_view_mode", out _);
         var requestedViewMode = hasDotNetViewMode
@@ -114,6 +124,17 @@ internal sealed partial class MeshViewport
         ApplyOverlayColorsFromPresentation(quality);
         _d3d11Viewport?.ApplyPresentationSettings(_residentPresentationSettings);
     }
+
+    /// <summary>
+    /// Whether the display payload carried a mode of its own, which is what
+    /// makes the resolved mode the authority for TexturesEnabled. Matches how
+    /// TryApplyPresentationStateCore reads the same property, so the two cannot
+    /// disagree about whether a mode was named.
+    /// </summary>
+    private static bool PayloadNamesDisplayMode(JsonElement display) =>
+        display.TryGetProperty("mode", out var value)
+        && value.ValueKind == JsonValueKind.String
+        && !string.IsNullOrWhiteSpace(value.GetString());
 
     private bool _overlayColorsPinnedByReader;
 
