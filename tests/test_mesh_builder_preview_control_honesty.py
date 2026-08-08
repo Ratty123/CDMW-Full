@@ -161,26 +161,51 @@ def test_manual_material_authority_drag_commits_once(builder) -> None:
     spin = controls.get("roughness_default")
     assert spin is not None
 
-    timer.stop()
-    pending.clear()
-    start = int(spin.value())
-    steps = 40
-    for step in range(steps):
-        spin.setValue(max(spin.minimum(), start - step - 1))
-    _APPLICATION.processEvents()
+    # The debounce is a real single-shot QTimer and the drag below has to cross a
+    # processEvents() turn. At the production interval it can expire inside that
+    # turn on a loaded machine, which commits the batch early and leaves the
+    # timer idle and pending empty -- a failure that says nothing about
+    # coalescing. Pin an interval no test run can outlast: this is about one
+    # commit per drag, not about how many milliseconds the interval happens to
+    # be, and _manual_profile_mark_changed restarts the timer without supplying
+    # its own interval, so the pin survives every tick of the drag.
+    original_interval = timer.interval()
+    timer.setInterval(600_000)
 
-    # A drag leaves exactly one coalesced commit outstanding, not one per tick.
-    assert spin.value() == start - steps
-    assert timer.isActive()
-    assert pending == {"roughness_default"}
+    timer_commits: list[int] = []
 
-    flush()
-    assert not timer.isActive()
-    assert pending == set()
+    def _count_timer_commit() -> None:
+        timer_commits.append(1)
 
-    settings_key = builder.context.get("manual_profile_settings_key")
-    stored = json.loads(str(builder.settings.value(settings_key, "{}")))
-    assert stored.get("roughness_default") == start - steps
+    timer.timeout.connect(_count_timer_commit)
+    try:
+        timer.stop()
+        pending.clear()
+        start = int(spin.value())
+        steps = 40
+        for step in range(steps):
+            spin.setValue(max(spin.minimum(), start - step - 1))
+        _APPLICATION.processEvents()
+
+        # A drag leaves exactly one coalesced commit outstanding, not one per
+        # tick. _manual_profile_commit_changes clears pending and writes the
+        # profile, so a per-tick implementation would arrive here with pending
+        # empty and the settings already rewritten forty times over.
+        assert spin.value() == start - steps
+        assert timer_commits == [], "the debounce fired mid-drag instead of coalescing"
+        assert timer.isActive()
+        assert pending == {"roughness_default"}
+
+        flush()
+        assert not timer.isActive()
+        assert pending == set()
+
+        settings_key = builder.context.get("manual_profile_settings_key")
+        stored = json.loads(str(builder.settings.value(settings_key, "{}")))
+        assert stored.get("roughness_default") == start - steps
+    finally:
+        timer.timeout.disconnect(_count_timer_commit)
+        timer.setInterval(original_interval)
 
 
 def test_full_apply_supersedes_a_pending_debounced_edit(builder) -> None:
