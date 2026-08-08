@@ -878,6 +878,29 @@ internal static class EditMeshLayoutSmoke
                     && migratedV1.Sizing == MeshOverlaySizing.Default,
                 "Overlay v1 preferences did not preserve their legacy fields and new defaults.");
 
+            // X-Ray draws topology through the surface, so an untouched default
+            // black wire falls back to the automatic high-contrast colour. A
+            // colour the reader chose is theirs in X-Ray too; overriding it is
+            // what made the Preview Settings wire colour look ignored.
+            var defaults = MeshOverlaySettings.Default.Colors;
+            Require(
+                defaults.ActiveWire(true) == MeshOverlayColors.AutomaticXRayWire
+                    && defaults.ActiveVertex(true) == MeshOverlayColors.AutomaticXRayVertex,
+                "An untouched overlay preference lost its automatic X-Ray colours.");
+            Require(
+                defaults.ActiveWire(false) == defaults.Wire
+                    && defaults.ActiveVertex(false) == defaults.Vertex,
+                "The automatic X-Ray colours leaked into a non-X-Ray display.");
+            var picked = new MeshOverlayColors(
+                Color.FromArgb(0x20, 0xC0, 0x40),
+                Color.FromArgb(0xC0, 0x20, 0x40),
+                MeshOverlayColors.Default.Selection,
+                MeshOverlayColors.Default.LiveSelection);
+            Require(
+                picked.ActiveWire(true) == Color.FromArgb(0x20, 0xC0, 0x40)
+                    && picked.ActiveVertex(true) == Color.FromArgb(0xC0, 0x20, 0x40),
+                "X-Ray discarded the chosen wire or vertex colour for its automatic one.");
+
             var construction = ExperimentForm.OverlayAppearanceConstructionProof();
             Require(
                 Convert.ToInt32(construction["control_count"]) == 7
@@ -892,6 +915,9 @@ internal static class EditMeshLayoutSmoke
                 ["save_load"] = true,
                 ["v1_migration"] = true,
                 ["v2_migration"] = true,
+                ["xray_follows_chosen_color"] = true,
+                ["xray_default_wire_color"] = MeshOverlayColors.Hex(defaults.ActiveWire(true)),
+                ["xray_chosen_wire_color"] = MeshOverlayColors.Hex(picked.ActiveWire(true)),
                 ["controls"] = construction,
             };
         }
