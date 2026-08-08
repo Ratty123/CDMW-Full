@@ -2369,7 +2369,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def _send_mouse_message(", source)
         self.assertIn('interaction.name == "selection-brush-burst"', source)
         self.assertIn("phase = ordinal % 64", source)
-        self.assertIn("_send_mouse_message(state.viewport_hwnd, _WM_MOUSEMOVE, x, y)", source)
+        # The drag sends are wrapped across lines now, so pin the call and its
+        # held-button argument rather than a one-line spelling of them. Without
+        # _MK_LBUTTON the move is a hover and no brush stroke is exercised.
+        self.assertIn("_send_mouse_message(\n                state.viewport_hwnd,\n                _WM_MOUSEMOVE,", source)
+        self.assertIn("wparam=_MK_LBUTTON,", source)
         self.assertIn("tab._send_dotnet_protocol_message", source)
         self.assertIn("def _write_checker_png(", source)
         self.assertIn('interaction.name == "texture-update"', source)
@@ -6302,7 +6306,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         ]
         self.assertNotIn("NATIVE_EDITOR_SESSION_COMMANDS", static_adapter_source)
         open_start = static_adapter_source.index("    def open(self, mesh: ParsedMesh) -> None:")
-        open_body = static_adapter_source[open_start:static_adapter_source.index("    def close(self) -> None:", open_start)]
+        # close() carries a force_without_saving keyword now, so delimit the
+        # open() body by the method rather than by a frozen signature.
+        open_body = static_adapter_source[open_start:static_adapter_source.index("\n    def close(", open_start)]
         self.assertIn("self.mesh = mesh", open_body)
         self.assertNotIn("self.controller.working_mesh(clone=False)", open_body)
         self.assertNotIn("self.controller.working_mesh(clone=False)", result_body)
@@ -7980,11 +7986,16 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         ):
             body = host_source[host_source.index(setter):]
             body = body[: body.index("\n    def ", 1)]
+            # The setters now send a targeted highlights delta rather than
+            # resending the whole remembered state. What matters to this guard is
+            # unchanged: they go through the without_display helper, never the
+            # plain one that would carry display.grid_visible with them.
             self.assertIn(
-                "_remember_presentation_state_without_display()",
+                "_remember_presentation_state_without_display(",
                 body,
                 setter,
             )
+            self.assertNotIn("self._remember_presentation_state(", body, setter)
         without_display_body = _function_source(
             host_source, "_remember_presentation_state_without_display"
         )
