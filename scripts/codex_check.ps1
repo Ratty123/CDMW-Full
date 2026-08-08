@@ -25,6 +25,7 @@ $TestsByArea = @{
     stability = @(
         "tests/test_runtime_dependency_smoke.py",
         "tests/test_crash_reporting_guards.py",
+        "tests/test_utility_task_refusal_logging.py",
         "tests/test_hang_watchdog_keeps_reporting.py",
         "tests/test_pyinstaller_temp_cleanup.py",
         "tests/test_startup_archive_path_async.py",
@@ -53,7 +54,10 @@ $TestsByArea = @{
         "tests/test_progressive_archive_preview.py",
         "tests/test_archive_preview_request_coalescing.py",
         "tests/test_archive_extract_progress.py",
-        "tests/test_archive_progress_bar_writes_on_change.py"
+        "tests/test_archive_progress_bar_writes_on_change.py",
+        # Unregistered until 2026-08-08, which is how its progress-bar and
+        # selection-context needles sat stale across four commits.
+        "tests/test_archive_browser_asset_understanding_ui_source_guards.py"
     )
     texture = @(
         "tests/test_texture_backend_retirement.py",
@@ -140,6 +144,13 @@ $TestsByArea = @{
         "tests/test_mesh_dense_subdivide.py",
         "tests/test_mesh_geometry_layers.py",
         "tests/test_modify_original_mesh_layer_drafts.py",
+        "tests/test_modify_original_draft_chain_async.py",
+        "tests/test_mesh_editor_camera_only_on_open.py",
+        "tests/test_preview_overlay_color_settings.py",
+        "tests/test_dotnet_preview_settings_contract.py",
+        # Also unregistered until 2026-08-08; its embedded-dialog, part-pick and
+        # flip-V needles had drifted from the source they guard.
+        "tests/test_alignment_dialog_source_guards.py",
         "tests/test_mesh_editor_nonblocking_close.py",
         "tests/test_dotnet_overlay_color_controls.py",
         "tests/test_mesh_deformer.py",

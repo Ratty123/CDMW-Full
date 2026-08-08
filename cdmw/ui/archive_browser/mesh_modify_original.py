@@ -634,7 +634,7 @@ class ArchiveMeshModifyOriginalMixin:
                 ),
             )
 
-        self._run_utility_task(
+        self._run_utility_task_when_idle(
             status_message=(
                 f"Creating Modify Original workspace for {entry.basename}..."
                 if create_workspace

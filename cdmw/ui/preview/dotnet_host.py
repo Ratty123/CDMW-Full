@@ -544,6 +544,8 @@ class DotNetPreviewHostFrame(QFrame):
             "d3d11_mip_lod_bias": float(getattr(settings, "d3d11_mip_lod_bias", -2.0)),
             "d3d11_background_color": str(getattr(settings, "d3d11_background_color", "") or ""),
             "d3d11_grid_color": str(getattr(settings, "d3d11_grid_color", "") or ""),
+            "d3d11_wire_color": str(getattr(settings, "d3d11_wire_color", "") or ""),
+            "d3d11_vertex_color": str(getattr(settings, "d3d11_vertex_color", "") or ""),
             "d3d11_grid_spacing_scale": float(getattr(settings, "d3d11_grid_spacing_scale", 1.0) or 1.0),
             "d3d11_grid_line_count": int(getattr(settings, "d3d11_grid_line_count", 10) or 10),
             "dotnet_view_mode": str(getattr(settings, "d3d11_view_mode", "lit") or "lit"),

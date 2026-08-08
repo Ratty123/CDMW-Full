@@ -297,6 +297,14 @@ class ArchivePreviewSettingsMixin:
                     self.settings.value("preview/d3d11_grid_color", defaults.d3d11_grid_color)
                     or defaults.d3d11_grid_color
                 ),
+                d3d11_wire_color=str(
+                    self.settings.value("preview/d3d11_wire_color", defaults.d3d11_wire_color)
+                    or defaults.d3d11_wire_color
+                ),
+                d3d11_vertex_color=str(
+                    self.settings.value("preview/d3d11_vertex_color", defaults.d3d11_vertex_color)
+                    or defaults.d3d11_vertex_color
+                ),
                 d3d11_grid_spacing_scale=self._read_float(
                     "preview/d3d11_grid_spacing_scale",
                     defaults.d3d11_grid_spacing_scale,
