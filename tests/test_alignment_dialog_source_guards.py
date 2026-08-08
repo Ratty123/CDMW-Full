@@ -781,7 +781,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("embedded_alignment_builder = False", source)
         self.assertLess(
             source.index("embedded_alignment_builder = embedded_host is not None"),
-            source.index("dialog_type = _EmbeddedAlignmentBuilderDialog if embedded_alignment_builder else QDialog"),
+            source.index("dialog_type = _EmbeddedAlignmentBuilderDialog if embedded_alignment_builder else _MeshEditorSaveAwareDialog"),
         )
         self.assertIn("dialog = dialog_type(embedded_host if embedded_alignment_builder else self)", source)
         self.assertIn("dialog.setWindowFlags(Qt.Widget)", source)
@@ -3540,7 +3540,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_reapply_current_global_flip_v_fast_preview()", source)
         host_source = _native_d3d11_preview_host_source()
         self.assertIn('self._presentation_state["uv"] = {"flip_v": bool(enabled)}', host_source)
-        self.assertIn("return self._remember_presentation_state()", host_source)
+        # The flip now sends its own delta rather than resending the whole
+        # remembered state, which is what keeps it off the slow settle path.
+        self.assertIn('return self._remember_presentation_state({"uv": {"flip_v": bool(enabled)}})', host_source)
         self.assertIn("def set_material_overrides(", host_source)
         self.assertIn('"material_parameter_update"', host_source)
 
@@ -3658,16 +3660,37 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         preview_status_source = ARCHIVE_STATIC_REPLACEMENT_PREVIEW_STATUS_STATE.read_text(encoding="utf-8")
         self.assertIn('preview_gizmo_checkbox = QCheckBox(alignment_preview_control_text["gizmo"])', source)
         self.assertIn('"gizmo": "Gizmo"', preview_status_source)
-        self.assertIn('preview_part_pick_checkbox = QCheckBox(alignment_preview_control_text["part_pick"])', source)
+        # Part picking is always on now: the toolbar checkbox is gone, but the
+        # widget stays parented, checked and hidden because every presentation
+        # snapshot still reads its state. Parenting at construction is required
+        # by the Builder construction invariants, which reject a widget made
+        # visible before it is parented.
+        self.assertIn('preview_part_pick_checkbox = QCheckBox(alignment_preview_control_text["part_pick"], preview_panel)', source)
         self.assertIn('preview_mesh_edit_checkbox = QCheckBox("Edit Mesh")', source)
         self.assertIn("mesh_edit_enabled_checkbox = preview_mesh_edit_checkbox", source)
         self.assertIn('"part_pick": "Part Pick"', preview_status_source)
-        self.assertIn("preview_gizmo_checkbox.setChecked(True)", source)
+        # The gizmo starts off: while it is visible a left click on a handle
+        # begins a placement drag, and a freshly opened Mesh Editor is
+        # camera-only. The choice persists like the grid's, so the default is
+        # what an unset preference reads as, not a hardcoded state.
+        self.assertIn(
+            "read_bool_setting(self.settings, alignment_gizmo_visible_settings_key, False)",
+            source,
+        )
+        self.assertIn(
+            'alignment_gizmo_visible_settings_key = "ui/mesh_alignment/gizmo_visible"',
+            source,
+        )
+        self.assertIn("self.settings.setValue(alignment_gizmo_visible_settings_key, bool(checked))", source)
+        self.assertNotIn("preview_gizmo_checkbox.setChecked(True)", source)
+        # Camera-only on load: viewport part picking stays off so a left click
+        # orbits instead of entering BeginSelectionDrag("source").
         self.assertIn("preview_part_pick_checkbox.setChecked(False)", source)
-        self.assertNotIn("preview_gizmo_checkbox.setChecked(False)", source)
+        self.assertIn("preview_part_pick_checkbox.setVisible(False)", source)
+        self.assertNotIn("preview_part_pick_checkbox.setChecked(True)", source)
         self.assertIn("def _sync_highlight_sets_when_ready(*args, **kwargs):", source)
         self.assertIn("'_sync_highlight_sets': _sync_highlight_sets_when_ready", source)
-        self.assertIn("preview_gizmo_checkbox.toggled.connect(lambda *_args: _sync_highlight_sets())", source)
+        self.assertIn("preview_gizmo_checkbox.toggled.connect(_preview_gizmo_toggled)", source)
         self.assertIn("def _preview_part_pick_toggled(checked: bool = False) -> None:", source)
         self.assertIn("_clear_all_part_selections()", source)
         self.assertIn("preview_part_pick_checkbox.toggled.connect(_preview_part_pick_toggled)", source)
@@ -3767,7 +3790,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('"use_selected": "Use Selected"', material_plan_ui_state_source)
         self.assertIn("material_plan_control_text", texture_table_source)
         self.assertIn("def material_plan_control_text", material_plan_ui_state_source)
-        self.assertIn("selection_context_frame = QFrame(content_container)", source)
+        # The selection-context row is gone; the resident preview already shows
+        # the active context. The label survives as the callback sink, parented
+        # and hidden, so _update_selection_context has somewhere to write.
+        self.assertIn('selection_context_label = QLabel("", content_container)', source)
+        self.assertIn("selection_context_label.setVisible(False)", source)
+        self.assertNotIn("selection_context_frame", source)
         self.assertIn("mesh_replacement_selection_view_model: Dict[str, object]", source)
         self.assertIn("def _set_mesh_replacement_selection_view", source)
         self.assertIn("def target_outliner_state", source)

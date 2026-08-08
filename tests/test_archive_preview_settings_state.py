@@ -33,6 +33,10 @@ def _changed_settings(field_name: str) -> ModelPreviewRenderSettings:
         "gizmo_z_axis_color": "#123456",
         "gizmo_highlight_color": "#123456",
         "gizmo_label_color": "#123456",
+        "d3d11_background_color": "#123456",
+        "d3d11_grid_color": "#123456",
+        "d3d11_wire_color": "#123456",
+        "d3d11_vertex_color": "#123456",
         # Rebinding one modifier has to reach the renderer like any other camera
         # setting; the pair stays non-overlapping so nothing resolves it away.
         "camera_orbit_modifier": "ctrl",
@@ -89,6 +93,15 @@ _EXPECTED_CHANGE_ROUTES: dict[str, set[str]] = {
     "low_quality_texture_max_dimension": {"needs_asset_refresh"},
     "max_anisotropy": {"d3d11_render_tuning_changed"},
     "d3d11_mip_lod_bias": {"d3d11_render_tuning_changed"},
+    # Resident viewport appearance. These were added to the settings dataclass
+    # without being registered here, which is why this test failed for four
+    # fields before the overlay colours joined them.
+    "d3d11_background_color": {"d3d11_render_tuning_changed"},
+    "d3d11_grid_color": {"d3d11_render_tuning_changed"},
+    "d3d11_wire_color": {"d3d11_render_tuning_changed"},
+    "d3d11_vertex_color": {"d3d11_render_tuning_changed"},
+    "d3d11_grid_spacing_scale": {"d3d11_render_tuning_changed"},
+    "d3d11_grid_line_count": {"d3d11_render_tuning_changed"},
     "d3d11_view_mode": {"d3d11_render_tuning_changed"},
     "d3d11_cull_back_faces": {"d3d11_render_tuning_changed"},
     "d3d11_light_azimuth_degrees": {"d3d11_render_tuning_changed"},

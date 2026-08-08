@@ -128,6 +128,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     value = context.get('value')
 
     alignment_grid_visible_settings_key = "ui/mesh_alignment/grid_visible"
+    alignment_gizmo_visible_settings_key = "ui/mesh_alignment/gizmo_visible"
     root_layout = QVBoxLayout(dialog)
     alignment_control_min_width = 420 if embedded_alignment_builder else 640
     alignment_control_content_min_width = 0 if embedded_alignment_builder else 700
@@ -219,14 +220,25 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_controls_row.addWidget(preview_grid_checkbox)
     preview_gizmo_checkbox = QCheckBox(alignment_preview_control_text["gizmo"])
     preview_gizmo_checkbox.setObjectName("MeshAlignmentGizmoVisibleCheckbox")
-    preview_gizmo_checkbox.setChecked(True)
+    # Off unless the reader turned it on before, for the same reason part picking
+    # is off: a fresh Mesh Editor is camera-only. The gizmo is a placement aid,
+    # and while it is visible a left click on a handle starts a placement drag
+    # instead of orbiting. Persisted like the grid, so someone doing placement
+    # work does not re-check it every session.
+    preview_gizmo_checkbox.setChecked(
+        read_bool_setting(self.settings, alignment_gizmo_visible_settings_key, False)
+    )
     preview_gizmo_checkbox.setToolTip(alignment_preview_control_text["gizmo_tooltip"])
     preview_controls_row.addWidget(preview_gizmo_checkbox)
-    # Part picking is always on and its toolbar checkbox is gone; the hidden,
-    # checked widget stays because every presentation snapshot reads its state.
+    # Viewport part picking is off: a freshly opened Mesh Editor is camera-only,
+    # Parts & Routing is the whole-part selection surface, and element selection
+    # belongs to Edit Mesh. The toolbar checkbox is gone but the hidden widget
+    # stays unchecked, because every presentation snapshot reads its state and
+    # MeshViewport routes a left click into BeginSelectionDrag("source") whenever
+    # part_pick_enabled arrives true outside mesh_edit mode.
     preview_part_pick_checkbox = QCheckBox(alignment_preview_control_text["part_pick"], preview_panel)
     preview_part_pick_checkbox.setObjectName("MeshAlignmentPartPickCheckbox")
-    preview_part_pick_checkbox.setChecked(True)
+    preview_part_pick_checkbox.setChecked(False)
     preview_part_pick_checkbox.setVisible(False)
     preview_mesh_edit_checkbox = QCheckBox("Edit Mesh")
     preview_mesh_edit_checkbox.setObjectName("MeshEditModeCheckbox")
@@ -733,8 +745,15 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         # this reaches both panes through the same update.
         _sync_highlight_sets()
 
+    def _preview_gizmo_toggled(checked: bool = False) -> None:
+        try:
+            self.settings.setValue(alignment_gizmo_visible_settings_key, bool(checked))
+        except (AttributeError, RuntimeError):
+            pass
+        _sync_highlight_sets()
+
     preview_grid_checkbox.toggled.connect(_preview_grid_toggled)
-    preview_gizmo_checkbox.toggled.connect(lambda *_args: _sync_highlight_sets())
+    preview_gizmo_checkbox.toggled.connect(_preview_gizmo_toggled)
     preview_part_pick_checkbox.toggled.connect(_preview_part_pick_toggled)
     preview_stack = QStackedWidget(preview_panel)
     preview_stack.addWidget(alignment_d3d11_preview_page)

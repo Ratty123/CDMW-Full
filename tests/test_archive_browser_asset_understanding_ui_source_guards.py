@@ -529,8 +529,13 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         complete_start = modify_source.index("        def _handle_complete(", task_start)
         task_body = modify_source[task_start:complete_start]
         complete_body = modify_source[
-            complete_start:modify_source.index("        self._run_utility_task(", complete_start)
+            complete_start:modify_source.index("        self._run_utility_task_when_idle(", complete_start)
         ]
+        # The draft check chains into preparation from a completion handler, where the
+        # first worker thread is still registered. A plain _run_utility_task is refused
+        # there as a concurrent task, and the refusal never reaches the archive log.
+        self.assertIn("self._run_utility_task_when_idle(", modify_source[launch:])
+        self.assertNotIn("self._run_utility_task(", modify_source[launch:])
         self.assertIn("cleanup_stale_sessions=False", modify_source[launch:task_start])
         self.assertIn("prepare_modify_original_workspace(", task_body)
         self.assertIn("stop_event=stop_event", task_body)
@@ -713,7 +718,12 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("self._archive_scan_progress_timer.start(delay_ms)", source)
         self.assertIn("self._flush_archive_scan_progress()", source)
         self.assertIn("self.archive_scan_progress_bar.setRange(0, 100)", source)
-        self.assertIn("self.archive_scan_progress_bar.setFormat(f\"{percent_value}%\")", source)
+        # The coalesced write path binds the bar locally and skips redundant
+        # setValue/setFormat pairs, which is the part that keeps the main thread
+        # out of QProgressBar.setValue at progress-callback cadence.
+        self.assertIn("bar = self.archive_scan_progress_bar", source)
+        self.assertIn("if left_indeterminate or bar.value() != percent_value:", source)
+        self.assertIn("bar.setFormat(f\"{percent_value}%\")", source)
         self.assertIn("self.archive_scan_progress_label.setText(phase_text)", source)
         self.assertIn("self._dashboard_set_archive_progress(phase_text, detail_text, percent_value)", source)
         self.assertIn('self.archive_scan_progress_label = QLabel("Ready")', source)

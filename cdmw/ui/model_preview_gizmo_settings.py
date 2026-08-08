@@ -30,6 +30,10 @@ GIZMO_COLOR_SETTING_FIELDS = (
     # grid's minor-line colour.
     "d3d11_background_color",
     "d3d11_grid_color",
+    # Topology overlay colours, here for the same reason: one panel, one
+    # persistence lane, one presentation-quality payload.
+    "d3d11_wire_color",
+    "d3d11_vertex_color",
 )
 
 GIZMO_NUMERIC_SETTING_FIELDS = (
@@ -132,6 +136,8 @@ class GizmoPreviewSettingsPanel(QScrollArea):
             ("gizmo_label_color", "Label color"),
             ("d3d11_background_color", "Viewport background"),
             ("d3d11_grid_color", "Grid color"),
+            ("d3d11_wire_color", "Wireframe color"),
+            ("d3d11_vertex_color", "Vertex marker color"),
         ):
             control = _PreviewColorButton(str(getattr(defaults, key)))
             control.valueChanged.connect(self._emit_settings_changed)

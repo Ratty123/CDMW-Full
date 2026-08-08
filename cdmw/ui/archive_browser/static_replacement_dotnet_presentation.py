@@ -49,6 +49,8 @@ _RENDER_SETTING_FIELDS = (
     "d3d11_mip_lod_bias",
     "d3d11_background_color",
     "d3d11_grid_color",
+    "d3d11_wire_color",
+    "d3d11_vertex_color",
     "d3d11_grid_spacing_scale",
     "d3d11_grid_line_count",
     "ambient_strength",

@@ -126,6 +126,8 @@ def model_preview_settings_change_flags(
         or previous_settings.d3d11_mip_lod_bias != preview_settings.d3d11_mip_lod_bias
         or getattr(previous_settings, "d3d11_background_color", "") != getattr(preview_settings, "d3d11_background_color", "")
         or getattr(previous_settings, "d3d11_grid_color", "") != getattr(preview_settings, "d3d11_grid_color", "")
+        or getattr(previous_settings, "d3d11_wire_color", "") != getattr(preview_settings, "d3d11_wire_color", "")
+        or getattr(previous_settings, "d3d11_vertex_color", "") != getattr(preview_settings, "d3d11_vertex_color", "")
         or getattr(previous_settings, "d3d11_grid_spacing_scale", 1.0) != getattr(preview_settings, "d3d11_grid_spacing_scale", 1.0)
         or getattr(previous_settings, "d3d11_grid_line_count", 10) != getattr(preview_settings, "d3d11_grid_line_count", 10)
         or previous_settings.d3d11_view_mode != preview_settings.d3d11_view_mode
