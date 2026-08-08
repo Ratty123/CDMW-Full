@@ -81,6 +81,17 @@ internal sealed partial class MeshViewport
     public bool PresentationInteractionAllowed =>
         !string.Equals(_activeCameraContextId, "reference", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Whether every pane would sample the material. The panes render from
+    /// their own copy of the flag, so the viewport property alone does not say
+    /// what is drawn.
+    /// </summary>
+    public bool PresentationContextTexturesEnabled()
+    {
+        InitializePresentationContexts();
+        return _presentationContexts.Values.All(context => context.TexturesEnabled);
+    }
+
     private void InitializePresentationContexts()
     {
         if (_presentationContexts.Count > 0)
