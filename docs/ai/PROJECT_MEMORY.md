@@ -165,7 +165,7 @@ Last updated: 2026-08-10
   `docs/reference/app-startup-benchmark-phase6.json`; dated timing summaries
   belong in `docs/release-confidence-plan.md`.
 - Release Python dependencies are pinned by tested constraints. CI installs .NET 10,
-  builds the exact helper, runs nonvisual Python 3.11/3.14 gates, and gates packaging on both QA jobs. The published helper remains `WinExe`; headless entry-report tests override `OutputType=Exe` into system temp, launch that console apphost directly, and reuse its JSON across parameterized consumers. Do not use a WinExe host process as the completion fence across SDK versions.
+  builds the exact helper, runs nonvisual Python 3.11/3.14 gates, and gates packaging on both QA jobs. The published helper remains `WinExe`; headless entry-report tests force a fresh `OutputType=Exe` build with WinExe inference disabled, prove its PE console subsystem, launch it beside its runtime files, and reuse its JSON across parameterized consumers. Do not use a WinExe host process as the completion fence across SDK versions.
 - Portable self-contained .NET remains the default. Change publish mode only
   when size improves at least 20% and helper-ready p95 regresses under 10%.
 
