@@ -131,8 +131,9 @@ Morph & Refit composition and command handoff, and the nonvisual WinForms round 
 dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-edit-mesh-layout-smoke --layout-report "$env:TEMP\cdmw-edit-mesh-layout.json"
 .\.venv\Scripts\python.exe -m pytest tests/test_dotnet_edit_mesh_entry_layout.py tests/test_dotnet_solid_textured_view_survives_publish.py
-dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release -p:OutputType=Exe -o "$env:TEMP\cdmw-edit-mesh-headless"
-& "$env:TEMP\cdmw-edit-mesh-headless\cdmw-mesh-dotnet-editor.exe" --headless-edit-mesh-entry-smoke --edit-mesh-entry-report "$env:TEMP\cdmw-edit-mesh-entry.json"
+dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release --no-incremental -p:OutputType=Exe -p:DisableWinExeOutputInference=true -o "$env:TEMP\cdmw-edit-mesh-headless"
+Push-Location "$env:TEMP\cdmw-edit-mesh-headless"
+try { & ".\cdmw-mesh-dotnet-editor.exe" --headless-edit-mesh-entry-smoke --edit-mesh-entry-report "$env:TEMP\cdmw-edit-mesh-entry.json" } finally { Pop-Location }
 ```
 
 The layout smoke constructs real WinForms ownership trees, visits all five deck
@@ -142,12 +143,13 @@ exercises the hidden zero-size splitter construction phase before applying the
 real viewport/deck dimensions. It starts no renderer or visible window and
 reads no licensed asset. The `mesh-unit` gate runs this smoke after its focused
 source and behavior tests. The published helper remains a `WinExe`; entry-report
-gates build the same project into system temp with `OutputType=Exe` and launch
-that console apphost directly, giving the headless producer a real completion
-and exit contract across SDK versions. The JSON report remains the result
-authority, with proof stage and full exception on failure. The two parameterized
-scene inspector assertions share their module-scoped report instead of
-relaunching the same smoke once per report key.
+gates build the same project afresh into system temp with `OutputType=Exe` and
+WinExe inference disabled. They verify the resulting PE uses the Windows console
+subsystem, then launch it from beside its DLL and runtime files, giving the
+headless producer a real completion and exit contract across SDK versions. The
+JSON report remains the result authority, with proof stage and full exception on
+failure. The two parameterized scene inspector assertions share their
+module-scoped report instead of relaunching the same smoke once per report key.
 
 Resident Python/WinForms interface-localization negotiation, exact manifest and
 acknowledgement correlation, Unicode payload bounds, stale rejection,

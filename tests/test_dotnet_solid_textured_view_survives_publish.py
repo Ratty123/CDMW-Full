@@ -46,9 +46,11 @@ def _build_helper(output_dir: Path) -> Path:
             "Release",
             "--nologo",
             "--verbosity:quiet",
+            "--no-incremental",
             "--output",
             str(output_dir),
             "-p:OutputType=Exe",
+            "-p:DisableWinExeOutputInference=true",
         ],
         cwd=REPO_ROOT,
         check=False,
@@ -60,6 +62,11 @@ def _build_helper(output_dir: Path) -> Path:
     assert completed.returncode == 0, completed.stdout
     helper = output_dir / DOTNET_HELPER_NAME
     assert helper.is_file(), completed.stdout
+    image = helper.read_bytes()
+    pe_offset = int.from_bytes(image[0x3C:0x40], "little")
+    assert image[pe_offset : pe_offset + 4] == b"PE\0\0"
+    subsystem = int.from_bytes(image[pe_offset + 92 : pe_offset + 94], "little")
+    assert subsystem == 3, f"Expected a console apphost, got PE subsystem {subsystem}."
     return helper
 
 
@@ -97,7 +104,7 @@ def test_a_named_display_mode_owns_the_textures() -> None:
                 "--edit-mesh-entry-report",
                 str(report_path),
             ],
-            cwd=REPO_ROOT,
+            cwd=helper.parent,
             check=False,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
