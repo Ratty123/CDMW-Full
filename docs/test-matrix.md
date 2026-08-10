@@ -131,7 +131,7 @@ Morph & Refit composition and command handoff, and the nonvisual WinForms round 
 dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-edit-mesh-layout-smoke --layout-report "$env:TEMP\cdmw-edit-mesh-layout.json"
 .\.venv\Scripts\python.exe -m pytest tests/test_dotnet_edit_mesh_entry_layout.py tests/test_dotnet_solid_textured_view_survives_publish.py
-& .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.exe --headless-edit-mesh-entry-smoke --edit-mesh-entry-report "$env:TEMP\cdmw-edit-mesh-entry.json"
+dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-edit-mesh-entry-smoke --edit-mesh-entry-report "$env:TEMP\cdmw-edit-mesh-entry.json"
 ```
 
 The layout smoke constructs real WinForms ownership trees, visits all five deck
@@ -140,10 +140,10 @@ its created native handle to remain under one permanent parent. It also
 exercises the hidden zero-size splitter construction phase before applying the
 real viewport/deck dimensions. It starts no renderer or visible window and
 reads no licensed asset. The `mesh-unit` gate runs this smoke after its focused
-source and behavior tests. Entry-report gates execute the built WinExe directly:
-`dotnet run` is not a trustworthy completion fence for a Windows-subsystem app
-across SDK versions, while the directly launched apphost does not return before
-the report producer exits.
+source and behavior tests. Entry-report gates execute the built assembly through
+the `dotnet` console host, which remains coupled to the report producer across
+SDK versions. Neither `dotnet run` nor the Windows-subsystem apphost is a
+trustworthy completion fence for this headless report gate.
 
 Resident Python/WinForms interface-localization negotiation, exact manifest and
 acknowledgement correlation, Unicode payload bounds, stale rejection,

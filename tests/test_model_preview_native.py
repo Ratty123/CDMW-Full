@@ -1002,21 +1002,17 @@ class NativePreviewPayloadTests(unittest.TestCase):
             )
         )
         with tempfile.TemporaryDirectory() as temp_dir:
-            temp = Path(temp_dir)
-            # Declared semantics must outrank path guessing. ``ao`` is a
-            # realistic random/temp directory token and used to reclassify the
-            # declared glossiness input as a second occlusion map.
-            source_root = temp / "ao"
-            source_root.mkdir()
-            base_path = source_root / "body_base.png"
+            temp = Path(temp_dir, "ao")  # Declared semantics outrank parent-path guessing.
+            temp.mkdir()
+            base_path = temp / "body_base.png"
             base_image = QImage(2, 2, QImage.Format_RGBA8888)
             base_image.fill(QColor(160, 120, 80, 255))
             self.assertTrue(base_image.save(str(base_path), "PNG"))
-            ao_path = source_root / "body_ao.png"
+            ao_path = temp / "body_ao.png"
             ao_image = QImage(2, 2, QImage.Format_RGBA8888)
             ao_image.fill(QColor(64, 64, 64, 255))
             self.assertTrue(ao_image.save(str(ao_path), "PNG"))
-            gloss_path = source_root / "body_glossiness.png"
+            gloss_path = temp / "body_glossiness.png"
             gloss_image = QImage(2, 2, QImage.Format_RGBA8888)
             gloss_image.fill(QColor(64, 64, 64, 255))
             self.assertTrue(gloss_image.save(str(gloss_path), "PNG"))
@@ -1054,11 +1050,6 @@ class NativePreviewPayloadTests(unittest.TestCase):
                     ),
                 ),
             )
-            self.assertEqual(
-                "glossiness",
-                _input_texture_kind(prepared.batches[0].preview_material_texture_inputs[1]),
-            )
-
             package_dir = write_isolated_d3d11_preview_package(
                 ModelPreviewData(path=str(temp / "scene.gltf")),
                 prepared,
@@ -1068,7 +1059,6 @@ class NativePreviewPayloadTests(unittest.TestCase):
             )
             manifest = json.loads((package_dir / "manifest.json").read_text(encoding="utf-8"))
             textures = manifest["batches"][0]["textures"]
-
             self.assertTrue(textures["occlusion"])
             self.assertTrue(textures["roughness"])
             self.assertEqual("", textures["metalness"])

@@ -33,7 +33,7 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOTNET_ROOT = REPO_ROOT / "tools" / "dotnet_mesh_editor_experiment"
 DOTNET_PROJECT = DOTNET_ROOT / "Cdmw.MeshEditorExperiment.csproj"
-DOTNET_HELPER = DOTNET_ROOT / "bin" / "Release" / "net10.0-windows" / "cdmw-mesh-dotnet-editor.exe"
+DOTNET_HELPER = DOTNET_ROOT / "bin" / "Release" / "net10.0-windows" / "cdmw-mesh-dotnet-editor.dll"
 
 
 def _build_helper() -> None:
@@ -85,6 +85,7 @@ def test_a_named_display_mode_owns_the_textures() -> None:
         report_path = Path(temp_dir) / "entry.json"
         completed = subprocess.run(
             [
+                "dotnet",
                 str(DOTNET_HELPER),
                 "--headless-edit-mesh-entry-smoke",
                 "--edit-mesh-entry-report",
