@@ -70,6 +70,30 @@ def _coverage_command(action: str) -> MeshEditCommand:
         return MeshEditCommand(action, selection=MeshEditSelection.from_maps(source_indices=(1,)), params={"source_submesh_index": 0})
     return MeshEditCommand(action, selection=vertices)
 
+
+def _prepared_coverage_command(service: MeshService, session_id: str, action: str) -> MeshEditCommand:
+    """Prepare stateful commands while keeping every coverage session isolated."""
+    face = MeshEditSelection.from_maps(faces_by_submesh={0: (0,)})
+    if action in {"copy", "paste", "layer_delete"}:
+        service.apply_command(
+            session_id,
+            MeshEditCommand("select", selection=face, params={"operation": "replace"}),
+        )
+    if action == "copy":
+        return MeshEditCommand("copy", params={"target_mode": "face"}, mode="edit")
+    if action in {"paste", "layer_delete"}:
+        service.apply_command(
+            session_id,
+            MeshEditCommand("copy", params={"target_mode": "face"}, mode="edit"),
+        )
+    if action == "paste":
+        return MeshEditCommand("paste", mode="edit")
+    if action == "layer_delete":
+        service.apply_command(session_id, MeshEditCommand("paste", mode="edit"))
+        layer_id = str(service.geometry_layer_state(session_id)["active_layer_id"])
+        return MeshEditCommand("layer_delete", params={"layer_id": layer_id}, mode="edit")
+    return _coverage_command(action)
+
 def run_service_command_coverage() -> dict[str, object]:
     service = MeshService()
     commands: list[dict[str, object]] = []
@@ -77,8 +101,9 @@ def run_service_command_coverage() -> dict[str, object]:
     for action in MESH_EDIT_ACTIONS:
         mesh = _build_two_part_synthetic_mesh(primary_format) if action == "material_copy" else build_synthetic_mesh(primary_format)
         view = service.open_edit_session(mesh, session_id=f"coverage-{primary_format}-{action}", mode="edit")
-        result = service.apply_command(view.session_id, _coverage_command(action))
+        result = service.apply_command(view.session_id, _prepared_coverage_command(service, view.session_id, action))
         summary = _command_summary(result)
+        summary["action"] = action
         summary["mesh_format"] = primary_format
         commands.append(summary)
         service.close_edit_session(view.session_id)
@@ -123,6 +148,13 @@ def run_controller_action_palette_coverage() -> dict[str, object]:
         elif action.command == "redo":
             controller.apply("transform", selection=MeshEditSelection.from_maps(vertices_by_submesh={0: (0,)}), translate=(0.0, 0.0, 0.1))
             controller.undo()
+        elif action.command in {"paste", "layer_delete"}:
+            face = MeshEditSelection.from_maps(faces_by_submesh={0: (0,)})
+            controller.apply("select", selection=face, operation="replace")
+            controller.apply("copy", target_mode="face")
+            if action.command == "layer_delete":
+                controller.apply("paste")
+                params["layer_id"] = controller.geometry_layer_state()["active_layer_id"]
         result = controller.run_editor_action(action, selection=selection, **params)
         commands.append(_palette_command_summary(action.key, action.command, result))
         controller.close_active_session()
@@ -195,4 +227,6 @@ def _palette_action_input(action_key: str, command: str) -> tuple[MeshEditSelect
         }
     if command == "material_copy":
         return MeshEditSelection.from_maps(source_indices=(1,)), {"source_submesh_index": 0}
+    if command == "copy":
+        return face, {"target_mode": "face"}
     return None, {}

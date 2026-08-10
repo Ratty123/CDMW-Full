@@ -77,7 +77,7 @@ def test_interaction_soak_drives_real_provisional_paths_and_required_gates() -> 
     soak = _source("HeadlessGpuInteractionSoak.cs")
     probe = _source("MeshViewport.InteractionSoak.cs")
     strokes = _source("MeshViewport.ProvisionalStrokes.cs")
-    picking = _source("MeshViewport.SelectionPicking.cs")
+    picking = _source("MeshViewport.SelectionPicking.cs") + _source("MeshViewport.SelectionPaint.cs")
     input_source = _source("MeshViewport.Input.cs")
 
     assert entry.index("HeadlessGpuInteractionSoak.IsRequested(args)") < entry.index(

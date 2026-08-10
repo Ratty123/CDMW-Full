@@ -1623,11 +1623,8 @@ def _fbx_binary_material_inventory(
                 evidence = tuple(merged.get("evidence", ()) or ()) + ("companion_file_matched_binary_ref",)
                 merged["evidence"] = tuple(item for item in evidence if item)
         merged_binary_slots.append(merged)
-    companion_keys = {
-        (
-            str(slot.get("slot_kind", "") or "").strip().lower(),
-            str(slot.get("texture_name", "") or "").strip().casefold(),
-        )
+    binary_slot_kinds = {
+        str(slot.get("slot_kind", "") or "").strip().lower()
         for slot in merged_binary_slots
     }
     texture_slots = _dedupe_texture_slot_rows(
@@ -1635,11 +1632,7 @@ def _fbx_binary_material_inventory(
         + tuple(
             slot
             for slot in companion_slots
-            if (
-                str(slot.get("slot_kind", "") or "").strip().lower(),
-                str(slot.get("texture_name", "") or "").strip().casefold(),
-            )
-            not in companion_keys
+            if str(slot.get("slot_kind", "") or "").strip().lower() not in binary_slot_kinds
         )
     )
     material_name = _fbx_binary_material_name(data) or model_path.stem

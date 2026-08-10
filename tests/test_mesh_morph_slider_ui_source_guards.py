@@ -51,12 +51,20 @@ def _resident_morph_source() -> str:
         ROOT / "native" / "cdmw_mesh_core" / "src" / "owners" / "session_morph_01.cpp",
         ROOT / "native" / "cdmw_mesh_core" / "src" / "owners" / "session_state_05.cpp",
         ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphRefit.cs",
+        ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphAuthoring.cs",
         ROOT / "tools" / "dotnet_mesh_editor_experiment" / "MorphAuthorWizard.cs",
         ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MutationAuthority.cs",
         ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.Protocol.cs",
         ROOT / "tools" / "dotnet_mesh_editor_experiment" / "Program.cs",
     )
     return "\n".join(path.read_text(encoding="utf-8") for path in paths)
+
+
+def _resident_morph_form_source() -> str:
+    return "\n".join(
+        (ROOT / "tools" / "dotnet_mesh_editor_experiment" / name).read_text(encoding="utf-8")
+        for name in ("ExperimentForm.MorphRefit.cs", "ExperimentForm.MorphAuthoring.cs")
+    )
 
 
 def _resident_controls_source() -> str:
@@ -132,9 +140,7 @@ class MeshMorphSliderUiSourceGuardTests(unittest.TestCase):
         self.assertNotIn("Process.Start", (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphRefit.cs").read_text(encoding="utf-8"))
 
     def test_morph_wizard_serializes_correlated_preview_and_save_commands(self) -> None:
-        source = (
-            ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphRefit.cs"
-        ).read_text(encoding="utf-8")
+        source = _resident_morph_form_source()
         preview_start = source.index("    private void PreviewMorphAuthorDialog(")
         preview_end = source.index("    private static Dictionary<string, object?> MorphWizardChangePayload(", preview_start)
         preview_body = source[preview_start:preview_end]
@@ -153,9 +159,7 @@ class MeshMorphSliderUiSourceGuardTests(unittest.TestCase):
         self.assertIn("CompleteMorphWizardCommandSequence(accepted: false)", source)
 
     def test_new_profile_cancel_deletes_the_temporary_profile_and_edit_preserves_scope(self) -> None:
-        source = (
-            ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphRefit.cs"
-        ).read_text(encoding="utf-8")
+        source = _resident_morph_form_source()
         wizard_source = (
             ROOT / "tools" / "dotnet_mesh_editor_experiment" / "MorphAuthorWizard.cs"
         ).read_text(encoding="utf-8")
@@ -170,9 +174,7 @@ class MeshMorphSliderUiSourceGuardTests(unittest.TestCase):
         self.assertIn("&& !PreserveExistingSelection", wizard_source)
 
     def test_morph_slider_paces_updates_and_flushes_only_after_acknowledgement(self) -> None:
-        source = (
-            ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphRefit.cs"
-        ).read_text(encoding="utf-8")
+        source = _resident_morph_form_source()
         completion_start = source.index("    private void CompleteMorphCommandResult(")
         completion_end = source.index("    private void RegisterTopologyMutationButton(", completion_start)
         completion_body = source[completion_start:completion_end]

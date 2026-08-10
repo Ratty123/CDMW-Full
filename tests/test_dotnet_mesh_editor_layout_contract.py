@@ -10,7 +10,14 @@ DOTNET_ROOT = (
 
 
 def _source(name: str) -> str:
-    return (DOTNET_ROOT / name).read_text(encoding="utf-8")
+    owners = {
+        "Program.cs": ("Program.cs", "ExperimentForm.ToolPanels.cs"),
+        "ExperimentForm.Controls.cs": (
+            "ExperimentForm.Controls.cs",
+            "ExperimentForm.AppearanceControls.cs",
+        ),
+    }.get(name, (name,))
+    return "\n".join((DOTNET_ROOT / owner).read_text(encoding="utf-8") for owner in owners)
 
 
 def _section_stack(program_source: str, title: str) -> str:

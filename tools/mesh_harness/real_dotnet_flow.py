@@ -406,59 +406,10 @@ def _record_apply_update_evidence(
     state.apply_update_evidence.append(evidence)
 
 
-def exercise_assignment_and_mesh_edits(
+def _commit_painted_assignment(
     state: SimpleNamespace,
-    *,
     pump_until: Callable[..., bool],
 ) -> str:
-    state.apply_update_evidence = []
-    state.history_result_evidence = []
-    def apply_update(
-        update: object,
-        timeout_seconds: float = 15.0,
-        *,
-        topology_generation_floor: int | None = None,
-    ) -> bool:
-        expected_revision = int(state.controller.session_view().revision)
-        before = state.tab.standalone_dotnet_update_queue.metrics()
-        event_cursor = len(state.tab.standalone_dotnet_protocol_events)
-        state.tab._send_dotnet_native_update(update)
-        drained = pump_until(
-            state,
-            lambda: int(state.tab.standalone_dotnet_update_queue.metrics().get("active_revision", 0) or 0) == 0,
-            timeout_seconds,
-        )
-        after = state.tab.standalone_dotnet_update_queue.metrics()
-        topology_presented = topology_generation_floor is None
-        if drained and topology_generation_floor is not None:
-            topology_presented = pump_until(
-                state,
-                lambda: bool(
-                    _latest_presented_topology_metrics(
-                        state,
-                        event_cursor,
-                        topology_generation_floor=topology_generation_floor,
-                    )
-                ),
-                timeout_seconds,
-            )
-        _record_apply_update_evidence(
-            state,
-            update,
-            expected_revision,
-            before,
-            after,
-            topology_generation_floor=topology_generation_floor,
-            topology_presented=topology_presented,
-        )
-        return bool(
-            drained
-            and topology_presented
-            and int(after.get("last_acked_revision", 0) or 0) >= expected_revision
-            and int(after.get("rejected_updates", 0) or 0)
-            == int(before.get("rejected_updates", 0) or 0)
-            and int(after.get("ack_timeouts", 0) or 0) == int(before.get("ack_timeouts", 0) or 0)
-        )
     source = Path(state.texture_binding.source_path)
     assigned, encode_error = _encode_painted_assignment(state)
     if assigned is None:
@@ -531,6 +482,65 @@ def exercise_assignment_and_mesh_edits(
         assigned_derivative and assigned_derivative != assigned_bytes
     )
     record_flow_step(state, "committed_assignment", artifact=str(assigned))
+    return ""
+
+
+def exercise_assignment_and_mesh_edits(
+    state: SimpleNamespace,
+    *,
+    pump_until: Callable[..., bool],
+) -> str:
+    state.apply_update_evidence = []
+    state.history_result_evidence = []
+    def apply_update(
+        update: object,
+        timeout_seconds: float = 15.0,
+        *,
+        topology_generation_floor: int | None = None,
+    ) -> bool:
+        expected_revision = int(state.controller.session_view().revision)
+        before = state.tab.standalone_dotnet_update_queue.metrics()
+        event_cursor = len(state.tab.standalone_dotnet_protocol_events)
+        state.tab._send_dotnet_native_update(update)
+        drained = pump_until(
+            state,
+            lambda: int(state.tab.standalone_dotnet_update_queue.metrics().get("active_revision", 0) or 0) == 0,
+            timeout_seconds,
+        )
+        after = state.tab.standalone_dotnet_update_queue.metrics()
+        topology_presented = topology_generation_floor is None
+        if drained and topology_generation_floor is not None:
+            topology_presented = pump_until(
+                state,
+                lambda: bool(
+                    _latest_presented_topology_metrics(
+                        state,
+                        event_cursor,
+                        topology_generation_floor=topology_generation_floor,
+                    )
+                ),
+                timeout_seconds,
+            )
+        _record_apply_update_evidence(
+            state,
+            update,
+            expected_revision,
+            before,
+            after,
+            topology_generation_floor=topology_generation_floor,
+            topology_presented=topology_presented,
+        )
+        return bool(
+            drained
+            and topology_presented
+            and int(after.get("last_acked_revision", 0) or 0) >= expected_revision
+            and int(after.get("rejected_updates", 0) or 0)
+            == int(before.get("rejected_updates", 0) or 0)
+            and int(after.get("ack_timeouts", 0) or 0) == int(before.get("ack_timeouts", 0) or 0)
+        )
+    assignment_error = _commit_painted_assignment(state, pump_until)
+    if assignment_error:
+        return assignment_error
     before_resources = dict(state.texture_flow_evidence.get("resource_metrics_after", {}) or {})
     partial_rebuild_floor = int(before_resources.get("partial_topology_rebuilds", 0) or 0) + 4
     topology_generation_floor = int(before_resources.get("topology_generation", 0) or 0) + 4

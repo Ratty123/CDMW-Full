@@ -289,22 +289,10 @@ class ArchivePreviewSettingsMixin:
                 ),
                 max_anisotropy=self._read_int("preview/max_anisotropy", defaults.max_anisotropy),
                 d3d11_mip_lod_bias=self._read_float("preview/d3d11_mip_lod_bias", defaults.d3d11_mip_lod_bias),
-                d3d11_background_color=str(
-                    self.settings.value("preview/d3d11_background_color", defaults.d3d11_background_color)
-                    or defaults.d3d11_background_color
-                ),
-                d3d11_grid_color=str(
-                    self.settings.value("preview/d3d11_grid_color", defaults.d3d11_grid_color)
-                    or defaults.d3d11_grid_color
-                ),
-                d3d11_wire_color=str(
-                    self.settings.value("preview/d3d11_wire_color", defaults.d3d11_wire_color)
-                    or defaults.d3d11_wire_color
-                ),
-                d3d11_vertex_color=str(
-                    self.settings.value("preview/d3d11_vertex_color", defaults.d3d11_vertex_color)
-                    or defaults.d3d11_vertex_color
-                ),
+                d3d11_background_color=str(self.settings.value("preview/d3d11_background_color", defaults.d3d11_background_color) or defaults.d3d11_background_color),
+                d3d11_grid_color=str(self.settings.value("preview/d3d11_grid_color", defaults.d3d11_grid_color) or defaults.d3d11_grid_color),
+                d3d11_wire_color=str(self.settings.value("preview/d3d11_wire_color", defaults.d3d11_wire_color) or defaults.d3d11_wire_color),
+                d3d11_vertex_color=str(self.settings.value("preview/d3d11_vertex_color", defaults.d3d11_vertex_color) or defaults.d3d11_vertex_color),
                 d3d11_grid_spacing_scale=self._read_float(
                     "preview/d3d11_grid_spacing_scale",
                     defaults.d3d11_grid_spacing_scale,

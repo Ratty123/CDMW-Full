@@ -224,6 +224,7 @@ dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-me
 .\.venv\Scripts\python.exe -m pytest tests/test_dotnet_preview_performance_contract.py tests/test_mesh_harness_performance_contract.py tests/test_dotnet_texture_region_protocol.py tests/test_mesh_harness_scenario_registry.py tests/test_mesh_harness_real_dotnet_evidence.py tests/test_mesh_dotnet_live_stroke_dispatch.py
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_asset_pipeline.py tests/test_mesh_pipeline_cli.py tests/test_mesh_dotnet_experiment.py tests/test_mesh_dotnet_experiment_output.py tests/test_mesh_dotnet_material_state.py tests/test_mesh_dotnet_material_visual_parity.py tests/test_mesh_dotnet_material_package.py tests/test_mesh_dotnet_material_dds_synthesis.py tests/test_mesh_dotnet_material_parameters.py tests/test_mesh_visual_audit_harness.py tests/test_mesh_visual_audit_integrity.py tests/test_mesh_visual_audit_package.py tests/test_mesh_visual_audit_v2.py tests/test_dotnet_mesh_editor_tool_protocol_source.py tests/test_dotnet_material_parameter_protocol.py tests/test_native_preview_material_authority_protocol.py tests/test_dotnet_icon_capture_protocol.py tests/test_dotnet_gpu_geometry_resources.py tests/test_dotnet_topology_channel_updates.py tests/test_mesh_edit_revision_protocol.py tests/test_mesh_history_bounds.py tests/test_native_preview_package_cache_concurrency.py tests/test_mesh_edit_operations.py tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_resident_editor_regressions.py tests/test_static_replacement_mesh_edit_dotnet_toggle.py tests/test_static_replacement_d3d11_cache.py tests/test_mesh_deformer.py tests/test_mesh_body_regions.py tests/test_mesh_body_region_falloff.py tests/test_mesh_body_region_sliders.py tests/test_mesh_body_region_slider_native.py tests/test_mesh_region_decompose.py tests/test_mesh_body_region_atlas.py tests/test_native_morph_field_generation.py tests/test_pac_skin_layout_regression.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_harness_scenario_registry.py tests/test_mesh_harness_real_dotnet_evidence.py tests/test_mesh_dotnet_live_stroke_dispatch.py
+.\.venv\Scripts\python.exe -m pytest tests/test_dotnet_mesh_editor_tool_protocol_source.py tests/test_dotnet_mesh_editor_display_protocol_source.py tests/test_mesh_edit_preview_host_source_guard.py tests/test_mesh_edit_responsiveness_source_guards.py tests/test_alignment_dialog_resident_protocol_source_guards.py
 .\.venv\Scripts\python.exe -m pytest tests/test_scene_import_uv_contract.py tests/test_scene_import_normalization.py tests/test_scene_importer_gltf.py
 .\scripts\codex_check.ps1 -Area mesh -GameRoot "C:\games\Steam\steamapps\common\Crimson Desert"
 .\scripts\codex_check.ps1 -Area mesh-unit
@@ -541,9 +542,10 @@ exact onedir or extracted onefile payload. This is headless synthetic packaging
 evidence, not real-corpus or visible UI proof. The
 onedir publisher removes the smoke-created `workspace/` and
 `CrimsonDesertModWorkbench.cfg` runtime artifacts before publishing. GitHub
-Actions runs the complete nonvisual gate on Python 3.11 and 3.14 first;
-packaging has a hard dependency on both matrix jobs. CI explicitly excludes
-`visual` and `real_game` tests. Licensed local game evidence remains the separate
+Actions installs .NET 10, builds the exact Mesh Editor helper, and then runs the
+complete nonvisual gate on Python 3.11 and 3.14; packaging has a hard dependency
+on both matrix jobs. CI explicitly excludes `visual` and `real_game` tests.
+Licensed local game evidence remains the separate
 `codex_check.ps1 -Area mesh -GameRoot <PATH>` gate and is never scheduled by CI.
 
 ## Notes

@@ -149,47 +149,18 @@ def _read_modify_original_draft(manifest_path: Path) -> ModifyOriginalDraft | No
     )
 
 
-def prepare_modify_original_workspace(
+def _resume_modify_original_workspace(
     request: ModifyOriginalWorkspacePreparationRequest,
-    *,
-    log: LogCallback | None = None,
-    progress: ProgressCallback | None = None,
-    stop_event: threading.Event | None = None,
-    cleanup_stale_sessions: CleanupCallback | None = None,
-    collect_supplemental_files: SupplementalFilesCallback | None = None,
-) -> dict[str, object]:
-    """Export, import, and parse the exact safe clone used by Modify Original.
-
-    The caller owns worker/thread lifetime. This function performs no UI work and
-    never writes to PAMT/PAZ sources; all output is confined to ``workspace_dir``.
-    """
-
-    stop = stop_event or threading.Event()
-    emit = log or (lambda _message: None)
-    report = progress or (lambda _current, _total, _detail: None)
-    workspace_dir = Path(request.workspace_dir).expanduser().resolve()
+    workspace_dir: Path,
+    source_asset_sha256: str,
+    original_data: bytes,
+    stop: threading.Event,
+    emit: LogCallback,
+    report: ProgressCallback,
+    collect_supplemental_files: SupplementalFilesCallback | None,
+) -> dict[str, object] | None:
     entry = request.entry
-    create_workspace = bool(request.create_workspace)
-    include_family = bool(request.include_family_files)
-    open_after = bool(create_workspace and request.open_workspace_after_create)
-    original_data = bytes(request.source_asset_data or b"")
-    requested_source_hash = str(request.source_asset_sha256 or "").strip().lower()
-
-    raise_if_cancelled(stop, "Modify Original preparation cancelled.")
     total_steps = 5
-    report(1, total_steps, "Modify Original: verifying source asset...")
-    if request.cleanup_stale_sessions and cleanup_stale_sessions is not None:
-        cleanup_stale_sessions(emit)
-    if original_data:
-        source_asset_sha256 = hashlib.sha256(original_data).hexdigest()
-    else:
-        original_data, source_asset_sha256 = read_modify_original_source_asset(
-            entry,
-            stop_event=stop,
-        )
-    if requested_source_hash and requested_source_hash != source_asset_sha256:
-        raise ValueError("Modify Original source fingerprint changed before the workspace opened")
-
     resume_manifest = (
         Path(request.resume_manifest_path).expanduser().resolve()
         if request.resume_manifest_path is not None
@@ -239,58 +210,21 @@ def prepare_modify_original_workspace(
             "source_skeleton": None,
             "original_mesh": original_mesh,
         }
+    return None
 
-    report(1, total_steps, "Modify Original: creating safe clone folder...")
-    workspace_dir.parent.mkdir(parents=True, exist_ok=True)
-    emit(
-        f"Creating Modify Original workspace: {workspace_dir}"
-        if create_workspace
-        else f"Preparing Modify Original in-app session: {workspace_dir}"
-    )
-    if include_family and not create_workspace:
-        emit(
-            "Modify Original in-app session uses the archive material graph directly; "
-            "resolved asset-family file copying is skipped to keep startup responsive."
-        )
 
-    report(2, total_steps, "Modify Original: writing editable OBJ clone...")
-    export_result = export_archive_mesh(
-        entry,
-        workspace_dir,
-        "obj",
-        archive_entries_by_normalized_path=request.archive_entries_by_normalized_path,
-        archive_entries_by_basename=request.archive_entries_by_basename,
-        related_entries=request.related_entries,
-        allow_missing_skeleton=True,
-        resolve_skeleton_for_obj=create_workspace,
-        model_texture_references=request.model_texture_references,
-        asset_family_graph=request.asset_family_graph,
-        build_preview_context=create_workspace,
-        on_log=emit,
-    )
-    raise_if_cancelled(stop, "Modify Original preparation cancelled.")
-    obj_paths = [path for path in export_result.output_paths if path.suffix.lower() == ".obj"]
-    if not obj_paths:
-        raise ValueError("OBJ export did not produce an editable clone file.")
-    obj_path = obj_paths[0]
-
-    emit("Preloading Modify Original clone geometry off the UI thread...")
-    report(3, total_steps, "Modify Original: loading editable clone geometry...")
-    scene_import_result = import_scene_mesh_with_report(obj_path, stop_event=stop)
-    emit("Preloading original archive mesh for Geometry alignment...")
-    report(4, total_steps, "Modify Original: loading original archive mesh...")
-    original_mesh = parse_mesh(original_data, entry.path)
-    source_skeleton = None
-    supplemental_files = tuple(
-        Path(path)
-        for path in (
-            collect_supplemental_files(workspace_dir, stop)
-            if collect_supplemental_files is not None
-            else ()
-        )
-    )
-    raise_if_cancelled(stop, "Modify Original preparation cancelled.")
-
+def _write_modify_original_workspace_metadata(
+    request: ModifyOriginalWorkspacePreparationRequest,
+    workspace_dir: Path,
+    obj_path: Path,
+    source_asset_sha256: str,
+    supplemental_files: tuple[Path, ...],
+    export_result: object,
+) -> tuple[Path | None, Path, Path]:
+    entry = request.entry
+    create_workspace = bool(request.create_workspace)
+    include_family = bool(request.include_family_files)
+    open_after = bool(create_workspace and request.open_workspace_after_create)
     readme_path: Path | None = None
     manifest_path = workspace_dir / "modify_original_workspace.json"
     mesh_layer_project_path = workspace_dir / "mesh_layers" / "mesh_layer_project.json"
@@ -344,6 +278,121 @@ def prepare_modify_original_workspace(
             },
             indent=2,
         ),
+    )
+    return readme_path, manifest_path, mesh_layer_project_path
+
+
+def prepare_modify_original_workspace(
+    request: ModifyOriginalWorkspacePreparationRequest,
+    *,
+    log: LogCallback | None = None,
+    progress: ProgressCallback | None = None,
+    stop_event: threading.Event | None = None,
+    cleanup_stale_sessions: CleanupCallback | None = None,
+    collect_supplemental_files: SupplementalFilesCallback | None = None,
+) -> dict[str, object]:
+    """Export, import, and parse the exact safe clone used by Modify Original.
+
+    The caller owns worker/thread lifetime. This function performs no UI work and
+    never writes to PAMT/PAZ sources; all output is confined to ``workspace_dir``.
+    """
+
+    stop = stop_event or threading.Event()
+    emit = log or (lambda _message: None)
+    report = progress or (lambda _current, _total, _detail: None)
+    workspace_dir = Path(request.workspace_dir).expanduser().resolve()
+    entry = request.entry
+    create_workspace = bool(request.create_workspace)
+    include_family = bool(request.include_family_files)
+    open_after = bool(create_workspace and request.open_workspace_after_create)
+    original_data = bytes(request.source_asset_data or b"")
+    requested_source_hash = str(request.source_asset_sha256 or "").strip().lower()
+
+    raise_if_cancelled(stop, "Modify Original preparation cancelled.")
+    total_steps = 5
+    report(1, total_steps, "Modify Original: verifying source asset...")
+    if request.cleanup_stale_sessions and cleanup_stale_sessions is not None:
+        cleanup_stale_sessions(emit)
+    if original_data:
+        source_asset_sha256 = hashlib.sha256(original_data).hexdigest()
+    else:
+        original_data, source_asset_sha256 = read_modify_original_source_asset(
+            entry,
+            stop_event=stop,
+        )
+    if requested_source_hash and requested_source_hash != source_asset_sha256:
+        raise ValueError("Modify Original source fingerprint changed before the workspace opened")
+
+    resumed = _resume_modify_original_workspace(
+        request,
+        workspace_dir,
+        source_asset_sha256,
+        original_data,
+        stop,
+        emit,
+        report,
+        collect_supplemental_files,
+    )
+    if resumed is not None:
+        return resumed
+    report(1, total_steps, "Modify Original: creating safe clone folder...")
+    workspace_dir.parent.mkdir(parents=True, exist_ok=True)
+    emit(
+        f"Creating Modify Original workspace: {workspace_dir}"
+        if create_workspace
+        else f"Preparing Modify Original in-app session: {workspace_dir}"
+    )
+    if include_family and not create_workspace:
+        emit(
+            "Modify Original in-app session uses the archive material graph directly; "
+            "resolved asset-family file copying is skipped to keep startup responsive."
+        )
+
+    report(2, total_steps, "Modify Original: writing editable OBJ clone...")
+    export_result = export_archive_mesh(
+        entry,
+        workspace_dir,
+        "obj",
+        archive_entries_by_normalized_path=request.archive_entries_by_normalized_path,
+        archive_entries_by_basename=request.archive_entries_by_basename,
+        related_entries=request.related_entries,
+        allow_missing_skeleton=True,
+        resolve_skeleton_for_obj=create_workspace,
+        model_texture_references=request.model_texture_references,
+        asset_family_graph=request.asset_family_graph,
+        build_preview_context=create_workspace,
+        on_log=emit,
+    )
+    raise_if_cancelled(stop, "Modify Original preparation cancelled.")
+    obj_paths = [path for path in export_result.output_paths if path.suffix.lower() == ".obj"]
+    if not obj_paths:
+        raise ValueError("OBJ export did not produce an editable clone file.")
+    obj_path = obj_paths[0]
+
+    emit("Preloading Modify Original clone geometry off the UI thread...")
+    report(3, total_steps, "Modify Original: loading editable clone geometry...")
+    scene_import_result = import_scene_mesh_with_report(obj_path, stop_event=stop)
+    emit("Preloading original archive mesh for Geometry alignment...")
+    report(4, total_steps, "Modify Original: loading original archive mesh...")
+    original_mesh = parse_mesh(original_data, entry.path)
+    source_skeleton = None
+    supplemental_files = tuple(
+        Path(path)
+        for path in (
+            collect_supplemental_files(workspace_dir, stop)
+            if collect_supplemental_files is not None
+            else ()
+        )
+    )
+    raise_if_cancelled(stop, "Modify Original preparation cancelled.")
+
+    readme_path, manifest_path, mesh_layer_project_path = _write_modify_original_workspace_metadata(
+        request,
+        workspace_dir,
+        obj_path,
+        source_asset_sha256,
+        supplemental_files,
+        export_result,
     )
     report(5, total_steps, "Modify Original: opening Geometry workspace...")
     return {

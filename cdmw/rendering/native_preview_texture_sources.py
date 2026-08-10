@@ -127,7 +127,7 @@ def _copy_texture(
             write_target = target
     try:
         if resize_supported:
-            image = QImage(str(source))
+            image = QImage.fromData(source.read_bytes())
             if image.isNull():
                 shutil.copy2(source, write_target)
             else:
@@ -251,7 +251,7 @@ def _split_legacy_pbr_texture(
     if not source.is_file():
         notes.append(f"legacy PBR map missing:{Path(raw).name}")
         return {}
-    image = QImage(str(source)).convertToFormat(QImage.Format.Format_RGBA8888)
+    image = QImage.fromData(source.read_bytes()).convertToFormat(QImage.Format.Format_RGBA8888)
     if image.isNull():
         notes.append(f"legacy PBR map unreadable:{source.name}")
         return {}

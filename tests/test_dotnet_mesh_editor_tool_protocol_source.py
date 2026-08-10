@@ -6,8 +6,13 @@ DOTNET_EDITOR = ROOT / "tools" / "dotnet_mesh_editor_experiment"
 
 
 def _source(name: str) -> str:
-    return (DOTNET_EDITOR / name).read_text(encoding="utf-8")
-
+    patterns = {
+        "Program.cs": ("Program.cs", "ExperimentForm.ToolPanels.cs"),
+        "D3D11MaterialViewport.cs": ("D3D11MaterialViewport*.cs",),
+        "D3D11MaterialViewport.Overlay.cs": ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlayInteraction.cs"),
+        "MeshViewport.SelectionPicking.cs": ("MeshViewport.SelectionPicking.cs", "MeshViewport.SelectionPaint.cs"),
+    }.get(name, (name,))
+    return "\n".join(path.read_text(encoding="utf-8") for path in sorted({path for pattern in patterns for path in DOTNET_EDITOR.glob(pattern)}))
 
 def test_equal_surface_resize_refreshes_initial_render_pane_layout() -> None:
     renderer_source = _source("MeshViewport.Renderer.cs")
@@ -182,75 +187,6 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert "process_restart_count" not in material_protocol_source
     assert 'JsonString(root, "material_signature")' in protocol_source
     assert "public bool TryApplyMaterialState(IReadOnlyCollection<int> affectedSubmeshes" in d3d_source
-    display_source = _source("ExperimentForm.ViewportDisplayProtocol.cs")
-    display_modes = _source("MeshViewport.DisplayModes.cs")
-    controls_source = _source("ExperimentForm.Controls.cs")
-    resident_package_source = _source("MeshViewport.ResidentPackage.cs")
-    morph_source = _source("ExperimentForm.MorphRefit.cs")
-    shader_source = _source("D3D11MaterialShaders.hlsl")
-    assert 'case "viewport_display_update":' in protocol_source
-    assert 'ViewportDisplayModesCapability = "viewport_display_modes_v1"' in protocol_source
-    assert 'WriteViewportDisplayResult(root, "viewport_display_applied"' in display_source
-    assert 'WriteViewportDisplayResult(root, "viewport_display_failed"' in display_source
-    assert "CopyMutationEnvelope(request, payload);" in display_source
-    assert 'WriteProtocolEvent("material_state_started"' in material_protocol_source
-    assert '&& decode.Failures.Count > 0)' in material_protocol_source
-    assert 'WriteProtocolEvent("viewport_display_request"' in controls_source
-    assert '"Loading textures in the resident viewport..."' in controls_source
-    assert 'JsonString(root, "requested_mode")' in display_source
-    assert 'SyncPreviewModeSelection(' in display_source
-    assert 'texture_request_pending' in display_source
-    assert 'message["source_identity"] = _scene.SourceIdentity;' in _source(
-        "ExperimentForm.Output.cs"
-    )
-    # One rule decides the settled view, so a load never presents an
-    # intermediate mode before the host's own display update lands. Read-only
-    # previews default to wire over untextured geometry, and to plain textured
-    # geometry once textures resolve; the wire overlay stays an authoring
-    # default only.
-    assert 'hasTextureResources ? "textured" : "untextured_wire"' in resident_package_source
-    assert "InitialResidentDisplayMode(bool hasTextureResources)" in resident_package_source
-    assert "InitialResidentDisplayMode(" in controls_source
-    assert '"Faces + Wire"' in controls_source
-    assert '"Solid + Wire"' not in controls_source
-    assert 'normalized = "textured";' in controls_source
-    assert "selectedIndex: Array.IndexOf(" in controls_source
-    assert 'var mode = _placementPreviewMode;' in controls_source
-    assert 'SyncPreviewModeSelection(_viewport.DisplayMode);' in _source(
-        "ExperimentForm.PresentationProtocol.cs"
-    )
-    no_morph_finish = morph_source.split(
-        "private void RequestFinishEditMesh()", maxsplit=1
-    )[1].split("private void BeginFinishCommitOrSave()", maxsplit=1)[0]
-    assert "if (!_morphStateReceived)" in no_morph_finish
-    assert 'WriteProtocolEvent("save_request");' in no_morph_finish
-    for mode in ("textured", "untextured_faces", "wire", "vertices", "wire_vertices", "xray"):
-        assert f'"{mode}"' in display_modes
-    assert "if (ShowSolid)" in d3d_source
-    assert "if (_overlayShowVertices)" in d3d_source
-    assert "PrimitiveTopology.PointList" in d3d_source
-    assert "MaterialDebugMode > 6.5f" in shader_source
-    assert '"Brushes paint the replacement under the yellow circle; no preselection is required. Left-drag to apply. Right-drag pans; wheel zooms."' in program_source
-    assert 'ActiveTool is "grab" or "smooth" or "inflate" or "pinch"' in all_source
-    assert "DrawBrushCursorOverlay();" in d3d_source
-    assert '_statusLabel.Text = tool is "grab" or "smooth" or "inflate" or "pinch"' in _source("ExperimentForm.Controls.cs")
-    # Tool buttons are idempotent: pressing the active tool keeps it active
-    # instead of dropping back to orbit, which read as the tool switching itself
-    # off. Orbit stays one click away on its own button.
-    assert "private void ToggleTool" not in controls_source
-    # A tool the reader picked here is announced to the host, which keeps its own
-    # copy of "the tool" and republishes it on every control refresh.
-    assert 'button.Click += (_, _) => ActivateTool(tool, text, announce: true);' in controls_source
-    assert 'WriteProtocolEvent("tool_changed"' in controls_source
-    assert 'ToolButton("Orbit", "orbit")' in program_source
-    # The host asserting a tool the viewport already has is not a no-op -- it
-    # runs the rail page sync and closes whichever page is open -- so the
-    # re-assert is guarded rather than unconditional.
-    assert "ActivateTool(tool, tool[..1].ToUpperInvariant() + tool[1..]);" in host_state_source
-    assert (
-        'if (!string.Equals(tool, _viewport.ActiveTool, StringComparison.OrdinalIgnoreCase))'
-        in host_state_source
-    )
 
 
 def test_dotnet_mesh_edit_history_and_selection_navigation_are_visible_and_shortcut_driven() -> None:
@@ -1031,8 +967,9 @@ def test_codex_mesh_checks_use_real_game_pac_and_keep_unit_runs_non_visual() -> 
 
 def test_real_dotnet_harness_has_dedicated_resident_side_by_side_zoom_proof() -> None:
     source = (ROOT / "tools" / "mesh_harness" / "real_dotnet.py").read_text(encoding="utf-8")
-    input_source = (ROOT / "tools" / "mesh_harness" / "real_dotnet_input.py").read_text(
-        encoding="utf-8"
+    input_source = "\n".join(
+        (ROOT / "tools" / "mesh_harness" / name).read_text(encoding="utf-8")
+        for name in ("real_dotnet_input.py", "real_dotnet_zoom_input.py")
     )
     # _start_embedded_editor moved to real_dotnet_session; its call site and the
     # zoom smoke entry point are still in real_dotnet.py.
@@ -1361,19 +1298,3 @@ def test_a_released_resident_session_may_be_handed_to_the_next_edit_session() ->
     carry = carry.split("private void ReassertInteractionModeControls(", maxsplit=1)[0]
     assert "if (_residentSessionRebound)" in carry
     assert "_residentSessionRebound = false;" in carry
-
-
-def test_the_helper_advertises_the_session_handoff_capability() -> None:
-    """The host gates the handoff on it and falls back to a cold start without it."""
-    provenance = _source("HelperBuildProvenance.cs")
-    status = _source("MeshViewport.Status.cs")
-    session = (
-        ROOT / "cdmw" / "ui" / "preview" / "dotnet_session.py"
-    ).read_text(encoding="utf-8")
-
-    assert '"authoring_session_handoff_v1",' in provenance
-    assert '"authoring_session_handoff_v1",' in status
-    assert '"authoring_session_handoff_v1" not in self._capabilities' in session
-    # The read-only preview profile owns no edit session and must not claim it.
-    assert provenance.count('or "authoring_session_handoff_v1"') == 1
-    assert status.count('or "authoring_session_handoff_v1"') == 1

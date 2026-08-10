@@ -196,12 +196,14 @@ def test_the_dotnet_editor_declares_the_colour_page_and_its_request():
     A source check only; it cannot prove the page renders, but it does fail if
     the rail entry or the request name is renamed on one side alone.
     """
-    layouts = (DOTNET_ROOT / "ExperimentForm.EditMeshLayouts.cs").read_text(encoding="utf-8")
+    contracts = (DOTNET_ROOT / "EditMeshLayoutContracts.cs").read_text(encoding="utf-8")
+    tool_list = (DOTNET_ROOT / "EditMeshToolListContract.cs").read_text(encoding="utf-8")
     protocol = (DOTNET_ROOT / "ExperimentForm.ColourProtocol.cs").read_text(encoding="utf-8")
     smoke = (DOTNET_ROOT / "EditMeshLayoutSmoke.cs").read_text(encoding="utf-8")
 
-    assert "Colour," in layouts
-    assert "ToolRailPage.Colour" in layouts
+    assert "Colour," in contracts
+    assert "ToolRailPage.Colour" in contracts
+    assert "new(ToolListRowKind.CommandPage, Keys.Colour, ToolRailPage.Colour)" in tool_list
     assert 'WriteProtocolEvent("part_material_edit_request"' in protocol
     assert '"Colour",' in smoke
 

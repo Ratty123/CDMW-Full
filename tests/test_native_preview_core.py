@@ -330,7 +330,7 @@ class NativePreviewCoreTests(unittest.TestCase):
     def test_d3d11_preview_uses_screen_space_highlight_bounds(self) -> None:
         overlay_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
         self.assertIn("DrawSelectedSourcesOverlay", overlay_text)
-        self.assertIn("OverlayColor(70, 155, 255", overlay_text)
+        self.assertIn("OverlayColor(_overlaySettings.Colors.Selection", overlay_text)
 
     def test_d3d11_grid_uses_reference_batches_in_reference_view(self) -> None:
         overlay_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")

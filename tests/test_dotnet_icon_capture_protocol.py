@@ -142,9 +142,7 @@ def test_resident_icon_capture_rejects_a_mismatched_reported_path(tmp_path: Path
 
 
 def test_dotnet_capture_resolves_relative_output_and_rejects_reparse_leaf() -> None:
-    source = Path("tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs").read_text(
-        encoding="utf-8"
-    )
+    source = _source("ExperimentForm.Protocol.cs") + _source("ExperimentForm.ProtocolCapture.cs")
 
     assert "Path.GetFullPath(Path.Combine(outputRoot, requestedPath))" in source
     assert "return IsReparsePoint(outputPath);" in source
@@ -154,7 +152,7 @@ def test_icon_capture_uses_deterministic_offscreen_d3d_target_without_visible_st
     capture = _source("D3D11MaterialViewport.Capture.cs")
     targets = _source("D3D11MaterialViewport.RenderTargets.cs")
     renderer = _source_family("D3D11MaterialViewport")
-    protocol = _source("ExperimentForm.Protocol.cs")
+    protocol = _source("ExperimentForm.Protocol.cs") + _source("ExperimentForm.ProtocolCapture.cs")
 
     assert "BindFlags.RenderTarget" in targets
     assert "ResourceUsage.Staging" in capture

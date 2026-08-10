@@ -178,10 +178,11 @@ def run_native_mesh_editor_qt_responsiveness() -> dict[str, object]:
 
     service = MeshService()
     view = service.open_edit_session(build_native_benchmark_mesh(), session_id="native-editor-qt-responsiveness", mode="edit")
+    face_count = len(service.working_mesh(view.session_id).submeshes[0].faces)
     command = MeshEditCommand(
         "subdivide",
         selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
-        params={"max_faces_per_submesh": 512, "recompute_normals": True},
+        params={"max_faces_per_submesh": face_count + 3, "recompute_normals": True},
         mode="edit",
         label="Subdivide",
     )

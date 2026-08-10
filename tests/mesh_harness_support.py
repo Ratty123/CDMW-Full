@@ -59,6 +59,7 @@ from cdmw.models import ArchiveEntry
 from tools.mesh_editor_dev_harness import (
     _build_two_part_synthetic_mesh,
     _coverage_command,
+    _prepared_coverage_command,
     _papr_constraint_metadata_summary,
     _png_capture_summary,
     _real_archive_papr_read_status,

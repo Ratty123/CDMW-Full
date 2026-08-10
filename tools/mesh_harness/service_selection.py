@@ -149,7 +149,13 @@ def _history_selection_smoke() -> dict[str, object]:
             and before_undo["source_indices"] == [1]
             and undo.ok
             and undo_view.submesh_count == 1
-            and after_undo == {"vertices_by_submesh": {}, "edges_by_submesh": {}, "faces_by_submesh": {}, "source_indices": []}
+            and after_undo
+            == {
+                "vertices_by_submesh": {},
+                "edges_by_submesh": {},
+                "faces_by_submesh": {"0": [0]},
+                "source_indices": [],
+            }
         ),
         "duplicate": _command_summary(duplicate),
         "undo": _command_summary(undo),

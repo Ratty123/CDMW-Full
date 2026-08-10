@@ -14,7 +14,6 @@ from cdmw.domain.archives.item_catalogue import (
     ItemCatalogRow,
     ItemCatalogScopeResult,
     ItemCatalogSearchResult,
-    ItemCatalogValueFacet,
 )
 from cdmw.ui.archive_browser.remote_finder_dialog import RemoteArchiveFinderDialog
 
@@ -105,7 +104,6 @@ def _row(item_id: int) -> ItemCatalogRow:
         (f"item_{item_id}",),
         (f"ui/icon/item_{item_id}.dds",),
         (f"Localized Item {item_id}",),
-        ("metal", "cloth"),
         2,
         "model and localization link",
     )
@@ -118,7 +116,6 @@ def test_full_item_finder_matches_lite_card_detail_and_scope_flow() -> None:
             "ui/item_finder_search_text": "sword",
             "ui/item_finder_category": "Equipment",
             "ui/item_finder_group": "Weapon",
-            "ui/item_finder_material_tag": "metal",
         }
     )
     window = _Window(settings)
@@ -127,7 +124,7 @@ def test_full_item_finder_matches_lite_card_detail_and_scope_flow() -> None:
 
     request = window.archive_catalogue_service.searches[-1]
     assert request.query == "sword"
-    assert (request.category, request.group, request.material_tag) == (None, None, "metal")
+    assert (request.category, request.group) == (None, None)
     result = ItemCatalogSearchResult(
         "session-a",
         1,
@@ -135,8 +132,6 @@ def test_full_item_finder_matches_lite_card_detail_and_scope_flow() -> None:
         72,
         (_row(7),),
         (ItemCatalogCategoryFacet("Weapon", "Sword", 1),),
-        (ItemCatalogValueFacet("metal", 1),),
-        True,
     )
     window.archive_catalogue_service.result_ready.emit("search-1", "search_item_catalog", result)
     _drain()
@@ -149,7 +144,6 @@ def test_full_item_finder_matches_lite_card_detail_and_scope_flow() -> None:
     _drain()
     assert "item_7" in dialog._detail_internal.text()
     assert "Localized Item 7" in dialog._detail_localized.text()
-    assert "metal" in dialog._detail_materials.text()
     assert "equipment/weapon/item_7.pac" in dialog._detail_models.text()
     assert "ui/icon/item_7.dds" in dialog._detail_icons.text()
     assert dialog._exact_button.isEnabled()
@@ -179,7 +173,7 @@ def test_new_search_cancels_icons_and_rejects_stale_conversion(tmp_path) -> None
     window.archive_catalogue_service.result_ready.emit(
         "search-1",
         "search_item_catalog",
-        ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(3),), (), (), True),
+        ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(3),), ()),
     )
     _drain()
     assert window.archive_catalogue_service.icons[-1].item_ids == (3,)

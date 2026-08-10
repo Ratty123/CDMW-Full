@@ -18,8 +18,9 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
     `cdmw.modding.static_mesh_build.build_static_mesh_replacement()`.
 - Editor entry points:
   - `cdmw.services.mesh_service.MeshService` owns edit sessions and validation;
-    state, payload, report, history, kernel, rigging, and rebuild behavior live
-    in focused `mesh_service_*.py` owners behind that facade.
+    state, payload, report, history, kernel, rigging, rebuild, native-session
+    serialization, and native-clone behavior live in focused
+    `mesh_service_*.py` owners behind that facade.
   - `cdmw.ui.mesh_editor.controller.MeshEditorController` adapts UI actions to
     `MeshService`.
   - `cdmw.ui.mesh_editor.tab.MeshEditorTab` owns standalone and embedded UI.
@@ -38,10 +39,19 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
     `tests/test_native_mesh_core_decomposition.py` enforces the 1,000-line
     default file and 150-line real-function ceilings.
   - `cdmw/ui/preview/` owns the shared Qt host and resident .NET/Vortice process
-    lifecycle. Preview-profile surfaces are read-only; authoring-profile
-    surfaces use the same process plus the resident MeshService mutation
-    protocol. Native Preview Core and Mesh Core remain decode/edit services and
-    never own visible rendering.
+    lifecycle. `dotnet_host_protocol.py` owns message dispatch and
+    `dotnet_host_values.py` owns payload coercion; session localization stays in
+    `dotnet_session_localization.py`, while the public host/session classes keep
+    their import identity. Preview-profile surfaces are read-only;
+    authoring-profile surfaces use the same process plus the resident
+    MeshService mutation protocol. Native Preview Core and Mesh Core remain
+    decode/edit services and never own visible rendering.
+  - `tools/dotnet_mesh_editor_experiment/` keeps each WinForms/viewport partial
+    class as one runtime type while splitting layout diagnostics, tool panels,
+    appearance, overlay interaction, selection paint, protocol capture, GPU
+    soak, and disposal into bounded owners. `tools/mesh_harness/` similarly
+    separates real-.NET input, zoom, performance, phase flow, Qt probes, and
+    service coverage behind the stable `mesh_editor_dev_harness.py` CLI.
 - Import/export formats:
   - GLB editable packages are handled by
     `cdmw.modding.mesh_glb_interchange`. They write `mesh.glb` plus the same

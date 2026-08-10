@@ -30,7 +30,6 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     _refresh_mesh_editor_diagnostics = context["_refresh_mesh_editor_diagnostics"]
     _run_alignment_post_open_tasks = context["_run_alignment_post_open_tasks"]
     _record_runtime_event = getattr(self, "_record_runtime_event", lambda *_args, **_kwargs: {})
-
     def _record_open_step(step: str) -> None:
         _record_runtime_event(
             "mesh_alignment_open_step",
@@ -39,16 +38,13 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
             step=str(step or ""),
             embedded=bool(embedded_alignment_builder),
         )
-
     dialog_accepted_state = _alignment_dialog_accept_initial_state_helper()
-
     alignment_modeless_dialog_callbacks = create_alignment_modeless_dialog_callbacks(
         {**globals(), **context, **locals()}
     )
     _modeless_alignment_dialog_finished = (
         alignment_modeless_dialog_callbacks._modeless_alignment_dialog_finished
     )
-
     mesh_editor_session_state = context.get("mesh_editor_static_replacement_session_state")
     if isinstance(mesh_editor_session_state, dict) and callable(
         getattr(dialog, "configureMeshEditorClose", None)
@@ -57,15 +53,9 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
             session = mesh_editor_session_state.get("session")
             if session is not None and callable(getattr(session, "close", None)):
                 session.close(force_without_saving=bool(force_without_saving))
-
         def _mesh_editor_session_closed() -> None:
             mesh_editor_session_state.clear()
-
-        dialog.configureMeshEditorClose(
-            _close_mesh_editor_session,
-            _mesh_editor_session_closed,
-        )
-
+        dialog.configureMeshEditorClose(_close_mesh_editor_session, _mesh_editor_session_closed)
     dialog.finished.connect(_modeless_alignment_dialog_finished)
     setattr(
         dialog,
@@ -79,7 +69,6 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
         _queue_alignment_post_open_task(_load_original_reference_texture_preview)
     _queue_alignment_post_open_task(_clear_all_part_selections)
     _queue_alignment_post_open_task(_refresh_mesh_editor_diagnostics)
-
     build_footer = _make_alignment_build_footer_helper(
         controls_layout,
         continue_build=callable(continue_build_callback),
@@ -105,7 +94,6 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     build_status_label = build_footer.build_status_label
     cancel_button.clicked.connect(dialog.reject)
     build_accept_state = _alignment_build_accept_initial_state_helper()
-
     alignment_accept_build_callbacks = create_alignment_accept_build_callbacks(
         {**globals(), **context, **locals()}
     )
@@ -127,7 +115,6 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
             "_build_static_options_from_dialog",
         ),
     )
-
     _archive_dds_preview_source_for_path, _archive_dds_preview_sources_for_basename = (
         _archive_dds_preview_resolver_pair_helper(
             self.archive_entries_by_normalized_path,
@@ -135,14 +122,12 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
             ensure_preview_source=ensure_archive_preview_source,
         )
     )
-
     alignment_original_texture_intent_callbacks = create_alignment_original_texture_intent_callbacks(
         {**globals(), **context, **locals()}
     )
     _original_part_texture_intent_rows = (
         alignment_original_texture_intent_callbacks._original_part_texture_intent_rows
     )
-
     alignment_accept_dispatch_callbacks = create_alignment_accept_dispatch_callbacks(
         {**globals(), **context, **locals()}
     )
@@ -150,14 +135,11 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     _accept_static_options_after_status_paint = (
         alignment_accept_dispatch_callbacks._accept_static_options_after_status_paint
     )
-
     import_button.clicked.connect(lambda _checked=False: _accept_static_options())
-
     alignment_fit_dialog_callbacks = create_alignment_fit_dialog_callbacks(
         {**globals(), **context, **locals()}
     )
     _fit_alignment_dialog_to_screen = alignment_fit_dialog_callbacks._fit_alignment_dialog_to_screen
-
     _alignment_startup_step(alignment_startup_text["opening_builder"])
     _record_open_step("begin")
     if embedded_alignment_builder and hasattr(self, "mesh_editor_tab"):
@@ -189,6 +171,4 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
         _record_open_step("activate_before")
         dialog.activateWindow()
         _record_open_step("activate_after")
-
-
 __all__ = ["finish_static_replacement_prompt_open"]

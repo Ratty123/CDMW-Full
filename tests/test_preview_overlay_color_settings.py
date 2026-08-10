@@ -131,7 +131,9 @@ def test_viewport_reads_the_keys_and_only_pushes_a_changed_color() -> None:
 
 def test_an_edit_mesh_color_choice_outranks_preview_settings_for_the_session() -> None:
     presentation = _dotnet_source("MeshViewport.PresentationSettings.cs")
-    controls = _dotnet_source("ExperimentForm.Controls.cs")
+    controls = _dotnet_source("ExperimentForm.Controls.cs") + _dotnet_source(
+        "ExperimentForm.AppearanceControls.cs"
+    )
 
     assert "internal void PinOverlayColorsFromReader()" in presentation
     assert "if (_overlayColorsPinnedByReader)" in presentation

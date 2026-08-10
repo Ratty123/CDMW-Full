@@ -15,7 +15,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-
 ROOT = Path(__file__).resolve().parents[1]
 RESOURCE_ROOT = ROOT / "cdmw" / "resources" / "localization"
 MANIFEST_PATH = RESOURCE_ROOT / "source_manifest.json"
@@ -331,17 +330,16 @@ _HTML_NON_TEXT_BLOCK_RE = re.compile(
 _WHITESPACE_RE = re.compile(r"\s+")
 _CSHARP_UI_SINK_RE = re.compile(
     r"(?:"
-    r"\bText\s*=|\.Text\s*=|SetToolTip\s*\(|MessageBox\.Show\s*\(|"
+    r"\bText\s*=(?!=)|\.Text\s*=(?!=)|SetToolTip\s*\(|MessageBox\.Show\s*\(|"
     r"StatusRequested\?\.Invoke\s*\(|"
     r"Set(?:Status|Hint)\s*\(|SetAccessible|"
-    r"Accessible(?:Name|Description)\s*=|ToolTipText\s*=|"
+    r"Accessible(?:Name|Description)\s*=(?!=)|ToolTipText\s*=(?!=)|"
     r"new\s+(?:Button|Label|CheckBox|RadioButton|GroupBox|ToolStripMenuItem|"
     r"ToolStripButton|TabPage|ComboBoxItem)\s*[\(\{]|"
     r"\.Items\.Add\s*\(|\.Items\.AddRange\s*\(|\.TabPages\.Add\s*\("
     r")"
 )
 _CSHARP_MAX_SINK_REGION_CHARS = 8_000
-
 
 @dataclass(frozen=True, slots=True)
 class _CSharpString:
@@ -350,13 +348,11 @@ class _CSharpString:
     end: int
     line: int
 
-
 @dataclass(frozen=True, slots=True)
 class _CSharpMethod:
     name: str
     start: int
     end: int
-
 
 def _looks_like_translatable_text(value: str) -> bool:
     text = _WHITESPACE_RE.sub(" ", str(value or "").strip())
@@ -1916,7 +1912,5 @@ def main() -> int:
         return 1
     print(f"UI localization manifest is current: {len(english['translations']):,} keys.")
     return 0
-
-
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -28,6 +28,7 @@ _EXPORTS = {
     "_command_summary": "tools.mesh_harness.service_summary",
     "_counter_update_ints": "tools.mesh_harness.papr",
     "_coverage_command": "tools.mesh_harness.service_coverage",
+    "_prepared_coverage_command": "tools.mesh_harness.service_coverage",
     "_document_asset_reference_paths": "tools.mesh_harness.sequence_analysis",
     "_document_paseq_timing_evidence": "tools.mesh_harness.sequence_analysis",
     "_document_related_resolved_paths": "tools.mesh_harness.sequence_analysis",

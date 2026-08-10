@@ -1013,6 +1013,7 @@ Objects:  {
             root = Path(temp_dir)
             _write_png(root / "wire_base.png", (200, 90, 45, 255))
             _write_png(root / "wire_normal.png", (128, 128, 255, 255))
+            _write_png(root / "loose_base.png", (45, 90, 200, 255))
             (root / "generic_wire.fbx").write_bytes(
                 b"Kaydara FBX Binary  \x00\x1a\x00"
                 + (b"\x00" * 16)
@@ -1020,7 +1021,6 @@ Objects:  {
                 + b"C:\\source\\wire_base.png\x00"
                 + b"textures/wire_normal.png\x00"
             )
-
             report = build_external_model_audit_catalogue([root])
 
         row = report["models"][0]

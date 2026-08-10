@@ -3759,7 +3759,6 @@ def _append_mirrored_face_copy(mesh: ParsedMesh, submesh_index: int, face_indice
     mesh.submeshes.append(new_submesh)
     return len(mesh.submeshes) - 1
 
-
 __all__ = [
     "MESH_GEOMETRY_ACTIONS",
     "MESH_TOPOLOGY_ACTIONS",

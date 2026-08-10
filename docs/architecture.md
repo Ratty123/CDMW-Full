@@ -525,10 +525,10 @@ publication through owned workers; notes publish by atomic replacement.
 
 `cdmw/services/mesh_service.py` remains the stable edit-service facade. Session
 state, payload construction, report normalization, history, edit kernels,
-rigging, and rebuild behavior live in the focused `mesh_service_*.py` owners;
-the facade composes the history, rigging, and rebuild mixins and reexports the
-original helper objects for import compatibility. New owners stay within the
-1,000-line default ceiling and 150 lines per function.
+rigging, rebuild behavior, native-session serialization, and native-clone
+geometry live in the focused `mesh_service_*.py` owners; the facade composes the
+mixins and reexports the original helper objects for import compatibility. New
+owners stay within the 1,000-line default ceiling and 150 lines per function.
 Resident export snapshots pin session ID, mesh revision, material generation,
 texture revisions, and exact source hash/size before worker export. Final
 GLB/OBJ/DDS/sidecar/draw/rig/reference readback must match that snapshot.
@@ -559,8 +559,11 @@ folders are migrated conservatively when settings are created.
 
 The Mesh Editor developer harness keeps its legacy CLI/import surface in
 `tools/mesh_editor_dev_harness.py`; scenario metadata, synthetic fixtures,
-native protocol/Qt probes, real-archive workflows, and evidence generation live
-under `tools/mesh_harness/`. Synthetic D3D window scenarios are visual opt-ins.
+native protocol/Qt probes, real-archive workflows, input/zoom/performance
+drivers, and evidence generation live under `tools/mesh_harness/`. The
+production .NET renderer follows the same bounded-owner rule through partial
+classes; source guards aggregate only the partial files owned by each contract.
+Synthetic D3D window scenarios are visual opt-ins.
 The paired material audit keeps phase orchestration in `visual_audit_cli.py`,
 production package/checkpoint preparation in `visual_audit_corpus.py`, and the
 resident process, per-asset, and per-view capture contracts in

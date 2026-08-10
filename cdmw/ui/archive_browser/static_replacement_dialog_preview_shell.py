@@ -126,7 +126,6 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     texture_uv_global_transform_state = context.get('texture_uv_global_transform_state') or {}
     tuple = context.get('tuple')
     value = context.get('value')
-
     alignment_grid_visible_settings_key = "ui/mesh_alignment/grid_visible"
     alignment_gizmo_visible_settings_key = "ui/mesh_alignment/gizmo_visible"
     root_layout = QVBoxLayout(dialog)
@@ -151,17 +150,11 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_panel = QWidget(dialog)
     preview_panel.setMinimumWidth(alignment_preview_min_width)
     preview_panel_layout = QVBoxLayout(preview_panel)
-    # The splitter already separates this column, so the default frame margins
-    # and row spacing are height the editor could be using instead.
     preview_panel_layout.setContentsMargins(0, 0, 0, 0)
     preview_panel_layout.setSpacing(3)
     preview_header = QVBoxLayout()
     preview_header.setContentsMargins(0, 0, 0, 0)
     preview_header.setSpacing(3)
-    # No title row: "Live Alignment Preview" and its whole-width line bought
-    # nothing but height, and the two action buttons that shared it now live in
-    # the legacy controls row — which Edit Mesh already hides, so Clear
-    # Selection and Generate Icon no longer float in the editor's top corner.
     legacy_preview_controls_widget, preview_controls_row, legacy_preview_camera_widget, preview_camera_row = _legacy_preview_rows(QWidget, QHBoxLayout, preview_panel)
     alignment_preview_control_text = _alignment_preview_control_text_helper()
     alignment_preview_render_control_text = _alignment_preview_render_control_text_helper()
@@ -320,7 +313,6 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_camera_row.addWidget(setup_texture_flip_v_checkbox)
     preview_camera_row.addStretch(1)
     preview_camera_row.addWidget(QLabel(alignment_preview_control_text["camera_label"]))
-
     (
         camera_front_button,
         camera_left_button,
@@ -354,13 +346,11 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         (legacy_preview_controls_widget, legacy_preview_camera_widget),
     )
     preview_panel_layout.addLayout(preview_header)
-
     alignment_renderer_scope_label = QLabel(alignment_preview_control_text["renderer_scope"])
     alignment_renderer_scope_label.setObjectName("HintLabel")
     alignment_renderer_scope_label.setWordWrap(True)
     alignment_renderer_scope_label.setVisible(False)
     preview_panel_layout.addWidget(alignment_renderer_scope_label)
-
     preview_render_settings = _alignment_lit_render_settings_helper(
         self._current_model_preview_render_settings(),
         self._current_model_preview_render_settings(),
@@ -409,7 +399,6 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_support_maps_checkbox = QCheckBox(alignment_preview_render_control_text["support_maps"])
     preview_support_maps_checkbox.setChecked(not bool(preview_render_settings.disable_all_support_maps))
     preview_support_maps_checkbox.setToolTip(alignment_preview_render_control_text["support_maps_tooltip"])
-
     preview_depth_spin = QDoubleSpinBox()
     preview_depth_spin.setRange(0.0, 1.0)
     preview_depth_spin.setDecimals(2)
@@ -505,14 +494,11 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_splitter.setVisible(False)
     overlay_dialog_preview.setVisible(False)
     replacement_only_preview.setVisible(False)
-
     def _get_preview_render_settings():
         return preview_render_settings
-
     def _set_preview_render_settings(value) -> None:
         nonlocal preview_render_settings
         preview_render_settings = value
-
     alignment_d3d11_preview_page = QWidget(preview_panel)
     alignment_d3d11_preview_layout = QVBoxLayout(alignment_d3d11_preview_page)
     alignment_d3d11_preview_layout.setContentsMargins(0, 0, 0, 0)
@@ -555,7 +541,6 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         )
     except (TypeError, ValueError, AttributeError):
         alignment_d3d11_preview_host.set_side_by_side_split_ratio(0.5)
-
     def _remember_alignment_d3d11_split_ratio(payload: object) -> None:
         if not isinstance(payload, dict) or str(payload.get("event", "") or "") != "side_by_side_split":
             return
@@ -564,7 +549,6 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
             self.settings.setValue(alignment_d3d11_split_ratio_settings_key, ratio)
         except (TypeError, ValueError, AttributeError):
             pass
-
     alignment_d3d11_preview_host.native_event_received.connect(_remember_alignment_d3d11_split_ratio)
     alignment_d3d11_status_sink = QWidget(alignment_d3d11_preview_page)
     alignment_d3d11_status_sink.setObjectName("MeshAlignmentResidentStatusSink")
@@ -609,7 +593,6 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     alignment_d3d11_reload_timer = QTimer(dialog)
     alignment_d3d11_reload_timer.setSingleShot(True)
     alignment_d3d11_reload_timer.setInterval(alignment_d3d11_fast_reload_interval_ms)
-
     alignment_d3d11_state: Dict[str, object] = {
         "request_id": 0,
         "thread": None,
@@ -679,11 +662,9 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     alignment_preview_mode_state = _alignment_preview_mode_initial_state_helper(preview_mode_combo.currentData())
     alignment_preview_view_sync = _alignment_preview_view_sync_initial_state_helper()
     mesh_editor_diagnostics_state = _mesh_editor_diagnostics_initial_state_helper()
-
     alignment_mesh_diagnostics_callbacks = create_alignment_mesh_diagnostics_callbacks({**context, **globals(), **locals()})
     _refresh_mesh_editor_diagnostics = alignment_mesh_diagnostics_callbacks._refresh_mesh_editor_diagnostics
     _copy_mesh_editor_diagnostics = alignment_mesh_diagnostics_callbacks._copy_mesh_editor_diagnostics
-
     alignment_d3d11_loading_callbacks = create_alignment_d3d11_loading_callbacks({**context, **globals(), **locals()})
     _tick_alignment_d3d11_loading_spinner = alignment_d3d11_loading_callbacks._tick_alignment_d3d11_loading_spinner
     _set_alignment_d3d11_loading = alignment_d3d11_loading_callbacks._set_alignment_d3d11_loading
@@ -706,7 +687,6 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     _restore_alignment_preview_mode_view_state = alignment_d3d11_loading_callbacks._restore_alignment_preview_mode_view_state
     _set_alignment_camera = alignment_d3d11_loading_callbacks._set_alignment_camera
     _nudge_alignment_camera = alignment_d3d11_loading_callbacks._nudge_alignment_camera
-
     def _handle_alignment_dotnet_state(state: str, message: str) -> None:
         alignment_d3d11_state["process"] = alignment_d3d11_preview_host.controller.process
         alignment_d3d11_preview_status_label.setText(str(message or ".NET/Vortice Preview"))
@@ -717,9 +697,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         elif str(state) == "error":
             alignment_d3d11_state["preview_loaded"] = False
             _set_alignment_d3d11_loading(False, str(message or ".NET/Vortice Preview failed."))
-
     alignment_d3d11_preview_host.controller.state_changed.connect(_handle_alignment_dotnet_state)
-
     camera_front_button.clicked.connect(lambda _checked=False: _set_alignment_camera(0.0, 0.0))
     camera_left_button.clicked.connect(lambda _checked=False: _set_alignment_camera(-90.0, 0.0))
     camera_right_button.clicked.connect(lambda _checked=False: _set_alignment_camera(90.0, 0.0))
@@ -729,13 +707,11 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     camera_yaw_left_button.clicked.connect(lambda _checked=False: _nudge_alignment_camera(-15.0, 0.0))
     camera_yaw_right_button.clicked.connect(lambda _checked=False: _nudge_alignment_camera(15.0, 0.0))
     camera_reset_button.clicked.connect(lambda _checked=False: _set_alignment_camera(-35.0, 20.0))
-
     def _preview_part_pick_toggled(checked: bool = False) -> None:
         if bool(checked):
             _sync_highlight_sets()
             return
         _clear_all_part_selections()
-
     def _preview_grid_toggled(checked: bool = False) -> None:
         try:
             self.settings.setValue(alignment_grid_visible_settings_key, bool(checked))
@@ -744,14 +720,12 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         # The resident overlay flags ride along with the highlight state, so
         # this reaches both panes through the same update.
         _sync_highlight_sets()
-
     def _preview_gizmo_toggled(checked: bool = False) -> None:
         try:
             self.settings.setValue(alignment_gizmo_visible_settings_key, bool(checked))
         except (AttributeError, RuntimeError):
             pass
         _sync_highlight_sets()
-
     preview_grid_checkbox.toggled.connect(_preview_grid_toggled)
     preview_gizmo_checkbox.toggled.connect(_preview_gizmo_toggled)
     preview_part_pick_checkbox.toggled.connect(_preview_part_pick_toggled)
@@ -790,7 +764,6 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_status_row.addWidget(preview_help, 3)
     preview_status_row.addWidget(preview_performance_label, 2)
     preview_panel_layout.addWidget(preview_status_sink)
-
     alignment_dialog_layout_state = _alignment_dialog_layout_initial_state_helper()
     previous_dialog_resize_event = dialog.resizeEvent
     alignment_dialog_layout_callbacks = create_alignment_dialog_layout_callbacks({**context, **globals(), **locals()})
@@ -809,10 +782,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     main_splitter.setStretchFactor(0, 3)
     main_splitter.setStretchFactor(1, 1)
     root_layout.addWidget(main_splitter, 1)
-
     dialog.resizeEvent = _responsive_dialog_resize_event  # type: ignore[method-assign]
-
-
     return SimpleNamespace(
         _alignment_current_camera_state=locals().get('_alignment_current_camera_state'),
         _alignment_d3d11_host_ready=locals().get('_alignment_d3d11_host_ready'),

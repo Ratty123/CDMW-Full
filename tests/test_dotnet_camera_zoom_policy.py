@@ -118,9 +118,10 @@ def test_dotnet_wheel_zoom_is_reversible_and_uses_fit_relative_bounds() -> None:
 
 def test_hidden_runtime_proof_covers_shared_reversible_zoom_policy() -> None:
     soak = _source_family("HeadlessGpuSparseSoak*.cs")
-    real_input = (
-        ROOT / "tools" / "mesh_harness" / "real_dotnet_input.py"
-    ).read_text(encoding="utf-8")
+    real_input = "\n".join(
+        (ROOT / "tools" / "mesh_harness" / name).read_text(encoding="utf-8")
+        for name in ("real_dotnet_input.py", "real_dotnet_zoom_input.py")
+    )
 
     assert "CameraZoomProof()" in soak
     assert 'gates["placement_and_mesh_edit_wheel_zoom_reversible"]' in soak

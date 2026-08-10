@@ -44,7 +44,10 @@ class RetiredNativeRendererSourceGuardTests(unittest.TestCase):
         model_library = _read("cdmw/ui/model_library/panels.py")
         mesh_workspace = _read("cdmw/ui/mesh_editor/workspace_shell_builder.py")
 
-        self.assertIn("class DotNetPreviewSessionController(QObject):", shared)
+        self.assertIn(
+            "class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObject):",
+            shared,
+        )
         self.assertIn("DotNetPreviewProfile.PREVIEW", archive)
         self.assertIn("DotNetPreviewProfile.PREVIEW", model_library)
         self.assertIn("DotNetPreviewProfile.AUTHORING", mesh_workspace)

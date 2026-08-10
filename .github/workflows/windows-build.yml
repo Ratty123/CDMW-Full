@@ -113,6 +113,11 @@ jobs:
             requirements-build.txt
             constraints-release.txt
 
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
       - name: Create virtual environment
         shell: pwsh
         run: python -m venv .venv
@@ -129,6 +134,10 @@ jobs:
       - name: Compile Python sources
         shell: pwsh
         run: .\.venv\Scripts\python -m compileall -q cdmw tests tools
+
+      - name: Build the exact Mesh Editor helper exercised by QA
+        shell: pwsh
+        run: dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release --nologo --verbosity:minimal
 
       - name: Run canonical nonvisual QA
         shell: pwsh

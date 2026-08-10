@@ -322,29 +322,7 @@ class MeshEditorDotNetProtocolMixin(
         if event in {"command_request", "command_requested"}:
             return self._handle_dotnet_command_request(payload)
         if event == "tool_changed":
-            # The editor's tool rail is the only tool picker visible in Edit
-            # Mesh. Unless the builder adopts what it armed, the next control
-            # refresh republishes the builder's own tool and undoes the choice.
-            adopt = getattr(self.active_builder(), "_mesh_editor_dotnet_tool_changed", None)
-            if callable(adopt):
-                try:
-                    return bool(adopt(dict(payload)))
-                except Exception as exc:
-                    self._record_runtime_event("mesh_editor_dotnet_tool_changed_failed", error=str(exc))
-                    return False
-            tool = str(payload.get("tool", "") or "").strip().lower()
-            action_key, edit_mode = next(
-                (
-                    (key, mode)
-                    for key, (native_tool, _target_mode, mode) in _STANDALONE_NATIVE_TOOL_STATE.items()
-                    if native_tool == tool
-                ),
-                ("", ""),
-            )
-            if tool != "orbit" and not action_key:
-                return False
-            self.set_active_tool_state(mode=edit_mode, active_tool_key=action_key)
-            return True
+            return self._handle_dotnet_tool_changed(payload)
         if event == "viewport_display_request":
             return self._handle_embedded_viewport_display_mode(
                 str(payload.get("mode", "") or "")
@@ -401,6 +379,30 @@ class MeshEditorDotNetProtocolMixin(
             self._set_dotnet_status(message, error=True)
             return False
         return False
+
+    def _handle_dotnet_tool_changed(self, payload: Mapping[str, object]) -> bool:
+        # The editor's tool rail is the only tool picker visible in Edit Mesh.
+        # The builder must adopt what it armed before the next control refresh.
+        adopt = getattr(self.active_builder(), "_mesh_editor_dotnet_tool_changed", None)
+        if callable(adopt):
+            try:
+                return bool(adopt(dict(payload)))
+            except Exception as exc:
+                self._record_runtime_event("mesh_editor_dotnet_tool_changed_failed", error=str(exc))
+                return False
+        tool = str(payload.get("tool", "") or "").strip().lower()
+        action_key, edit_mode = next(
+            (
+                (key, mode)
+                for key, (native_tool, _target_mode, mode) in _STANDALONE_NATIVE_TOOL_STATE.items()
+                if native_tool == tool
+            ),
+            ("", ""),
+        )
+        if tool != "orbit" and not action_key:
+            return False
+        self.set_active_tool_state(mode=edit_mode, active_tool_key=action_key)
+        return True
 
     def _handle_dotnet_lifecycle_event(
         self,
