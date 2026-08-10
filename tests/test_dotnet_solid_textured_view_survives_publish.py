@@ -32,6 +32,29 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOTNET_ROOT = REPO_ROOT / "tools" / "dotnet_mesh_editor_experiment"
+DOTNET_PROJECT = DOTNET_ROOT / "Cdmw.MeshEditorExperiment.csproj"
+DOTNET_HELPER = DOTNET_ROOT / "bin" / "Release" / "net10.0-windows" / "cdmw-mesh-dotnet-editor.exe"
+
+
+def _build_helper() -> None:
+    completed = subprocess.run(
+        [
+            "dotnet",
+            "build",
+            str(DOTNET_PROJECT),
+            "--configuration",
+            "Release",
+            "--nologo",
+            "--verbosity:quiet",
+        ],
+        cwd=REPO_ROOT,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        timeout=300,
+    )
+    assert completed.returncode == 0, completed.stdout
 
 
 def test_the_builder_really_publishes_textured_beside_a_false_texture_flag() -> None:
@@ -57,18 +80,12 @@ def test_the_builder_really_publishes_textured_beside_a_false_texture_flag() -> 
 
 
 def test_a_named_display_mode_owns_the_textures() -> None:
+    _build_helper()
     with tempfile.TemporaryDirectory(prefix="cdmw-edit-mesh-entry-") as temp_dir:
         report_path = Path(temp_dir) / "entry.json"
         completed = subprocess.run(
             [
-                "dotnet",
-                "run",
-                "--project",
-                str(DOTNET_ROOT / "Cdmw.MeshEditorExperiment.csproj"),
-                "--configuration",
-                "Release",
-                "--no-launch-profile",
-                "--",
+                str(DOTNET_HELPER),
                 "--headless-edit-mesh-entry-smoke",
                 "--edit-mesh-entry-report",
                 str(report_path),
