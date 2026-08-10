@@ -120,6 +120,7 @@ $TestsByArea = @{
         "tests/test_mesh_builder_construction_invariants.py",
         "tests/test_mesh_builder_preview_control_honesty.py",
         "tests/test_static_replacement_post_open_state.py",
+        "tests/test_static_replacement_prompt_preflight_async.py",
         "tests/test_static_replacement_mesh_edit_dotnet_toggle.py",
         "tests/test_mesh_resident_editor_regressions.py",
         "tests/test_static_replacement_dotnet_presentation.py",

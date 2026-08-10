@@ -161,12 +161,16 @@ dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.cspro
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-ui-localization-contract --localization-report "$env:TEMP\cdmw-ui-localization.json"
 ```
 
-Archive mesh-import setup responsiveness, cancellation, stale-result rejection,
-and in-game swap-scope preflight:
+Archive mesh-import setup and Mesh Replacement Builder prompt responsiveness,
+cancellation, stale-result rejection, and in-game swap-scope preflight:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_mesh_import_setup_async.py
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_import_setup_async.py tests/test_static_replacement_prompt_preflight_async.py
 ```
+
+The prompt preflight's million-vertex regression requires heartbeat gaps below
+200 ms. Its pure-Python bounds scan yields at the existing 4,096-vertex
+cancellation checkpoint so the UI thread can process progress and repaint work.
 
 Mesh-service owner boundaries, clean import identity, stateful native dispatch,
 bounded history, and revision transport:
