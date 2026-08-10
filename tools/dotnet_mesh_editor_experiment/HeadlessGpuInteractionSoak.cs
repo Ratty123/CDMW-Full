@@ -168,6 +168,31 @@ internal static class HeadlessGpuInteractionSoak
             throw new InvalidOperationException($"Hidden {mode} authoritative reconciliation frame failed: {finalFrameError}");
         }
         var resourcesAfter = viewport.RendererResourceMetricsPayload();
+        return BuildInteractionReport(
+            options,
+            mode,
+            host,
+            viewport,
+            snapshot,
+            resourcesBefore,
+            resourcesAfter,
+            interaction,
+            protocol,
+            driver);
+    }
+
+    private static int BuildInteractionReport(
+        HeadlessGpuFramePacingSoakOptions options,
+        string mode,
+        Form host,
+        MeshViewport viewport,
+        PreviewPerformanceCaptureSnapshot snapshot,
+        Dictionary<string, object?> resourcesBefore,
+        Dictionary<string, object?> resourcesAfter,
+        MeshInteractionSoakResult interaction,
+        InteractionProtocolProbe protocol,
+        InteractionPathDriver driver)
+    {
         var lifecycle = new Dictionary<string, object?>
         {
             ["process_restart_count"] = 0,

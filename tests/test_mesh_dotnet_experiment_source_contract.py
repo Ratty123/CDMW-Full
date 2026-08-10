@@ -172,10 +172,10 @@ def test_dotnet_wire_overlay_style_contract() -> None:
     assert "DefaultVertexMarkerSizePixels = 7.0f" in source
     assert "_wireOverlayColor = OverlayColor(0, 0, 0, 225)" in d3d_overlay_source
     assert "_vertexOverlayColor = OverlayColor(255, 174, 40, 255)" in d3d_overlay_source
-    assert "XRayWireOverlayColor = OverlayColor(245, 248, 252, 240)" in d3d_overlay_source
-    assert "XRayVertexOverlayColor = OverlayColor(255, 88, 214, 255)" in d3d_overlay_source
-    assert "_overlayShowXRay ? XRayWireOverlayColor : _wireOverlayColor" in d3d_overlay_source
-    assert "_overlayShowXRay ? XRayVertexOverlayColor : _vertexOverlayColor" in d3d_overlay_source
+    assert "_xrayWireOverlayColor = XRayOverlayColor(colors.ActiveWire(true), 240)" in d3d_overlay_source
+    assert "_xrayVertexOverlayColor = XRayOverlayColor(colors.ActiveVertex(true), 255)" in d3d_overlay_source
+    assert "_overlayShowXRay ? _xrayWireOverlayColor : _wireOverlayColor" in d3d_overlay_source
+    assert "_overlayShowXRay ? _xrayVertexOverlayColor : _vertexOverlayColor" in d3d_overlay_source
     assert "SetOverlaySettings(MeshOverlaySettings settings)" in d3d_overlay_source
     assert "lineWidthPixels: _overlaySettings.Sizing.WireWidthPixels" in d3d_overlay_source
     assert "command.LineWidthPixels > 1.0f" in d3d_overlay_source
@@ -259,7 +259,11 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "BuildPresentationViewportRegion()" in source
     assert "Mesh Edit Session" in source
     assert "Preview mode" in source
-    assert "_previewMode.SelectedIndex = 6;" in source
+    controls_source = (
+        root / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.Controls.cs"
+    ).read_text(encoding="utf-8")
+    assert '"xray" => 6' in controls_source
+    assert "_previewMode.SelectedIndex = index;" in controls_source
     assert "ShowXRay" in source
     assert "ApplySelectionUpdate" in source
     assert "UpdateSelection" in source

@@ -4,7 +4,6 @@ import json
 import os
 import tempfile
 import threading
-import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,6 +14,8 @@ class _ControlledProcess:
     def __init__(self) -> None:
         self.release = threading.Event()
         self.wait_started = threading.Event()
+        self.wait_thread_id: int | None = None
+        self.terminate_thread_id: int | None = None
         self.returncode = None
         self.terminated = False
         self.killed = False
@@ -23,12 +24,14 @@ class _ControlledProcess:
         return self.returncode
 
     def wait(self):
+        self.wait_thread_id = threading.get_ident()
         self.wait_started.set()
         assert self.release.wait(5.0)
         self.returncode = 0
         return 0
 
     def terminate(self) -> None:
+        self.terminate_thread_id = threading.get_ident()
         self.terminated = True
         self.release.set()
 
@@ -58,21 +61,17 @@ def test_external_splash_launch_and_close_never_wait_on_caller_thread() -> None:
             patch("cdmw.app.startup_splash.read_startup_theme_key", return_value="graphite"),
             patch("cdmw.app.startup_splash.subprocess.Popen", return_value=process),
         ):
-            before = time.perf_counter()
+            caller_thread_id = threading.get_ident()
             command_file = startup_splash.start_external_startup_splash()
-            launch_elapsed = time.perf_counter() - before
 
-            assert launch_elapsed < 0.05
             assert command_file is not None and command_file.exists()
             assert process.wait_started.wait(1.0)
+            assert process.wait_thread_id != caller_thread_id
             assert not command_file.with_suffix(".ready").exists()
             monitor = startup_splash._startup_splash_monitor_thread
 
-            before = time.perf_counter()
             startup_splash.close_external_startup_splash()
-            close_elapsed = time.perf_counter() - before
 
-            assert close_elapsed < 0.05
             assert not command_file.exists()
             assert not command_file.with_suffix(".json.tmp").exists()
             assert startup_splash.STARTUP_SPLASH_COMMAND_FILE_ENV not in os.environ
@@ -84,6 +83,7 @@ def test_external_splash_launch_and_close_never_wait_on_caller_thread() -> None:
             if watchdog is not None:
                 watchdog.join(1.0)
                 assert not watchdog.is_alive()
+                assert process.terminate_thread_id != caller_thread_id
     _clear_splash_state()
 
 

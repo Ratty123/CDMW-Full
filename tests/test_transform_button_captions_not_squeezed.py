@@ -48,10 +48,10 @@ def _tilt_captions() -> list[str]:
     ]
 
 
-def _clamped(container: QWidget) -> QWidget:
+def _clamped(container: QWidget, width: int = _NARROW_PANEL_WIDTH) -> QWidget:
     # QSizePolicy.Ignored on the embedded setup page means the panel width
     # wins over the content's minimum; a fixed width reproduces that clamp.
-    container.setFixedWidth(_NARROW_PANEL_WIDTH)
+    container.setFixedWidth(width)
     container.show()
     container.layout().activate()
     return container
@@ -71,7 +71,8 @@ class TransformButtonCaptionTests(unittest.TestCase):
         for button in buttons:
             row.addWidget(button)
         self.addCleanup(container.deleteLater)
-        _clamped(container)
+        hint_floor = sum(button.minimumSizeHint().width() for button in buttons)
+        _clamped(container, max(1, hint_floor - 1))
         self.assertTrue(
             any(button.width() < button.minimumSizeHint().width() for button in buttons),
             "expected the single row to shrink at least one button below its caption",

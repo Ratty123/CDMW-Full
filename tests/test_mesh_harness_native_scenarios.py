@@ -6,6 +6,7 @@ from tests.mesh_harness_support import (
     Path,
     _build_two_part_synthetic_mesh,
     _coverage_command,
+    _prepared_coverage_command,
     _selection_edges_from_group,
     _selection_faces_from_group,
     build_synthetic_mesh,
@@ -204,7 +205,10 @@ class MeshHarnessNativeScenarioTests(unittest.TestCase):
                     "cdmw.services.mesh_service.apply_mesh_edit_geometry_action",
                     side_effect=AssertionError(f"old geometry dispatcher used: {action}"),
                 ):
-                    result = service.apply_command(view.session_id, _coverage_command(action))
+                    result = service.apply_command(
+                        view.session_id,
+                        _prepared_coverage_command(service, view.session_id, action),
+                    )
             finally:
                 service.close_edit_session(view.session_id)
             with self.subTest(action=action):

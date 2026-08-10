@@ -73,7 +73,7 @@ internal sealed partial class D3D11MaterialViewport
         var oldestTextureAgeMs = _textureSrvCache.Count == 0
             ? 0.0
             : _textureSrvCache.Values.Max(entry => ElapsedMilliseconds(entry.CreatedTimestamp));
-        return new Dictionary<string, object?>
+        var payload = new Dictionary<string, object?>
         {
             ["available"] = true,
             ["topology_generation"] = _topologyGeneration,
@@ -94,58 +94,6 @@ internal sealed partial class D3D11MaterialViewport
             ["untextured_solid_batch_draws"] = _untexturedSolidBatchDrawCount,
             ["transparent_solid_batch_draws"] = _transparentSolidBatchDrawCount,
             ["alpha_blend_pass"] = "back_to_front_submesh_depth_read_no_write",
-            ["wire_overlay_draws"] = _wireOverlayDrawCount,
-            ["vertex_overlay_batch_draws"] = _vertexOverlayBatchDrawCount,
-            ["fit_relative_overlay_zoom_ratio"] = overlayStyle.ZoomRatio,
-            ["vertex_marker_size_pixels"] = overlayStyle.VertexMarkerSizePixels,
-            ["vertex_marker_fit_size_pixels"] = _overlaySettings.Sizing.VertexMarkerSizePixels,
-            ["wire_overlay_opacity_scale"] = overlayStyle.WireOpacityScale,
-            ["wire_overlay_width_pixels"] = _overlaySettings.Sizing.WireWidthPixels,
-            ["wire_overlay_color"] = MeshOverlayColors.Hex(_overlaySettings.Colors.Wire),
-            ["vertex_overlay_color"] = MeshOverlayColors.Hex(_overlaySettings.Colors.Vertex),
-            ["selection_overlay_color"] = MeshOverlayColors.Hex(_overlaySettings.Colors.Selection),
-            ["live_selection_overlay_color"] = MeshOverlayColors.Hex(_overlaySettings.Colors.LiveSelection),
-            ["last_committed_selection_primitive_color"] = MeshOverlayColors.Hex(
-                _lastCommittedSelectionPrimitiveColor),
-            ["last_live_selection_primitive_color"] = MeshOverlayColors.Hex(
-                _lastLiveSelectionPrimitiveColor),
-            ["committed_selection_overlay_primitives"] = _committedSelectionOverlayPrimitiveCount,
-            ["live_selection_overlay_primitives"] = _liveSelectionOverlayPrimitiveCount,
-            // The colour X-Ray would actually draw, which is the automatic one
-            // only while the reader has not chosen their own. Reporting the
-            // constant hid that the chosen colour was being ignored.
-            ["xray_wire_overlay_color"] = MeshOverlayColors.Hex(
-                _overlaySettings.Colors.ActiveWire(true)),
-            ["xray_vertex_overlay_color"] = MeshOverlayColors.Hex(
-                _overlaySettings.Colors.ActiveVertex(true)),
-            ["xray_overlay_active"] = _overlayShowXRay,
-            ["xray_wire_no_depth_draws"] = _xRayWireNoDepthDrawCount,
-            ["xray_vertex_no_depth_passes"] = _xRayVertexNoDepthPassCount,
-            ["gizmo_overlay_draws"] = _gizmoOverlayDrawCount,
-            ["gizmo_x_axis_color"] = GizmoAppearance.Hex(_gizmoAppearance.XAxis),
-            ["gizmo_y_axis_color"] = GizmoAppearance.Hex(_gizmoAppearance.YAxis),
-            ["gizmo_z_axis_color"] = GizmoAppearance.Hex(_gizmoAppearance.ZAxis),
-            ["gizmo_highlight_color"] = GizmoAppearance.Hex(_gizmoAppearance.Highlight),
-            ["gizmo_label_color"] = GizmoAppearance.Hex(_gizmoAppearance.Label),
-            ["gizmo_line_thickness_pixels"] = _gizmoAppearance.LineThicknessPixels,
-            ["gizmo_size_scale"] = _gizmoAppearance.SizeScale,
-            ["gizmo_label_size_pixels"] = _gizmoAppearance.LabelSizePixels,
-            ["gizmo_handle_size_pixels"] = _gizmoAppearance.HandleSizePixels,
-            ["overlay_vertex_buffer_creates"] = _overlayVertexBufferCreateCount,
-            ["overlay_vertex_buffer_maps"] = _overlayVertexBufferMapCount,
-            ["overlay_vertex_buffer_no_overwrite_maps"] = 0L,
-            ["overlay_vertices_uploaded"] = _overlayVerticesUploaded,
-            ["overlay_batch_flushes"] = _overlayBatchFlushCount,
-            ["overlay_batched_draws"] = _overlayBatchedDrawCount,
-            ["retained_overlay_cache_hits"] = _retainedOverlayCacheHitCount,
-            ["retained_overlay_rebuilds"] = _retainedOverlayRebuildCount,
-            ["overlay_vertex_capacity"] = _overlayVertexCapacity,
-            ["overlay_vertex_buffer_reused"] = _overlayVertexBufferCreateCount > 0
-                && _overlayVertexBufferMapCount > _overlayVertexBufferCreateCount,
-            ["provisional_vertex_buffer_creates"] = _provisionalVertexBufferCreateCount,
-            ["provisional_vertex_buffer_updates"] = _provisionalVertexBufferUpdateCount,
-            ["provisional_vertex_buffer_disposals"] = _provisionalVertexBufferDisposeCount,
-            ["overlay_uploads_batched"] = _overlayBatchedDrawCount > _overlayBatchFlushCount,
             ["gpu_timestamp_query_slots"] = _gpuTimingQuerySets.Length,
             ["gpu_timestamp_queries_issued"] = _gpuTimingQueryIssuedCount,
             ["gpu_timestamp_queries_resolved"] = _gpuTimingQueryResolvedCount,
@@ -235,7 +183,68 @@ internal sealed partial class D3D11MaterialViewport
             ["dxgi_local_memory_budget_bytes"] = videoMemory.Budget,
             ["peak_sampled_dxgi_local_memory_usage_bytes"] = _peakDxgiLocalUsageBytes,
         };
+        foreach (var pair in OverlayResourceMetrics(overlayStyle))
+        {
+            payload[pair.Key] = pair.Value;
+        }
+        return payload;
     }
+
+    private Dictionary<string, object?> OverlayResourceMetrics(FitRelativeOverlayStyle overlayStyle) => new()
+    {
+            ["wire_overlay_draws"] = _wireOverlayDrawCount,
+            ["vertex_overlay_batch_draws"] = _vertexOverlayBatchDrawCount,
+            ["fit_relative_overlay_zoom_ratio"] = overlayStyle.ZoomRatio,
+            ["vertex_marker_size_pixels"] = overlayStyle.VertexMarkerSizePixels,
+            ["vertex_marker_fit_size_pixels"] = _overlaySettings.Sizing.VertexMarkerSizePixels,
+            ["wire_overlay_opacity_scale"] = overlayStyle.WireOpacityScale,
+            ["wire_overlay_width_pixels"] = _overlaySettings.Sizing.WireWidthPixels,
+            ["wire_overlay_color"] = MeshOverlayColors.Hex(_overlaySettings.Colors.Wire),
+            ["vertex_overlay_color"] = MeshOverlayColors.Hex(_overlaySettings.Colors.Vertex),
+            ["selection_overlay_color"] = MeshOverlayColors.Hex(_overlaySettings.Colors.Selection),
+            ["live_selection_overlay_color"] = MeshOverlayColors.Hex(_overlaySettings.Colors.LiveSelection),
+            ["last_committed_selection_primitive_color"] = MeshOverlayColors.Hex(
+                _lastCommittedSelectionPrimitiveColor),
+            ["last_live_selection_primitive_color"] = MeshOverlayColors.Hex(
+                _lastLiveSelectionPrimitiveColor),
+            ["committed_selection_overlay_primitives"] = _committedSelectionOverlayPrimitiveCount,
+            ["live_selection_overlay_primitives"] = _liveSelectionOverlayPrimitiveCount,
+            // The colour X-Ray would actually draw, which is the automatic one
+            // only while the reader has not chosen their own. Reporting the
+            // constant hid that the chosen colour was being ignored.
+            ["xray_wire_overlay_color"] = MeshOverlayColors.Hex(
+                _overlaySettings.Colors.ActiveWire(true)),
+            ["xray_vertex_overlay_color"] = MeshOverlayColors.Hex(
+                _overlaySettings.Colors.ActiveVertex(true)),
+            ["xray_overlay_active"] = _overlayShowXRay,
+            ["xray_wire_no_depth_draws"] = _xRayWireNoDepthDrawCount,
+            ["xray_vertex_no_depth_passes"] = _xRayVertexNoDepthPassCount,
+            ["gizmo_overlay_draws"] = _gizmoOverlayDrawCount,
+            ["gizmo_x_axis_color"] = GizmoAppearance.Hex(_gizmoAppearance.XAxis),
+            ["gizmo_y_axis_color"] = GizmoAppearance.Hex(_gizmoAppearance.YAxis),
+            ["gizmo_z_axis_color"] = GizmoAppearance.Hex(_gizmoAppearance.ZAxis),
+            ["gizmo_highlight_color"] = GizmoAppearance.Hex(_gizmoAppearance.Highlight),
+            ["gizmo_label_color"] = GizmoAppearance.Hex(_gizmoAppearance.Label),
+            ["gizmo_line_thickness_pixels"] = _gizmoAppearance.LineThicknessPixels,
+            ["gizmo_size_scale"] = _gizmoAppearance.SizeScale,
+            ["gizmo_label_size_pixels"] = _gizmoAppearance.LabelSizePixels,
+            ["gizmo_handle_size_pixels"] = _gizmoAppearance.HandleSizePixels,
+            ["overlay_vertex_buffer_creates"] = _overlayVertexBufferCreateCount,
+            ["overlay_vertex_buffer_maps"] = _overlayVertexBufferMapCount,
+            ["overlay_vertex_buffer_no_overwrite_maps"] = 0L,
+            ["overlay_vertices_uploaded"] = _overlayVerticesUploaded,
+            ["overlay_batch_flushes"] = _overlayBatchFlushCount,
+            ["overlay_batched_draws"] = _overlayBatchedDrawCount,
+            ["retained_overlay_cache_hits"] = _retainedOverlayCacheHitCount,
+            ["retained_overlay_rebuilds"] = _retainedOverlayRebuildCount,
+            ["overlay_vertex_capacity"] = _overlayVertexCapacity,
+            ["overlay_vertex_buffer_reused"] = _overlayVertexBufferCreateCount > 0
+                && _overlayVertexBufferMapCount > _overlayVertexBufferCreateCount,
+            ["provisional_vertex_buffer_creates"] = _provisionalVertexBufferCreateCount,
+            ["provisional_vertex_buffer_updates"] = _provisionalVertexBufferUpdateCount,
+            ["provisional_vertex_buffer_disposals"] = _provisionalVertexBufferDisposeCount,
+            ["overlay_uploads_batched"] = _overlayBatchedDrawCount > _overlayBatchFlushCount,
+    };
 
     private int MaterialBindingArrayIdentity()
     {

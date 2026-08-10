@@ -128,8 +128,8 @@ def _assert_coverage_and_palette(test: unittest.TestCase, result: dict[str, obje
     test.assertEqual([], palette["missing_actions"])
     test.assertEqual({action.key for action in MESH_EDITOR_ACTIONS}, set(palette["covered_actions"]))
     commands = {command["key"]: command for command in palette["commands"]}
-    test.assertGreater(commands["select_face"]["selection_group_count"], 0)
-    test.assertTrue(commands["select_face"]["selection_refresh"])
+    test.assertGreater(commands["select_parts"]["selection_group_count"], 0)
+    test.assertTrue(commands["select_parts"]["selection_refresh"])
     test.assertTrue(commands["duplicate"]["selection_refresh"])
     test.assertTrue(commands["undo"]["selection_refresh"])
     for action in (
@@ -235,7 +235,7 @@ class MeshHarnessServiceScenarioTests(unittest.TestCase):
             history_selection = result["service"]["history_selection"]
             self.assertTrue(history_selection["ok"])
             self.assertEqual([1], history_selection["before_undo"]["source_indices"])
-            self.assertEqual({}, history_selection["after_undo"]["faces_by_submesh"])
+            self.assertEqual({"0": [0]}, history_selection["after_undo"]["faces_by_submesh"])
             self.assertEqual([], history_selection["after_undo"]["source_indices"])
             self.assertEqual(1, history_selection["submesh_count_after_undo"])
             history_context = result["service"]["history_context"]

@@ -937,7 +937,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             base = temp_path / "base.png"
-            specular = temp_path / "material_sp.png"
+            specular = temp_path / "material_ao_sp.png"
             pbr = temp_path / "legacy_pbr.png"
             base_dds = temp_path / "base.dds"
             specular_dds = temp_path / "material_sp.dds"

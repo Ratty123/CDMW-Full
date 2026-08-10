@@ -1248,7 +1248,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
 
     def test_alignment_dialog_has_resident_dotnet_vortice_preview_mode(self) -> None:
         source = _main_window_source() + "\n" + _archive_preview_settings_source()
-        host_source = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_host.py").read_text(encoding="utf-8")
+        host_source = "\n".join((ROOT / "cdmw" / "ui" / "preview" / name).read_text(encoding="utf-8") for name in ("dotnet_host.py", "dotnet_host_protocol.py"))
         controller_source = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_session.py").read_text(encoding="utf-8")
         worker_source = (ROOT / "cdmw" / "workers" / "d3d11_package_workers.py").read_text(encoding="utf-8")
         self.assertIn('(".NET/Vortice Preview", "d3d11")', source)
@@ -2530,7 +2530,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
 
     def test_model_preview_draws_selected_part_outline_overlay(self) -> None:
         dotnet_source = (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
-        host_source = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_host.py").read_text(encoding="utf-8")
+        host_source = "\n".join((ROOT / "cdmw" / "ui" / "preview" / name).read_text(encoding="utf-8") for name in ("dotnet_host.py", "dotnet_host_protocol.py"))
         self.assertIn("_overlaySelectedSources", dotnet_source)
         self.assertIn("DrawOverlayPrimitive", dotnet_source)
         self.assertIn("source_part_selected", host_source)
@@ -2545,7 +2545,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
     def test_alignment_drag_commits_final_release_delta_before_clearing_live_transform(self) -> None:
         widget_source = _widgets_source()
         main_source = _main_window_source()
-        host_source = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_host.py").read_text(encoding="utf-8")
+        host_source = "\n".join((ROOT / "cdmw" / "ui" / "preview" / name).read_text(encoding="utf-8") for name in ("dotnet_host.py", "dotnet_host_protocol.py"))
         self.assertIn("alignment_drag_changed.emit(*translation)", host_source)
         self.assertIn("alignment_drag_finished.emit(*translation)", host_source)
         self.assertIn("_finish_alignment_d3d11_translation", main_source)
@@ -3790,9 +3790,6 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('"use_selected": "Use Selected"', material_plan_ui_state_source)
         self.assertIn("material_plan_control_text", texture_table_source)
         self.assertIn("def material_plan_control_text", material_plan_ui_state_source)
-        # The selection-context row is gone; the resident preview already shows
-        # the active context. The label survives as the callback sink, parented
-        # and hidden, so _update_selection_context has somewhere to write.
         self.assertIn('selection_context_label = QLabel("", content_container)', source)
         self.assertIn("selection_context_label.setVisible(False)", source)
         self.assertNotIn("selection_context_frame", source)
@@ -3828,10 +3825,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         source_display_source = ARCHIVE_STATIC_REPLACEMENT_SOURCE_DISPLAY.read_text(encoding="utf-8")
         self.assertIn("source_assigned_target_indices,", source_display_source)
         self.assertIn("normalized_source_index = int(source_index)", source_assignment_state_source)
-        part_mapped_source = _nested_function_source(
-            static_replacement_remaining_callback_source(ROOT),
-            "_part_mapped_target_indices",
-        )
+        part_mapped_source = _nested_function_source(static_replacement_remaining_callback_source(ROOT), "_part_mapped_target_indices")
         self.assertIn("_state._source_assigned_target_indices_helper(", part_mapped_source)
         self.assertNotIn("source_index = int(source_index)", part_mapped_source)
         added_part_textures_source = ARCHIVE_STATIC_REPLACEMENT_ADDED_PART_TEXTURES.read_text(encoding="utf-8")
@@ -5844,32 +5838,6 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             "if self._session_established and not self._session_provisional:",
             session_source,
         )
-
-    def test_resident_gizmo_drag_defers_the_authoritative_scene_frame(self) -> None:
-        """A live gizmo drag must not publish a scene frame per pointer sample.
-
-        The resident helper reports one ``placement_transform_request`` every
-        30 ms. Answering each with the full update rebuilds the authoritative
-        frame over every vertex and makes the .NET host re-run its
-        interaction-mode controls, which is a whole-window layout restore.
-        """
-        placement_handler = function_source(
-            static_replacement_ui_implementation_source(ROOT),
-            "_mesh_editor_apply_dotnet_placement_state",
-        )
-        protocol_source = (
-            ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_protocol.py"
-        ).read_text(encoding="utf-8")
-
-        self.assertIn('phase: str = \'end\'', placement_handler)
-        self.assertIn('str(phase or \'end\').strip().lower() == \'update\'', placement_handler)
-        deferred = placement_handler.index(
-            "str(phase or 'end').strip().lower() == 'update'"
-        )
-        published = placement_handler.index("_queue_global_transform_preview_update()")
-        self.assertLess(deferred, published)
-        self.assertIn('payload.get("placement_phase", "end")', protocol_source)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -33,7 +33,8 @@ def test_sparse_vertex_refresh_retains_topology_and_uploads_only_incident_ranges
     assert "renderCorner / 3" in geometry
     assert "PatchBatchVertexRanges" in geometry
     assert "UploadFaceRange" in geometry
-    assert "ArrayPool<D3D11MaterialVertex>.Shared.Rent" in geometry
+    assert "batch.ResidentVertices.AsSpan" in geometry
+    assert "ArrayPool<D3D11MaterialVertex>.Shared.Rent" not in geometry
     assert "UpdateSubresource(" in geometry
     assert "new Box(byteStart, 0, 0, byteEnd, 1, 1)" in geometry
     assert "batch.TopologyGeneration != _topologyGeneration" in geometry

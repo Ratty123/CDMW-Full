@@ -6,6 +6,7 @@ import time
 import unittest
 from pathlib import Path
 
+from cdmw.app.pyinstaller_runtime import pid_is_alive
 from cdmw.core.common import ProcessTimeoutExpired, hidden_subprocess_kwargs, run_process_with_cancellation
 
 
@@ -63,23 +64,15 @@ class HiddenSubprocessTests(unittest.TestCase):
                     )
                 child_pid = int(pid_path.read_text(encoding="utf-8"))
                 deadline = time.monotonic() + 2.0
-                while time.monotonic() < deadline and _pid_exists(child_pid):
+                while time.monotonic() < deadline and pid_is_alive(child_pid):
                     time.sleep(0.05)
-                self.assertFalse(_pid_exists(child_pid), f"spawned child process still alive: pid={child_pid}")
+                self.assertFalse(pid_is_alive(child_pid), f"spawned child process still alive: pid={child_pid}")
             finally:
-                if child_pid and _pid_exists(child_pid):
+                if child_pid and pid_is_alive(child_pid):
                     try:
                         os.kill(child_pid, 9)
                     except OSError:
                         pass
-
-
-def _pid_exists(process_id: int) -> bool:
-    try:
-        os.kill(int(process_id), 0)
-    except OSError:
-        return False
-    return True
 
 
 if __name__ == "__main__":

@@ -117,6 +117,14 @@ def _mesh_edit_control_runtime_state(_state, _callbacks):
         _state.mesh_edit_enabled_checkbox.blockSignals(False)
     return topology_busy, can_edit, reason
 
+def _set_mesh_edit_row_visible(_state, row_key: str, visible: bool) -> None:
+    row = _state.mesh_edit_field_rows.get(str(row_key))
+    if row is not None:
+        label, widget = row
+        label.setVisible(bool(visible))
+        widget.setVisible(bool(visible))
+
+
 def _refresh_mesh_edit_controls(_state, _callbacks, ) -> None:
     _callbacks._refresh_mesh_edit_part_combo()
     allowed_indices = set(_state._mesh_edit_allowed_source_indices())
@@ -159,14 +167,6 @@ def _refresh_mesh_edit_controls(_state, _callbacks, ) -> None:
     selection_actions_visible = bool(select_tool or selected_part_count > 0 or selected_element_count > 0)
     smooth_tool = bool(tool_context["smooth_tool"])
 
-    def _set_mesh_edit_row_visible(row_key: str, visible: bool) -> None:
-        row = _state.mesh_edit_field_rows.get(str(row_key))
-        if row is None:
-            return
-        label, widget = row
-        label.setVisible(bool(visible))
-        widget.setVisible(bool(visible))
-
     for tool, button in _state.mesh_edit_tool_buttons.items():
         button.setChecked(tool == current_tool)
     for widget in (
@@ -177,14 +177,14 @@ def _refresh_mesh_edit_controls(_state, _callbacks, ) -> None:
     ):
         widget.setEnabled(editing_requested and not topology_busy)
     _state.mesh_edit_part_combo.setEnabled(editing_requested and not topology_busy and _state._mesh_edit_scope_mode() == "selected")
-    _set_mesh_edit_row_visible("scope", True)
-    _set_mesh_edit_row_visible("part", True)
-    _set_mesh_edit_row_visible("radius", sculpt_tool or remove_tool or brush_selection_tool)
-    _set_mesh_edit_row_visible("strength", sculpt_tool)
-    _set_mesh_edit_row_visible("falloff", sculpt_tool)
-    _set_mesh_edit_row_visible("iterations", smooth_tool)
-    _set_mesh_edit_row_visible("selection", select_tool)
-    _set_mesh_edit_row_visible("depth", select_tool)
+    _set_mesh_edit_row_visible(_state, "scope", True)
+    _set_mesh_edit_row_visible(_state, "part", True)
+    _set_mesh_edit_row_visible(_state, "radius", sculpt_tool or remove_tool or brush_selection_tool)
+    _set_mesh_edit_row_visible(_state, "strength", sculpt_tool)
+    _set_mesh_edit_row_visible(_state, "falloff", sculpt_tool)
+    _set_mesh_edit_row_visible(_state, "iterations", smooth_tool)
+    _set_mesh_edit_row_visible(_state, "selection", select_tool)
+    _set_mesh_edit_row_visible(_state, "depth", select_tool)
     _state.mesh_edit_delete_mode_combo.setEnabled(editing_requested and not topology_busy and remove_tool)
     _state.mesh_edit_remove_mode_label.setVisible(remove_tool)
     _state.mesh_edit_delete_mode_combo.setVisible(remove_tool)

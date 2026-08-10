@@ -83,7 +83,6 @@ class _Settings:
             "ui/item_finder_search_text": "sword",
             "ui/item_finder_category": "Equipment",
             "ui/item_finder_group": "Weapon",
-            "ui/item_finder_material_tag": "metal",
         }
 
     def value(self, key: str, default: object = None) -> object:
@@ -113,7 +112,6 @@ def _row(item_id: int, *, with_icon: bool) -> ItemCatalogRow:
         (f"item_{item_id}",),
         (f"ui/icon/item_{item_id}.dds",) if with_icon else (),
         (),
-        ("metal",),
         1,
         "model link",
     )
@@ -148,11 +146,10 @@ def test_startup_builds_catalogue_and_caches_the_restored_first_page() -> None:
         query="sword",
         category=None,
         group=None,
-        material_tag="metal",
         page_start=0,
         page_size=72,
     )
-    result = ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(7, with_icon=False),), (), (), True)
+    result = ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(7, with_icon=False),), ())
     service.result_ready.emit("search-1", "search_item_catalog", result)
 
     assert controller.cached_search(request) is result
@@ -221,7 +218,7 @@ def test_startup_icon_warmup_decodes_off_thread_and_serves_memory_hit(tmp_path) 
         "build_name_index",
         BuildNameIndexResult("session-a", True, False, 1, 1, item_count=1),
     )
-    result = ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(11, with_icon=True),), (), (), True)
+    result = ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(11, with_icon=True),), ())
     service.result_ready.emit("search-1", "search_item_catalog", result)
     _wait_until(lambda: len(service.icons) == 1)
     assert service.icons[0][0].item_ids == (11,)
@@ -269,7 +266,7 @@ def test_background_warmup_scans_every_catalogue_page_and_queues_all_icons(monke
     service.result_ready.emit(
         "search-1",
         "search_item_catalog",
-        ItemCatalogSearchResult("session-a", 0, 0, 72, (), (), (), True),
+        ItemCatalogSearchResult("session-a", 0, 0, 72, (), ()),
     )
     _wait_until(lambda: len(service.searches) == 2)
 
@@ -277,7 +274,7 @@ def test_background_warmup_scans_every_catalogue_page_and_queues_all_icons(monke
     service.result_ready.emit(
         "search-2",
         "search_item_catalog",
-        ItemCatalogSearchResult("session-a", 4, 0, 256, first_rows, (), (), True),
+        ItemCatalogSearchResult("session-a", 4, 0, 256, first_rows, ()),
     )
     _wait_until(lambda: len(service.icons) == 1)
     service.result_ready.emit(
@@ -295,7 +292,7 @@ def test_background_warmup_scans_every_catalogue_page_and_queues_all_icons(monke
     service.result_ready.emit(
         "search-3",
         "search_item_catalog",
-        ItemCatalogSearchResult("session-a", 4, 2, 256, second_rows, (), (), True),
+        ItemCatalogSearchResult("session-a", 4, 2, 256, second_rows, ()),
     )
     _wait_until(lambda: len(service.icons) == 2)
     service.result_ready.emit(

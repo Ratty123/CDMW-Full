@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Callable, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QSize, QUrl, Qt
+from PySide6.QtCore import QFile, QIODevice, QSize, QUrl, Qt
 from PySide6.QtGui import QColor, QImage, QImageReader
 
 from cdmw.domain.cancellation import RunCancelled
@@ -444,7 +444,9 @@ def _image_reader(source_url: str, *, max_dimension: int = 0) -> QImage:
     source_path = _source_url_local_path(source_url)
     if not source_path:
         return QImage()
-    reader = QImageReader(source_path)
+    source_file = QFile(source_path)
+    source_file.open(QIODevice.OpenModeFlag.ReadOnly)
+    reader = QImageReader(source_file)
     reader.setAutoTransform(True)
     limit = max(0, int(max_dimension or 0))
     if limit > 0:
@@ -454,17 +456,14 @@ def _image_reader(source_url: str, *, max_dimension: int = 0) -> QImage:
             if target.width() > 0 and target.height() > 0:
                 reader.setScaledSize(target)
     image = reader.read()
+    source_file.close()
     if not image.isNull():
         return image
     fallback = _image_from_file_bytes_with_retry(source_path)
     if fallback.isNull() or limit <= 0:
         return fallback
-    width = int(fallback.width())
-    height = int(fallback.height())
-    if max(width, height) <= limit:
-        return fallback
-    target = QSize(width, height).scaled(limit, limit, Qt.KeepAspectRatio)
-    if target.width() <= 0 or target.height() <= 0:
+    target = fallback.size().scaled(limit, limit, Qt.KeepAspectRatio)
+    if fallback.size() == target or target.isEmpty():
         return fallback
     return fallback.scaled(target, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
 

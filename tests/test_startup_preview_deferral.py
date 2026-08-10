@@ -135,11 +135,10 @@ def test_loaded_preview_settings_keep_existing_persistence_keys() -> None:
 
     assert saved is True
     # The count is derived: every persisted field of ModelPreviewRenderSettings
-    # writes one key. It moved from 77 to 81 when the camera bindings below were
-    # added, which is why the four are named rather than left to a bare number --
-    # a count that only says "81" cannot tell a deliberate new setting from a
-    # field that started persisting by accident.
-    assert len(writes) == 81
+    # writes one key. It moved from 81 to 87 when the six resident viewport
+    # presentation settings below were added. Naming them makes a count change
+    # distinguish a deliberate new setting from accidental persistence.
+    assert len(writes) == 87
     assert writes["archive/model_use_textures"] is True
     assert writes["archive/model_high_quality"] is True
     assert writes["preview/texture_max_dimension"] == 2048
@@ -147,6 +146,15 @@ def test_loaded_preview_settings_keep_existing_persistence_keys() -> None:
     assert writes["preview/gizmo_x_axis_color"] == "#123456"
     assert writes["preview/gizmo_line_thickness_pixels"] == 2.5
     assert "preview/alignment_use_final_output_preview" not in writes
+    for setting in (
+        "d3d11_background_color",
+        "d3d11_grid_color",
+        "d3d11_wire_color",
+        "d3d11_vertex_color",
+        "d3d11_grid_spacing_scale",
+        "d3d11_grid_line_count",
+    ):
+        assert f"preview/{setting}" in writes, f"viewport setting {setting} stopped persisting"
     # A rebindable gesture that does not survive a restart is not rebindable.
     # 2cc64069 added the two modifiers, f623c390 the two drag gestures.
     for binding in (

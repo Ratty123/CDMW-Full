@@ -122,6 +122,36 @@ internal sealed partial class ExperimentForm : Form
     private MeshViewportBackgroundColors _viewportColors = MeshViewportBackgroundPreferences.Load();
     private MeshToolPanelLayout _toolPanelLayout = MeshToolPanelLayoutPreferences.Load();
 
+    private void ConfigureSubmeshList()
+    {
+    _submeshList.Dock = DockStyle.Fill;
+    _submeshList.IntegralHeight = false;
+    // Both list sections size to their content in the dock columns, so the
+    // list's own height is what the reader actually gets.
+    _submeshList.Height = 150;
+    _actionHistoryList.Height = 150;
+    _actionHistoryList.IntegralHeight = false;
+    _submeshList.HorizontalScrollbar = true;
+    // MultiSimple: a click toggles a part rather than replacing the selection.
+    _submeshList.SelectionMode = SelectionMode.MultiSimple;
+    RefreshSubmeshList();
+    _submeshList.SelectedIndexChanged += (_, _) =>
+    {
+        if (!_syncingSubmeshListSelection)
+        {
+            _viewport.SelectPartsFromList(_submeshList.SelectedIndices.Cast<int>());
+            ApplySelectedMorphRefitSettings();
+        }
+    };
+    _submeshList.MouseDown += (_, eventArgs) =>
+    {
+        if (eventArgs.Button == MouseButtons.Left && _submeshList.IndexFromPoint(eventArgs.Location) == ListBox.NoMatches)
+        {
+            _submeshList.SelectedIndex = -1;
+        }
+    };
+    }
+
     public ExperimentForm(LaunchOptions options, ObjDocument document, long sourceParseCount)
     {
         _options = options;
@@ -183,33 +213,7 @@ internal sealed partial class ExperimentForm : Form
         _viewport.TextureRegionCompleted += CompleteQueuedTextureRegionUpdate;
         _viewport.MouseDown += (_, _) => _viewport.Focus();
         _viewport.SubmeshSelectedRequested += _ => SyncSubmeshListSelection();
-        _submeshList.Dock = DockStyle.Fill;
-        _submeshList.IntegralHeight = false;
-        // Both list sections size to their content in the dock columns, so the
-        // list's own height is what the reader actually gets.
-        _submeshList.Height = 150;
-        _actionHistoryList.Height = 150;
-        _actionHistoryList.IntegralHeight = false;
-        _submeshList.HorizontalScrollbar = true;
-        // MultiSimple: a click toggles a part rather than replacing the selection.
-        _submeshList.SelectionMode = SelectionMode.MultiSimple;
-        RefreshSubmeshList();
-        _submeshList.SelectedIndexChanged += (_, _) =>
-        {
-            if (!_syncingSubmeshListSelection)
-            {
-                _viewport.SelectPartsFromList(_submeshList.SelectedIndices.Cast<int>());
-                ApplySelectedMorphRefitSettings();
-            }
-        };
-        _submeshList.MouseDown += (_, eventArgs) =>
-        {
-            if (eventArgs.Button == MouseButtons.Left && _submeshList.IndexFromPoint(eventArgs.Location) == ListBox.NoMatches)
-            {
-                _submeshList.SelectedIndex = -1;
-            }
-        };
-
+        ConfigureSubmeshList();
         ConfigureNumeric(_translateStep, decimalPlaces: 4, minimum: -10, maximum: 10, value: 0.0100M, increment: 0.0100M);
         // Whole-part selection is owned only by the explicit PARTS list. The
         // viewport Select tool operates on one element domain at a time.
@@ -654,195 +658,6 @@ internal sealed partial class ExperimentForm : Form
         {
             ResumeLayout(performLayout: false);
         }
-    }
-
-    private (Panel Left, Panel Right) BuildToolPanels()
-    {
-        _submeshList.BackColor = ThemeInputBackground;
-        _submeshList.ForeColor = ThemeText;
-        _submeshList.BorderStyle = BorderStyle.FixedSingle;
-        _submeshList.Height = 96;
-        _submeshList.Font = new Font(Font.FontFamily, 8.5f);
-        ApplyDarkScrollbars(_submeshList);
-        _actionHistoryList.Name = "ResidentActionHistoryList";
-        _actionHistoryList.BackColor = ThemeInputBackground;
-        _actionHistoryList.ForeColor = ThemeText;
-        _actionHistoryList.BorderStyle = BorderStyle.FixedSingle;
-        _actionHistoryList.IntegralHeight = false;
-        _actionHistoryList.SelectionMode = SelectionMode.None;
-        _actionHistoryList.Height = 96;
-        _actionHistoryList.Font = new Font(Font.FontFamily, 8.5f);
-        _actionHistoryList.Items.Add("No edit actions yet");
-        ApplyDarkScrollbars(_actionHistoryList);
-
-        var finish = StyledButton(_options.Embedded ? "Finish Edit Mesh" : "Save Edited Package", height: 30);
-        finish.Click += (_, _) =>
-        {
-            if (_options.Embedded)
-            {
-                RequestFinishEditMesh();
-            }
-            else
-            {
-                SaveAndReport();
-            }
-        };
-        _sessionFinishButton = finish;
-
-        ConfigureCheckBox(_partPick, "Part Pick", isChecked: false);
-        _partPick.CheckedChanged += (_, _) =>
-        {
-            _viewport.PartPickEnabled = _partPick.Checked;
-            if (_partPick.Checked)
-            {
-                _statusLabel.Text = "Part Pick enabled; selection requests target source parts.";
-            }
-            else
-            {
-                _statusLabel.Text = "Part Pick disabled; clearing selection.";
-                WriteCommandRequest("clear_selection");
-            }
-        };
-        var left = CreateToolPanel(
-            "DotNetMeshEditorLeftToolPanel",
-            "DotNetMeshEditorLeftToolScroll",
-            "DotNetMeshEditorLeftToolStack",
-            _toolPanelLayout.LeftWidth,
-            out var leftStack);
-        var right = CreateToolPanel(
-            "DotNetMeshEditorRightToolPanel",
-            "DotNetMeshEditorRightToolScroll",
-            "DotNetMeshEditorRightToolStack",
-            _toolPanelLayout.RightWidth,
-            out var rightStack);
-        _leftToolStack = leftStack;
-        _rightToolStack = rightStack;
-
-        // The session commands live on the compact session bar, which adopts
-        // them when it is attached; until then they are parentless.
-        var clearSelectionButton = CommandButton("Clear Selection", "clear_selection");
-        var selectAllButton = CommandButton("Select All", "select_all");
-        var invertButton = CommandButton("Invert", "invert");
-        var undoButton = CommandButton("Undo", "undo");
-        var redoButton = CommandButton("Redo", "redo");
-        _sessionClearSelectionButton = clearSelectionButton;
-        _sessionSelectAllButton = selectAllButton;
-        _sessionInvertButton = invertButton;
-        _undoButton = undoButton;
-        _redoButton = redoButton;
-        undoButton.Enabled = false;
-        redoButton.Enabled = false;
-        _actionHistorySection = AddHelpSection(
-            rightStack,
-            "Action History",
-            "Every applied mesh edit and selection change appears here. Undone actions remain visible for Redo.",
-            out _,
-            _actionHistoryList);
-        _actionHistorySection.Name = "CompactActionHistorySection";
-        _meshEditOnlySections.Add(_actionHistorySection);
-        _morphRefitSection = BuildMorphRefitSection(rightStack);
-        // The Part Pick section is gone: the Parts panel on the right is the
-        // only part-selection surface. The hidden compatibility control remains
-        // unchecked so no viewport input path can arm source-part picking.
-        _partPick.Visible = false;
-        _partPickSection = null;
-        var duplicatePartButton = CommandButton("Duplicate", "duplicate");
-        var deletePartButton = CommandButton("Delete", "delete");
-        RegisterTopologyMutationButton(duplicatePartButton);
-        RegisterTopologyMutationButton(deletePartButton);
-        _partsSection = BuildPartsSection(rightStack, duplicatePartButton, deletePartButton);
-        _partsSection.Name = "CompactPartsSection";
-        _meshEditOnlySections.Add(_partsSection);
-        _layersSection = BuildGeometryLayersSection(rightStack);
-        _layersSection.Name = "CompactGeometryLayersSection";
-        _meshEditOnlySections.Add(_layersSection);
-        var selectionSection = AddHelpSection(
-            leftStack,
-            "Selection",
-            "Click or drag on the mesh to select vertices, wires, or faces. Brush, Rectangle and Lasso never select PARTS; X-Ray selects through the mesh.",
-            out _,
-            LabeledControl("Selection target", _selectionTarget),
-            LabeledControl("Select shape", _selectionShape),
-            LabeledControl("Selection mode", _selectionOperation),
-            _xray,
-            // No Select button: its list row arms the tool. Grow and Shrink are commands, so they stay.
-            ButtonRow(CommandButton("Grow", "grow"), CommandButton("Shrink", "shrink")));
-        selectionSection.Name = "CompactSelectionSection";
-        _selectionSection = selectionSection;
-        _meshEditOnlySections.Add(selectionSection);
-        _placementSection = AddSection(leftStack, "Placement",
-            SceneComparisonControl(),
-            ButtonRow(GizmoButton("Move", "move"), GizmoButton("Rotate", "rotate"), GizmoButton("Scale", "scale")));
-        _placementSection.Name = "ClassicPlacementSection";
-        _placementOnlySections.Add(_placementSection);
-        var transformSection = AddHelpSection(
-            leftStack,
-            "Transform",
-            "Move drags the current selection freely in screen space; Grab pulls vertices under the brush. "
-            + "The axis buttons nudge the selection by the exact translate step.",
-            out _,
-            LabeledControl("Translate step", _translateStep),
-            LabeledControl("Grab radius", _grabRadius),
-            AxisNudgeRow("x"),
-            AxisNudgeRow("y"),
-            AxisNudgeRow("z"));
-        transformSection.Name = "CompactTransformSection";
-        _transformSection = transformSection;
-        _meshEditOnlySections.Add(transformSection);
-        var brushSection = AddHelpSection(
-            leftStack,
-            "Brush Tools",
-            "Brushes paint the replacement under the yellow circle; no preselection is required. Left-drag to apply. Right-drag pans; wheel zooms.",
-            out _,
-            LabeledControl("Radius", _radius),
-            LabeledControl("Strength", _strength),
-            LabeledControl("Falloff", _falloff),
-            BuildFalloffCurve());
-        brushSection.Name = "CompactBrushSection";
-        _brushSection = brushSection;
-        _meshEditOnlySections.Add(brushSection);
-        var subdivideButton = CommandButton("Subdivide", "subdivide");
-        var refineButton = CommandButton("Refine Smooth", "refine_smooth");
-        // Deleting and duplicating geometry is driven by the current selection
-        // target, so it belongs beside the other topology edits. The Parts group
-        // keeps its own pair for whole-part actions.
-        var deleteSelectionButton = CommandButton("Delete Selection", "delete");
-        var duplicateSelectionButton = CommandButton("Duplicate Selection", "duplicate");
-        RegisterTopologyMutationButton(subdivideButton);
-        RegisterTopologyMutationButton(refineButton);
-        RegisterTopologyMutationButton(deleteSelectionButton);
-        RegisterTopologyMutationButton(duplicateSelectionButton);
-        var topologySection = AddHelpSection(
-            leftStack,
-            "Topology",
-            "Acts on the viewport mesh selection or the explicit PARTS selection. "
-            + "Subdivide and Refine Smooth require a selection and never change the whole mesh implicitly.",
-            out _,
-            ButtonRow(deleteSelectionButton, duplicateSelectionButton),
-            ButtonRow(subdivideButton, refineButton));
-        topologySection.Name = "CompactTopologySection";
-        _topologySection = topologySection;
-        _meshEditOnlySections.Add(topologySection);
-        _ = BuildColourSection(leftStack);
-        _viewportSection = AddHelpSection(
-            rightStack,
-            "Viewport",
-            "Choose the preview mode, topology appearance, viewport background, or a camera preset. Mouse and keyboard bindings update with the active tool.",
-            out var viewportHelpMarker,
-            PreviewModeControl(),
-            OverlayAppearanceControls(),
-            ViewportColorControls(),
-            // Four rows of three rather than three plus a lone Orbit: the whole
-            // group has to fit above the fold, or the camera presets are behind
-            // a scroll on a 1080p column.
-            ButtonRow(CameraButton("Front", "front"), CameraButton("Back", "back"), CameraButton("Top", "top")),
-            ButtonRow(CameraButton("Left", "left"), CameraButton("Right", "right"), CameraButton("Bottom", "bottom")),
-            ButtonRow(StyledActionButton("-15", () => _viewport.RotateYawDegrees(-15.0f)), StyledActionButton("+15", () => _viewport.RotateYawDegrees(15.0f)), StyledActionButton("Fit", _viewport.FrameMesh)),
-            ToolButton("Orbit", "orbit"));
-        _viewportSection.Name = "CompactViewportSection";
-        _viewportHelpMarker = viewportHelpMarker;
-
-        return (left, right);
     }
 
     private static Panel CreateToolPanel(

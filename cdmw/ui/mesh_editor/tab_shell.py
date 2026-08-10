@@ -6,15 +6,8 @@ from typing import Mapping, Optional
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QFrame,
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QTabWidget,
-    QVBoxLayout,
-    QWidget,
-    QApplication,
+    QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel,
+    QPushButton, QTabWidget, QVBoxLayout, QWidget,
 )
 
 from cdmw.ui.shell.settings_bridge import read_bool_setting

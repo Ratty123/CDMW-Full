@@ -13,7 +13,7 @@
     "cdmw/ui/research/tab_builders.py::build_archive_tab": 481,
     "cdmw/ui/safe_upscale_wizard.py::SafeUpscaleWizard._build_ui": 221,
     "cdmw/ui/settings_tab.py::SettingsTab.__init__": 1005,
-    "cdmw/ui/settings_tab.py::SettingsTab._read_model_preview_render_settings": 155,
+    "cdmw/ui/settings_tab.py::SettingsTab._read_model_preview_render_settings": 151,
     "cdmw/ui/shell/about_documentation_de.py::AboutDocumentationGermanMixin._build_about_document_for_german": 518,
     "cdmw/ui/shell/about_documentation_en.py::AboutDocumentationEnglishMixin._build_about_sections": 639,
     "cdmw/ui/shell/about_documentation_es.py::AboutDocumentationSpanishMixin._build_about_document_for_spanish": 519,

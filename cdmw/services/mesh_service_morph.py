@@ -1,5 +1,4 @@
 """Resident procedural morph/refit authority for :class:`MeshService`."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
@@ -49,8 +48,6 @@ from cdmw.services.mesh_service_reports import (
     _native_editor_report_changed_vertices,
 )
 from cdmw.services.mesh_service_state import _MeshEditSession, _MeshHistorySnapshot
-
-
 @dataclass(slots=True)
 class _MeshMorphSessionData:
     profile: MeshMorphProfile | None = None
@@ -63,8 +60,6 @@ class _MeshMorphSessionData:
     profiles_loaded: bool = False
     topology_mesh: object | None = None
     topology_invalidated: bool = False
-
-
 def _service_call(name: str, *args: object, **kwargs: object) -> object:
     return getattr(sys.modules["cdmw.services.mesh_service"], name)(*args, **kwargs)
 

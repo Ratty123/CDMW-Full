@@ -188,7 +188,7 @@ def test_xray_renderer_uses_no_depth_wire_and_vertex_passes_with_hidden_gpu_proo
     overlay = _source("D3D11MaterialViewport.Overlay.cs")
     metrics = _source("D3D11MaterialViewport.Metrics.cs")
     selection = _source("MeshViewport.SelectionPicking.cs")
-    headless = _source("HeadlessGpuSparseSoak.cs")
+    headless = _source("HeadlessGpuSparseSoak.cs") + _source("HeadlessGpuSparseSoak.XRay.cs")
 
     no_depth = overlay.index("_overlayCommandDepthMode = 1;")
     xray_wire = overlay.index("DrawD3D11WireOverlay();", no_depth)

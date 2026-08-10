@@ -18,8 +18,8 @@ def test_alignment_selection_highlight_is_bounded() -> None:
     vortice_source = (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
 
     assert "private void DrawSelectedSourcesOverlay()" in vortice_source
-    assert "OverlayColor(70, 155, 255, _overlayShowXRay ? 64 : 42)" in vortice_source
-    assert "OverlayColor(70, 155, 255, _overlayShowXRay ? 230 : 185)" in vortice_source
+    assert "OverlayColor(_overlaySettings.Colors.Selection, _overlayShowXRay ? 64 : 42)" in vortice_source
+    assert "OverlayColor(_overlaySettings.Colors.Selection, _overlayShowXRay ? 230 : 185)" in vortice_source
 
 
 def test_source_part_mutation_lazy_state_is_initialized_and_guarded() -> None:

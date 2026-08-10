@@ -363,9 +363,8 @@ def test_canonical_edit_preparation_uses_manifest_selected_corpus_asset(tmp_path
 
 
 def test_canonical_performance_capture_drives_manifest_interactions_instead_of_idling() -> None:
-    source = (Path(__file__).resolve().parents[1] / "tools" / "mesh_harness" / "real_dotnet.py").read_text(
-        encoding="utf-8"
-    )
+    root = Path(__file__).resolve().parents[1] / "tools" / "mesh_harness"
+    source = "\n".join((root / name).read_text(encoding="utf-8") for name in ("real_dotnet.py", "real_dotnet_performance.py"))
     flow = source.split("def run_real_archive_mesh_editor_dotnet_edit_smoke", maxsplit=1)[1]
     capture = source.split("def _execute_performance_capture", maxsplit=1)[1].split(
         "def _wait_protocol_event", maxsplit=1

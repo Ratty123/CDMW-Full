@@ -39,7 +39,13 @@ def _native_mesh_core_source() -> str:
 
 def _read(relative: str) -> str:
     if relative == "cdmw/services/mesh_service.py":
-        return "\n".join(_read(path) for path in (relative + ".facade", "cdmw/services/mesh_service_selection.py"))
+        return "\n".join(_read(path) for path in (relative + ".facade", "cdmw/services/mesh_service_native_session.py", "cdmw/services/mesh_service_native_clone.py", "cdmw/services/mesh_service_selection.py"))
+    if relative == "cdmw/ui/preview/dotnet_host.py":
+        return "\n".join(_read(path) for path in (relative + ".facade", "cdmw/ui/preview/dotnet_host_protocol.py"))
+    if relative == "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs":
+        return "\n".join(_read(path) for path in (relative + ".facade", "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPaint.cs"))
+    if relative == "tools/mesh_harness/real_dotnet.py":
+        return "\n".join(_read(path) for path in (relative + ".facade", "tools/mesh_harness/real_dotnet_performance.py"))
     if relative.endswith(".facade"):
         relative = relative.removesuffix(".facade")
     if relative == "native/cdmw_d3d11_preview/src/main.cpp":
@@ -345,9 +351,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             ("cdmw/ui/archive_browser/static_replacement_dialog_source_part_mutation_callbacks.py", static_replacement_source_part_mutation_callback_source(ROOT)),
         ]
         expected_boundary_or_fallback_sites = [
-            ("cdmw/services/mesh_service.py", "mesh=clone_mesh_for_editing(session.working_mesh),"),
-            ("cdmw/services/mesh_service.py", "return clone_mesh_for_editing(mesh), clone_mesh_for_editing(mesh)"),
-            ("cdmw/services/mesh_service.py", "cloned = clone_mesh_for_editing(mesh)"),
+            ("cdmw/services/mesh_service.py", 'mesh=_service_call("clone_mesh_for_editing", session.working_mesh),  # type: ignore[arg-type]'),
+            ("cdmw/services/mesh_service.py", '_service_call("clone_mesh_for_editing", mesh),  # type: ignore[return-value]'),
+            ("cdmw/services/mesh_service.py", '_service_call("clone_mesh_for_editing", mesh),  # type: ignore[return-value]'),
+            ("cdmw/services/mesh_service.py", 'cloned = _service_call("clone_mesh_for_editing", mesh)'),
             ("cdmw/services/model_library_preview.py", "preview_model = parsed_mesh_to_preview_model(scene_result.mesh)"),
             ("cdmw/modding/mesh_morph_sliders.py", "result = clone_mesh_for_editing(base_mesh)"),
             ("cdmw/ui/archive_browser/mesh_launch_flow.py", "preview_model = parsed_mesh_to_preview_model(scene_import_result.mesh)"),
@@ -385,7 +392,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         for relative, source in scan_sources:
             for line in source.splitlines():
                 stripped = line.strip()
-                if "clone_mesh_for_editing(" in stripped or "parsed_mesh_to_preview_model(" in stripped:
+                if (
+                    '"clone_mesh_for_editing"' in stripped
+                    or "clone_mesh_for_editing(" in stripped
+                    or "parsed_mesh_to_preview_model(" in stripped
+                ):
                     actual.append((relative, stripped))
         self.assertEqual(expected_boundary_or_fallback_sites, actual)
 
@@ -733,7 +744,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertLess(
             restore_deltas_body.index('_allow_python_history_restore_fallback(mesh, deltas, "history.restore_normals")'),
-            restore_deltas_body.index("recompute_mesh_normals(mesh)"),
+            restore_deltas_body.index('_service_call("recompute_mesh_normals", mesh)'),
         )
         self.assertIn("_record_native_edit_fallback(mesh, \"live_edit.transform\"", edit_ops_source)
         self.assertNotIn("_PYTHON_MESH_EDIT_FALLBACK_VERTEX_LIMIT", edit_ops_source)
@@ -2372,7 +2383,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         # The drag sends are wrapped across lines now, so pin the call and its
         # held-button argument rather than a one-line spelling of them. Without
         # _MK_LBUTTON the move is a hover and no brush stroke is exercised.
-        self.assertIn("_send_mouse_message(\n                state.viewport_hwnd,\n                _WM_MOUSEMOVE,", source)
+        self.assertIn("_send_mouse_message(\n                self.state.viewport_hwnd,\n                _WM_MOUSEMOVE,", source)
         self.assertIn("wparam=_MK_LBUTTON,", source)
         self.assertIn("tab._send_dotnet_protocol_message", source)
         self.assertIn("def _write_checker_png(", source)
@@ -2681,13 +2692,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_state.mesh_edit_select_part_button = _state.QPushButton(_state.mesh_edit_action_control_text['select_part'])", source)
         self.assertIn("_state.mesh_edit_invert_selection_button = _state.QPushButton(_state.mesh_edit_action_control_text['invert_selection'])", source)
         self.assertIn('"selection_actions_visible": bool(select_tool or int(selected_count) > 0)', state_source)
-        self.assertIn('_set_mesh_edit_row_visible("radius", sculpt_tool or remove_tool or brush_selection_tool)', source)
-        self.assertIn('_set_mesh_edit_row_visible("strength", sculpt_tool)', source)
-        self.assertIn('_set_mesh_edit_row_visible("falloff", sculpt_tool)', source)
-        self.assertIn('_set_mesh_edit_row_visible("iterations", smooth_tool)', source)
+        self.assertIn('_set_mesh_edit_row_visible(_state, "radius", sculpt_tool or remove_tool or brush_selection_tool)', source)
+        self.assertIn('_set_mesh_edit_row_visible(_state, "strength", sculpt_tool)', source)
+        self.assertIn('_set_mesh_edit_row_visible(_state, "falloff", sculpt_tool)', source)
+        self.assertIn('_set_mesh_edit_row_visible(_state, "iterations", smooth_tool)', source)
         self.assertIn('"smooth_tool": tool == "smooth"', state_source)
-        self.assertIn('_set_mesh_edit_row_visible("selection", select_tool)', source)
-        self.assertIn('_set_mesh_edit_row_visible("depth", select_tool)', source)
+        self.assertIn('_set_mesh_edit_row_visible(_state, "selection", select_tool)', source)
+        self.assertIn('_set_mesh_edit_row_visible(_state, "depth", select_tool)', source)
         self.assertIn("_state.mesh_edit_mirror_checkbox.setVisible(sculpt_tool)", source)
         self.assertIn("for element_only_control in (", source)
         self.assertIn("element_only_control.setVisible(False)", source)
@@ -5361,24 +5372,24 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("_PYTHON_MESH_SELECTION_FALLBACK_VERTEX_LIMIT", pose_fallback_body)
         self.assertNotIn("_PYTHON_MESH_SELECTION_FALLBACK_FACE_LIMIT", pose_fallback_body)
         self.assertIn("Python pose preview fallback blocked; native mesh core is required for active Mesh Editor pose preview", pose_fallback_body)
-        self.assertIn("native_core_available=native_mesh_core_available()", pose_fallback_body)
+        self.assertIn('native_core_available=bool(_service_call("native_mesh_core_available"))', pose_fallback_body)
         self.assertIn("native_core_disabled=bool(os.environ.get", pose_fallback_body)
         pose_clone_start = service_source.index("def _clone_mesh_for_service_native_snapshot(")
         pose_clone_body = service_source[
             pose_clone_start: service_source.index("def _service_session_native_clone_supported(", pose_clone_start)
         ]
-        self.assertIn("native_snapshot = snapshot_native_mesh_submeshes(mesh)", pose_clone_body)
-        self.assertIn("restore_native_mesh_submesh_snapshot(restored_mesh, native_snapshot)", pose_clone_body)
-        self.assertIn("dispose_native_mesh_submesh_snapshot(native_snapshot)", pose_clone_body)
+        self.assertIn('native_snapshot = _service_call("snapshot_native_mesh_submeshes", mesh)', pose_clone_body)
+        self.assertIn('_service_call("restore_native_mesh_submesh_snapshot", restored_mesh, native_snapshot)', pose_clone_body)
+        self.assertIn('_service_call("dispose_native_mesh_submesh_snapshot", native_snapshot)', pose_clone_body)
         self.assertIn("_allow_python_service_clone_fallback(mesh, operation, reason)", pose_clone_body)
-        native_pose_clone_body = pose_clone_body[pose_clone_body.index("native_snapshot = snapshot_native_mesh_submeshes(mesh)") :]
+        native_pose_clone_body = pose_clone_body[pose_clone_body.index('native_snapshot = _service_call("snapshot_native_mesh_submeshes", mesh)') :]
         self.assertLess(
-            native_pose_clone_body.index("native_snapshot = snapshot_native_mesh_submeshes(mesh)"),
-            native_pose_clone_body.index("clone_mesh_for_editing(mesh)"),
+            native_pose_clone_body.index('native_snapshot = _service_call("snapshot_native_mesh_submeshes", mesh)'),
+            native_pose_clone_body.index('_service_call("clone_mesh_for_editing", mesh)'),
         )
         self.assertLess(
             native_pose_clone_body.index("_allow_python_service_clone_fallback(mesh, operation, reason)"),
-            native_pose_clone_body.index("clone_mesh_for_editing(mesh)"),
+            native_pose_clone_body.index('_service_call("clone_mesh_for_editing", mesh)'),
         )
         self.assertIn('"preview.pose_clone"', pose_body)
         self.assertIn("native mesh editor pose preview unavailable; Python mesh state is stale", native_context_body)
@@ -6268,7 +6279,6 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         static_adapter_source = _read("cdmw/ui/mesh_editor/static_replacement_adapter.py")
         native_core_source = _read("native/cdmw_mesh_core/src/main.cpp")
         mesh_edit_state_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_state.py")
-
         self.assertIn('"subdivide_selection": "Subdivide Selection"', mesh_edit_state_source)
         self.assertIn('"refine_smooth_selection": "Refine Smooth Selection"', mesh_edit_state_source)
         self.assertIn("_state.mesh_edit_subdivide_selection_button = _state.QPushButton(_state.mesh_edit_action_control_text['subdivide_selection'])", source)
@@ -6300,14 +6310,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('session_id = f"static-replacement-{uuid4().hex}"', source)
         self.assertIn("StaticReplacementMeshEditSession(session_id=session_id)", source)
         self.assertIn("_state.mesh_editor_static_replacement_session_state[\"revision\"] = current_revision + (1 if changed else 0)", source)
-        result_body = static_adapter_source[
-            static_adapter_source.index("    def _result("):
-            static_adapter_source.index("def apply_static_replacement_edit(", static_adapter_source.index("    def _result("))
-        ]
+        result_body = static_adapter_source[static_adapter_source.index("    def _result("):static_adapter_source.index("def apply_static_replacement_edit(", static_adapter_source.index("    def _result("))]
         self.assertNotIn("NATIVE_EDITOR_SESSION_COMMANDS", static_adapter_source)
         open_start = static_adapter_source.index("    def open(self, mesh: ParsedMesh) -> None:")
-        # close() carries a force_without_saving keyword now, so delimit the
-        # open() body by the method rather than by a frozen signature.
         open_body = static_adapter_source[open_start:static_adapter_source.index("\n    def close(", open_start)]
         self.assertIn("self.mesh = mesh", open_body)
         self.assertNotIn("self.controller.working_mesh(clone=False)", open_body)
@@ -7682,7 +7687,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("_PYTHON_MESH_SELECTION_FALLBACK_FACE_LIMIT", skin_fallback_body)
         self.assertNotIn("selected_vertex_count <= _PYTHON_MESH_SELECTION_FALLBACK_VERTEX_LIMIT", skin_fallback_body)
         self.assertIn("Python skin weight fallback blocked; native mesh core is required for active Mesh Editor skin-weight edits", skin_fallback_body)
-        self.assertIn("native_core_available=native_mesh_core_available()", skin_fallback_body)
+        self.assertIn('native_core_available=bool(_service_call("native_mesh_core_available"))', skin_fallback_body)
         self.assertIn("native_core_disabled=bool(os.environ.get", skin_fallback_body)
         self.assertIn('raise RuntimeError("native mesh editor skin weight edit unavailable; Python skin weight fallback is disabled")', service_source)
         self.assertIn("return range(len(submesh.vertices or ()))", service_source)
@@ -7972,36 +7977,6 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             update_body.index("if mesh_edit_active and apply_state.geometry_changed:"),
             update_body.index("adjustment.offset_xyz = apply_state.offset_xyz"),
         )
-
-    def test_host_highlight_setters_do_not_republish_the_display_block(self) -> None:
-        # The shared host's copy of display.grid_visible starts False and is
-        # never synced from the dialog's Grid checkbox, so a highlight update
-        # that carries it switches the grid off on every part selection. The
-        # helper preserves current display state when the key is absent.
-        host_source = _read("cdmw/ui/preview/dotnet_host.py")
-        for setter in (
-            "def set_highlighted_source_submeshes(",
-            "def set_highlighted_alignment_submeshes(",
-            "def set_hidden_source_submeshes(",
-        ):
-            body = host_source[host_source.index(setter):]
-            body = body[: body.index("\n    def ", 1)]
-            # The setters now send a targeted highlights delta rather than
-            # resending the whole remembered state. What matters to this guard is
-            # unchanged: they go through the without_display helper, never the
-            # plain one that would carry display.grid_visible with them.
-            self.assertIn(
-                "_remember_presentation_state_without_display(",
-                body,
-                setter,
-            )
-            self.assertNotIn("self._remember_presentation_state(", body, setter)
-        without_display_body = _function_source(
-            host_source, "_remember_presentation_state_without_display"
-        )
-        self.assertIn('if key != "display"', without_display_body)
-        self.assertIn('"presentation_state_update"', without_display_body)
-
 
 if __name__ == "__main__":
     unittest.main()

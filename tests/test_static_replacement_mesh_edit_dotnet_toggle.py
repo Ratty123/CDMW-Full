@@ -566,9 +566,10 @@ def test_exit_survives_a_failing_repaint_and_stays_out_of_mesh_edit() -> None:
 
 def test_finish_edit_mesh_never_rearms_mesh_edit_after_a_failed_finalize() -> None:
     """The failure path must not put the helper back into a mode the builder left."""
-    commands = (
-        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_commands.py"
-    ).read_text(encoding="utf-8")
+    commands = "\n".join(
+        (ROOT / "cdmw" / "ui" / "mesh_editor" / name).read_text(encoding="utf-8")
+        for name in ("tab_dotnet_commands.py", "tab_dotnet_lifecycle.py")
+    )
     tree = ast.parse(commands)
     node = next(
         candidate

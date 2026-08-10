@@ -2235,7 +2235,6 @@ def test_mesh_edit_selection_region_amount_blocks_python_point_scan_when_native_
     from cdmw.services import mesh_workflow_service as mesh_native_core
     from cdmw.modding.mesh_native_core import clear_native_mesh_core_fallback_counts, native_mesh_core_fallback_counts
     from cdmw.ui.archive_browser import static_replacement_mesh_edit_state as state
-
     class NoIterSequence:
         def __len__(self) -> int:
             return 10_001
@@ -2247,7 +2246,6 @@ def test_mesh_edit_selection_region_amount_blocks_python_point_scan_when_native_
     monkeypatch.setattr(mesh_native_core, "native_mesh_core_available", lambda: True)
     monkeypatch.setattr(mesh_native_core, "summarize_native_mesh_selection_bounds", lambda *_args, **_kwargs: {})
     mesh = SimpleNamespace(total_vertices=2, submeshes=[SimpleNamespace(vertices=NoIterSequence())])
-
     assert state.mesh_edit_selection_region_default_amount(mesh, {0: (0,)}, fallback=0.25) == 0.25
     assert state.mesh_edit_selected_vertex_points(mesh, {0: (0,)}) == []
     assert native_mesh_core_fallback_counts() == {"selection.vertex_points.blocked": 2}

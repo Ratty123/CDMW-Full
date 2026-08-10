@@ -280,6 +280,8 @@ def _input_texture_kind(texture_input: PreviewMaterialTextureInput) -> str:
         return "normal"
     if slot_kind == "height" or semantic_type in {"height", "displacement"} or _contains_token(names, "disp", "height"):
         return "height"
+    if semantic_subtype in {"specular", "spec"}:
+        return "specular"
     if slot_kind in {"ao", "occlusion"} or semantic_type in {"ao", "occlusion"} or semantic_subtype in {"ao", "occlusion"} or _contains_token(names, "ao", "occlusion"):
         return "occlusion"
     packed_channels = tuple(
@@ -301,7 +303,7 @@ def _input_texture_kind(texture_input: PreviewMaterialTextureInput) -> str:
         return "roughness"
     if semantic_subtype in {"metal", "metallic", "metalness"} or _contains_token(names, "metallic", "metalness"):
         return "metalness"
-    if semantic_subtype in {"specular", "spec"} or _contains_token(names, "specular"):
+    if _contains_token(names, "specular"):
         return "specular"
     technical = _technical_texture_kind(names)
     if technical in {"specular", "specular_glossiness", "roughness", "glossiness", "metalness", "height", "normal", "opacity", "packed_material", "detail_mask", "emissive", "occlusion"}:

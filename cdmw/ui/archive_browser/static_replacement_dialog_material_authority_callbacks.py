@@ -496,7 +496,6 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
     true_source_basic_reset_button = context.get('true_source_basic_reset_button')
     unsafe_material_preflight_checkbox = context.get('unsafe_material_preflight_checkbox')
     material_resource_controller = StaticReplacementMaterialAuthorityResourceController(self, dialog)
-
     automatic_control_widgets = {
         "global_gloss_reduction": (global_gloss_reduction_slider, global_gloss_reduction_spin),
         "auto_brightness": (auto_brightness_slider, auto_brightness_spin),
@@ -512,7 +511,6 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
         ),
         "part_glow_strength": (part_glow_strength_checkbox, part_glow_strength_spin),
     }
-
     def _apply_material_authority_control_capabilities(
         state: MaterialAuthorityResolvedState,
     ) -> None:
@@ -543,7 +541,6 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
                     pass
         if callable(_refresh_manual_profile_control_effects):
             _refresh_manual_profile_control_effects()
-
     def _set_material_authority_sync_state(
         status: MaterialAuthoritySyncStatus,
         reason: str = "",
@@ -574,7 +571,6 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
                 build_button.setToolTip("" if build_ready else text)
             except RuntimeError:
                 pass
-
     def _material_resources_finished(
         generation: int,
         committed: bool,
@@ -630,10 +626,8 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
                 "The .NET preview did not acknowledge the latest resolved artifacts.",
                 pending,
             )
-
     setattr(dialog, "_mesh_editor_embedded_material_resources_finished", _material_resources_finished)
     dialog.finished.connect(material_resource_controller.request_shutdown)
-
     def _ensure_material_authority_route_active(reason: str = "material_authority_edit") -> bool:
         """Activate the established source-owned route only for a user mutation."""
         if bool(modify_original_clone_mode) or bool(_complete_external_swap_enabled()):
@@ -647,7 +641,6 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
         )
         setter(True)
         return bool(_complete_external_swap_enabled())
-
     def _set_global_gloss_reduction(value: int, *, refresh: bool = True) -> None:
         if refresh:
             _ensure_material_authority_route_active("automatic_global_gloss_reduction")
@@ -666,7 +659,6 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
             _queue_material_authority_adjustment_preview_refresh(
                 resource_keys=("global_gloss_reduction",)
             )
-
     def _refresh_global_gloss_reduction_hint() -> None:
         value = int(global_gloss_reduction_spin.value())
         profile_name = str(complete_swap_material_profile_combo.currentData() or "")
@@ -677,16 +669,13 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
                 value=value,
             )
         )
-
     def _basic_controls_profile_enabled() -> bool:
         profile_name = str(complete_swap_material_profile_combo.currentData() or "")
         return _material_authority_basic_controls_profile_enabled_helper(profile_name)
-
     def _material_authority_preview_route_enabled() -> bool:
         if bool(modify_original_clone_mode) and callable(_modify_original_texture_tuning_enabled):
             return bool(_modify_original_texture_tuning_enabled())
         return bool(_complete_external_swap_enabled())
-
     def _current_material_authority_preview_profile() -> object:
         return apply_true_source_basic_controls_to_profile(
             get_complete_swap_material_profile(str(_current_complete_swap_material_profile_token())),
@@ -712,7 +701,6 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
                 )
             ),
         )
-
     def _current_texture_sets_for_material_authority() -> Mapping[str, object]:
         getter = _get_texture_sets
         if not callable(getter):
@@ -726,7 +714,6 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
             if current:
                 return current
         return texture_sets or {}
-
     def _material_authority_preview_signature() -> Dict[str, str]:
         current_texture_sets = _current_texture_sets_for_material_authority()
         return _material_authority_preview_signature_helper(
@@ -746,7 +733,6 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
             profile_payload_builder=complete_swap_material_profile_to_dict,
             fallback_profile_payload_builder=_manual_material_profile_fallback_payload_helper,
         )
-
     def _material_authority_preview_inactive_reason() -> str:
         original_material_preview_active = False
         try:
@@ -767,12 +753,10 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
             ),
             original_material_preview_active=original_material_preview_active,
         )
-
     def _material_authority_controls_affect_visible_preview() -> bool:
         return _material_authority_controls_affect_visible_preview_helper(
             _material_authority_preview_inactive_reason()
         )
-
     def _try_apply_material_authority_live_preview() -> bool:
         if not callable(_material_authority_preview_native_override_values_helper):
             return False
