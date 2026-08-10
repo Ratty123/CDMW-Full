@@ -23,7 +23,6 @@ from __future__ import annotations
 import json
 import subprocess
 import tempfile
-import time
 from pathlib import Path
 
 from cdmw.models import ModelPreviewRenderSettings
@@ -34,10 +33,10 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOTNET_ROOT = REPO_ROOT / "tools" / "dotnet_mesh_editor_experiment"
 DOTNET_PROJECT = DOTNET_ROOT / "Cdmw.MeshEditorExperiment.csproj"
-DOTNET_HELPER = DOTNET_ROOT / "bin" / "Release" / "net10.0-windows" / "cdmw-mesh-dotnet-editor.dll"
+DOTNET_HELPER_NAME = "cdmw-mesh-dotnet-editor.exe"
 
 
-def _build_helper() -> None:
+def _build_helper(output_dir: Path) -> Path:
     completed = subprocess.run(
         [
             "dotnet",
@@ -47,6 +46,9 @@ def _build_helper() -> None:
             "Release",
             "--nologo",
             "--verbosity:quiet",
+            "--output",
+            str(output_dir),
+            "-p:OutputType=Exe",
         ],
         cwd=REPO_ROOT,
         check=False,
@@ -56,20 +58,9 @@ def _build_helper() -> None:
         timeout=300,
     )
     assert completed.returncode == 0, completed.stdout
-
-
-def _await_report(report_path: Path, stderr: str) -> dict:
-    deadline = time.monotonic() + 300
-    last_error: Exception | None = None
-    while time.monotonic() < deadline:
-        try:
-            return json.loads(report_path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, PermissionError, json.JSONDecodeError) as exc:
-            last_error = exc
-            time.sleep(0.05)
-    raise AssertionError(
-        f"Timed out waiting for Edit Mesh entry report: stderr={stderr!r}; last_error={last_error!r}"
-    )
+    helper = output_dir / DOTNET_HELPER_NAME
+    assert helper.is_file(), completed.stdout
+    return helper
 
 
 def test_the_builder_really_publishes_textured_beside_a_false_texture_flag() -> None:
@@ -95,13 +86,13 @@ def test_the_builder_really_publishes_textured_beside_a_false_texture_flag() -> 
 
 
 def test_a_named_display_mode_owns_the_textures() -> None:
-    _build_helper()
     with tempfile.TemporaryDirectory(prefix="cdmw-edit-mesh-entry-") as temp_dir:
-        report_path = Path(temp_dir) / "entry.json"
+        temp = Path(temp_dir)
+        helper = _build_helper(temp / "helper")
+        report_path = temp / "entry.json"
         completed = subprocess.run(
             [
-                "dotnet",
-                str(DOTNET_HELPER),
+                str(helper),
                 "--headless-edit-mesh-entry-smoke",
                 "--edit-mesh-entry-report",
                 str(report_path),
@@ -113,7 +104,10 @@ def test_a_named_display_mode_owns_the_textures() -> None:
             text=True,
             timeout=300,
         )
-        report = _await_report(report_path, completed.stderr)
+        assert report_path.is_file(), (
+            f"Edit Mesh entry smoke exited {completed.returncode} without a report: {completed.stderr}"
+        )
+        report = json.loads(report_path.read_text(encoding="utf-8"))
         assert "error" not in report, json.dumps(report, indent=2)
         assert completed.returncode == 0, json.dumps(report, indent=2)
 
