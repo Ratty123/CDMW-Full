@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from types import SimpleNamespace
 import threading
+import time
 from typing import Any
 
 from cdmw.domain.cancellation import raise_if_cancelled
@@ -35,6 +36,8 @@ def static_replacement_prompt_mesh_bounds(
         for index, vertex in enumerate(getattr(submesh, "vertices", ()) or ()):
             if index % 4096 == 0:
                 raise_if_cancelled(stop_event, "Static replacement preflight stopped by user.")
+                if index:
+                    time.sleep(0.001)
             found = True
             for axis in range(3):
                 value = float(vertex[axis])

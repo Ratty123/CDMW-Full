@@ -152,7 +152,7 @@ Last updated: 2026-08-10
   until teardown is confirmed, force-stops only owned external process trees
   after grace, and publishes the final closed heartbeat last. A finished
   parentless Python worker returns to the UI thread before its QThread quits;
-  UI-side cleanup then defer-deletes both objects after that same fence.
+  UI-side cleanup then defer-deletes both objects after that same fence. Pure-Python bulk loops in workers must yield the GIL at their bounded cancellation checkpoints; the static replacement bounds scan does so every 4,096 vertices and is held by the million-vertex heartbeat gate in `mesh-unit`.
 - Full diagnostics persist only recovery breadcrumbs and issue-class events by
   default; the existing extra-context preference enables verbose Python/native
   streams. Same-session fingerprint duplicates collapse to one report, the
