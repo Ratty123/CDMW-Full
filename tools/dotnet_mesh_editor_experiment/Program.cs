@@ -186,7 +186,7 @@ internal sealed partial class ExperimentForm : Form
         }
 
         _ = Handle;
-        StartProtocolReader();
+        if (!options.HeadlessSmoke) StartProtocolReader();
 
         _viewport = new MeshViewport(document, _materials, _textureSet, _scene, options) { Dock = DockStyle.Fill };
         InitializeResidentPackageProtocol();

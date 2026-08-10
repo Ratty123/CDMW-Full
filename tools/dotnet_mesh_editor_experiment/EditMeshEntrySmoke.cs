@@ -102,7 +102,7 @@ internal static class EditMeshEntrySmoke
         output,
         Path.Combine(input, "edit_operations.json"),
         Path.Combine(input, "evaluation.md"),
-        HeadlessSmoke: false,
+        HeadlessSmoke: true,
         Embedded: embedded,
         Profile: "authoring",
         DeveloperRendererFallback: true,

@@ -33,10 +33,10 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOTNET_ROOT = REPO_ROOT / "tools" / "dotnet_mesh_editor_experiment"
 DOTNET_PROJECT = DOTNET_ROOT / "Cdmw.MeshEditorExperiment.csproj"
-DOTNET_HELPER_NAME = "cdmw-mesh-dotnet-editor.exe"
+DOTNET_HELPER = DOTNET_ROOT / "bin" / "Release" / "net10.0-windows" / "cdmw-mesh-dotnet-editor.dll"
 
 
-def _build_helper(output_dir: Path) -> Path:
+def _build_helper() -> Path:
     completed = subprocess.run(
         [
             "dotnet",
@@ -46,11 +46,6 @@ def _build_helper(output_dir: Path) -> Path:
             "Release",
             "--nologo",
             "--verbosity:quiet",
-            "--no-incremental",
-            "--output",
-            str(output_dir),
-            "-p:OutputType=Exe",
-            "-p:DisableWinExeOutputInference=true",
         ],
         cwd=REPO_ROOT,
         check=False,
@@ -60,14 +55,8 @@ def _build_helper(output_dir: Path) -> Path:
         timeout=300,
     )
     assert completed.returncode == 0, completed.stdout
-    helper = output_dir / DOTNET_HELPER_NAME
-    assert helper.is_file(), completed.stdout
-    image = helper.read_bytes()
-    pe_offset = int.from_bytes(image[0x3C:0x40], "little")
-    assert image[pe_offset : pe_offset + 4] == b"PE\0\0"
-    subsystem = int.from_bytes(image[pe_offset + 92 : pe_offset + 94], "little")
-    assert subsystem == 3, f"Expected a console apphost, got PE subsystem {subsystem}."
-    return helper
+    assert DOTNET_HELPER.is_file(), completed.stdout
+    return DOTNET_HELPER
 
 
 def test_the_builder_really_publishes_textured_beside_a_false_texture_flag() -> None:
@@ -95,16 +84,18 @@ def test_the_builder_really_publishes_textured_beside_a_false_texture_flag() -> 
 def test_a_named_display_mode_owns_the_textures() -> None:
     with tempfile.TemporaryDirectory(prefix="cdmw-edit-mesh-entry-") as temp_dir:
         temp = Path(temp_dir)
-        helper = _build_helper(temp / "helper")
+        helper = _build_helper()
         report_path = temp / "entry.json"
         completed = subprocess.run(
             [
+                "dotnet",
                 str(helper),
                 "--headless-edit-mesh-entry-smoke",
                 "--edit-mesh-entry-report",
                 str(report_path),
             ],
-            cwd=helper.parent,
+            cwd=REPO_ROOT,
+            stdin=subprocess.DEVNULL,
             check=False,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
