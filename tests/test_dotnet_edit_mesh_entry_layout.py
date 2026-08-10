@@ -74,6 +74,7 @@ def _entry_report() -> dict:
             if report_path.is_file()
             else {"ok": False, "error": completed.stderr}
         )
+        assert "error" not in report, json.dumps(report, indent=2)
         assert completed.returncode == 0, json.dumps(report, indent=2)
         return report
 

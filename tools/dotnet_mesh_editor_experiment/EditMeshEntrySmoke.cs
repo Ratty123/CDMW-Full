@@ -22,25 +22,32 @@ internal static class EditMeshEntrySmoke
         var root = Path.Combine(
             Path.GetTempPath(),
             $"cdmw-edit-mesh-entry-{Environment.ProcessId}-{Guid.NewGuid():N}");
+        var stage = "setup";
         try
         {
             var input = Path.Combine(root, "input");
             var output = Path.Combine(root, "output");
             Directory.CreateDirectory(input);
             Directory.CreateDirectory(output);
+            stage = "synthetic_document";
             var document = HeadlessGpuSparseSoak.BuildSyntheticDocument(300);
+            stage = "standalone_form";
             using var form = new ExperimentForm(Options(input, output, embedded: false), document, sourceParseCount: 1);
+            stage = "solid_textured_view";
             var solidTextured = form.SolidTexturedViewProof();
+            stage = "scene_inspector_entry_layout";
             var sceneInspector = form.SceneInspectorEntryLayoutProof();
             // The helper the workbench launches is embedded, and an embedded
             // helper defers building its authoring panels until the first
             // mesh-edit entry. The rail then adopts sections that were never
             // laid out in a placement flank, which is a different transition
             // from the standalone one above and the one readers actually meet.
+            stage = "embedded_form";
             using var embeddedForm = new ExperimentForm(
                 Options(input, output, embedded: true),
                 document,
                 sourceParseCount: 1);
+            stage = "scene_inspector_entry_layout_embedded";
             var embeddedSceneInspector = embeddedForm.SceneInspectorEntryLayoutProof();
             var report = new Dictionary<string, object?>
             {
@@ -66,8 +73,10 @@ internal static class EditMeshEntrySmoke
                     new Dictionary<string, object?>
                     {
                         ["ok"] = false,
+                        ["stage"] = stage,
                         ["error"] = ex.Message,
                         ["error_type"] = ex.GetType().FullName,
+                        ["error_detail"] = ex.ToString(),
                     },
                     new JsonSerializerOptions { WriteIndented = true }));
             return 1;
