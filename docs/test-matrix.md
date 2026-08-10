@@ -141,11 +141,11 @@ exercises the hidden zero-size splitter construction phase before applying the
 real viewport/deck dimensions. It starts no renderer or visible window and
 reads no licensed asset. The `mesh-unit` gate runs this smoke after its focused
 source and behavior tests. Entry-report gates execute the built assembly through
-the `dotnet` console host, which remains coupled to the report producer across
-SDK versions. Neither `dotnet run` nor the Windows-subsystem apphost is a
-trustworthy completion fence for this headless report gate. The JSON report is
-the result authority because a caught WinExe smoke exception can still surface
-as process exit code zero; failures include the proof stage and full exception.
+the `dotnet` console host, keep their unique temporary directory alive, and wait
+until the terminal JSON report exists and parses. Neither `dotnet run`, the
+Windows-subsystem apphost, nor the console-host process lifetime is a trustworthy
+completion fence across SDK versions. The JSON report is the result authority;
+failures include the proof stage and full exception.
 
 Resident Python/WinForms interface-localization negotiation, exact manifest and
 acknowledgement correlation, Unicode payload bounds, stale rejection,

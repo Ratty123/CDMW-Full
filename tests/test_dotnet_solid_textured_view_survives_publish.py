@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from cdmw.models import ModelPreviewRenderSettings
@@ -55,6 +56,20 @@ def _build_helper() -> None:
         timeout=300,
     )
     assert completed.returncode == 0, completed.stdout
+
+
+def _await_report(report_path: Path, stderr: str) -> dict:
+    deadline = time.monotonic() + 300
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            return json.loads(report_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, PermissionError, json.JSONDecodeError) as exc:
+            last_error = exc
+            time.sleep(0.05)
+    raise AssertionError(
+        f"Timed out waiting for Edit Mesh entry report: stderr={stderr!r}; last_error={last_error!r}"
+    )
 
 
 def test_the_builder_really_publishes_textured_beside_a_false_texture_flag() -> None:
@@ -98,11 +113,7 @@ def test_a_named_display_mode_owns_the_textures() -> None:
             text=True,
             timeout=300,
         )
-        report = (
-            json.loads(report_path.read_text(encoding="utf-8"))
-            if report_path.is_file()
-            else {"ok": False, "error": completed.stderr}
-        )
+        report = _await_report(report_path, completed.stderr)
         assert "error" not in report, json.dumps(report, indent=2)
         assert completed.returncode == 0, json.dumps(report, indent=2)
 
