@@ -709,8 +709,11 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   preview host's unsynchronized alignment presentation or an identity scene
   frame, so a tool click cannot replace display mode, grid state, or placement.
   The .NET material manifest preserves source tint, surface, and emissive factors
-  plus packed-channel selectors; glTF metallic-roughness reuses one decoded image
-  while sampling roughness from G and metallic from B. A Python-owned resource
+  plus packed-channel selectors. Declared slot, type, subtype, and channel
+  evidence outranks filename/path guessing, so a parent-directory token cannot
+  reclassify an explicitly identified support map. glTF metallic-roughness
+  reuses one decoded image while sampling roughness from G and metallic from B.
+  A Python-owned resource
   policy declares role, scene submesh, channel, profile, criticality, and
   fallback for every texture. Initial Ready requires the geometry-only package
   and one presented frame; texture resolution is not on the first-display

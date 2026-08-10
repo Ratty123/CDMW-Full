@@ -155,7 +155,7 @@ def test_metadata_save_is_nonblocking_and_updates_one_loaded_record() -> None:
                 tab.save_selected_metadata()
                 elapsed = time.perf_counter() - before
                 assert elapsed < 0.05
-                assert started.wait(1.0)
+                _wait_until(started.is_set)
                 _wait_until(lambda: tab._index_thread is None)
                 scan_mock.assert_not_called()
 
@@ -211,8 +211,8 @@ def test_file_import_copy_is_nonblocking_and_updates_one_record_without_rescan()
                 stored = tab.add_imported_source(source)
                 assert time.perf_counter() - before < 0.05
                 assert stored is not None
-                assert copy_started.wait(1.0)
-                assert index_started.wait(1.0)
+                _wait_until(copy_started.is_set)
+                _wait_until(index_started.is_set)
                 _wait_until(lambda: tab._index_thread is None)
                 scan_mock.assert_not_called()
 
@@ -269,7 +269,7 @@ def test_generated_registration_index_is_nonblocking_and_changes_only_target_rec
                 )
                 assert time.perf_counter() - before < 0.05
                 assert stored == generated
-                assert started.wait(1.0)
+                _wait_until(started.is_set)
                 _wait_until(lambda: tab._index_thread is None)
                 scan_mock.assert_not_called()
 
@@ -314,7 +314,7 @@ def test_delete_unlink_is_nonblocking_and_removes_only_selected_record() -> None
                 before = time.perf_counter()
                 tab.delete_selected_source()
                 assert time.perf_counter() - before < 0.05
-                assert started.wait(1.0)
+                _wait_until(started.is_set)
                 _wait_until(lambda: tab._index_thread is None)
                 scan_mock.assert_not_called()
 
@@ -364,7 +364,7 @@ def test_latest_generated_registration_wins_for_the_same_library_path() -> None:
                     target_model_path="character/model/first.pac",
                     source_model_path="source.obj",
                 )
-                assert first_started.wait(1.0)
+                _wait_until(first_started.is_set)
                 before = time.perf_counter()
                 tab.register_mesh_editor_generated_icon(
                     generated,
@@ -411,7 +411,7 @@ def test_shutdown_cancels_import_and_preserves_index_without_temp_leaks() -> Non
             with patch.object(worker_module, "_copy_item_icon_source_to_stage", side_effect=cancellable_copy):
                 stored = tab.add_imported_source(source)
                 assert stored is not None
-                assert started.wait(1.0)
+                _wait_until(started.is_set)
                 before = time.perf_counter()
                 tab.request_shutdown()
                 assert time.perf_counter() - before < 0.05
@@ -539,7 +539,7 @@ def test_shutdown_cancels_active_scan_without_waiting_on_ui_thread() -> None:
 
         with patch.object(worker_module, "scan_item_icon_library", side_effect=cancellable_scan):
             tab = _make_tab(root)
-            assert started.wait(1.0)
+            _wait_until(started.is_set)
             preview_temp = Path(tab._temp_preview_dir.name)
             before = time.perf_counter()
             tab.request_shutdown()

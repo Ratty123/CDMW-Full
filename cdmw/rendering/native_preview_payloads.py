@@ -260,6 +260,11 @@ def _input_texture_kind(texture_input: PreviewMaterialTextureInput) -> str:
     semantic_type = str(getattr(texture_input, "semantic_type", "") or "").strip().lower()
     semantic_subtype = str(getattr(texture_input, "semantic_subtype", "") or "").strip().lower()
     parameter_name = str(getattr(texture_input, "parameter_name", "") or "").strip().lower()
+    packed_channels = tuple(
+        str(channel or "").strip().lower()
+        for channel in getattr(texture_input, "packed_channels", ())
+        if str(channel or "").strip()
+    )
     names = " ".join(
         (
             slot_kind,
@@ -274,21 +279,17 @@ def _input_texture_kind(texture_input: PreviewMaterialTextureInput) -> str:
     if slot_kind == "base" or semantic_type in {"base", "base_color", "diffuse", "albedo", "color"}:
         technical = _technical_texture_kind(names)
         return "" if technical in {"normal", "height", "packed_material", "detail_mask", "opacity", "specular", "specular_glossiness", "emissive"} else "base"
-    if slot_kind == "emissive" or semantic_type == "emissive" or semantic_subtype.startswith("emissive") or _contains_token(names, "emissive", "glow", "illum"):
+    # Declared binding evidence outranks filename and path guesses. In
+    # particular, a random parent directory containing a short token such as
+    # ``ao`` must not turn a declared glossiness input into occlusion.
+    if slot_kind == "emissive" or semantic_type == "emissive" or semantic_subtype.startswith("emissive"):
         return "emissive"
-    if slot_kind == "normal" or semantic_type == "normal" or _contains_token(names, "normal"):
+    if slot_kind == "normal" or semantic_type == "normal":
         return "normal"
-    if slot_kind == "height" or semantic_type in {"height", "displacement"} or _contains_token(names, "disp", "height"):
+    if slot_kind == "height" or semantic_type in {"height", "displacement"}:
         return "height"
-    if semantic_subtype in {"specular", "spec"}:
-        return "specular"
-    if slot_kind in {"ao", "occlusion"} or semantic_type in {"ao", "occlusion"} or semantic_subtype in {"ao", "occlusion"} or _contains_token(names, "ao", "occlusion"):
+    if slot_kind in {"ao", "occlusion"} or semantic_type in {"ao", "occlusion"} or semantic_subtype in {"ao", "occlusion"}:
         return "occlusion"
-    packed_channels = tuple(
-        str(channel or "").strip().lower()
-        for channel in getattr(texture_input, "packed_channels", ())
-        if str(channel or "").strip()
-    )
     if (
         semantic_subtype in {"specular_glossiness", "specularglossiness", "gltf_specular_glossiness"}
         or packed_channels[:2] == ("specular", "glossiness")
@@ -297,11 +298,27 @@ def _input_texture_kind(texture_input: PreviewMaterialTextureInput) -> str:
         return "specular_glossiness"
     if semantic_subtype in {"metallic_roughness", "gltf_metallic_roughness"} or packed_channels[:2] == ("roughness", "metallic"):
         return "packed_material"
-    if semantic_subtype in {"glossiness", "gloss", "smoothness", "smooth"} or _contains_token(names, "glossiness", "gloss", "smoothness"):
+    if semantic_type in {"specular", "spec"} or semantic_subtype in {"specular", "spec"}:
+        return "specular"
+    if semantic_type in {"glossiness", "gloss", "smoothness", "smooth"} or semantic_subtype in {"glossiness", "gloss", "smoothness", "smooth"}:
         return "glossiness"
-    if semantic_subtype in {"roughness", "rough"} or _contains_token(names, "roughness"):
+    if semantic_type in {"roughness", "rough"} or semantic_subtype in {"roughness", "rough"}:
         return "roughness"
-    if semantic_subtype in {"metal", "metallic", "metalness"} or _contains_token(names, "metallic", "metalness"):
+    if semantic_type in {"metal", "metallic", "metalness"} or semantic_subtype in {"metal", "metallic", "metalness"}:
+        return "metalness"
+    if _contains_token(names, "emissive", "glow", "illum"):
+        return "emissive"
+    if _contains_token(names, "normal"):
+        return "normal"
+    if _contains_token(names, "disp", "height"):
+        return "height"
+    if _contains_token(names, "ao", "occlusion"):
+        return "occlusion"
+    if _contains_token(names, "glossiness", "gloss", "smoothness"):
+        return "glossiness"
+    if _contains_token(names, "roughness"):
+        return "roughness"
+    if _contains_token(names, "metallic", "metalness"):
         return "metalness"
     if _contains_token(names, "specular"):
         return "specular"

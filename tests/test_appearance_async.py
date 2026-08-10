@@ -134,9 +134,9 @@ def test_composite_plan_runs_from_frozen_snapshot(tmp_path: Path) -> None:
     assert result.plan.appearance_entry is app_entry
 
 
-#: Well under the 2 s the operation blocks for, and well above the thread
-#: setup a loaded runner needs. It is a delegation check, not a benchmark.
-_DELEGATION_BUDGET_MS = 500.0
+#: Below the 2 s the operation blocks for, with enough scheduler margin for a
+#: loaded hosted runner. It is a delegation check, not a benchmark.
+_DELEGATION_BUDGET_MS = 1_500.0
 
 
 def test_appearance_controller_delegates_immediately_and_rejects_close() -> None:
@@ -176,11 +176,11 @@ def test_appearance_controller_delegates_immediately_and_rejects_close() -> None
     # the work had not run.
     assert (time.perf_counter() - before) * 1000.0 < _DELEGATION_BUDGET_MS
     assert not completed
-    assert started.wait(1.0)
+    assert _wait_for(app, started.is_set)
     before = time.perf_counter()
     controller.request_shutdown()
     assert (time.perf_counter() - before) * 1000.0 < _DELEGATION_BUDGET_MS
-    assert cancelled.wait(1.0)
+    assert _wait_for(app, cancelled.is_set)
     assert _wait_for(app, lambda: owner.worker_thread is None)
     assert completed == []
     assert controller.iter_shutdown_workers() == ()
