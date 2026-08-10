@@ -165,7 +165,7 @@ Last updated: 2026-08-10
   `docs/reference/app-startup-benchmark-phase6.json`; dated timing summaries
   belong in `docs/release-confidence-plan.md`.
 - Release Python dependencies are pinned by tested constraints. CI installs .NET 10,
-  builds the exact helper, runs nonvisual Python 3.11/3.14 gates, and gates packaging on both QA jobs. Headless report tests invoke the built DLL through the `dotnet` console host; neither `dotnet run` nor the Windows-subsystem apphost is a reliable completion fence across SDK versions.
+  builds the exact helper, runs nonvisual Python 3.11/3.14 gates, and gates packaging on both QA jobs. Headless report tests invoke the built DLL through the `dotnet` console host; neither `dotnet run` nor the Windows-subsystem apphost is a reliable completion fence across SDK versions. Treat the JSON report as authoritative because a caught WinExe smoke exception can still return process status zero.
 - Portable self-contained .NET remains the default. Change publish mode only
   when size improves at least 20% and helper-ready p95 regresses under 10%.
 

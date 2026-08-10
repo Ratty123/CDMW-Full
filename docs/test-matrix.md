@@ -143,7 +143,9 @@ reads no licensed asset. The `mesh-unit` gate runs this smoke after its focused
 source and behavior tests. Entry-report gates execute the built assembly through
 the `dotnet` console host, which remains coupled to the report producer across
 SDK versions. Neither `dotnet run` nor the Windows-subsystem apphost is a
-trustworthy completion fence for this headless report gate.
+trustworthy completion fence for this headless report gate. The JSON report is
+the result authority because a caught WinExe smoke exception can still surface
+as process exit code zero; failures include the proof stage and full exception.
 
 Resident Python/WinForms interface-localization negotiation, exact manifest and
 acknowledgement correlation, Unicode payload bounds, stale rejection,

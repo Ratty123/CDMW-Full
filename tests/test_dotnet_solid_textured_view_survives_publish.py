@@ -103,6 +103,7 @@ def test_a_named_display_mode_owns_the_textures() -> None:
             if report_path.is_file()
             else {"ok": False, "error": completed.stderr}
         )
+        assert "error" not in report, json.dumps(report, indent=2)
         assert completed.returncode == 0, json.dumps(report, indent=2)
 
     proof = report["solid_textured_view"]
