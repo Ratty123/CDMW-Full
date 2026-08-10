@@ -65,7 +65,8 @@ def _await_report(report_path: Path, stderr: str) -> dict:
     )
 
 
-def _entry_report() -> dict:
+@pytest.fixture(scope="module")
+def entry_report() -> dict:
     _build_helper()
     with tempfile.TemporaryDirectory(prefix="cdmw-edit-mesh-entry-layout-") as temp_dir:
         report_path = Path(temp_dir) / "entry.json"
@@ -94,8 +95,11 @@ def _entry_report() -> dict:
     "key",
     ("scene_inspector_entry_layout", "scene_inspector_entry_layout_embedded"),
 )
-def test_the_scene_inspector_opens_settled_and_inside_its_column(key: str) -> None:
-    proof = _entry_report()[key]
+def test_the_scene_inspector_opens_settled_and_inside_its_column(
+    key: str,
+    entry_report: dict,
+) -> None:
+    proof = entry_report[key]
 
     assert proof["ok"] is True, json.dumps(proof, indent=2)
     # What a window resize would produce is what entering must already produce.

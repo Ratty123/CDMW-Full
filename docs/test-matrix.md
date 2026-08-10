@@ -145,7 +145,9 @@ the `dotnet` console host, keep their unique temporary directory alive, and wait
 until the terminal JSON report exists and parses. Neither `dotnet run`, the
 Windows-subsystem apphost, nor the console-host process lifetime is a trustworthy
 completion fence across SDK versions. The JSON report is the result authority;
-failures include the proof stage and full exception.
+failures include the proof stage and full exception. The two parameterized scene
+inspector assertions share their module-scoped report instead of relaunching the
+same WinExe smoke once per report key.
 
 Resident Python/WinForms interface-localization negotiation, exact manifest and
 acknowledgement correlation, Unicode payload bounds, stale rejection,
