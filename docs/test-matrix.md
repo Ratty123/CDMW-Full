@@ -131,7 +131,8 @@ Morph & Refit composition and command handoff, and the nonvisual WinForms round 
 dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-edit-mesh-layout-smoke --layout-report "$env:TEMP\cdmw-edit-mesh-layout.json"
 .\.venv\Scripts\python.exe -m pytest tests/test_dotnet_edit_mesh_entry_layout.py tests/test_dotnet_solid_textured_view_survives_publish.py
-dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-edit-mesh-entry-smoke --edit-mesh-entry-report "$env:TEMP\cdmw-edit-mesh-entry.json"
+dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release -p:OutputType=Exe -o "$env:TEMP\cdmw-edit-mesh-headless"
+& "$env:TEMP\cdmw-edit-mesh-headless\cdmw-mesh-dotnet-editor.exe" --headless-edit-mesh-entry-smoke --edit-mesh-entry-report "$env:TEMP\cdmw-edit-mesh-entry.json"
 ```
 
 The layout smoke constructs real WinForms ownership trees, visits all five deck
@@ -140,14 +141,13 @@ its created native handle to remain under one permanent parent. It also
 exercises the hidden zero-size splitter construction phase before applying the
 real viewport/deck dimensions. It starts no renderer or visible window and
 reads no licensed asset. The `mesh-unit` gate runs this smoke after its focused
-source and behavior tests. Entry-report gates execute the built assembly through
-the `dotnet` console host, keep their unique temporary directory alive, and wait
-until the terminal JSON report exists and parses. Neither `dotnet run`, the
-Windows-subsystem apphost, nor the console-host process lifetime is a trustworthy
-completion fence across SDK versions. The JSON report is the result authority;
-failures include the proof stage and full exception. The two parameterized scene
-inspector assertions share their module-scoped report instead of relaunching the
-same WinExe smoke once per report key.
+source and behavior tests. The published helper remains a `WinExe`; entry-report
+gates build the same project into system temp with `OutputType=Exe` and launch
+that console apphost directly, giving the headless producer a real completion
+and exit contract across SDK versions. The JSON report remains the result
+authority, with proof stage and full exception on failure. The two parameterized
+scene inspector assertions share their module-scoped report instead of
+relaunching the same smoke once per report key.
 
 Resident Python/WinForms interface-localization negotiation, exact manifest and
 acknowledgement correlation, Unicode payload bounds, stale rejection,
