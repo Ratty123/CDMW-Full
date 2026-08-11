@@ -47136,7 +47136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 747,
+          "line": 752,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -47511,7 +47511,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 973,
+          "line": 978,
           "sink": "RuntimeError"
         }
       ]
@@ -47626,7 +47626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 797,
+          "line": 802,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -77461,12 +77461,12 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 665,
+          "line": 671,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 715,
+          "line": 721,
           "sink": "_set_state"
         }
       ]
@@ -101326,7 +101326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 907,
+          "line": 913,
           "sink": "_set_state"
         }
       ]
@@ -101616,7 +101616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1001,
+          "line": 1007,
           "sink": "_set_state"
         }
       ]
@@ -103271,12 +103271,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 665,
+          "line": 671,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 715,
+          "line": 721,
           "sink": "_set_state"
         }
       ]
@@ -106061,12 +106061,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 698,
+          "line": 704,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1615,
+          "line": 1621,
           "sink": "_set_state"
         }
       ]
@@ -106696,7 +106696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 996,
+          "line": 1002,
           "sink": "_set_state"
         }
       ]
@@ -111236,17 +111236,17 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 587,
+          "line": 593,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1379,
+          "line": 1385,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1481,
+          "line": 1487,
           "sink": "_set_state"
         }
       ]
@@ -111426,17 +111426,17 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1316,
+          "line": 1322,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1332,
+          "line": 1338,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1496,
+          "line": 1502,
           "sink": "_set_state"
         }
       ]
@@ -112191,12 +112191,12 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 595,
+          "line": 601,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1145,
+          "line": 1151,
           "sink": "_set_state"
         }
       ]
@@ -113136,12 +113136,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 717,
+          "line": 723,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1465,
+          "line": 1471,
           "sink": "_set_state"
         }
       ]
@@ -113161,7 +113161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1628,
+          "line": 1634,
           "sink": "_set_state"
         }
       ]
@@ -193186,7 +193186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1628,
+          "line": 1634,
           "sink": "_set_state"
         }
       ]
