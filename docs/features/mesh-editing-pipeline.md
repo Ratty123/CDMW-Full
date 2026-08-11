@@ -542,8 +542,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   calculation; the older request then becomes stale and cannot replay placement
   mode over the editor. Scene updates and acknowledgements correlate session,
   request, process generation, source identity, and scene generation; stale or
-  rejected updates leave the last acknowledged scene frame active. Overlay
-  renders the original as a reference wire layer.
+  rejected updates leave the last acknowledged scene frame active. In shared
+  authoring, the Mesh Editor tab is the only scene request/generation owner:
+  preview-host placement changes delegate to that lane, and the controller does
+  not replay a second cached scene before the tab's package-load rehydration.
+  Preview-only hosts retain their independent scene replay. Overlay renders the
+  original as a reference wire layer.
   Production presentation exposes separate `Original` and
   `Imported / Modify` resident view contexts inside that same helper process.
   Both contexts retain the same parsed document, geometry buffers, material

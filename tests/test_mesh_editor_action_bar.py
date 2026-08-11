@@ -646,7 +646,10 @@ class MeshEditorActionBarTests(unittest.TestCase):
             "a new controller must be wired even at an address the tab has seen",
         )
         self.assertTrue(recycled.controller.rehydrators)
-        self.assertEqual(["presentation"], recycled.controller.forgotten_states)
+        self.assertEqual(["scene", "presentation"], recycled.controller.forgotten_states)
+        self.assertTrue(
+            callable(getattr(recycled.controller, "_mesh_editor_shared_dotnet_scene_sender", None))
+        )
         app.processEvents()
         tab.deleteLater()
 

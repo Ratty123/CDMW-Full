@@ -467,6 +467,12 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
             value = str(message.get(field, "") or "").strip()
             if value:
                 self._authoring_scene_modes[field] = value
+        if self._authoring_rehydrator is not None:
+            # The Mesh Editor rehydrator republishes this state through its own
+            # request/generation lane. Retaining a controller replay would make
+            # the helper compare two independent counters for the same scene.
+            self._resident_state.pop(key, None)
+            return
         self._store_resident_state(key, str(message.get("event", "")), message)
 
     @property

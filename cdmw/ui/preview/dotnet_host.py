@@ -716,16 +716,29 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
     ) -> bool:
         if not self._scene_state:
             return False
+        placement = {
+            "translation": _triple(translation, (0.0, 0.0, 0.0)),
+            "rotation_degrees": _triple(rotation_degrees, (0.0, 0.0, 0.0)),
+            "scale": _triple(scale_xyz, (1.0, 1.0, 1.0)),
+        }
+        self._scene_state["placement"] = placement
+        if getattr(self.controller, "_mesh_editor_shared_dotnet_wired_to", None) is not None:
+            sender = getattr(
+                self.controller,
+                "_mesh_editor_shared_dotnet_scene_sender",
+                None,
+            )
+            if not callable(sender):
+                return False
+            try:
+                return bool(sender(placement=placement))
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                return False
         self._scene_generation = max(
             self._scene_generation + 1,
             int(self._scene_state.get("scene_generation", 0) or 0) + 1,
         )
         self._scene_state["scene_generation"] = self._scene_generation
-        self._scene_state["placement"] = {
-            "translation": _triple(translation, (0.0, 0.0, 0.0)),
-            "rotation_degrees": _triple(rotation_degrees, (0.0, 0.0, 0.0)),
-            "scale": _triple(scale_xyz, (1.0, 1.0, 1.0)),
-        }
         return self.controller.remember_state("scene", "scene_state_update", self._scene_state)
 
     def set_alignment_preview_transforms(
