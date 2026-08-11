@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import traceback
 from collections.abc import Mapping
 
 from cdmw.ui.archive_browser import static_replacement_preview_materials as preview_materials
@@ -48,6 +49,7 @@ def _texture_original_texture_material_step_001(_state):
     _state._alignment_mesh_edit_tab_active = _state.context.get('_alignment_mesh_edit_tab_active')
     _state._alignment_texture_lookup_indexes = _state.context.get('_alignment_texture_lookup_indexes')
     _state._apply_selected_donor_material = _state.context.get('_apply_selected_donor_material')
+    _state._apply_native_preview_core_material_manifest_helper = _state.context.get('_apply_native_preview_core_material_manifest_helper')
     _state._attach_model_sidecar_texture_preview_paths = _state.context.get('_attach_model_sidecar_texture_preview_paths')
     _state._attach_model_support_texture_preview_paths = _state.context.get('_attach_model_support_texture_preview_paths')
     _state._attach_model_texture_preview_paths = _state.context.get('_attach_model_texture_preview_paths')
@@ -73,10 +75,12 @@ def _texture_original_texture_material_step_001(_state):
     _state._material_route_control_state_helper = _state.context.get('_material_route_control_state_helper')
     _state._material_routing_conflict_messages_helper = _state.context.get('_material_routing_conflict_messages_helper')
     _state._normalize_model_visible_texture_mode = _state.context.get('_normalize_model_visible_texture_mode')
+    _state._native_manifest_input_from_descriptor = _state.context.get('_native_manifest_input_from_descriptor')
     _state._original_reference_texture_preview_clear_loading_helper = _state.context.get('_original_reference_texture_preview_clear_loading_helper')
     _state._original_reference_texture_preview_error_state_helper = _state.context.get('_original_reference_texture_preview_error_state_helper')
     _state._original_reference_texture_preview_exception_state_helper = _state.context.get('_original_reference_texture_preview_exception_state_helper')
     _state._original_reference_texture_preview_load_start_state_helper = _state.context.get('_original_reference_texture_preview_load_start_state_helper')
+    _state._original_reference_texture_preview_set_native_package_path_helper = _state.context.get('_original_reference_texture_preview_set_native_package_path_helper')
     _state._original_texture_preview_toggle_state_helper = _state.context.get('_original_texture_preview_toggle_state_helper')
     _state._populate_combo_options_helper = _state.context.get('_populate_combo_options_helper')
     _state._populate_donor_texture_tree = _state.context.get('_populate_donor_texture_tree')
@@ -276,11 +280,18 @@ def _texture_original_texture_material_step_006(_state):
 
 def _texture_original_texture_material_step_007(_state):
 
-    def _handle_original_reference_texture_preview_error(request_id: int, message: str) -> None:
+    def _handle_original_reference_texture_preview_error(
+        request_id: int,
+        message: str,
+        traceback_text: str = '',
+    ) -> None:
         error_state = _state._original_reference_texture_preview_error_state_helper(_state.original_reference_texture_preview_state, request_current=_state._alignment_d3d11_original_texture_worker_request_current_helper(_state.alignment_d3d11_state, request_id), message=message)
         if not error_state.handled:
             return
-        _state._record_runtime_event('mesh_alignment_original_texture_preview_failed', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, message=str(message), modify_original_clone=_state.modify_original_clone_mode)
+        _state.original_reference_texture_preview_state['_last_failure_stage'] = 'worker_resolve'
+        _state.original_reference_texture_preview_state['_last_request_id'] = int(request_id)
+        _state.original_reference_texture_preview_state['_last_traceback'] = str(traceback_text or '')
+        _state._record_runtime_event('mesh_alignment_original_texture_preview_failed', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, request_id=int(request_id), failure_stage='worker_resolve', message=str(message), traceback=str(traceback_text or ''), modify_original_clone=_state.modify_original_clone_mode)
         _state.original_dialog_preview.clear_model(error_state.message)
         _state._set_alignment_d3d11_loading(False, error_state.message)
         _state._set_preview_performance_status(error_state.performance.summary, details=error_state.performance.details)
@@ -359,38 +370,40 @@ def _step_009_context_value(_state, name: str) -> object | None:
     return context.get(name, getattr(_state, name, None))
 
 
+def _step_009_handle_texture_start_exception(
+    _state,
+    exc: Exception,
+    failure_stage: str,
+) -> str:
+    traceback_text = traceback.format_exc()
+    preview_state = _state.original_reference_texture_preview_state
+    preview_state['_last_failure_stage'] = str(failure_stage or 'start')
+    preview_state['_last_request_id'] = 0
+    preview_state['_last_traceback'] = traceback_text
+    exception_state = _state._original_reference_texture_preview_exception_state_helper(preview_state, exc)
+    _state._record_runtime_event('mesh_alignment_original_texture_preview_failed', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, request_id=0, failure_stage=str(failure_stage or 'start'), message=str(exc), traceback=traceback_text, modify_original_clone=_state.modify_original_clone_mode)
+    _state.original_dialog_preview.clear_model(exception_state.message)
+    _state._set_alignment_d3d11_loading(False, exception_state.message)
+    _state._set_preview_performance_status(exception_state.performance.summary, details=exception_state.performance.details)
+    notify_failure = getattr(_state.dialog, '_mesh_editor_embedded_texture_request_failed', None)
+    if callable(notify_failure):
+        notify_failure(exception_state.message)
+    _state._original_reference_texture_preview_clear_loading_helper(preview_state)
+    return 'failed'
+
+
 def _texture_original_texture_material_step_009(_state):
-    # These three read the prompt's live context and are module level only so this
-    # factory stays inside the 150-line owner limit; they are not used elsewhere.
-    def _prompt_context() -> dict:
-        return _step_009_prompt_context(_state)
-
-    def _resolved_original_reference_preview_model() -> object | None:
-        return _step_009_resolved_original_reference_preview_model(_state)
-
-    def _context_value(name: str) -> object | None:
-        return _step_009_context_value(_state, name)
-
     def _settle_deferred_original_reference_texture_request(outcome: str) -> None:
-        """Answer a texture request that started no worker.
-
-        `_load_original_reference_texture_preview` is what the resident Mesh
-        Editor calls when the user picks a textured Mesh view, and it then
-        waits for a material acknowledgement before leaving the untextured
-        fallback. Returning silently because the textures happen to be resolved
-        already left that wait outstanding forever, so the viewport stayed
-        untextured while the Mesh view control still read "Solid (Textured)".
-        """
         if str(outcome) == ORIGINAL_REFERENCE_TEXTURE_REQUEST_IN_FLIGHT:
             # A worker is already resolving these textures and will publish and
             # acknowledge them on its own.
             return
-        preview_model = _resolved_original_reference_preview_model()
+        preview_model = _step_009_resolved_original_reference_preview_model(_state)
         if str(outcome) == ORIGINAL_REFERENCE_TEXTURE_REQUEST_ALREADY_LOADED and preview_model is not None:
             preview_materials.apply_resolved_original_materials_to_resident_editor(
                 dialog=_state.dialog,
-                replacement_mesh_base=_context_value('replacement_mesh_base_for_mapping'),
-                replacement_mesh=_context_value('replacement_mesh_for_mapping'),
+                replacement_mesh_base=_step_009_context_value(_state, 'replacement_mesh_base_for_mapping'),
+                replacement_mesh=_step_009_context_value(_state, 'replacement_mesh_for_mapping'),
                 preview_model=preview_model,
                 modify_original_clone_mode=bool(_state.modify_original_clone_mode),
                 publish_resident_updates=True,
@@ -402,12 +415,13 @@ def _texture_original_texture_material_step_009(_state):
     _state._settle_deferred_original_reference_texture_request = _settle_deferred_original_reference_texture_request
 
     def _load_original_reference_texture_preview() -> str:
-        load_state = _state._original_reference_texture_preview_load_start_state_helper(_state.original_reference_texture_preview_state, has_original_reference_model=_resolved_original_reference_preview_model() is not None)
+        load_state = _state._original_reference_texture_preview_load_start_state_helper(_state.original_reference_texture_preview_state, has_original_reference_model=_step_009_resolved_original_reference_preview_model(_state) is not None)
         if not load_state.should_start:
             _settle_deferred_original_reference_texture_request(load_state.outcome)
             return str(load_state.outcome)
         _state._set_alignment_d3d11_progress(10, load_state.progress_message, stage='source_textures', detail=load_state.detail)
         _state._set_preview_performance_status(load_state.performance.summary, details=load_state.performance.details)
+        failure_stage = 'read_preview_state'
         try:
             package_root_text = _state.self.archive_package_root_edit.text().strip()
             current_preview_render_settings = _state._current_preview_render_settings()
@@ -417,6 +431,7 @@ def _texture_original_texture_material_step_009(_state):
             current_archive_preview_model = _state._current_archive_original_preview_model()
             current_archive_native_package_path = _state._current_archive_native_preview_package_path()
             if current_archive_native_package_path:
+                failure_stage = 'reuse_native_package'
                 _state._original_reference_texture_preview_set_native_package_path_helper(
                     _state.original_reference_texture_preview_state,
                     current_archive_native_package_path,
@@ -485,6 +500,7 @@ def _texture_original_texture_material_step_009(_state):
                 _state.self._attach_archive_model_preview_images(preview_model)
                 native_material_batches = 0 if native_manifest_attempted else _state._load_native_preview_core_material_manifest_for_alignment(preview_model, package_root_text, textured_preview_render_settings)
                 return (preview_model, native_material_batches)
+            failure_stage = 'start_worker'
             _state._stop_original_reference_texture_worker()
             worker_request_id = _state._alignment_d3d11_next_original_texture_worker_request_id_helper(_state.alignment_d3d11_state)
             worker = _state.AlignmentOriginalTexturePreviewWorker(worker_request_id, _resolve_original_textures)
@@ -505,16 +521,7 @@ def _texture_original_texture_material_step_009(_state):
             thread.start()
             return str(load_state.outcome)
         except Exception as exc:
-            exception_state = _state._original_reference_texture_preview_exception_state_helper(_state.original_reference_texture_preview_state, exc)
-            _state._record_runtime_event('mesh_alignment_original_texture_preview_failed', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, message=str(exc), modify_original_clone=_state.modify_original_clone_mode)
-            _state.original_dialog_preview.clear_model(exception_state.message)
-            _state._set_alignment_d3d11_loading(False, exception_state.message)
-            _state._set_preview_performance_status(exception_state.performance.summary, details=exception_state.performance.details)
-            notify_failure = getattr(_state.dialog, '_mesh_editor_embedded_texture_request_failed', None)
-            if callable(notify_failure):
-                notify_failure(exception_state.message)
-            _state._original_reference_texture_preview_clear_loading_helper(_state.original_reference_texture_preview_state)
-            return 'failed'
+            return _step_009_handle_texture_start_exception(_state, exc, failure_stage)
     _state._load_original_reference_texture_preview = _load_original_reference_texture_preview
 
 def _texture_original_texture_material_step_010(_state):

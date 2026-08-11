@@ -611,6 +611,18 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   mirrors local selection to the resident C++ session, sends incremental
   strokes, and routes screen selection plus topology commands through
   `MeshEditCommandWorker` so native picking never blocks the Qt UI thread.
+  Correlated interaction evidence also stays off that thread. Producers enqueue
+  shallow event snapshots into `MeshInteractionFlightRecorder`; one bounded
+  daemon writer resolves the crash-directory path, serializes JSON, and appends
+  batches to `dotnet_protocol_current.jsonl`. The recorder caps both its queue
+  and file, counts accepted, written, dropped, serialization-failed, and
+  write-failed events, exposes maximum/current queue depth, and retains a
+  bounded summarized tail for the diagnostics dialog. Outbound sends and every
+  dispatcher decision carry the available session, process generation,
+  request, revision, group, tool, queue-depth, active, pending, coalesced,
+  cancellation, completion, failure, and stale-result fields. Diagnostics never
+  retain full mesh arrays in the in-memory tail, while the background JSONL row
+  preserves the complete event for post-mortem analysis.
   Turning Part Pick off clears Builder highlights and the resident selection;
   Clear Selection uses the same authoritative selection bridge.
   The embedded right tool panel shows the live authoritative action timeline
@@ -936,6 +948,13 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   renderer blockers, and `dotnet_launch_diagnostics.json`. The legacy native
   preview button and automatic fallback entry points are disabled; native
   renderer scenarios remain compatibility-only and opt-in.
+- Modify Original diagnostics include the bounded original-texture resolver
+  transition history, current request and stage, worker/thread presence and
+  running state, and the complete worker or synchronous-start traceback. The
+  same report includes flight-recorder health and recent correlated interaction
+  decisions, so a texture failure, queue stall, coalesced held gesture, stale
+  result, or failed terminal reconciliation can be tied to one session without
+  reproducing it under a debugger.
 - External static replacement/import previews clear inherited reference
   skeleton and physics overlay metadata by default. Overlays are preserved only
   through explicit diagnostic/overlay paths. Native original-reference splicing

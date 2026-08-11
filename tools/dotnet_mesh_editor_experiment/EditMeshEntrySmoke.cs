@@ -38,6 +38,8 @@ internal static class EditMeshEntrySmoke
             using var form = new ExperimentForm(Options(input, output, embedded: false), document, sourceParseCount: 1);
             stage = "solid_textured_view";
             var solidTextured = form.SolidTexturedViewProof();
+            stage = "all_edit_mesh_tools";
+            var allEditMeshTools = form.AllEditMeshToolsDiagnosticProof();
             stage = "scene_inspector_entry_layout";
             var sceneInspector = form.SceneInspectorEntryLayoutProof();
             // The helper the workbench launches is embedded, and an embedded
@@ -61,11 +63,13 @@ internal static class EditMeshEntrySmoke
             var report = new Dictionary<string, object?>
             {
                 ["ok"] = solidTextured.GetValueOrDefault("ok") is true
+                    && allEditMeshTools.GetValueOrDefault("ok") is true
                     && sceneInspector.GetValueOrDefault("ok") is true
                     && embeddedSceneInspector.GetValueOrDefault("ok") is true
                     && missingTextureReadiness.GetValueOrDefault("ok") is true
                     && gpuBindingRollback.GetValueOrDefault("ok") is true,
                 ["solid_textured_view"] = solidTextured,
+                ["all_edit_mesh_tools"] = allEditMeshTools,
                 ["scene_inspector_entry_layout"] = sceneInspector,
                 ["scene_inspector_entry_layout_embedded"] = embeddedSceneInspector,
                 ["missing_texture_readiness"] = missingTextureReadiness,

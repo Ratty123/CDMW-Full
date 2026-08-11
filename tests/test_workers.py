@@ -90,5 +90,23 @@ class WorkerFoundationTests(unittest.TestCase):
         self.assertGreaterEqual(elapsed_ms, 0.0)
         self.assertEqual(finished, [True])
 
+    def test_alignment_original_texture_worker_error_includes_traceback(self) -> None:
+        errors: list[tuple[int, str, str]] = []
+
+        def fail(_stop_event) -> tuple[object, int]:
+            raise RuntimeError("resolver exploded")
+
+        worker = AlignmentOriginalTexturePreviewWorker(9, fail)
+        worker.error.connect(
+            lambda request_id, message, traceback_text: errors.append(
+                (request_id, message, traceback_text)
+            )
+        )
+
+        worker.run()
+
+        self.assertEqual(errors[0][:2], (9, "resolver exploded"))
+        self.assertIn("RuntimeError: resolver exploded", errors[0][2])
+
 if __name__ == "__main__":
     unittest.main()

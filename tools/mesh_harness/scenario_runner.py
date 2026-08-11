@@ -5,6 +5,7 @@ from tools.mesh_harness.scenario_registry import scenario_metadata
 from tools.mesh_harness.constants import _DEFAULT_GAME_ROOT, _DOTNET_NATIVE_PARITY_SCENARIO, _REAL_MESH_EDITOR_VISUAL_SCENARIO
 from tools.mesh_harness.asset_authoring import run_asset_authoring_discovery, run_asset_authoring_mesh_health, run_asset_authoring_openimageio_report, run_asset_authoring_tangent_report, run_asset_authoring_uv_report
 from tools.mesh_harness.evidence import _mesh_editor_evidence_report, _write_json_atomic
+from tools.mesh_harness.edit_mesh_diagnostics import run_headless_edit_mesh_diagnostics
 from tools.mesh_harness.native_strokes import run_native_mesh_editor_standalone_stroke, run_native_mesh_editor_static_replacement_screen_stroke
 from tools.mesh_harness.native_workflow import run_long_edit_mesh_tools, run_native_mesh_editor_benchmark, run_native_mesh_editor_workflow
 from tools.mesh_harness.parity import (
@@ -180,6 +181,9 @@ def run_scenario(
     elif scenario == 'native-mesh-editor-static-screen-stroke':
         static_screen_stroke_result = run_native_mesh_editor_static_replacement_screen_stroke()
         result = {'scenario': scenario, 'ok': bool(static_screen_stroke_result.get('ok')), 'native_mesh_editor_static_screen_stroke': static_screen_stroke_result}
+    elif scenario == 'headless-edit-mesh-diagnostics':
+        diagnostics_result = run_headless_edit_mesh_diagnostics(output_dir)
+        result = {'scenario': scenario, 'ok': bool(diagnostics_result.get('ok')), 'headless_edit_mesh_diagnostics': diagnostics_result}
     else:
         _mesh, service_result = run_service_smoke()
         result = {'scenario': scenario, 'ok': bool(service_result.get('ok')), 'service': service_result}

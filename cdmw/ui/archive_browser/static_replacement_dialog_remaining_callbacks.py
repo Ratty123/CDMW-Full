@@ -398,9 +398,13 @@ def create_alignment_original_texture_worker_callbacks(context: dict[str, object
         def handle_completed(self, request_id: int, preview_model: object, native_material_batches: int, elapsed_ms: float) -> None:
             _handle_original_reference_texture_preview_ready(request_id, preview_model, native_material_batches, elapsed_ms)
 
-        @Slot(int, str)
-        def handle_error(self, request_id: int, message: str) -> None:
-            _handle_original_reference_texture_preview_error(request_id, message)
+        @Slot(int, str, str)
+        def handle_error(self, request_id: int, message: str, traceback_text: str) -> None:
+            _handle_original_reference_texture_preview_error(
+                request_id,
+                message,
+                traceback_text,
+            )
         def watch_thread(self, thread: object, worker: object, callback: object, connection_type: object) -> None:
             self._thread_finished_callbacks[thread] = (worker, callback)
             thread.finished.connect(self.handle_thread_finished, connection_type)

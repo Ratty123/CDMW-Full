@@ -334,6 +334,36 @@ def test_static_replacement_section_factories_initialize_every_state_attribute()
     assert not failures, "\n".join(failures)
 
 
+def test_original_texture_callback_factory_initializes_every_state_dependency() -> None:
+    owner_path = (
+        OWNER_ROOT
+        / "static_replacement_dialog_callbacks_texture_original_texture_material_part_01.py"
+    )
+    tree = ast.parse(owner_path.read_text(encoding="utf-8"))
+    assigned = {
+        "context",
+        "_factory_globals",
+        "_factory_result_values",
+        "_context_builtin",
+        *vars(texture_callbacks),
+    }
+    referenced: set[str] = set()
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "_state"
+        ):
+            continue
+        if isinstance(node.ctx, ast.Store):
+            assigned.add(node.attr)
+        else:
+            referenced.add(node.attr)
+
+    missing = sorted(referenced - assigned)
+    assert not missing, f"original texture callback reads uninitialized state: {missing}"
+
+
 def test_prompt_section_factories_export_every_member_consumed_by_prompt_setup() -> None:
     prompt_tree = ast.parse(
         (OWNER_ROOT / "static_replacement_dialog_prompt_setup.py").read_text(encoding="utf-8")
