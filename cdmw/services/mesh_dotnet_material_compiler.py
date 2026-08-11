@@ -330,26 +330,52 @@ def _rebase_manifest_paths(
     value: object,
     staging: Path,
     cache_dir: Path,
+    *,
+    _replacements: tuple[tuple[str, str], ...] | None = None,
 ) -> object:
     """Replace unpublished staging roots before the directory is atomically moved."""
 
+    if _replacements is None:
+        resolved_staging = staging.resolve()
+        resolved_cache_dir = cache_dir.resolve()
+        _replacements = (
+            (str(resolved_staging), str(resolved_cache_dir)),
+            (resolved_staging.as_posix(), resolved_cache_dir.as_posix()),
+        )
     if isinstance(value, Mapping):
         return {
-            str(key): _rebase_manifest_paths(item, staging, cache_dir)
+            str(key): _rebase_manifest_paths(
+                item,
+                staging,
+                cache_dir,
+                _replacements=_replacements,
+            )
             for key, item in value.items()
         }
     if isinstance(value, list):
-        return [_rebase_manifest_paths(item, staging, cache_dir) for item in value]
+        return [
+            _rebase_manifest_paths(
+                item,
+                staging,
+                cache_dir,
+                _replacements=_replacements,
+            )
+            for item in value
+        ]
     if isinstance(value, tuple):
-        return tuple(_rebase_manifest_paths(item, staging, cache_dir) for item in value)
+        return tuple(
+            _rebase_manifest_paths(
+                item,
+                staging,
+                cache_dir,
+                _replacements=_replacements,
+            )
+            for item in value
+        )
     if not isinstance(value, str):
         return value
-    replacements = (
-        (str(staging.resolve()), str(cache_dir.resolve())),
-        (staging.resolve().as_posix(), cache_dir.resolve().as_posix()),
-    )
     rebased = value
-    for source_root, target_root in replacements:
+    for source_root, target_root in _replacements:
         rebased = rebased.replace(source_root, target_root)
     return rebased
 

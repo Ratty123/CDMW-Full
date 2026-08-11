@@ -1214,30 +1214,72 @@ def _combine_material_slot_maps(
         derived = _coverage_weighted_slot_level(layer_views, base_width, base_height)
         if derived is not None:
             slot_default = derived
-    for y in range(base_height):
-        _raise_if_material_combiner_cancelled(cancelled)
-        target_row = y * target_stride
-        for x in range(base_width):
-            combined = slot_default
-            covered = False
-            for _priority, _mode, _image, view, stride in layer_views:
-                offset = (y * stride) + (x * 4)
-                # RGB is greyscale here, so red is the value; alpha is coverage.
-                value = _clamp(float(view[offset]) / 255.0)
-                coverage = _clamp(float(view[offset + 3]) / 255.0)
-                if coverage <= 0.0:
-                    continue
-                if slot == "occlusion":
-                    # Occlusion from separate layers stacks rather than replaces:
-                    # the darkest contributor wins where they overlap.
-                    contribution = (value * coverage) + (1.0 * (1.0 - coverage))
-                    combined = contribution if not covered else min(combined, contribution)
-                else:
-                    combined = (combined * (1.0 - coverage)) + (value * coverage)
-                covered = True
-            grey_byte = _byte(_clamp(combined))
-            target_offset = target_row + (x * 3)
-            target_view[target_offset : target_offset + 3] = bytes((grey_byte, grey_byte, grey_byte))
+    numpy = _numpy_module()
+    vectorized = False
+    if numpy is not None:
+        try:
+            target_array = numpy.ndarray(
+                (base_height, base_width, 3),
+                dtype=numpy.uint8,
+                buffer=target_view,
+                strides=(target_stride, 3, 1),
+            )
+            for row_start in range(0, base_height, 32):
+                _raise_if_material_combiner_cancelled(cancelled)
+                row_count = min(32, base_height - row_start)
+                shape = (row_count, base_width)
+                combined = numpy.full(shape, slot_default, dtype=numpy.float64)
+                covered = numpy.zeros(shape, dtype=numpy.bool_)
+                for _priority, _mode, _image, view, stride in layer_views:
+                    value = numpy.ndarray(
+                        shape,
+                        dtype=numpy.uint8,
+                        buffer=view,
+                        offset=row_start * stride,
+                        strides=(stride, 4),
+                    ).astype(numpy.float64) / 255.0
+                    coverage = numpy.ndarray(
+                        shape,
+                        dtype=numpy.uint8,
+                        buffer=view,
+                        offset=(row_start * stride) + 3,
+                        strides=(stride, 4),
+                    ).astype(numpy.float64) / 255.0
+                    active = coverage > 0.0
+                    if slot == "occlusion":
+                        contribution = (value * coverage) + (1.0 - coverage)
+                        overlaid = numpy.where(covered, numpy.minimum(combined, contribution), contribution)
+                    else:
+                        overlaid = (combined * (1.0 - coverage)) + (value * coverage)
+                    combined = numpy.where(active, overlaid, combined)
+                    covered |= active
+                grey = numpy.rint(numpy.clip(combined, 0.0, 1.0) * 255.0).astype(numpy.uint8)
+                target_array[row_start : row_start + row_count, :, :] = grey[:, :, None]
+            vectorized = True
+        except (BufferError, TypeError, ValueError):
+            vectorized = False
+    if not vectorized:
+        for y in range(base_height):
+            _raise_if_material_combiner_cancelled(cancelled)
+            target_row = y * target_stride
+            for x in range(base_width):
+                combined = slot_default
+                covered = False
+                for _priority, _mode, _image, view, stride in layer_views:
+                    offset = (y * stride) + (x * 4)
+                    value = _clamp(float(view[offset]) / 255.0)
+                    coverage = _clamp(float(view[offset + 3]) / 255.0)
+                    if coverage <= 0.0:
+                        continue
+                    if slot == "occlusion":
+                        contribution = (value * coverage) + (1.0 * (1.0 - coverage))
+                        combined = contribution if not covered else min(combined, contribution)
+                    else:
+                        combined = (combined * (1.0 - coverage)) + (value * coverage)
+                    covered = True
+                grey_byte = _byte(_clamp(combined))
+                target_offset = target_row + (x * 3)
+                target_view[target_offset : target_offset + 3] = bytes((grey_byte, grey_byte, grey_byte))
 
     _raise_if_material_combiner_cancelled(cancelled)
     output_dir.mkdir(parents=True, exist_ok=True)
