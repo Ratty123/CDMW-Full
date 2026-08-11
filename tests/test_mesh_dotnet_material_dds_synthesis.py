@@ -354,6 +354,251 @@ def test_raw_support_map_channels_do_not_block_the_material_compile(
     assert _material_compile_blockers(payload) == []
 
 
+def test_package_reconstructs_positive_z_when_composing_bc5_normal_layers(
+    tmp_path: Path,
+) -> None:
+    # DirectXTex expands BC5 to RG with blue left at zero. The renderer
+    # reconstructs positive Z from XY, so the offline layer compositor must do
+    # the same instead of interpreting blue=0 as signed Z=-1.
+    base_normal = _image(tmp_path / "base_bc5.png", (128, 128, 0, 255))
+    detail_normal = _image(tmp_path / "detail_bc5.png", (200, 128, 0, 255))
+    selector = _image(tmp_path / "selector.png", (255, 0, 0, 255))
+    submesh = _submesh()
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_normalTexture",
+            preview_texture_path=str(base_normal),
+            source_dds_path=str(base_normal),
+            semantic_type="normal",
+            layer_role="normal",
+            sidecar_kind="pac_xml",
+            binding_authority="authoritative",
+            binding_disposition="promoted",
+            source_kind="crimson_normal",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_detailNormalMaskR",
+            preview_texture_path=str(detail_normal),
+            source_dds_path=str(detail_normal),
+            semantic_type="normal",
+            layer_role="detail",
+            layer_channel="r",
+            sidecar_kind="pac_xml",
+            binding_authority="authoritative",
+            binding_disposition="layer_only",
+            source_kind="crimson_layer_normal",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="mask",
+            parameter_name="_colorBlendingMaskTexture",
+            preview_texture_path=str(selector),
+            source_dds_path=str(selector),
+            semantic_type="mask",
+            layer_role="color",
+            sidecar_kind="pac_xml",
+            binding_authority="authoritative",
+            binding_disposition="layer_only",
+            source_kind="crimson_color_blending_mask",
+            visualized=True,
+        ),
+    )
+
+    payload = _write_manifest(tmp_path / "package", submesh)
+    binding = payload["submeshes"][0]
+    normal_resource = next(
+        resource
+        for resource in payload["resources"]
+        if resource["resource_id"] == binding["resource_channels"]["normal"]
+    )
+    packaged_normal = QImage(str(tmp_path / "package" / normal_resource["path"]))
+    pixel = packaged_normal.pixelColor(0, 0)
+
+    assert 150 <= pixel.red() <= 175
+    assert 120 <= pixel.green() <= 135
+    assert pixel.blue() >= 245
+
+
+def test_layered_normal_uses_the_native_selected_macro_dds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selected_dds = tmp_path / "zzz_selected_00_n.dds"
+    alternate_dds = tmp_path / "000_alternate_01_n.dds"
+    detail_dds = tmp_path / "detail_n.dds"
+    for path in (selected_dds, alternate_dds, detail_dds):
+        path.write_bytes(b"DDS normal placeholder")
+    selected_png = _image(tmp_path / "selected.png", (128, 128, 0, 255))
+    alternate_png = _image(tmp_path / "alternate.png", (230, 128, 0, 255))
+    detail_png = _image(tmp_path / "detail.png", (160, 128, 0, 255))
+    selector = _image(tmp_path / "selector.png", (255, 0, 0, 255))
+    decoded_paths: list[str] = []
+
+    def decode(jobs, *, include_job_keys, stop_event):
+        from cdmw.core.texture_native import directxtex_preview_result_key
+
+        decoded_paths.extend(str(job["dds_path"]) for job in jobs)
+        outputs = {
+            selected_dds.resolve(): selected_png,
+            alternate_dds.resolve(): alternate_png,
+            detail_dds.resolve(): detail_png,
+        }
+        return {
+            directxtex_preview_result_key(
+                source,
+                max_dimension=256,
+                slot_kind="normal",
+                srgb="linear",
+                normal_space="auto",
+            ): preview
+            for source, preview in outputs.items()
+        }
+
+    monkeypatch.setattr(
+        "cdmw.core.texture_native.ensure_directxtex_dds_preview_pngs",
+        decode,
+    )
+    submesh = _submesh()
+    submesh.preview_tangents_usable = True
+    submesh.preview_normal_texture_path = str(selected_dds)
+    submesh.preview_normal_texture_dds_path = str(selected_dds)
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_normalTexture",
+            source_dds_path=str(alternate_dds),
+            preview_texture_path=str(alternate_dds),
+            semantic_type="normal",
+            layer_role="normal",
+            binding_disposition="promoted",
+            source_kind="crimson_normal",
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_normalTexture",
+            source_dds_path=str(selected_dds),
+            preview_texture_path=str(selected_dds),
+            semantic_type="normal",
+            layer_role="normal",
+            binding_disposition="promoted",
+            source_kind="crimson_normal",
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_detailNormalMaskR",
+            source_dds_path=str(detail_dds),
+            preview_texture_path=str(detail_dds),
+            semantic_type="normal",
+            layer_role="detail",
+            layer_channel="r",
+            binding_disposition="layer_only",
+            source_kind="crimson_layer_normal",
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="mask",
+            parameter_name="_colorBlendingMaskTexture",
+            source_dds_path=str(selector),
+            preview_texture_path=str(selector),
+            semantic_type="mask",
+            layer_role="color",
+            binding_disposition="layer_only",
+            source_kind="crimson_color_blending_mask",
+        ),
+    )
+
+    payload = _write_manifest(tmp_path / "package", submesh)
+    binding = payload["submeshes"][0]
+    normal_resource = next(
+        resource
+        for resource in payload["resources"]
+        if resource["resource_id"] == binding["resource_channels"]["normal"]
+    )
+    packaged_normal = QImage(str(tmp_path / "package" / normal_resource["path"]))
+    pixel = packaged_normal.pixelColor(0, 0)
+
+    assert str(selected_dds.resolve()) in decoded_paths
+    assert binding["raw_resolved_channels"]["normal"] == str(selected_dds)
+    assert binding["resolved_channels"]["normal"] != str(selected_dds)
+    assert 125 <= pixel.red() <= 165
+    assert pixel.blue() >= 245
+    assert not [
+        note
+        for note in binding["material_synthesis"]["notes"]
+        if "normal not decoded" in note.casefold()
+    ]
+
+
+def test_layered_normal_decode_failure_keeps_the_native_selected_dds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selected_dds = tmp_path / "selected_00_n.dds"
+    detail_dds = tmp_path / "detail_n.dds"
+    selected_dds.write_bytes(b"DDS selected normal placeholder")
+    detail_dds.write_bytes(b"DDS detail normal placeholder")
+    detail_png = _image(tmp_path / "detail.png", (200, 128, 0, 255))
+    decoded_paths: list[str] = []
+
+    def decode(jobs, *, include_job_keys, stop_event):
+        from cdmw.core.texture_native import directxtex_preview_result_key
+
+        decoded_paths.extend(str(job["dds_path"]) for job in jobs)
+        return {
+            directxtex_preview_result_key(
+                detail_dds.resolve(),
+                max_dimension=256,
+                slot_kind="normal",
+                srgb="linear",
+                normal_space="auto",
+            ): detail_png
+        }
+
+    monkeypatch.setattr(
+        "cdmw.core.texture_native.ensure_directxtex_dds_preview_pngs",
+        decode,
+    )
+    submesh = _submesh()
+    submesh.preview_tangents_usable = True
+    submesh.preview_normal_texture_path = str(selected_dds)
+    submesh.preview_normal_texture_dds_path = str(selected_dds)
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_normalTexture",
+            source_dds_path=str(selected_dds),
+            preview_texture_path=str(selected_dds),
+            semantic_type="normal",
+            layer_role="normal",
+            binding_disposition="promoted",
+            source_kind="crimson_normal",
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_detailNormalMaskR",
+            source_dds_path=str(detail_dds),
+            preview_texture_path=str(detail_dds),
+            semantic_type="normal",
+            layer_role="detail",
+            layer_channel="r",
+            binding_disposition="layer_only",
+            source_kind="crimson_layer_normal",
+        ),
+    )
+
+    payload = _write_manifest(tmp_path / "package", submesh)
+    binding = payload["submeshes"][0]
+    notes = [str(note).casefold() for note in binding["material_synthesis"]["notes"]]
+
+    assert str(selected_dds.resolve()) in decoded_paths
+    assert binding["raw_resolved_channels"]["normal"] == str(selected_dds)
+    assert binding["resolved_channels"]["normal"] == str(selected_dds)
+    assert any("normal not decoded, raw channel packaged" in note for note in notes)
+    assert not any("normal layers synthesized" in note for note in notes)
+
+
 def test_raw_support_map_skip_requires_the_same_dds_path(tmp_path: Path) -> None:
     packaged_material_dds = tmp_path / "packaged_sp.dds"
     packaged_material_dds.write_bytes(b"DDS packaged material placeholder")
