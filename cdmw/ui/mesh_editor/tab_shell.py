@@ -635,20 +635,25 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         try:
             setattr(
                 controller,
+                "_mesh_editor_shared_dotnet_scene_sender",
+                self._send_dotnet_scene_state,
+            )
+            setattr(
+                controller,
                 "_mesh_editor_shared_dotnet_presentation_sender",
                 self._send_dotnet_presentation_state,
             )
         except (AttributeError, RuntimeError):
             pass
         # The embedded preview host is constructed before Mesh Editor takes
-        # ownership of this controller, so it may already have cached its
-        # generic presentation defaults (notably Grid off).  Replaying that
-        # second presentation owner after a package load races the tab's live
-        # Builder snapshot and can leave the acknowledgement queue paired with
-        # the wrong request.  Once authoring is shared, the tab is the sole
-        # presentation owner and rehydrates the complete Builder state itself.
+        # ownership of this controller, so it may already have cached generic
+        # scene and presentation defaults. Replaying either second owner after
+        # a package load races the tab's live Builder snapshots and can leave
+        # the acknowledgement queues paired with the wrong requests. Once
+        # authoring is shared, the tab rehydrates both complete states itself.
         forget_state = getattr(controller, "forget_state", None)
         if callable(forget_state):
+            forget_state("scene")
             forget_state("presentation")
 
     def _sync_shared_dotnet_process_identity(self, controller: object) -> None:

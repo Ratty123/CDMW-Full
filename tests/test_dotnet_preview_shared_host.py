@@ -1256,6 +1256,11 @@ def test_authoring_host_cannot_replay_a_second_presentation_owner() -> None:
         "_mesh_editor_shared_dotnet_presentation_sender",
         lambda state: forwarded.append(dict(state)) or True,
     )
+    setattr(
+        controller,
+        "_mesh_editor_shared_dotnet_scene_sender",
+        lambda **_state: True,
+    )
 
     assert host.set_viewport_display_mode("textured")
     assert host.set_alignment_state(
@@ -1291,6 +1296,79 @@ def test_authoring_host_cannot_replay_a_second_presentation_owner() -> None:
 
     controller.shutdown()
     host.deleteLater()
+
+
+def test_shared_authoring_host_routes_scene_transform_through_tab_owner() -> None:
+    controller = _own(DotNetPreviewSessionController(
+        host_hwnd=lambda: 1,
+        profile=DotNetPreviewProfile.AUTHORING,
+        terminate_on_close=True,
+        process_factory=lambda parent: _FakeProcess(parent),
+    ))
+    host = DotNetPreviewHostFrame(
+        profile=DotNetPreviewProfile.AUTHORING,
+        controller=controller,
+    )
+    host._scene_state = {"scene_generation": 1}  # noqa: SLF001
+    assert host.set_alignment_preview_transform(translation=(9.0, 9.0, 9.0))
+    stale_host_state = controller._resident_state["scene"]  # noqa: SLF001
+    setattr(controller, "_mesh_editor_shared_dotnet_wired_to", 1)
+    forwarded: list[dict[str, object]] = []
+    setattr(
+        controller,
+        "_mesh_editor_shared_dotnet_scene_sender",
+        lambda **state: forwarded.append(dict(state)) or True,
+    )
+
+    assert host.set_alignment_preview_transform(
+        translation=(1.0, 2.0, 3.0),
+        rotation_degrees=(4.0, 5.0, 6.0),
+        scale_xyz=(1.5, 2.0, 2.5),
+    )
+
+    assert forwarded == [
+        {
+            "placement": {
+                "translation": (1.0, 2.0, 3.0),
+                "rotation_degrees": (4.0, 5.0, 6.0),
+                "scale": (1.5, 2.0, 2.5),
+            }
+        }
+    ]
+    assert controller._resident_state["scene"] == stale_host_state  # noqa: SLF001
+    controller.shutdown()
+    host.deleteLater()
+
+
+def test_authoritative_rehydrator_prevents_controller_scene_replay_ownership() -> None:
+    controller = _own(DotNetPreviewSessionController(
+        host_hwnd=lambda: 1,
+        profile=DotNetPreviewProfile.AUTHORING,
+        terminate_on_close=True,
+        process_factory=lambda parent: _FakeProcess(parent),
+    ))
+    controller.remember_state(
+        "scene",
+        "scene_state_update",
+        {"scene_generation": 1, "interaction_mode": "placement"},
+    )
+    controller.set_authoring_rehydrator(lambda _controller: True)
+
+    controller._remember_replayable_authoring_state(  # noqa: SLF001
+        {
+            "event": "scene_state_update",
+            "scene_generation": 2,
+            "interaction_mode": "mesh_edit",
+            "comparison_mode": "replacement_only",
+        }
+    )
+
+    assert controller._authoring_scene_modes == {  # noqa: SLF001
+        "interaction_mode": "mesh_edit",
+        "comparison_mode": "replacement_only",
+    }
+    assert "scene" not in controller._resident_state  # noqa: SLF001
+    controller.shutdown()
 
 
 def test_package_failure_keeps_resident_scene_and_process_retryable(tmp_path: Path) -> None:
