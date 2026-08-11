@@ -23,8 +23,10 @@ from cdmw.rendering.native_preview_core import (
 from tests.native_source_text import d3d11_preview_source, preview_core_source
 
 from cdmw.rendering.native_preview_package_cache import (
+    acquire_native_preview_package_cache_lease_for_path,
     create_native_preview_package_staging_dir,
     lookup_native_preview_package_cache,
+    native_preview_package_live_paths_guard,
     native_preview_package_cache_budget,
     store_native_preview_package_cache,
 )
@@ -701,6 +703,89 @@ class NativePreviewCoreTests(unittest.TestCase):
             self.assertFalse(old_file.exists())
             self.assertTrue(new_file.exists())
 
+    def test_native_preview_core_prune_preserves_dds_used_by_current_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            cache_root = root / "native_preview_core"
+            dds_root = cache_root / "dds"
+            package_root = root / "package"
+            live_package_root = root / "live-package"
+            dds_root.mkdir(parents=True)
+            package_root.mkdir()
+            live_package_root.mkdir()
+            current_file = dds_root / "current.dds"
+            live_file = dds_root / "live.dds"
+            disposable_file = dds_root / "disposable.dds"
+            current_file.write_bytes(b"DDS " + (b"a" * 80))
+            live_file.write_bytes(b"DDS " + (b"c" * 80))
+            disposable_file.write_bytes(b"DDS " + (b"b" * 80))
+            os.utime(current_file, (1000, 1000))
+            os.utime(live_file, (2000, 2000))
+            os.utime(disposable_file, (3000, 3000))
+            (package_root / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "batches": [
+                            {
+                                "dds_textures": {
+                                    "base": {"source_path": str(current_file)},
+                                    "material_inputs": [
+                                        {"source_path": str(current_file)}
+                                    ],
+                                }
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (live_package_root / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "batches": [
+                            {
+                                "dds_textures": {
+                                    "base": {"source_path": str(live_file)},
+                                }
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            current_protected = native_preview_core._native_preview_core_manifest_dds_paths(
+                package_root
+            )
+            lease = acquire_native_preview_package_cache_lease_for_path(
+                live_package_root
+            )
+            self.assertIsNotNone(lease)
+            try:
+                with native_preview_package_live_paths_guard() as live_paths:
+                    protected = tuple(current_protected) + tuple(
+                        dds_path
+                        for live_path in live_paths
+                        for dds_path in native_preview_core._native_preview_core_manifest_dds_paths(
+                            live_path
+                        )
+                    )
+                    report = prune_native_preview_core_cache(
+                        cache_root,
+                        max_bytes=120,
+                        target_bytes=90,
+                        protected_paths=protected,
+                    )
+            finally:
+                lease.release()  # type: ignore[union-attr]
+
+            self.assertEqual((current_file,), current_protected)
+            self.assertIn(live_file, protected)
+            self.assertEqual(1, report["removed_files"])
+            self.assertTrue(current_file.exists())
+            self.assertTrue(live_file.exists())
+            self.assertFalse(disposable_file.exists())
+
     def test_native_preview_core_tracks_job_root_and_prunes_after_job(self) -> None:
         source = Path("cdmw/rendering/native_preview_core.py").read_text(encoding="utf-8")
 
@@ -708,6 +793,8 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('report.setdefault("native_preview_core_job_root", str(job_root))', source)
         self.assertIn("post_cache_prune_report = prune_native_preview_core_cache(", source)
         self.assertIn("max_bytes=dds_cache_max_bytes", source)
+        self.assertIn("native_preview_package_live_paths_guard", source)
+        self.assertIn("protected_paths=protected_dds_paths", source)
         self.assertIn("shutil.rmtree(job_root, ignore_errors=True)", source)
 
     def test_static_native_material_index_prefers_exact_sidecars(self) -> None:

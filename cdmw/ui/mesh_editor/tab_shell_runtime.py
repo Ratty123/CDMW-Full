@@ -153,6 +153,7 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_pending_clone_material_model: object | None = None
         self.standalone_dotnet_pending_reference_material_model: object | None = None
         self.standalone_dotnet_pending_paired_material_model: object | None = None
+        self.standalone_dotnet_pending_paired_material_upgrade: object | None = None
         self.standalone_dotnet_material_update_thread: _tab.QThread | None = None
         self.standalone_dotnet_material_update_worker: _tab.MeshDotNetMaterialUpdateWorker | None = None
         self.standalone_dotnet_material_update_pending: tuple[object, tuple[dict[str, object], ...]] | None = None

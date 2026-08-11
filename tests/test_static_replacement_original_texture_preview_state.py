@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from cdmw.rendering.native_preview_package_cache import native_preview_package_live_paths_guard
+
 from cdmw.ui.archive_browser.static_replacement_original_texture_preview_state import (
     original_texture_preview_checkbox_tooltip,
     original_texture_preview_control_text,
@@ -293,6 +298,37 @@ def test_original_reference_texture_preview_state_transitions() -> None:
 
     assert state["failed"] is False
     assert state["error"] == ""
+
+
+def test_original_reference_texture_preview_package_path_lease_tracks_state_lifetime() -> None:
+    with TemporaryDirectory() as temp_dir:
+        package_dir = Path(temp_dir) / "transient-package"
+        package_dir.mkdir()
+        state = original_reference_texture_preview_initial_state()
+
+        original_reference_texture_preview_set_native_package_path(state, package_dir)
+
+        lease = state.get("_native_package_lease")
+        assert lease is not None
+        assert getattr(lease, "active") is True
+        with native_preview_package_live_paths_guard() as live_paths:
+            assert package_dir.resolve() in live_paths
+
+        original_reference_texture_preview_clear_native_package_path(state)
+
+        assert "_native_package_lease" not in state
+        with native_preview_package_live_paths_guard() as live_paths:
+            assert package_dir.resolve() not in live_paths
+
+        original_reference_texture_preview_set_native_package_path(state, package_dir)
+        original_reference_texture_preview_mark_loading(state)
+        with native_preview_package_live_paths_guard() as live_paths:
+            assert package_dir.resolve() not in live_paths
+
+        original_reference_texture_preview_set_native_package_path(state, package_dir)
+        original_reference_texture_preview_mark_failed(state, "resolve failed")
+        with native_preview_package_live_paths_guard() as live_paths:
+            assert package_dir.resolve() not in live_paths
 
 
 def test_original_reference_texture_preview_load_start_state_marks_loading_once() -> None:

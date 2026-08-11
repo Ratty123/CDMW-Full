@@ -421,9 +421,11 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   disappears with that column while Edit Mesh is active.
   Placement exposes the same geometry display family in the Builder's
   `Mesh view` selector and defaults to Faces + Wire. `Solid (Textured)` first
-  runs the existing material resolver and waits for the resident material
-  acknowledgement to prove decoded resources and live D3D bindings before
-  either selector or the presentation switches to textured rendering.
+  runs the existing material resolver, publishes its direct DDS bindings, and
+  waits for the resident material acknowledgement to prove decoded resources
+  and live D3D bindings before either selector or the presentation switches to
+  textured rendering. Any slower PAC graph synthesis then upgrades that live
+  material without returning the viewport to the untextured fallback.
   Edit Mesh starts in Wire + Vertices, but that is only the opening display
   default. The user's next display choice is authoritative across selection,
   tool, scene, material, and visibility publications; those paths may add
@@ -726,6 +728,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   readable untextured faces active. Both visible controls and presentation replay
   continue to report `Faces (No Textures)` until the helper acknowledges decoded
   resources that were successfully bound to the affected D3D material batches.
+  The native cache prune protects every DDS referenced by the result it just
+  returned and by every live or handoff-pending preview package. Direct base,
+  normal, material, and height resources are packaged and acknowledged before
+  the full source graph is synthesized in a correlated second resident update,
+  so graph fidelity cannot hold the first textured frame behind a long
+  skin/material bake or overwrite a newer material request when it finishes.
   The requested textured mode is kept only as deferred retry state: a late valid
   acknowledgement activates it, while a failure leaves an honestly selectable
   fallback so choosing `Solid (Textured)` again starts a real retry. A package

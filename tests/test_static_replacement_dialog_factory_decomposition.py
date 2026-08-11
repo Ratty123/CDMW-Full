@@ -367,6 +367,12 @@ def test_prompt_section_factories_export_every_member_consumed_by_prompt_setup()
 
 def test_modeless_dialog_close_stops_texture_worker_before_d3d_preview() -> None:
     calls: list[str] = []
+    original_texture_state = {"native_package_path": "package"}
+
+    def clear_texture_package(state: dict[str, object]) -> None:
+        state["native_package_path"] = ""
+        calls.append("release_texture_package")
+
     dialog = SimpleNamespace(deleteLater=lambda: calls.append("delete_dialog"))
     preview_timer = SimpleNamespace(name="preview_timer", stop=lambda: None)
     tree_timer = SimpleNamespace(name="tree_timer", stop=lambda: None)
@@ -394,6 +400,7 @@ def test_modeless_dialog_close_stops_texture_worker_before_d3d_preview() -> None
                 f"stop_{getattr(timer, 'name', timer)}"
             ),
             "_stop_original_reference_texture_worker": lambda: calls.append("stop_texture"),
+            "_original_reference_texture_preview_clear_native_package_path_helper": clear_texture_package,
             "alignment_dialog_closing": {},
             "alignment_dialog_key": "builder",
             "alignment_post_open_state": {},
@@ -403,6 +410,7 @@ def test_modeless_dialog_close_stops_texture_worker_before_d3d_preview() -> None
             "embedded_alignment_builder": False,
             "material_edit_refresh_timer": "material_timer",
             "on_cancel": None,
+            "original_reference_texture_preview_state": original_texture_state,
             "self": owner,
             "source_material_plan_refresh_timer": "source_timer",
             "static_preview_refresh_timer": preview_timer,
@@ -416,7 +424,60 @@ def test_modeless_dialog_close_stops_texture_worker_before_d3d_preview() -> None
     assert "stop_tree_timer" in calls
     assert calls.index("cancel_post_open") < calls.index("stop_preview_timer")
     assert calls.index("stop_texture") < calls.index("stop_d3d")
+    assert calls.index("release_texture_package") < calls.index("stop_d3d")
+    assert original_texture_state["native_package_path"] == ""
     assert calls[-2:] == ["unregister", "delete_dialog"]
+
+
+def test_render_settings_reset_releases_original_texture_package_before_reload() -> None:
+    calls: list[str] = []
+    texture_state: dict[str, object] = {
+        "loaded": True,
+        "loading": False,
+        "failed": False,
+        "error": "",
+        "native_package_path": "package",
+    }
+
+    class Settings:
+        def __init__(self, visible_texture_mode: str) -> None:
+            self.visible_texture_mode = visible_texture_mode
+
+    def clear_texture_package(state: dict[str, object]) -> None:
+        state["native_package_path"] = ""
+        calls.append("release_texture_package")
+
+    state = SimpleNamespace(
+        ModelPreviewRenderSettings=Settings,
+        state=SimpleNamespace(preview_render_settings=Settings("base_first")),
+        clamp_model_preview_render_settings=lambda settings: settings,
+        _current_alignment_preview_render_settings=lambda: Settings("material_first"),
+        dialog=SimpleNamespace(),
+        original_reference_texture_preview_state=texture_state,
+        _stop_original_reference_texture_worker=lambda: calls.append("stop_texture"),
+        _clear_original_reference_native_package=clear_texture_package,
+        _load_original_reference_texture_preview=lambda: calls.append("reload_texture"),
+        _alignment_d3d11_render_settings_route_helper=lambda **_kwargs: SimpleNamespace(
+            should_apply_static_widget_settings=False,
+            should_queue_static_preview_refresh=False,
+        ),
+        _alignment_d3d11_preview_active=lambda: False,
+        _alignment_preview_package_settings_changed=lambda *_args: True,
+    )
+    remaining_callbacks._remaining_preview_render_settings_part_01._remaining_preview_render_settings_step_006(
+        state
+    )
+
+    state._apply_alignment_preview_render_settings()
+
+    assert calls == ["stop_texture", "release_texture_package", "reload_texture"]
+    assert texture_state == {
+        "loaded": False,
+        "loading": False,
+        "failed": False,
+        "error": "",
+        "native_package_path": "",
+    }
 
 
 def test_callback_facade_preserves_public_factory_names() -> None:

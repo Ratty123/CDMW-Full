@@ -140,6 +140,7 @@ class MeshEditorDotNetMaterialCompilationMixin:
             }
         )
         if not self._send_dotnet_protocol_message(correlated):
+            self.standalone_dotnet_pending_paired_material_upgrade = None
             self.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
             self.standalone_dotnet_completed_material_generation = max(
                 self.standalone_dotnet_completed_material_generation,
@@ -212,6 +213,7 @@ class MeshEditorDotNetMaterialCompilationMixin:
     ) -> None:
         if request.generation != self.standalone_dotnet_material_generation:
             return
+        self.standalone_dotnet_pending_paired_material_upgrade = None
         self.standalone_dotnet_completed_material_generation = max(
             self.standalone_dotnet_completed_material_generation,
             int(request.generation),

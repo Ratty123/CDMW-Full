@@ -300,6 +300,7 @@ class MeshEditorDotNetLaunchMixin:
         self.standalone_dotnet_pending_clone_material_model = None
         self.standalone_dotnet_pending_reference_material_model = None
         self.standalone_dotnet_pending_paired_material_model = None
+        self.standalone_dotnet_pending_paired_material_upgrade = None
         session_id = controller.session_view().session_id
         if self.standalone_dotnet_lifecycle_session_id != session_id:
             self.standalone_dotnet_lifecycle_session_id = session_id

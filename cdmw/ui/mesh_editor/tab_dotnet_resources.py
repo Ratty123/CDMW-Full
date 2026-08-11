@@ -8,7 +8,10 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QComboBox
 
-from cdmw.services.mesh_dotnet_material_state import copy_dotnet_preview_material_bindings
+from cdmw.services.mesh_dotnet_material_state import (
+    copy_dotnet_preview_material_bindings,
+    defer_dotnet_preview_material_synthesis,
+)
 from cdmw.services.mesh_dotnet_material_compiler import (
     MeshDotNetMaterialCompileRequest,
     snapshot_mesh_dotnet_material_inputs,
@@ -230,6 +233,7 @@ class MeshEditorDotNetResourceProtocolMixin(
             QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
             return True
         if event == "material_state_failed":
+            self.standalone_dotnet_pending_paired_material_upgrade = None
             _material_commit.finish_sent_material_resources(self, committed=False)
             _material_commit.remember_sent_material_resources(self, None)
             self.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
@@ -681,6 +685,10 @@ class MeshEditorDotNetResourceProtocolMixin(
             )
             return False
         self.standalone_dotnet_material_generation = generation
+        # Every newly published material generation supersedes a deferred
+        # fidelity upgrade. The direct-texture request installs its own
+        # correlated upgrade only after this call returns.
+        self.standalone_dotnet_pending_paired_material_upgrade = None
         roles = (
             (role_key, "original_reference")
             if int(request.mirror_reference_submesh_offset) > 0
@@ -769,10 +777,13 @@ class MeshEditorDotNetResourceProtocolMixin(
         self,
         preview_model: object,
     ) -> bool:
-        """Compile exact-clone materials once and bind them to both scene roles."""
+        """Bind direct textures first, then upgrade both roles to the full graph."""
 
         if preview_model is None:
             return False
+        # A newer resolved model supersedes any fidelity upgrade that was
+        # waiting behind the previous model's direct-texture acknowledgement.
+        self.standalone_dotnet_pending_paired_material_upgrade = None
         controller = self._dotnet_target_controller()
         if controller is None:
             return False
@@ -783,6 +794,13 @@ class MeshEditorDotNetResourceProtocolMixin(
                 editable_mesh, preview_model
             ) <= 0:
                 return False
+            package = getattr(self, "standalone_dotnet_experiment_package", None)
+            full_snapshot = snapshot_mesh_dotnet_material_inputs(
+                editable_mesh,
+                scene_material_slot_indices=tuple(
+                    getattr(package, "scene_material_slot_indices", ()) or ()
+                ),
+            )
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self._set_dotnet_status(
                 f"Could not apply late exact-clone materials: {exc}",
@@ -801,9 +819,61 @@ class MeshEditorDotNetResourceProtocolMixin(
         if self.standalone_dotnet_material_generation > self.standalone_dotnet_completed_material_generation:
             self.standalone_dotnet_pending_paired_material_model = preview_model
             return True
+        direct_snapshot = snapshot_mesh_dotnet_material_inputs(full_snapshot)
+        if defer_dotnet_preview_material_synthesis(direct_snapshot) > 0:
+            previous_generation = int(self.standalone_dotnet_material_generation)
+            sent = self._send_dotnet_material_state(
+                reason="late_exact_clone_and_reference_direct_resources",
+                mesh_snapshot=direct_snapshot,
+                mirror_reference_submesh_offset=editable_count,
+            )
+            if not sent:
+                self.standalone_dotnet_pending_paired_material_upgrade = None
+                return False
+            direct_generation = int(self.standalone_dotnet_material_generation)
+            if direct_generation <= previous_generation:
+                # The direct resources were already resident and deduplicated,
+                # so no acknowledgement will arrive to trigger the upgrade.
+                return self._apply_resident_clone_and_reference_material_upgrade(
+                    full_snapshot
+                )
+            self.standalone_dotnet_pending_paired_material_upgrade = (
+                direct_generation,
+                (
+                    int(self.standalone_dotnet_process_generation),
+                    int(self._dotnet_material_package_generation()),
+                ),
+                full_snapshot,
+            )
+            return True
         return self._send_dotnet_material_state(
             reason="late_exact_clone_and_reference_resources",
-            mesh_snapshot=editable_mesh,
+            mesh_snapshot=full_snapshot,
+            mirror_reference_submesh_offset=editable_count,
+        )
+
+    def _apply_resident_clone_and_reference_material_upgrade(
+        self,
+        mesh_snapshot: object,
+    ) -> bool:
+        if mesh_snapshot is None or not self._dotnet_resident_material_updates_supported():
+            return False
+        if self.standalone_dotnet_material_generation > self.standalone_dotnet_completed_material_generation:
+            return False
+        controller = self._dotnet_target_controller()
+        if controller is None:
+            return False
+        try:
+            editable_count = len(
+                tuple(getattr(controller.working_mesh(clone=False), "submeshes", ()) or ())
+            )
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            return False
+        if editable_count <= 0:
+            return False
+        return self._send_dotnet_material_state(
+            reason="late_exact_clone_and_reference_material_upgrade",
+            mesh_snapshot=mesh_snapshot,
             mirror_reference_submesh_offset=editable_count,
         )
 
@@ -815,6 +885,43 @@ class MeshEditorDotNetResourceProtocolMixin(
         ):
             if self.standalone_dotnet_material_generation > self.standalone_dotnet_completed_material_generation:
                 return
+        paired_upgrade = self.standalone_dotnet_pending_paired_material_upgrade
+        if isinstance(paired_upgrade, tuple) and len(paired_upgrade) == 3:
+            source_generation, package_token, upgrade_snapshot = paired_upgrade
+            try:
+                source_generation = int(source_generation)
+                expected_package_token = tuple(int(value) for value in package_token)
+            except (TypeError, ValueError, OverflowError):
+                source_generation = 0
+                expected_package_token = ()
+            current_package_token = (
+                int(self.standalone_dotnet_process_generation),
+                int(self._dotnet_material_package_generation()),
+            )
+            if (
+                source_generation <= 0
+                or expected_package_token != current_package_token
+                or int(self.standalone_dotnet_material_generation) > source_generation
+            ):
+                self.standalone_dotnet_pending_paired_material_upgrade = None
+            elif (
+                int(self.standalone_dotnet_completed_material_generation)
+                < source_generation
+                or int(self.standalone_dotnet_applied_material_generation)
+                < source_generation
+            ):
+                return
+            else:
+                self.standalone_dotnet_pending_paired_material_upgrade = None
+                if self._apply_resident_clone_and_reference_material_upgrade(
+                    upgrade_snapshot
+                ):
+                    if self.standalone_dotnet_material_generation > self.standalone_dotnet_completed_material_generation:
+                        return
+        elif paired_upgrade is not None:
+            # Uncorrelated upgrades cannot be safely applied after another
+            # material or package generation has become current.
+            self.standalone_dotnet_pending_paired_material_upgrade = None
         clone_model = self.standalone_dotnet_pending_clone_material_model
         self.standalone_dotnet_pending_clone_material_model = None
         if clone_model is not None and self.apply_resident_clone_material_resources(clone_model):

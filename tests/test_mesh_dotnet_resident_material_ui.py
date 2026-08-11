@@ -11,7 +11,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
+from PIL import Image
 
+from cdmw.models import PreviewMaterialTextureInput
 from cdmw.services.mesh_dotnet_experiment import (
     MeshDotNetExperimentPackage,
     mesh_dotnet_material_input_signature,
@@ -553,6 +555,193 @@ def test_late_exact_clone_materials_compile_once_for_editable_and_reference_reso
     app.processEvents()
 
 
+def test_late_exact_clone_materials_publish_direct_textures_before_graph_upgrade(
+    tmp_path: Path,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(
+        settings=QSettings("CDMWTests", "MeshEditorDirectTexturesBeforeGraphUpgrade")
+    )
+    builder = _EmbeddedMeshBuilder()
+    tab.mount_embedded_builder(builder)
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab._connect_dotnet_protocol(process)
+    controller = _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2",),
+    )
+    editable_mesh = builder.controller.working_mesh(clone=False)
+    base_path = tmp_path / "resolved-body.png"
+    detail_path = tmp_path / "resolved-body-detail.png"
+    material_path = tmp_path / "resolved-body-mask.png"
+    normal_path = tmp_path / "resolved-body-normal.png"
+    Image.new("RGBA", (8, 8), (92, 64, 48, 255)).save(base_path)
+    Image.new("RGBA", (8, 8), (190, 132, 72, 255)).save(detail_path)
+    Image.new("RGBA", (8, 8), (255, 0, 0, 255)).save(material_path)
+    Image.new("RGBA", (8, 8), (128, 128, 255, 255)).save(normal_path)
+    preview_model = SimpleNamespace(
+        meshes=[
+            SimpleNamespace(
+                source_submesh_index=index,
+                material_name=f"resolved-{index}",
+                preview_texture_path=str(base_path),
+                preview_texture_dds_path=str(base_path),
+                preview_normal_texture_path=str(normal_path),
+                preview_normal_texture_dds_path=str(normal_path),
+                preview_material_texture_path=str(material_path),
+                preview_material_texture_dds_path=str(material_path),
+                preview_texture_flip_vertical=False,
+                preview_sidecar_shader_family="MultiTextured",
+                preview_material_texture_inputs=(
+                    PreviewMaterialTextureInput(
+                        slot_kind="base",
+                        parameter_name="_overlayColorTexture",
+                        semantic_type="base",
+                        source_dds_path=str(base_path),
+                        preview_texture_path=str(base_path),
+                        shader_family="MultiTextured",
+                        sidecar_kind="pac_xml",
+                        owner_slot_index=index,
+                        binding_authority="authoritative",
+                        binding_disposition="promoted",
+                        source_kind="crimson_overlay_color",
+                    ),
+                    PreviewMaterialTextureInput(
+                        slot_kind="material",
+                        parameter_name="_colorTextureG",
+                        semantic_type="color",
+                        layer_channel="g",
+                        source_dds_path=str(detail_path),
+                        preview_texture_path=str(detail_path),
+                        shader_family="MultiTextured",
+                        sidecar_kind="pac_xml",
+                        owner_slot_index=index,
+                        binding_authority="authoritative",
+                        binding_disposition="layer_only",
+                        source_kind="crimson_layer_color",
+                    ),
+                    PreviewMaterialTextureInput(
+                        slot_kind="material",
+                        parameter_name="_rgbTexture",
+                        semantic_type="mask",
+                        layer_role="mask",
+                        layer_channel="r",
+                        source_dds_path=str(material_path),
+                        preview_texture_path=str(material_path),
+                        shader_family="MultiTextured",
+                        sidecar_kind="pac_xml",
+                        owner_slot_index=index,
+                        binding_authority="authoritative",
+                        binding_disposition="layer_only",
+                        source_kind="crimson_detail_mask",
+                    ),
+                    PreviewMaterialTextureInput(
+                        slot_kind="normal",
+                        parameter_name="normalTexture",
+                        semantic_type="normal",
+                        semantic_subtype="normal",
+                        source_dds_path=str(normal_path),
+                        preview_texture_path=str(normal_path),
+                        confidence="gltf",
+                        visualized=True,
+                    ),
+                ),
+            )
+            for index, _submesh in enumerate(editable_mesh.submeshes)
+        ]
+    )
+
+    assert tab.apply_resident_clone_and_reference_material_resources(preview_model)
+    first = _material_writes(app, process)[0]
+    assert first["reason"] == "late_exact_clone_and_reference_direct_resources"
+    assert first["roles"] == ["replacement", "original_reference"]
+    assert any(resource["semantic"] == "base" for resource in first["resources"])
+    pending_upgrade = tab.standalone_dotnet_pending_paired_material_upgrade
+    assert isinstance(pending_upgrade, tuple)
+    assert pending_upgrade[:2] == (
+        first["generation"],
+        (
+            tab.standalone_dotnet_process_generation,
+            tab._dotnet_material_package_generation(),
+        ),
+    )
+    assert len(_material_writes(app, process)) == 1
+
+    tab.standalone_dotnet_pending_textured_view = True
+    assert tab._handle_dotnet_protocol_event(
+        {
+            "event": "material_state_applied",
+            "generation": first["generation"],
+            "material_signature": first["material_signature"],
+            "texture_resources_ready": True,
+        }
+    )
+    assert not tab.standalone_dotnet_pending_textured_view
+
+    writes = _material_writes(app, process, minimum=2)
+    assert len(writes) == 2
+    upgrade = writes[1]
+    assert upgrade["reason"] == "late_exact_clone_and_reference_material_upgrade"
+    assert upgrade["material_signature"] != first["material_signature"]
+    assert tab.standalone_dotnet_pending_paired_material_upgrade is None
+    assert tab._handle_dotnet_protocol_event(
+        {
+            "event": "material_state_applied",
+            "generation": upgrade["generation"],
+            "material_signature": upgrade["material_signature"],
+            "texture_resources_ready": True,
+        }
+    )
+    _wait_for_material_compile_idle(app, tab)
+    assert len(_material_writes(app, process)) == 2
+
+    # A newer material request must supersede a direct-texture generation and
+    # prevent its deferred full graph from being published after the newer ack.
+    assert tab.apply_resident_clone_and_reference_material_resources(preview_model)
+    superseded_direct = _material_writes(app, process, minimum=3)[-1]
+    pending_upgrade = tab.standalone_dotnet_pending_paired_material_upgrade
+    assert isinstance(pending_upgrade, tuple)
+    assert pending_upgrade[0] == superseded_direct["generation"]
+    assert tab._send_dotnet_material_state(
+        reason="newer_user_material_request",
+        mesh_snapshot=editable_mesh,
+        mirror_reference_submesh_offset=len(editable_mesh.submeshes),
+    )
+    assert tab.standalone_dotnet_pending_paired_material_upgrade is None
+    newer = _material_writes(app, process, minimum=4)[-1]
+    assert newer["generation"] > superseded_direct["generation"]
+    assert tab._handle_dotnet_protocol_event(
+        {
+            "event": "material_state_applied",
+            "generation": newer["generation"],
+            "material_signature": newer["material_signature"],
+            "texture_resources_ready": True,
+        }
+    )
+    _wait_for_material_compile_idle(app, tab)
+    app.processEvents()
+    assert len(_material_writes(app, process)) == 4
+
+    assert tab.apply_resident_clone_and_reference_material_resources(preview_model)
+    package_superseded_direct = _material_writes(app, process, minimum=5)[-1]
+    pending_upgrade = tab.standalone_dotnet_pending_paired_material_upgrade
+    assert isinstance(pending_upgrade, tuple)
+    assert pending_upgrade[0] == package_superseded_direct["generation"]
+    controller._applied_package_generation = 2
+    tab._flush_pending_dotnet_reference_material_resources()
+    assert tab.standalone_dotnet_pending_paired_material_upgrade is None
+    app.processEvents()
+    assert len(_material_writes(app, process)) == 5
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
 def test_late_unindexed_clone_materials_survive_original_only_supplemental_parts(
     tmp_path: Path,
 ) -> None:
@@ -649,10 +838,12 @@ def test_pre_ready_clone_materials_replay_and_stale_pending_models_clear(tmp_pat
     assert material_writes[0]["reason"] == "late_exact_clone_and_reference_resources"
     assert tab.standalone_dotnet_pending_paired_material_model is None
 
+    tab.standalone_dotnet_pending_paired_material_upgrade = preview_model
     tab._stop_standalone_dotnet_editor_process()
     assert tab.standalone_dotnet_pending_clone_material_model is None
     assert tab.standalone_dotnet_pending_reference_material_model is None
     assert tab.standalone_dotnet_pending_paired_material_model is None
+    assert tab.standalone_dotnet_pending_paired_material_upgrade is None
 
     tab.deleteLater()
     builder.deleteLater()

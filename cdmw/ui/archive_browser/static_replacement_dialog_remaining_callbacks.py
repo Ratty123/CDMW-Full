@@ -739,6 +739,7 @@ def create_alignment_modeless_dialog_callbacks(context: dict[str, object]) -> Si
     _safe_shutdown_alignment_d3d11_preview = context.get('_safe_shutdown_alignment_d3d11_preview')
     _safe_stop_alignment_timer = context.get('_safe_stop_alignment_timer')
     _stop_original_reference_texture_worker = context.get('_stop_original_reference_texture_worker')
+    _clear_original_reference_native_package = context.get('_original_reference_texture_preview_clear_native_package_path_helper')
     alignment_dialog_closing = context.get('alignment_dialog_closing')
     alignment_dialog_key = context.get('alignment_dialog_key')
     alignment_post_open_state = context.get('alignment_post_open_state')
@@ -749,6 +750,7 @@ def create_alignment_modeless_dialog_callbacks(context: dict[str, object]) -> Si
     finished_route = context.get('finished_route')
     material_edit_refresh_timer = context.get('material_edit_refresh_timer')
     on_cancel = context.get('on_cancel')
+    original_reference_texture_preview_state = context.get('original_reference_texture_preview_state')
     self = context.get('self')
     source_material_plan_refresh_timer = context.get('source_material_plan_refresh_timer')
     close_timer_ids = {
@@ -779,6 +781,13 @@ def create_alignment_modeless_dialog_callbacks(context: dict[str, object]) -> Si
             _safe_stop_alignment_timer(timer)
         if callable(_stop_original_reference_texture_worker):
             _stop_original_reference_texture_worker()
+        if callable(_clear_original_reference_native_package) and isinstance(
+            original_reference_texture_preview_state,
+            dict,
+        ):
+            _clear_original_reference_native_package(
+                original_reference_texture_preview_state
+            )
         _safe_shutdown_alignment_d3d11_preview()
         _finish_alignment_startup_progress()
         self._unregister_modeless_alignment_dialog(alignment_dialog_key, dialog)

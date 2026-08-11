@@ -873,6 +873,15 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
             ):
                 self.standalone_dotnet_material_update_active_resources = ()
         self._cancel_dotnet_material_compile()
+        paired_upgrade = self.standalone_dotnet_pending_paired_material_upgrade
+        if isinstance(paired_upgrade, tuple) and len(paired_upgrade) == 3:
+            paired_upgrade = paired_upgrade[2]
+        if (
+            paired_upgrade is not None
+            and self.standalone_dotnet_pending_paired_material_model is None
+        ):
+            self.standalone_dotnet_pending_paired_material_model = paired_upgrade
+        self.standalone_dotnet_pending_paired_material_upgrade = None
         boundary_generation = max(
             int(self.standalone_dotnet_material_generation),
             int(self.standalone_dotnet_completed_material_generation),
