@@ -42,6 +42,7 @@ _STEADY_RETRY_DELAY_MS = 5_000
 _STATIC_RETRY_DELAY_MS = 30_000
 _READY_TIMEOUT_MS = 10_000
 _PACKAGE_TIMEOUT_MS = 15_000
+_MATERIAL_SYNC_TIMEOUT_MS = 120_000
 
 _BASE_PROTOCOL_CAPABILITIES = (
     "helper_build_provenance_v1",
@@ -121,6 +122,7 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         self._invalid_retry_reset_view = False
         self._applied_package_path = ""
         self._applied_package_generation = 0
+        self._resident_material_signature = ""
         self._visible = True
         self._closed = False
         self._protocol_ready = False
@@ -130,7 +132,9 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         self._session_released = False
         self._active = False
         self._activation_request_id = 0
-        self._pending_activation: dict[str, int] | None = None
+        self._pending_activation: dict[str, int | str] | None = None
+        self._activation_waiting_for_material_sync = False
+        self._activation_material_sync_generation = 0
         self._activation_retry_count = 0
         self._retry_attempt = 0
         self._retry_reason = ""
@@ -384,6 +388,8 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         self._package_timer.stop()
         self._activation_timer.stop()
         self._pending_activation = None
+        self._activation_waiting_for_material_sync = False
+        self._activation_material_sync_generation = 0
         self._pending_package_generation = 0
         self._protocol_ready = False
         self._renderer_ready = False
@@ -562,7 +568,8 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
                 self._resident_state.pop("presentation", None)
             if self._visible and identity == self._applied_package_identity:
                 self._activate()
-            elif (
+                return True
+            if (
                 self._visible
                 and self._can_send_protocol()
                 and self._protocol_ready
@@ -571,14 +578,24 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
                 and self._localization_initial_established
                 and not self._package_timer.isActive()
             ):
-                # A prior recoverable package failure leaves the desired identity
-                # intact. A repeated request is an explicit retry, not a new scene
-                # generation or process launch.
-                self._request_resident_package_load()
-            return True
+                # The helper consumes every accepted generation even when
+                # preparation fails. An explicit retry therefore needs a newer
+                # generation; resending the failed one is correctly rejected as
+                # stale by the resident package protocol.
+                force_reload = True
+            else:
+                return True
 
         previous_desired = self.desired_package_path
         self._hold_package_lease(resolved.package_dir)
+        # A package generation owns its activation request and any deferred
+        # material sync. Replacing that generation must invalidate both before
+        # the next package_load_request is sent; otherwise a late material ack
+        # for the old package can consume the new package's reveal cycle.
+        self._activation_timer.stop()
+        self._pending_activation = None
+        self._activation_waiting_for_material_sync = False
+        self._activation_material_sync_generation = 0
         self._package_generation += 1
         self._desired_package = resolved
         self._desired_package_identity = identity
@@ -591,17 +608,6 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         ):
             self._release_package_lease(previous_desired)
         self._set_state("preparing", ".NET/Vortice Preview is preparing the selected model…")
-        if not force_reload and identity == self._applied_package_identity:
-            self._package_timer.stop()
-            self._pending_package_generation = 0
-            self._applied_package = resolved
-            self._applied_package_path = str(resolved.package_dir)
-            self._applied_package_generation = self._package_generation
-            self._retain_package_leases({self._applied_package_path})
-            self._set_state("ready", ".NET/Vortice Preview")
-            if self._visible:
-                self._activate()
-            return True
         if self._visible:
             if (
                 self._launch_is_prewarm
@@ -659,12 +665,15 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         self._applied_package_identity = None
         self._applied_package_path = ""
         self._applied_package_generation = 0
+        self._resident_material_signature = ""
         self._invalid_retry_package_path = ""
         self._invalid_retry_status_path = ""
         self._invalid_retry_reset_view = False
         self._package_timer.stop()
         self._activation_timer.stop()
         self._pending_activation = None
+        self._activation_waiting_for_material_sync = False
+        self._activation_material_sync_generation = 0
         self._pending_package_generation = 0
         self._deactivate_for_replacement()
         self._release_package_leases()
@@ -698,6 +707,8 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
             self._retry_timer.stop()
             self._activation_timer.stop()
             self._pending_activation = None
+            self._activation_waiting_for_material_sync = False
+            self._activation_material_sync_generation = 0
             self._activation_retry_count = 0
             self._send_json({"event": "deactivate_request"})
             self._active = False
@@ -778,7 +789,7 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         self._retry_timer.stop()
         if self._process is not None and qprocess_is_running(self._process):
             if self._can_send_protocol():
-                self._request_resident_package_load()
+                self.load_package(self._desired_package, force_reload=True)
             return
         self._launch_if_needed()
 
@@ -874,6 +885,23 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
     def activate(self) -> None:
         self.set_visible(True)
 
+    def request_activation(self, *, material_signature: str | None = None) -> bool:
+        """Reveal the resident package through the controller's correlation owner.
+
+        Mesh Editor resident reuse may need to request a newer material
+        signature than the helper currently acknowledges. The controller still
+        owns the activation id, package generation, pending state and watchdog;
+        callers provide only that desired signature.
+        """
+
+        if self._closed:
+            return False
+        self._visible = True
+        return self._request_activation(
+            self._applied_package,
+            material_signature=material_signature,
+        )
+
     def close(self) -> None:
         if self._closed:
             return
@@ -891,6 +919,8 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         self._package_timer.stop()
         self._activation_timer.stop()
         self._pending_activation = None
+        self._activation_waiting_for_material_sync = False
+        self._activation_material_sync_generation = 0
         self._pending_package_generation = 0
         process = self._process
         self._process = None
@@ -965,6 +995,7 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         self._session_released = False
         self._pending_package_generation = 0
         self._active = False
+        self._resident_material_signature = ""
         self._capabilities.clear()
         self._reset_localization_handshake()
         self._clear_prewarm_capture()
@@ -1017,6 +1048,8 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         self._package_timer.stop()
         self._activation_timer.stop()
         self._pending_activation = None
+        self._activation_waiting_for_material_sync = False
+        self._activation_material_sync_generation = 0
         self._pending_package_generation = 0
         self._protocol_ready = False
         self._renderer_ready = False
@@ -1104,6 +1137,33 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         event = str(payload.get("event", payload.get("type", "")) or "").strip().lower()
         if not event:
             return
+        if event in {"activated", "material_state_applied", "material_parameter_applied"}:
+            self._remember_resident_material_signature(payload)
+        if event == "material_sync_required" and self._pending_activation is not None:
+            # The helper deliberately withholds `activated` until Python has
+            # compiled and published the requested resident material state.
+            # That work can legitimately outlive the ordinary 10-second
+            # re-embed watchdog. Give that bounded work its own deadline instead
+            # of killing a healthy process halfway through the sync or pausing
+            # recovery forever when compilation fails before the helper can ack.
+            self._activation_waiting_for_material_sync = True
+            self._activation_material_sync_generation = 0
+            self._activation_timer.start(_MATERIAL_SYNC_TIMEOUT_MS)
+        elif (
+            event == "material_state_started"
+            and self._pending_activation is not None
+            and self._activation_waiting_for_material_sync
+        ):
+            self._remember_activation_material_sync_generation(payload)
+        elif (
+            event in {"material_state_applied", "material_state_failed"}
+            and self._pending_activation is not None
+            and self._activation_waiting_for_material_sync
+            and self._material_sync_ack_matches_pending_activation(payload)
+        ):
+            self._activation_waiting_for_material_sync = False
+            self._activation_material_sync_generation = 0
+            self._activation_timer.start(_READY_TIMEOUT_MS)
         if event == "ready":
             if not self._handle_renderer_ready(payload):
                 return
@@ -1112,16 +1172,17 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
             return
         if event == "activated":
             pending = self._pending_activation
-            if pending is not None:
-                request_id = int(payload.get("activation_request_id", 0) or 0)
-                process_generation = int(payload.get("process_generation", 0) or 0)
-                package_generation = int(payload.get("package_generation", 0) or 0)
-                if request_id > 0 and request_id != pending["request_id"]:
-                    return
-                if process_generation > 0 and process_generation != pending["process_generation"]:
-                    return
-                if package_generation > 0 and package_generation != pending["package_generation"]:
-                    return
+            if pending is None:
+                return
+            request_id = int(payload.get("activation_request_id", 0) or 0)
+            process_generation = int(payload.get("process_generation", 0) or 0)
+            package_generation = int(payload.get("package_generation", 0) or 0)
+            if request_id > 0 and request_id != pending["request_id"]:
+                return
+            if process_generation > 0 and process_generation != pending["process_generation"]:
+                return
+            if package_generation > 0 and package_generation != pending["package_generation"]:
+                return
         self._last_event = dict(payload)
         self.protocol_event.emit(dict(payload))
         if event == "protocol_ready":
@@ -1145,6 +1206,8 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         elif event == "activated":
             self._activation_timer.stop()
             self._pending_activation = None
+            self._activation_waiting_for_material_sync = False
+            self._activation_material_sync_generation = 0
             self._activation_retry_count = 0
             self._active = True
             self._retry_attempt = 0
@@ -1405,6 +1468,9 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         self._applied_package_generation = generation
         self._applied_package = self._desired_package
         self._applied_package_identity = self._desired_package_identity
+        self._resident_material_signature = str(
+            getattr(self._applied_package, "material_signature", "") or ""
+        )
         self._retain_package_leases({package_path})
         self._replay_resident_state()
         if self.profile is DotNetPreviewProfile.AUTHORING:
@@ -1444,16 +1510,28 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
             return False
         return self._request_activation(self._applied_package)
 
-    def _request_activation(self, package: object | None) -> bool:
+    def _request_activation(
+        self,
+        package: object | None,
+        *,
+        material_signature: str | None = None,
+    ) -> bool:
         if not self._visible or not self._applied_package_path or self.serving_prewarm_placeholder:
             return False
         if self._pending_activation is None:
             self._activation_retry_count = 0
         self._activation_request_id += 1
+        requested_material_signature = (
+            str(material_signature or "")
+            if material_signature is not None
+            else self._resident_material_signature
+            or str(getattr(package, "material_signature", "") or "")
+        )
         pending = {
             "request_id": self._activation_request_id,
             "process_generation": self._process_generation,
             "package_generation": self._applied_package_generation,
+            "material_signature": requested_material_signature,
         }
         sent = self._send_json(
             {
@@ -1461,15 +1539,84 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
                 "activation_request_id": pending["request_id"],
                 "process_generation": pending["process_generation"],
                 "package_generation": pending["package_generation"],
-                "material_signature": str(getattr(package, "material_signature", "") or ""),
+                "material_signature": requested_material_signature,
             }
         )
         if not sent:
             return False
         self._pending_activation = pending
+        self._activation_waiting_for_material_sync = False
+        self._activation_material_sync_generation = 0
         self._activation_timer.start(_READY_TIMEOUT_MS)
         self._set_state("resuming", ".NET/Vortice Preview is resuming…")
         return True
+
+    def _remember_resident_material_signature(self, payload: Mapping[str, object]) -> None:
+        signature = str(payload.get("material_signature", "") or "").strip()
+        if not signature or not self._applied_package_path:
+            return
+        try:
+            process_generation = int(payload.get("process_generation", 0) or 0)
+            package_generation = int(payload.get("package_generation", 0) or 0)
+        except (TypeError, ValueError, OverflowError):
+            return
+        if process_generation > 0 and process_generation != self._process_generation:
+            return
+        if package_generation > 0 and package_generation != self._applied_package_generation:
+            return
+        self._resident_material_signature = signature
+
+    def _material_sync_ack_matches_pending_activation(
+        self,
+        payload: Mapping[str, object],
+    ) -> bool:
+        pending = self._pending_activation
+        if pending is None:
+            return False
+        try:
+            process_generation = int(payload.get("process_generation", 0) or 0)
+            package_generation = int(payload.get("package_generation", 0) or 0)
+            material_generation = int(payload.get("generation", 0) or 0)
+        except (TypeError, ValueError, OverflowError):
+            return False
+        return (
+            self._activation_material_sync_generation > 0
+            and material_generation == self._activation_material_sync_generation
+            and not (
+                process_generation > 0
+                and process_generation != pending["process_generation"]
+                or package_generation > 0
+                and package_generation != pending["package_generation"]
+            )
+        )
+
+    def _remember_activation_material_sync_generation(
+        self,
+        payload: Mapping[str, object],
+    ) -> None:
+        pending = self._pending_activation
+        if pending is None:
+            return
+        signature = str(payload.get("material_signature", "") or "").strip()
+        if not signature:
+            return
+        try:
+            process_generation = int(payload.get("process_generation", 0) or 0)
+            package_generation = int(payload.get("package_generation", 0) or 0)
+            material_generation = int(payload.get("generation", 0) or 0)
+        except (TypeError, ValueError, OverflowError):
+            return
+        if process_generation > 0 and process_generation != pending["process_generation"]:
+            return
+        if package_generation > 0 and package_generation != pending["package_generation"]:
+            return
+        if material_generation > self._activation_material_sync_generation:
+            # This event is emitted only after the helper has requested a
+            # material sync. It identifies the authoritative publication that
+            # answers that request, which can legitimately differ from the
+            # signature carried by the already-queued activate_request.
+            pending["material_signature"] = signature
+            self._activation_material_sync_generation = material_generation
 
     def _await_resident_gates_for_package_load(self) -> None:
         """A real package is wanted but a handshake gate is still down.
@@ -1564,6 +1711,20 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
     def _handle_activation_timeout(self) -> None:
         if self._pending_activation is None or not self._visible:
             return
+        if self._activation_waiting_for_material_sync and self._activation_timer.isActive():
+            # A timeout already queued before `material_sync_required` may still
+            # be delivered after the timer was restarted. Only the real bounded
+            # sync deadline fires with the single-shot timer inactive.
+            return
+        if self._activation_waiting_for_material_sync:
+            self._activation_waiting_for_material_sync = False
+            self._activation_material_sync_generation = 0
+            self._pending_activation = None
+            self._fail_current_process(
+                ".NET/Vortice material synchronization did not finish in time.",
+                static_failure=False,
+            )
+            return
         if self._activation_retry_count < 1 and self.is_running:
             self._activation_retry_count += 1
             if self._request_activation(self._applied_package):
@@ -1594,6 +1755,8 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         self._package_timer.stop()
         self._activation_timer.stop()
         self._pending_activation = None
+        self._activation_waiting_for_material_sync = False
+        self._activation_material_sync_generation = 0
         self._protocol_ready = False
         self._renderer_ready = False
         self._session_established = False
@@ -1603,6 +1766,7 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         self._pending_package_generation = 0
         self._clear_prewarm_capture()
         self._active = False
+        self._resident_material_signature = ""
         self._prewarm_package = None
         self._launch_is_prewarm = False
         if process is not None:

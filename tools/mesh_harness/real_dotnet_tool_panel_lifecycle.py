@@ -1,13 +1,12 @@
-"""Prove the deferred authoring tool panels really do get built.
+"""Prove the hidden-startup authoring tool panels really do get built.
 
-The panels are no longer constructed before the editor's first frame, which is
-worth about 1.5 s of startup but is only safe if they reliably appear before the
-user needs them. Timing cannot show that, so this asserts on the helper's own
+The panels are constructed before the embedded editor is revealed so their
+WinForms handle and layout work cannot tear the visible first frame. Timing
+cannot show that, so this asserts on the helper's own
 ``authoring_tool_panels_present`` lifecycle flag:
 
-  * absent when ``ready`` is published (the deferral actually deferred),
-  * present after an idle pause with no user action (the post-first-frame build
-    ran on its own),
+  * present when ``ready`` is published (the hidden startup build completed),
+  * still present after an idle pause with no user action,
   * present after entering mesh edit (the entry trigger is a working backstop).
 
 Usage:
@@ -25,8 +24,7 @@ import threading
 import time
 from pathlib import Path
 
-sys.path.insert(0, r"D:\CLAUDETEST\app_restructuring")
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from PySide6.QtWidgets import QApplication, QWidget  # noqa: E402
 
@@ -94,9 +92,8 @@ def reader() -> None:
         elif name == "ready":
             state["ready_ms"] = ms
             state["panels_at_ready"] = panels(payload)
-            # A real user does not click Edit Mesh in the same millisecond the
-            # first frame lands. Give the post-frame build its turn, then probe
-            # with a no-op placement update before entering mesh edit.
+            # Keep a short idle probe to prove no later lifecycle transition
+            # removes or rebuilds the already-resident tool panels.
             time.sleep(IDLE_BEFORE_ENTRY)
             send(mesh_edit_scene_update(PACKAGE, request_id=11, interaction_mode="placement"))
         elif name == "scene_state_update_ack" and state["probe_status"] == "":
@@ -138,6 +135,11 @@ stderr = proc.stderr.read()
 markers = [line for line in stderr.splitlines() if line.startswith("PANELS") or line.startswith("BOOT")]
 print("--- helper markers ---")
 print("\n".join(markers) if markers else "(none)")
-ok = state["status"] == "applied" and state["panels_after_entry"] is True
+ok = (
+    state["status"] == "applied"
+    and state["panels_at_ready"] is True
+    and state["panels_after_idle"] is True
+    and state["panels_after_entry"] is True
+)
 print("RESULT:", "PASS" if ok else "FAIL")
 sys.exit(0 if ok else 1)

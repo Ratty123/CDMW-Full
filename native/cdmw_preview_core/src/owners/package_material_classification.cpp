@@ -626,6 +626,16 @@ static MaterialCategoryEvidence collect_material_category_evidence(
     return result;
 }
 
+static bool decoded_surface_promotes_metal(
+    const DecodedSurfaceEvidence& decoded,
+    const MaterialCategoryEvidence& evidence
+) {
+    return decoded.decoded
+        && decoded.metal_coverage >= kDecodedMetalDominantCoverage
+        && !evidence.strong_skin
+        && !evidence.head_skin;
+}
+
 static bool material_category_has_metal(
     const std::vector<const TextureBinding*>& bindings,
     const NativeSubmesh& mesh,
@@ -695,7 +705,7 @@ static bool material_category_has_metal(
         // its own metal because the shader honours the per-texel map, so a part
         // that is mostly leather stays leather rather than being called metal by
         // the equipment slot it happens to occupy.
-        if (decoded.metal_coverage >= kDecodedMetalDominantCoverage) return true;
+        if (decoded_surface_promotes_metal(decoded, evidence)) return true;
         return local_metal || (strong_structural && !evidence.strong_nonmetal);
     }
     return local_metal || armor_response || weapon_response

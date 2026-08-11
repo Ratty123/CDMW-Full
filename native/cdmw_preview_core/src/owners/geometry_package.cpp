@@ -521,8 +521,55 @@ static std::string batch_stem(size_t batch_index) {
     return out.str();
 }
 
+static int binding_owner_submesh_local_index(
+    const std::vector<NativeSubmesh>& submeshes,
+    const TextureBinding& binding
+) {
+    const std::string binding_material_key = normalized_material_key(binding.material_name);
+    if (!binding_material_key.empty()) {
+        int declared_material_consumers = 0;
+        for (const NativeSubmesh& candidate : submeshes) {
+            if (candidate.source_local_submesh_index < 0
+                || !material_binding_matches_mesh_source(binding, candidate)) {
+                continue;
+            }
+            const bool declared_match =
+                normalized_material_key(candidate.material) == binding_material_key
+                || normalized_material_key(candidate.name) == binding_material_key;
+            if (declared_match && ++declared_material_consumers > 1) {
+                // A material explicitly declared by several submeshes is shared,
+                // even when authoritative wrapper order gives one of them a
+                // higher identity score.
+                return -1;
+            }
+        }
+    }
+
+    int owner_slot_index = -1;
+    int best_score = 0;
+    bool tied = false;
+    const int threshold = normalized_material_key(binding.material_name).empty() ? 42 : 120;
+    for (const NativeSubmesh& candidate : submeshes) {
+        if (candidate.source_local_submesh_index < 0
+            || !material_binding_matches_mesh_source(binding, candidate)) {
+            continue;
+        }
+        const int score = material_identity_match_score(binding, candidate);
+        if (score > best_score) {
+            best_score = score;
+            owner_slot_index = candidate.source_local_submesh_index;
+            tied = false;
+        } else if (score == best_score && score > 0
+            && owner_slot_index != candidate.source_local_submesh_index) {
+            tied = true;
+        }
+    }
+    return !tied && best_score >= threshold ? owner_slot_index : -1;
+}
+
 static std::vector<const TextureBinding*> relevant_bindings_for_mesh(
     const std::vector<TextureBinding>& bindings,
+    const std::vector<NativeSubmesh>& submeshes,
     const NativeSubmesh& mesh,
     const std::vector<const TextureBinding*>& selected_slots
 ) {
@@ -554,6 +601,12 @@ static std::vector<const TextureBinding*> relevant_bindings_for_mesh(
     for (const TextureBinding& binding : bindings) {
         if (binding.source_path.empty()) continue;
         if (!material_binding_matches_mesh_source(binding, mesh)) continue;
+        const int owner_slot_index = binding_owner_submesh_local_index(submeshes, binding);
+        if (owner_slot_index >= 0
+            && mesh.source_local_submesh_index >= 0
+            && owner_slot_index != mesh.source_local_submesh_index) {
+            continue;
+        }
         const int score = material_identity_match_score(binding, mesh);
         const int threshold = normalized_material_key(binding.material_name).empty() ? 42 : 120;
         if (score >= threshold) add(&binding);

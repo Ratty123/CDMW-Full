@@ -472,7 +472,16 @@ def _image_from_file_bytes_with_retry(source_path: str) -> QImage:
     """Recover valid images from brief file-publication or decoder races."""
 
     fallback = QImage()
-    for attempt in range(len(_IMAGE_BYTE_DECODE_RETRY_DELAYS_SECONDS) + 1):
+    # DDS payloads have no Qt decoder in this pipeline. They may still arrive
+    # here because the resident renderer packages the authoritative DDS while
+    # the combiner handles its decoded layer companions. One immediate probe is
+    # useful; publication-race sleeps can never make Qt support DDS.
+    retry_delays = (
+        ()
+        if Path(source_path).suffix.casefold() == ".dds"
+        else _IMAGE_BYTE_DECODE_RETRY_DELAYS_SECONDS
+    )
+    for attempt in range(len(retry_delays) + 1):
         try:
             payload = Path(source_path).read_bytes()
         except OSError:
@@ -481,8 +490,8 @@ def _image_from_file_bytes_with_retry(source_path: str) -> QImage:
             fallback = QImage.fromData(payload)
             if not fallback.isNull():
                 return fallback
-        if attempt < len(_IMAGE_BYTE_DECODE_RETRY_DELAYS_SECONDS):
-            time.sleep(_IMAGE_BYTE_DECODE_RETRY_DELAYS_SECONDS[attempt])
+        if attempt < len(retry_delays):
+            time.sleep(retry_delays[attempt])
     return fallback
 
 

@@ -72,6 +72,7 @@ static void select_package_batch_bindings(PackageWriteState& state, PackageBatch
     record_base_quality(state, batch);
     batch.bindings = relevant_bindings_for_mesh(
         state.bindings,
+        state.submeshes,
         mesh,
         {batch.base, batch.normal, batch.material, batch.height,
          batch.specular, batch.detail, batch.emissive});

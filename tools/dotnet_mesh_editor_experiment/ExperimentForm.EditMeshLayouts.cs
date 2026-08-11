@@ -702,6 +702,15 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
+        if (ReferenceEquals(section.Parent, host)
+            && section.Dock == DockStyle.Top
+            && section.Margin == new Padding(0, 0, 0, 10)
+            && (host is not TableLayoutPanel existingTable
+                || row < 0
+                || existingTable.GetCellPosition(section) == new TableLayoutPanelCellPosition(0, row)))
+        {
+            return;
+        }
         NormalizeSectionStyle(section);
         section.Margin = new Padding(0, 0, 0, 10);
 
@@ -714,6 +723,36 @@ internal sealed partial class ExperimentForm
             EditMeshLayoutContracts.MoveControl(section, host, DockStyle.Top);
         }
         section.BringToFront();
+    }
+
+    /// <summary>
+    /// Gives rail-only sections their permanent parents during hidden startup.
+    /// </summary>
+    /// <remarks>
+    /// Placement and Edit Mesh genuinely share only Part Pick and Viewport, so
+    /// those two still move on a mode switch. The remaining sections never
+    /// return to the placement flanks; moving all nine of them for the first
+    /// time on the Edit Mesh click spent hundreds of milliseconds creating
+    /// native parent transitions the hidden startup can finish in advance.
+    /// </remarks>
+    private void PrimeToolRailSectionOwnership()
+    {
+        if (_toolDock is null
+            || _sceneInspectorColumn is null
+            || _railSelectionStack is null
+            || _toolRailPages.Count == 0)
+        {
+            return;
+        }
+        AddRailSection(_railSelectionStack, _selectionSection, row: 0);
+        AddRailSection(_toolRailPages[ToolRailPage.Transform], _transformSection);
+        AddRailSection(_toolRailPages[ToolRailPage.Brush], _brushSection);
+        AddRailSection(_toolRailPages[ToolRailPage.Topology], _topologySection);
+        AddRailSection(_toolRailPages[ToolRailPage.Colour], _colourSection);
+        AddRailSection(_toolRailPages[ToolRailPage.MorphRefit], _morphRefitSection);
+        AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);
+        AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);
+        AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);
     }
 
     private static void NormalizeSectionStyle(Control section)

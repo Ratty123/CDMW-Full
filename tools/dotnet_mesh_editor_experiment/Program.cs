@@ -454,6 +454,14 @@ internal sealed partial class ExperimentForm : Form
     private void RunStartupRealization()
     {
         _startupRealizationQueued = true;
+        // Build the expensive authoring tree while the Qt host still shows its
+        // loading surface. Besides moving the cost off the Edit Mesh click,
+        // this ensures the first visible WinForms frame contains one settled
+        // layout instead of controls being attached and repainted in stages.
+        if (DeferAuthoringToolPanels && !_options.SimplePreview)
+        {
+            EnsureAuthoringToolPanelsReady();
+        }
         // Must precede the reveal: no layout switch may be the first
         // realisation of its subtree, and none of that realisation should be
         // something the user watches happen.
@@ -529,22 +537,6 @@ internal sealed partial class ExperimentForm : Form
             ["parts_list_selected_index"] = _submeshList.SelectedIndex,
             ["parts_list_selected_indices"] = _submeshList.SelectedIndices.Cast<int>().ToArray(),
         });
-        // The deferred authoring panels cost about a second of layout. Building
-        // them here, once the first frame is out and ready has been published,
-        // keeps that off both the startup path and the Edit Mesh click. The
-        // mesh-edit entry point still calls the same builder, so an entry that
-        // somehow beats this post is still correct.
-        if (DeferAuthoringToolPanels && !_options.SimplePreview)
-        {
-            try
-            {
-                BeginInvoke(new Action(EnsureAuthoringToolPanelsReady));
-            }
-            catch (InvalidOperationException)
-            {
-                // No handle to post to; mesh-edit entry will build them.
-            }
-        }
     }
 
     private bool TryEmbedOrFail(string phase)
@@ -601,10 +593,9 @@ internal sealed partial class ExperimentForm : Form
     }
 
     /// <summary>
-    /// True when the authoring tool panels can wait until the user actually
-    /// enters mesh edit. Preview never builds them at all; an embedded
-    /// authoring host opens in placement mode with both flanks collapsed, so it
-    /// builds them on first entry instead of before its first frame.
+    /// True when the constructor may defer authoring panels. Preview never
+    /// builds them; an embedded authoring host builds them during hidden startup
+    /// instead of making the constructor or first Edit Mesh click pay the cost.
     /// </summary>
     private bool DeferAuthoringToolPanels => _options.SimplePreview || _options.Embedded;
 
@@ -629,8 +620,8 @@ internal sealed partial class ExperimentForm : Form
     }
 
     /// <summary>
-    /// Build and attach the deferred authoring panels. Called the first time the
-    /// scene enters mesh edit, which is the first moment the flanks uncollapse.
+    /// Build and attach the deferred authoring panels. Embedded startup calls
+    /// this while hidden; mesh-edit entry remains an idempotent backstop.
     /// </summary>
     private void EnsureAuthoringToolPanelsReady()
     {
@@ -638,8 +629,8 @@ internal sealed partial class ExperimentForm : Form
         {
             return;
         }
-        // This runs after the first frame, so the window is already on screen
-        // and every attachment below would otherwise paint as it lands.
+        // The redraw batch is also required for the entry backstop, where the
+        // window may already be visible.
         using var redraw = BeginRedrawBatch();
         SuspendLayout();
         try
@@ -651,6 +642,7 @@ internal sealed partial class ExperimentForm : Form
             }
             AttachPermanentToolModeHosts();
             AttachCompactSessionBar();
+            PrimeToolRailSectionOwnership();
             ApplySavedToolPanelLayout();
         }
         finally

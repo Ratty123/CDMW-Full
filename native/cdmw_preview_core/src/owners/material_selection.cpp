@@ -74,6 +74,23 @@ static bool support_binding_rejected_before_scoring(
         note_rejected_support_binding(rejected_examples, desired_role, "rejected placeholder candidate", binding, mesh);
         return true;
     }
+    const std::string layer_role = lower_copy(binding.layer_role);
+    if (desired_role == "height"
+        && (layer_role == "damage" || layer_role == "detail"
+            || layer_role == "grime" || layer_role == "layer")) {
+        // Detail relief is evaluated through the material-layer graph and its
+        // mask. Promoting the same tiling layer to the global height slot paints
+        // it over the whole part; nude head/body then inherit the generic
+        // cd_texturelayer displacement even though only the hand declares a
+        // true _heightTexture.
+        note_rejected_support_binding(
+            rejected_examples,
+            desired_role,
+            "rejected layer-only height candidate",
+            binding,
+            mesh);
+        return true;
+    }
     return false;
 }
 

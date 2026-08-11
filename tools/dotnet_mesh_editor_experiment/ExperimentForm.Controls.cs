@@ -809,9 +809,9 @@ internal sealed partial class ExperimentForm
         var meshEdit = string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase);
         if (meshEdit)
         {
-            // The first moment the flanks uncollapse is the first moment the
-            // panels must exist. Everything below walks the section lists,
-            // which stay empty until they are built.
+            // Hidden startup normally owns this build. Keep the entry point as
+            // an idempotent backstop for nonstandard construction paths before
+            // anything below walks the section lists.
             EnsureAuthoringToolPanelsReady();
         }
         var enteringMeshEdit = meshEdit && !_meshEditInteractionActive;
@@ -840,7 +840,9 @@ internal sealed partial class ExperimentForm
             }
             if (meshEdit)
             {
-                ApplyEmbeddedToolPanelVisibility(meshEdit: true);
+                // The tool-rail activation below owns the final split state.
+                // Expanding both placement flanks first only lays them out so
+                // the same sections can immediately be hidden and re-parented.
                 ApplyToolRailEditMeshLayout();
             }
         }

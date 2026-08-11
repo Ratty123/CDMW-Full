@@ -1108,6 +1108,46 @@ class NativePreviewCoreTests(unittest.TestCase):
             fallback_selector.index('int score = material_match_score(binding, mesh, "base")'),
         )
 
+    def test_native_material_inputs_publish_resolved_submesh_ownership(self) -> None:
+        source = preview_core_source()
+        relevant_start = source.index("static std::vector<const TextureBinding*> relevant_bindings_for_mesh")
+        relevant_end = source.index("static void append_package_material_slot_and_decision", relevant_start)
+        relevant = source[relevant_start:relevant_end]
+        writer_start = source.index("static void append_package_material_inputs")
+        writer_end = source.index("static void append_package_batch_json_head", writer_start)
+        writer = source[writer_start:writer_end]
+
+        self.assertIn("binding_owner_submesh_local_index", source)
+        self.assertIn("state.submeshes", relevant)
+        self.assertIn("owner_slot_index != mesh.source_local_submesh_index", relevant)
+        self.assertIn('"\\\"owner_slot_index\\\":"', writer)
+        self.assertIn("binding_owner_submesh_local_index(state.submeshes, binding)", writer)
+
+    def test_native_global_height_slot_rejects_layer_only_relief(self) -> None:
+        source = preview_core_source()
+        reject_start = source.index("static bool support_binding_rejected_before_scoring")
+        reject_end = source.index("static const TextureBinding* best_binding_for_role", reject_start)
+        rejection = source[reject_start:reject_end]
+
+        self.assertIn('desired_role == "height"', rejection)
+        self.assertIn('layer_role == "damage"', rejection)
+        self.assertIn('layer_role == "detail"', rejection)
+        self.assertIn('layer_role == "grime"', rejection)
+        self.assertIn('layer_role == "layer"', rejection)
+        self.assertIn("rejected layer-only height candidate", rejection)
+
+    def test_native_self_test_executes_material_contracts(self) -> None:
+        source = preview_core_source()
+        dispatch_start = source.index("static void run_material_contract_self_test()")
+        dispatch = source[dispatch_start:]
+
+        self.assertIn("binding_owner_submesh_local_index", dispatch)
+        self.assertIn("relevant_bindings_for_mesh", dispatch)
+        self.assertIn("support_binding_rejected_before_scoring", dispatch)
+        self.assertIn("decoded_surface_promotes_metal", dispatch)
+        self.assertIn("run_material_contract_self_test();", dispatch)
+        self.assertIn('\\"material_contracts\\":true', dispatch)
+
     def test_native_base_selection_rejects_chain_base_for_non_chain_parts(self) -> None:
         source = preview_core_source()
         refs_start = source.index("static bool sidecar_ref_matches_meshes")
@@ -1375,6 +1415,11 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("armor_response", category_source)
         self.assertIn("mesh_has_crimson_weapon_surface", source)
         self.assertIn("weapon_response", category_source)
+        decoded_metal = category_source[
+            category_source.index("if (decoded.decoded)") :
+            category_source.index("return local_metal || armor_response")
+        ]
+        self.assertIn("decoded_surface_promotes_metal(decoded, evidence)", decoded_metal)
         self.assertIn('"metal:armor_family_material_response"', source)
         self.assertIn('"metal:weapon_family_material_response"', source)
         self.assertIn('binding->source_authority == "exact_sidecar"', source)

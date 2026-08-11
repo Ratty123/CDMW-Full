@@ -526,6 +526,7 @@ internal sealed partial class ExperimentForm
                     break;
                 case "deactivate_request":
                     _activationRequestId = 0;
+                    ClearPendingMaterialSyncActivation();
                     _embeddedViewportActive = false;
                     Hide();
                     WriteProtocolEvent("deactivated");
@@ -534,7 +535,27 @@ internal sealed partial class ExperimentForm
                     HandleReembedRequest(root);
                     break;
                 case "activate_request":
+                    var activationPackageGeneration = Math.Max(
+                        0,
+                        JsonLongValue(root, "package_generation"));
+                    var acceptedPackageGeneration = Interlocked.Read(
+                        ref _residentPackageLoadGeneration);
+                    if (!ResidentActivationContract.MatchesAcceptedPackageGeneration(
+                        activationPackageGeneration,
+                        acceptedPackageGeneration))
+                    {
+                        _activationRequestId = 0;
+                        ClearPendingMaterialSyncActivation();
+                        WriteProtocolEvent("activation_declined", new Dictionary<string, object?>
+                        {
+                            ["reason"] = "package_replaced",
+                            ["activation_package_generation"] = activationPackageGeneration,
+                            ["accepted_package_generation"] = acceptedPackageGeneration,
+                        });
+                        break;
+                    }
                     _activationRequestId = JsonLongValue(root, "activation_request_id");
+                    _activationPackageGeneration = activationPackageGeneration;
                     var requestedMaterialSignature = JsonString(root, "material_signature");
                     if (requestedMaterialSignature.Length > 0 && !string.Equals(requestedMaterialSignature, _materials.Signature, StringComparison.Ordinal))
                     {

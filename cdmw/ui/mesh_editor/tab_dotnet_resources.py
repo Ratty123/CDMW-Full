@@ -114,7 +114,10 @@ class MeshEditorDotNetResourceProtocolMixin(
                     error=True,
                 )
                 return False
-            return self._send_dotnet_material_state(reason="signature_mismatch")
+            return self._send_dotnet_material_state(
+                reason="signature_mismatch",
+                force_publish=True,
+            )
         if event in {"material_state_applied", "material_state_failed"}:
             try:
                 generation = int(payload.get("generation", 0) or 0)
@@ -601,6 +604,7 @@ class MeshEditorDotNetResourceProtocolMixin(
         material_authority_fingerprint: str = "",
         material_authority_revision: int = 0,
         mirror_reference_submesh_offset: int = 0,
+        force_publish: bool = False,
     ) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None or not self._dotnet_resident_material_updates_supported():
@@ -628,7 +632,8 @@ class MeshEditorDotNetResourceProtocolMixin(
                 or ""
             )
             if (
-                effective_material_signature
+                not force_publish
+                and effective_material_signature
                 and effective_material_signature
                 == resident_input_signature
                 and int(self.standalone_dotnet_applied_material_generation_by_role.get(role_key, 0) or 0) > 0

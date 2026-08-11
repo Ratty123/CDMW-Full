@@ -5800,7 +5800,26 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             '"_mesh_editor_embedded_request_material_resources"',
             prompt_open_source,
         )
-        self.assertIn("if not embedded_alignment_builder:", prompt_open_source)
+        self.assertIn(
+            "if not embedded_alignment_builder or modify_original_clone_mode:",
+            prompt_open_source,
+        )
+        texture_worker_source = (
+            ROOT
+            / "cdmw"
+            / "ui"
+            / "archive_browser"
+            / "static_replacement_dialog_callbacks_texture_original_texture_material_part_01.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("def _current_archive_native_preview_package_path()", texture_worker_source)
+        self.assertIn("'dotnet_preview_package_path'", texture_worker_source)
+        self.assertIn("mesh_alignment_native_material_manifest_reused", texture_worker_source)
+        direct_apply = texture_worker_source.index("_apply_native_preview_core_material_manifest_helper(")
+        fallback_build = texture_worker_source.index(
+            "_load_native_preview_core_material_manifest_for_alignment(",
+            direct_apply,
+        )
+        self.assertLess(direct_apply, fallback_build)
 
     def test_authoring_prewarm_starts_before_the_authoritative_edit_session(self) -> None:
         """The preview shell prewarms on open, and the session adopts that helper.

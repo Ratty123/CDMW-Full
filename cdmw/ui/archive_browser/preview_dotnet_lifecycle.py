@@ -182,6 +182,14 @@ class ArchivePreviewDotNetLifecycleMixin:
         current = getattr(self, "_current_archive_entry", lambda: None)()
         if current is None or bool(getattr(self, "_archive_texture_request_loading", False)):
             return False
+        if bool(automatic) and self._mesh_replacement_builder_active():
+            # The automatic texture follow-up used `force=True` and therefore
+            # bypassed the builder pause enforced by the main dispatcher. It
+            # repeatedly decoded the same PAC while Modify Original was still
+            # compiling its own material graph. Explicit Refresh remains an
+            # intentional user override; only this automatic request waits.
+            self._defer_archive_preview_refresh_for_builder(current)
+            return False
         request_id = int(getattr(self, "archive_preview_request_id", 0) or 0) + 1
         self._archive_texture_request_id = request_id
         self._archive_texture_request_loading = True

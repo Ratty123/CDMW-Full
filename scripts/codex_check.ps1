@@ -76,6 +76,7 @@ $TestsByArea = @{
         "tests/test_mesh_dotnet_material_state.py",
         "tests/test_mesh_dotnet_material_visual_parity.py",
         "tests/test_mesh_dotnet_material_package.py",
+        "tests/test_material_combiner_decode_retry.py",
         "tests/test_mesh_dotnet_material_dds_synthesis.py",
         "tests/test_mesh_dotnet_material_parameters.py",
         "tests/test_mesh_dotnet_resident_material_ui.py",
@@ -108,6 +109,7 @@ $TestsByArea = @{
         "tests/test_dotnet_texture_region_protocol.py",
         "tests/test_dotnet_material_parameter_protocol.py",
         "tests/test_native_preview_material_authority_protocol.py",
+        "tests/test_native_preview_core.py",
         "tests/test_dotnet_icon_capture_protocol.py",
         "tests/test_mesh_edit_native_coverage.py",
         "tests/test_mesh_service_editing.py",
@@ -155,6 +157,7 @@ $TestsByArea = @{
         # Also unregistered until 2026-08-08; its embedded-dialog, part-pick and
         # flip-V needles had drifted from the source they guard.
         "tests/test_alignment_dialog_source_guards.py",
+        "tests/test_static_replacement_dialog_helpers.py",
         "tests/test_mesh_editor_nonblocking_close.py",
         "tests/test_dotnet_overlay_color_controls.py",
         "tests/test_mesh_deformer.py",
@@ -266,6 +269,8 @@ if ($Area -eq "mesh-unit") {
         -or -not $LayoutPayload.same_viewport_instance `
         -or -not $LayoutPayload.same_viewport_handle `
         -or -not $LayoutPayload.stable_viewport_parent `
+        -or -not $LayoutPayload.material_sync_completion_is_correlated `
+        -or -not $LayoutPayload.activation_package_generation_is_fenced `
         -or -not $LayoutPayload.zero_size_splitter_construction `
         -or $LayoutPayload.pages_visited.Count -ne 6 `
         -or $LayoutPayload.rail_tool_count -ne 6 `

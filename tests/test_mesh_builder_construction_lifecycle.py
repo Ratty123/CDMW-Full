@@ -24,6 +24,7 @@ class _BuilderOwner(ArchiveMeshBuilderLifecycleMixin, QWidget):
         self._shutting_down = False
         self.status_messages: list[tuple[str, bool]] = []
         self.runtime_events: list[tuple[str, dict[str, object]]] = []
+        self.refresh_requests: list[bool] = []
 
     def _modeless_alignment_dialog_key(self, *_args: object) -> str:
         return "builder-key"
@@ -40,6 +41,9 @@ class _BuilderOwner(ArchiveMeshBuilderLifecycleMixin, QWidget):
 
     def _record_runtime_event(self, event: str, **fields: object) -> None:
         self.runtime_events.append((event, fields))
+
+    def _refresh_current_model_preview_assets(self, *, force: bool = False) -> None:
+        self.refresh_requests.append(bool(force))
 
 
 @pytest.mark.parametrize("modify_original_clone_mode", (False, True))
@@ -116,4 +120,16 @@ def test_partial_builder_disposer_is_idempotent_and_orders_worker_cleanup() -> N
         "finish_progress",
     ]
     assert owner._modeless_alignment_dialogs == {}
+    owner.deleteLater()
+
+
+def test_deferred_archive_refresh_resumes_once_after_builder_closes() -> None:
+    owner = _BuilderOwner()
+    owner.archive_preview_refresh_deferred_by_builder = True
+
+    owner._resume_archive_preview_after_builder()
+    owner._resume_archive_preview_after_builder()
+
+    assert owner.refresh_requests == [True]
+    assert not owner.archive_preview_refresh_deferred_by_builder
     owner.deleteLater()

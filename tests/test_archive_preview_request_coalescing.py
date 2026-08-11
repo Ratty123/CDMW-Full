@@ -12,6 +12,9 @@ from types import SimpleNamespace
 from typing import Optional
 
 from cdmw.models import ArchiveEntry
+from cdmw.ui.archive_browser.preview_dotnet_lifecycle import (
+    ArchivePreviewDotNetLifecycleMixin,
+)
 from cdmw.ui.archive_browser.preview_loading import ArchivePreviewLoadingMixin
 from cdmw.ui.archive_browser.workers import ArchivePreviewWorkerMixin
 
@@ -80,6 +83,35 @@ class _DispatchHost(ArchivePreviewWorkerMixin):
 
     def _record_runtime_event(self, event: str, **fields: object) -> None:
         self.runtime_events.append((event, dict(fields)))
+
+
+class _TextureRequestHost(ArchivePreviewDotNetLifecycleMixin):
+    def __init__(self) -> None:
+        self.entry = _entry("character/model/body.pac")
+        self.archive_preview_request_id = 4
+        self._archive_texture_request_loading = False
+        self.builder_active = False
+        self.deferred: list[object] = []
+        self.render_requests: list[tuple[object, bool]] = []
+        self.status_messages: list[str] = []
+
+    def _current_archive_entry(self) -> object:
+        return self.entry
+
+    def _mesh_replacement_builder_active(self) -> bool:
+        return self.builder_active
+
+    def _defer_archive_preview_refresh_for_builder(self, entry: object) -> None:
+        self.deferred.append(entry)
+
+    def _sync_archive_texture_action_state(self) -> None:
+        pass
+
+    def set_status_message(self, message: str, *, error: bool = False) -> None:
+        self.status_messages.append(str(message))
+
+    def _render_archive_preview(self, entry: object, *, force: bool = False) -> None:
+        self.render_requests.append((entry, bool(force)))
 
 
 class _Label:
@@ -187,6 +219,28 @@ class _LoadingHost(ArchivePreviewLoadingMixin):
 
 
 class ArchivePreviewRequestCoalescingTests(unittest.TestCase):
+    def test_automatic_texture_request_waits_while_mesh_builder_is_active(self) -> None:
+        host = _TextureRequestHost()
+        host.builder_active = True
+
+        self.assertFalse(host._request_archive_preview_textures(automatic=True))
+
+        self.assertEqual(host.deferred, [host.entry])
+        self.assertEqual(host.render_requests, [])
+        self.assertFalse(host._archive_texture_request_loading)
+        self.assertEqual(host.archive_preview_request_id, 4)
+
+    def test_explicit_texture_request_remains_available_while_builder_is_active(self) -> None:
+        host = _TextureRequestHost()
+        host.builder_active = True
+
+        self.assertTrue(host._request_archive_preview_textures(automatic=False))
+
+        self.assertEqual(host.deferred, [])
+        self.assertEqual(host.render_requests, [(host.entry, True)])
+        self.assertTrue(host._archive_texture_request_loading)
+        self.assertEqual(host._archive_texture_request_id, 5)
+
     def test_repeat_request_folds_into_the_scheduled_one(self) -> None:
         host = _DispatchHost()
         entry = _entry("character/model/sword.pac")

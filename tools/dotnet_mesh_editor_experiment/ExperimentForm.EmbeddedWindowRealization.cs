@@ -135,17 +135,20 @@ internal sealed partial class ExperimentForm
     private void RevealEmbeddedWindow()
     {
         _embeddedWindowRevealed = true;
+        // Size the hidden child first. Showing at the constructor/default size
+        // and correcting it afterward exposed one composited frame where the
+        // tool flanks and viewport were laid out against different bounds.
+        NativeWindowHost.ResizeToParent(
+            this,
+            new IntPtr(_options.ParentHwnd),
+            forceFrameRefresh: true,
+            show: false);
         // Present the scene that is resident *now* before the window can be
         // composited. The swap chain still holds the last frame presented while
         // hidden -- the procedural prewarm triangle -- and revealing first let
         // DWM show that stale surface until the first post-reveal paint.
         _viewport.PresentFreshFrame();
         Visible = true;
-        NativeWindowHost.ResizeToParent(
-            this,
-            new IntPtr(_options.ParentHwnd),
-            forceFrameRefresh: true,
-            show: true);
         Focus();
         _viewport.Focus();
         WriteProtocolEvent("embedded_window_revealed", new Dictionary<string, object?>

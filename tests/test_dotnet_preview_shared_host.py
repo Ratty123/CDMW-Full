@@ -558,6 +558,111 @@ def test_latest_package_generation_rejects_stale_apply(tmp_path: Path) -> None:
     assert controller.process_id == 0
 
 
+def test_return_to_applied_identity_cancels_newer_pending_package_generation(
+    tmp_path: Path,
+) -> None:
+    controller, process, first = _start_controller(tmp_path)
+    _make_ready(controller)
+    second = _package(tmp_path, "package-b")
+
+    assert controller.load_package(second)
+    second_request = next(
+        payload
+        for payload in reversed(process.writes)
+        if payload.get("event") == "package_load_request"
+    )
+    assert controller.load_package(first)
+    return_request = next(
+        payload
+        for payload in reversed(process.writes)
+        if payload.get("event") == "package_load_request"
+    )
+
+    assert second_request["generation"] == 2
+    assert return_request["generation"] == 3
+    assert return_request["package_path"] == str(first.package_dir)
+    assert return_request["request_id"] != second_request["request_id"]
+    controller._handle_protocol_event(  # noqa: SLF001
+        {**second_request, "event": "package_load_applied"},
+        controller.process_generation,
+    )
+    assert controller.applied_package_path == str(first.package_dir)
+    controller.shutdown()
+
+
+def test_package_replacement_invalidates_deferred_activation_and_material_sync(
+    tmp_path: Path,
+) -> None:
+    controller, process, first = _start_controller(tmp_path)
+    forwarded: list[dict[str, object]] = []
+    controller.protocol_event.connect(lambda payload: forwarded.append(dict(payload)))
+    _make_ready(controller)
+    old_activation = dict(controller._pending_activation)  # noqa: SLF001
+    controller._handle_protocol_event(  # noqa: SLF001
+        {"event": "material_sync_required"},
+        controller.process_generation,
+    )
+    assert controller._activation_waiting_for_material_sync  # noqa: SLF001
+
+    second = _package(tmp_path, "package-b")
+    assert controller.load_package(second)
+    request = next(
+        payload
+        for payload in reversed(process.writes)
+        if payload.get("event") == "package_load_request"
+    )
+
+    assert controller._pending_activation is None  # noqa: SLF001
+    assert not controller._activation_waiting_for_material_sync  # noqa: SLF001
+    assert controller._activation_material_sync_generation == 0  # noqa: SLF001
+    assert not controller._activation_timer.isActive()  # noqa: SLF001
+
+    forwarded.clear()
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "activated",
+            "activation_request_id": old_activation["request_id"],
+            "process_generation": old_activation["process_generation"],
+            "package_generation": old_activation["package_generation"],
+        },
+        controller.process_generation,
+    )
+    assert not forwarded
+    assert not controller._active  # noqa: SLF001
+
+    controller._handle_protocol_event(  # noqa: SLF001
+        {**request, "event": "package_load_applied"},
+        controller.process_generation,
+    )
+    replacement_activation = dict(controller._pending_activation)  # noqa: SLF001
+    assert replacement_activation["package_generation"] == request["generation"]
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "activated",
+            "activation_request_id": old_activation["request_id"],
+            "process_generation": old_activation["process_generation"],
+            "package_generation": old_activation["package_generation"],
+        },
+        controller.process_generation,
+    )
+    assert controller._pending_activation == replacement_activation  # noqa: SLF001
+    assert not controller._active  # noqa: SLF001
+
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "activated",
+            "activation_request_id": replacement_activation["request_id"],
+            "process_generation": replacement_activation["process_generation"],
+            "package_generation": replacement_activation["package_generation"],
+        },
+        controller.process_generation,
+    )
+    assert controller._active  # noqa: SLF001
+    assert controller.applied_package_path == str(second.package_dir)
+    assert controller.applied_package_path != str(first.package_dir)
+    controller.shutdown()
+
+
 def test_prewarm_uses_no_package_generation_and_real_request_supersedes_it(tmp_path: Path) -> None:
     executable = tmp_path / "helper.exe"
     executable.write_bytes(b"test")
@@ -1102,6 +1207,207 @@ def test_show_with_a_different_desired_identity_loads_before_activation(tmp_path
     controller.shutdown()
 
 
+def test_show_after_resident_material_update_activates_with_live_signature(tmp_path: Path) -> None:
+    controller, process, package = _start_controller(tmp_path)
+    _make_ready(controller)
+    live_signature = "signature-package-a-resident-materials"
+
+    controller._handle_protocol_event(  # noqa: SLF001 - focused protocol ownership test
+        {
+            "event": "material_state_applied",
+            "material_signature": live_signature,
+            "process_generation": controller.process_generation,
+            "package_generation": controller.applied_package_generation,
+        },
+        controller.process_generation,
+    )
+    controller.set_visible(False)
+    write_offset = len(process.writes)
+    controller.set_visible(True)
+
+    resumed = process.writes[write_offset:]
+    assert [payload.get("event") for payload in resumed] == ["activate_request"]
+    assert resumed[0]["material_signature"] == live_signature
+    assert resumed[0]["material_signature"] != package.material_signature
+    controller.shutdown()
+
+
+def test_resident_reuse_requests_correlated_activation_with_desired_material_signature(
+    tmp_path: Path,
+) -> None:
+    controller, process, _package = _start_controller(tmp_path)
+    _make_ready(controller)
+    controller.set_visible(False)
+    write_offset = len(process.writes)
+
+    assert controller.request_activation(material_signature="desired-material-state")
+
+    activation = process.writes[write_offset]
+    assert activation == {
+        "event": "activate_request",
+        "activation_request_id": controller._pending_activation["request_id"],  # noqa: SLF001
+        "process_generation": controller.process_generation,
+        "package_generation": controller.applied_package_generation,
+        "material_signature": "desired-material-state",
+    }
+    assert controller._pending_activation["material_signature"] == "desired-material-state"  # noqa: SLF001
+    assert controller._activation_timer.isActive()  # noqa: SLF001
+    controller.shutdown()
+
+
+def test_material_sync_pauses_activation_watchdog_until_helper_acknowledges(
+    tmp_path: Path,
+) -> None:
+    controller, process, _package = _start_controller(tmp_path)
+    _make_ready(controller)
+    pending = dict(controller._pending_activation)  # noqa: SLF001
+
+    assert controller._activation_timer.isActive()  # noqa: SLF001
+    controller._handle_protocol_event(  # noqa: SLF001
+        {"event": "material_sync_required"},
+        controller.process_generation,
+    )
+
+    assert controller._pending_activation == pending  # noqa: SLF001
+    assert controller._activation_waiting_for_material_sync  # noqa: SLF001
+    assert controller._activation_timer.isActive()  # noqa: SLF001
+    assert controller._activation_timer.interval() == 120_000  # noqa: SLF001
+    controller._handle_activation_timeout()  # noqa: SLF001 - queued-timeout race
+    assert controller.process is process
+    assert controller._pending_activation == pending  # noqa: SLF001
+
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "material_state_started",
+            "generation": 2,
+            "material_signature": pending["material_signature"],
+            "process_generation": controller.process_generation,
+            "package_generation": controller.applied_package_generation,
+        },
+        controller.process_generation,
+    )
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "material_state_applied",
+            "generation": 2,
+            "material_signature": pending["material_signature"],
+            "process_generation": controller.process_generation,
+            "package_generation": controller.applied_package_generation,
+        },
+        controller.process_generation,
+    )
+
+    assert not controller._activation_waiting_for_material_sync  # noqa: SLF001
+    assert controller._activation_timer.isActive()  # noqa: SLF001
+    controller.shutdown()
+
+
+def test_material_sync_timeout_recovers_instead_of_staying_resuming(tmp_path: Path) -> None:
+    controller, process, _package = _start_controller(tmp_path)
+    _make_ready(controller)
+    controller._handle_protocol_event(  # noqa: SLF001
+        {"event": "material_sync_required"},
+        controller.process_generation,
+    )
+
+    controller._activation_timer.stop()  # noqa: SLF001 - simulate the real single-shot expiry
+    controller._handle_activation_timeout()  # noqa: SLF001
+
+    assert controller.process is None
+    assert controller._pending_activation is None  # noqa: SLF001
+    assert not controller._activation_waiting_for_material_sync  # noqa: SLF001
+    assert process.state() == QProcess.ProcessState.NotRunning
+    controller.shutdown()
+
+
+def test_stale_material_ack_does_not_shorten_current_sync_deadline(tmp_path: Path) -> None:
+    controller, _process, _package = _start_controller(tmp_path)
+    _make_ready(controller)
+    pending = dict(controller._pending_activation)  # noqa: SLF001
+    controller._handle_protocol_event(  # noqa: SLF001
+        {"event": "material_sync_required"},
+        controller.process_generation,
+    )
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "material_state_started",
+            "generation": 9,
+            "material_signature": pending["material_signature"],
+            "process_generation": pending["process_generation"],
+            "package_generation": pending["package_generation"],
+        },
+        controller.process_generation,
+    )
+
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "material_state_applied",
+            "generation": 9,
+            "process_generation": pending["process_generation"],
+            "package_generation": pending["package_generation"] + 1,
+            "material_signature": "stale-materials",
+        },
+        controller.process_generation,
+    )
+
+    assert controller._activation_waiting_for_material_sync  # noqa: SLF001
+    assert controller._activation_timer.isActive()  # noqa: SLF001
+    assert controller._activation_timer.interval() == 120_000  # noqa: SLF001
+    controller.shutdown()
+
+
+def test_superseded_same_package_material_ack_does_not_finish_sync_wait(tmp_path: Path) -> None:
+    controller, _process, _package = _start_controller(tmp_path)
+    _make_ready(controller)
+    pending = dict(controller._pending_activation)  # noqa: SLF001
+    current_signature = "resident-after-sync"
+    controller._handle_protocol_event(  # noqa: SLF001
+        {"event": "material_sync_required"},
+        controller.process_generation,
+    )
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "material_state_started",
+            "generation": 9,
+            "material_signature": current_signature,
+            "process_generation": pending["process_generation"],
+            "package_generation": pending["package_generation"],
+        },
+        controller.process_generation,
+    )
+
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "material_state_failed",
+            "generation": 8,
+            "process_generation": pending["process_generation"],
+            "package_generation": pending["package_generation"],
+            "material_signature": "resident-before-sync",
+        },
+        controller.process_generation,
+    )
+
+    assert controller._activation_waiting_for_material_sync  # noqa: SLF001
+    assert controller._activation_material_sync_generation == 9  # noqa: SLF001
+    assert controller._pending_activation["material_signature"] == current_signature  # noqa: SLF001
+    assert controller._activation_timer.interval() == 120_000  # noqa: SLF001
+
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "material_state_failed",
+            "generation": 9,
+            "process_generation": pending["process_generation"],
+            "package_generation": pending["package_generation"],
+            "material_signature": current_signature,
+        },
+        controller.process_generation,
+    )
+
+    assert not controller._activation_waiting_for_material_sync  # noqa: SLF001
+    assert controller._activation_timer.interval() == 10_000  # noqa: SLF001
+    controller.shutdown()
+
+
 def test_a_recovered_activation_cycle_gets_its_own_retry_budget(tmp_path: Path) -> None:
     controller, _process, _package = _start_controller(tmp_path)
     _make_ready(controller)
@@ -1405,7 +1711,7 @@ def test_package_failure_keeps_resident_scene_and_process_retryable(tmp_path: Pa
         for payload in reversed(process.writes)
         if payload.get("event") == "package_load_request"
     )
-    assert controller.package_generation == failed_generation
+    assert controller.package_generation == failed_generation + 1
     assert int(retry_request["request_id"]) == failed_request_id + 1
     assert retry_request["package_path"] == str(second.package_dir)
     controller.shutdown()

@@ -19,6 +19,9 @@ internal sealed partial class ExperimentForm
     private long _lastAppliedMaterialParameterGeneration;
     private string _residentMaterialSessionId = string.Empty;
     private bool _activateAfterMaterialSync;
+    private string _activationMaterialSignature = string.Empty;
+    private long _activationMaterialGeneration;
+    private long _activationPackageGeneration;
     private RendererDiagnosticCacheKey _rendererDiagnosticCacheKey;
     private Dictionary<string, object?>? _rendererDiagnosticCache;
     private long _rendererDiagnosticCacheHitCount;
@@ -158,6 +161,8 @@ internal sealed partial class ExperimentForm
     private void RequestMaterialSync(string requestedMaterialSignature)
     {
         _activateAfterMaterialSync = true;
+        _activationMaterialSignature = requestedMaterialSignature;
+        _activationMaterialGeneration = 0;
         WriteProtocolEvent("material_sync_required", new Dictionary<string, object?>
         {
             ["material_signature"] = _materials.Signature,
@@ -170,6 +175,22 @@ internal sealed partial class ExperimentForm
 
     private bool ActivateResidentViewport()
     {
+        var acceptedPackageGeneration = Interlocked.Read(ref _residentPackageLoadGeneration);
+        if (!ResidentActivationContract.MatchesAcceptedPackageGeneration(
+            _activationPackageGeneration,
+            acceptedPackageGeneration))
+        {
+            var stalePackageGeneration = _activationPackageGeneration;
+            ClearPendingMaterialSyncActivation();
+            WriteProtocolEvent("activation_declined", new Dictionary<string, object?>
+            {
+                ["reason"] = "package_replaced",
+                ["activation_package_generation"] = stalePackageGeneration,
+                ["accepted_package_generation"] = acceptedPackageGeneration,
+            });
+            return false;
+        }
+        ClearPendingMaterialSyncActivation();
         var residentPackageLoadCount = Interlocked.Read(ref _residentPackageLoadCount);
         if (ResidentActivationContract.ShouldDeferActivation(_options.PrewarmLaunch, residentPackageLoadCount))
         {
@@ -276,6 +297,17 @@ internal sealed partial class ExperimentForm
         }
 
         _lastRequestedMaterialGeneration = update.Generation;
+        if (_activateAfterMaterialSync)
+        {
+            // The activation request can become stale while it is queued: a
+            // newer material update may apply before the helper reads it. The
+            // first accepted publication after material_sync_required is the
+            // host's authoritative reply, so follow that request (and any
+            // newer request that supersedes it) instead of waiting for the
+            // signature originally carried by activate_request.
+            _activationMaterialSignature = update.MaterialSignature;
+            _activationMaterialGeneration = update.Generation;
+        }
         var affectedResourceIds = update.ResourceIdsForAffectedSubmeshes();
         var resourcesToDecode = update.Resources.Where(resource => affectedResourceIds.Contains(resource.ResourceId)).ToArray();
         var started = new Dictionary<string, object?>
@@ -283,6 +315,7 @@ internal sealed partial class ExperimentForm
             ["session_id"] = update.SessionId,
             ["generation"] = update.Generation,
             ["package_generation"] = requestedPackageGeneration,
+            ["material_signature"] = update.MaterialSignature,
             ["affected_submesh_count"] = update.AffectedSubmeshes.Count,
             ["resource_count"] = resourcesToDecode.Length,
         };
@@ -483,6 +516,14 @@ internal sealed partial class ExperimentForm
         return true;
     }
 
+    private void ClearPendingMaterialSyncActivation()
+    {
+        _activateAfterMaterialSync = false;
+        _activationMaterialSignature = string.Empty;
+        _activationMaterialGeneration = 0;
+        _activationPackageGeneration = 0;
+    }
+
     private bool MaterialPackageGenerationMatches(
         JsonElement request,
         out long requestedGeneration,
@@ -606,9 +647,13 @@ internal sealed partial class ExperimentForm
         };
         CopyMutationEnvelope(request, payload);
         WriteProtocolEvent("material_state_applied", payload);
-        if (_activateAfterMaterialSync)
+        if (ResidentActivationContract.MatchesPendingMaterialSync(
+            _activateAfterMaterialSync,
+            _activationMaterialGeneration,
+            update.Generation,
+            _activationMaterialSignature,
+            _materials.Signature))
         {
-            _activateAfterMaterialSync = false;
             _ = ActivateResidentViewport();
         }
     }
@@ -766,10 +811,17 @@ internal sealed partial class ExperimentForm
         };
         CopyMutationEnvelope(request, payload);
         WriteProtocolEvent("material_state_failed", payload);
-        if (_activateAfterMaterialSync)
+        if (ResidentActivationContract.MatchesPendingMaterialSync(
+            _activateAfterMaterialSync,
+            _activationMaterialGeneration,
+            generation,
+            _activationMaterialSignature,
+            JsonString(request, "material_signature")))
         {
-            _activateAfterMaterialSync = false;
-            _ = ActivateResidentViewport();
+            // The exact sync request failed. Keep the helper hidden and let the
+            // host's bounded activation recovery retry with a fresh generation;
+            // a superseded completion must never consume the pending reveal.
+            ClearPendingMaterialSyncActivation();
         }
     }
 }

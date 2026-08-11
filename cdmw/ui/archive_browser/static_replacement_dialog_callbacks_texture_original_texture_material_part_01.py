@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Mapping
 
 from cdmw.ui.archive_browser import static_replacement_preview_materials as preview_materials
 from cdmw.ui.archive_browser.static_replacement_original_texture_preview_state import (
@@ -312,6 +313,22 @@ def _texture_original_texture_material_step_008(_state):
         return cloned if isinstance(cloned, _state.ModelPreviewData) else preview_model
     _state._current_archive_original_preview_model = _current_archive_original_preview_model
 
+    def _current_archive_native_preview_package_path() -> str:
+        if _state.ArchiveEntry is None or not callable(getattr(_state.self, '_same_archive_entry', None)):
+            return ''
+        current_entry = _state.self._current_archive_entry() if callable(getattr(_state.self, '_current_archive_entry', None)) else None
+        if not isinstance(current_entry, _state.ArchiveEntry) or not _state.self._same_archive_entry(current_entry, _state.entry):
+            return ''
+        current_result = getattr(_state.self, 'current_archive_preview_result', None)
+        diagnostics = getattr(current_result, 'native_preview_diagnostics', None)
+        diagnostic_path = diagnostics.get('native_decode_package_path', '') if isinstance(diagnostics, Mapping) else ''
+        for candidate in (diagnostic_path, getattr(current_result, 'dotnet_preview_package_path', '')):
+            package_path = str(candidate or '').strip()
+            if package_path and (_state.Path(package_path) / 'manifest.json').is_file():
+                return package_path
+        return ''
+    _state._current_archive_native_preview_package_path = _current_archive_native_preview_package_path
+
 def _step_009_prompt_context(_state) -> dict:
     context = getattr(_state, 'context', None)
     return context if isinstance(context, dict) else {}
@@ -398,6 +415,12 @@ def _texture_original_texture_material_step_009(_state):
             setattr(textured_preview_render_settings, 'use_textures_by_default', True)
             normalized_visible_texture_mode = _state._normalize_model_visible_texture_mode(str(getattr(current_preview_render_settings, 'visible_texture_mode', '')))
             current_archive_preview_model = _state._current_archive_original_preview_model()
+            current_archive_native_package_path = _state._current_archive_native_preview_package_path()
+            if current_archive_native_package_path:
+                _state._original_reference_texture_preview_set_native_package_path_helper(
+                    _state.original_reference_texture_preview_state,
+                    current_archive_native_package_path,
+                )
             companion_entry = _state.self._find_archive_preview_companion_entry(_state.entry) if callable(getattr(_state.self, '_find_archive_preview_companion_entry', None)) else None
             support_texture_slots = _state.self._archive_preview_support_texture_slots(current_preview_render_settings) if callable(getattr(_state.self, '_archive_preview_support_texture_slots', None)) else ('normal', 'material', 'height', 'emissive')
             archive_texture_entries_by_normalized_path = getattr(_state.self, 'archive_entries_by_normalized_path', {})
@@ -415,7 +438,23 @@ def _texture_original_texture_material_step_009(_state):
                     native_preview_model = _state._clone_preview_model(_state.original_reference_preview_model)
                 native_manifest_attempted = native_preview_model is not None
                 if native_manifest_attempted:
-                    native_material_batches = _state._load_native_preview_core_material_manifest_for_alignment(native_preview_model, package_root_text, textured_preview_render_settings)
+                    native_material_batches = 0
+                    if current_archive_native_package_path:
+                        native_material_batches = _state._apply_native_preview_core_material_manifest_helper(
+                            native_preview_model,
+                            current_archive_native_package_path,
+                            native_manifest_input_from_descriptor=_state._native_manifest_input_from_descriptor,
+                        )
+                        if native_material_batches:
+                            _state._record_runtime_event(
+                                'mesh_alignment_native_material_manifest_reused',
+                                path=getattr(_state.entry, 'path', ''),
+                                dialog_title=_state.dialog_title,
+                                batch_count=native_material_batches,
+                                package_path=current_archive_native_package_path,
+                            )
+                    if not native_material_batches:
+                        native_material_batches = _state._load_native_preview_core_material_manifest_for_alignment(native_preview_model, package_root_text, textured_preview_render_settings)
                     if stop_event.is_set():
                         raise _state.RunCancelled('Original texture preview cancelled.')
                     if native_material_batches:

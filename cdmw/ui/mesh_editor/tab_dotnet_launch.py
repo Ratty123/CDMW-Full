@@ -116,7 +116,7 @@ class MeshEditorDotNetLaunchMixin:
     def _resident_helper_holds_cached_scene(self) -> bool:
         """True when the running helper is actually serving this tab's cached scene.
 
-        The reuse fast path writes `activate_request` straight to the helper, and
+        The reuse fast path asks the shared resident controller to activate, and
         that reveals whatever scene is resident. Deciding the helper "already has
         this scene" from `standalone_dotnet_experiment_package` alone is not safe:
         that cache survives `_stop_standalone_dotnet_editor_process` and outlives
@@ -140,13 +140,17 @@ class MeshEditorDotNetLaunchMixin:
             )
             return False
         applied_package_dir = str(getattr(controller, "applied_package_path", "") or "")
-        # Only a package known to be different declines. An empty applied path is
-        # not evidence of a mismatch, and treating it as one would rebuild the
-        # package on every ordinary suspend and resume.
-        if applied_package_dir and applied_package_dir != cached_package_dir:
+        # The shared controller is the package authority. If it cannot name the
+        # applied package, a raw helper activation would reveal an uncorrelated
+        # scene (including the prewarm placeholder), so resident reuse declines.
+        if not applied_package_dir or applied_package_dir != cached_package_dir:
             self._record_mesh_dotnet_event(
                 "mesh_dotnet_resident_reuse_declined",
-                reason="resident_package_differs",
+                reason=(
+                    "resident_package_unknown"
+                    if not applied_package_dir
+                    else "resident_package_differs"
+                ),
                 cached_package_dir=cached_package_dir,
                 applied_package_dir=applied_package_dir,
             )
@@ -220,14 +224,18 @@ class MeshEditorDotNetLaunchMixin:
             if same_session and same_scene and (same_materials or resident_materials):
                 self.standalone_dotnet_target_controller = controller
                 self._set_embedded_dotnet_state("launching", active=False)
-                if self._send_dotnet_protocol_message(
-                    {
-                        "event": "activate_request",
-                        "source_identity": current_scene_identity,
-                        "material_signature": activation_material_signature,
-                        "material_generation": self.standalone_dotnet_material_generation + (0 if same_materials else 1),
-                    }
-                ):
+                shared_controller = self._active_shared_dotnet_controller()
+                request_activation = getattr(shared_controller, "request_activation", None)
+                try:
+                    activation_requested = bool(
+                        callable(request_activation)
+                        and request_activation(
+                            material_signature=activation_material_signature,
+                        )
+                    )
+                except (AttributeError, RuntimeError, TypeError, ValueError):
+                    activation_requested = False
+                if activation_requested:
                     self._flush_dotnet_protocol_messages()
                     self._send_dotnet_session_state()
                     self.standalone_dotnet_ready_timer.start(10_000)

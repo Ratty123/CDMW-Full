@@ -385,6 +385,44 @@ internal static partial class EditMeshLayoutSmoke
                 && !ResidentActivationContract.ShouldDeferActivation(prewarmLaunch: false, residentPackageLoadCount: 0)
                 && !ResidentActivationContract.ShouldDeferActivation(prewarmLaunch: false, residentPackageLoadCount: 3),
             "The resident activation contract would reveal the prewarm placeholder.");
+        Require(
+            ResidentActivationContract.MatchesAcceptedPackageGeneration(
+                activationPackageGeneration: 1,
+                acceptedPackageGeneration: 0)
+                && ResidentActivationContract.MatchesAcceptedPackageGeneration(
+                    activationPackageGeneration: 2,
+                    acceptedPackageGeneration: 2)
+                && !ResidentActivationContract.MatchesAcceptedPackageGeneration(
+                    activationPackageGeneration: 1,
+                    acceptedPackageGeneration: 2)
+                && !ResidentActivationContract.MatchesAcceptedPackageGeneration(
+                    activationPackageGeneration: 0,
+                    acceptedPackageGeneration: 2),
+            "A stale activation package generation could cross a resident replacement boundary.");
+        // The signature in activate_request can be stale by the time the
+        // helper requests a sync. The first accepted post-sync publication is
+        // the authoritative target ("current" below), while an older
+        // pre-sync completion must not consume it.
+        Require(
+            ResidentActivationContract.MatchesPendingMaterialSync(
+                waiting: true,
+                pendingGeneration: 8,
+                completedGeneration: 8,
+                pendingSignature: "current",
+                completedSignature: "current")
+                && !ResidentActivationContract.MatchesPendingMaterialSync(
+                    waiting: true,
+                    pendingGeneration: 8,
+                    completedGeneration: 7,
+                    pendingSignature: "current",
+                    completedSignature: "stale-request")
+                && !ResidentActivationContract.MatchesPendingMaterialSync(
+                    waiting: true,
+                    pendingGeneration: 8,
+                    completedGeneration: 8,
+                    pendingSignature: "current",
+                    completedSignature: "stale"),
+            "A stale material completion could consume a pending activation.");
 
         var report = new Dictionary<string, object?>
         {
@@ -392,6 +430,8 @@ internal static partial class EditMeshLayoutSmoke
             ["defers_prewarm_placeholder_activation"] = ResidentActivationContract.ShouldDeferActivation(
                 prewarmLaunch: true,
                 residentPackageLoadCount: 0),
+            ["material_sync_completion_is_correlated"] = true,
+            ["activation_package_generation_is_fenced"] = true,
             ["tool_rail_default"] = true,
             ["tool_rail_only_layout"] = true,
             ["round_trip_layout"] = "placement",

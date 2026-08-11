@@ -409,6 +409,23 @@ def _install_shared_dotnet_test_process(
     controller._renderer_ready = True
     controller._session_established = True
     controller._capabilities.update(capabilities)
+    package = getattr(tab, "standalone_dotnet_experiment_package", None)
+    if package is not None:
+        identity = controller._package_identity(package)
+        controller._desired_package = package
+        controller._desired_package_identity = identity
+        controller._applied_package = package
+        controller._applied_package_identity = identity
+        controller._applied_package_path = str(package.package_dir)
+        controller._package_generation = max(1, controller._package_generation)
+        controller._applied_package_generation = controller._package_generation
+        controller._resident_material_signature = str(
+            getattr(tab, "standalone_dotnet_material_signature", "")
+            or getattr(package, "material_signature", "")
+            or ""
+        )
+        controller._prewarm_package = None
+        controller._launch_is_prewarm = False
     if session_id:
         # A real launch binds the edit session before the helper handshakes, so
         # the two agree from the start. Setting `_session_established` first and
