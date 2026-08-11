@@ -20,6 +20,7 @@ def _remaining_preview_render_settings_step_001(_state):
     _state._mark_alignment_d3d11_rebuild_reason = _state.context.get('_mark_alignment_d3d11_rebuild_reason')
     _state._queue_static_preview_refresh = _state.context.get('_queue_static_preview_refresh')
     _state._load_original_reference_texture_preview = _state.context.get('_load_original_reference_texture_preview')
+    _state._clear_original_reference_native_package = _state.context.get('_original_reference_texture_preview_clear_native_package_path_helper')
     _state._stop_original_reference_texture_worker = _state.context.get('_stop_original_reference_texture_worker')
     _state._rough_control_value_from_settings = _state.context.get('_rough_control_value_from_settings')
     _state._set_alignment_renderer_from_dialog = _state.context.get('_set_alignment_renderer_from_dialog')
@@ -132,13 +133,16 @@ def _remaining_preview_render_settings_step_006(_state):
         ):
             if callable(_state._stop_original_reference_texture_worker):
                 _state._stop_original_reference_texture_worker()
+            if callable(_state._clear_original_reference_native_package):
+                _state._clear_original_reference_native_package(
+                    _state.original_reference_texture_preview_state
+                )
             _state.original_reference_texture_preview_state.update(
                 {
                     'loaded': False,
                     'loading': False,
                     'failed': False,
                     'error': '',
-                    'native_package_path': '',
                 }
             )
             if callable(_state._load_original_reference_texture_preview):

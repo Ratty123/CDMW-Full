@@ -147,6 +147,7 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_dotnet_pending_clone_material_model = None
         self.standalone_dotnet_pending_reference_material_model = None
         self.standalone_dotnet_pending_paired_material_model = None
+        self.standalone_dotnet_pending_paired_material_upgrade = None
         # A textured view this tab still meant to restore belongs to the session
         # that is ending; the next one starts from its own scene.
         self._forget_deferred_textured_view()
@@ -186,6 +187,7 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_dotnet_pending_clone_material_model = None
         self.standalone_dotnet_pending_reference_material_model = None
         self.standalone_dotnet_pending_paired_material_model = None
+        self.standalone_dotnet_pending_paired_material_upgrade = None
         # A textured view this tab still meant to restore belongs to the session
         # that is ending; the next one starts from its own scene.
         self._forget_deferred_textured_view()

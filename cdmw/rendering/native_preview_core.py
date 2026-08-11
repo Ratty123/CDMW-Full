@@ -23,6 +23,10 @@ from cdmw.core.common import (
     start_bounded_text_stream_drain,
 )
 from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings, RunCancelled
+from cdmw.rendering.native_preview_package_cache import (
+    mark_native_preview_package_path_recent,
+    native_preview_package_live_paths_guard,
+)
 
 NATIVE_PREVIEW_CORE_BINARY_NAME = "cdmw-preview-core.exe" if os.name == "nt" else "cdmw-preview-core"
 NATIVE_PREVIEW_CORE_BACKEND_ID = "cdmw_preview_core_0.1"
@@ -79,10 +83,15 @@ def prune_native_preview_core_cache(
     *,
     max_bytes: int = NATIVE_PREVIEW_CORE_DDS_CACHE_MAX_BYTES,
     target_bytes: int = NATIVE_PREVIEW_CORE_DDS_CACHE_TARGET_BYTES,
+    protected_paths: Sequence[Path] = (),
 ) -> Dict[str, int]:
     dds_root = Path(cache_root) / "dds"
     if max_bytes <= 0 or target_bytes < 0 or not dds_root.is_dir():
         return {"files": 0, "bytes": 0, "removed_files": 0, "removed_bytes": 0}
+    protected = {
+        os.path.normcase(os.path.abspath(os.fspath(path)))
+        for path in tuple(protected_paths or ())
+    }
     files: list[tuple[float, int, Path]] = []
     total_bytes = 0
     try:
@@ -106,6 +115,8 @@ def prune_native_preview_core_cache(
     for _mtime, size, path in sorted(files, key=lambda item: item[0]):
         if total_bytes <= target_bytes:
             break
+        if os.path.normcase(os.path.abspath(os.fspath(path))) in protected:
+            continue
         try:
             path.unlink()
         except OSError:
@@ -119,6 +130,38 @@ def prune_native_preview_core_cache(
         "removed_files": removed_files,
         "removed_bytes": removed_bytes,
     }
+
+
+def _native_preview_core_manifest_dds_paths(package_path: str | Path) -> tuple[Path, ...]:
+    manifest_path = Path(package_path) / "manifest.json"
+    if not manifest_path.is_file():
+        return ()
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return ()
+    batches = manifest.get("batches") if isinstance(manifest, Mapping) else None
+    if not isinstance(batches, Sequence) or isinstance(batches, (str, bytes, bytearray)):
+        return ()
+    paths: list[Path] = []
+    for batch in batches:
+        textures = batch.get("dds_textures") if isinstance(batch, Mapping) else None
+        if not isinstance(textures, Mapping):
+            continue
+        for descriptor in textures.values():
+            descriptors = (
+                descriptor
+                if isinstance(descriptor, Sequence)
+                and not isinstance(descriptor, (str, bytes, bytearray))
+                else (descriptor,)
+            )
+            for item in descriptors:
+                if not isinstance(item, Mapping):
+                    continue
+                source_path = str(item.get("source_path", "") or "").strip()
+                if source_path and Path(source_path).suffix.casefold() == ".dds":
+                    paths.append(Path(source_path))
+    return tuple(dict.fromkeys(paths))
 
 
 @dataclass(frozen=True)
@@ -944,13 +987,31 @@ def run_native_preview_core_preview_job(
     report.setdefault("native_preview_core_binary_size", binary_signature[1])
     if use_service and service_pid > 0:
         report.setdefault("native_preview_core_process_pid", service_pid)
+    status = str(report.get("status") or "error").strip().lower()
+    package_path = str(report.get("package_path") or "").strip()
+    current_dds_paths = (
+        _native_preview_core_manifest_dds_paths(package_path)
+        if status == "ok" and package_path
+        else ()
+    )
+    if current_dds_paths:
+        mark_native_preview_package_path_recent(Path(package_path))
     # One post-job prune keeps the cache-size invariant; a second scan before
     # the job only repeated the same directory walk and stat pass per preview.
-    post_cache_prune_report = prune_native_preview_core_cache(
-        cache_root,
-        max_bytes=dds_cache_max_bytes,
-        target_bytes=dds_cache_target_bytes,
-    )
+    # The current manifest remains live after this function returns, so its DDS
+    # files cannot participate in the same prune that follows their extraction.
+    with native_preview_package_live_paths_guard() as live_package_paths:
+        protected_dds_paths = tuple(current_dds_paths) + tuple(
+            dds_path
+            for live_package_path in live_package_paths
+            for dds_path in _native_preview_core_manifest_dds_paths(live_package_path)
+        )
+        post_cache_prune_report = prune_native_preview_core_cache(
+            cache_root,
+            max_bytes=dds_cache_max_bytes,
+            target_bytes=dds_cache_target_bytes,
+            protected_paths=protected_dds_paths,
+        )
     removed_files = int(post_cache_prune_report.get("removed_files", 0) or 0)
     removed_bytes = int(post_cache_prune_report.get("removed_bytes", 0) or 0)
     if removed_files:
@@ -959,8 +1020,6 @@ def run_native_preview_core_preview_job(
     report.setdefault("native_preview_core_dds_cache_bytes", post_cache_prune_report.get("bytes", 0))
     report.setdefault("native_preview_core_dds_cache_files", post_cache_prune_report.get("files", 0))
     report.setdefault("native_preview_core_job_root", str(job_root))
-    status = str(report.get("status") or "error").strip().lower()
-    package_path = str(report.get("package_path") or "").strip()
     if status == "ok" and package_path:
         report.update(_repair_native_preview_core_manifest(package_path, render_settings))
     fallback_reason = str(report.get("fallback_reason") or report.get("message") or "").strip()

@@ -27,6 +27,8 @@ _CACHE_KEY_LOCKS: weakref.WeakValueDictionary[tuple[str, str], threading.RLock] 
 _LEASED_STAGING_PATHS: dict[str, int] = {}
 _ACTIVE_CACHE_KEYS: dict[tuple[str, str], int] = {}
 _RECENT_CACHE_KEYS: dict[tuple[str, str], float] = {}
+_ACTIVE_PACKAGE_PATHS: dict[str, tuple[Path, int]] = {}
+_RECENT_PACKAGE_PATHS: dict[str, tuple[Path, float]] = {}
 
 
 @dataclass(frozen=True)
@@ -44,9 +46,15 @@ class NativePreviewPackageCacheLease:
         self.cache_root = Path(cache_root)
         self.cache_key = str(cache_key or "").strip()
         self._key_id = _cache_key_id(self.cache_root, self.cache_key)
+        self.package_dir = native_preview_package_cache_entry_dir(
+            self.cache_root,
+            self.cache_key,
+        ) / "package"
+        self._path_id = _resolved_path_key(self.package_dir)
         self._released = False
         with _CACHE_STATE_LOCK:
             _ACTIVE_CACHE_KEYS[self._key_id] = _ACTIVE_CACHE_KEYS.get(self._key_id, 0) + 1
+            _acquire_active_package_path(self.package_dir, self._path_id)
 
     @property
     def active(self) -> bool:
@@ -62,10 +70,45 @@ class NativePreviewPackageCacheLease:
                 _ACTIVE_CACHE_KEYS[self._key_id] = count
             else:
                 _ACTIVE_CACHE_KEYS.pop(self._key_id, None)
+            _release_active_package_path(self._path_id)
 
     close = release
 
     def __enter__(self) -> "NativePreviewPackageCacheLease":
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        self.release()
+
+    def __del__(self) -> None:
+        self.release()
+
+
+class NativePreviewPackagePathLease:
+    """Process-local pin for a transient or durable package directory."""
+
+    def __init__(self, package_dir: Path) -> None:
+        self._released = True
+        self.package_dir = Path(package_dir).resolve()
+        self._path_id = _resolved_path_key(self.package_dir)
+        with _CACHE_STATE_LOCK:
+            _acquire_active_package_path(self.package_dir, self._path_id)
+            self._released = False
+
+    @property
+    def active(self) -> bool:
+        return not self._released
+
+    def release(self) -> None:
+        with _CACHE_STATE_LOCK:
+            if self._released:
+                return
+            self._released = True
+            _release_active_package_path(self._path_id)
+
+    close = release
+
+    def __enter__(self) -> "NativePreviewPackagePathLease":
         return self
 
     def __exit__(self, *_args: object) -> None:
@@ -127,6 +170,54 @@ def _cache_key_id(cache_root: Path, cache_key: str) -> tuple[str, str]:
     return _resolved_path_key(Path(cache_root)), str(cache_key or "").strip()
 
 
+def _acquire_active_package_path(package_dir: Path, path_id: str) -> None:
+    current = _ACTIVE_PACKAGE_PATHS.get(path_id)
+    count = int(current[1]) if current is not None else 0
+    _ACTIVE_PACKAGE_PATHS[path_id] = (Path(package_dir), count + 1)
+
+
+def _release_active_package_path(path_id: str) -> None:
+    current = _ACTIVE_PACKAGE_PATHS.get(path_id)
+    if current is None:
+        return
+    count = int(current[1]) - 1
+    if count > 0:
+        _ACTIVE_PACKAGE_PATHS[path_id] = (current[0], count)
+    else:
+        _ACTIVE_PACKAGE_PATHS.pop(path_id, None)
+
+
+def mark_native_preview_package_path_recent(package_dir: Path) -> None:
+    package_path = Path(package_dir).resolve()
+    with _CACHE_STATE_LOCK:
+        _RECENT_PACKAGE_PATHS[_resolved_path_key(package_path)] = (
+            package_path,
+            time.monotonic() + NATIVE_PREVIEW_PACKAGE_CACHE_RECENT_USE_SECONDS,
+        )
+
+
+@contextmanager
+def native_preview_package_live_paths_guard() -> Iterator[tuple[Path, ...]]:
+    """Hold package-lifetime state stable while an external DDS cache is pruned."""
+
+    with _CACHE_STATE_LOCK:
+        now = time.monotonic()
+        for path_id, (_path, deadline) in tuple(_RECENT_PACKAGE_PATHS.items()):
+            if deadline <= now:
+                _RECENT_PACKAGE_PATHS.pop(path_id, None)
+        paths = {
+            path_id: value[0]
+            for path_id, value in _ACTIVE_PACKAGE_PATHS.items()
+        }
+        paths.update(
+            {
+                path_id: value[0]
+                for path_id, value in _RECENT_PACKAGE_PATHS.items()
+            }
+        )
+        yield tuple(paths.values())
+
+
 def native_preview_package_cache_build_lock(cache_root: Path, cache_key: str) -> threading.RLock:
     lock_id = _cache_key_id(cache_root, cache_key)
     with _CACHE_STATE_LOCK:
@@ -183,8 +274,17 @@ def release_native_preview_package_staging_dir(
 
 def _mark_cache_key_recent(cache_root: Path, cache_key: str) -> None:
     with _CACHE_STATE_LOCK:
+        deadline = time.monotonic() + NATIVE_PREVIEW_PACKAGE_CACHE_RECENT_USE_SECONDS
         _RECENT_CACHE_KEYS[_cache_key_id(cache_root, cache_key)] = (
-            time.monotonic() + NATIVE_PREVIEW_PACKAGE_CACHE_RECENT_USE_SECONDS
+            deadline
+        )
+        package_dir = native_preview_package_cache_entry_dir(
+            cache_root,
+            cache_key,
+        ) / "package"
+        _RECENT_PACKAGE_PATHS[_resolved_path_key(package_dir)] = (
+            package_dir,
+            deadline,
         )
 
 
@@ -221,17 +321,22 @@ def acquire_native_preview_package_cache_lease(
 
 def acquire_native_preview_package_cache_lease_for_path(
     package_dir: Path,
-) -> Optional[NativePreviewPackageCacheLease]:
-    """Pin ``<cache>/packages/<key>/package``; ignore non-cache packages."""
+) -> Optional[NativePreviewPackageCacheLease | NativePreviewPackagePathLease]:
+    """Pin a live package; durable cache entries also pin their cache key."""
 
     try:
         package_path = Path(package_dir).resolve()
     except (OSError, ValueError):
         return None
+    if not package_path.is_dir():
+        return None
     entry_dir = package_path.parent
     packages_root = entry_dir.parent
     if package_path.name != "package" or packages_root.name != "packages":
-        return None
+        with _CACHE_STATE_LOCK:
+            if not package_path.is_dir():
+                return None
+            return NativePreviewPackagePathLease(package_path)
     cache_key = entry_dir.name
     if not cache_key or cache_key.startswith("_staging_"):
         return None

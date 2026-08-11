@@ -18,6 +18,7 @@ from cdmw.rendering.native_preview_package_cache import (
     lookup_native_preview_package_cache,
     native_preview_package_cache_use,
     native_preview_package_derived_cache_root,
+    native_preview_package_live_paths_guard,
     prune_native_preview_package_cache,
     prune_native_preview_package_cache_tiers,
     release_native_preview_package_staging_dir,
@@ -372,6 +373,37 @@ class NativePreviewPackageCacheConcurrencyTests(unittest.TestCase):
             lease.release()  # type: ignore[union-attr]
             prune_native_preview_package_cache(cache_root, max_bytes=1, target_bytes=0)
             self.assertFalse(active_entry.exists())
+
+    def test_transient_path_lease_is_visible_to_live_paths_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            package_dir = Path(temp_dir) / "transient-package"
+            package_dir.mkdir()
+
+            lease = acquire_native_preview_package_cache_lease_for_path(package_dir)
+            self.assertIsNotNone(lease)
+            try:
+                with native_preview_package_live_paths_guard() as live_paths:
+                    self.assertIn(package_dir.resolve(), live_paths)
+            finally:
+                lease.release()  # type: ignore[union-attr]
+
+            with native_preview_package_live_paths_guard() as live_paths:
+                self.assertNotIn(package_dir.resolve(), live_paths)
+
+    def test_cache_hit_is_recent_during_renderer_lease_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            entry_dir = _raw_cache_entry(cache_root, "recent-hit")
+
+            hit = lookup_native_preview_package_cache(
+                cache_root,
+                "recent-hit",
+                validate_package=_validate,
+            )
+
+            self.assertIsNotNone(hit)
+            with native_preview_package_live_paths_guard() as live_paths:
+                self.assertIn((entry_dir / "package").resolve(), live_paths)
 
     def test_path_lease_acquisition_uses_the_same_key_lock_as_pruning(self) -> None:
         source = Path("cdmw/rendering/native_preview_package_cache.py").read_text(encoding="utf-8")

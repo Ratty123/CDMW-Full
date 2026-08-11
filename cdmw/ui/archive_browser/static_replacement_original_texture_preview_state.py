@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass
+from pathlib import Path
+
+from cdmw.services.preview_rendering_service import (
+    acquire_dotnet_preview_package_cache_lease_for_path,
+)
 
 
 @dataclass(frozen=True)
@@ -250,10 +255,20 @@ def original_reference_texture_preview_set_native_package_path(
     state: MutableMapping[str, object],
     package_path: object,
 ) -> None:
-    state["native_package_path"] = str(package_path or "")
+    original_reference_texture_preview_clear_native_package_path(state)
+    path_text = str(package_path or "")
+    state["native_package_path"] = path_text
+    if path_text:
+        lease = acquire_dotnet_preview_package_cache_lease_for_path(Path(path_text))
+        if lease is not None:
+            state["_native_package_lease"] = lease
 
 
 def original_reference_texture_preview_clear_native_package_path(state: MutableMapping[str, object]) -> None:
+    lease = state.pop("_native_package_lease", None)
+    release = getattr(lease, "release", None)
+    if callable(release):
+        release()
     state["native_package_path"] = ""
 
 
@@ -277,14 +292,14 @@ def original_reference_texture_preview_mark_failed(
     state["failed"] = True
     state["error"] = str(message)
     if clear_native_package:
-        state["native_package_path"] = ""
+        original_reference_texture_preview_clear_native_package_path(state)
 
 
 def original_reference_texture_preview_mark_loading(state: MutableMapping[str, object]) -> None:
     state["loading"] = True
     state["failed"] = False
     state["error"] = ""
-    state["native_package_path"] = ""
+    original_reference_texture_preview_clear_native_package_path(state)
 
 
 def original_reference_texture_preview_request_outcome(
