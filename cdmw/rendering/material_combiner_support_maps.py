@@ -15,8 +15,11 @@ from cdmw.rendering.material_combiner_images import (
     _byte,
     _image_reader,
     _image_luma_range,
+    _image_rgba8888_view,
+    _image_rgba8888_write_view,
     _local_file_url,
     _mask_alpha,
+    _numpy_module,
     _raise_if_material_combiner_cancelled,
     _read_generated_map,
     _support_source_image,
@@ -63,28 +66,68 @@ def _generate_legacy_pbr_response_map(
         normalized.append(source.convertToFormat(QImage.Format.Format_RGBA8888))
 
     target = QImage(width, height, QImage.Format.Format_RGBA8888)
-    for y in range(height):
-        _raise_if_material_combiner_cancelled(cancelled)
-        for x in range(width):
-            values: list[int] = []
-            for index, image in enumerate(normalized):
-                if image.isNull():
-                    if index == 0:
-                        values.append(255)
-                    elif index == 1:
-                        values.append(148)
-                    else:
-                        values.append(0)
-                    continue
-                color = image.pixelColor(x, y)
-                luma = (0.2126 * color.redF()) + (0.7152 * color.greenF()) + (0.0722 * color.blueF())
-                values.append(_byte(luma))
-            ao, roughness, metalness, specular = (values + [255, 148, 0, 0])[:4]
-            target.setPixelColor(x, y, QColor(ao, roughness, metalness, specular))
+    target_view, target_stride = _image_rgba8888_write_view(target, width, height)
+    source_views = [
+        _image_rgba8888_view(image, width, height) if not image.isNull() else (None, 0)
+        for image in normalized
+    ]
+    numpy = _numpy_module()
+    vectorized = False
+    if numpy is not None and target_view is not None:
+        try:
+            target_array = numpy.ndarray(
+                (height, width, 4),
+                dtype=numpy.uint8,
+                buffer=target_view,
+                strides=(target_stride, 4, 1),
+            )
+            defaults = (255, 148, 0, 0)
+            for row_start in range(0, height, 32):
+                _raise_if_material_combiner_cancelled(cancelled)
+                row_count = min(32, height - row_start)
+                for channel, (view, stride) in enumerate(source_views):
+                    if view is None:
+                        target_array[row_start : row_start + row_count, :, channel] = defaults[channel]
+                        continue
+                    source = numpy.ndarray(
+                        (row_count, width, 3),
+                        dtype=numpy.uint8,
+                        buffer=view,
+                        offset=row_start * stride,
+                        strides=(stride, 4, 1),
+                    ).astype(numpy.float32)
+                    source = (source / numpy.float32(255.0)).astype(numpy.float64)
+                    luma = (
+                        (0.2126 * source[:, :, 0])
+                        + (0.7152 * source[:, :, 1])
+                        + (0.0722 * source[:, :, 2])
+                    ) * 255.0
+                    target_array[row_start : row_start + row_count, :, channel] = numpy.rint(
+                        numpy.clip(luma, 0.0, 255.0)
+                    ).astype(numpy.uint8)
+            vectorized = True
+        except (BufferError, TypeError, ValueError):
+            vectorized = False
+    if not vectorized:
+        for y in range(height):
+            _raise_if_material_combiner_cancelled(cancelled)
+            for x in range(width):
+                values: list[int] = []
+                for index, image in enumerate(normalized):
+                    if image.isNull():
+                        values.append(255 if index == 0 else 148 if index == 1 else 0)
+                        continue
+                    color = image.pixelColor(x, y)
+                    luma = (0.2126 * color.redF()) + (0.7152 * color.greenF()) + (0.0722 * color.blueF())
+                    values.append(_byte(luma))
+                ao, roughness, metalness, specular = (values + [255, 148, 0, 0])[:4]
+                target.setPixelColor(x, y, QColor(ao, roughness, metalness, specular))
 
     _raise_if_material_combiner_cancelled(cancelled)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{stem}_legacy_pbr.png"
+    del target_view
+    del source_views
     if not target.save(str(output_path), "PNG"):
         return ""
     return _local_file_url(output_path)

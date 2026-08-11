@@ -173,6 +173,42 @@ def test_resident_compiler_reuses_content_addressed_outputs(tmp_path: Path) -> N
             assert Path(raw_path).is_file()
 
 
+def test_manifest_rebase_resolves_roots_once(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    staging = tmp_path / "cache.tmp"
+    cache_dir = tmp_path / "cache"
+    manifest = {
+        "resources": [
+            str(staging / "a.png"),
+            {"nested": str(staging / "b.png")},
+        ],
+        "unchanged": "material-signature",
+    }
+    resolve_calls: list[Path] = []
+    original_resolve = Path.resolve
+
+    def counted_resolve(path: Path, *args: object, **kwargs: object) -> Path:
+        resolve_calls.append(path)
+        return original_resolve(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", counted_resolve)
+
+    rebased = mesh_dotnet_material_compiler._rebase_manifest_paths(
+        manifest,
+        staging,
+        cache_dir,
+    )
+
+    assert rebased["resources"] == [
+        str(cache_dir / "a.png"),
+        {"nested": str(cache_dir / "b.png")},
+    ]
+    assert rebased["unchanged"] == "material-signature"
+    assert resolve_calls == [staging, cache_dir]
+
+
 def test_exact_clone_material_compile_binds_one_resource_set_to_both_scene_roles(
     tmp_path: Path,
 ) -> None:
