@@ -223,6 +223,12 @@ def _normal_input_order_key(
     )
 
 
+def _positive_tangent_z(x: float, y: float) -> float:
+    """Reconstruct the positive tangent hemisphere used for BC5 DDS normals."""
+
+    return math.sqrt(max(0.0, 1.0 - (x * x) - (y * y)))
+
+
 def _generate_synthesized_normal_map(
     normal_inputs: Sequence[PreviewMaterialTextureInput],
     mask_inputs: dict[str, PreviewMaterialTextureInput],
@@ -389,10 +395,10 @@ def _generate_synthesized_normal_map(
                 layer_color = layer.pixelColor(x, y)
                 base_x = (base_color.redF() * 2.0) - 1.0
                 base_y = (base_color.greenF() * 2.0) - 1.0
-                base_z = (base_color.blueF() * 2.0) - 1.0
+                base_z = _positive_tangent_z(base_x, base_y)
                 layer_x = (layer_color.redF() * 2.0) - 1.0
                 layer_y = (((255 - layer_color.green()) / 255.0) * 2.0) - 1.0
-                layer_z = (layer_color.blueF() * 2.0) - 1.0
+                layer_z = _positive_tangent_z(layer_x, layer_y)
                 detail_x = layer_x * alpha
                 detail_y = layer_y * alpha
                 detail_z = (1.0 - alpha) + (layer_z * alpha)
