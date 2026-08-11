@@ -320,9 +320,12 @@ class MeshEditorDotNetLaunchMixin:
             self.standalone_dotnet_material_generation_by_role.clear()
             self.standalone_dotnet_completed_material_generation_by_role.clear()
             self.standalone_dotnet_applied_material_generation_by_role.clear()
+            self.standalone_dotnet_texture_resources_ready_by_role.clear()
             self.standalone_dotnet_material_signature_by_role.clear()
             self.standalone_dotnet_material_input_signature_by_role.clear()
             self.standalone_dotnet_material_error_by_role.clear()
+            self.standalone_dotnet_material_package_token = (0, 0)
+            self.standalone_dotnet_material_ready_flush_token = (0, 0)
             self.standalone_dotnet_viewport_display_request_id = 0
         self.standalone_dotnet_package_request_id += 1
         request_id = self.standalone_dotnet_package_request_id

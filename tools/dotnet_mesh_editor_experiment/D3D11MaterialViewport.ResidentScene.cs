@@ -18,6 +18,8 @@ internal sealed partial class D3D11MaterialViewport
         var previousMaterials = _materials;
         var previousTextureSet = _textureSet;
         var previousScene = _scene;
+        var previousGeometryDirty = _geometryDirty;
+        var previousMaterialResourcesDirty = _materialResourcesDirty;
         _document = document;
         _materials = materials;
         _textureSet = textureSet;
@@ -26,7 +28,7 @@ internal sealed partial class D3D11MaterialViewport
         _geometryDirty = true;
         try
         {
-            RebuildGeometry();
+            RebuildGeometry(requireTextureResources: true);
             ResidentSceneLoadCount++;
             // The first real package ends the placeholder's tenure; from here
             // every frame draws the scene someone actually asked for.
@@ -41,7 +43,12 @@ internal sealed partial class D3D11MaterialViewport
             _textureSet = previousTextureSet;
             _scene = previousScene;
             DiscardTextureResourceRefreshState();
-            _geometryDirty = false;
+            _geometryDirty = previousGeometryDirty;
+            _materialResourcesDirty = previousMaterialResourcesDirty;
+            if (_geometryDirty || _materialResourcesDirty)
+            {
+                Invalidate();
+            }
             throw;
         }
     }

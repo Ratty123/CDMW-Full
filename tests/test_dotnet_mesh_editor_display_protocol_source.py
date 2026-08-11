@@ -8,6 +8,7 @@ def test_dotnet_display_and_authoring_protocol_stay_in_sync() -> None:
     display_modes = _source("MeshViewport.DisplayModes.cs")
     controls_source = _source("ExperimentForm.Controls.cs")
     resident_package_source = _source("MeshViewport.ResidentPackage.cs")
+    package_protocol_source = _source("ExperimentForm.PackageProtocol.cs")
     morph_source = _source("ExperimentForm.MorphRefit.cs")
     shader_source = _source("D3D11MaterialShaders.hlsl")
     host_state_source = _source("ExperimentForm.HostState.cs")
@@ -26,13 +27,29 @@ def test_dotnet_display_and_authoring_protocol_stay_in_sync() -> None:
     assert '&& decode.Failures.Count > 0)' in material_protocol_source
     assert 'WriteProtocolEvent("viewport_display_request"' in controls_source
     assert '"Loading textures in the resident viewport..."' in controls_source
-    assert 'JsonString(root, "requested_mode")' in display_source
     assert "SyncPreviewModeSelection(" in display_source
     assert "texture_request_pending" in display_source
+    assert "SyncPreviewModeSelection(_viewport.DisplayMode);" in display_source
+    assert 'JsonString(root, "requested_mode")' not in display_source
     assert 'message["source_identity"] = _scene.SourceIdentity;' in _source("ExperimentForm.Output.cs")
     assert 'hasTextureResources ? "textured" : "untextured_wire"' in resident_package_source
     assert "InitialResidentDisplayMode(bool hasTextureResources)" in resident_package_source
     assert "InitialResidentDisplayMode(" in controls_source
+    resident_readiness = controls_source.split(
+        "private bool HasResidentTextureResources()",
+        maxsplit=1,
+    )[1].split("private void RequestResidentViewportDisplay", maxsplit=1)[0]
+    assert "_viewport.HasTexturedMaterialResources" in resident_readiness
+    assert "TextureLoadResources().Any()" not in resident_readiness
+    assert package_protocol_source.index("TextureReadinessError") < package_protocol_source.index(
+        "return new PreparedResidentPackage"
+    )
+    assert '"texture_resources_ready"' in material_protocol_source
+    textured_request = controls_source.split(
+        "private void RequestResidentViewportDisplay(string mode)",
+        maxsplit=1,
+    )[1].split("private void ReplayPendingResidentDisplayRequest", maxsplit=1)[0]
+    assert "SyncPreviewModeSelection(_viewport.DisplayMode);" in textured_request
     assert '"Faces + Wire"' in controls_source
     assert '"Solid + Wire"' not in controls_source
     assert 'normalized = "textured";' in controls_source

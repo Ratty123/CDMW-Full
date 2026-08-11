@@ -118,6 +118,7 @@ def test_every_display_mode_survives_selection_tool_scene_material_and_visibilit
         tab.standalone_dotnet_material_generation_by_role["editable_imported"] = 1
         tab.standalone_dotnet_completed_material_generation_by_role["editable_imported"] = 1
         tab.standalone_dotnet_applied_material_generation_by_role["editable_imported"] = 1
+        tab.standalone_dotnet_texture_resources_ready_by_role["editable_imported"] = True
 
         assert tab._send_dotnet_presentation_state({"display": {"mode": "wire_vertices"}})
         _acknowledge_latest_publish(tab, process)

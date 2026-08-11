@@ -3,6 +3,11 @@ namespace Cdmw.MeshEditorExperiment;
 internal sealed partial class MeshViewport
 {
     public long ResidentSceneLoadCount => _d3d11Viewport?.ResidentSceneLoadCount ?? 0;
+    public bool HasTexturedMaterialResources =>
+        _d3d11Viewport?.HasTexturedMaterialResources ?? false;
+
+    public bool HasTexturedMaterialResourcesForSubmeshes(IReadOnlyCollection<int> submeshIndices) =>
+        _d3d11Viewport?.HasTexturedMaterialResourcesForSubmeshes(submeshIndices) ?? false;
 
     /// <summary>
     /// The view a freshly loaded package settles on. Read-only previews show
@@ -103,9 +108,7 @@ internal sealed partial class MeshViewport
             ApplyArchivePreviewInitialCamera();
         }
         InitializePresentationContexts();
-        var hasTextureResources = materials.TextureLoadResources().Any()
-            || textureSet.DecodedCount > 0
-            || textureSet.NativeDdsResourceCount > 0;
+        var hasTextureResources = renderer.HasTexturedMaterialResources;
         // Land on the mode the host is going to ask for anyway. Picking a
         // different one here made every swap present an intermediate view
         // before the host's own display update corrected it.

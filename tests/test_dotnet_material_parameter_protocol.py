@@ -97,6 +97,7 @@ def test_required_and_optional_resource_policy_has_an_executable_runtime_probe()
 def test_parameter_protocol_is_versioned_session_scoped_and_independently_ordered() -> None:
     protocol = _source("ExperimentForm.Protocol.cs")
     material_protocol = _source("ExperimentForm.MaterialProtocol.cs")
+    package_protocol = _source("ExperimentForm.PackageProtocol.cs")
     state = _source("NetMaterialSet.Parameters.cs")
 
     assert 'ResidentMaterialParameterUpdatesCapability = "resident_material_parameter_updates_v1"' in protocol
@@ -108,6 +109,14 @@ def test_parameter_protocol_is_versioned_session_scoped_and_independently_ordere
     assert 'RequiredParameterLong(root, "edit_revision")' in state
     assert 'RequiredParameterLong(root, "parameter_generation")' in state
     assert "AcceptMaterialSession(update.SessionId" in material_protocol
+    assert material_protocol.count("MaterialPackageGenerationMatches(") >= 4
+    assert material_protocol.count('"package_replaced"') >= 3
+    assert 'JsonLongValue(request, "package_generation")' in material_protocol
+    assert "private long _residentPackageAppliedGeneration;" in package_protocol
+    assert (
+        "Interlocked.Exchange(ref _residentPackageAppliedGeneration, generation);"
+        in package_protocol
+    )
     assert "update.ParameterGeneration <= _lastRequestedMaterialParameterGeneration" in material_protocol
     assert "update.EditRevision < _lastAppliedEditRevision" in material_protocol
     assert "ValidateMutationEnvelope(root, out var envelopeError)" in material_protocol

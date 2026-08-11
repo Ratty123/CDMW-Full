@@ -343,12 +343,10 @@ internal sealed partial class ExperimentForm : Form
                         return;
                     }
                     var requiredFailures = _materials.FailedRequiredResources(_textureSet.TextureLoadFailures);
-                    if (requiredFailures.Count > 0)
+                    var textureReadinessError = _materials.TextureReadinessError(_textureSet);
+                    if (!string.IsNullOrWhiteSpace(textureReadinessError))
                     {
-                        var message = "Required production texture resources failed: " + string.Join(
-                            "; ",
-                            requiredFailures.Select(resource =>
-                                $"{resource.Role}[{resource.SubmeshIndex}].{resource.MaterialChannel}: {resource.Path}"));
+                        var message = textureReadinessError;
                         _statusLabel.Text = message;
                         WriteProtocolEvent("textures_error", new Dictionary<string, object?>
                         {
@@ -379,6 +377,7 @@ internal sealed partial class ExperimentForm : Form
                     WriteProtocolEvent("textures_ready", new Dictionary<string, object?>
                     {
                         ["decoded_texture_resources"] = _textureSet.DecodedCount,
+                        ["texture_resources_ready"] = _viewport.HasTexturedMaterialResources,
                         ["texture_load_failures"] = _textureSet.TextureLoadFailureCount,
                         ["optional_resource_failures"] = optionalFailures.Select(resource => new Dictionary<string, object?>
                         {

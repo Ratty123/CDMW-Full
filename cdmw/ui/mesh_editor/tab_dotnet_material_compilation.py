@@ -135,6 +135,7 @@ class MeshEditorDotNetMaterialCompilationMixin:
                 "request_id": int(request.generation),
                 "base_revision": int(request.edit_revision),
                 "process_generation": int(request.process_generation),
+                "package_generation": self._dotnet_material_package_generation(),
                 "protocol_version": 3,
             }
         )

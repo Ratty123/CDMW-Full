@@ -205,7 +205,7 @@ internal sealed partial class ExperimentForm
             ["activation_request_id"] = _activationRequestId,
             ["session_id"] = _residentMaterialSessionId,
             ["process_generation"] = _residentProcessGeneration,
-            ["package_generation"] = Interlocked.Read(ref _residentPackageLoadGeneration),
+            ["package_generation"] = Interlocked.Read(ref _residentPackageAppliedGeneration),
             ["material_signature"] = _materials.Signature,
             ["generation"] = _materials.Generation,
             ["renderer"] = RendererStatusWithLifecycle(),
@@ -249,6 +249,16 @@ internal sealed partial class ExperimentForm
             WriteMaterialStateFailed(request, update.Generation, update.SessionId, "session_mismatch", sessionError);
             return;
         }
+        if (!MaterialPackageGenerationMatches(request, out var requestedPackageGeneration, out var residentPackageGeneration))
+        {
+            WriteMaterialStateFailed(
+                request,
+                update.Generation,
+                update.SessionId,
+                "package_replaced",
+                $"Material update targets package generation {requestedPackageGeneration}, but generation {residentPackageGeneration} is resident.");
+            return;
+        }
         if (update.Generation <= _lastRequestedMaterialGeneration)
         {
             WriteMaterialStateFailed(request, update.Generation, update.SessionId, "stale_or_out_of_order", "Material generation is not newer than the last request.");
@@ -272,6 +282,7 @@ internal sealed partial class ExperimentForm
         {
             ["session_id"] = update.SessionId,
             ["generation"] = update.Generation,
+            ["package_generation"] = requestedPackageGeneration,
             ["affected_submesh_count"] = update.AffectedSubmeshes.Count,
             ["resource_count"] = resourcesToDecode.Length,
         };
@@ -472,11 +483,35 @@ internal sealed partial class ExperimentForm
         return true;
     }
 
+    private bool MaterialPackageGenerationMatches(
+        JsonElement request,
+        out long requestedGeneration,
+        out long residentGeneration)
+    {
+        requestedGeneration = Math.Max(0, JsonLongValue(request, "package_generation"));
+        residentGeneration = Math.Max(
+            0,
+            Interlocked.Read(ref _residentPackageAppliedGeneration));
+        return requestedGeneration <= 0
+            || residentGeneration <= 0
+            || requestedGeneration == residentGeneration;
+    }
+
     private void CompleteMaterialStateUpdate(NetMaterialStateUpdate update, Task<NetTextureDecodeResult> task, JsonElement request)
     {
         if (update.Generation != _lastRequestedMaterialGeneration)
         {
             WriteMaterialStateFailed(request, update.Generation, update.SessionId, "superseded", "A newer material generation replaced this request.");
+            return;
+        }
+        if (!MaterialPackageGenerationMatches(request, out var requestedPackageGeneration, out var residentPackageGeneration))
+        {
+            WriteMaterialStateFailed(
+                request,
+                update.Generation,
+                update.SessionId,
+                "package_replaced",
+                $"Material update targets package generation {requestedPackageGeneration}, but generation {residentPackageGeneration} is resident.");
             return;
         }
         if (!CanApplyMaterialEditRevision(update.EditRevision, out var revisionError))
@@ -548,12 +583,15 @@ internal sealed partial class ExperimentForm
             ["session_id"] = update.SessionId,
             ["edit_revision"] = update.EditRevision,
             ["generation"] = update.Generation,
+            ["package_generation"] = requestedPackageGeneration,
             ["material_signature"] = _materials.Signature,
             ["material_authority_fingerprint"] = JsonString(request, "material_authority_fingerprint"),
             ["material_authority_revision"] = JsonLongValue(request, "material_authority_revision"),
             ["affected_submeshes"] = update.AffectedSubmeshes,
             ["decoded_resources"] = decode.Decoded,
             ["reused_resources"] = decode.Reused,
+            ["texture_resources_ready"] = requestedResources.Length > 0
+                && _viewport.HasTexturedMaterialResourcesForSubmeshes(update.AffectedSubmeshes),
             ["optional_resource_failures"] = optionalFailures.Select(pair => new Dictionary<string, object?>
             {
                 ["resource_id"] = pair.Key,
@@ -616,6 +654,17 @@ internal sealed partial class ExperimentForm
             WriteMaterialParameterFailed(root, update.ParameterGeneration, update.SessionId, update.EditRevision, "session_mismatch", sessionError);
             return;
         }
+        if (!MaterialPackageGenerationMatches(root, out var requestedPackageGeneration, out var residentPackageGeneration))
+        {
+            WriteMaterialParameterFailed(
+                root,
+                update.ParameterGeneration,
+                update.SessionId,
+                update.EditRevision,
+                "package_replaced",
+                $"Material parameter update targets package generation {requestedPackageGeneration}, but generation {residentPackageGeneration} is resident.");
+            return;
+        }
         if (update.ParameterGeneration <= _lastRequestedMaterialParameterGeneration)
         {
             WriteMaterialParameterFailed(root, update.ParameterGeneration, update.SessionId, update.EditRevision, "stale_or_out_of_order", "Material parameter_generation is not newer than the last request.");
@@ -650,6 +699,7 @@ internal sealed partial class ExperimentForm
             ["session_id"] = update.SessionId,
             ["edit_revision"] = update.EditRevision,
             ["parameter_generation"] = update.ParameterGeneration,
+            ["package_generation"] = requestedPackageGeneration,
             ["affected_submeshes"] = update.AffectedSubmeshes,
             ["renderer"] = RendererStatusWithLifecycle(),
             ["lifecycle_counts"] = LifecycleCountsPayload(),
@@ -682,6 +732,7 @@ internal sealed partial class ExperimentForm
             ["session_id"] = sessionId,
             ["edit_revision"] = editRevision,
             ["parameter_generation"] = generation,
+            ["package_generation"] = Math.Max(0, JsonLongValue(request, "package_generation")),
             ["reason"] = reason,
             ["message"] = message,
             ["last_applied_edit_revision"] = _lastAppliedEditRevision,
@@ -702,6 +753,7 @@ internal sealed partial class ExperimentForm
         {
             ["session_id"] = sessionId,
             ["generation"] = generation,
+            ["package_generation"] = Math.Max(0, JsonLongValue(request, "package_generation")),
             ["reason"] = reason,
             ["message"] = message,
             ["material_signature"] = _materials.Signature,

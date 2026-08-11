@@ -729,13 +729,25 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         # hoping to restore on its own, so it must never snap back later.
         self._forget_deferred_textured_view()
         if not bool(getattr(self.active_builder(), "_mesh_editor_embedded_dotnet_active", False)):
+            if normalized in MESH_PREVIEW_TEXTURED_DISPLAY_MODES:
+                fallback_mode = untextured_fallback_display_mode(normalized)
+                self._remember_dotnet_desired_display_mode(fallback_mode)
+                self.sync_viewport_display_combos(fallback_mode)
             self.status_message_requested.emit("Embedded .NET viewport is not ready yet.", True)
             return False
         if "viewport_display_modes_v1" not in self.standalone_dotnet_capabilities:
+            if normalized in MESH_PREVIEW_TEXTURED_DISPLAY_MODES:
+                fallback_mode = untextured_fallback_display_mode(normalized)
+                self._remember_dotnet_desired_display_mode(fallback_mode)
+                self.sync_viewport_display_combos(fallback_mode)
             self.status_message_requested.emit("Embedded .NET viewport does not support display-mode updates.", True)
             return False
         if normalized in MESH_PREVIEW_TEXTURED_DISPLAY_MODES:
             if not self._dotnet_resident_material_updates_supported():
+                fallback_mode = untextured_fallback_display_mode(normalized)
+                self._remember_dotnet_desired_display_mode(fallback_mode)
+                self._send_embedded_viewport_display_mode(fallback_mode)
+                self.sync_viewport_display_combos(fallback_mode)
                 self.status_message_requested.emit(
                     "This .NET helper cannot load Mesh Editor textures in place. Update the helper; the untextured scene remains active.",
                     True,
@@ -757,8 +769,16 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
                     self._request_reference_textures_for_textured_view(
                         request_textures
                     )
+                else:
+                    fallback_mode = untextured_fallback_display_mode(normalized)
+                    self._remember_dotnet_desired_display_mode(fallback_mode)
+                    self.sync_viewport_display_combos(fallback_mode)
                 return sent
             if not callable(request_textures):
+                fallback_mode = untextured_fallback_display_mode(normalized)
+                self._remember_dotnet_desired_display_mode(fallback_mode)
+                self._send_embedded_viewport_display_mode(fallback_mode)
+                self.sync_viewport_display_combos(fallback_mode)
                 self.status_message_requested.emit(
                     "No texture resolver is available for this Mesh Editor session; the untextured scene remains active.",
                     True,
@@ -770,12 +790,15 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
                 use_presentation_state
             )
             self.standalone_dotnet_pending_textured_view_extensions = 0
+            fallback_mode = untextured_fallback_display_mode(normalized)
             self._send_requested_viewport_display_mode(
-                untextured_fallback_display_mode(normalized),
+                fallback_mode,
                 use_presentation_state=use_presentation_state,
                 texture_request_pending=True,
                 requested_mode=normalized,
             )
+            self._remember_dotnet_desired_display_mode(fallback_mode)
+            self.sync_viewport_display_combos(fallback_mode)
             self.status_message_requested.emit(
                 "Loading Mesh Editor textures in the resident viewport...",
                 False,

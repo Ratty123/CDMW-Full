@@ -422,7 +422,8 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   Placement exposes the same geometry display family in the Builder's
   `Mesh view` selector and defaults to Faces + Wire. `Solid (Textured)` first
   runs the existing material resolver and waits for the resident material
-  acknowledgement before switching the presentation to textured rendering.
+  acknowledgement to prove decoded resources and live D3D bindings before
+  either selector or the presentation switches to textured rendering.
   Edit Mesh starts in Wire + Vertices, but that is only the opening display
   default. The user's next display choice is authoritative across selection,
   tool, scene, material, and visibility publications; those paths may add
@@ -722,11 +723,24 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   fallback for every texture. Initial Ready requires the geometry-only package
   and one presented frame; texture resolution is not on the first-display
   critical path. Selecting `Textured` starts the cancellable resolver and leaves
-  readable untextured faces active while retaining `Solid (Textured)` as the
-  desired mode in both controls and presentation replay. The effective fallback
-  never becomes a preference; the correlated resident material acknowledgement
-  activates the requested mode. A missing declared-required
-  base fails that material request while the last valid scene remains visible;
+  readable untextured faces active. Both visible controls and presentation replay
+  continue to report `Faces (No Textures)` until the helper acknowledges decoded
+  resources that were successfully bound to the affected D3D material batches.
+  The requested textured mode is kept only as deferred retry state: a late valid
+  acknowledgement activates it, while a failure leaves an honestly selectable
+  fallback so choosing `Solid (Textured)` again starts a real retry. A package
+  that declares resources but decodes none is rejected before it can replace the
+  accepted resident scene, and a declared base that cannot acquire a live shader
+  resource never satisfies textured readiness. Every accepted geometry package
+  invalidates material generations from the package it replaced before replaying
+  presentation. Texture-resource and material-parameter mutations carry that
+  accepted package generation; replacement fails and clears any staged export
+  update, while the helper rejects an older message both before decode and before
+  GPU application. The host keeps the controls on the untextured fallback and
+  republishes the current material state before restoring the deferred textured choice. A
+  renderer-side bind failure rolls the package swap back without disposing the
+  previous geometry buffers or texture SRVs. A missing declared-required base
+  fails that material request while the last valid scene remains visible;
   optional channels retain their declared fallback and diagnostic. Late original archive
   resources enter the existing reference-role material generation without an
   export commit, package rebuild, camera change, or process restart. Normal-map
