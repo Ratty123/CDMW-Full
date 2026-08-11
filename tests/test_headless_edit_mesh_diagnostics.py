@@ -2,12 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+from cdmw.ui.mesh_editor.controller import MeshEditorController
 from tools.mesh_harness import scenario_runner
 from tools.mesh_harness.edit_mesh_diagnostics import (
     _original_texture_factory_contract,
     _screen_region,
 )
 from tools.mesh_harness.scenario_registry import scenario_metadata
+from tools.mesh_harness.fixtures import (
+    _build_two_part_synthetic_mesh,
+    build_synthetic_mesh,
+)
 
 
 def test_original_texture_factory_contract_executes_the_three_resolver_dependencies() -> None:
@@ -73,8 +79,51 @@ def test_dotnet_hidden_suite_names_every_selection_shape_target_and_tool() -> No
     assert 'new[] { "vertex", "edge", "face" }' in source
     assert 'new[] { "brush", "lasso", "rectangle" }' in source
     assert 'new[] { "move", "grab", "smooth", "inflate", "pinch" }' in source
+    assert '"Add", "Replace", "Subtract", "Toggle"' in source
+    assert "RunEditMeshControlSurfaceDiagnostics" in source
+    assert '"xray_disabled_consistently"' in source
     assert "HasTexturedMaterialResources" in source
     assert "EditMeshToolListContract.RowOrder" in source
     assert '"pointer_p95_at_most_20_ms"' in source
     assert '"no_pointer_sample_over_100_ms"' in source
     assert '"terminal_reconciliation_at_most_250_ms"' in source
+
+
+def test_native_select_all_has_real_targets_when_incoming_selection_is_empty() -> None:
+    controller = MeshEditorController()
+    controller.open_mesh(build_synthetic_mesh(), session_id="diagnostic-select-all", mode="edit")
+    try:
+        result = controller.apply_command(
+            MeshEditCommand(
+                "select",
+                selection=MeshEditSelection(),
+                params={"operation": "all", "target_mode": "vertex"},
+            )
+        )
+
+        assert result.ok
+        assert controller.session_view().selection.vertex_map() == {0: {0, 1, 2, 3}}
+    finally:
+        controller.close_active_session(force_without_saving=True)
+
+
+def test_native_invert_includes_completely_unselected_submeshes() -> None:
+    controller = MeshEditorController()
+    mesh = _build_two_part_synthetic_mesh()
+    controller.open_mesh(mesh, session_id="diagnostic-invert-all-parts", mode="edit")
+    try:
+        controller.select(vertices_by_submesh={0: (0,)}, operation="replace")
+        result = controller.apply_command(
+            MeshEditCommand(
+                "select",
+                selection=controller.session_view().selection,
+                params={"operation": "invert", "target_mode": "vertex"},
+            )
+        )
+
+        assert result.ok
+        vertex_map = controller.session_view().selection.vertex_map()
+        assert vertex_map[0] == set(range(1, len(mesh.submeshes[0].vertices)))
+        assert vertex_map[1] == set(range(len(mesh.submeshes[1].vertices)))
+    finally:
+        controller.close_active_session(force_without_saving=True)

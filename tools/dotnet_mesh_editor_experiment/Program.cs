@@ -239,7 +239,7 @@ internal sealed partial class ExperimentForm : Form
         ConfigureCheckBox(_xray, "X-Ray", isChecked: false);
         _xray.CheckedChanged += (_, _) =>
         {
-            if (!_xray.Checked && _previewMode.SelectedIndex == 7)
+            if (!_xray.Checked && _previewMode.SelectedIndex == 6)
             {
                 _previewMode.SelectedIndex = 4;
                 return;

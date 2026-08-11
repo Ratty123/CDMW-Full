@@ -154,13 +154,21 @@ instead of relaunching the same smoke once per report key.
 `headless-edit-mesh-diagnostics` is the composed interaction gate. It builds and
 starts the hidden production Vortice form, binds a deterministic decoded
 texture, verifies `Solid (Textured)` after every case, and drives
-Brush/Lasso/Rectangle selection for vertices, wires, and faces; a sustained
-held face-selection stroke; Move, Grab, Smooth, Inflate, Pinch, Topology,
-Colour, and Morph & Refit through the real Python dispatcher and native C++
-session. Its output contains the .NET build/protocol/report, composed scenario
-result, session timeline, and background flight-recorder JSONL. It opens no
-visible window and reads no licensed asset. It proves deterministic synthetic
-protocol, renderer-resource, responsiveness, and reconciliation contracts; it
+Brush/Lasso/Rectangle selection for vertices, wires, and faces; all four
+selection operations; 320-update held Move and Grab streams; Smooth, Inflate,
+and Pinch strokes; all six axis nudges; Undo/Redo; selection growth, shrink,
+invert, all, and clear; delete, duplicate, subdivide, refine, and separate
+topology; part duplicate/delete/visibility; geometry-layer copy, paste, rename,
+visibility, activation, ordering, and deletion; Colour; and the complete Morph
+& Refit bind, surface, rigid, clearance, reset, bake, and clear sequence through
+the real Python dispatcher and native C++ session. The hidden WinForms phase
+also inventories every declared Edit Mesh control, cycles all seven display
+modes, checks X-Ray off-state consistency, and exercises every camera preset,
+yaw, fit, and orbit without showing a window. Its output contains the .NET
+build/protocol/report, composed scenario result, session timeline, and
+background flight-recorder JSONL. It opens no visible window and reads no
+licensed asset. It proves deterministic synthetic protocol, renderer-resource,
+responsiveness, command semantics, and terminal reconciliation contracts; it
 is not real-game PAC visual proof.
 
 Resident Python/WinForms interface-localization negotiation, exact manifest and

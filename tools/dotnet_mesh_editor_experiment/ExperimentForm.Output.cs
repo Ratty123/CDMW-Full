@@ -33,6 +33,7 @@ internal sealed partial class ExperimentForm
             }
             RegisterOutgoingMutation(eventName, message);
         }
+        _diagnosticProtocolObserver?.Invoke(eventName, message);
         if (string.Equals(eventName, "metrics", StringComparison.OrdinalIgnoreCase))
         {
             _protocolOutput.EnqueueLatestTelemetry(message);

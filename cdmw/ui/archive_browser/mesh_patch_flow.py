@@ -103,7 +103,10 @@ class ArchiveMeshPatchFlowMixin:
             source_skeleton=setup.source_skeleton,
             supplemental_files=setup.supplemental_files,
             scene_import_result=setup.scene_import_result,
-            activate=True,
+            # A static replacement is mounted inside the Mesh Editor only
+            # after its asynchronous preflight and builder construction finish.
+            # Keep Archive Browser visible until that complete surface exists.
+            activate=import_mode != "static_replacement",
         )
         build_entry = entry
         if scene_path_obj.suffix.lower() in {".dae", ".gltf", ".glb", ".pac", ".pam", ".pamlod"}:

@@ -39,6 +39,36 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
             step=str(step or ""),
             embedded=bool(embedded_alignment_builder),
         )
+
+    def _reveal_embedded_builder() -> None:
+        """Reveal only the complete, live builder surface on the next event turn."""
+
+        try:
+            if not bool(getattr(dialog, "_cdmw_builder_construction_complete", False)):
+                _record_open_step("reveal_skipped_incomplete")
+                return
+            # The Mesh Editor tab is intentionally still hidden here, so the
+            # child's effective isVisible() is false even after show(). Test
+            # the child's explicit state instead; activation makes the whole
+            # mounted hierarchy visible in one step.
+            if dialog.isHidden():
+                _record_open_step("reveal_skipped_explicitly_hidden")
+                return
+            builder_host = self.mesh_editor_tab.builder_host()
+            if dialog.parentWidget() is not builder_host:
+                _record_open_step("reveal_skipped_unmounted")
+                return
+            startup_progress = getattr(dialog, "_cdmw_builder_startup_progress", None)
+            if startup_progress is not None and startup_progress.isVisible():
+                _record_open_step("reveal_skipped_progress_visible")
+                return
+            _record_open_step("reveal_mesh_editor_before")
+            self._activate_tool_widget(self.mesh_editor_tab)
+            _record_open_step("reveal_mesh_editor_after")
+        except RuntimeError:
+            # The user can close the builder between show() and this queued
+            # callback. A deleted Qt wrapper is a completed cancellation.
+            _record_open_step("reveal_skipped_deleted")
     dialog_accepted_state = _alignment_dialog_accept_initial_state_helper()
     alignment_modeless_dialog_callbacks = create_alignment_modeless_dialog_callbacks(
         {**globals(), **context, **locals()}
@@ -141,6 +171,9 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
         {**globals(), **context, **locals()}
     )
     _fit_alignment_dialog_to_screen = alignment_fit_dialog_callbacks._fit_alignment_dialog_to_screen
+    # This is the final constructor stage. Mark it complete before show(),
+    # because Qt may service a zero-delay callback during a nested paint event.
+    setattr(dialog, "_cdmw_builder_construction_complete", True)
     _alignment_startup_step(alignment_startup_text["opening_builder"])
     _record_open_step("begin")
     if embedded_alignment_builder and hasattr(self, "mesh_editor_tab"):
@@ -165,6 +198,7 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     _record_open_step("show_after")
     if embedded_alignment_builder:
         QTimer.singleShot(0, lambda: _apply_alignment_dialog_responsive_layout(force_sizes=True))
+        QTimer.singleShot(0, _reveal_embedded_builder)
     if not embedded_alignment_builder:
         _record_open_step("raise_before")
         dialog.raise_()

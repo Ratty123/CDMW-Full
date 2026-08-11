@@ -610,7 +610,15 @@ MeshEditorSelection mesh_editor_apply_selection_edit(
     const bool invert_operation = operation == "invert";
     const bool source_target = target_mode == "source" || target_mode == "part";
     std::set<int> targets;
-    if (all_operation || invert_operation || source_target) {
+    if (all_operation || invert_operation) {
+        // These operations define their result against the whole editable
+        // mesh. Deriving targets from the incoming selection makes Select All
+        // visit nothing when that selection is empty and makes Invert omit
+        // completely unselected submeshes.
+        for (const auto& entry : mesh_editor_submeshes(session)) {
+            targets.insert(entry.first);
+        }
+    } else if (source_target) {
         targets.insert(incoming.source_indices.begin(), incoming.source_indices.end());
     }
     const auto append_map_targets = [&](const auto& values) {

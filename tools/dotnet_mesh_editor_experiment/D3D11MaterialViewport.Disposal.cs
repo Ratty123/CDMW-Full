@@ -12,9 +12,12 @@ internal sealed partial class D3D11MaterialViewport
             return;
         }
         _context.PSSetShaderResources(0u, EmptyMaterialShaderResources);
-        _context.IASetVertexBuffer(0u, (ID3D11Buffer?)null, 0u);
+        // The native D3D11 unbind calls accept null COM pointers. Vortice's
+        // generated annotations mark these two parameters as non-null even
+        // though null is the documented way to release the current binding.
+        _context.IASetVertexBuffer(0u, null!, 0u);
         _context.IASetIndexBuffer((ID3D11Buffer?)null, Format.Unknown, 0);
-        _context.OMSetRenderTargets((ID3D11RenderTargetView?)null, null);
+        _context.OMSetRenderTargets((ID3D11RenderTargetView)null!, null);
     }
 
     private void DisposeBatches()
