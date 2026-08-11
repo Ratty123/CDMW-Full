@@ -1119,7 +1119,10 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('archive_controls_group.setObjectName("ArchiveControlsPanel")', source)
         self.assertIn("archive_controls_font.setPointSize(max(8, archive_controls_font.pointSize() - 1))", source)
         self.assertIn("archive_controls_min, _archive_controls_pref, archive_controls_max = self._archive_controls_sidebar_bounds()", source)
-        self.assertIn("self.archive_extension_picker_button.setEnabled(not busy)", source)
+        self.assertIn(
+            "self.archive_extension_picker_button.setEnabled(not busy and bool(self._archive_extension_counts()))",
+            source,
+        )
         self.assertIn("self.archive_log_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)", source)
         self.assertIn("archive_controls_layout.addWidget(archive_log_panel, 1)", source)
         self.assertIn("archive_controls_wrapper_layout.addWidget(archive_controls_group, 1)", source)

@@ -122,7 +122,7 @@ class LogControllerMixin:
         self.archive_path_search_button.setEnabled(not busy)
         self.archive_exclude_filter_edit.setEnabled(not busy)
         self.archive_extension_filter_combo.setEnabled(not busy)
-        self.archive_extension_picker_button.setEnabled(not busy)
+        self.archive_extension_picker_button.setEnabled(not busy and bool(self._archive_extension_counts()))
         self.archive_package_filter_edit.setEnabled(not busy)
         self._set_archive_structure_filter_enabled(not busy)
         self._refresh_dashboard()

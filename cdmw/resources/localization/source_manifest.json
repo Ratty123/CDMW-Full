@@ -8276,7 +8276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 870,
+          "line": 871,
           "sink": "append_archive_log"
         }
       ]
@@ -8316,12 +8316,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 841,
+          "line": 842,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 842,
+          "line": 843,
           "sink": "append_archive_log"
         }
       ]
@@ -9646,7 +9646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 813,
+          "line": 814,
           "sink": "append_archive_log"
         }
       ]
@@ -14581,7 +14581,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 830,
+          "line": 831,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -14661,7 +14661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 836,
+          "line": 837,
           "sink": "_set_archive_cache_health"
         }
       ]
@@ -28686,12 +28686,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 266,
+          "line": 269,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 280,
+          "line": 283,
           "sink": "setText"
         },
         {
@@ -39471,12 +39471,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 254,
+          "line": 257,
           "sink": "setPlaceholderText"
         },
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 278,
+          "line": 281,
           "sink": "setPlaceholderText"
         },
         {
@@ -75696,7 +75696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/filter_controls.py",
-          "line": 240,
+          "line": 243,
           "sink": "setText"
         },
         {
@@ -95526,7 +95526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 807,
+          "line": 808,
           "sink": "append_archive_log"
         }
       ]
@@ -105671,7 +105671,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 830,
+          "line": 831,
           "sink": "_set_archive_cache_health"
         },
         {
@@ -190561,7 +190561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
-          "line": 836,
+          "line": 837,
           "sink": "_set_archive_cache_health"
         },
         {

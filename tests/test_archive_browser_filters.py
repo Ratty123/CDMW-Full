@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+from collections import Counter
 import os
 import threading
+from types import SimpleNamespace
 import unittest
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QComboBox
+from PySide6.QtWidgets import QApplication, QComboBox, QPushButton, QToolButton
 
+from cdmw.domain.archives.catalogue import ArchiveFacet, ArchiveFacetsResult
 from cdmw.domain.archives.filters import (
     archive_browser_entry_category,
     archive_filter_text_explicitly_requests_item_name,
@@ -21,7 +24,9 @@ from cdmw.ui.archive_browser.filters import (
     archive_browser_entry_category as ui_archive_browser_entry_category,
     build_archive_category_entry_index as ui_build_archive_category_entry_index,
 )
+from cdmw.ui.archive_browser.filter_controls import ArchiveFilterControlsMixin
 from cdmw.ui.archive_browser.filter_workers import _record_archive_filter_worker_lifecycle
+from cdmw.ui.archive_browser.remote_window_bridge import ArchiveRemoteWindowBridge
 from cdmw.ui.archive_browser.workers import _record_archive_worker_lifecycle
 from cdmw.ui.texture_workflow.workflow_profiles_panel import TextureWorkflowProfilesPanelMixin
 
@@ -40,6 +45,52 @@ def _entry(path: str) -> ArchiveEntry:
 
 
 class ArchiveBrowserFilterTests(unittest.TestCase):
+    def test_extension_picker_waits_for_remote_facets_then_enables(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        host_type = type(
+            "ArchiveFilterControlsHost",
+            (ArchiveFilterControlsMixin, ArchiveFilterStateMixin, TextureWorkflowProfilesPanelMixin),
+            {},
+        )
+        host = host_type()
+        host.archive_filters_dirty = False
+        host.archive_filter_apply_button = QPushButton()
+        host.archive_path_search_button = QPushButton()
+        host.archive_filter_clear_button = QPushButton()
+        host.archive_asset_catalog_button = QPushButton()
+        host.archive_clear_asset_scope_button = QPushButton()
+        host.archive_extension_picker_button = QToolButton()
+        host.archive_extension_filter_combo = QComboBox()
+        host.archive_active_asset_catalog_scope = ""
+        host.archive_item_asset_catalog = {}
+        host.archive_entries_by_extension = {}
+        host.archive_extension_counts = Counter()
+        host.archive_entries = []
+        host.archive_remote_query_pending = False
+        host.archive_remote_bridge = None
+        host.worker_thread = None
+
+        host._update_archive_filter_button_state()
+
+        self.assertFalse(host.archive_extension_picker_button.isEnabled())
+
+        bridge = SimpleNamespace(_shadow=False, _window=host)
+        ArchiveRemoteWindowBridge._handle_facets(
+            bridge,
+            ArchiveFacetsResult(
+                "session-a",
+                (ArchiveFacet(".pac", ".pac", 12), ArchiveFacet(".dds", ".dds", 4)),
+                (),
+                (),
+                (),
+            ),
+        )
+
+        self.assertTrue(host.archive_extension_picker_button.isEnabled())
+        self.assertEqual(12, host.archive_extension_counts[".pac"])
+        self.assertEqual(3, host.archive_extension_filter_combo.count())
+        self.assertIs(app, QApplication.instance())
+
     def test_editable_extension_filter_removes_all_files_prefix(self) -> None:
         app = QApplication.instance() or QApplication([])
         host_type = type("ArchiveFilterHost", (ArchiveFilterStateMixin, TextureWorkflowProfilesPanelMixin), {})

@@ -222,6 +222,9 @@ class ArchiveFilterControlsMixin:
         can_apply = self.worker_thread is None and not remote_pending and self.archive_filters_dirty
         self.archive_filter_apply_button.setEnabled(can_apply)
         self.archive_path_search_button.setEnabled(self.worker_thread is None and not remote_pending)
+        self.archive_extension_picker_button.setEnabled(
+            self.worker_thread is None and not remote_pending and bool(self._archive_extension_counts())
+        )
         self.archive_filter_clear_button.setEnabled(self.worker_thread is None and not remote_pending)
         self.archive_asset_catalog_button.setEnabled(
             self.worker_thread is None
