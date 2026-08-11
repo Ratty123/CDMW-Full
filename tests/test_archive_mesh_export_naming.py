@@ -283,7 +283,7 @@ class ArchiveMeshExportNamingTests(unittest.TestCase):
                 "source_skeleton": None,
                 "supplemental_files": (),
                 "scene_import_result": None,
-                "activate": True,
+                "activate": False,
             },
             preview_shell.opened[0],
         )
@@ -322,7 +322,7 @@ class ArchiveMeshExportNamingTests(unittest.TestCase):
 
         self.assertEqual("modify_original", shell.opened[0]["mode"])
         self.assertEqual(clone_path, shell.opened[0]["source_path"])
-        self.assertTrue(shell.opened[0]["activate"])
+        self.assertFalse(shell.opened[0]["activate"])
 
 
 if __name__ == "__main__":

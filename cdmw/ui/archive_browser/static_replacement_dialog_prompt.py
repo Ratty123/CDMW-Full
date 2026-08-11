@@ -368,7 +368,6 @@ def prompt_archive_static_replacement_options(
     )
     if transform_result is construction_failed:
         return
-    setattr(dialog, "_cdmw_builder_construction_complete", True)
     return
 
 

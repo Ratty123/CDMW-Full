@@ -453,7 +453,10 @@ class ArchiveMeshLaunchFlowMixin:
             source_skeleton=setup.source_skeleton,
             supplemental_files=setup.supplemental_files,
             scene_import_result=setup.scene_import_result,
-            activate=True,
+            # Static replacement owns an embedded Builder. Do not expose the
+            # standalone Mesh Editor shell while that Builder is still being
+            # prepared; the final open step reveals the complete surface.
+            activate=import_mode != "static_replacement",
         )
         if scene_path_obj.suffix.lower() in {".dae", ".gltf", ".glb", ".pac", ".pam", ".pamlod"}:
             self.append_archive_log(mesh_import_replacement_mode_log(scene_path_obj.suffix))

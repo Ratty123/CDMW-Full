@@ -10,6 +10,8 @@ namespace Cdmw.MeshEditorExperiment;
 /// </summary>
 internal sealed partial class ExperimentForm
 {
+    private Action<string, IReadOnlyDictionary<string, object?>>? _diagnosticProtocolObserver;
+
     internal Dictionary<string, object?> AllEditMeshToolsDiagnosticProof()
     {
         BuildAuthoringToolPanels();
@@ -21,8 +23,12 @@ internal sealed partial class ExperimentForm
             out var materialError);
 
         var protocolEvents = new List<(string Name, Dictionary<string, object?> Payload)>();
+        var formProtocolEvents = new List<(string Name, Dictionary<string, object?> Payload)>();
         void Capture(string name, Dictionary<string, object?> payload) =>
             protocolEvents.Add((name, new Dictionary<string, object?>(payload)));
+        var previousProtocolObserver = _diagnosticProtocolObserver;
+        _diagnosticProtocolObserver = (name, payload) =>
+            formProtocolEvents.Add((name, new Dictionary<string, object?>(payload)));
 
         _viewport.EditorEventRequested += Capture;
         try
@@ -47,7 +53,15 @@ internal sealed partial class ExperimentForm
             }
 
             var commandPages = RunEditMeshCommandPageDiagnostics();
+            var controlSurface = RunEditMeshControlSurfaceDiagnostics();
             var finalFrame = RunEditMeshDiagnosticFrame();
+            var formProtocolOk = formProtocolEvents.Any(item =>
+                    item.Name == "command_request"
+                    && Convert.ToString(item.Payload.GetValueOrDefault("command")) == "recalculate_normals")
+                && formProtocolEvents.Any(item =>
+                    item.Name == "command_request"
+                    && Convert.ToString(item.Payload.GetValueOrDefault("command")) == "morph_state_request")
+                && formProtocolEvents.Count(item => item.Name == "part_material_edit_request") >= 4;
             var requiredRows = EditMeshToolListContract.RowOrder
                 .Select(row => row.Key)
                 .ToArray();
@@ -69,6 +83,8 @@ internal sealed partial class ExperimentForm
                     && _viewport.HasTexturedMaterialResources
                     && interactionsOk
                     && pagesOk
+                    && controlSurface.GetValueOrDefault("ok") is true
+                    && formProtocolOk
                     && finalFrame.GetValueOrDefault("ok") is true
                     && allRowsCovered
                     && string.Equals(
@@ -89,7 +105,16 @@ internal sealed partial class ExperimentForm
                 ["all_rail_rows_covered"] = allRowsCovered,
                 ["interaction_cases"] = interactionCases,
                 ["command_pages"] = commandPages,
+                ["control_surface"] = controlSurface,
+                ["form_protocol_ok"] = formProtocolOk,
                 ["captured_viewport_protocol_events"] = protocolEvents.Count,
+                ["captured_form_protocol_events"] = formProtocolEvents.Select(item =>
+                    new Dictionary<string, object?>
+                    {
+                        ["event"] = item.Name,
+                        ["command"] = item.Payload.GetValueOrDefault("command"),
+                        ["request_id"] = item.Payload.GetValueOrDefault("request_id"),
+                    }).ToArray(),
                 ["final_frame"] = finalFrame,
                 ["renderer_resources"] = _viewport.RendererResourceMetricsPayload(),
             };
@@ -97,7 +122,239 @@ internal sealed partial class ExperimentForm
         finally
         {
             _viewport.EditorEventRequested -= Capture;
+            _diagnosticProtocolObserver = previousProtocolObserver;
         }
+    }
+
+    private Dictionary<string, object?> RunEditMeshControlSurfaceDiagnostics()
+    {
+        static string[] ComboItems(ComboBox combo) => combo.Items
+            .Cast<object>()
+            .Select(item => Convert.ToString(item) ?? string.Empty)
+            .ToArray();
+
+        var requiredButtons = new[]
+        {
+            "◰    Select", "✥    Move", "✜    Grab", "◍    Smooth", "◉    Inflate",
+            "◇    Pinch", "△    Topology", "◧    Colour", "◑    Morph & Refit", "▾  Morph & Refit",
+            "Clear Selection", "Select All", "Invert", "Undo", "Redo", "Save Edited Package",
+            "Grow", "Shrink", "-X", "+X", "-Y", "+Y", "-Z", "+Z",
+            "Delete Selection", "Duplicate Selection", "Subdivide", "Refine Smooth",
+            "Tint...", "Recolour...", "Glow...", "Reset Colour", "Split Selection Into Part",
+            "All", "None", "Hide", "Duplicate", "Delete",
+            "Copy", "Paste", "Rename", "Up", "Down",
+            "Create Profile...", "Save Profile", "Delete Profile", "Save Preset...", "Delete Preset",
+            "1. Set Selected Driver Parts", "2. Bind Selected Garment Parts", "Clear Refit",
+            "Apply to Selected Garments", "Reset", "Bake",
+            "Front", "Back", "Top", "Left", "Right", "Bottom", "-15", "+15", "Fit", "Orbit",
+        };
+        var requiredDynamicButtonPrefixes = new[]
+        {
+            "Background\n", "Grid\n", "Wire\n", "Vertices\n", "Selected\n", "Live\n",
+        };
+        var knownPlacementButtons = new[]
+        {
+            "Imported / Modify (focus)", "Original (focus)", "Move", "Rotate", "Scale",
+        };
+        var buttonInventory = DescendantControls(this)
+            .OfType<Button>()
+            .Select(button => button.Text)
+            .Where(text => !string.IsNullOrWhiteSpace(text))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(text => text, StringComparer.Ordinal)
+            .ToArray();
+        var missingButtons = requiredButtons
+            .Where(text => !buttonInventory.Contains(text, StringComparer.Ordinal))
+            .ToArray();
+        var missingDynamicButtons = requiredDynamicButtonPrefixes
+            .Where(prefix => !buttonInventory.Any(text =>
+                text.StartsWith(prefix, StringComparison.Ordinal)))
+            .ToArray();
+        var unexpectedButtons = buttonInventory
+            .Where(text => !requiredButtons.Contains(text, StringComparer.Ordinal)
+                && !knownPlacementButtons.Contains(text, StringComparer.Ordinal)
+                && !requiredDynamicButtonPrefixes.Any(prefix =>
+                    text.StartsWith(prefix, StringComparison.Ordinal)))
+            .ToArray();
+
+        var expectedDisplayModes = new[]
+        {
+            "textured", "untextured_faces", "untextured_wire", "wire",
+            "vertices", "wire_vertices", "xray",
+        };
+        var previewCases = new List<Dictionary<string, object?>>();
+        for (var index = 0; index < _previewMode.Items.Count; index++)
+        {
+            _previewMode.SelectedIndex = index;
+            var frame = RunEditMeshDiagnosticFrame();
+            var expectedMode = index < expectedDisplayModes.Length
+                ? expectedDisplayModes[index]
+                : string.Empty;
+            var modeMatches = string.Equals(
+                _viewport.DisplayMode,
+                expectedMode,
+                StringComparison.OrdinalIgnoreCase);
+            var xrayMatches = _viewport.ShowXRay == (index == 6);
+            previewCases.Add(new Dictionary<string, object?>
+            {
+                ["index"] = index,
+                ["label"] = Convert.ToString(_previewMode.Items[index]),
+                ["display_mode"] = _viewport.DisplayMode,
+                ["frame"] = frame,
+                ["mode_matches"] = modeMatches,
+                ["xray_matches"] = xrayMatches,
+                ["ok"] = frame.GetValueOrDefault("ok") is true
+                    && modeMatches
+                    && xrayMatches,
+            });
+        }
+        _previewMode.SelectedIndex = 6;
+        var xrayEnabled = _xray.Checked && _viewport.ShowXRay;
+        _xray.Checked = false;
+        var xrayDisabledConsistently = _previewMode.SelectedIndex == 4
+            && !_xray.Checked
+            && !_viewport.ShowXRay;
+        _previewMode.SelectedIndex = 0;
+        var restoredTextured = string.Equals(
+                _viewport.DisplayMode,
+                "textured",
+                StringComparison.OrdinalIgnoreCase)
+            && _viewport.TexturesEnabled
+            && _viewport.HasTexturedMaterialResources;
+
+        var cameraExpectations = new (string Preset, float Yaw, float Pitch)[]
+        {
+            ("front", 0.0f, 0.0f),
+            ("back", 180.0f, 0.0f),
+            ("top", 0.0f, -1.35f * 180.0f / MathF.PI),
+            ("left", -90.0f, 0.0f),
+            ("right", 90.0f, 0.0f),
+            ("bottom", 0.0f, 1.35f * 180.0f / MathF.PI),
+        };
+        var cameraCases = new List<Dictionary<string, object?>>();
+        foreach (var expected in cameraExpectations)
+        {
+            _viewport.SetCameraPreset(expected.Preset);
+            var frame = RunEditMeshDiagnosticFrame();
+            var camera = EditMeshDiagnosticCameraState();
+            var yaw = Convert.ToSingle(camera.GetValueOrDefault("yaw_degrees"));
+            var pitch = Convert.ToSingle(camera.GetValueOrDefault("pitch_degrees"));
+            var cameraMatches = MathF.Abs(yaw - expected.Yaw) <= 0.01f
+                && MathF.Abs(pitch - expected.Pitch) <= 0.01f;
+            cameraCases.Add(new Dictionary<string, object?>
+            {
+                ["command"] = expected.Preset,
+                ["yaw_degrees"] = yaw,
+                ["pitch_degrees"] = pitch,
+                ["camera_matches"] = cameraMatches,
+                ["ok"] = frame.GetValueOrDefault("ok") is true && cameraMatches,
+                ["frame"] = frame,
+            });
+        }
+        var yawStart = Convert.ToSingle(
+            EditMeshDiagnosticCameraState().GetValueOrDefault("yaw_degrees"));
+        _viewport.RotateYawDegrees(-15.0f);
+        var yawNegative = Convert.ToSingle(
+            EditMeshDiagnosticCameraState().GetValueOrDefault("yaw_degrees"));
+        _viewport.RotateYawDegrees(30.0f);
+        var yawPositive = Convert.ToSingle(
+            EditMeshDiagnosticCameraState().GetValueOrDefault("yaw_degrees"));
+        _viewport.RotateYawDegrees(-15.0f);
+        var yawRestored = Convert.ToSingle(
+            EditMeshDiagnosticCameraState().GetValueOrDefault("yaw_degrees"));
+        var yawRoundTrip = MathF.Abs(yawNegative - (yawStart - 15.0f)) <= 0.01f
+            && MathF.Abs(yawPositive - (yawStart + 15.0f)) <= 0.01f
+            && MathF.Abs(yawRestored - yawStart) <= 0.01f;
+        _viewport.FrameMesh();
+        var fitRelativeZoom = Convert.ToSingle(
+            EditMeshDiagnosticCameraState().GetValueOrDefault("fit_relative_zoom"));
+        var fitAtBaseline = MathF.Abs(fitRelativeZoom - 1.0f) <= 0.001f;
+        ActivateTool("orbit", "Orbit", announce: false);
+        var orbitFrame = RunEditMeshDiagnosticFrame();
+        var orbitActivated = string.Equals(
+            _viewport.ActiveTool,
+            "orbit",
+            StringComparison.OrdinalIgnoreCase);
+        ActivateTool("select", "Select", announce: false);
+
+        var targetItems = ComboItems(_selectionTarget);
+        var shapeItems = ComboItems(_selectionShape);
+        var operationItems = ComboItems(_selectionOperation);
+        var falloffItems = ComboItems(_falloff);
+        var comboContractOk = targetItems.SequenceEqual(new[] { "Vertices", "Wires", "Faces" })
+            && shapeItems.SequenceEqual(new[] { "Brush", "Rectangle", "Lasso" })
+            && operationItems.SequenceEqual(new[] { "Add", "Replace", "Subtract", "Toggle" })
+            && falloffItems.SequenceEqual(new[] { "Smooth", "Linear", "Constant" });
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = missingButtons.Length == 0
+                && missingDynamicButtons.Length == 0
+                && unexpectedButtons.Length == 0
+                && comboContractOk
+                && previewCases.All(item => item.GetValueOrDefault("ok") is true)
+                && cameraCases.All(item => item.GetValueOrDefault("ok") is true)
+                && yawRoundTrip
+                && fitAtBaseline
+                && orbitActivated
+                && orbitFrame.GetValueOrDefault("ok") is true
+                && xrayEnabled
+                && xrayDisabledConsistently
+                && restoredTextured,
+            ["button_inventory"] = buttonInventory,
+            ["required_buttons"] = requiredButtons,
+            ["missing_buttons"] = missingButtons,
+            ["required_dynamic_button_prefixes"] = requiredDynamicButtonPrefixes,
+            ["missing_dynamic_buttons"] = missingDynamicButtons,
+            ["known_placement_buttons"] = knownPlacementButtons,
+            ["unexpected_buttons"] = unexpectedButtons,
+            ["selection_targets"] = targetItems,
+            ["selection_shapes"] = shapeItems,
+            ["selection_operations"] = operationItems,
+            ["brush_falloffs"] = falloffItems,
+            ["combo_contract_ok"] = comboContractOk,
+            ["preview_cases"] = previewCases,
+            ["camera_cases"] = cameraCases,
+            ["yaw_round_trip"] = yawRoundTrip,
+            ["yaw_samples"] = new[] { yawStart, yawNegative, yawPositive, yawRestored },
+            ["fit_relative_zoom"] = fitRelativeZoom,
+            ["fit_at_baseline"] = fitAtBaseline,
+            ["orbit_activated"] = orbitActivated,
+            ["orbit_frame"] = orbitFrame,
+            ["xray_enabled"] = xrayEnabled,
+            ["xray_disabled_consistently"] = xrayDisabledConsistently,
+            ["restored_solid_textured"] = restoredTextured,
+            ["dialog_backed_controls"] = new[]
+            {
+                "Tint...", "Recolour...", "Glow...", "Create Profile...", "Save Preset...",
+            },
+        };
+    }
+
+    private static IEnumerable<Control> DescendantControls(Control root)
+    {
+        foreach (Control child in root.Controls)
+        {
+            yield return child;
+            foreach (var descendant in DescendantControls(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    private Dictionary<string, object?> EditMeshDiagnosticCameraState()
+    {
+        var presentation = _viewport.PresentationStatusPayload();
+        var activeContext = Convert.ToString(
+            presentation.GetValueOrDefault("active_camera_context"));
+        var contexts = presentation.GetValueOrDefault("view_contexts")
+            as IEnumerable<Dictionary<string, object?>>;
+        var context = contexts?.FirstOrDefault(item => string.Equals(
+            Convert.ToString(item.GetValueOrDefault("id")),
+            activeContext,
+            StringComparison.Ordinal));
+        return context?.GetValueOrDefault("camera") as Dictionary<string, object?>
+            ?? new Dictionary<string, object?>();
     }
 
     private Dictionary<string, object?> RunEditMeshInteractionDiagnostic(
@@ -208,13 +465,42 @@ internal sealed partial class ExperimentForm
             ToolRailPage.Colour,
             () =>
             {
-                QueuePartColourEdit(new Dictionary<string, object?>
+                var edits = new[]
                 {
-                    ["tint_rgb"] = new[] { 224, 240, 255 },
-                });
-                var queued = _pendingPartColourEdit is { Count: > 0 };
-                FlushPartColourEdit();
-                return queued && _pendingPartColourEdit is null;
+                    new Dictionary<string, object?>
+                    {
+                        ["tint_rgb"] = new[] { 224, 240, 255 },
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["colourise_rgb"] = new[] { 255, 96, 64 },
+                        ["colourise_strength"] = 0.65f,
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["emissive_enabled"] = true,
+                        ["emissive_rgb"] = new[] { 96, 160, 255 },
+                        ["emissive_strength"] = 2.0f,
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["reset"] = true,
+                    },
+                };
+                foreach (var edit in edits)
+                {
+                    QueuePartColourEdit(edit);
+                    if (_pendingPartColourEdit is not { Count: > 0 })
+                    {
+                        return false;
+                    }
+                    FlushPartColourEdit();
+                    if (_pendingPartColourEdit is not null)
+                    {
+                        return false;
+                    }
+                }
+                return true;
             }));
         rows.Add(RunEditMeshCommandPageDiagnostic(
             "morph",

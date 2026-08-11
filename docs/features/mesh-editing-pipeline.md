@@ -362,7 +362,13 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   unregisters itself, records the traceback, and returns Archive Preview to a
   usable state. Advanced Texture Tuning and source-parts controls are inserted
   into their owning layout before visibility is applied, so setup sections never
-  flash or survive as parentless top-level windows.
+  flash or survive as parentless top-level windows. Archive Browser remains the
+  active workspace while a static-replacement builder is being assembled. The
+  completed child is mounted and shown while its parent tab is still hidden,
+  the startup overlay closes, and only then does one queued reveal activate Mesh
+  Editor. Runtime open-step diagnostics record mount, overlay close, show, and
+  reveal in order, or name the exact construction, parent, visibility, or
+  progress condition that blocked the reveal.
 - The .NET/Vortice child starts automatically when an embedded replacement
   builder or standalone original/imported mesh session is ready. `Edit Mesh`
   now changes the resident scene from placement-only interaction to geometry
@@ -955,6 +961,19 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   decisions, so a texture failure, queue stall, coalesced held gesture, stale
   result, or failed terminal reconciliation can be tied to one session without
   reproducing it under a debugger.
+- The hidden `headless-edit-mesh-diagnostics` scenario supplies a synthetic
+  package and texture to the production Vortice form, Python dispatcher, and
+  native edit session. It inventories the complete declared control surface and
+  verifies command results for every selection family, axis nudge, topology
+  action, part action, geometry-layer action, colour publication, and Morph &
+  Refit variant. Move and Grab each stream 320 updates and require bounded
+  coalescing, exact final native authority, an idle dispatcher, and no snap-back;
+  Brush/Lasso/Rectangle cover vertex, wire, and face targets plus all selection
+  operations. All seven display modes, X-Ray disable behavior, camera presets,
+  fit, yaw, and orbit run against a real hidden D3D frame. The gate writes the
+  correlated protocol, command, timeline, renderer, and flight-recorder evidence
+  without opening a window or reading a licensed asset; it does not replace PAC
+  visual or real-game validation.
 - External static replacement/import previews clear inherited reference
   skeleton and physics overlay metadata by default. Overlays are preserved only
   through explicit diagnostic/overlay paths. Native original-reference splicing

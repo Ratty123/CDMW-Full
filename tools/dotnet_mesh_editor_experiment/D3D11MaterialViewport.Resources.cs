@@ -9,7 +9,7 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class D3D11MaterialViewport
 {
-    private static readonly ID3D11ShaderResourceView?[] EmptyMaterialShaderResources = new ID3D11ShaderResourceView?[11];
+    private static readonly ID3D11ShaderResourceView[] EmptyMaterialShaderResources = new ID3D11ShaderResourceView[11];
     private bool _materialResourcesDirty;
     private bool _textureResourceRefreshActive;
     private long _textureSrvCreateCount;

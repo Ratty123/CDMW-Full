@@ -22,6 +22,9 @@ from cdmw.ui.archive_browser import (
     as original_texture_callbacks,
 )
 from tools.mesh_harness.fixtures import build_synthetic_mesh
+from tools.mesh_harness.edit_mesh_command_diagnostics import (
+    run_edit_mesh_command_diagnostics,
+)
 from tools.mesh_harness.native_projection import (
     _matrix_only_screen_payload,
     _screen_drag_for_z_delta,
@@ -214,16 +217,16 @@ def _run_selection_gesture(
     target: str,
     request_sequence: int,
     sustained: bool = False,
+    operation: str = "replace",
+    expect_nonzero: bool = True,
 ) -> tuple[dict[str, object], int]:
-    stroke_id = f"diagnostic-{shape}-{target}-{request_sequence}"
+    stroke_id = f"diagnostic-{shape}-{target}-{operation}-{request_sequence}"
     calls: list[dict[str, object]] = []
 
     def submit(
         phase: str,
         sequence: int,
         screen: dict[str, object] | None = None,
-        *,
-        operation: str = "add",
     ) -> None:
         nonlocal request_sequence
         request_sequence += 1
@@ -253,7 +256,7 @@ def _run_selection_gesture(
             }
         )
 
-    submit("begin", 0, operation="replace")
+    submit("begin", 0)
     update_count = 320 if sustained else 1 if shape == "brush" else 0
     final_screen: dict[str, object] | None = None
     for index in range(update_count):
@@ -268,27 +271,27 @@ def _run_selection_gesture(
             screen = {"screen_brush": _screen_brush(x, y)}
         else:
             screen = {"screen_region": _screen_region(shape)}
-        submit(
-            "update",
-            index + 1,
-            screen,
-            operation="replace" if index == 0 else "add",
-        )
+        final_screen = screen
+        submit("update", index + 1, screen)
     if shape != "brush":
         final_screen = {"screen_region": _screen_region(shape)}
-    submit("end", update_count + 1, final_screen, operation="add")
+    submit("end", update_count + 1, final_screen)
     idle = _wait_for_live_stroke_idle(tab, app, timeout_seconds=10.0)
     selection = tab.standalone_controller.session_view().selection
     selected_count = _selection_count(selection, target)
+    selection_matches = selected_count > 0 if expect_nonzero else selected_count == 0
     dispatch_times = [float(item["dispatch_ms"]) for item in calls]
     return (
         {
             "ok": idle
             and all(item["accepted"] for item in calls)
-            and selected_count > 0
+            and selection_matches
             and max(dispatch_times, default=0.0) < 100.0,
             "shape": shape,
             "target": target,
+            "operation": operation,
+            "expect_nonzero": expect_nonzero,
+            "selection_matches_expectation": selection_matches,
             "sustained": sustained,
             "submitted_samples": update_count,
             "selected_count": selected_count,
@@ -356,12 +359,17 @@ def _run_dotnet_stroke(
         "screen_radius": {**_screen_brush(100.0, 100.0, 200.0), "amount_scale": 0.08},
     }
 
+    sequence = 0
+
     def submit(phase: str, screen_drag: dict[str, object] | None = None) -> None:
         nonlocal request_sequence
+        nonlocal sequence
         request_sequence += 1
+        sequence += 1
         payload = {
             **base_payload,
             "request_id": request_sequence,
+            "sequence": sequence,
             "event": f"stroke_{phase}",
         }
         if screen_drag is not None:
@@ -376,11 +384,17 @@ def _run_dotnet_stroke(
             }
         )
 
+    sustained = tool in {"move", "grab"}
+    update_count = 320 if sustained else 1
+    dispatcher_before = dict(tab.standalone_live_stroke_dispatcher.metrics())
     begin_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.0))
-    update_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.08))
     submit("begin", begin_drag)
     begin_idle = _wait_for_live_stroke_idle(tab, app, timeout_seconds=10.0)
-    submit("update", update_drag)
+    for index in range(1, update_count + 1):
+        update_drag = _matrix_only_screen_payload(
+            _screen_drag_for_z_delta(0.08 * index / update_count)
+        )
+        submit("update", update_drag)
     update_idle = _wait_for_live_stroke_idle(tab, app, timeout_seconds=10.0)
     after_update = _vertices(controller)
     submit("end")
@@ -389,6 +403,12 @@ def _run_dotnet_stroke(
     changed_distance = _max_vertex_distance(before, after_update)
     snapback_distance = _max_vertex_distance(after_update, after_end)
     undo = controller.undo()
+    dispatcher_after = dict(tab.standalone_live_stroke_dispatcher.metrics())
+    dispatch_times = [float(call["dispatch_ms"]) for call in calls]
+    dispatcher_drained = all(
+        int(dispatcher_after.get(key, 0) or 0) == 0
+        for key in ("active", "control_depth", "queue_depth")
+    )
     return (
         {
             "ok": begin_idle
@@ -397,16 +417,25 @@ def _run_dotnet_stroke(
             and all(call["accepted"] for call in calls)
             and changed_distance > 1.0e-8
             and snapback_distance <= 1.0e-8
+            and dispatcher_drained
+            and max(dispatch_times, default=0.0) < 100.0
             and undo.ok,
             "tool": tool,
+            "sustained": sustained,
+            "submitted_update_samples": update_count,
             "changed_distance": changed_distance,
             "snapback_distance": snapback_distance,
             "begin_idle": begin_idle,
             "update_idle": update_idle,
             "end_idle": end_idle,
-            "calls": calls,
+            "maximum_submit_ms": max(dispatch_times, default=0.0),
+            "average_submit_ms": sum(dispatch_times) / max(1, len(dispatch_times)),
+            "calls": calls if len(calls) <= 12 else calls[:3] + calls[-8:],
             "undo": _command_summary(undo),
-            "dispatcher_metrics": dict(tab.standalone_live_stroke_dispatcher.metrics()),
+            "dispatcher_drained": dispatcher_drained,
+            "coalesced_updates": int(dispatcher_after.get("coalesced_updates", 0) or 0)
+            - int(dispatcher_before.get("coalesced_updates", 0) or 0),
+            "dispatcher_metrics": dispatcher_after,
         },
         request_sequence,
     )
@@ -448,6 +477,23 @@ def _run_native_edit_authority() -> dict[str, object]:
                     sustained=shape == "brush" and target == "face",
                 )
                 selections.append(result)
+        selection_operations: list[dict[str, object]] = []
+        for operation, expect_nonzero in (
+            ("replace", True),
+            ("subtract", False),
+            ("add", True),
+            ("toggle", False),
+        ):
+            result, request_sequence = _run_selection_gesture(
+                tab,
+                app,
+                shape="lasso",
+                target="face",
+                request_sequence=request_sequence,
+                operation=operation,
+                expect_nonzero=expect_nonzero,
+            )
+            selection_operations.append(result)
         strokes: list[dict[str, object]] = []
         for tool in ("move", "grab", "smooth", "inflate", "pinch"):
             result, request_sequence = _run_dotnet_stroke(
@@ -470,14 +516,21 @@ def _run_native_edit_authority() -> dict[str, object]:
             "command": _command_summary(topology),
             "undo": _command_summary(topology_undo),
         }
+        command_surface, request_sequence = run_edit_mesh_command_diagnostics(
+            tab, app, request_sequence
+        )
         return {
             "ok": all(item["ok"] for item in selections)
+            and all(item["ok"] for item in selection_operations)
             and all(item["ok"] for item in strokes)
+            and command_surface["ok"] is True
             and topology_result["ok"] is True,
             "native_core_available": True,
             "edit_backend": "cdmw_mesh_core_0.1",
             "selection_cases": selections,
+            "selection_operation_cases": selection_operations,
             "stroke_cases": strokes,
+            "command_surface": command_surface,
             "topology": topology_result,
             "final_revision": controller.session_view().revision,
             "host_call_counts": dict(Counter(host.calls)),
@@ -618,6 +671,16 @@ def _run_native_morph_refit() -> dict[str, object]:
         uploaded = command("morph_upload", _morph_profile(mesh))
         driver = command("morph_set_driver", {"submesh_indices": [0]})
         bound = command("morph_bind", {"garment_submesh_indices": [1]})
+        rigid_configured = command(
+            "morph_configure_refit",
+            {
+                "garment_submesh_indices": [1],
+                "enabled": True,
+                "intensity_percent": 80.0,
+                "mode": "rigid",
+                "clearance_percent": 2.0,
+            },
+        )
         configured = command(
             "morph_configure_refit",
             {
@@ -650,19 +713,43 @@ def _run_native_morph_refit() -> dict[str, object]:
         after_redo = snapshot()
         reset = command("morph_reset")
         after_reset = snapshot()
+        command(
+            "morph_change",
+            {
+                "definition_id": "lift",
+                "value": 60.0,
+                "phase": "end",
+                "change_id": "headless-morph-bake",
+            },
+        )
+        before_bake = snapshot()
+        baked = command("morph_bake")
+        after_bake = snapshot()
+        cleared = command("morph_clear_refit")
         refit = bound["morph_state"]["refit"]
+        rigid_settings = {
+            str(item["submesh_index"]): item
+            for item in rigid_configured["morph_state"]["refit"]["garment_settings"]
+        }
         settings = configured["morph_state"]["refit"]["garment_settings"]
         driver_delta = after.submeshes[0].vertices[0][2] - mesh.submeshes[0].vertices[0][2]
         garment_delta = after.submeshes[1].vertices[0][2] - mesh.submeshes[1].vertices[0][2]
         undo_restored = after_undo.submeshes[0].vertices == mesh.submeshes[0].vertices
         redo_restored = after_redo.submeshes[1].vertices == after.submeshes[1].vertices
         reset_restored = after_reset.submeshes[0].vertices == mesh.submeshes[0].vertices
+        bake_preserved = all(
+            after_bake.submeshes[index].vertices == before_bake.submeshes[index].vertices
+            for index in range(len(after_bake.submeshes))
+        )
         untouched_preserved = after.submeshes[2].vertices == mesh.submeshes[2].vertices
         return {
             "ok": uploaded["morph_state"]["profile_id"] == "headless-body"
             and driver["morph_state"]["driver_submesh_indices"] == [0]
             and refit["garment_submesh_indices"] == [1]
             and int(refit["bound_vertex_count"]) == len(mesh.submeshes[1].vertices)
+            and rigid_settings["1"]["mode"] == "rigid"
+            and abs(float(rigid_settings["1"]["intensity_percent"]) - 80.0) <= 1.0e-6
+            and abs(float(rigid_settings["1"]["clearance_percent"]) - 2.0) <= 1.0e-6
             and bool(settings)
             and abs(driver_delta - 0.75) <= 1.0e-6
             and abs(garment_delta - 0.75) <= 1.0e-6
@@ -674,6 +761,10 @@ def _run_native_morph_refit() -> dict[str, object]:
             and redo_restored
             and reset["morph_state"]["unbaked"] is False
             and reset_restored
+            and baked["morph_state"]["unbaked"] is False
+            and baked["morph_state"]["values"] == {"lift": 0}
+            and bake_preserved
+            and cleared["morph_state"]["refit"]["garment_submesh_indices"] == []
             and untouched_preserved,
             "edit_backend": "cdmw_mesh_core_0.1",
             "commands": commands,
@@ -685,6 +776,9 @@ def _run_native_morph_refit() -> dict[str, object]:
             "undo_restored": undo_restored,
             "redo_restored": redo_restored,
             "reset_restored": reset_restored,
+            "rigid_settings": rigid_settings,
+            "bake_preserved": bake_preserved,
+            "clear_refit_state": cleared["morph_state"]["refit"],
             "untouched_part_preserved": untouched_preserved,
         }
     except Exception as exc:

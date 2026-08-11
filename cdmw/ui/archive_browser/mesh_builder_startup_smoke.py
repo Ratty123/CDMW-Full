@@ -143,11 +143,13 @@ def _exercise_builder_mode(
     modify_original_clone_mode: bool,
 ) -> None:
     existing_keys = set(window._modeless_alignment_dialogs)
+    mode_event_start = len(events)
     prompt_archive_static_replacement_options(
         window,
         window.archive_entries[0],
         root / f"{mode_name}.obj",
         dialog_title=f"Synthetic {mode_name}",
+        embedded_host=window.mesh_editor_tab.builder_host(),
         _prepared_prompt_preflight=synthetic_builder_preflight(
             modify_original_clone_mode=modify_original_clone_mode,
         ),
@@ -172,6 +174,41 @@ def _exercise_builder_mode(
         if dialog.findChild(QComboBox, "MeshAlignmentViewportDisplayModeCombo") is None:
             raise RuntimeError(
                 f"Mesh Builder {mode_name} startup smoke is missing the viewport display control."
+            )
+        startup_progress = getattr(dialog, "_cdmw_builder_startup_progress", None)
+        if startup_progress is not None and startup_progress.isVisible():
+            raise RuntimeError(
+                f"Mesh Builder {mode_name} startup smoke revealed while startup progress remained visible."
+            )
+        if dialog.parentWidget() is not window.mesh_editor_tab.builder_host():
+            raise RuntimeError(
+                f"Mesh Builder {mode_name} startup smoke revealed an unmounted builder."
+            )
+        if not window._is_tool_visible_or_current(window.mesh_editor_tab):
+            raise RuntimeError(
+                f"Mesh Builder {mode_name} startup smoke did not reveal the Mesh Editor after construction."
+            )
+        open_steps = [
+            str(fields.get("step") or "")
+            for event, fields in events[mode_event_start:]
+            if event == "mesh_alignment_open_step"
+        ]
+        reveal_order = (
+            "mount_embedded_after",
+            "finish_progress_after",
+            "show_after",
+            "reveal_mesh_editor_before",
+            "reveal_mesh_editor_after",
+        )
+        if any(step not in open_steps for step in reveal_order) or [
+            open_steps.index(step) for step in reveal_order
+        ] != sorted(open_steps.index(step) for step in reveal_order):
+            raise RuntimeError(
+                f"Mesh Builder {mode_name} reveal order was incomplete or out of order: {open_steps!r}."
+            )
+        if any(step.startswith("reveal_skipped_") for step in open_steps):
+            raise RuntimeError(
+                f"Mesh Builder {mode_name} reveal was skipped: {open_steps!r}."
             )
     finally:
         dialog.reject()
