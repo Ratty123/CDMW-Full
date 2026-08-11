@@ -84,6 +84,7 @@ static void append_package_material_inputs(
         if (batch.base_tint_only_fallback && binding_ptr == batch.base) continue;
         const TextureBinding& binding = *binding_ptr;
         if (!job_allows_texture_role(state.job, binding.role)) continue;
+        const int owner_slot_index = binding_owner_submesh_local_index(state.submeshes, binding);
         if (!first) state.batches_json << ",";
         first = false;
         state.batches_json << "{"
@@ -123,6 +124,7 @@ static void append_package_material_inputs(
             << "\"pbd_submesh_name\":\"" << json_escape(binding.pbd_submesh_name) << "\","
             << "\"visible_class\":\"" << json_escape(binding.visible_class) << "\","
             << "\"source_authority\":\"" << json_escape(binding.source_authority) << "\","
+            << "\"owner_slot_index\":" << owner_slot_index << ","
             << "\"material_wrapper_index\":" << binding.material_wrapper_index << ","
             << "\"material_wrapper_count\":" << binding.material_wrapper_count << ","
             << "\"material_wrapper_order_authoritative\":" << (binding.material_wrapper_order_authoritative ? "true" : "false") << ","

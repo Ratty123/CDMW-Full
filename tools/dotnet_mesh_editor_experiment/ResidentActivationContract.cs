@@ -17,6 +17,34 @@ namespace Cdmw.MeshEditorExperiment;
 /// </remarks>
 internal static class ResidentActivationContract
 {
+    public static bool MatchesAcceptedPackageGeneration(
+        long activationPackageGeneration,
+        long acceptedPackageGeneration)
+    {
+        // The command-line package predates resident package generations, so
+        // zero accepted generations permit its first activation. Once a
+        // package_load_request is accepted, only that exact generation may
+        // reveal; the reader-thread generation fence cannot be overtaken by
+        // older activate requests already queued for the UI thread.
+        return acceptedPackageGeneration <= 0
+            || (activationPackageGeneration > 0
+                && activationPackageGeneration == acceptedPackageGeneration);
+    }
+
+    public static bool MatchesPendingMaterialSync(
+        bool waiting,
+        long pendingGeneration,
+        long completedGeneration,
+        string pendingSignature,
+        string completedSignature)
+    {
+        return waiting
+            && pendingGeneration > 0
+            && completedGeneration == pendingGeneration
+            && !string.IsNullOrWhiteSpace(pendingSignature)
+            && string.Equals(pendingSignature, completedSignature, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// True when activation must be refused because the only scene this helper
     /// has ever been given is the prewarm placeholder.

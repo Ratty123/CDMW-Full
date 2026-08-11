@@ -63,10 +63,6 @@ def test_package_decodes_dds_graph_inputs_and_preserves_native_support_maps(
         tmp_path / "cd_phm_01_blade_0070_mg.png",
         (0, 0, 255, 255),
     )
-    detail_height_png = _image(
-        tmp_path / "cd_texturelayer_003_0005_disp.png",
-        (128, 128, 128, 255),
-    )
     submesh = _submesh()
     submesh.preview_material_texture_inputs = (
         PreviewMaterialTextureInput(
@@ -128,13 +124,6 @@ def test_package_decodes_dds_graph_inputs_and_preserves_native_support_maps(
                 "normal_space": "auto",
             },
             {
-                "dds_path": str(detail_height_dds.resolve()),
-                "max_dimension": 256,
-                "slot_kind": "material",
-                "srgb": "linear",
-                "normal_space": "auto",
-            },
-            {
                 "dds_path": str(detail_mask_dds.resolve()),
                 "max_dimension": 512,
                 "slot_kind": "material",
@@ -153,13 +142,6 @@ def test_package_decodes_dds_graph_inputs_and_preserves_native_support_maps(
                 normal_space="auto",
             ): layer_png,
             directxtex_preview_result_key(
-                detail_height_dds,
-                max_dimension=256,
-                slot_kind="material",
-                srgb="linear",
-                normal_space="auto",
-            ): detail_height_png,
-            directxtex_preview_result_key(
                 detail_mask_dds,
                 max_dimension=512,
                 slot_kind="material",
@@ -177,7 +159,7 @@ def test_package_decodes_dds_graph_inputs_and_preserves_native_support_maps(
     binding = payload["submeshes"][0]
 
     assert binding["material_synthesis"]["succeeded"] is True
-    assert binding["material_synthesis"]["decoded_preview_input_count"] == 3
+    assert binding["material_synthesis"]["decoded_preview_input_count"] == 2
     assert "failure" not in binding["material_synthesis"]
     assert "base" in binding["material_synthesis"]["generated_channels"]
     assert "height" not in binding["material_synthesis"]["generated_channels"]
@@ -296,10 +278,12 @@ def test_raw_support_map_channels_do_not_block_the_material_compile(
 ) -> None:
     """Skipping a decode is not a read failure, and must not abort the compile.
 
-    Normal, height, and packed material inputs whose raw DDS is packaged
-    verbatim are never decoded, so the combiner reads the `.dds` itself, fails,
-    and used to leave an `unreadable:` note behind. `_material_compile_blockers`
-    treats those as hard blockers, so Solid (Textured) got no textures at all.
+    Normal and packed material inputs whose raw DDS is packaged verbatim are
+    not decoded, so the combiner probes the `.dds` itself and used to leave an
+    `unreadable:` note behind. Resident height is removed before combining when
+    a resident normal already makes derived-normal synthesis unnecessary.
+    `_material_compile_blockers` treats unreadable notes as hard blockers, so
+    Solid (Textured) got no textures at all.
     """
     layer_dds = tmp_path / "cd_texturelayer_003_0005.dds"
     layer_dds.write_bytes(b"DDS graph input placeholder")
@@ -347,13 +331,15 @@ def test_raw_support_map_channels_do_not_block_the_material_compile(
     assert binding["material_synthesis"]["succeeded"] is True
     assert not [note for note in notes if "unreadable:" in note.casefold()]
     assert "normal not decoded, raw channel packaged:cd_phm_01_blade_0070_n.dds" in notes
-    assert "height not decoded, raw channel packaged:cd_phm_01_blade_0070_disp.dds" in notes
+    assert not [note for note in notes if "height not decoded" in note.casefold()]
     assert (
         "material not decoded, raw channel packaged:cd_texturelayer_damaged_scar_sp.dds"
         in notes
     )
     assert binding["raw_resolved_channels"]["normal"] == str(normal_dds)
     assert binding["resolved_channels"]["normal"] == str(normal_dds)
+    assert binding["raw_resolved_channels"]["height"] == str(height_dds)
+    assert binding["resolved_channels"]["height"] == str(height_dds)
     assert binding["raw_resolved_channels"]["material"] == str(material_dds)
     assert binding["resolved_channels"]["material"] == str(material_dds)
     for channel in ("occlusion", "roughness", "metallic"):

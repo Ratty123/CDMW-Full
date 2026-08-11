@@ -833,6 +833,35 @@ def _synthesize_dotnet_material_channels(
     cancelled: Callable[[], bool] | None,
 ) -> tuple[dict[str, str], dict[str, object], tuple[str, ...]]:
     inputs = _package_synthesis_inputs(source, raw_contract)
+    inputs = tuple(
+        item
+        for item in inputs
+        if not (
+            _synthesis_input_channel(item) == "height"
+            and (
+                str(_input_value(item, "layer_role") or "").strip().casefold()
+                in {"damage", "detail", "grime", "layer"}
+                or any(
+                    token
+                    in str(_input_value(item, "parameter_name") or "")
+                    .strip()
+                    .casefold()
+                    for token in ("detail", "damage", "grime")
+                )
+            )
+        )
+    )
+    # A resident raw height DDS is already the renderer's authoritative height
+    # resource. When a normal is resident too, the combiner cannot derive any
+    # additional channel from that height input: it only writes a PNG that
+    # _generated_channels intentionally discards again. Avoid decoding and
+    # scanning that full map on the cold editor-open path.
+    if (
+        _local_synthesis_dds_path({"source_dds_path": raw_channels.get("height", "")})
+        is not None
+        and str(raw_channels.get("normal", "") or "").strip()
+    ):
+        inputs = tuple(item for item in inputs if _synthesis_input_channel(item) != "height")
     if not inputs:
         return dict(raw_channels), {"attempted": False, "succeeded": False}, ()
     if cancelled is not None and cancelled():

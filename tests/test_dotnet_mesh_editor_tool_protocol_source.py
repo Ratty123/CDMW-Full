@@ -78,6 +78,7 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     texture_source = "\n".join(path.read_text(encoding="utf-8") for path in sorted(DOTNET_EDITOR.glob("NetTextureSet*.cs")))
     material_source = "\n".join(path.read_text(encoding="utf-8") for path in sorted(DOTNET_EDITOR.glob("NetMaterialSet*.cs")))
     material_protocol_source = _source("ExperimentForm.MaterialProtocol.cs")
+    package_protocol_source = _source("ExperimentForm.PackageProtocol.cs")
     provenance_source = _source("HelperBuildProvenance.cs")
     all_source = "\n".join(path.read_text(encoding="utf-8") for path in sorted(DOTNET_EDITOR.glob("*.cs")))
 
@@ -158,7 +159,21 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert 'WriteProtocolEvent("material_state_applied"' in material_protocol_source
     assert 'WriteProtocolEvent("material_state_failed"' in material_protocol_source
     failed_source = material_protocol_source.split('WriteProtocolEvent("material_state_failed"', maxsplit=1)[1]
-    assert failed_source.index("_activateAfterMaterialSync") < failed_source.index("ActivateResidentViewport")
+    assert "MatchesPendingMaterialSync" in failed_source
+    assert "ClearPendingMaterialSyncActivation();" in failed_source
+    assert "ActivateResidentViewport" not in failed_source
+    accepted_package = package_protocol_source.split(
+        "Interlocked.Exchange(ref _residentPackageLoadGeneration, generation);",
+        maxsplit=1,
+    )[1].split("PrepareAndApplyResidentPackageAsync", maxsplit=1)[0]
+    assert "_activationRequestId" not in accepted_package
+    assert "ClearPendingMaterialSyncActivation" not in accepted_package
+    activation_request = protocol_source.split('case "activate_request":', maxsplit=1)[1].split(
+        'case "preview_session_state":',
+        maxsplit=1,
+    )[0]
+    assert "MatchesAcceptedPackageGeneration" in activation_request
+    assert "ClearPendingMaterialSyncActivation();" in activation_request
     # Activation reveals whatever scene is resident, and a prewarm launch is
     # holding a placeholder nobody asked to see. The check has to come before the
     # reveal, and covers all three callers by living in the one method they share.
@@ -170,6 +185,7 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     ) < activate_source.index("EnsureEmbeddedWindowRevealed")
     assert '"activation_declined"' in activate_source
     assert "Interlocked.Read(ref _residentPackageLoadCount)" in activate_source
+    assert "MatchesAcceptedPackageGeneration" in activate_source
     assert '"resident_material_updates_v2"' in all_source
     assert "material_reload_required" not in all_source
     for counter in (
@@ -801,7 +817,8 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     assert "_rightToolModeHost.Controls.Add(_rightToolPanel);" in layout_source
     assert "InitializeEditMeshLayoutHost(_leftToolSplit);" in program_source
     assert "ApplyEmbeddedToolPanelVisibility(meshEdit: false);" in controls_source
-    assert "ApplyEmbeddedToolPanelVisibility(meshEdit: true);" in controls_source
+    assert "ApplyEmbeddedToolPanelVisibility(meshEdit: true);" not in controls_source
+    assert "ApplyToolRailEditMeshLayout();" in controls_source
     assert "_leftToolSplit.Panel1Collapsed = true;" in controls_source
     assert "_rightToolSplit.Panel2Collapsed = true;" in controls_source
     assert "_leftToolSplit.Panel1Collapsed = false;" in controls_source
@@ -1214,7 +1231,9 @@ def test_embedded_reveal_presents_the_resident_scene_before_ws_visible() -> None
     reveal = reveal_source.split("private void RevealEmbeddedWindow()", maxsplit=1)[1].split(
         "WriteProtocolEvent(", maxsplit=1
     )[0]
+    assert "NativeWindowHost.ResizeToParent(" in reveal
     assert "_viewport.PresentFreshFrame();" in reveal
+    assert reveal.index("NativeWindowHost.ResizeToParent(") < reveal.index("PresentFreshFrame")
     assert reveal.index("PresentFreshFrame") < reveal.index("Visible = true")
 
     renderer_source = _source("MeshViewport.Renderer.cs")

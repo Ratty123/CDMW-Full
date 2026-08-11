@@ -15,6 +15,7 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     root_layout = context["root_layout"]
     controls_layout = context["layout"]
     embedded_alignment_builder = context["embedded_alignment_builder"]
+    modify_original_clone_mode = bool(context.get("modify_original_clone_mode"))
     continue_build_callback = context.get("continue_build_callback")
     replacement_export_allowed = context["replacement_export_allowed"]
     alignment_startup_text = context["alignment_startup_text"]
@@ -65,7 +66,7 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     _queue_alignment_post_open_task(_set_preview_renderer)
     _queue_alignment_post_open_task(_capture_initial_geometry_snapshot)
     _queue_alignment_post_open_task(_queue_static_preview_refresh)
-    if not embedded_alignment_builder:
+    if not embedded_alignment_builder or modify_original_clone_mode:
         _queue_alignment_post_open_task(_load_original_reference_texture_preview)
     _queue_alignment_post_open_task(_clear_all_part_selections)
     _queue_alignment_post_open_task(_refresh_mesh_editor_diagnostics)

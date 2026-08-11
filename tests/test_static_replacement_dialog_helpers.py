@@ -29,6 +29,9 @@ from cdmw.ui.archive_browser.static_replacement_dialog_helpers import (
     texture_set_factor_parameters,
     translated_preview_model,
 )
+from cdmw.ui.archive_browser.static_replacement_dialog_callbacks_texture_original_texture_material_part_01 import (
+    _texture_original_texture_material_step_008,
+)
 
 
 def test_native_manifest_input_preserves_normal_space() -> None:
@@ -43,6 +46,59 @@ def test_native_manifest_input_preserves_normal_space() -> None:
 
     assert material_input is not None
     assert material_input.normal_space == "green_up"
+
+
+def test_native_manifest_input_preserves_native_wrapper_ownership() -> None:
+    material_input = native_manifest_input_from_descriptor(
+        {
+            "source_path": "C:/tmp/body_sp.dds",
+            "slot": "material",
+            "owner_slot_index": 2,
+            "material_wrapper_index": 8,
+        }
+    )
+
+    assert material_input is not None
+    assert material_input.owner_slot_index == 2
+
+    ambiguous = native_manifest_input_from_descriptor(
+        {
+            "source_path": "C:/tmp/shared_sp.dds",
+            "slot": "material",
+            "material_wrapper_index": 8,
+        }
+    )
+    assert ambiguous is not None
+    assert ambiguous.owner_slot_index == -1
+
+
+def test_modify_original_reuses_the_current_archive_native_package(tmp_path: Path) -> None:
+    class _Entry:
+        pass
+
+    package = tmp_path / "native-package"
+    package.mkdir()
+    (package / "manifest.json").write_text('{"batches":[]}', encoding="utf-8")
+    entry = _Entry()
+    owner = SimpleNamespace(
+        current_archive_preview_result=SimpleNamespace(
+            native_preview_diagnostics={"native_decode_package_path": str(package)},
+            dotnet_preview_package_path="",
+        ),
+        _current_archive_entry=lambda: entry,
+        _same_archive_entry=lambda current, expected: current is expected,
+    )
+    state = SimpleNamespace(
+        ModelPreviewData=None,
+        ArchiveEntry=_Entry,
+        Path=Path,
+        self=owner,
+        entry=entry,
+    )
+
+    _texture_original_texture_material_step_008(state)
+
+    assert state._current_archive_native_preview_package_path() == str(package)
 
 
 def test_mapping_status_summary_badge_escapes_label_and_value() -> None:

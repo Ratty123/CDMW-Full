@@ -733,14 +733,14 @@ def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:
         assert f'"{page}"' in smoke
 
 
-def test_deferred_authoring_tool_panels_have_two_build_triggers() -> None:
-    """The panels skip startup, so something must still guarantee they appear.
+def test_embedded_authoring_tool_panels_build_hidden_before_reveal() -> None:
+    """The expensive panel tree must be complete before the user can see it.
 
-    Building them before the first frame cost roughly 1.5 s of editor startup.
-    Deferring is only safe because two independent paths build them: a post to
-    the message loop once ``ready`` is published, and mesh-edit entry as a
-    backstop for a user who gets there first. Losing either one is what would
-    leave the Mesh Editor with no tool panels at all.
+    Embedded startup already stays hidden through renderer and texture
+    preparation. Building the authoring panels in that hidden interval prevents
+    the torn intermediate WinForms layout and leaves Edit Mesh with no panel
+    construction work on its click path. Mesh-edit entry remains an idempotent
+    backstop for nonstandard construction paths.
 
     tools/mesh_harness/real_dotnet_tool_panel_lifecycle.py asserts the runtime
     behaviour; this only guards the wiring.
@@ -756,13 +756,23 @@ def test_deferred_authoring_tool_panels_have_two_build_triggers() -> None:
     assert "private bool DeferAuthoringToolPanels => _options.SimplePreview || _options.Embedded;" in program
     assert "if (!DeferAuthoringToolPanels)" in program
 
-    # Trigger 1: posted once the first frame is out.
+    # Embedded startup builds and realizes the full authoring tree while the
+    # host still owns the visible loading surface.
+    startup_body = program.split("private void RunStartupRealization()", maxsplit=1)[1].split(
+        "private void PublishReady(", maxsplit=1
+    )[0]
+    assert "EnsureAuthoringToolPanelsReady();" in startup_body
+    assert startup_body.index("EnsureAuthoringToolPanelsReady();") < startup_body.index(
+        "RealizeClassicToolFlanks();"
+    )
+
+    # Ready publication may not mutate the visible control tree afterwards.
     ready_body = program.split("private void PublishReady(", maxsplit=1)[1].split(
         "private bool TryEmbedOrFail(", maxsplit=1
     )[0]
-    assert "BeginInvoke(new Action(EnsureAuthoringToolPanelsReady));" in ready_body
+    assert "EnsureAuthoringToolPanelsReady" not in ready_body
 
-    # Trigger 2: mesh-edit entry, before anything walks the section lists.
+    # Mesh-edit entry remains a backstop, before anything walks the section lists.
     interaction_body = controls.split("private void ApplyInteractionModeControls()", maxsplit=1)[1].split(
         "\n    private ", maxsplit=1
     )[0]
@@ -775,6 +785,19 @@ def test_deferred_authoring_tool_panels_have_two_build_triggers() -> None:
     assert "if (_options.SimplePreview || _authoringToolPanelsBuilt)" in program
     assert "if (_options.SimplePreview || _leftToolModeHost is not null)" in layouts
     assert "if (_options.SimplePreview || _compactSessionBar is not null" in layouts
+    ensure_body = program.split("private void EnsureAuthoringToolPanelsReady()", maxsplit=1)[1].split(
+        "\n    private ", maxsplit=1
+    )[0]
+    assert ensure_body.index("PrimeToolRailSectionOwnership();") < ensure_body.index(
+        "ApplySavedToolPanelLayout();"
+    )
+    prime_body = layouts.split("private void PrimeToolRailSectionOwnership()", maxsplit=1)[1].split(
+        "\n    private ", maxsplit=1
+    )[0]
+    assert "AddRailSection(_railSelectionStack, _selectionSection, row: 0);" in prime_body
+    assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 2);" in prime_body
+    assert "_partPickSection" not in prime_body
+    assert "_viewportSection" not in prime_body
 
     # And the result has to stay observable from outside the process.
     assert '["authoring_tool_panels_present"] = _leftToolPanel is not null && _rightToolPanel is not null' in material_protocol

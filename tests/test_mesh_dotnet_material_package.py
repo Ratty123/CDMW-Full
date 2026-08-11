@@ -8,7 +8,7 @@ from PySide6.QtGui import QColor, QImage
 
 from cdmw.models import ModelPreviewData, ModelPreviewMesh, PreviewMaterialTextureInput
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
-from cdmw.rendering import material_combiner_images
+from cdmw.rendering import material_combiner, material_combiner_images
 from cdmw.services import mesh_dotnet_material_package
 from cdmw.services.mesh_dotnet_material_bindings import (
     apply_dotnet_native_material_batch_bindings,
@@ -390,10 +390,13 @@ def test_package_resolves_layer_graph_when_every_layer_reuses_its_base_source(
 
 def test_package_expands_generic_packed_mask_without_losing_source_v_orientation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     base = _image(tmp_path / "generic_base.png", (52, 64, 78, 255))
     normal = _image(tmp_path / "generic_normal.png", (128, 142, 255, 255))
-    height = _image(tmp_path / "generic_height.png", (32, 96, 180, 255))
+    # The production fast path is specific to a resident DDS. QImage still
+    # writes PNG bytes here so the synthetic fixture remains portable.
+    height = _image(tmp_path / "generic_height.dds", (32, 96, 180, 255))
     packed = _image(tmp_path / "generic_orm.png", (220, 80, 190, 255))
     submesh = _submesh("generic_packed")
     submesh.preview_texture_flip_vertical = True
@@ -440,6 +443,14 @@ def test_package_expands_generic_packed_mask_without_losing_source_v_orientation
         ),
     )
 
+    height_generation_calls: list[str] = []
+    generate_height_map = material_combiner._generate_height_map
+
+    def track_height_generation(*args, **kwargs):
+        height_generation_calls.append(str(args[2]))
+        return generate_height_map(*args, **kwargs)
+
+    monkeypatch.setattr(material_combiner, "_generate_height_map", track_height_generation)
     payload = _write_manifest(tmp_path / "package", [submesh])
     binding = payload["submeshes"][0]
 
@@ -453,6 +464,7 @@ def test_package_expands_generic_packed_mask_without_losing_source_v_orientation
     assert binding["resolved_channels"]["base"] == str(base)
     assert binding["resolved_channels"]["normal"] == str(normal)
     assert binding["resolved_channels"]["height"] == str(height)
+    assert height_generation_calls == []
     changed_channels = {
         channel
         for channel in set(binding["raw_resolved_channels"]) | set(binding["resolved_channels"])
@@ -471,6 +483,38 @@ def test_package_expands_generic_packed_mask_without_losing_source_v_orientation
         resource = next(item for item in payload["resources"] if item["resource_id"] == resource_id)
         assert resource["semantic_authority"] == "synthesized_shared_combiner"
         assert (tmp_path / "package" / resource["path"]).is_file()
+
+
+def test_package_does_not_promote_detail_height_to_global_channel(tmp_path: Path) -> None:
+    detail_height = _image(tmp_path / "detail_height.png", (32, 96, 180, 255))
+    submesh = _submesh("detail_height_only")
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="height",
+            parameter_name="_detailHeightMaskR",
+            preview_texture_path=str(detail_height),
+            semantic_type="height",
+            semantic_subtype="height",
+            layer_role="detail",
+            layer_channel="r",
+            visualized=True,
+        ),
+    )
+
+    resolved, synthesis, generated = (
+        mesh_dotnet_material_package._synthesize_dotnet_material_channels(
+            submesh,
+            {"normal": str(tmp_path / "resident_normal.dds")},
+            {"layer_bindings": ({"parameter_name": "_detailHeightMaskR"},)},
+            output_dir=tmp_path / "detail-height-synthesis",
+            batch_index=0,
+            cancelled=None,
+        )
+    )
+
+    assert resolved == {"normal": str(tmp_path / "resident_normal.dds")}
+    assert synthesis == {"attempted": False, "succeeded": False}
+    assert generated == ()
 
 
 def test_package_replaces_base_normal_with_masked_pac_normal_layers(

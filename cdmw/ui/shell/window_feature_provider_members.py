@@ -71,7 +71,7 @@ PROVIDER_SOURCE_HASHES = {
     'cdmw/ui/archive_browser/preview_core_prewarm.py': '8cb1171b9dcc25ef226fb421d66b4e93d6fd4b1455811167f2a95f96f51a0d24',
     'cdmw/ui/archive_browser/preview_d3d11_parts.py': '9ddc2198249239286e4e010d5a3ae0a422d437e6ba37e4e97264b32d312d2cd8',
     'cdmw/ui/archive_browser/preview_details.py': '5be7b3da8af25fb1ace84d240a1dd915fd95965a7ad066301dec66d256bdd454',
-    'cdmw/ui/archive_browser/preview_dotnet_lifecycle.py': '399202ad28045d72af545e74b65e0e33cfb362a71a576d0a82f75ed2561f4f7c',
+    'cdmw/ui/archive_browser/preview_dotnet_lifecycle.py': '107b3ce02a87266c2f687c6c3765a1f1aa841e6fbbbcaef12b1f4f7ca688e3c0',
     'cdmw/ui/archive_browser/preview_layout.py': 'fedea8bc089a817d311754b1f8ae51d7aa273e1cadf162169f5767b3e98d9fc6',
     'cdmw/ui/archive_browser/preview_loading.py': 'f7daa38e6b39b822d3b11f7f892cc7f7fd82270512959650ff18c3f85f792555',
     'cdmw/ui/archive_browser/preview_memory.py': 'ecfc8bbed02b4204953b586f923c1accef82f773d65bc7a94a938de6a90cf131',

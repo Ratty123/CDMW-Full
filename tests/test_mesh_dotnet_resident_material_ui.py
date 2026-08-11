@@ -211,10 +211,65 @@ def test_mesh_editor_reactivation_uses_the_applied_resident_material_signature()
         if b'"event":"activate_request"' in raw
     )
     assert activation["material_signature"] == resident_signature
-    assert activation["material_generation"] == 1
+    assert activation["activation_request_id"] > 0
+    assert activation["process_generation"] == 1
+    assert activation["package_generation"] == 1
     assert not process.terminated
     app.processEvents()
     tab.deleteLater()
+
+
+def test_helper_material_sync_request_forces_publish_past_local_dedup() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorForcedResidentMaterialSync"))
+    builder = _EmbeddedMeshBuilder()
+    tab.mount_embedded_builder(builder)
+    mesh = builder.controller.working_mesh(clone=False)
+    input_signature = mesh_dotnet_material_input_signature(mesh)
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    package = MeshDotNetExperimentPackage(
+        package_dir=Path("package"),
+        mesh_path=Path("package/mesh.obj"),
+        obj_sidecar_path=Path("package/mesh.obj.meta.json"),
+        cdmeta_path=Path("package/mesh.cdmeta.json"),
+        original_asset_hash_path=Path("package/original_asset_hash.txt"),
+        status_path=Path("package/dotnet_status.json"),
+        output_dir=Path("package/output"),
+        edit_operations_path=Path("package/output/edit_operations.json"),
+        launch_manifest_path=Path("package/dotnet_launch.json"),
+        material_signature=input_signature,
+        scene_frame=SimpleNamespace(source_identity=static_scene_source_identity(mesh, None)),
+    )
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab.standalone_dotnet_experiment_package = package
+    tab.standalone_dotnet_material_generation = 1
+    tab.standalone_dotnet_completed_material_generation = 1
+    tab.standalone_dotnet_applied_material_generation = 1
+    tab.standalone_dotnet_material_input_signature_by_role["editable_imported"] = input_signature
+    tab.standalone_dotnet_material_signature_by_role["editable_imported"] = input_signature
+    tab.standalone_dotnet_material_generation_by_role["editable_imported"] = 1
+    tab.standalone_dotnet_completed_material_generation_by_role["editable_imported"] = 1
+    tab.standalone_dotnet_applied_material_generation_by_role["editable_imported"] = 1
+    tab.standalone_dotnet_texture_resources_ready_by_role["editable_imported"] = True
+    tab._connect_dotnet_protocol(process)
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2",),
+    )
+
+    before = len(_material_writes(app, process))
+    process.emit_stdout('{"event":"material_sync_required"}\n')
+    after = _material_writes(app, process)
+
+    assert len(after) == before + 1
+    assert after[-1]["generation"] == 2
+    assert tab.standalone_dotnet_lifecycle_counts["material_state_deduplicated_count"] == 0
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
 
 
 def test_textured_view_waits_for_resident_material_ack_without_reload() -> None:
