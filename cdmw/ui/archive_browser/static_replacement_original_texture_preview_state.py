@@ -11,6 +11,53 @@ from cdmw.services.preview_rendering_service import (
 )
 
 
+_ORIGINAL_TEXTURE_TRANSITION_LIMIT = 40
+
+
+def _record_original_texture_transition(
+    state: MutableMapping[str, object],
+    stage: str,
+    **details: object,
+) -> None:
+    sequence = int(state.get("_diagnostic_sequence", 0) or 0) + 1
+    state["_diagnostic_sequence"] = sequence
+    transitions = state.setdefault("_diagnostic_transitions", [])
+    if not isinstance(transitions, list):
+        transitions = []
+        state["_diagnostic_transitions"] = transitions
+    transitions.append(
+        {
+            "sequence": sequence,
+            "stage": str(stage or "state_changed"),
+            "loaded": bool(state.get("loaded")),
+            "loading": bool(state.get("loading")),
+            "failed": bool(state.get("failed")),
+            **details,
+        }
+    )
+    del transitions[:-_ORIGINAL_TEXTURE_TRANSITION_LIMIT]
+
+
+def original_reference_texture_preview_diagnostics(
+    state: Mapping[str, object],
+) -> dict[str, object]:
+    """Return bounded resolver state without exposing its live cache lease."""
+
+    transitions = state.get("_diagnostic_transitions", ())
+    return {
+        "loaded": bool(state.get("loaded")),
+        "loading": bool(state.get("loading")),
+        "failed": bool(state.get("failed")),
+        "error": str(state.get("error", "") or ""),
+        "native_package_path": str(state.get("native_package_path", "") or ""),
+        "last_failure_stage": str(state.get("_last_failure_stage", "") or ""),
+        "last_request_id": int(state.get("_last_request_id", 0) or 0),
+        "last_traceback": str(state.get("_last_traceback", "") or ""),
+        "transition_count": int(state.get("_diagnostic_sequence", 0) or 0),
+        "recent_transitions": list(transitions) if isinstance(transitions, list) else [],
+    }
+
+
 @dataclass(frozen=True)
 class OriginalReferenceTexturePreviewPerformance:
     summary: str
@@ -262,14 +309,28 @@ def original_reference_texture_preview_set_native_package_path(
         lease = acquire_dotnet_preview_package_cache_lease_for_path(Path(path_text))
         if lease is not None:
             state["_native_package_lease"] = lease
+    _record_original_texture_transition(
+        state,
+        "native_package_set",
+        package_path=path_text,
+        lease_acquired="_native_package_lease" in state,
+    )
 
 
 def original_reference_texture_preview_clear_native_package_path(state: MutableMapping[str, object]) -> None:
+    previous_path = str(state.get("native_package_path", "") or "")
     lease = state.pop("_native_package_lease", None)
     release = getattr(lease, "release", None)
     if callable(release):
         release()
     state["native_package_path"] = ""
+    if previous_path or lease is not None:
+        _record_original_texture_transition(
+            state,
+            "native_package_cleared",
+            package_path=previous_path,
+            lease_released=bool(callable(release)),
+        )
 
 
 def original_reference_texture_preview_mark_loaded(state: MutableMapping[str, object]) -> None:
@@ -277,6 +338,7 @@ def original_reference_texture_preview_mark_loaded(state: MutableMapping[str, ob
     state["loading"] = False
     state["failed"] = False
     state["error"] = ""
+    _record_original_texture_transition(state, "loaded")
 
 
 def original_reference_texture_preview_mark_failed(
@@ -293,6 +355,13 @@ def original_reference_texture_preview_mark_failed(
     state["error"] = str(message)
     if clear_native_package:
         original_reference_texture_preview_clear_native_package_path(state)
+    _record_original_texture_transition(
+        state,
+        "failed",
+        message=str(message),
+        clear_loading=bool(clear_loading),
+        clear_native_package=bool(clear_native_package),
+    )
 
 
 def original_reference_texture_preview_mark_loading(state: MutableMapping[str, object]) -> None:
@@ -300,6 +369,7 @@ def original_reference_texture_preview_mark_loading(state: MutableMapping[str, o
     state["failed"] = False
     state["error"] = ""
     original_reference_texture_preview_clear_native_package_path(state)
+    _record_original_texture_transition(state, "loading_started")
 
 
 def original_reference_texture_preview_request_outcome(
@@ -333,6 +403,12 @@ def original_reference_texture_preview_load_start_state(
         # The caller still has to act on this: a request that quietly starts
         # nothing leaves anyone waiting on the resident textured view stuck on
         # the untextured fallback forever.
+        _record_original_texture_transition(
+            state,
+            "request_not_started",
+            outcome=outcome,
+            has_original_reference_model=bool(has_original_reference_model),
+        )
         return OriginalReferenceTexturePreviewLoadStartState(
             should_start=False,
             progress_message="",
@@ -352,11 +428,13 @@ def original_reference_texture_preview_load_start_state(
 
 def original_reference_texture_preview_clear_loading(state: MutableMapping[str, object]) -> None:
     state["loading"] = False
+    _record_original_texture_transition(state, "loading_cleared")
 
 
 def original_reference_texture_preview_clear_failure(state: MutableMapping[str, object]) -> None:
     state["failed"] = False
     state["error"] = ""
+    _record_original_texture_transition(state, "failure_cleared")
 
 
 def original_reference_texture_preview_loading_message() -> str:
@@ -509,6 +587,7 @@ __all__ = [
     "original_reference_texture_preview_clear_loading",
     "original_reference_texture_preview_clear_native_package_path",
     "original_reference_texture_preview_can_start_load",
+    "original_reference_texture_preview_diagnostics",
     "original_reference_texture_preview_error_state",
     "original_reference_texture_preview_exception_state",
     "original_reference_texture_preview_failed_message",

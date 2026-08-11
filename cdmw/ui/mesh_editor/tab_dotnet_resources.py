@@ -8,6 +8,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QComboBox
 
+from cdmw.services.mesh_interaction_diagnostics import send_recorded_mesh_protocol_message
 from cdmw.services.mesh_dotnet_material_state import (
     copy_dotnet_preview_material_bindings,
     defer_dotnet_preview_material_synthesis,
@@ -539,13 +540,7 @@ class MeshEditorDotNetResourceProtocolMixin(
         return self._send_dotnet_protocol_message(correlated)
 
     def _send_dotnet_protocol_message(self, payload: Mapping[str, object]) -> bool:
-        controller = self._active_shared_dotnet_controller()
-        if controller is None:
-            return False
-        try:
-            return bool(controller.send_authoring_message(payload))
-        except (AttributeError, RuntimeError, TypeError, ValueError):
-            return False
+        return send_recorded_mesh_protocol_message(self._active_shared_dotnet_controller(), payload)
 
     def _observe_dotnet_capabilities(self, payload: Mapping[str, object]) -> None:
         raw = payload.get("capabilities", ())

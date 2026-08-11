@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from cdmw.services.mesh_interaction_diagnostics import (
+    mesh_interaction_diagnostics_snapshot,
+)
+from cdmw.ui.archive_browser.static_replacement_original_texture_preview_state import (
+    original_reference_texture_preview_diagnostics,
+)
+
 
 def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> SimpleNamespace:
     List = context.get('List')
@@ -168,6 +175,32 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         current_dotnet_state = _embedded_dotnet_runtime_state()
         lines.append(json.dumps(current_dotnet_state, indent=2, sort_keys=True, default=str)[:16000])
         lines.append("")
+        lines.append("Original texture resolver session")
+        original_texture_state = _live_value("original_reference_texture_preview_state", {})
+        if callable(getattr(original_texture_state, "get", None)):
+            resolver_diagnostics = original_reference_texture_preview_diagnostics(
+                original_texture_state
+            )
+        else:
+            resolver_diagnostics = original_reference_texture_preview_diagnostics({})
+        original_texture_thread = current_d3d11_state.get("original_texture_thread")
+        thread_running = getattr(original_texture_thread, "isRunning", None)
+        try:
+            original_texture_thread_running = bool(thread_running()) if callable(thread_running) else False
+        except RuntimeError:
+            original_texture_thread_running = False
+        resolver_diagnostics.update(
+            {
+                "worker_request_id": int(
+                    current_d3d11_state.get("original_texture_worker_request_id", 0) or 0
+                ),
+                "worker_present": current_d3d11_state.get("original_texture_worker") is not None,
+                "thread_present": original_texture_thread is not None,
+                "thread_running": original_texture_thread_running,
+            }
+        )
+        lines.append(json.dumps(resolver_diagnostics, indent=2, sort_keys=True, default=str)[:24000])
+        lines.append("")
         lines.append(".NET/Vortice package state")
         for key in (
             "request_id",
@@ -263,6 +296,13 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         controller = getattr(alignment_d3d11_preview_host, "controller", None)
         latest_event = getattr(controller, "last_event", {}) if controller is not None else {}
         lines.append(json.dumps(dict(latest_event or {}), indent=2, sort_keys=True, default=str)[:12000])
+        lines.append("")
+        lines.append("Mesh interaction flight recorder")
+        flight_recorder = mesh_interaction_diagnostics_snapshot(recent_limit=80)
+        recent_events = flight_recorder.pop("recent_events", [])
+        lines.append(json.dumps(flight_recorder, indent=2, sort_keys=True, default=str))
+        lines.append("Recent correlated interaction events")
+        lines.append(json.dumps(recent_events, indent=2, sort_keys=True, default=str)[:48000])
 
         text = "\n".join(lines)
         if not _mesh_editor_diagnostics_record_text_helper(mesh_editor_diagnostics_state, text, auto=auto):

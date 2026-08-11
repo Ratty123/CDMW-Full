@@ -209,3 +209,6 @@ def test_mesh_editor_diagnostics_uses_late_prompt_context_values() -> None:
     assert "texture_files_for_mapping=1 texture_sets=1" in text
     assert "process_start_arguments: --preview-package old-package" in text
     assert "process_arguments:" not in text
+    assert "Original texture resolver session" in text
+    assert "Mesh interaction flight recorder" in text
+    assert "Recent correlated interaction events" in text

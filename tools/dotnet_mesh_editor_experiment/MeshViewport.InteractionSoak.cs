@@ -10,7 +10,9 @@ internal sealed record MeshInteractionSoakResult(
     double CursorCoveragePixels,
     int ChangedVertexCount,
     int SelectedPartCount,
-    int SelectedVertexCount);
+    int SelectedVertexCount,
+    int SelectedEdgeCount,
+    int SelectedFaceCount);
 
 /// <summary>
 /// Drives the same local gesture methods used by WinForms mouse input while a
@@ -20,6 +22,8 @@ internal sealed record MeshInteractionSoakResult(
 internal sealed partial class MeshViewport
 {
     private string _interactionSoakMode = string.Empty;
+    private string _interactionSoakSelectionShape = string.Empty;
+    private string _interactionSoakSelectionTarget = string.Empty;
     private Point _interactionSoakPrevious;
     private double _interactionSoakCoveragePixels;
 
@@ -35,13 +39,25 @@ internal sealed partial class MeshViewport
         return _d3d11Viewport.TryRunHeadlessFrame(out frameMs, out presentMs, out error);
     }
 
+    internal Point InteractionSoakMeshAnchor()
+    {
+        var submesh = _document.Submeshes[0];
+        var vertex = submesh.Vertices[Math.Max(0, submesh.Vertices.Count / 2)];
+        var projected = SceneProjectedPoint(CurrentCamera(), 0, vertex);
+        return new Point(
+            Math.Clamp((int)Math.Round(projected.X), 1, Math.Max(1, ClientSize.Width - 2)),
+            Math.Clamp((int)Math.Round(projected.Y), 1, Math.Max(1, ClientSize.Height - 2)));
+    }
+
     internal void BeginInteractionSoak(string mode, Point start)
     {
         _interactionSoakMode = NormalizeInteractionSoakMode(mode);
+        (_interactionSoakSelectionShape, _interactionSoakSelectionTarget) =
+            SelectionInteractionSoakMode(_interactionSoakMode);
         _interactionSoakPrevious = start;
         _interactionSoakCoveragePixels = 0.0;
         _scene.SetInteractionMode("mesh_edit");
-        if (_interactionSoakMode == "select_brush")
+        if (_interactionSoakSelectionShape.Length > 0)
         {
             _ = UpdateSelection(
                 new Dictionary<int, HashSet<int>>(),
@@ -50,17 +66,23 @@ internal sealed partial class MeshViewport
                 new HashSet<int>(),
                 revision: _authoritativeEditRevision);
             ActiveTool = "select";
-            SetSelectionDragMode("brush");
-            BeginSelectionDrag(start, "vertex");
-            MaybeEmitSelectionPaintSample(start);
+            SetSelectionDragMode(_interactionSoakSelectionShape);
+            BeginSelectionDrag(start, _interactionSoakSelectionTarget);
+            if (_interactionSoakSelectionShape == "brush")
+            {
+                MaybeEmitSelectionPaintSample(start);
+            }
             return;
         }
         var selectedVertexCount = Math.Max(1, _document.Submeshes[0].Vertices.Count / 4);
+        var selectedVertices = new Dictionary<int, HashSet<int>>
+        {
+            [0] = _interactionSoakMode == "move"
+                ? Enumerable.Range(0, selectedVertexCount).ToHashSet()
+                : Enumerable.Range(0, _document.Submeshes[0].Vertices.Count).ToHashSet(),
+        };
         _ = UpdateSelection(
-            new Dictionary<int, HashSet<int>>
-            {
-                [0] = Enumerable.Range(0, selectedVertexCount).ToHashSet(),
-            },
+            selectedVertices,
             new Dictionary<int, HashSet<int>>(),
             new Dictionary<int, HashSet<(int A, int B)>>(),
             new HashSet<int>(),
@@ -78,9 +100,23 @@ internal sealed partial class MeshViewport
         var dx = point.X - _interactionSoakPrevious.X;
         var dy = point.Y - _interactionSoakPrevious.Y;
         _interactionSoakCoveragePixels += Math.Sqrt((double)dx * dx + (double)dy * dy);
-        if (_interactionSoakMode == "select_brush")
+        if (_interactionSoakSelectionShape == "brush")
         {
             MaybeEmitSelectionPaintSample(point);
+        }
+        else if (_interactionSoakSelectionShape == "lasso")
+        {
+            _edgeDragCurrent = point;
+            if (_selectionLassoPoints.Count == 0
+                || Math.Abs(point.X - _selectionLassoPoints[^1].X)
+                    + Math.Abs(point.Y - _selectionLassoPoints[^1].Y) >= 3)
+            {
+                _selectionLassoPoints.Add(point);
+            }
+        }
+        else if (_interactionSoakSelectionShape == "rectangle")
+        {
+            _edgeDragCurrent = point;
         }
         else
         {
@@ -94,25 +130,34 @@ internal sealed partial class MeshViewport
     internal MeshInteractionSoakResult FinishInteractionSoak(Point point)
     {
         StepInteractionSoak(point);
-        if (_interactionSoakMode == "select_brush")
+        if (_interactionSoakSelectionShape.Length > 0)
         {
             FinishEdgeDrag(point);
-            var expected = CloneSelectionMap(_provisionalSelectedVertices);
+            var expectedVertices = CloneSelectionMap(_provisionalSelectedVertices);
+            var expectedFaces = CloneSelectionMap(_provisionalSelectedFaces);
+            var expectedEdges = _provisionalSelectedEdges
+                .Select(edgeId => _edgeTopology.EdgeById(edgeId))
+                .Where(edge => edge is not null)
+                .GroupBy(edge => edge!.SubmeshIndex)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .Select(edge => (edge!.VertexA, edge.VertexB))
+                        .ToHashSet());
             var selectionRequestId = Math.Max(1L, _authoritativeEditRevision + 1L);
             BeginProvisionalSelection(selectionRequestId, _authoritativeEditRevision);
             var accepted = UpdateSelection(
-                expected,
-                new Dictionary<int, HashSet<int>>(),
-                new Dictionary<int, HashSet<(int A, int B)>>(),
+                expectedVertices,
+                expectedFaces,
+                expectedEdges,
                 new HashSet<int>(),
                 selectionRequestId,
                 _authoritativeEditRevision + 1L);
             _selectionPaintActive = false;
             ReleasePaintProjectionCache();
-            var matches = accepted
-                && expected.Count == _selectedVertices.Count
-                && expected.All(pair => _selectedVertices.TryGetValue(pair.Key, out var selected)
-                    && pair.Value.SetEquals(selected));
+            var matches = accepted && SelectionMapsMatch(expectedVertices, _selectedVertices)
+                && SelectionMapsMatch(expectedFaces, _selectedFaces)
+                && expectedEdges.Sum(pair => pair.Value.Count) == _selectedEdges.Count;
             return new MeshInteractionSoakResult(
                 matches,
                 true,
@@ -120,7 +165,9 @@ internal sealed partial class MeshViewport
                 _interactionSoakCoveragePixels,
                 0,
                 _selectedSources.Count,
-                _selectedVertices.Values.Sum(values => values.Count));
+                _selectedVertices.Values.Sum(values => values.Count),
+                _selectedEdges.Count,
+                _selectedFaces.Values.Sum(values => values.Count));
         }
 
         var state = _provisionalStroke
@@ -155,7 +202,9 @@ internal sealed partial class MeshViewport
             _interactionSoakCoveragePixels,
             changed,
             _selectedSources.Count,
-            _selectedVertices.Values.Sum(values => values.Count));
+            _selectedVertices.Values.Sum(values => values.Count),
+            _selectedEdges.Count,
+            _selectedFaces.Values.Sum(values => values.Count));
     }
 
     private int CommitInteractionSoakGeometry(
@@ -202,15 +251,40 @@ internal sealed partial class MeshViewport
         return changedCount;
     }
 
+    private static bool SelectionMapsMatch(
+        IReadOnlyDictionary<int, HashSet<int>> expected,
+        IReadOnlyDictionary<int, HashSet<int>> actual) =>
+        expected.Count == actual.Count
+        && expected.All(pair => actual.TryGetValue(pair.Key, out var selected)
+            && pair.Value.SetEquals(selected));
+
+    private static (string Shape, string Target) SelectionInteractionSoakMode(string mode)
+    {
+        var pieces = mode.Split('_', StringSplitOptions.RemoveEmptyEntries);
+        return pieces.Length == 3 && pieces[0] == "select"
+            ? (pieces[1], pieces[2])
+            : (string.Empty, string.Empty);
+    }
+
     private static string NormalizeInteractionSoakMode(string mode) =>
         (mode ?? string.Empty).Trim().ToLowerInvariant() switch
         {
-            "select" or "select_brush" => "select_brush",
+            "select" or "select_brush" or "select_brush_vertex" => "select_brush_vertex",
+            "select_brush_edge" => "select_brush_edge",
+            "select_brush_face" => "select_brush_face",
+            "select_lasso_vertex" => "select_lasso_vertex",
+            "select_lasso_edge" => "select_lasso_edge",
+            "select_lasso_face" => "select_lasso_face",
+            "select_rectangle_vertex" => "select_rectangle_vertex",
+            "select_rectangle_edge" => "select_rectangle_edge",
+            "select_rectangle_face" => "select_rectangle_face",
             "move" => "move",
             "grab" => "grab",
             "sculpt" or "inflate" => "inflate",
             "smooth" => "smooth",
             "pinch" => "pinch",
-            _ => throw new ArgumentOutOfRangeException(nameof(mode), "Interaction soak mode must be select_brush, move, grab, smooth, inflate, or pinch."),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(mode),
+                "Interaction soak mode must be a vertex/edge/face Select brush/lasso/rectangle, Move, Grab, Smooth, Inflate, or Pinch."),
         };
 }

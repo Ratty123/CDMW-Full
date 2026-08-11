@@ -86,7 +86,12 @@ def test_interaction_soak_drives_real_provisional_paths_and_required_gates() -> 
     assert '"--headless-gpu-interaction-soak"' in entry
     for mode in ("select_brush", "move", "grab", "smooth", "inflate", "pinch"):
         assert f'"{mode}"' in soak + probe
-    assert "BeginSelectionDrag(start, \"vertex\")" in probe
+    assert "SelectionInteractionSoakMode(_interactionSoakMode)" in probe
+    assert "SetSelectionDragMode(_interactionSoakSelectionShape)" in probe
+    assert "BeginSelectionDrag(start, _interactionSoakSelectionTarget)" in probe
+    for shape in ("brush", "lasso", "rectangle"):
+        for target in ("vertex", "edge", "face"):
+            assert f'"select_{shape}_{target}"' in probe
     assert "BeginEditorStroke(start)" in probe
     assert "UpdateProvisionalEditorStroke(point)" in probe
     assert "FinishEdgeDrag(point)" in probe

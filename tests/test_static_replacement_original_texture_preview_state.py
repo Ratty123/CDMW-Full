@@ -25,6 +25,7 @@ from cdmw.ui.archive_browser.static_replacement_original_texture_preview_state i
     original_reference_texture_preview_exception_state,
     original_reference_texture_preview_failed_message,
     original_reference_texture_preview_initial_state,
+    original_reference_texture_preview_diagnostics,
     original_reference_texture_preview_loaded_detail,
     original_reference_texture_preview_loaded_performance,
     original_reference_texture_preview_loaded_progress_message,
@@ -287,6 +288,9 @@ def test_original_reference_texture_preview_state_transitions() -> None:
     assert state["native_package_path"] == "package"
 
     original_reference_texture_preview_mark_failed(state, "boom")
+    state["_last_failure_stage"] = "worker_resolve"
+    state["_last_request_id"] = 17
+    state["_last_traceback"] = "Traceback: resolver exploded"
 
     assert state["loaded"] is False
     assert state["loading"] is False
@@ -298,6 +302,31 @@ def test_original_reference_texture_preview_state_transitions() -> None:
 
     assert state["failed"] is False
     assert state["error"] == ""
+
+    diagnostics = original_reference_texture_preview_diagnostics(state)
+    assert diagnostics["transition_count"] >= 5
+    assert diagnostics["last_failure_stage"] == "worker_resolve"
+    assert diagnostics["last_request_id"] == 17
+    assert diagnostics["last_traceback"] == "Traceback: resolver exploded"
+    stages = [item["stage"] for item in diagnostics["recent_transitions"]]
+    assert "loaded" in stages
+    assert "failed" in stages
+    assert "failure_cleared" in stages
+
+
+def test_original_reference_texture_diagnostics_keep_only_the_recent_transitions() -> None:
+    state = original_reference_texture_preview_initial_state()
+
+    for index in range(55):
+        original_reference_texture_preview_mark_failed(state, f"failure-{index}")
+
+    diagnostics = original_reference_texture_preview_diagnostics(state)
+    transitions = diagnostics["recent_transitions"]
+    assert diagnostics["transition_count"] == 55
+    assert len(transitions) == 40
+    assert transitions[0]["sequence"] == 16
+    assert transitions[-1]["sequence"] == 55
+    assert transitions[-1]["message"] == "failure-54"
 
 
 def test_original_reference_texture_preview_package_path_lease_tracks_state_lifetime() -> None:

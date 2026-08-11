@@ -240,6 +240,8 @@ internal static class HeadlessGpuInteractionSoak
             ["changed_vertex_count"] = interaction.ChangedVertexCount,
             ["selected_part_count"] = interaction.SelectedPartCount,
             ["selected_vertex_count"] = interaction.SelectedVertexCount,
+            ["selected_edge_count"] = interaction.SelectedEdgeCount,
+            ["selected_face_count"] = interaction.SelectedFaceCount,
             ["protocol_event_count"] = protocol.EventCount,
             ["protocol_updates_coalesced"] = protocol.CoalescedUpdates,
             ["maximum_pending_depth"] = protocol.MaximumPendingDepth,

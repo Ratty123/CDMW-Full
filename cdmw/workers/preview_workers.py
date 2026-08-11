@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+import traceback
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -87,7 +88,7 @@ class ComparePreviewWorker(QObject):
 
 class AlignmentOriginalTexturePreviewWorker(QObject):
     completed = Signal(int, object, int, float)
-    error = Signal(int, str)
+    error = Signal(int, str, str)
     finished = Signal()
 
     def __init__(self, request_id: int, resolver: Callable[[threading.Event], tuple[object, int]]) -> None:
@@ -117,7 +118,7 @@ class AlignmentOriginalTexturePreviewWorker(QObject):
             pass
         except Exception as exc:
             if not self.stop_event.is_set():
-                self.error.emit(self.request_id, str(exc))
+                self.error.emit(self.request_id, str(exc), traceback.format_exc())
         finally:
             self.finished.emit()
 

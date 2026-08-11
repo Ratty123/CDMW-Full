@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import json
+
 from typing import Mapping
 
+from cdmw.services.mesh_interaction_diagnostics import (
+    default_mesh_interaction_log_path,
+    flush_mesh_interaction_events,
+    record_mesh_interaction_event,
+)
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor import tab_dotnet_material_commit as _material_commit
 from cdmw.ui.mesh_editor.tab_dotnet_part_colour import MeshEditorDotNetPartColourMixin
@@ -41,75 +47,41 @@ _SHARED_CONTROLLER_LIFECYCLE_EVENTS = frozenset(
 )
 
 
-_PROTOCOL_TRAIL_MAX_BYTES = 24 * 1024 * 1024
-_PROTOCOL_TRAIL_STATE: dict[str, object] = {"path": None, "resolved": False, "bytes": 0}
-
-
 def _dotnet_protocol_trail_path() -> "object | None":
-    """Where to write the helper's protocol events, resolved once per process.
+    """Return the path owned by the background interaction recorder."""
 
-    These events are the only record of what the resident editor is actually
-    doing -- package loads, presentation updates, scene frames, reveals -- and
-    they have only ever existed in a bounded in-memory list. A session where the
-    preview appeared to reload at random therefore left nothing behind to read,
-    because every host-side diagnostic said the pipeline had done its work once
-    and stopped.
-    """
-
-    if _PROTOCOL_TRAIL_STATE["resolved"]:
-        return _PROTOCOL_TRAIL_STATE["path"]
-    _PROTOCOL_TRAIL_STATE["resolved"] = True
     try:
-        import os
-        from pathlib import Path
-
-        # `crash_reports_dir` is a local inside app_window's entry point, not a
-        # module attribute, so importing it raised ImportError into the guard
-        # below and this trail silently never wrote a line. CDMW_CRASH_DIR is
-        # the channel that already exists for exactly this, set during startup
-        # and read the same way by the native mesh, texture and archive layers.
-        crash_dir = str(os.environ.get("CDMW_CRASH_DIR", "") or "").strip()
-        if crash_dir:
-            directory = Path(crash_dir)
-        else:
-            from cdmw.domain.workspace import workspace_paths
-            from cdmw.services.settings_service import resolve_settings_file_path
-
-            directory = Path(workspace_paths(resolve_settings_file_path().parent)["crash_reports_dir"])
-        directory.mkdir(parents=True, exist_ok=True)
-        path = directory / "dotnet_protocol_current.jsonl"
-        # Truncated per process so a capture is one session, not a pile of them.
-        path.write_text("", encoding="utf-8")
-        _PROTOCOL_TRAIL_STATE["path"] = path
+        return default_mesh_interaction_log_path()
     except Exception:
-        _PROTOCOL_TRAIL_STATE["path"] = None
-    return _PROTOCOL_TRAIL_STATE["path"]
+        return None
 
 
-def _write_dotnet_protocol_trail(payload: Mapping[str, object]) -> None:
-    """Append one protocol event. Never allowed to disturb the editor."""
+def _write_dotnet_protocol_trail(
+    payload: Mapping[str, object],
+    *,
+    direction: str = "helper_to_host",
+    kind: str = "protocol",
+) -> bool:
+    """Queue one protocol/session event without touching disk on the UI thread."""
 
-    path = _dotnet_protocol_trail_path()
-    if path is None:
-        return
-    written = int(_PROTOCOL_TRAIL_STATE.get("bytes", 0) or 0)
-    if written >= _PROTOCOL_TRAIL_MAX_BYTES:
-        return
-    try:
-        import time as _time
+    event = str(payload.get("event", payload.get("type", "")) or "").strip().lower()
+    return record_mesh_interaction_event(
+        kind,
+        direction,
+        payload,
+        critical=event in {
+            "error",
+            "stroke_end",
+            "stroke_cancel",
+            "command_result",
+            "package_load_failed",
+            "textures_error",
+        },
+    )
 
-        line = json.dumps(
-            {"t": round(_time.time(), 3), **{str(k): v for k, v in payload.items()}},
-            default=str,
-        )
-    except Exception:
-        return
-    try:
-        with open(path, "a", encoding="utf-8") as handle:
-            handle.write(line + "\n")
-        _PROTOCOL_TRAIL_STATE["bytes"] = written + len(line) + 1
-    except OSError:
-        _PROTOCOL_TRAIL_STATE["path"] = None
+
+def _flush_dotnet_protocol_trail(timeout_seconds: float = 1.0) -> bool:
+    return flush_mesh_interaction_events(timeout_seconds)
 
 
 def _dotnet_event_requires_correlation(event: str, payload: Mapping[str, object]) -> bool:
@@ -131,6 +103,29 @@ class MeshEditorDotNetProtocolMixin(
         if len(self.standalone_dotnet_protocol_events) > DOTNET_PROTOCOL_EVENT_LIMIT:
             del self.standalone_dotnet_protocol_events[:-DOTNET_PROTOCOL_EVENT_LIMIT]
         _write_dotnet_protocol_trail(payload)
+
+    def _record_dotnet_interaction_decision(self, event: str, **payload: object) -> None:
+        controller = getattr(self, "standalone_controller", None)
+        details: dict[str, object] = {
+            "event": str(event or "host_decision"),
+            "session_id": str(getattr(controller, "active_session_id", "") or ""),
+            "process_generation": int(
+                getattr(self, "standalone_dotnet_process_generation", 0) or 0
+            ),
+            **payload,
+        }
+        dispatcher = getattr(self, "standalone_live_stroke_dispatcher", None)
+        metrics = getattr(dispatcher, "metrics", None)
+        if callable(metrics):
+            try:
+                details["dispatcher"] = dict(metrics())
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                pass
+        _write_dotnet_protocol_trail(
+            details,
+            direction="host_internal",
+            kind="host_decision",
+        )
 
     def _connect_dotnet_protocol(self, process: _tab.QProcess) -> None:
         self.standalone_dotnet_update_ack_start_timer.stop()
@@ -154,6 +149,10 @@ class MeshEditorDotNetProtocolMixin(
         self.standalone_dotnet_presentation_acknowledged = None
         # A fresh process holds no presentation state.
         self.standalone_dotnet_presentation_published_content = None
+        self._record_dotnet_interaction_decision(
+            "mesh_edit_session_protocol_connected",
+            embedded=bool(self.standalone_dotnet_target_embedded),
+        )
         try:
             process.readyReadStandardOutput.connect(
                 lambda target=process: self._handle_dotnet_protocol_stdout_ready(target)

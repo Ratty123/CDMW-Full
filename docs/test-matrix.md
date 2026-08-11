@@ -132,6 +132,8 @@ dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.cspro
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-edit-mesh-layout-smoke --layout-report "$env:TEMP\cdmw-edit-mesh-layout.json"
 .\.venv\Scripts\python.exe -m pytest tests/test_dotnet_edit_mesh_entry_layout.py tests/test_dotnet_solid_textured_view_survives_publish.py
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-edit-mesh-entry-smoke --edit-mesh-entry-report "$env:TEMP\cdmw-edit-mesh-entry.json"
+$output = Join-Path $env:TEMP 'cdmw-headless-edit-mesh-diagnostics'
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario headless-edit-mesh-diagnostics --output $output
 ```
 
 The layout smoke constructs real WinForms ownership trees, visits all five deck
@@ -149,6 +151,17 @@ embedded launches retain that orphan-prevention path. The JSON report remains
 the result authority, with proof stage and full exception on failure. The two
 parameterized scene inspector assertions share their module-scoped report
 instead of relaunching the same smoke once per report key.
+`headless-edit-mesh-diagnostics` is the composed interaction gate. It builds and
+starts the hidden production Vortice form, binds a deterministic decoded
+texture, verifies `Solid (Textured)` after every case, and drives
+Brush/Lasso/Rectangle selection for vertices, wires, and faces; a sustained
+held face-selection stroke; Move, Grab, Smooth, Inflate, Pinch, Topology,
+Colour, and Morph & Refit through the real Python dispatcher and native C++
+session. Its output contains the .NET build/protocol/report, composed scenario
+result, session timeline, and background flight-recorder JSONL. It opens no
+visible window and reads no licensed asset. It proves deterministic synthetic
+protocol, renderer-resource, responsiveness, and reconciliation contracts; it
+is not real-game PAC visual proof.
 
 Resident Python/WinForms interface-localization negotiation, exact manifest and
 acknowledgement correlation, Unicode payload bounds, stale rejection,

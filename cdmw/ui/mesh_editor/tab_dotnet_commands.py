@@ -16,6 +16,12 @@ from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.tab_dotnet_lifecycle import MeshEditorDotNetLifecycleMixin
 
 
+def _record_interaction_decision(target: object, event: str, **payload: object) -> None:
+    recorder = getattr(target, "_record_dotnet_interaction_decision", None)
+    if callable(recorder):
+        recorder(event, **payload)
+
+
 class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
     def _queue_dotnet_topology_after_selection(
         self,
@@ -89,6 +95,11 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
             )
         if not live_stroke_busy:
             return False
+        _record_interaction_decision(self,
+            "mesh_edit_request_rejected_busy",
+            command=normalized,
+            request_id=int((request_payload or {}).get("request_id", 0) or 0),
+        )
         self._send_dotnet_command_result(
             normalized,
             ok=False,
@@ -109,6 +120,11 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
         authoritative result" for a click that will never be answered, which
         reads as the tool being broken.
         """
+        _record_interaction_decision(self,
+            "mesh_edit_request_rejected_no_session",
+            command=str(command_name or "command"),
+            request_id=int(payload.get("request_id", 0) or 0),
+        )
         self._send_dotnet_command_result(
             command_name,
             ok=False,
@@ -189,6 +205,16 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
             request_payload=payload,
         )
         if sequence > 0:
+            _record_interaction_decision(self,
+                "mesh_edit_selection_queued",
+                request_id=int(payload.get("request_id", 0) or 0),
+                stroke_id=stroke_id,
+                stroke_sequence=stroke_sequence,
+                phase=phase,
+                target_mode=str(payload.get("target_mode", "") or ""),
+                operation=operation,
+                dispatcher_sequence=sequence,
+            )
             return True
         if phase in {"begin", "end", "cancel"}:
             self.standalone_native_selection_stroke_id = ""
@@ -259,6 +285,15 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
             request_payload=payload,
         )
         if sequence > 0:
+            _record_interaction_decision(self,
+                "mesh_edit_stroke_queued",
+                request_id=int(payload.get("request_id", 0) or 0),
+                stroke_id=stroke_id,
+                phase=phase,
+                tool=str(payload.get("tool", "") or ""),
+                action=str(command.action or ""),
+                dispatcher_sequence=sequence,
+            )
             return True
         if phase in {"begin", "end", "cancel"}:
             self.standalone_native_mesh_edit_stroke_id = ""
@@ -283,6 +318,16 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
             if notice.source == "dotnet_selection"
             else str(notice.command_name or "stroke")
         )
+        _record_interaction_decision(self,
+            "mesh_edit_updates_coalesced",
+            command=command_name,
+            source=str(notice.source or ""),
+            survivor_sequence=int(notice.survivor_sequence),
+            coalesced_request_ids=tuple(
+                int(payload.get("request_id", 0) or 0)
+                for payload in notice.request_payloads
+            ),
+        )
         for request_payload in notice.request_payloads:
             self._send_dotnet_command_result(
                 command_name,
@@ -299,6 +344,20 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
             return
         update = outcome.native_update
         request_payloads = tuple(outcome.request_payloads)
+        _record_interaction_decision(self,
+            "mesh_edit_dispatch_completed",
+            source=str(outcome.source or ""),
+            phase=str(outcome.phase or ""),
+            dispatcher_sequence=int(outcome.sequence),
+            revision=int(getattr(outcome.result, "revision", 0) or 0),
+            request_ids=tuple(
+                int(payload.get("request_id", 0) or 0)
+                for payload in request_payloads
+            ),
+            vertex_group_count=len(tuple(update.vertex_groups or ())),
+            triangle_group_count=len(tuple(update.triangle_groups or ())),
+            selection_group_count=len(tuple(update.selection_groups or ())),
+        )
         if self.standalone_dotnet_target_embedded:
             self._apply_embedded_native_update(update)
             if outcome.phase != "update":
@@ -364,7 +423,24 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
             else:
                 self.standalone_native_mesh_edit_stroke_id = ""
         if failure.cancelled:
+            _record_interaction_decision(self,
+                "mesh_edit_dispatch_cancelled",
+                source=str(failure.source or ""),
+                phase=str(failure.phase or ""),
+                dispatcher_sequence=int(failure.sequence),
+            )
             return
+        _record_interaction_decision(self,
+            "mesh_edit_dispatch_failed",
+            source=str(failure.source or ""),
+            phase=str(failure.phase or ""),
+            dispatcher_sequence=int(failure.sequence),
+            message=str(failure.message or ""),
+            request_ids=tuple(
+                int(payload.get("request_id", 0) or 0)
+                for payload in failure.request_payloads
+            ),
+        )
         message = f"Mesh .NET editor stroke failed: {failure.message}"
         self._set_dotnet_status(message, error=True)
         request_payloads = tuple(failure.request_payloads) or (None,)
@@ -442,6 +518,15 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
                 request_payload=payload,
             )
             if sequence > 0:
+                _record_interaction_decision(self,
+                    "mesh_edit_morph_change_queued",
+                    request_id=int(payload.get("request_id", 0) or 0),
+                    change_id=change_id,
+                    definition_id=definition_id,
+                    phase=phase,
+                    value=self._standalone_native_payload_float(payload.get("value"), 0.0),
+                    dispatcher_sequence=sequence,
+                )
                 return True
             if phase in {"begin", "end", "cancel"}:
                 self.standalone_dotnet_morph_change_id = ""
