@@ -722,6 +722,7 @@ class ArchiveRemoteWindowBridge(QObject):
             0,
         )
         window._rebuild_archive_extension_filter_choices()
+        window._update_archive_filter_button_state()
 
     def _handle_structure_children(self, parent_path: str, result: ArchiveChildrenResult) -> None:
         if not self._display_v2:
