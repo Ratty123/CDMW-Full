@@ -388,6 +388,29 @@ internal sealed partial class NetMaterialSet
             .ToArray();
     }
 
+    public string TextureReadinessError(NetTextureSet textures)
+    {
+        ArgumentNullException.ThrowIfNull(textures);
+        var activeResources = TextureLoadResources().ToArray();
+        if (activeResources.Length == 0)
+        {
+            return string.Empty;
+        }
+        var requiredFailures = FailedRequiredResources(textures.TextureLoadFailures);
+        if (requiredFailures.Count > 0)
+        {
+            return "Required production texture resources failed: " + string.Join(
+                "; ",
+                requiredFailures.Select(resource =>
+                    $"{resource.Role}[{resource.SubmeshIndex}].{resource.MaterialChannel}: {resource.Path}"));
+        }
+        if (!textures.HasSampleableTextureResources)
+        {
+            return "The package declares texture resources, but none were decoded successfully.";
+        }
+        return string.Empty;
+    }
+
     public static NetMaterialStateUpdate ParseStateUpdate(JsonElement root)
     {
         var format = JsonText(root, "schema");

@@ -1,3 +1,5 @@
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Text.Json;
 
@@ -29,6 +31,7 @@ internal static class EditMeshEntrySmoke
             var output = Path.Combine(root, "output");
             Directory.CreateDirectory(input);
             Directory.CreateDirectory(output);
+            WriteTexturedMaterialPackage(input);
             stage = "synthetic_document";
             var document = HeadlessGpuSparseSoak.BuildSyntheticDocument(300);
             stage = "standalone_form";
@@ -49,14 +52,24 @@ internal static class EditMeshEntrySmoke
                 sourceParseCount: 1);
             stage = "scene_inspector_entry_layout_embedded";
             var embeddedSceneInspector = embeddedForm.SceneInspectorEntryLayoutProof();
+            stage = "missing_texture_readiness";
+            var missingTextureReadiness = form.ResidentPackageTextureFailureProof(
+                WriteMissingTexturePackage(root));
+            stage = "gpu_binding_rollback";
+            var gpuBindingRollback = form.ResidentPackageGpuBindingFailureProof(
+                WriteUnbindableTexturePackage(root));
             var report = new Dictionary<string, object?>
             {
                 ["ok"] = solidTextured.GetValueOrDefault("ok") is true
                     && sceneInspector.GetValueOrDefault("ok") is true
-                    && embeddedSceneInspector.GetValueOrDefault("ok") is true,
+                    && embeddedSceneInspector.GetValueOrDefault("ok") is true
+                    && missingTextureReadiness.GetValueOrDefault("ok") is true
+                    && gpuBindingRollback.GetValueOrDefault("ok") is true,
                 ["solid_textured_view"] = solidTextured,
                 ["scene_inspector_entry_layout"] = sceneInspector,
                 ["scene_inspector_entry_layout_embedded"] = embeddedSceneInspector,
+                ["missing_texture_readiness"] = missingTextureReadiness,
+                ["gpu_binding_rollback"] = gpuBindingRollback,
             };
             File.WriteAllText(
                 reportPath,
@@ -92,6 +105,175 @@ internal static class EditMeshEntrySmoke
                 // The report owns the result; temp cleanup cannot replace it.
             }
         }
+    }
+
+    private static void WriteTexturedMaterialPackage(string input)
+    {
+        var texturePath = Path.Combine(input, "solid-textured-proof.png");
+        using (var bitmap = new Bitmap(2, 2))
+        {
+            bitmap.SetPixel(0, 0, Color.Red);
+            bitmap.SetPixel(1, 0, Color.Green);
+            bitmap.SetPixel(0, 1, Color.Blue);
+            bitmap.SetPixel(1, 1, Color.White);
+            bitmap.Save(texturePath, ImageFormat.Png);
+        }
+        var resourceId = "proof:base";
+        var manifest = new Dictionary<string, object?>
+        {
+            ["schema"] = "cdmw_mesh_material_state_v2",
+            ["version"] = 2,
+            ["material_signature"] = "solid-textured-proof",
+            ["material_slots"] = Array.Empty<object>(),
+            ["resources"] = new[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["resource_id"] = resourceId,
+                    ["path"] = texturePath,
+                    ["fingerprint"] = "solid-textured-proof-base",
+                    ["role"] = "replacement",
+                    ["submesh_index"] = 0,
+                    ["material_channel"] = "base",
+                    ["semantic"] = "base",
+                    ["color_space"] = "srgb",
+                    ["profile"] = "material_authority_true_source",
+                    ["required"] = true,
+                    ["fallback_policy"] = "block_ready",
+                },
+            },
+            ["submeshes"] = new[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["submesh_index"] = 0,
+                    ["material_slot_index"] = 0,
+                    ["material"] = "solid-textured-proof",
+                    ["resource_channels"] = new Dictionary<string, string>
+                    {
+                        ["base"] = resourceId,
+                    },
+                },
+            },
+        };
+        File.WriteAllText(
+            Path.Combine(input, "net_materials.json"),
+            JsonSerializer.Serialize(manifest));
+    }
+
+    private static string WriteMissingTexturePackage(string root)
+    {
+        var packagePath = Path.Combine(root, "missing-texture-package");
+        Directory.CreateDirectory(packagePath);
+        var manifestPath = Path.Combine(packagePath, "net_materials.json");
+        var missingPath = Path.Combine(packagePath, "missing-base.png");
+        var resourceId = "proof:missing-base";
+        File.WriteAllText(
+            manifestPath,
+            JsonSerializer.Serialize(new Dictionary<string, object?>
+            {
+                ["schema"] = "cdmw_mesh_material_state_v2",
+                ["version"] = 2,
+                ["material_signature"] = "missing-texture-proof",
+                ["material_slots"] = Array.Empty<object>(),
+                ["resources"] = new[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["resource_id"] = resourceId,
+                        ["path"] = missingPath,
+                        ["fingerprint"] = "missing-texture-proof-base",
+                        ["role"] = "replacement",
+                        ["submesh_index"] = 0,
+                        ["material_channel"] = "base",
+                        ["semantic"] = "base",
+                        ["color_space"] = "srgb",
+                        ["profile"] = "material_authority_true_source",
+                        ["required"] = true,
+                        ["fallback_policy"] = "block_ready",
+                    },
+                },
+                ["submeshes"] = new[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["submesh_index"] = 0,
+                        ["material_slot_index"] = 0,
+                        ["material"] = "missing-texture-proof",
+                        ["resource_channels"] = new Dictionary<string, string>
+                        {
+                            ["base"] = resourceId,
+                        },
+                    },
+                },
+            }));
+        File.WriteAllText(
+            Path.Combine(packagePath, "scene.obj"),
+            "o missing_texture_proof\nv 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nvn 0 0 1\nf 1/1/1 2/2/1 3/3/1\n");
+        File.WriteAllText(Path.Combine(packagePath, "mesh.cdmeta.json"), "{}");
+        File.WriteAllText(Path.Combine(packagePath, "dotnet_scene.json"), "{}");
+        return packagePath;
+    }
+
+    private static string WriteUnbindableTexturePackage(string root)
+    {
+        var packagePath = Path.Combine(root, "unbindable-texture-package");
+        Directory.CreateDirectory(packagePath);
+        var texturePath = Path.Combine(packagePath, "decoded-unsupported-channel.png");
+        using (var bitmap = new Bitmap(2, 2))
+        {
+            bitmap.SetPixel(0, 0, Color.Red);
+            bitmap.SetPixel(1, 0, Color.Green);
+            bitmap.SetPixel(0, 1, Color.Blue);
+            bitmap.SetPixel(1, 1, Color.White);
+            bitmap.Save(texturePath, ImageFormat.Png);
+        }
+        var resourceId = "proof:unsupported-channel";
+        File.WriteAllText(
+            Path.Combine(packagePath, "net_materials.json"),
+            JsonSerializer.Serialize(new Dictionary<string, object?>
+            {
+                ["schema"] = "cdmw_mesh_material_state_v2",
+                ["version"] = 2,
+                ["material_signature"] = "gpu-binding-rollback-proof",
+                ["material_slots"] = Array.Empty<object>(),
+                ["resources"] = new[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["resource_id"] = resourceId,
+                        ["path"] = texturePath,
+                        ["fingerprint"] = "gpu-binding-rollback-proof-texture",
+                        ["role"] = "replacement",
+                        ["submesh_index"] = 0,
+                        ["material_channel"] = "unsupported_proof_channel",
+                        ["semantic"] = "unsupported_proof_channel",
+                        ["color_space"] = "srgb",
+                        ["profile"] = "material_authority_true_source",
+                        ["required"] = true,
+                        ["fallback_policy"] = "block_ready",
+                    },
+                },
+                ["submeshes"] = new[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["submesh_index"] = 0,
+                        ["material_slot_index"] = 0,
+                        ["material"] = "gpu-binding-rollback-proof",
+                        ["resource_channels"] = new Dictionary<string, string>
+                        {
+                            ["unsupported_proof_channel"] = resourceId,
+                        },
+                    },
+                },
+            }));
+        File.WriteAllText(
+            Path.Combine(packagePath, "scene.obj"),
+            "o gpu_binding_rollback_proof\nv 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nvn 0 0 1\nf 1/1/1 2/2/1 3/3/1\n");
+        File.WriteAllText(Path.Combine(packagePath, "mesh.cdmeta.json"), "{}");
+        File.WriteAllText(Path.Combine(packagePath, "dotnet_scene.json"), "{}");
+        return packagePath;
     }
 
     private static LaunchOptions Options(string input, string output, bool embedded) => new(

@@ -83,6 +83,7 @@ def _acknowledge_editable_materials(tab: MeshEditorTab, process: _FakeProcess) -
                 "generation": 1,
                 "role": "replacement",
                 "material_signature": "editable-materials",
+                "texture_resources_ready": True,
             }
         )
         + "\n"
@@ -192,6 +193,7 @@ def test_mesh_editor_reactivation_uses_the_applied_resident_material_signature()
     tab.standalone_dotnet_material_generation_by_role["editable_imported"] = 1
     tab.standalone_dotnet_completed_material_generation_by_role["editable_imported"] = 1
     tab.standalone_dotnet_applied_material_generation_by_role["editable_imported"] = 1
+    tab.standalone_dotnet_texture_resources_ready_by_role["editable_imported"] = True
     tab._connect_dotnet_protocol(process)
     _install_shared_dotnet_test_process(
         tab,
@@ -316,7 +318,7 @@ def test_builder_textured_selector_resolves_materials_before_presentation_update
     assert viewport_updates[-1]["mode"] == "untextured_faces"
     assert viewport_updates[-1]["texture_request_pending"] is True
     assert viewport_updates[-1]["requested_mode"] == "textured"
-    assert tab.standalone_dotnet_presentation_desired["display"]["mode"] == "textured"
+    assert tab.standalone_dotnet_presentation_desired["display"]["mode"] == "untextured_faces"
     assert tab.standalone_dotnet_pending_textured_view is True
     assert tab.standalone_dotnet_pending_textured_view_uses_presentation is True
 
@@ -528,6 +530,7 @@ def test_late_exact_clone_materials_compile_once_for_editable_and_reference_reso
         "event": "material_state_applied",
         "generation": material_writes[0]["generation"],
         "material_signature": resident_combined_signature,
+        "texture_resources_ready": True,
     })
     assert (
         tab.standalone_dotnet_material_input_signature_by_role["editable_imported"]
@@ -654,6 +657,117 @@ def test_pre_ready_clone_materials_replay_and_stale_pending_models_clear(tmp_pat
     tab.deleteLater()
     builder.deleteLater()
     app.processEvents()
+
+
+def test_package_swap_fails_sent_material_resources_and_rejects_their_late_ack(
+    tmp_path: Path,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorMaterialPackageSwap"))
+    builder = _EmbeddedMeshBuilder()
+    tab.mount_embedded_builder(builder)
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab._connect_dotnet_protocol(process)
+    controller = _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2",),
+    )
+    controller._applied_package_generation = 1
+    tab.standalone_dotnet_material_package_token = (
+        tab.standalone_dotnet_process_generation,
+        1,
+    )
+    session_id = builder.controller.session_view().session_id
+    completions: list[tuple[int, bool]] = []
+
+    def material_resources_finished(
+        generation: int,
+        committed: bool,
+        _resources: object,
+        *_authority: object,
+    ) -> None:
+        completions.append((int(generation), bool(committed)))
+
+    setattr(
+        builder,
+        "_mesh_editor_embedded_material_resources_finished",
+        material_resources_finished,
+    )
+    hook = getattr(builder, "_mesh_editor_embedded_apply_material_resources")
+
+    def binding(name: str, data: bytes) -> dict[str, object]:
+        source = tmp_path / f"{name}.dds"
+        source.write_bytes(data)
+        return {
+            "resource_id": f"authority/{name}",
+            "channel": "base",
+            "source_dds_path": source,
+            "affected_submeshes": [0],
+        }
+
+    try:
+        old_binding = binding("old-package", b"old")
+        assert hook(
+            builder.controller.working_mesh(clone=False),
+            (old_binding,),
+            affected_submeshes=(0,),
+        )
+        old_payload = _material_writes(app, process)[-1]
+        _wait_for_material_compile_idle(app, tab)
+        assert old_payload["package_generation"] == 1
+        assert not tab._wait_for_dotnet_export_updates(0.0)
+
+        controller._applied_package_generation = 2
+        assert tab._rehydrate_shared_dotnet_controller(controller)
+        boundary_generation = tab.standalone_dotnet_material_generation
+        assert boundary_generation > old_payload["generation"]
+        assert tab.standalone_dotnet_sent_material_resource_payload is None
+        assert tab._wait_for_dotnet_export_updates(0.0)
+        assert completions == [(old_payload["generation"], False)]
+
+        assert not tab._handle_dotnet_protocol_event({
+            "event": "material_state_applied",
+            "session_id": session_id,
+            "generation": old_payload["generation"],
+            "package_generation": 1,
+            "material_signature": old_payload["material_signature"],
+            "texture_resources_ready": True,
+        })
+        assert (
+            builder.controller.mesh_service.capture_export_snapshot(
+                session_id
+            ).texture_resources
+            == ()
+        )
+
+        new_binding = binding("new-package", b"new")
+        assert hook(
+            builder.controller.working_mesh(clone=False),
+            (new_binding,),
+            affected_submeshes=(0,),
+        )
+        new_payload = _material_writes(app, process, minimum=2)[-1]
+        assert new_payload["generation"] > boundary_generation
+        assert new_payload["package_generation"] == 2
+        assert tab._handle_dotnet_protocol_event({
+            "event": "material_state_applied",
+            "session_id": session_id,
+            "generation": new_payload["generation"],
+            "package_generation": 2,
+            "material_signature": new_payload["material_signature"],
+            "texture_resources_ready": True,
+        })
+        snapshot = builder.controller.mesh_service.capture_export_snapshot(session_id)
+        assert snapshot.texture_resources[0].dds_data == b"new"
+        assert completions[-1] == (new_payload["generation"], True)
+    finally:
+        tab.deleteLater()
+        builder.deleteLater()
+        app.processEvents()
 
 
 def test_failed_new_material_attempt_preserves_inflight_generation_and_commit(tmp_path: Path) -> None:

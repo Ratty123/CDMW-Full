@@ -133,6 +133,7 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_material_generation_by_role: dict[str, int] = {}
         self.standalone_dotnet_completed_material_generation_by_role: dict[str, int] = {}
         self.standalone_dotnet_applied_material_generation_by_role: dict[str, int] = {}
+        self.standalone_dotnet_texture_resources_ready_by_role: dict[str, bool] = {}
         self.standalone_dotnet_material_signature_by_role: dict[str, str] = {}
         self.standalone_dotnet_material_input_signature_by_role: dict[str, str] = {}
         self.standalone_dotnet_material_error_by_role: dict[str, str] = {}
@@ -147,6 +148,7 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_pending_textured_view_timer.timeout.connect(
             self._handle_pending_textured_view_timeout
         )
+        self.standalone_dotnet_material_package_token = (0, 0)
         self.standalone_dotnet_material_ready_flush_token = (0, 0)
         self.standalone_dotnet_pending_clone_material_model: object | None = None
         self.standalone_dotnet_pending_reference_material_model: object | None = None

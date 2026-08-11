@@ -111,6 +111,10 @@ def test_a_named_display_mode_owns_the_textures() -> None:
 
     proof = report["solid_textured_view"]
     assert proof["ok"] is True, json.dumps(proof, indent=2)
+    assert proof["decoded_texture_resources"] > 0
+    assert proof["bound_texture_resources"] is True
+    assert proof["renderer_initialized"] is True
+    assert proof["material_resources_applied"] is True
 
     # The whole defect: mode "textured" published beside the flag turned off.
     textured = proof["named_textured_mode"]
@@ -132,6 +136,28 @@ def test_a_named_display_mode_owns_the_textures() -> None:
     unnamed = proof["unnamed_mode_honours_flag"]
     assert unnamed["display_mode"] == "textured"
     assert unnamed["textures_enabled"] is False
+
+    missing = report["missing_texture_readiness"]
+    assert missing["ok"] is True, json.dumps(missing, indent=2)
+    assert "Required production texture resources failed" in missing["readiness_error"]
+    assert "missing-base.png" in missing["readiness_error"]
+    assert missing["scene_load_count_unchanged"] is True
+
+    rollback = report["gpu_binding_rollback"]
+    assert rollback["ok"] is True, json.dumps(rollback, indent=2)
+    assert rollback["decoded_texture_resources"] > 0
+    assert "decoded but could not be bound by the renderer" in rollback["binding_error"]
+    assert rollback["form_state_identities_unchanged"] is True
+    assert rollback["geometry_resources_unchanged"] is True
+    assert rollback["material_resources_unchanged"] is True
+    assert rollback["scene_load_count_unchanged"] is True
+    assert rollback["display_mode_unchanged"] is True
+    assert rollback["texture_resources_ready_before"] is True
+    assert rollback["texture_resources_ready_after"] is True
+    assert rollback["pending_material_refresh_consumed"] is True
+    assert rollback["dirty_geometry_resources_unchanged"] is True
+    assert rollback["pending_geometry_refresh_consumed"] is True
+    assert rollback["previous_resources_still_usable"] is True
 
 
 def test_the_quality_payload_defers_to_a_named_mode_in_source() -> None:

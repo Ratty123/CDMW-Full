@@ -111,6 +111,7 @@ def test_embedded_hook_coalesces_latest_unsent_parameter_groups(
         "request_id": 2,
         "base_revision": revision,
         "process_generation": tab.standalone_dotnet_process_generation,
+        "package_generation": 0,
         "protocol_version": 2,
         "edit_revision": revision,
         "parameter_generation": 2,
@@ -247,6 +248,75 @@ def test_export_waiter_blocks_until_material_parameter_ack_is_committed(
     })
     assert tab._wait_for_dotnet_export_updates(0.0)
     assert builder.controller.mesh_service.capture_export_snapshot(session_id).material_parameter_groups == group
+
+
+def test_package_swap_cancels_sent_parameters_and_tombstones_their_ack(
+    resident_parameter_tab: tuple[QApplication, MeshEditorTab, _EmbeddedMeshBuilder, _FakeProcess],
+) -> None:
+    _app, tab, builder, process = resident_parameter_tab
+    controller = tab._active_shared_dotnet_controller()
+    assert controller is not None
+    controller._applied_package_generation = 1
+    tab.standalone_dotnet_material_package_token = (
+        tab.standalone_dotnet_process_generation,
+        1,
+    )
+
+    old_group = ({"source_submesh_indices": [0], "roughness": 0.2},)
+    assert tab.apply_resident_material_parameters(old_group)
+    assert _flush_parameter_update(tab)
+    old_payload = _parameter_writes(process)[-1]
+    assert old_payload["package_generation"] == 1
+    assert not tab._wait_for_dotnet_export_updates(0.0)
+
+    controller._applied_package_generation = 2
+    assert tab._rehydrate_shared_dotnet_controller(controller)
+    boundary_generation = tab.standalone_dotnet_material_parameter_generation
+    assert boundary_generation > old_payload["parameter_generation"]
+    assert (
+        tab.standalone_dotnet_completed_material_parameter_generation
+        == boundary_generation
+    )
+    assert tab.standalone_dotnet_sent_material_parameter_generation == 0
+    assert tab.standalone_dotnet_applied_material_parameter_generation == 0
+    assert tab.standalone_dotnet_pending_material_parameter_payload is None
+    assert tab.standalone_dotnet_sent_material_parameter_payload is None
+    assert tab._wait_for_dotnet_export_updates(0.0)
+
+    assert not tab._handle_dotnet_protocol_event({
+        "event": "material_parameter_applied",
+        "session_id": old_payload["session_id"],
+        "edit_revision": old_payload["edit_revision"],
+        "parameter_generation": old_payload["parameter_generation"],
+        "package_generation": 1,
+    })
+    session_id = str(old_payload["session_id"])
+    assert (
+        builder.controller.mesh_service.capture_export_snapshot(
+            session_id
+        ).material_parameter_groups
+        == ()
+    )
+
+    new_group = ({"source_submesh_indices": [0], "roughness": 0.8},)
+    assert tab.apply_resident_material_parameters(new_group)
+    assert _flush_parameter_update(tab)
+    new_payload = _parameter_writes(process)[-1]
+    assert new_payload["package_generation"] == 2
+    assert new_payload["parameter_generation"] > boundary_generation
+    assert tab._handle_dotnet_protocol_event({
+        "event": "material_parameter_applied",
+        "session_id": new_payload["session_id"],
+        "edit_revision": new_payload["edit_revision"],
+        "parameter_generation": new_payload["parameter_generation"],
+        "package_generation": 2,
+    })
+    assert (
+        builder.controller.mesh_service.capture_export_snapshot(
+            session_id
+        ).material_parameter_groups
+        == new_group
+    )
 
 
 def test_native_material_override_update_uses_separate_parameter_event(

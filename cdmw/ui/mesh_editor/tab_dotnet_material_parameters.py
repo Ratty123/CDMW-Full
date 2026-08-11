@@ -108,6 +108,7 @@ class MeshEditorDotNetMaterialParameterMixin:
             "request_id": generation,
             "base_revision": revision,
             "process_generation": self.standalone_dotnet_process_generation,
+            "package_generation": self._dotnet_material_package_generation(),
             "protocol_version": 2,
             "edit_revision": revision,
             "parameter_generation": generation,
@@ -152,9 +153,19 @@ class MeshEditorDotNetMaterialParameterMixin:
         except (TypeError, ValueError, OverflowError):
             return False
         session_id = str(payload.get("session_id", "") or "").strip()
+        try:
+            package_generation = int(payload.get("package_generation", 0) or 0)
+        except (TypeError, ValueError, OverflowError):
+            return False
+        resident_package_generation = self._dotnet_material_package_generation()
         if (
             not session_id
             or session_id != self.standalone_dotnet_material_parameter_session_id
+            or (
+                package_generation > 0
+                and resident_package_generation > 0
+                and package_generation != resident_package_generation
+            )
             or generation != self.standalone_dotnet_material_parameter_generation
             or generation != self.standalone_dotnet_sent_material_parameter_generation
             or generation <= self.standalone_dotnet_completed_material_parameter_generation

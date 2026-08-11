@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.IO;
 using System.Text.Json;
 
 namespace Cdmw.MeshEditorExperiment;
@@ -29,6 +30,13 @@ internal sealed partial class ExperimentForm
     /// </remarks>
     internal Dictionary<string, object?> SolidTexturedViewProof()
     {
+        _textureSet.LoadAsync(_materials).GetAwaiter().GetResult();
+        var rendererInitialized = _viewport.EnsureRendererInitialized();
+        var materialResourcesApplied = _viewport.TryApplyMaterialState(
+            Enumerable.Range(0, _document.Submeshes.Count).ToArray(),
+            out var materialResourceError);
+        var decodedTextureResources = _textureSet.DecodedCount;
+        var boundTextureResources = _viewport.HasTexturedMaterialResources;
         var withMode = ApplyPresentationTextureCase(
             "textured",
             useTexturesByDefault: false);
@@ -46,6 +54,10 @@ internal sealed partial class ExperimentForm
             ["ok"] = withMode.Applied
                 && withMode.TexturesEnabled
                 && withMode.PaneTexturesEnabled
+                && rendererInitialized
+                && materialResourcesApplied
+                && decodedTextureResources > 0
+                && boundTextureResources
                 && untexturedWithMode.Applied
                 && !untexturedWithMode.TexturesEnabled
                 && !untexturedWithMode.PaneTexturesEnabled
@@ -54,7 +66,176 @@ internal sealed partial class ExperimentForm
             ["named_textured_mode"] = withMode.Payload,
             ["named_untextured_mode"] = untexturedWithMode.Payload,
             ["unnamed_mode_honours_flag"] = withoutMode.Payload,
+            ["renderer_initialized"] = rendererInitialized,
+            ["material_resources_applied"] = materialResourcesApplied,
+            ["material_resource_error"] = materialResourceError,
+            ["decoded_texture_resources"] = decodedTextureResources,
+            ["bound_texture_resources"] = boundTextureResources,
         };
+    }
+
+    internal Dictionary<string, object?> ResidentPackageTextureFailureProof(string packagePath)
+    {
+        var sceneLoadCountBefore = _viewport.ResidentSceneLoadCount;
+        try
+        {
+            using var prepared = PrepareResidentPackage(
+                packagePath,
+                previewProfile: false,
+                CancellationToken.None);
+            return new Dictionary<string, object?>
+            {
+                ["ok"] = false,
+                ["readiness_error"] = string.Empty,
+                ["scene_load_count_unchanged"] = _viewport.ResidentSceneLoadCount == sceneLoadCountBefore,
+            };
+        }
+        catch (InvalidDataException ex)
+        {
+            return new Dictionary<string, object?>
+            {
+                ["ok"] = !string.IsNullOrWhiteSpace(ex.Message)
+                    && _viewport.ResidentSceneLoadCount == sceneLoadCountBefore,
+                ["readiness_error"] = ex.Message,
+                ["scene_load_count_unchanged"] = _viewport.ResidentSceneLoadCount == sceneLoadCountBefore,
+            };
+        }
+    }
+
+    internal Dictionary<string, object?> ResidentPackageGpuBindingFailureProof(string packagePath)
+    {
+        var previousDocument = _document;
+        var previousMaterials = _materials;
+        var previousTextureSet = _textureSet;
+        var previousScene = _scene;
+        var previousDisplayMode = _viewport.DisplayMode;
+        var sceneLoadCountBefore = _viewport.ResidentSceneLoadCount;
+        var resourcesReadyBefore = _viewport.HasTexturedMaterialResources;
+        var metricsBefore = _viewport.RendererResourceMetricsPayload();
+        _viewport.RefreshTextures();
+        using var prepared = PrepareResidentPackage(
+            packagePath,
+            previewProfile: false,
+            CancellationToken.None);
+        var decodedTextureResources = prepared.TextureSet.DecodedCount;
+        try
+        {
+            ApplyPreparedResidentPackage(prepared, requestId: 2, generation: 2);
+            return new Dictionary<string, object?>
+            {
+                ["ok"] = false,
+                ["binding_error"] = string.Empty,
+                ["decoded_texture_resources"] = decodedTextureResources,
+            };
+        }
+        catch (InvalidOperationException ex)
+        {
+            var metricsAfter = _viewport.RendererResourceMetricsPayload();
+            var identitiesUnchanged = ReferenceEquals(_document, previousDocument)
+                && ReferenceEquals(_materials, previousMaterials)
+                && ReferenceEquals(_textureSet, previousTextureSet)
+                && ReferenceEquals(_scene, previousScene);
+            var geometryResourcesUnchanged = Equals(
+                    metricsBefore.GetValueOrDefault("geometry_buffer_identity"),
+                    metricsAfter.GetValueOrDefault("geometry_buffer_identity"))
+                && Equals(
+                    metricsBefore.GetValueOrDefault("live_geometry_batches"),
+                    metricsAfter.GetValueOrDefault("live_geometry_batches"));
+            var materialResourcesUnchanged = Equals(
+                    metricsBefore.GetValueOrDefault("material_binding_array_identity"),
+                    metricsAfter.GetValueOrDefault("material_binding_array_identity"))
+                && Equals(
+                    metricsBefore.GetValueOrDefault("live_texture_srvs"),
+                    metricsAfter.GetValueOrDefault("live_texture_srvs"));
+            var sceneLoadCountUnchanged = _viewport.ResidentSceneLoadCount == sceneLoadCountBefore;
+            var displayModeUnchanged = string.Equals(
+                _viewport.DisplayMode,
+                previousDisplayMode,
+                StringComparison.Ordinal);
+            var resourcesReadyAfter = _viewport.HasTexturedMaterialResources;
+            var materialRefreshFrameApplied = _viewport.TryRunHeadlessRendererFrame(
+                out _,
+                out _,
+                out var materialRefreshFrameError);
+            var metricsAfterMaterialRefresh = _viewport.RendererResourceMetricsPayload();
+            var pendingMaterialRefreshConsumed = materialRefreshFrameApplied
+                && Convert.ToInt64(
+                    metricsAfterMaterialRefresh.GetValueOrDefault("material_state_apply_count") ?? 0)
+                > Convert.ToInt64(
+                    metricsAfter.GetValueOrDefault("material_state_apply_count") ?? 0);
+
+            _viewport.RefreshBounds();
+            var metricsBeforeDirtyGeometryFailure = _viewport.RendererResourceMetricsPayload();
+            var secondBindingError = string.Empty;
+            var secondPackageRejected = false;
+            try
+            {
+                ApplyPreparedResidentPackage(prepared, requestId: 3, generation: 3);
+            }
+            catch (InvalidOperationException secondEx)
+            {
+                secondBindingError = secondEx.Message;
+                secondPackageRejected = secondEx.Message.Contains(
+                    "decoded but could not be bound by the renderer",
+                    StringComparison.OrdinalIgnoreCase);
+            }
+            var metricsAfterDirtyGeometryFailure = _viewport.RendererResourceMetricsPayload();
+            var dirtyGeometryResourcesUnchanged = Equals(
+                    metricsBeforeDirtyGeometryFailure.GetValueOrDefault("geometry_buffer_identity"),
+                    metricsAfterDirtyGeometryFailure.GetValueOrDefault("geometry_buffer_identity"))
+                && Equals(
+                    metricsBeforeDirtyGeometryFailure.GetValueOrDefault("live_geometry_batches"),
+                    metricsAfterDirtyGeometryFailure.GetValueOrDefault("live_geometry_batches"));
+            var geometryRefreshFrameApplied = _viewport.TryRunHeadlessRendererFrame(
+                out _,
+                out _,
+                out var geometryRefreshFrameError);
+            var metricsAfterGeometryRefresh = _viewport.RendererResourceMetricsPayload();
+            var pendingGeometryRefreshConsumed = geometryRefreshFrameApplied
+                && Convert.ToInt64(
+                    metricsAfterGeometryRefresh.GetValueOrDefault("full_geometry_rebuilds") ?? 0)
+                > Convert.ToInt64(
+                    metricsAfterDirtyGeometryFailure.GetValueOrDefault("full_geometry_rebuilds") ?? 0);
+            var previousResourcesStillUsable = _viewport.TryApplyMaterialState(
+                Enumerable.Range(0, _document.Submeshes.Count).ToArray(),
+                out var rebindError);
+            return new Dictionary<string, object?>
+            {
+                ["ok"] = decodedTextureResources > 0
+                    && ex.Message.Contains(
+                        "decoded but could not be bound by the renderer",
+                        StringComparison.OrdinalIgnoreCase)
+                    && identitiesUnchanged
+                    && geometryResourcesUnchanged
+                    && materialResourcesUnchanged
+                    && sceneLoadCountUnchanged
+                    && displayModeUnchanged
+                    && resourcesReadyBefore
+                    && resourcesReadyAfter
+                    && pendingMaterialRefreshConsumed
+                    && secondPackageRejected
+                    && dirtyGeometryResourcesUnchanged
+                    && pendingGeometryRefreshConsumed
+                    && previousResourcesStillUsable,
+                ["binding_error"] = ex.Message,
+                ["decoded_texture_resources"] = decodedTextureResources,
+                ["form_state_identities_unchanged"] = identitiesUnchanged,
+                ["geometry_resources_unchanged"] = geometryResourcesUnchanged,
+                ["material_resources_unchanged"] = materialResourcesUnchanged,
+                ["scene_load_count_unchanged"] = sceneLoadCountUnchanged,
+                ["display_mode_unchanged"] = displayModeUnchanged,
+                ["texture_resources_ready_before"] = resourcesReadyBefore,
+                ["texture_resources_ready_after"] = resourcesReadyAfter,
+                ["pending_material_refresh_consumed"] = pendingMaterialRefreshConsumed,
+                ["material_refresh_frame_error"] = materialRefreshFrameError,
+                ["second_binding_error"] = secondBindingError,
+                ["dirty_geometry_resources_unchanged"] = dirtyGeometryResourcesUnchanged,
+                ["pending_geometry_refresh_consumed"] = pendingGeometryRefreshConsumed,
+                ["geometry_refresh_frame_error"] = geometryRefreshFrameError,
+                ["previous_resources_still_usable"] = previousResourcesStillUsable,
+                ["previous_resource_rebind_error"] = rebindError,
+            };
+        }
     }
 
     private (bool Applied, bool TexturesEnabled, bool PaneTexturesEnabled, Dictionary<string, object?> Payload)

@@ -28,6 +28,16 @@ internal sealed partial class NetTextureSet : IDisposable
     public int DdsResourceCount { get { lock (_gate) return _ddsResources.Count; } }
     public int DdsDecodedCount { get { lock (_gate) return _ddsResources.Values.Count(info => info.Decoded); } }
     public int NativeDdsResourceCount { get { lock (_gate) return _nativeDdsByFingerprint.Count; } }
+    public bool HasSampleableTextureResources
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _decodedByFingerprint.Count > 0 || _nativeDdsByFingerprint.Count > 0;
+            }
+        }
+    }
     public int TextureLoadFailureCount { get { lock (_gate) return _textureLoadFailures.Count; } }
     public IReadOnlyDictionary<string, NetDdsTextureInfo> DdsResources { get { lock (_gate) return new Dictionary<string, NetDdsTextureInfo>(_ddsResources); } }
     public IReadOnlyList<string> TextureLoadFailures { get { lock (_gate) return _textureLoadFailures.ToArray(); } }

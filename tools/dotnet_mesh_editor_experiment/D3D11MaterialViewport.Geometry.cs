@@ -145,7 +145,7 @@ internal sealed partial class D3D11MaterialViewport
         _vertexDataDirty = _dirtyVerticesBySubmesh.Count > 0 || _dirtyNormalsBySubmesh.Count > 0 || _dirtyUvsBySubmesh.Count > 0;
     }
 
-    private void RebuildGeometry()
+    private void RebuildGeometry(bool requireTextureResources = false)
     {
         if (_device is null)
         {
@@ -180,6 +180,22 @@ internal sealed partial class D3D11MaterialViewport
             }
             PruneTextureCacheToActiveBindings();
             throw;
+        }
+
+        if (requireTextureResources
+            && _materials.TextureLoadResources().Any()
+            && !TexturedMaterialResourcesReady(
+                nextBatches.Select(batch => (batch.MaterialSubmeshIndex, batch.Materials)),
+                requireDeclaredTextures: true,
+                out var textureReadinessError))
+        {
+            foreach (var batch in nextBatches)
+            {
+                DisposeBatch(batch);
+            }
+            PruneTextureCacheToActiveBindings();
+            throw new InvalidOperationException(
+                $"The resident package texture resources were decoded but could not be bound by the renderer: {textureReadinessError}");
         }
 
         var nextBytes = nextBatches.Sum(batch => batch.GeometryBytes);

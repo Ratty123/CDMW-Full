@@ -31,6 +31,14 @@ internal sealed partial class D3D11MaterialViewport
     public int NativeDdsTextureCount => _textureSrvCache.Values.Count(entry => entry.NativeDds);
     public int BitmapFallbackTextureCount => _textureSrvCache.Values.Count(entry => !entry.NativeDds);
     public long NativeDdsFallbackCount => _nativeDdsFallbackCount;
+    public bool HasTexturedMaterialResources => TexturedMaterialResourcesReady(_batches);
+
+    public bool HasTexturedMaterialResourcesForSubmeshes(IReadOnlyCollection<int> submeshIndices)
+    {
+        var affected = submeshIndices.ToHashSet();
+        return TexturedMaterialResourcesReady(
+            _batches.Where(batch => affected.Contains(batch.SubmeshIndex)));
+    }
 
     public void RefreshTextures()
     {
@@ -69,6 +77,16 @@ internal sealed partial class D3D11MaterialViewport
             foreach (var batch in targets)
             {
                 replacements.Add((batch, CreateMaterialResources(batch.MaterialSubmeshIndex)));
+            }
+            var replacementBatches = replacements
+                .Select(replacement => (replacement.Batch.MaterialSubmeshIndex, replacement.Materials))
+                .ToArray();
+            if (!TexturedMaterialResourcesReady(replacementBatches, requireDeclaredTextures: false, out var readinessError))
+            {
+                error = readinessError;
+                _materialStateApplyFailureCount++;
+                PruneTextureCacheToActiveBindings();
+                return false;
             }
             UnbindGeometryResources();
             foreach (var replacement in replacements)
@@ -164,6 +182,60 @@ internal sealed partial class D3D11MaterialViewport
                 .ToHashSet(StringComparer.OrdinalIgnoreCase));
         _materialBindingArrayCreateCount++;
         return resources;
+    }
+
+    private bool TexturedMaterialResourcesReady(IEnumerable<D3D11SubmeshBatch> batches)
+    {
+        return TexturedMaterialResourcesReady(
+            batches.Select(batch => (batch.MaterialSubmeshIndex, batch.Materials)),
+            requireDeclaredTextures: true,
+            out _);
+    }
+
+    private bool TexturedMaterialResourcesReady(
+        IEnumerable<(int MaterialSubmeshIndex, D3D11MaterialResources Materials)> batches,
+        bool requireDeclaredTextures,
+        out string error)
+    {
+        error = string.Empty;
+        var declaredTextureBatchCount = 0;
+        foreach (var (materialSubmeshIndex, resources) in batches)
+        {
+            var baseReference = _textureSet.SynthesizedBaseReferenceForSubmesh(
+                _materials,
+                materialSubmeshIndex);
+            if (baseReference.IsEmpty)
+            {
+                baseReference = _materials.TextureReferenceForSubmesh(
+                    materialSubmeshIndex,
+                    "base",
+                    "albedo",
+                    "diffuse");
+            }
+            var declaresTextures = !baseReference.IsEmpty
+                || _materials.TextureReferencesForSubmesh(materialSubmeshIndex).Any();
+            if (!declaresTextures)
+            {
+                continue;
+            }
+            declaredTextureBatchCount++;
+            if (!baseReference.IsEmpty && resources.Base is null)
+            {
+                error = $"Submesh {materialSubmeshIndex} declares a base texture, but the renderer could not bind it.";
+                return false;
+            }
+            if (!resources.ShaderResources.Any(view => view is not null))
+            {
+                error = $"Submesh {materialSubmeshIndex} declares texture resources, but the renderer bound none of them.";
+                return false;
+            }
+        }
+        if (requireDeclaredTextures && declaredTextureBatchCount == 0)
+        {
+            error = "No resident texture resources are bound.";
+            return false;
+        }
+        return true;
     }
 
     private D3D11TextureBinding CreateTextureSrv(NetMaterialTextureReference reference)

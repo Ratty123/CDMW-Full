@@ -9,6 +9,7 @@ internal sealed partial class ExperimentForm
     private CancellationTokenSource? _residentPackageLoadCancellation;
     private SynchronizationContext? _residentPackageUiContext;
     private long _residentPackageLoadGeneration;
+    private long _residentPackageAppliedGeneration;
     private long _residentPackageLoadCount;
 
     private sealed class PreparedResidentPackage(
@@ -210,6 +211,11 @@ internal sealed partial class ExperimentForm
             phase.Restart();
             textures.LoadAsync(materials).GetAwaiter().GetResult();
             cancellationToken.ThrowIfCancellationRequested();
+            var textureReadinessError = materials.TextureReadinessError(textures);
+            if (!string.IsNullOrWhiteSpace(textureReadinessError))
+            {
+                throw new InvalidDataException(textureReadinessError);
+            }
             return new PreparedResidentPackage(
                 packagePath,
                 document,
@@ -252,6 +258,7 @@ internal sealed partial class ExperimentForm
         RefreshSubmeshList();
         ReassertInteractionModeControls();
         previousTextures.Dispose();
+        Interlocked.Exchange(ref _residentPackageAppliedGeneration, generation);
         var loadCount = Interlocked.Increment(ref _residentPackageLoadCount);
         _statusLabel.Text = $"Resident package loaded: {_document.Submeshes.Count} part(s).";
         WriteProtocolEvent("package_load_applied", new Dictionary<string, object?>
@@ -264,6 +271,7 @@ internal sealed partial class ExperimentForm
             ["parse_ms"] = prepared.ParseMilliseconds,
             ["texture_ms"] = prepared.TextureMilliseconds,
             ["apply_ms"] = phase.Elapsed.TotalMilliseconds,
+            ["texture_resources_ready"] = _viewport.HasTexturedMaterialResources,
             ["resident_package_load_count"] = loadCount,
             ["resident_scene_load_count"] = _viewport.ResidentSceneLoadCount,
             ["renderer"] = RendererCompactStatusWithLifecycle(),

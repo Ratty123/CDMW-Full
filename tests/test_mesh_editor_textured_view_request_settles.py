@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -80,6 +81,7 @@ def _mark_material_role_ready(
     tab.standalone_dotnet_material_generation_by_role[role] = generation
     tab.standalone_dotnet_completed_material_generation_by_role[role] = generation
     tab.standalone_dotnet_applied_material_generation_by_role[role] = generation
+    tab.standalone_dotnet_texture_resources_ready_by_role[role] = True
     tab.standalone_dotnet_material_signature_by_role[role] = signature
 
 
@@ -167,7 +169,7 @@ def test_already_resolved_textures_apply_without_a_new_acknowledgement() -> None
     app.processEvents()
 
 
-def test_unavailable_textures_keep_the_requested_mode_as_display_authority() -> None:
+def test_unavailable_textures_restore_honest_untextured_display_authority() -> None:
     app, tab, builder, process = _mounted_tab(
         "MeshEditorTexturedViewUnavailable",
         lambda: ORIGINAL_REFERENCE_TEXTURE_REQUEST_UNAVAILABLE,
@@ -178,8 +180,8 @@ def test_unavailable_textures_keep_the_requested_mode_as_display_authority() -> 
 
     assert tab.standalone_dotnet_pending_textured_view is False
     assert _display_modes(process)[-1] == "untextured_faces"
-    assert combo.currentData() == "textured"
-    assert tab.standalone_dotnet_presentation_desired["display"]["mode"] == "textured"
+    assert combo.currentData() == "untextured_faces"
+    assert tab.standalone_dotnet_presentation_desired["display"]["mode"] == "untextured_faces"
 
     tab.deleteLater()
     builder.deleteLater()
@@ -201,14 +203,19 @@ def test_a_resolver_that_starts_work_arms_the_watchdog_and_still_times_out() -> 
     tab._handle_pending_textured_view_timeout()
     assert tab.standalone_dotnet_pending_textured_view is False
     assert _display_modes(process)[-1] == "untextured_faces"
-    assert combo.currentData() == "textured"
+    assert combo.currentData() == "untextured_faces"
 
     tab.deleteLater()
     builder.deleteLater()
     app.processEvents()
 
 
-def _acknowledge_material_state(tab: MeshEditorTab, process: _FakeProcess) -> None:
+def _acknowledge_material_state(
+    tab: MeshEditorTab,
+    process: _FakeProcess,
+    *,
+    texture_resources_ready: bool = True,
+) -> None:
     """Deliver the acknowledgement a finished resident material update sends."""
     tab.standalone_dotnet_material_generation = 1
     tab.standalone_dotnet_material_generation_by_role["editable_imported"] = 1
@@ -219,10 +226,100 @@ def _acknowledge_material_state(tab: MeshEditorTab, process: _FakeProcess) -> No
                 "event": "material_state_applied",
                 "generation": 1,
                 "material_signature": "resident-materials",
+                "texture_resources_ready": texture_resources_ready,
             }
         )
         + "\n"
     )
+
+
+def test_material_ack_without_a_bound_texture_keeps_the_honest_fallback() -> None:
+    app, tab, builder, process = _mounted_tab(
+        "MeshEditorTexturedViewNoBoundTexture",
+        lambda: ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED,
+    )
+    combo = tab.embedded_workspace.viewport_display_combo
+    runtime_events: list[tuple[str, dict[str, object]]] = []
+    tab.runtime_event_requested.connect(
+        lambda event, payload: runtime_events.append((str(event), dict(payload)))
+    )
+
+    assert tab._handle_embedded_viewport_display_mode("textured")
+    _acknowledge_material_state(
+        tab,
+        process,
+        texture_resources_ready=False,
+    )
+
+    assert tab.standalone_dotnet_pending_textured_view is False
+    assert tab.standalone_dotnet_deferred_textured_view_mode == "textured"
+    assert tab.standalone_dotnet_texture_resources_ready_by_role["editable_imported"] is False
+    assert _display_modes(process)[-1] == "untextured_faces"
+    assert combo.currentData() == "untextured_faces"
+    assert any(
+        event == "mesh_dotnet_textured_view_failed"
+        and payload.get("reason") == "editable_imported_texture_resources_not_ready"
+        for event, payload in runtime_events
+    )
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
+def test_unsupported_texture_helper_keeps_fallback_authority_when_send_fails() -> None:
+    app, tab, builder, _process = _mounted_tab(
+        "MeshEditorTexturedViewUnsupportedSendFailure",
+        lambda: ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED,
+    )
+    tab.standalone_dotnet_capabilities.discard("resident_material_updates_v2")
+    tab._send_dotnet_protocol_message = lambda _payload: False  # type: ignore[method-assign]
+
+    assert not tab._handle_embedded_viewport_display_mode("textured")
+    assert (
+        tab.standalone_dotnet_presentation_desired["display"]["mode"]
+        == "untextured_faces"
+    )
+    assert tab.embedded_workspace.viewport_display_combo.currentData() == "untextured_faces"
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
+def test_failed_textured_request_can_be_selected_again_as_a_real_retry() -> None:
+    outcomes = iter(
+        (
+            ORIGINAL_REFERENCE_TEXTURE_REQUEST_UNAVAILABLE,
+            ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED,
+        )
+    )
+    calls: list[str] = []
+
+    def resolve() -> str:
+        calls.append("resolve")
+        return next(outcomes)
+
+    app, tab, builder, process = _mounted_tab(
+        "MeshEditorTexturedViewRetry",
+        resolve,
+    )
+    combo = tab.embedded_workspace.viewport_display_combo
+
+    assert tab._handle_embedded_viewport_display_mode("textured")
+    assert combo.currentData() == "untextured_faces"
+    assert tab.standalone_dotnet_pending_textured_view is False
+
+    assert tab._handle_embedded_viewport_display_mode("textured")
+    assert calls == ["resolve", "resolve"]
+    assert tab.standalone_dotnet_pending_textured_view is True
+    assert tab.standalone_dotnet_pending_textured_view_timer.isActive()
+    assert combo.currentData() == "untextured_faces"
+    assert _display_modes(process)[-1] == "untextured_faces"
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
 
 
 def test_a_busy_compiler_extends_the_wait_instead_of_failing_it() -> None:
@@ -259,7 +356,7 @@ def test_a_busy_compiler_extends_the_wait_instead_of_failing_it() -> None:
     )
     tab._handle_pending_textured_view_timeout()
     assert tab.standalone_dotnet_pending_textured_view is False
-    assert combo.currentData() == "textured"
+    assert combo.currentData() == "untextured_faces"
 
     tab.standalone_dotnet_material_update_worker = None
     tab.deleteLater()
@@ -282,7 +379,7 @@ def test_textures_that_land_after_the_wait_still_restore_the_textured_view() -> 
 
     assert tab._handle_embedded_viewport_display_mode("textured")
     tab._handle_pending_textured_view_timeout()
-    assert combo.currentData() == "textured"
+    assert combo.currentData() == "untextured_faces"
     assert tab.standalone_dotnet_deferred_textured_view_mode == "textured"
 
     _acknowledge_material_state(tab, process)
@@ -370,6 +467,107 @@ def test_a_deduplicated_material_publish_completes_the_textured_view() -> None:
     assert tab.standalone_dotnet_pending_textured_view is False
     assert not tab.standalone_dotnet_pending_textured_view_timer.isActive()
     assert _display_modes(process)[-1] == "textured"
+    assert combo.currentData() == "textured"
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
+def test_same_session_package_swap_republishes_before_restoring_textured_view() -> None:
+    """A geometry package cannot inherit the prior package's material readiness."""
+
+    app, tab, builder, process = _mounted_tab(
+        "MeshEditorTexturedViewPackageSwap",
+        lambda: ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED,
+    )
+    combo = tab.embedded_workspace.viewport_display_combo
+    resident_signature = _resident_material_signature(tab)
+    tab.standalone_dotnet_material_signature = resident_signature
+    _mark_material_role_ready(tab, signature=resident_signature)
+    tab.standalone_dotnet_material_input_signature_by_role[
+        "editable_imported"
+    ] = resident_signature
+
+    assert tab._handle_embedded_viewport_display_mode("textured")
+    assert combo.currentData() == "textured"
+    assert tab._send_dotnet_material_state(reason="already_resident")
+    assert tab.standalone_dotnet_lifecycle_counts[
+        "material_state_deduplicated_count"
+    ] == 1
+    assert not any(
+        b'"event":"material_state_update"' in raw
+        for raw in process.stdin_writes
+    )
+
+    retries: list[str] = []
+
+    def republish_after_package() -> str:
+        retries.append("requested")
+        assert tab._send_dotnet_material_state(reason="resident_package_replaced")
+        return ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED
+
+    setattr(
+        builder,
+        "_mesh_editor_embedded_request_material_resources",
+        republish_after_package,
+    )
+    controller = tab._active_shared_dotnet_controller()
+    assert controller is not None
+    controller._applied_package_generation = 2
+
+    # The accepted-package rehydrator runs before the helper is revealed. It
+    # must invalidate the old acknowledgement before replaying presentation, so
+    # that replay carries the honest untextured fallback rather than Textured.
+    assert tab._rehydrate_shared_dotnet_controller(controller)
+    boundary_generation = tab.standalone_dotnet_material_generation
+    assert boundary_generation == tab.standalone_dotnet_completed_material_generation
+    assert tab.standalone_dotnet_applied_material_generation == 0
+    assert not tab.standalone_dotnet_applied_material_generation_by_role
+    assert not tab.standalone_dotnet_texture_resources_ready_by_role
+    assert not tab._dotnet_material_roles_ready()
+    assert combo.currentData() == "untextured_faces"
+    assert (
+        tab.standalone_dotnet_presentation_desired["display"]["mode"]
+        == "untextured_faces"
+    )
+
+    tab._handle_shared_dotnet_package_applied(controller, "geometry-only", 2)
+    deadline = time.monotonic() + 3.0
+    material_updates: list[dict[str, object]] = []
+    while time.monotonic() < deadline:
+        app.processEvents()
+        material_updates = [
+            json.loads(raw.decode("utf-8"))
+            for raw in process.stdin_writes
+            if b'"event":"material_state_update"' in raw
+        ]
+        if material_updates and not tab._dotnet_material_compile_active():
+            break
+        time.sleep(0.005)
+
+    assert retries == ["requested"]
+    assert len(material_updates) == 1
+    material_update = material_updates[0]
+    assert material_update["generation"] > boundary_generation
+    assert material_update["package_generation"] == 2
+    assert tab.standalone_dotnet_lifecycle_counts[
+        "material_state_deduplicated_count"
+    ] == 1
+    assert tab.standalone_dotnet_pending_textured_view is True
+    assert combo.currentData() == "untextured_faces"
+
+    assert tab._handle_dotnet_protocol_event(
+        {
+            "event": "material_state_applied",
+            "generation": material_update["generation"],
+            "package_generation": 2,
+            "material_signature": material_update["material_signature"],
+            "texture_resources_ready": True,
+        }
+    )
+    assert tab.standalone_dotnet_pending_textured_view is False
+    assert tab._dotnet_material_roles_ready()
     assert combo.currentData() == "textured"
 
     tab.deleteLater()
@@ -527,6 +725,7 @@ def test_a_settled_material_state_still_resolves_the_original_pane_textures() ->
                 "generation": 2,
                 "role": "original_reference",
                 "material_signature": "reference-materials",
+                "texture_resources_ready": True,
             }
         )
         + "\n"
@@ -559,7 +758,7 @@ def test_pending_texture_fallback_keeps_grid_and_requested_mode_authority() -> N
     )
     assert presentation["display"]["mode"] == "untextured_faces"
     assert presentation["display"]["grid_visible"] is True
-    assert tab.standalone_dotnet_presentation_desired["display"]["mode"] == "textured"
+    assert tab.standalone_dotnet_presentation_desired["display"]["mode"] == "untextured_faces"
     assert tab.standalone_dotnet_presentation_desired["display"]["grid_visible"] is True
 
     tab.deleteLater()

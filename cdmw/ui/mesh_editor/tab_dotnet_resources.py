@@ -15,6 +15,7 @@ from cdmw.services.mesh_dotnet_material_compiler import (
 )
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     normalize_mesh_preview_display_mode,
+    untextured_fallback_display_mode,
 )
 from cdmw.ui.mesh_editor import tab_dotnet_material_commit as _material_commit
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
@@ -51,10 +52,12 @@ class MeshEditorDotNetResourceProtocolMixin(
         applied = self.standalone_dotnet_applied_material_generation_by_role
         desired = self.standalone_dotnet_material_generation_by_role
         completed = self.standalone_dotnet_completed_material_generation_by_role
+        resources_ready = self.standalone_dotnet_texture_resources_ready_by_role
         return all(
             int(applied.get(role, 0) or 0) > 0
             and int(applied.get(role, 0) or 0) >= int(desired.get(role, 0) or 0)
             and int(completed.get(role, 0) or 0) >= int(desired.get(role, 0) or 0)
+            and bool(resources_ready.get(role, False))
             for role in self._dotnet_required_material_roles()
         )
 
@@ -64,12 +67,14 @@ class MeshEditorDotNetResourceProtocolMixin(
         applied = self.standalone_dotnet_applied_material_generation_by_role
         desired = self.standalone_dotnet_material_generation_by_role
         completed = self.standalone_dotnet_completed_material_generation_by_role
+        resources_ready = self.standalone_dotnet_texture_resources_ready_by_role
         return tuple(
             role
             for role in self._dotnet_required_material_roles()
             if int(applied.get(role, 0) or 0) <= 0
             or int(applied.get(role, 0) or 0) < int(desired.get(role, 0) or 0)
             or int(completed.get(role, 0) or 0) < int(desired.get(role, 0) or 0)
+            or not bool(resources_ready.get(role, False))
         )
 
     @staticmethod
@@ -110,9 +115,18 @@ class MeshEditorDotNetResourceProtocolMixin(
         if event in {"material_state_applied", "material_state_failed"}:
             try:
                 generation = int(payload.get("generation", 0) or 0)
-            except (TypeError, ValueError):
+                package_generation = int(payload.get("package_generation", 0) or 0)
+            except (TypeError, ValueError, OverflowError):
                 generation = 0
+                package_generation = 0
+            resident_package_generation = self._dotnet_material_package_generation()
             if (
+                (
+                    package_generation > 0
+                    and resident_package_generation > 0
+                    and package_generation != resident_package_generation
+                )
+                or
                 generation <= self.standalone_dotnet_completed_material_generation
                 or generation != self.standalone_dotnet_material_generation
             ):
@@ -136,9 +150,33 @@ class MeshEditorDotNetResourceProtocolMixin(
         if event == "material_state_applied":
             if not _material_commit.commit_acknowledged_material_resources(self, payload):
                 return False
+            texture_resources_ready = payload.get("texture_resources_ready") is True
+            if "texture_resources_ready" not in payload:
+                try:
+                    decoded_or_reused = int(payload.get("decoded_resources", 0) or 0) + int(
+                        payload.get("reused_resources", 0) or 0
+                    )
+                except (TypeError, ValueError):
+                    decoded_or_reused = 0
+                renderer = payload.get("renderer")
+                geometry_resources = (
+                    renderer.get("geometry_resources")
+                    if isinstance(renderer, Mapping)
+                    else None
+                )
+                try:
+                    live_texture_srvs = int(
+                        geometry_resources.get("live_texture_srvs", 0) or 0
+                    ) if isinstance(geometry_resources, Mapping) else 0
+                except (TypeError, ValueError):
+                    live_texture_srvs = 0
+                texture_resources_ready = decoded_or_reused > 0 and live_texture_srvs > 0
             self.standalone_dotnet_applied_material_generation = generation
             for applied_role in roles:
                 self.standalone_dotnet_applied_material_generation_by_role[applied_role] = generation
+                self.standalone_dotnet_texture_resources_ready_by_role[
+                    applied_role
+                ] = texture_resources_ready
             self.standalone_dotnet_material_signature = str(
                 payload.get("material_signature", self.standalone_dotnet_material_signature) or ""
             )
@@ -158,6 +196,32 @@ class MeshEditorDotNetResourceProtocolMixin(
             for applied_role in roles:
                 self.standalone_dotnet_material_error_by_role.pop(applied_role, None)
             self.standalone_dotnet_lifecycle_counts["material_state_applied_count"] += 1
+            if (
+                (
+                    bool(getattr(self, "standalone_dotnet_pending_textured_view", False))
+                    or bool(
+                        getattr(
+                            self,
+                            "standalone_dotnet_deferred_textured_view_mode",
+                            "",
+                        )
+                    )
+                )
+                and not texture_resources_ready
+            ):
+                message = (
+                    "No resolved textures are available for this Mesh Editor preview; "
+                    "the untextured scene remains active."
+                )
+                for applied_role in roles:
+                    self.standalone_dotnet_material_error_by_role[applied_role] = message
+                self._set_dotnet_status(message, error=True)
+                self._finish_pending_textured_view(
+                    success=False,
+                    reason=f"{role}_texture_resources_not_ready",
+                )
+                QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
+                return True
             self._set_dotnet_status(
                 f"Mesh materials updated in the resident .NET session (generation {generation})."
             )
@@ -307,9 +371,13 @@ class MeshEditorDotNetResourceProtocolMixin(
             missing_material_roles=self._dotnet_missing_material_roles(),
         )
         # The fallback is only what the renderer can draw while resources are
-        # absent. It is not a new choice, so keep both controls on the requested
-        # Solid mode and let a late material acknowledgement restore it.
-        self.sync_viewport_display_combos(requested_mode)
+        # absent. Keep the deferred request separately, but make every visible
+        # control and replayable presentation snapshot report the renderer's
+        # actual mode. Selecting Solid (Textured) again is therefore a real retry
+        # instead of a no-op on an already-selected, misleading item.
+        fallback_mode = untextured_fallback_display_mode(requested_mode)
+        self._remember_dotnet_desired_display_mode(fallback_mode)
+        self.sync_viewport_display_combos(fallback_mode)
 
     def sync_viewport_display_combos(self, mode: object) -> None:
         """Show one resident display mode in both visible Mesh View controls."""
@@ -560,6 +628,12 @@ class MeshEditorDotNetResourceProtocolMixin(
                 and effective_material_signature
                 == resident_input_signature
                 and int(self.standalone_dotnet_applied_material_generation_by_role.get(role_key, 0) or 0) > 0
+                and bool(
+                    self.standalone_dotnet_texture_resources_ready_by_role.get(
+                        role_key,
+                        False,
+                    )
+                )
                 and int(self.standalone_dotnet_material_generation_by_role.get(role_key, 0) or 0)
                 <= int(self.standalone_dotnet_completed_material_generation_by_role.get(role_key, 0) or 0)
             ):

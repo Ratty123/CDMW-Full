@@ -25,11 +25,7 @@ internal sealed partial class ExperimentForm
         }
         _viewport.MarkHostDisplayModeAuthoritative();
         var textureRequestPending = JsonBoolean(root, "texture_request_pending");
-        var selectedMode = textureRequestPending
-            ? JsonString(root, "requested_mode").Trim().ToLowerInvariant()
-            : _viewport.DisplayMode;
-        SyncPreviewModeSelection(
-            string.IsNullOrWhiteSpace(selectedMode) ? _viewport.DisplayMode : selectedMode);
+        SyncPreviewModeSelection(_viewport.DisplayMode);
         _statusLabel.Text = textureRequestPending
             ? "Loading textures in the resident viewport..."
             : $"Viewport display: {_viewport.DisplayMode}.";

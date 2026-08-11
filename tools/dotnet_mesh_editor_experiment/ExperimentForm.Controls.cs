@@ -195,9 +195,7 @@ internal sealed partial class ExperimentForm
 
     private bool HasResidentTextureResources()
     {
-        return _materials.TextureLoadResources().Any()
-            || _textureSet.DecodedCount > 0
-            || _textureSet.NativeDdsResourceCount > 0;
+        return _viewport.HasTexturedMaterialResources;
     }
 
     private void RequestResidentViewportDisplay(string mode)
@@ -211,11 +209,18 @@ internal sealed partial class ExperimentForm
             // an early "Solid (Textured)" pick do nothing until the user
             // happened to pick another textured mode later.
             _pendingResidentDisplayMode = mode;
-            SyncPreviewModeSelection(mode);
+            SyncPreviewModeSelection(_viewport.DisplayMode);
             _statusLabel.Text = "Textures will load as soon as the resident preview is ready...";
             return;
         }
         _pendingResidentDisplayMode = string.Empty;
+        if (string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase))
+        {
+            // The selection event fires after WinForms has already moved the
+            // combo. Keep it on what the renderer is drawing until the host
+            // acknowledges decoded and bound resources.
+            SyncPreviewModeSelection(_viewport.DisplayMode);
+        }
         WriteProtocolEvent("viewport_display_request", new Dictionary<string, object?>
         {
             ["session_id"] = _residentMaterialSessionId,
