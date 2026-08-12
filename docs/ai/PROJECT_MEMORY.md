@@ -79,13 +79,18 @@ Last updated: 2026-08-12
   rejects changes to PAC vertex bytes outside declared position/normal/UV0 edits.
 - Fresh/resumed mesh sessions open in Orbit without restoring camera, tool, element selection, or history. Viewport part-pick signals are inert; PARTS is the sole whole-part selector. Click, Brush, Rectangle, and Lasso target active-
   layer vertices, wires, or faces without requiring a part filter. Correlated
-  strokes keep one active and one cumulative pending request, preserve newer
-  provisional tails across stale replies, and create one history entry at end.
+  strokes keep one active and one cumulative pending request per gesture;
+  different gesture/request IDs remain FIFO boundaries and are never merged or
+  re-enveloped together. Terminal Select keeps its own correlated ID behind any
+  in-flight geometry frame, and cancellation/failure explicitly rolls back its
+  provisional helper authority instead of leaving a blue echo. Lost mouse-up,
+  focus, and tool cancellation share one idempotent selection-state closer.
   Grab freezes its initial weighted footprint; sculpt coalescing retains a
   compact full pointer path, visible-depth bounds cover that path or the paced
   drag segment, and terminal authority publishes cumulative touched vertices.
-  Topology drains the gesture first; failure or cancel restores its pre-stroke
-  selection and rejects any queued command instead of using that old selection.
+  Deformation preserves committed selection. Topology drains the gesture first,
+  adopts the native remapped selection in the Builder, and rejects queued work
+  after selection failure/cancel instead of using the old selection.
 - Live edit packets have monotonic revisions. One sender per preview source has
   queue depth one, latest-wins coalescing, ack pacing, stale-revision rejection,
   adaptive binary geometry above 256 selected vertex equivalents, and cleanup
