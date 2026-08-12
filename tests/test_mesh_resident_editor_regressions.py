@@ -240,6 +240,61 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         harness.standalone_action_dotnet_command = ""
         self.assertTrue(harness._standalone_action_worker_active())
 
+    def test_stale_action_cleanup_cannot_touch_the_successor_worker(self) -> None:
+        class _Progress:
+            def __init__(self) -> None:
+                self.closed = 0
+                self.deleted = 0
+
+            def close(self) -> None:
+                self.closed += 1
+
+            def deleteLater(self) -> None:
+                self.deleted += 1
+
+        class _Harness(MeshEditorDotNetProcessMixin):
+            pass
+
+        harness = _Harness()
+        old_thread = object()
+        old_worker = object()
+        new_thread = object()
+        new_worker = object()
+        progress = _Progress()
+        calls: list[str] = []
+        harness.standalone_action_thread = new_thread
+        harness.standalone_action_worker = new_worker
+        harness.standalone_action_progress = progress
+        harness.standalone_action_text = "Select All"
+        harness.standalone_action_controller = object()
+        harness.standalone_action_dotnet_command = "select_all"
+        harness.standalone_action_dotnet_request_payload = {"request_id": 8}
+        harness.current_selection_empty = False
+        harness.update_editor_action_state = lambda **_kwargs: calls.append("update")
+        harness._standalone_dotnet_editor_process_running = lambda: True
+        harness._send_dotnet_session_state = lambda: calls.append("session") or True
+        harness._complete_pending_dotnet_exit = lambda: calls.append("exit")
+        harness._retry_pending_dotnet_finish = lambda: calls.append("finish")
+
+        harness._cleanup_standalone_action_worker(old_thread, old_worker)
+
+        self.assertIs(new_thread, harness.standalone_action_thread)
+        self.assertIs(new_worker, harness.standalone_action_worker)
+        self.assertIs(progress, harness.standalone_action_progress)
+        self.assertEqual([], calls)
+        self.assertEqual((0, 0), (progress.closed, progress.deleted))
+
+        harness._cleanup_standalone_action_worker(new_thread, new_worker)
+        self.assertIsNone(harness.standalone_action_thread)
+        self.assertIsNone(harness.standalone_action_worker)
+        self.assertIsNone(harness.standalone_action_progress)
+        self.assertEqual(["update", "exit", "finish"], calls)
+        self.assertEqual((1, 1), (progress.closed, progress.deleted))
+
+        harness._cleanup_standalone_action_worker(old_thread, old_worker)
+        self.assertEqual(["update", "exit", "finish"], calls)
+        self.assertEqual((1, 1), (progress.closed, progress.deleted))
+
     def test_embedded_builder_escape_does_not_close_the_workflow(self) -> None:
         host = QFrame()
         host.show()
@@ -844,6 +899,44 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
             [{"action": "select", "label": "Select", "state": "applied"}],
             entries,
         )
+        _APP.processEvents()
+        tab.deleteLater()
+
+    def test_compact_selection_session_state_uses_worker_view_without_session_locks(self) -> None:
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorCompactSelectionSessionState"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_controller = builder.controller
+        view = builder.controller.session_view()
+        sent: list[dict[str, object]] = []
+
+        with (
+            patch.object(
+                builder.controller,
+                "session_view",
+                side_effect=AssertionError("compact selection state refetched the session"),
+            ),
+            patch.object(
+                builder.controller,
+                "geometry_layer_state",
+                side_effect=AssertionError("compact selection state entered the geometry lock"),
+            ),
+            patch.object(
+                tab,
+                "_send_dotnet_protocol_message",
+                side_effect=lambda payload: sent.append(dict(payload)) or True,
+            ),
+        ):
+            self.assertTrue(
+                tab._send_dotnet_session_state(
+                    include_selection=False,
+                    session_view=view,
+                )
+            )
+
+        self.assertEqual(1, len(sent))
+        self.assertNotIn("selection", sent[0])
+        self.assertNotIn("geometry_layers", sent[0])
         _APP.processEvents()
         tab.deleteLater()
 

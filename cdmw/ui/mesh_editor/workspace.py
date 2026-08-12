@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.mesh import (
     MeshCompareSummary,
+    MeshEditSelection,
     MeshEditSessionView,
     MeshExportValidationReport,
     MeshSkeletonSummary,
@@ -157,6 +158,8 @@ class MeshEditorWorkspace(
         self._native_editor_available = True
         self._workspace_summary: MeshWorkspaceSummary | None = None
         self._uv_summary: MeshUvSummary | None = None
+        self._skeleton_summary: MeshSkeletonSummary | None = None
+        self._selection_state = MeshEditSelection()
         self._has_export_validation_report = False
         self._export_validation_ok = False
         self._has_rebuild_report = False

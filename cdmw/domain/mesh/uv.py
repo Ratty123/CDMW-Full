@@ -27,6 +27,8 @@ class MeshUvIslandSummary:
     selected: bool = False
     selected_vertex_count: int = 0
     selected_face_count: int = 0
+    vertex_indices: frozenset[int] = frozenset()
+    face_indices: tuple[int, ...] = ()
 
     @property
     def bounds_text(self) -> str:
@@ -155,6 +157,8 @@ def _submesh_uv_islands(
                 selected=bool(source_selected or selected_vertex_count or selected_face_count),
                 selected_vertex_count=selected_vertex_count,
                 selected_face_count=selected_face_count,
+                vertex_indices=frozenset(island_vertices),
+                face_indices=tuple(sorted(island_faces)),
             )
         )
     return tuple(summaries)

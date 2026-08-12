@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Mapping
 
 from PySide6.QtCore import Qt
@@ -358,21 +359,50 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
             triangle_group_count=len(tuple(update.triangle_groups or ())),
             selection_group_count=len(tuple(update.selection_groups or ())),
         )
-        defer_selection_presentation = (
-            outcome.source == "dotnet_selection" and outcome.phase == "update"
+        selection_outcome = outcome.source == "dotnet_selection"
+        terminal_selection_presentation = (
+            selection_outcome and outcome.phase in {"end", "cancel"}
         )
+        defer_selection_presentation = selection_outcome and not terminal_selection_presentation
+        terminal_selection_started = (
+            time.perf_counter() if terminal_selection_presentation else None
+        )
+        terminal_selection_stages: dict[str, float] = {}
         if self.standalone_dotnet_target_embedded:
-            if not defer_selection_presentation:
+            if not selection_outcome:
                 self._apply_embedded_native_update(update)
-            if outcome.phase != "update":
+            commit_embedded = outcome.phase != "update" and (
+                not selection_outcome or terminal_selection_presentation
+            )
+            if commit_embedded:
                 # Only a finished stroke is worth recording; the update phases
                 # are provisional and are superseded by the one that lands.
+                stage_started = time.perf_counter()
                 self._commit_embedded_edit_result(
                     outcome.result,
                     command_name=str(outcome.result.action or "stroke"),
                     request_payload=request_payloads[-1] if request_payloads else None,
+                    authoritative_selection=(
+                        update.session_view.selection
+                        if terminal_selection_presentation and update.session_view is not None
+                        else None
+                    ),
                 )
-                self._refresh_embedded_workspace_from_builder()
+                if terminal_selection_presentation:
+                    terminal_selection_stages["builder_commit_ms"] = (
+                        time.perf_counter() - stage_started
+                    ) * 1000.0
+                stage_started = time.perf_counter()
+                self._refresh_embedded_workspace_from_builder(
+                    include_derived=not selection_outcome,
+                    session_view=(
+                        update.session_view if terminal_selection_presentation else None
+                    ),
+                )
+                if terminal_selection_presentation:
+                    terminal_selection_stages["workspace_refresh_ms"] = (
+                        time.perf_counter() - stage_started
+                    ) * 1000.0
         elif (
             not defer_selection_presentation
             and (
@@ -399,12 +429,13 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
             )
         latest_request_payload = request_payloads[-1] if request_payloads else None
         if defer_selection_presentation:
-            # The native session still consumes every bounded/coalesced update,
-            # while WinForms already paints the complete local brush echo. A
-            # full selection_update here serializes and reparses the growing
-            # selection on both UI threads, then replaces newer local pixels
-            # with an older authoritative snapshot. Publish only the terminal
-            # selection; updates need a lightweight request acknowledgement.
+            # The native session still consumes begin and every bounded or
+            # coalesced update, while WinForms already paints the complete local
+            # brush echo. A full selection_update here serializes and reparses
+            # the existing or growing selection on both UI threads, then can
+            # replace newer local pixels with an older authoritative snapshot.
+            # Publish only end/cancel; nonterminal phases need a lightweight
+            # request acknowledgement.
             _record_interaction_decision(self,
                 "mesh_edit_selection_presentation_deferred",
                 dispatcher_sequence=int(outcome.sequence),
@@ -420,11 +451,16 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
                 request_payload=latest_request_payload,
             )
         else:
+            stage_started = time.perf_counter()
             self._send_dotnet_native_update(
                 update,
                 result=outcome.result,
                 request_payload=latest_request_payload,
             )
+            if terminal_selection_presentation:
+                terminal_selection_stages["selection_publish_ms"] = (
+                    time.perf_counter() - stage_started
+                ) * 1000.0
         if outcome.source == "dotnet_morph":
             self._send_dotnet_cached_morph_state(
                 request_payload=latest_request_payload,
@@ -436,7 +472,37 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
                 self.standalone_native_selection_stroke_id = ""
             else:
                 self.standalone_native_mesh_edit_stroke_id = ""
-            self._send_dotnet_session_state()
+            stage_started = time.perf_counter()
+            self._send_dotnet_session_state(
+                include_selection=not selection_outcome,
+                session_view=(
+                    update.session_view if terminal_selection_presentation else None
+                ),
+            )
+            if terminal_selection_presentation and terminal_selection_started is not None:
+                terminal_selection_stages["session_state_ms"] = (
+                    time.perf_counter() - stage_started
+                ) * 1000.0
+                _record_interaction_decision(
+                    self,
+                    "mesh_edit_selection_terminal_completed",
+                    phase=str(outcome.phase or ""),
+                    revision=int(getattr(outcome.result, "revision", 0) or 0),
+                    request_id=int((latest_request_payload or {}).get("request_id", 0) or 0),
+                    elapsed_ms=(time.perf_counter() - terminal_selection_started) * 1000.0,
+                    selection_group_count=len(tuple(update.selection_groups or ())),
+                    direct_embedded_apply=False,
+                    derived_workspace_refresh=False,
+                    session_state_selection=False,
+                    **terminal_selection_stages,
+                )
+                self._refresh_embedded_active_selection_summary(
+                    selection=(
+                        update.session_view.selection
+                        if update.session_view is not None
+                        else None
+                    )
+                )
             self._retry_pending_dotnet_finish()
             self._retry_pending_dotnet_topology_command()
     def _handle_dotnet_live_stroke_failed(self, failure: object) -> None:

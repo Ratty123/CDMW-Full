@@ -1129,7 +1129,12 @@ class MeshService(_MeshServiceSessionLayerCore):
         with session.export_lock:
             return self._session_view_locked(session)
 
-    def _session_view_locked(self, session: _MeshEditSession) -> MeshEditSessionView:
+    def _session_view_locked(
+        self,
+        session: _MeshEditSession,
+        *,
+        selection_is_authoritative: bool = False,
+    ) -> MeshEditSessionView:
         if session.native_editor_mesh_dirty:
             if not session.native_editor_mesh_dirty_counts:
                 raise RuntimeError("native mesh editor session view requires native submesh counts; Python mesh state is stale")
@@ -1137,7 +1142,8 @@ class MeshService(_MeshServiceSessionLayerCore):
             submesh_count = len(session.native_editor_mesh_dirty_counts)
         else:
             refresh_mesh_totals(session.working_mesh)
-            session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
+            if not selection_is_authoritative:
+                session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
             submesh_count = len(session.working_mesh.submeshes)
         return MeshEditSessionView(
             session_id=session.session_id,

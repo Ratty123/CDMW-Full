@@ -132,18 +132,32 @@ class MeshEditorControllerTests(unittest.TestCase):
     def test_controller_select_uses_native_selection_groups_without_working_mesh_refresh(self) -> None:
         controller = MeshEditorController()
         controller.open_mesh(build_synthetic_mesh(), session_id="direct-selection-preview", mode="edit")
-        result = controller.select(
-            vertices_by_submesh={0: (0, 2)},
-            edges_by_submesh={0: ((0, 1),)},
-            faces_by_submesh={0: (0,)},
-            source_indices=(0,),
-        )
+        with patch(
+            "cdmw.services.mesh_service_selection.prune_native_mesh_selection",
+            side_effect=AssertionError("selection result re-pruned resident native authority"),
+        ):
+            result = controller.select(
+                vertices_by_submesh={0: (0, 2)},
+                edges_by_submesh={0: ((0, 1),)},
+                faces_by_submesh={0: (0,)},
+                source_indices=(0,),
+            )
 
-        with patch.object(controller, "working_mesh", side_effect=AssertionError("full mesh refresh")):
+        with (
+            patch.object(controller, "working_mesh", side_effect=AssertionError("full mesh refresh")),
+            patch.object(controller, "session_view", side_effect=AssertionError("UI session view refetch")),
+            patch(
+                "cdmw.ui.mesh_editor.controller._selection_groups_from_selection_descriptor",
+                side_effect=AssertionError("rebuilt resident native selection groups"),
+            ),
+        ):
             update = controller.native_update_for_result(result)
 
         self.assertTrue(result.ok)
         self.assertTrue(update.refresh_selection)
+        assert update.session_view is not None
+        self.assertEqual(result.revision, update.session_view.revision)
+        self.assertEqual(controller.session_view().selection, update.session_view.selection)
         self.assertEqual(1, len(update.selection_groups))
         group = update.selection_groups[0]
         self.assertEqual(0, group["source_submesh_index"])

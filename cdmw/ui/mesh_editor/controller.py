@@ -55,6 +55,7 @@ class MeshEditorNativeUpdate:
     material_override_groups: Sequence[Mapping[str, object]] = ()
     replace_all_triangles: bool = False
     final_submesh_count: int | None = None
+    session_view: MeshEditSessionView | None = None
 
 @dataclass(frozen=True, slots=True)
 class MeshEditorActionExecution:
@@ -552,18 +553,19 @@ class MeshEditorController:
         native_selection_groups = _native_selection_groups_for_result(result)
         native_vertex_groups = _native_preview_vertex_update_groups_for_result(result)
         native_triangle_groups = _native_preview_triangle_groups_for_result(result)
+        current_view: MeshEditSessionView | None = None
         current_selection: MeshEditSelection | None = None
         if (
             result.action in {"select", "undo", "redo"}
             or (result.topology_changed and result.ok and result.submesh_count_delta < 0)
         ):
-            current_selection = _current_selection_or_empty(self)
-        direct_selection_groups = (
-            _selection_groups_from_selection_descriptor(current_selection)
-            if current_selection is not None
-            else ()
-        )
-        selection_groups = native_selection_groups or direct_selection_groups
+            current_view = result.session_view or _current_session_view(self)
+            current_selection = (
+                current_view.selection if current_view is not None else MeshEditSelection()
+            )
+        selection_groups = native_selection_groups
+        if not selection_groups and current_selection is not None:
+            selection_groups = _selection_groups_from_selection_descriptor(current_selection)
         if (
             result.action == "select"
             and result.ok
@@ -576,6 +578,7 @@ class MeshEditorController:
             return MeshEditorNativeUpdate(
                 selection_groups=selection_groups,
                 refresh_selection=True,
+                session_view=current_view,
             )
         if result.ok and native_vertex_groups and not result.topology_changed:
             return MeshEditorNativeUpdate(
@@ -945,11 +948,11 @@ def _selection_groups_from_selection_descriptor(
     return tuple(groups)
 
 
-def _current_selection_or_empty(controller: MeshEditorController) -> MeshEditSelection:
+def _current_session_view(controller: MeshEditorController) -> MeshEditSessionView | None:
     try:
-        return controller.session_view().selection
+        return controller.session_view()
     except RuntimeError:
-        return MeshEditSelection()
+        return None
 
 
 def _topology_refresh_source_indices(mesh: ParsedMesh, result: MeshEditResult) -> tuple[tuple[int, ...], tuple[int, ...]]:

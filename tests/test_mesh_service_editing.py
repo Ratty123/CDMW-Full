@@ -4044,6 +4044,10 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertFalse(summary.islands[1].selected)
         self.assertEqual(3, summary.islands[0].vertex_count)
         self.assertEqual(1, summary.islands[0].face_count)
+        self.assertEqual(frozenset({0, 1, 2}), summary.islands[0].vertex_indices)
+        self.assertEqual((0,), summary.islands[0].face_indices)
+        self.assertEqual(frozenset({3, 4, 5}), summary.islands[1].vertex_indices)
+        self.assertEqual((1,), summary.islands[1].face_indices)
 
     def test_uv_summary_keeps_overlapping_disconnected_islands_separate(self) -> None:
         service = MeshService()
@@ -4076,6 +4080,8 @@ class MeshServiceEditingTests(unittest.TestCase):
                     "selected": True,
                     "selected_vertex_count": 1,
                     "selected_face_count": 0,
+                    "vertex_indices": [0, 1, 2],
+                    "face_indices": [0],
                 },
                 {
                     "index": 1,
@@ -4090,6 +4096,8 @@ class MeshServiceEditingTests(unittest.TestCase):
                     "selected": False,
                     "selected_vertex_count": 0,
                     "selected_face_count": 0,
+                    "vertex_indices": [3, 4, 5],
+                    "face_indices": [1],
                 },
             ],
         }
@@ -4108,6 +4116,8 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertEqual("uv.dds", summary.islands[0].texture)
         self.assertTrue(summary.islands[0].selected)
         self.assertFalse(summary.islands[1].selected)
+        self.assertEqual(frozenset({0, 1, 2}), summary.islands[0].vertex_indices)
+        self.assertEqual((1,), summary.islands[1].face_indices)
         native_summary.assert_called_once()
         python_summary.assert_not_called()
 
@@ -4174,6 +4184,8 @@ class MeshServiceEditingTests(unittest.TestCase):
                         "selected": True,
                         "selected_vertex_count": 1,
                         "selected_face_count": 0,
+                        "vertex_indices": [0, 1, 2],
+                        "face_indices": [0],
                     }
                 ],
             }
@@ -5716,6 +5728,29 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertTrue(result.topology_changed)
         self.assertEqual({0, 1, 2, 4, 5, 6}, _changed_vertices_as_set(result))
         self.assertEqual(7, service.working_mesh(view.session_id).submeshes[0].vertex_count)
+
+    def test_uv_summary_keeps_source_face_multiplicity_after_subdivide(self) -> None:
+        service = MeshService()
+        view = service.open_edit_session(
+            _quad_mesh(),
+            session_id="subdivide-uv-source-face-membership",
+            mode="edit",
+        )
+        result = service.apply_command(
+            view.session_id,
+            MeshEditCommand(
+                "subdivide",
+                selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
+                mode="edit",
+            ),
+        )
+
+        self.assertTrue(result.ok)
+        service.working_mesh(view.session_id)
+        summary = service.uv_summary(view.session_id)
+        selected = next(island for island in summary.islands if 0 in island.face_indices)
+        self.assertEqual(4, selected.face_indices.count(0))
+        self.assertEqual(4, selected.selected_face_count)
 
     def test_split_uses_native_mesh_core_when_available(self) -> None:
         service = MeshService()

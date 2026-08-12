@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import replace
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
@@ -100,6 +101,7 @@ from cdmw.ui.mesh_editor.workspace_views import (
 
 class WorkspaceSkeletonStateMixin:
     def update_skeleton_summary(self, summary: MeshSkeletonSummary | None) -> None:
+        self._skeleton_summary = summary
         self.skeleton_tree.clear()
         self._sync_skeleton_pose_controls(summary)
         if summary is None or not (summary.skinned or summary.skeleton_linked or summary.bones):
@@ -131,6 +133,23 @@ class WorkspaceSkeletonStateMixin:
         self._append_skeleton_weights(summary)
         self._append_skeleton_bones(summary)
         self._append_skeleton_parts(summary)
+
+    def update_skeleton_selection(self, selection: object) -> None:
+        """Refresh cached rig part markers without rescanning skin weights."""
+        summary = self._skeleton_summary
+        if summary is None:
+            return
+        selected_sources = {int(index) for index in getattr(selection, "source_indices", ())}
+        self.update_skeleton_summary(
+            replace(
+                summary,
+                selected_vertex_weights=(),
+                parts=tuple(
+                    replace(part, selected=part.index in selected_sources)
+                    for part in summary.parts
+                ),
+            )
+        )
 
     def _append_skeleton_sources(self, summary: MeshSkeletonSummary) -> None:
         resolver_bits = [

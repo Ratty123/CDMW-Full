@@ -258,6 +258,15 @@ std::vector<UvIslandSummaryResult> run_uv_summary(const JsonValue& root) {
             result.selected_vertex_count = selected_vertex_count;
             result.selected_face_count = selected_face_count;
             result.selected = source_selected || selected_vertex_count > 0 || selected_face_count > 0;
+            result.vertex_indices.assign(island_vertices.begin(), island_vertices.end());
+            result.face_indices.reserve(island_faces.size());
+            for (const int face_index : island_faces) {
+                result.face_indices.push_back(
+                    static_cast<std::size_t>(face_index) < source_faces.size()
+                        ? source_faces[static_cast<std::size_t>(face_index)]
+                        : face_index
+                );
+            }
             results.push_back(std::move(result));
         }
     }

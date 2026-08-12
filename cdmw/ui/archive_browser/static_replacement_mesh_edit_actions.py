@@ -379,6 +379,27 @@ def _mesh_editor_commit_dotnet_edit_result(_state, _callbacks,
         revision = int(getattr(edit_result, "revision", -1) or -1)
     except (TypeError, ValueError):
         revision = -1
+    result_action = str(getattr(edit_result, "action", "") or "").strip().lower()
+    normalized_key = str(action_key or result_action).strip().lower()
+    if result_action in {"select", "clear_selection"}:
+        # Selection already lives in the resident MeshService session and the
+        # correlated selection_update below publishes it to the helper. It does
+        # not change Builder geometry, totals, routing, or part rows. Sending it
+        # through the geometry commit path captured two full native mesh undo
+        # snapshots and rebuilt the same selection payload on the Qt UI thread,
+        # only for the no-geometry branch to discard all of that work again.
+        current_selection = (
+            selection if isinstance(selection, _state.MeshEditSelection) else None
+        )
+        if current_selection is None:
+            try:
+                current_selection = session.view().selection
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                current_selection = None
+        if isinstance(current_selection, _state.MeshEditSelection):
+            _callbacks._mesh_edit_set_selection_state(current_selection)
+        _callbacks._refresh_mesh_edit_controls()
+        return True
     committed = _state.mesh_editor_static_replacement_session_state.get("dotnet_committed_revision")
     if revision >= 0 and committed == revision:
         return True
@@ -394,7 +415,6 @@ def _mesh_editor_commit_dotnet_edit_result(_state, _callbacks,
         )
         return False
     _state.mesh_editor_static_replacement_session_state["dotnet_committed_revision"] = revision
-    normalized_key = str(action_key or getattr(edit_result, "action", "") or "").strip().lower()
     _callbacks._mesh_edit_record_snapshot()
     return bool(
         _callbacks._mesh_editor_commit_action_bar_service_result(

@@ -156,6 +156,16 @@ def _mesh_uv_summary_from_native(report: Mapping[str, object] | None) -> MeshUvS
                 selected=bool(raw_island.get("selected")),
                 selected_vertex_count=max(0, selected_vertex_count),
                 selected_face_count=max(0, selected_face_count),
+                vertex_indices=frozenset(
+                    int(value)
+                    for value in raw_island.get("vertex_indices", ())
+                    if isinstance(value, int) and not isinstance(value, bool) and value >= 0
+                ),
+                face_indices=tuple(
+                    int(value)
+                    for value in raw_island.get("face_indices", ())
+                    if isinstance(value, int) and not isinstance(value, bool) and value >= 0
+                ),
             )
         )
     selected_island_count = _coerce_index(report.get("selected_island_count"))

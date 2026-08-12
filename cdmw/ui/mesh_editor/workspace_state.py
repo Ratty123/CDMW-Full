@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import replace
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
@@ -31,6 +32,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.mesh import (
     MeshCompareSummary,
+    MeshEditSelection,
     MeshEditSessionView,
     MeshExportValidationReport,
     MeshSkeletonSummary,
@@ -266,6 +268,7 @@ class WorkspaceStateMixin:
 
     def update_session_summary(self, view: MeshEditSessionView | None, *, mesh_label: str = "") -> None:
         if view is None:
+            self._selection_state = MeshEditSelection()
             self.outliner.clear()
             self.outliner.addTopLevelItem(QTreeWidgetItem(("No mesh", "0", "")))
             self.properties_tree.clear()
@@ -275,6 +278,7 @@ class WorkspaceStateMixin:
             self.skeleton_tree.clear()
             self.skeleton_tree.addTopLevelItem(QTreeWidgetItem(("No skeleton", "")))
             return
+        self._selection_state = view.selection
         label = str(mesh_label or view.session_id or "mesh")
         self.outliner.clear()
         self.outliner.addTopLevelItem(QTreeWidgetItem((label, "", str(view.revision))))
@@ -358,6 +362,39 @@ class WorkspaceStateMixin:
             self.skeleton_tree.addTopLevelItem(QTreeWidgetItem(("No skeleton", "")))
         self._sync_part_controls()
 
+    def update_workspace_selection(self, selection: MeshEditSelection) -> None:
+        """Refresh selection markers without rescanning immutable mesh fields."""
+        self._selection_state = selection
+        summary = self._workspace_summary
+        if summary is None:
+            return
+        vertex_map = getattr(selection, "vertex_map", lambda: {})()
+        edge_map = getattr(selection, "edge_map", lambda: {})()
+        face_map = getattr(selection, "face_map", lambda: {})()
+        selected_sources = {int(index) for index in getattr(selection, "source_indices", ())}
+        parts = tuple(
+            replace(
+                part,
+                selected=bool(
+                    part.index in selected_sources
+                    or vertex_map.get(part.index)
+                    or edge_map.get(part.index)
+                    or face_map.get(part.index)
+                ),
+                selected_vertex_count=len(vertex_map.get(part.index, ())),
+                selected_edge_count=len(edge_map.get(part.index, ())),
+                selected_face_count=len(face_map.get(part.index, ())),
+            )
+            for part in summary.parts
+        )
+        self.update_workspace_summary(
+            replace(
+                summary,
+                selected_part_count=sum(1 for part in parts if part.selected),
+                parts=parts,
+            )
+        )
+
     def update_uv_summary(self, summary: MeshUvSummary | None) -> None:
         self._uv_summary = summary
         self.uv_canvas.set_uv_summary(summary)
@@ -392,6 +429,44 @@ class WorkspaceStateMixin:
             )
             item.setData(0, Qt.ItemDataRole.UserRole, (island.uv_min, island.uv_max))
             self.uv_tree.addTopLevelItem(item)
+
+    def update_uv_selection(self, selection: object) -> None:
+        """Update cached UV-island selection without rebuilding UV topology."""
+        summary = self._uv_summary
+        if summary is None:
+            return
+        selected_sources = {int(index) for index in getattr(selection, "source_indices", ())}
+        vertex_map = getattr(selection, "vertex_map", lambda: {})()
+        face_map = getattr(selection, "face_map", lambda: {})()
+        islands = []
+        for island in summary.islands:
+            selected_vertices = island.vertex_indices.intersection(
+                vertex_map.get(island.submesh_index, ())
+            )
+            selected_face_indices = face_map.get(island.submesh_index, ())
+            selected_face_count = sum(
+                1 for face_index in island.face_indices if face_index in selected_face_indices
+            )
+            islands.append(
+                replace(
+                    island,
+                    selected_vertex_count=len(selected_vertices),
+                    selected_face_count=selected_face_count,
+                    selected=bool(
+                        island.submesh_index in selected_sources
+                        or selected_vertices
+                        or selected_face_count
+                    ),
+                )
+            )
+        islands = tuple(islands)
+        self.update_uv_summary(
+            replace(
+                summary,
+                selected_island_count=sum(1 for island in islands if island.selected),
+                islands=islands,
+            )
+        )
 
     def _sync_uv_summary_label(self, summary: MeshUvSummary | None) -> None:
         label = getattr(self, "uv_summary_label", None)

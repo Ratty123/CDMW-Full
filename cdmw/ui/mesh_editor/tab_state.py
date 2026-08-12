@@ -362,13 +362,18 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
             # Best effort: embedded builder controller lookup is optional UI state sync.
             return None
         return controller if isinstance(controller, _tab.MeshEditorController) else None
-    def _refresh_embedded_workspace_from_builder(self) -> None:
+    def _refresh_embedded_workspace_from_builder(
+        self,
+        *,
+        include_derived: bool = True,
+        session_view: _tab.MeshEditSessionView | None = None,
+    ) -> None:
         workspace = self.embedded_workspace
         if workspace is None:
             return
         controller = self._embedded_builder_controller()
-        view: _tab.MeshEditSessionView | None = None
-        if controller is not None:
+        view = session_view
+        if controller is not None and view is None:
             try:
                 view = controller.session_view()
             except (AttributeError, RuntimeError, TypeError, ValueError):
@@ -395,22 +400,27 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
             else:
                 workspace.status_label.setText("Native Mesh Editor unavailable: C++ mesh core missing.")
         workspace.update_session_summary(view, mesh_label=self._entry_label(self._current_target_entry()))
-        for method_name, updater_name in (
-            ("workspace_summary", "update_workspace_summary"),
-            ("uv_summary", "update_uv_summary"),
-            ("skeleton_summary", "update_skeleton_summary"),
-            ("compare_summary", "update_compare_summary"),
-            ("export_validation_report", "update_export_validation"),
-        ):
-            updater = getattr(workspace, updater_name, None)
-            method = getattr(controller, method_name, None)
-            if callable(updater) and callable(method):
-                try:
-                    updater(method())
-                except Exception:
-                    # Best effort: workspace side panels are derived status only.
-                    updater(None)
-        workspace.update_rebuild_report(None)
+        if not include_derived:
+            update_selection = getattr(workspace, "update_workspace_selection", None)
+            if callable(update_selection):
+                update_selection(view.selection)
+        if include_derived:
+            for method_name, updater_name in (
+                ("workspace_summary", "update_workspace_summary"),
+                ("uv_summary", "update_uv_summary"),
+                ("skeleton_summary", "update_skeleton_summary"),
+                ("compare_summary", "update_compare_summary"),
+                ("export_validation_report", "update_export_validation"),
+            ):
+                updater = getattr(workspace, updater_name, None)
+                method = getattr(controller, method_name, None)
+                if callable(updater) and callable(method):
+                    try:
+                        updater(method())
+                    except Exception:
+                        # Best effort: workspace side panels are derived status only.
+                        updater(None)
+            workspace.update_rebuild_report(None)
         workspace.update_action_state(
             has_target=True,
             selection_empty=bool(view.selection.is_empty()),
@@ -424,6 +434,38 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         selection_changed = getattr(builder, "_mesh_editor_embedded_apply_part_selection_from_viewport", None)
         if callable(selection_changed):
             selection_changed(tuple(view.selection.source_indices))
+
+    def _refresh_embedded_active_selection_summary(
+        self,
+        _index: int = -1,
+        *,
+        selection: _tab.MeshEditSelection | None = None,
+    ) -> None:
+        workspace = self.embedded_workspace
+        controller = self._embedded_builder_controller()
+        panels = getattr(workspace, "right_panels", None) if workspace is not None else None
+        if workspace is None or controller is None or panels is None:
+            return
+        current_selection = selection
+        if current_selection is None:
+            cached_selection = getattr(workspace, "_selection_state", None)
+            if isinstance(cached_selection, _tab.MeshEditSelection):
+                current_selection = cached_selection
+        if current_selection is None:
+            try:
+                current_selection = controller.session_view().selection
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+                return
+        active_panel = panels.widget(panels.currentIndex())
+        panels_by_title = getattr(workspace, "_right_panels_by_title", {})
+        updater_name = None
+        if active_panel is panels_by_title.get("uv map"):
+            updater_name = "update_uv_selection"
+        elif active_panel is panels_by_title.get("rig"):
+            updater_name = "update_skeleton_selection"
+        updater = getattr(workspace, updater_name, None) if updater_name else None
+        if callable(updater):
+            updater(current_selection)
     def _apply_embedded_native_update(self, update: _tab.MeshEditorNativeUpdate) -> bool:
         builder = self.active_builder()
         sender = getattr(builder, "_mesh_editor_embedded_apply_native_update", None) if builder is not None else None
