@@ -155,8 +155,9 @@ instead of relaunching the same smoke once per report key.
 starts the hidden production Vortice form, binds a deterministic decoded
 texture, verifies `Solid (Textured)` after every case, and drives
 Brush/Lasso/Rectangle selection for vertices, wires, and faces; all four
-selection operations; 320-update held Move and Grab streams; Smooth, Inflate,
-and Pinch strokes; all six axis nudges; Undo/Redo; selection growth, shrink,
+selection operations; 320-update held Move, Grab, Smooth, Inflate, and Pinch
+streams; immediate Subdivide while selection authority is pending; all six axis
+nudges; Undo/Redo; selection growth, shrink,
 invert, all, and clear; delete, duplicate, subdivide, refine, and separate
 topology; part duplicate/delete/visibility; geometry-layer copy, paste, rename,
 visibility, activation, ordering, and deletion; Colour; and the complete Morph

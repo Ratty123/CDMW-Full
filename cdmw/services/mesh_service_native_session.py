@@ -78,6 +78,7 @@ _LEGACY_DISPLAY_CLEANUP_ACTIONS = frozenset({"triangulate_display", "quadrangula
 _NATIVE_EDITOR_SESSION_ACTIONS = frozenset({"select"}) | (
     frozenset(MESH_GEOMETRY_ACTIONS) - _LEGACY_DISPLAY_CLEANUP_ACTIONS
 )
+_INLINE_STROKE_PREVIEW_VERTEX_LIMIT = 256
 
 
 def _service_call(name: str, *args: object, **kwargs: object) -> object:
@@ -294,6 +295,27 @@ class _NativeEditorExecution:
     selection_inlined: bool
 
 
+def _native_editor_binary_preview_required(
+    session: _MeshEditSession,
+    selection: MeshEditSelection,
+    request: _NativeEditorRequest,
+) -> bool:
+    if not request.stroke_phase:
+        return True
+    if request.stroke_phase == "end":
+        # The terminal packet is cumulative across the whole stroke and can be
+        # much larger than its final pointer segment.
+        return True
+    selection_hint = sum(len(indices) for _submesh, indices in selection.vertices_by_submesh)
+    selection_hint += 2 * sum(len(edges) for _submesh, edges in selection.edges_by_submesh)
+    selection_hint += 3 * sum(len(faces) for _submesh, faces in selection.faces_by_submesh)
+    submeshes = tuple(session.working_mesh.submeshes or ())
+    for source_index in selection.source_indices:
+        if 0 <= source_index < len(submeshes):
+            selection_hint += len(tuple(submeshes[source_index].vertices or ()))
+    return selection_hint > _INLINE_STROKE_PREVIEW_VERTEX_LIMIT
+
+
 def _prepare_native_editor_request(
     session: _MeshEditSession,
     command: MeshEditCommand,
@@ -440,7 +462,11 @@ def _execute_native_editor_request(
             edit_payload,
             selection=request.selection_payload if selection_inlined else None,
             include_preview_deltas=bool(request.params.get("_include_preview_deltas", True)),
-            binary_preview_deltas=not bool(request.stroke_phase),
+            binary_preview_deltas=_native_editor_binary_preview_required(
+                session,
+                selection,
+                request,
+            ),
             stroke_phase=request.stroke_phase,
             stroke_id=request.stroke_id,
             stop_event=request.stop_event,  # type: ignore[arg-type]

@@ -190,14 +190,18 @@ so customized handles remain aligned with interaction.
 Native D3D11 viewport Move/Grab/Smooth/Inflate/Pinch stroke events also route
 through `MeshEditorController`/`MeshService` as resident native-session
 `transform`/`brush` commands with `stroke_phase` and `stroke_id` payloads.
-Each gesture builds its immutable projected candidates once. Move then applies
-a renderer-local part transform on every pointer update; Grab and sculpt tools
-patch a transient vertex buffer from the stroke baseline through a screen-space
-spatial index. Protocol updates are bounded to 16 ms, retain the full cursor
-segment since the last publication, and enter the existing one-in-flight plus
-one-latest-pending dispatcher. Only a matching stroke ID, request, and revision
-can reconcile the local result; Cancel restores the baseline and a completed
-stroke creates one history entry.
+Move and Grab build their immutable projected candidates once and display an
+exact renderer-local preview on every pointer update. Native Grab captures the
+same initial weights and center on `stroke_begin`, then reuses that fixed scope
+even after the cursor leaves the mesh. Smooth, Inflate, and Pinch display the
+correlated resident-native result stream instead of a second local sculpt
+approximation. Protocol updates are bounded to 16 ms; coalescing retains the
+complete compact `screen_path` polyline, not only its newest endpoint, while
+the visible-depth mask spans that complete path and the dispatcher keeps one
+in-flight plus one pending update. Only a matching
+stroke ID, request, and revision can reconcile the result. Cancel restores the
+baseline, and the terminal phase publishes one cumulative geometry frame and
+creates one history entry.
 When the shared helper adopts a new process generation or session identity, the
 revision queue adopts it at the same boundary, discards work addressed to the
 old identity, and restores the process's negotiated revision capabilities. A
@@ -209,13 +213,12 @@ Editor only after the shared controller validates their request, process, and
 package generations.
 Move requires an existing resident vertex, edge, face, or explicit PARTS
 selection and reports that prerequisite without starting a stroke when the
-selection is empty. Grab with an existing selection sends only `screen_drag`
-plus the tool scalar fields and relies on the matching resident C++ selection;
-Grab without one, and Smooth/Inflate/Pinch without one, establish an internal
-screen-brush scope under the first hit without selecting a PARTS row. Their
-begin and update packets carry native `screen_brush` context and omit D3D11
-candidate groups; native core chooses the resident selection when present and
-screen-brush weights otherwise.
+selection is empty. Grab, Smooth, Inflate, and Pinch carry native
+`screen_brush` context and omit D3D11 candidate groups; native core restricts
+that brush to the resident selection when present. Without one, the initial
+hit establishes an internal brush scope without selecting a PARTS row. Grab's
+scope is fixed for the complete stroke, while sculpt weights follow every
+retained path segment.
 D3D11 Move and Grab paths build `screen_drag` cursor endpoints plus viewport and
 world-view-projection context through Qt and `MeshService`; `screen_drag`
 includes per-source world transforms when alignment preview transforms are
@@ -230,11 +233,13 @@ Standalone D3D11 stroke dispatch requires `screen_drag` for Move/Vertex
 begin/update packets and does not synthesize `translate` or brush `delta` when
 the native drag payload is missing. End/cancel packets may omit `screen_drag`
 only to close an existing native stroke.
-Smooth, Inflate, Pinch, and Remove do not build
-unused drag payloads. Current D3D11 packets do not serialize `camera_world`,
-yaw/pitch, pan, distance, or FOV fallback fields; native mesh core still accepts
-legacy `step_delta`/`delta` vectors and camera fields for non-updated non-WVP
-callers.
+Smooth, Inflate, and Pinch carry `screen_drag` and, when updates coalesce,
+`screen_path`; native mesh core integrates their falloff exposure over each
+retained segment. An inert terminal packet has zero sculpt strength, while a
+terminal packet that absorbed real cursor travel keeps its strength. Current
+D3D11 packets do not serialize `camera_world`, yaw/pitch, pan, distance, or FOV
+fallback fields; native mesh core still accepts legacy `step_delta`/`delta`
+vectors and camera fields for non-updated non-WVP callers.
 Brush-target Grab packets pair that `screen_drag` movement with `screen_brush`
 weight resolution. Smooth update packets send strength/iterations plus
 `screen_brush`, while Inflate and Pinch updates send
@@ -315,9 +320,10 @@ geometry stays ahead of the last acknowledged base, and an old acknowledgement
 cannot clear a newer tail. The matching final acknowledgement creates exactly
 one selection-history entry; cancellation, failure, or session retirement
 restores the pre-stroke selection and clears the correlated provisional state.
-Lasso simplifies redundant points, uses cached projection bounds for its local
-polygon tests, and publishes an immediate target-specific result on mouse-up
-that remains visible until native authority answers.
+Lasso spatially samples its visible points while drawing, appends the exact
+mouse-up endpoint, and uses that same unsimplified polygon for local and native
+tests. Its immediate target-specific mouse-up result remains visible until
+native authority answers.
 `MeshEditorTab` routes those events to a resident native `select` command
 through `MeshService`, C++ expands the requested selection mask from the D3D11
 projection matrix, composes D3D11 per-source world transforms when alignment
@@ -328,8 +334,11 @@ selection as projected segment hits with hit-point depth checks,
 treats region face selection as projected triangle hits, applies native
 visible-depth filtering when requested for brush or region selection, and pushes
 the resulting selection groups back to the D3D11 preview host.
-Topology commands first drain the final correlated selection request, so a late
-brush result cannot land above Subdivide in native history.
+Topology commands first drain the final correlated selection request. A
+Subdivide or Refine Smooth click made while Brush/Lasso selection is still
+provisional is queued without the helper's older `local_selection` snapshot and
+runs against resident selection authority after mouse-up; a failed or cancelled
+selection terminal cancels the queued command.
 
 Copy/Paste is an internal Mesh Editor clipboard (`Ctrl+C`/`Ctrl+V`), not the OS
 clipboard. Faces copy exactly; vertex or wire selections copy only fully

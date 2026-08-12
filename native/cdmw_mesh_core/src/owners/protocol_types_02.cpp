@@ -141,6 +141,9 @@ struct MeshEditorStroke {
     std::string operation;
     std::string tool;
     int update_count = 0;
+    // Grab strokes keep the initial brush footprint stable while the cursor moves.
+    std::map<int, std::map<int, double>> grab_weights;
+    std::map<int, Vec3> grab_centers;
 };
 
 struct MeshEditorClipboardFragment {

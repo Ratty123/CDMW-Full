@@ -246,6 +246,129 @@ Vec3 brush_weighted_center(
     return total_weight > 1e-8 ? scale_vec3(sum, 1.0 / total_weight) : fallback;
 }
 
+std::map<int, double> screen_brush_swept_exposures_native(
+    const JsonValue& item,
+    const std::vector<Vec3>& vertices,
+    const std::set<int>* allowed,
+    const std::string& falloff,
+    const JsonValue& edit,
+    const MeshEditorScreenBrushDepthMask* depth_mask
+) {
+    std::map<int, double> exposures;
+    const JsonValue* raw_brush = edit.get("screen_brush");
+    const JsonValue* raw_drag = edit.get("screen_drag");
+    if (raw_brush == nullptr || raw_brush->type != JsonValue::Type::Object
+        || raw_drag == nullptr || raw_drag->type != JsonValue::Type::Object
+        || !mesh_editor_screen_brush_submesh_allowed(item, *raw_brush)) {
+        return exposures;
+    }
+    const double fallback_x = number_or(
+        raw_brush->get("x"),
+        number_or(raw_brush->get("cursor_x"), number_or(raw_brush->get("screen_x"), 0.0))
+    );
+    const double fallback_y = number_or(
+        raw_brush->get("y"),
+        number_or(raw_brush->get("cursor_y"), number_or(raw_brush->get("screen_y"), 0.0))
+    );
+    const double start_x = number_or(raw_drag->get("start_x"), fallback_x);
+    const double start_y = number_or(raw_drag->get("start_y"), fallback_y);
+    const double end_x = number_or(raw_drag->get("end_x"), fallback_x);
+    const double end_y = number_or(raw_drag->get("end_y"), fallback_y);
+    const double radius_pixels = std::max(
+        0.0,
+        number_or(
+            raw_brush->get("radius_pixels"),
+            number_or(raw_brush->get("brush_radius_pixels"), number_or(raw_brush->get("pixels"), 0.0))
+        )
+    );
+    if (!std::isfinite(start_x) || !std::isfinite(start_y)
+        || !std::isfinite(end_x) || !std::isfinite(end_y)
+        || radius_pixels <= 1e-8) {
+        return exposures;
+    }
+    const std::string phase = lower_ascii(string_or(edit.get("stroke_phase"), ""));
+    std::vector<std::array<double, 2>> screen_path;
+    const JsonValue* raw_path = edit.get("screen_path");
+    if (raw_path != nullptr && raw_path->type == JsonValue::Type::Array) {
+        screen_path.reserve(raw_path->array_value.size());
+        for (const JsonValue& point : raw_path->array_value) {
+            if (point.type != JsonValue::Type::Object) continue;
+            const double point_x = number_or(point.get("x"), std::numeric_limits<double>::quiet_NaN());
+            const double point_y = number_or(point.get("y"), std::numeric_limits<double>::quiet_NaN());
+            if (std::isfinite(point_x) && std::isfinite(point_y)) {
+                screen_path.push_back({point_x, point_y});
+            }
+        }
+    }
+    if (screen_path.size() < 2) {
+        screen_path = {{start_x, start_y}, {end_x, end_y}};
+    }
+    const MeshEditorScreenBrushProjection projection = mesh_editor_screen_brush_projection(*raw_brush);
+    const int source_submesh_index = int_or(item.get("index"), -1);
+    const MeshEditorScreenBrushProjection entry_projection = mesh_editor_projection_for_submesh(
+        projection,
+        source_submesh_index
+    );
+    auto add_exposure = [&](int index) {
+        if (index < 0 || static_cast<std::size_t>(index) >= vertices.size()) {
+            return;
+        }
+        double screen_x = 0.0;
+        double screen_y = 0.0;
+        double depth_z = 0.0;
+        if (!mesh_editor_project_screen_brush_vertex_with_projection(
+                *raw_brush,
+                entry_projection,
+                vertices[static_cast<std::size_t>(index)],
+                screen_x,
+                screen_y,
+                depth_mask != nullptr ? &depth_z : nullptr)
+            || !mesh_editor_screen_brush_depth_visible(depth_mask, screen_x, screen_y, depth_z)) {
+            return;
+        }
+        double exposure = 0.0;
+        for (std::size_t path_index = 1; path_index < screen_path.size(); ++path_index) {
+            const auto& segment_start = screen_path[path_index - 1];
+            const auto& segment_end = screen_path[path_index];
+            const double distance_pixels = mesh_editor_screen_segment_distance(
+                screen_x,
+                screen_y,
+                segment_start[0],
+                segment_start[1],
+                segment_end[0],
+                segment_end[1]
+            );
+            if (distance_pixels > radius_pixels) continue;
+            const double segment_length = std::hypot(
+                segment_end[0] - segment_start[0],
+                segment_end[1] - segment_start[1]
+            );
+            const double exposure_step = std::min(
+                4.0,
+                phase == "begin"
+                    ? 0.2
+                    : std::max(0.08, segment_length / std::max(radius_pixels * 0.5, 1.0))
+            );
+            const double weight = std::max(
+                distance_pixels <= 1e-8 ? 1.0 : 0.0,
+                brush_falloff_weight(distance_pixels, radius_pixels, falloff)
+            );
+            exposure = std::min(4.0, exposure + weight * exposure_step);
+        }
+        if (exposure > 0.0) {
+            exposures[index] = exposure;
+        }
+    };
+    if (allowed != nullptr) {
+        for (const int index : *allowed) add_exposure(index);
+    } else {
+        for (std::size_t index = 0; index < vertices.size(); ++index) {
+            add_exposure(static_cast<int>(index));
+        }
+    }
+    return exposures;
+}
+
 std::vector<Vec3> smooth_brush_vertices(
     const std::vector<Vec3>& original,
     const std::vector<std::array<int, 3>>& faces,
@@ -321,17 +444,66 @@ SubmeshMeshEditResult run_brush_edit_for_submesh(
     std::set<int> selected = selected_vertices_from_edit_domains(item, result.vertices.size(), faces);
     const bool restrict_selection = bool_or(item.get("selection_restricts_vertices"), false);
     const std::set<int>* allowed = restrict_selection ? &selected : nullptr;
-    const std::map<int, double> direct_weights = affected_vertex_weights_native(
-        item,
-        result.vertices,
-        center,
-        radius,
-        falloff,
-        allowed,
-        edit,
-        shared_depth_mask
-    );
-    if (!has_center && !direct_weights.empty()) center = brush_weighted_center(result.vertices, direct_weights, center);
+    const std::string stroke_phase = lower_ascii(string_or(edit.get("stroke_phase"), ""));
+    MeshEditorSession* editor_session = mutable_mesh_editor_session_for_item(item);
+    const int submesh_index = result.index;
+    std::map<int, double> direct_weights;
+    const bool fixed_grab = tool == "grab"
+        && editor_session != nullptr
+        && editor_session->active_stroke.active
+        && (stroke_phase == "update" || stroke_phase == "end")
+        && editor_session->active_stroke.grab_weights.find(submesh_index)
+            != editor_session->active_stroke.grab_weights.end();
+    if (fixed_grab) {
+        direct_weights = editor_session->active_stroke.grab_weights[submesh_index];
+        const auto center_found = editor_session->active_stroke.grab_centers.find(submesh_index);
+        if (center_found != editor_session->active_stroke.grab_centers.end()) {
+            center = center_found->second;
+        }
+    } else if (tool == "smooth" || tool == "inflate" || tool == "pinch") {
+        direct_weights = screen_brush_swept_exposures_native(
+            item,
+            result.vertices,
+            allowed,
+            falloff,
+            edit,
+            shared_depth_mask
+        );
+        if (direct_weights.empty()) {
+            direct_weights = affected_vertex_weights_native(
+                item,
+                result.vertices,
+                center,
+                radius,
+                falloff,
+                allowed,
+                edit,
+                shared_depth_mask
+            );
+        }
+        if (!has_center && !direct_weights.empty()) {
+            center = brush_weighted_center(result.vertices, direct_weights, center);
+        }
+    } else {
+        direct_weights = affected_vertex_weights_native(
+            item,
+            result.vertices,
+            center,
+            radius,
+            falloff,
+            allowed,
+            edit,
+            shared_depth_mask
+        );
+        if (!has_center && !direct_weights.empty()) center = brush_weighted_center(result.vertices, direct_weights, center);
+        if (tool == "grab"
+            && editor_session != nullptr
+            && editor_session->active_stroke.active
+            && stroke_phase == "begin") {
+            editor_session->active_stroke.grab_weights[submesh_index] = direct_weights;
+            editor_session->active_stroke.grab_centers[submesh_index] = center;
+        }
+    }
     const double screen_radius = mesh_editor_screen_radius_units_at_center(screen_radius_payload, center, result.index);
     if (screen_radius_projection_payload) {
         if (screen_radius <= 0.0) {

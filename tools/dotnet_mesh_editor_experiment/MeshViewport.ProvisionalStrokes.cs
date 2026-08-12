@@ -11,25 +11,13 @@ internal sealed partial class MeshViewport
         public required int SubmeshIndex { get; init; }
         public required Vec3[] Baseline { get; init; }
         public required Vec3[] Working { get; init; }
-        public required PointF[] Projected { get; init; }
-        public required bool[] FrontFacing { get; init; }
-        public required Vector3[] Normals { get; init; }
-        public required Vec3[] SmoothTargets { get; init; }
-        public required float[] Exposure { get; init; }
         public required float[] GrabWeights { get; init; }
         public required int[] GrabIndices { get; init; }
-        public required bool[] EditableMask { get; init; }
         public required int[] EditableIndices { get; init; }
-        public required int[][] SpatialBuckets { get; init; }
-        public required int[] VisitMarks { get; init; }
         public required int[] DirtyIndices { get; init; }
         public required Matrix4x4 WorldViewProjection { get; init; }
         public required Vector3 Center { get; init; }
         public required Vector3 BrushCenter { get; set; }
-        public required float UnitsPerPixel { get; init; }
-        public required int GridColumns { get; init; }
-        public required int GridRows { get; init; }
-        public int VisitGeneration { get; set; }
         public int DirtyCount { get; set; }
         public Vector3 LastTranslation { get; set; }
     }
@@ -42,6 +30,7 @@ internal sealed partial class MeshViewport
         public required int[] SourceIndices { get; init; }
         public required ProvisionalStrokeSubmesh[] Submeshes { get; init; }
         public required long BaseRevision { get; init; }
+        public required bool LocalGeometryPreview { get; init; }
         public Point Previous { get; set; }
         public long LatestRequestId { get; set; }
         public long TerminalRequestId { get; set; }
@@ -60,6 +49,8 @@ internal sealed partial class MeshViewport
 
     internal IReadOnlyList<int> ProvisionalStrokeSourceIndices =>
         _provisionalStroke?.SourceIndices ?? Array.Empty<int>();
+
+    internal long AuthoritativeEditRevision => _authoritativeEditRevision;
 
     internal void SetAuthoritativeEditRevision(long revision)
     {
@@ -94,15 +85,19 @@ internal sealed partial class MeshViewport
             NumberOption(ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>(), "radius", 24.0),
             2.0,
             256.0);
-        var candidates = new ProvisionalStrokeSubmesh[scope.Length];
-        for (var index = 0; index < scope.Length; index++)
+        var localGeometryPreview = normalizedTool is "move" or "grab";
+        var candidates = localGeometryPreview
+            ? new ProvisionalStrokeSubmesh[scope.Length]
+            : Array.Empty<ProvisionalStrokeSubmesh>();
+        for (var index = 0; index < candidates.Length; index++)
         {
             candidates[index] = BuildProvisionalStrokeSubmesh(
                 scope[index],
                 camera,
                 location,
                 radius,
-                hasExplicitSelection ? SelectionVerticesForSubmesh(scope[index]) : null);
+                hasExplicitSelection ? SelectionVerticesForSubmesh(scope[index]) : null,
+                normalizedTool);
         }
         _provisionalStroke = new ProvisionalStrokeState
         {
@@ -114,26 +109,42 @@ internal sealed partial class MeshViewport
             Submeshes = candidates,
             BaseRevision = _authoritativeEditRevision,
             LastAcceptedRevision = _authoritativeEditRevision,
+            // Move and Grab have exact cumulative local formulas. Sculpt
+            // tools are sample-driven and are now shown from the resident
+            // native result stream so the release cannot snap from a local
+            // approximation to a different authoritative surface.
+            LocalGeometryPreview = localGeometryPreview,
         };
-        _d3d11Viewport?.BeginProvisionalVertexGeometry(scope);
-        UpdateProvisionalEditorStroke(location, initial: true);
+        if (_provisionalStroke.LocalGeometryPreview)
+        {
+            _d3d11Viewport?.BeginProvisionalVertexGeometry(scope);
+        }
+        UpdateProvisionalEditorStroke(location);
         return true;
     }
 
     private int[] SelectedEditableStrokeSources()
     {
-        var values = new List<int>();
-        var editableCount = Math.Min(_scene.EditableSubmeshCount, _document.Submeshes.Count);
-        for (var sourceIndex = 0; sourceIndex < editableCount; sourceIndex++)
+        var selected = new HashSet<int>(_selectedSources);
+        foreach (var pair in _selectedVertices)
         {
-            if (IsSubmeshVisibleForViewportSelection(sourceIndex)
-                && SelectionVerticesForSubmesh(sourceIndex).Count > 0)
-            {
-                values.Add(sourceIndex);
-            }
+            if (pair.Value.Count > 0) selected.Add(pair.Key);
         }
-        values.Sort();
-        return values.ToArray();
+        foreach (var pair in _selectedFaces)
+        {
+            if (pair.Value.Count > 0) selected.Add(pair.Key);
+        }
+        foreach (var edgeId in _selectedEdges)
+        {
+            if (_edgeTopology.EdgeById(edgeId) is { } edge) selected.Add(edge.SubmeshIndex);
+        }
+        var editableCount = Math.Min(_scene.EditableSubmeshCount, _document.Submeshes.Count);
+        return selected
+            .Where(sourceIndex => sourceIndex >= 0
+                && sourceIndex < editableCount
+                && IsSubmeshVisibleForViewportSelection(sourceIndex))
+            .OrderBy(sourceIndex => sourceIndex)
+            .ToArray();
     }
 
     private ProvisionalStrokeSubmesh BuildProvisionalStrokeSubmesh(
@@ -141,200 +152,74 @@ internal sealed partial class MeshViewport
         NetViewportCamera camera,
         Point origin,
         float radius,
-        IReadOnlySet<int>? editableSelection)
+        IReadOnlySet<int>? editableSelection,
+        string tool)
     {
         var submesh = _document.Submeshes[submeshIndex];
         var count = submesh.Vertices.Count;
         var baseline = submesh.Vertices.ToArray();
         var working = baseline.ToArray();
-        var projected = new PointF[count];
-        var frontFacing = new bool[count];
-        var editableMask = new bool[count];
         var editableIndices = editableSelection is null
             ? Enumerable.Range(0, count).ToArray()
             : editableSelection.Where(index => index >= 0 && index < count).Distinct().OrderBy(index => index).ToArray();
+        var center = Vector3.Zero;
         foreach (var vertexIndex in editableIndices)
         {
-            editableMask[vertexIndex] = true;
-        }
-        var normals = BuildProvisionalVertexNormals(submesh, baseline);
-        var center = Vector3.Zero;
-        for (var vertexIndex = 0; vertexIndex < count; vertexIndex++)
-        {
             var vertex = baseline[vertexIndex];
-            if (editableMask[vertexIndex])
-            {
-                center += new Vector3(vertex.X, vertex.Y, vertex.Z);
-            }
-            projected[vertexIndex] = SceneProjectedPoint(camera, submeshIndex, vertex);
+            center += new Vector3(vertex.X, vertex.Y, vertex.Z);
         }
         center /= Math.Max(1, editableIndices.Length);
-        MarkFrontFacingVertices(submesh, projected, frontFacing);
         var matrix = ActiveSceneModelMatrix(submeshIndex) * camera.WorldViewProjection;
-        var unitsPerPixel = ScreenUnitsPerPixel(matrix, center, origin);
         var weights = new float[count];
-        var grabIndices = new int[count];
-        var grabCount = 0;
-        var weightedCenter = Vector3.Zero;
-        var weightTotal = 0.0f;
-        for (var vertexIndex = 0; vertexIndex < count; vertexIndex++)
+        var grabIndices = Array.Empty<int>();
+        var weightedCenter = center;
+        if (tool == "grab")
         {
-            var dx = projected[vertexIndex].X - origin.X;
-            var dy = projected[vertexIndex].Y - origin.Y;
-            var distance = MathF.Sqrt(dx * dx + dy * dy);
-            if (!editableMask[vertexIndex]
-                || distance > radius
-                || (!ShowXRay && !frontFacing[vertexIndex]))
+            var projected = new PointF[count];
+            for (var vertexIndex = 0; vertexIndex < count; vertexIndex++)
             {
-                continue;
+                projected[vertexIndex] = SceneProjectedPoint(camera, submeshIndex, baseline[vertexIndex]);
             }
-            var weight = BrushFalloffWeight(distance / Math.Max(radius, 0.001f), "smooth");
-            weights[vertexIndex] = weight;
-            grabIndices[grabCount++] = vertexIndex;
-            weightedCenter += new Vector3(
-                baseline[vertexIndex].X,
-                baseline[vertexIndex].Y,
-                baseline[vertexIndex].Z) * weight;
-            weightTotal += weight;
+            var frontFacing = new bool[count];
+            MarkFrontFacingVertices(submesh, projected, frontFacing);
+            grabIndices = new int[editableIndices.Length];
+            var grabCount = 0;
+            weightedCenter = Vector3.Zero;
+            var weightTotal = 0.0f;
+            foreach (var vertexIndex in editableIndices)
+            {
+                var dx = projected[vertexIndex].X - origin.X;
+                var dy = projected[vertexIndex].Y - origin.Y;
+                var distance = MathF.Sqrt(dx * dx + dy * dy);
+                if (distance > radius || (!ShowXRay && !frontFacing[vertexIndex]))
+                {
+                    continue;
+                }
+                var weight = BrushFalloffWeight(distance / Math.Max(radius, 0.001f), "smooth");
+                weights[vertexIndex] = weight;
+                grabIndices[grabCount++] = vertexIndex;
+                weightedCenter += new Vector3(
+                    baseline[vertexIndex].X,
+                    baseline[vertexIndex].Y,
+                    baseline[vertexIndex].Z) * weight;
+                weightTotal += weight;
+            }
+            Array.Resize(ref grabIndices, grabCount);
+            weightedCenter = weightTotal > 0.0001f ? weightedCenter / weightTotal : center;
         }
-        Array.Resize(ref grabIndices, grabCount);
-        var spatialIndex = BuildProvisionalSpatialIndex(projected, editableMask);
         return new ProvisionalStrokeSubmesh
         {
             SubmeshIndex = submeshIndex,
             Baseline = baseline,
             Working = working,
-            Projected = projected,
-            FrontFacing = frontFacing,
-            Normals = normals,
-            SmoothTargets = BuildSmoothTargets(submesh, baseline),
-            Exposure = new float[count],
             GrabWeights = weights,
             GrabIndices = grabIndices,
-            EditableMask = editableMask,
             EditableIndices = editableIndices,
-            SpatialBuckets = spatialIndex.Buckets,
-            VisitMarks = new int[count],
             DirtyIndices = new int[count],
             WorldViewProjection = matrix,
             Center = center,
-            BrushCenter = weightTotal > 0.0001f ? weightedCenter / weightTotal : center,
-            UnitsPerPixel = unitsPerPixel,
-            GridColumns = spatialIndex.Columns,
-            GridRows = spatialIndex.Rows,
+            BrushCenter = weightedCenter,
         };
-    }
-
-    private const int ProvisionalSpatialCellPixels = 32;
-
-    private (int Columns, int Rows, int[][] Buckets) BuildProvisionalSpatialIndex(
-        PointF[] projected,
-        IReadOnlyList<bool> editableMask)
-    {
-        var viewport = ActivePaneBounds();
-        var columns = Math.Max(1, (viewport.Width + ProvisionalSpatialCellPixels - 1) / ProvisionalSpatialCellPixels);
-        var rows = Math.Max(1, (viewport.Height + ProvisionalSpatialCellPixels - 1) / ProvisionalSpatialCellPixels);
-        var pending = new List<int>?[columns * rows];
-        for (var vertexIndex = 0; vertexIndex < projected.Length; vertexIndex++)
-        {
-            if (!editableMask[vertexIndex])
-            {
-                continue;
-            }
-            var point = projected[vertexIndex];
-            var column = (int)MathF.Floor(point.X / ProvisionalSpatialCellPixels);
-            var row = (int)MathF.Floor(point.Y / ProvisionalSpatialCellPixels);
-            if (column < 0 || column >= columns || row < 0 || row >= rows)
-            {
-                continue;
-            }
-            var bucketIndex = row * columns + column;
-            (pending[bucketIndex] ??= new List<int>()).Add(vertexIndex);
-        }
-        var buckets = new int[pending.Length][];
-        for (var bucketIndex = 0; bucketIndex < pending.Length; bucketIndex++)
-        {
-            buckets[bucketIndex] = pending[bucketIndex]?.ToArray() ?? Array.Empty<int>();
-        }
-        return (columns, rows, buckets);
-    }
-
-    private static Vector3[] BuildProvisionalVertexNormals(ObjSubmesh submesh, IReadOnlyList<Vec3> vertices)
-    {
-        var normals = new Vector3[vertices.Count];
-        if (submesh.Normals.Count == vertices.Count)
-        {
-            for (var index = 0; index < normals.Length; index++)
-            {
-                var normal = submesh.Normals[index];
-                normals[index] = NormalizeOr(new Vector3(normal.X, normal.Y, normal.Z), Vector3.UnitY);
-            }
-            return normals;
-        }
-        foreach (var face in submesh.Faces)
-        {
-            if (face.Corners.Length != 3)
-            {
-                continue;
-            }
-            var a = face.Corners[0].VertexIndex;
-            var b = face.Corners[1].VertexIndex;
-            var c = face.Corners[2].VertexIndex;
-            if (a < 0 || b < 0 || c < 0 || a >= vertices.Count || b >= vertices.Count || c >= vertices.Count)
-            {
-                continue;
-            }
-            var va = ToVector3(vertices[a]);
-            var normal = Vector3.Cross(ToVector3(vertices[b]) - va, ToVector3(vertices[c]) - va);
-            normals[a] += normal;
-            normals[b] += normal;
-            normals[c] += normal;
-        }
-        for (var index = 0; index < normals.Length; index++)
-        {
-            normals[index] = NormalizeOr(normals[index], Vector3.UnitY);
-        }
-        return normals;
-    }
-
-    private static Vec3[] BuildSmoothTargets(ObjSubmesh submesh, IReadOnlyList<Vec3> vertices)
-    {
-        var sums = new Vector3[vertices.Count];
-        var counts = new int[vertices.Count];
-        foreach (var face in submesh.Faces)
-        {
-            if (face.Corners.Length != 3)
-            {
-                continue;
-            }
-            var a = face.Corners[0].VertexIndex;
-            var b = face.Corners[1].VertexIndex;
-            var c = face.Corners[2].VertexIndex;
-            if (a < 0 || b < 0 || c < 0 || a >= vertices.Count || b >= vertices.Count || c >= vertices.Count)
-            {
-                continue;
-            }
-            AddSmoothNeighbor(sums, counts, a, vertices[b]);
-            AddSmoothNeighbor(sums, counts, a, vertices[c]);
-            AddSmoothNeighbor(sums, counts, b, vertices[a]);
-            AddSmoothNeighbor(sums, counts, b, vertices[c]);
-            AddSmoothNeighbor(sums, counts, c, vertices[a]);
-            AddSmoothNeighbor(sums, counts, c, vertices[b]);
-        }
-        var targets = new Vec3[vertices.Count];
-        for (var index = 0; index < targets.Length; index++)
-        {
-            targets[index] = counts[index] > 0
-                ? FromVector3(sums[index] / counts[index])
-                : vertices[index];
-        }
-        return targets;
-    }
-
-    private static void AddSmoothNeighbor(Vector3[] sums, int[] counts, int target, Vec3 neighbor)
-    {
-        sums[target] += ToVector3(neighbor);
-        counts[target]++;
     }
 
     private static void MarkFrontFacingVertices(ObjSubmesh submesh, PointF[] projected, bool[] frontFacing)
@@ -364,18 +249,18 @@ internal sealed partial class MeshViewport
         }
     }
 
-    private void UpdateProvisionalEditorStroke(Point point, bool initial = false)
+    private void UpdateProvisionalEditorStroke(Point point)
     {
         var state = _provisionalStroke;
         if (state is null || state.Ended)
         {
             return;
         }
-        var options = ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>();
-        var radius = (float)Math.Clamp(NumberOption(options, "radius", 24.0), 2.0, 256.0);
-        var strength = (float)Math.Clamp(NumberOption(options, "strength", 0.5), 0.0, 1.0);
-        var falloff = Convert.ToString(options.GetValueOrDefault("falloff"), CultureInfo.InvariantCulture)?.Trim().ToLowerInvariant() ?? "smooth";
-        var invert = options.TryGetValue("invert", out var rawInvert) && Convert.ToBoolean(rawInvert, CultureInfo.InvariantCulture);
+        if (!state.LocalGeometryPreview)
+        {
+            state.Previous = point;
+            return;
+        }
         if (state.Tool == "move")
         {
             foreach (var candidate in state.Submeshes)
@@ -403,11 +288,9 @@ internal sealed partial class MeshViewport
         }
         else if (state.Tool == "grab")
         {
+            var options = ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>();
+            var strength = (float)Math.Clamp(NumberOption(options, "strength", 0.5), 0.0, 1.0);
             UpdateProvisionalGrab(state, point, strength);
-        }
-        else
-        {
-            UpdateProvisionalBrush(state, state.Previous, point, radius, strength, falloff, invert, initial);
         }
         state.Previous = point;
         UpdateGpuViewport();
@@ -440,90 +323,6 @@ internal sealed partial class MeshViewport
         }
     }
 
-    private void UpdateProvisionalBrush(
-        ProvisionalStrokeState state,
-        Point start,
-        Point end,
-        float radius,
-        float strength,
-        string falloff,
-        bool invert,
-        bool initial)
-    {
-        var segmentLength = MathF.Sqrt((end.X - start.X) * (end.X - start.X) + (end.Y - start.Y) * (end.Y - start.Y));
-        var exposureStep = Math.Max(initial ? 0.2f : 0.08f, segmentLength / Math.Max(radius * 0.5f, 1.0f));
-        foreach (var candidate in state.Submeshes)
-        {
-            candidate.DirtyCount = 0;
-            candidate.VisitGeneration = candidate.VisitGeneration == int.MaxValue
-                ? 1
-                : candidate.VisitGeneration + 1;
-            if (candidate.VisitGeneration == 1)
-            {
-                Array.Clear(candidate.VisitMarks);
-            }
-            var cursorCenter = UnprojectScreenPoint(
-                candidate.WorldViewProjection,
-                candidate.Center,
-                end);
-            var radiusUnits = Math.Max(candidate.UnitsPerPixel * radius, 0.000001f);
-            var amount = radiusUnits * 0.08f * strength * (invert ? -1.0f : 1.0f);
-            var left = Math.Clamp((int)MathF.Floor((Math.Min(start.X, end.X) - radius) / ProvisionalSpatialCellPixels), 0, candidate.GridColumns - 1);
-            var right = Math.Clamp((int)MathF.Floor((Math.Max(start.X, end.X) + radius) / ProvisionalSpatialCellPixels), 0, candidate.GridColumns - 1);
-            var top = Math.Clamp((int)MathF.Floor((Math.Min(start.Y, end.Y) - radius) / ProvisionalSpatialCellPixels), 0, candidate.GridRows - 1);
-            var bottom = Math.Clamp((int)MathF.Floor((Math.Max(start.Y, end.Y) + radius) / ProvisionalSpatialCellPixels), 0, candidate.GridRows - 1);
-            for (var row = top; row <= bottom; row++)
-            {
-                for (var column = left; column <= right; column++)
-                {
-                    foreach (var vertexIndex in candidate.SpatialBuckets[row * candidate.GridColumns + column])
-                    {
-                        if (candidate.VisitMarks[vertexIndex] == candidate.VisitGeneration)
-                        {
-                            continue;
-                        }
-                        candidate.VisitMarks[vertexIndex] = candidate.VisitGeneration;
-                        if (!ShowXRay && !candidate.FrontFacing[vertexIndex])
-                        {
-                            continue;
-                        }
-                        var distance = DistanceToSegment(candidate.Projected[vertexIndex], start, end);
-                        if (distance > radius)
-                        {
-                            continue;
-                        }
-                        var weight = BrushFalloffWeight(distance / Math.Max(radius, 0.001f), falloff);
-                        candidate.Exposure[vertexIndex] = Math.Min(4.0f, candidate.Exposure[vertexIndex] + weight * exposureStep);
-                        var exposure = candidate.Exposure[vertexIndex];
-                        var baseline = ToVector3(candidate.Baseline[vertexIndex]);
-                        Vector3 next;
-                        if (state.Tool == "smooth")
-                        {
-                            var target = ToVector3(candidate.SmoothTargets[vertexIndex]);
-                            next = Vector3.Lerp(baseline, target, Math.Clamp(exposure * strength, 0.0f, 1.0f));
-                        }
-                        else if (state.Tool == "pinch")
-                        {
-                            var direction = NormalizeOr(cursorCenter - baseline, Vector3.Zero);
-                            next = baseline + direction * (Math.Abs(amount) * exposure * (invert ? -1.0f : 1.0f));
-                        }
-                        else
-                        {
-                            next = baseline + candidate.Normals[vertexIndex] * (amount * exposure);
-                        }
-                        candidate.Working[vertexIndex] = FromVector3(next);
-                        candidate.DirtyIndices[candidate.DirtyCount++] = vertexIndex;
-                    }
-                }
-            }
-            _d3d11Viewport?.UpdateProvisionalVertexPositions(
-                candidate.SubmeshIndex,
-                candidate.Working,
-                candidate.DirtyIndices,
-                candidate.DirtyCount);
-        }
-    }
-
     private void MarkProvisionalEditorStrokeEnded(bool cancelled)
     {
         var state = _provisionalStroke;
@@ -533,7 +332,7 @@ internal sealed partial class MeshViewport
         }
         state.Ended = true;
         state.Cancelled = cancelled;
-        if (!cancelled)
+        if (!cancelled || !state.LocalGeometryPreview)
         {
             return;
         }
@@ -669,14 +468,6 @@ internal sealed partial class MeshViewport
         ClearProvisionalEditorStroke();
     }
 
-    private float ScreenUnitsPerPixel(Matrix4x4 matrix, Vector3 center, Point point)
-    {
-        var start = UnprojectScreenPoint(matrix, center, point);
-        var end = UnprojectScreenPoint(matrix, center, new Point(point.X + 1, point.Y));
-        var units = Vector3.Distance(start, end);
-        return float.IsFinite(units) && units > 0.0000001f ? units : 0.001f;
-    }
-
     private Vector3 UnprojectScreenDelta(
         Matrix4x4 matrix,
         Vector3 center,
@@ -739,9 +530,6 @@ internal sealed partial class MeshViewport
             _ => weight * weight * (3.0f - 2.0f * weight),
         };
     }
-
-    private static Vector3 NormalizeOr(Vector3 value, Vector3 fallback) =>
-        value.LengthSquared() > 0.0000001f ? Vector3.Normalize(value) : fallback;
 
     private static Vector3 ToVector3(Vec3 value) => new(value.X, value.Y, value.Z);
     private static Vec3 FromVector3(Vector3 value) => new(value.X, value.Y, value.Z);

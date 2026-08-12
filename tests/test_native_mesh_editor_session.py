@@ -3,6 +3,7 @@ import struct
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -316,6 +317,243 @@ class NativeMeshEditorSessionBridgeTests(unittest.TestCase):
         _assert_vec3_close(self, after_undo[1], (1.0, 0.0, 0.0))
         self.assertIsNotNone(redo)
         _assert_vec3_close(self, after_redo[1], (1.0, 0.0, 0.6))
+
+    def test_resident_live_stroke_inert_end_publishes_cumulative_terminal_geometry(self) -> None:
+        from cdmw.modding import mesh_native_core
+
+        if not mesh_native_core.native_mesh_core_available():
+            self.skipTest("native mesh core binary not available")
+
+        session_id = f"native-editor-terminal-preview-{uuid4().hex}"
+        stroke_id = f"stroke-{uuid4().hex}"
+        try:
+            self.assertIsNotNone(mesh_native_core.open_native_mesh_editor_session(_quad_mesh(), session_id, timeout_seconds=5.0))
+            self.assertIsNotNone(
+                mesh_native_core.select_native_mesh_editor_session(
+                    session_id,
+                    {"vertices_by_submesh": {0: (1,)}},
+                    timeout_seconds=5.0,
+                )
+            )
+            begin = mesh_native_core.apply_native_mesh_editor_session(
+                session_id,
+                {"operation": "transform", "translate": (0.0, 0.0, 0.1)},
+                stroke_phase="begin",
+                stroke_id=stroke_id,
+                timeout_seconds=10.0,
+            )
+            update = mesh_native_core.apply_native_mesh_editor_session(
+                session_id,
+                {"operation": "transform", "translate": (0.0, 0.0, 0.2)},
+                stroke_phase="update",
+                stroke_id=stroke_id,
+                timeout_seconds=10.0,
+            )
+            finish = mesh_native_core.apply_native_mesh_editor_session(
+                session_id,
+                {"operation": "transform", "translate": (0.0, 0.0, 0.0)},
+                stroke_phase="end",
+                stroke_id=stroke_id,
+                timeout_seconds=10.0,
+            )
+        finally:
+            mesh_native_core.close_native_mesh_editor_session(session_id)
+
+        self.assertIsNotNone(begin)
+        self.assertIsNotNone(update)
+        self.assertIsNotNone(finish)
+        self.assertEqual([0], finish["affected_submesh_indices"])  # type: ignore[index]
+        self.assertEqual(1, finish["result_count"])  # type: ignore[index]
+        self.assertEqual("end", finish["stroke"]["phase"])  # type: ignore[index]
+
+    def test_dense_strokes_use_binary_preview_while_tiny_updates_stay_inline(self) -> None:
+        from cdmw.domain.mesh import MeshEditSelection
+        from cdmw.services.mesh_service_native_session import (
+            _NativeEditorRequest,
+            _native_editor_binary_preview_required,
+        )
+        from tools.mesh_harness.fixtures import build_native_benchmark_mesh
+
+        session = SimpleNamespace(working_mesh=build_native_benchmark_mesh(20, 20))
+
+        def request(phase: str) -> _NativeEditorRequest:
+            return _NativeEditorRequest(
+                action="transform",
+                params={},
+                stop_event=None,
+                dirty_at_start=False,
+                stroke_phase=phase,
+                stroke_id="preview-density",
+                reuse_selection=True,
+                selection_payload={},
+                selection_signature=(),
+            )
+
+        small = MeshEditSelection.from_maps(vertices_by_submesh={0: range(32)})
+        dense = MeshEditSelection.from_maps(vertices_by_submesh={0: range(300)})
+
+        self.assertFalse(_native_editor_binary_preview_required(session, small, request("update")))
+        self.assertTrue(_native_editor_binary_preview_required(session, dense, request("update")))
+        self.assertTrue(_native_editor_binary_preview_required(session, small, request("end")))
+        self.assertTrue(_native_editor_binary_preview_required(session, small, request("")))
+
+    def test_native_visible_sculpt_update_sweeps_the_full_paced_pointer_segment(self) -> None:
+        from cdmw.modding import mesh_native_core
+
+        if not mesh_native_core.native_mesh_core_available():
+            self.skipTest("native mesh core binary not available")
+
+        session_id = f"native-editor-swept-sculpt-{uuid4().hex}"
+
+        def payload(strength: float, start_x: float, end_x: float) -> dict[str, object]:
+            screen = {
+                "x": end_x,
+                "y": 100.0,
+                "radius_pixels": 6.0,
+                "viewport_width": 200.0,
+                "viewport_height": 200.0,
+                "world_view_projection": _screen_wvp(),
+            }
+            return {
+                "operation": "brush",
+                "tool": "inflate",
+                "strength": strength,
+                "selection_depth_mode": "visible",
+                "screen_brush": screen,
+                "screen_radius": {**screen, "amount_scale": 0.08},
+                "screen_drag": {
+                    **screen,
+                    "start_x": start_x,
+                    "start_y": 100.0,
+                    "end_x": end_x,
+                    "end_y": 100.0,
+                },
+            }
+
+        def export_vertices() -> list[tuple[float, float, float]]:
+            with tempfile.TemporaryDirectory(prefix="cdmw_native_swept_sculpt_") as temp_dir:
+                vertices_path = Path(temp_dir) / "vertices.bin"
+                self.assertIsNotNone(
+                    mesh_native_core.export_native_mesh_editor_session_snapshot(
+                        session_id,
+                        [{"index": 0, "vertices_output_path": str(vertices_path)}],
+                        timeout_seconds=5.0,
+                    )
+                )
+                return [tuple(values) for values in struct.iter_unpack("=ddd", vertices_path.read_bytes())]
+
+        try:
+            self.assertIsNotNone(mesh_native_core.open_native_mesh_editor_session(_quad_mesh(), session_id, timeout_seconds=5.0))
+            self.assertIsNotNone(
+                mesh_native_core.apply_native_mesh_editor_session(
+                    session_id,
+                    payload(0.0, 100.0, 100.0),
+                    stroke_phase="begin",
+                    stroke_id="swept-sculpt",
+                    timeout_seconds=10.0,
+                )
+            )
+            update_payload = payload(1.0, 100.0, 190.0)
+            update_payload["screen_brush"]["y"] = 0.0  # type: ignore[index]
+            update_payload["screen_radius"]["y"] = 0.0  # type: ignore[index]
+            update_payload["screen_drag"]["end_y"] = 0.0  # type: ignore[index]
+            update_payload["screen_path"] = (
+                {"x": 100.0, "y": 100.0},
+                {"x": 100.0, "y": 0.0},
+                {"x": 190.0, "y": 0.0},
+            )
+            update = mesh_native_core.apply_native_mesh_editor_session(
+                session_id,
+                update_payload,
+                stroke_phase="update",
+                stroke_id="swept-sculpt",
+                timeout_seconds=10.0,
+            )
+            finish = mesh_native_core.apply_native_mesh_editor_session(
+                session_id,
+                payload(0.0, 190.0, 190.0),
+                stroke_phase="end",
+                stroke_id="swept-sculpt",
+                timeout_seconds=10.0,
+            )
+            after = export_vertices()
+        finally:
+            mesh_native_core.close_native_mesh_editor_session(session_id)
+
+        self.assertIsNotNone(update)
+        self.assertIsNotNone(finish)
+        self.assertGreater(after[0][2], 0.0)
+        # The middle path point is far from the start/end chord. Reaching the
+        # upper-left vertex proves coalescing preserved the curved brush route.
+        self.assertGreater(after[2][2], 0.0)
+
+    def test_native_visible_sculpt_depth_mask_uses_uncoalesced_drag_segment(self) -> None:
+        from cdmw.modding import mesh_native_core
+
+        if not mesh_native_core.native_mesh_core_available():
+            self.skipTest("native mesh core binary not available")
+
+        session_id = f"native-editor-paced-sculpt-{uuid4().hex}"
+
+        def payload(strength: float, start_x: float, end_x: float) -> dict[str, object]:
+            screen = {
+                "x": end_x,
+                "y": 100.0,
+                "radius_pixels": 8.0,
+                "viewport_width": 200.0,
+                "viewport_height": 200.0,
+                "world_view_projection": _screen_wvp(x_offset=-0.25),
+            }
+            return {
+                "operation": "brush",
+                "tool": "inflate",
+                "strength": strength,
+                "selection_depth_mode": "visible",
+                "screen_brush": screen,
+                "screen_radius": {**screen, "amount_scale": 0.08},
+                "screen_drag": {
+                    **screen,
+                    "start_x": start_x,
+                    "start_y": 100.0,
+                    "end_x": end_x,
+                    "end_y": 100.0,
+                },
+            }
+
+        try:
+            self.assertIsNotNone(mesh_native_core.open_native_mesh_editor_session(_quad_mesh(), session_id, timeout_seconds=5.0))
+            self.assertIsNotNone(
+                mesh_native_core.apply_native_mesh_editor_session(
+                    session_id,
+                    payload(0.0, 75.0, 75.0),
+                    stroke_phase="begin",
+                    stroke_id="paced-sculpt",
+                    timeout_seconds=10.0,
+                )
+            )
+            update = mesh_native_core.apply_native_mesh_editor_session(
+                session_id,
+                payload(1.0, 75.0, 175.0),
+                stroke_phase="update",
+                stroke_id="paced-sculpt",
+                timeout_seconds=10.0,
+            )
+            with tempfile.TemporaryDirectory(prefix="cdmw_native_paced_sculpt_") as temp_dir:
+                vertices_path = Path(temp_dir) / "vertices.bin"
+                self.assertIsNotNone(
+                    mesh_native_core.export_native_mesh_editor_session_snapshot(
+                        session_id,
+                        [{"index": 0, "vertices_output_path": str(vertices_path)}],
+                        timeout_seconds=5.0,
+                    )
+                )
+                after = [tuple(values) for values in struct.iter_unpack("=ddd", vertices_path.read_bytes())]
+        finally:
+            mesh_native_core.close_native_mesh_editor_session(session_id)
+
+        self.assertIsNotNone(update)
+        self.assertGreater(after[0][2], 0.0)
+        self.assertGreater(after[1][2], 0.0)
 
     def test_native_session_transform_accepts_d3d11_object_delta(self) -> None:
         from cdmw.modding import mesh_native_core
@@ -3582,7 +3820,7 @@ class NativeMeshEditorSessionBridgeTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertEqual({0: {(0, 1)}}, selected_edges)
 
-    def test_native_session_brush_update_screen_brush_overrides_stale_selection_weights(self) -> None:
+    def test_native_session_grab_update_reuses_begin_selection_weights(self) -> None:
         from cdmw.modding import mesh_native_core
 
         if not mesh_native_core.native_mesh_core_available():
@@ -3669,8 +3907,74 @@ class NativeMeshEditorSessionBridgeTests(unittest.TestCase):
         self.assertIsNotNone(update)
         self.assertIsNotNone(report)
         after_brush = [tuple(values) for values in struct.iter_unpack("=ddd", raw)]
-        _assert_vec3_close(self, after_brush[0], (0.0, 0.0, 1.0))
-        _assert_vec3_close(self, after_brush[1], (1.0, 0.0, 1.0))
+        _assert_vec3_close(self, after_brush[0], (0.0, 0.0, 0.0))
+        _assert_vec3_close(self, after_brush[1], (1.0, 0.0, 2.0))
+
+    def test_native_session_grab_stroke_keeps_begin_brush_fixed_across_cursor_move(self) -> None:
+        from cdmw.modding import mesh_native_core
+
+        if not mesh_native_core.native_mesh_core_available():
+            self.skipTest("native mesh core binary not available")
+
+        session_id = f"native-editor-grab-fixed-{uuid4().hex}"
+
+        def export_vertices() -> list[tuple[float, float, float]]:
+            with tempfile.TemporaryDirectory(prefix="cdmw_native_grab_fixed_") as temp_dir:
+                vertices_path = Path(temp_dir) / "vertices.bin"
+                self.assertIsNotNone(
+                    mesh_native_core.export_native_mesh_editor_session_snapshot(
+                        session_id,
+                        [{"index": 0, "vertices_output_path": str(vertices_path)}],
+                        timeout_seconds=5.0,
+                    )
+                )
+                return [tuple(values) for values in struct.iter_unpack("=ddd", vertices_path.read_bytes())]
+
+        def brush(x: float, y: float) -> dict[str, object]:
+            return {
+                "operation": "brush",
+                "tool": "grab",
+                "delta": (0.0, 0.0, 1.0),
+                "screen_brush": {
+                    "x": x,
+                    "y": y,
+                    "radius_pixels": 10.0,
+                    "yaw_degrees": 0.0,
+                    "pitch_degrees": 0.0,
+                    "distance": 1.0,
+                    "viewport_width": 200.0,
+                    "viewport_height": 200.0,
+                    "vertical_fov_degrees": 90.0,
+                    "world_view_projection": _screen_wvp(),
+                },
+                "strength": 1.0,
+            }
+
+        try:
+            self.assertIsNotNone(mesh_native_core.open_native_mesh_editor_session(_quad_mesh(), session_id, timeout_seconds=5.0))
+            begin = mesh_native_core.apply_native_mesh_editor_session(
+                session_id, brush(100.0, 100.0), stroke_phase="begin", stroke_id="grab-fixed", timeout_seconds=10.0
+            )
+            update = mesh_native_core.apply_native_mesh_editor_session(
+                session_id, brush(190.0, 10.0), stroke_phase="update", stroke_id="grab-fixed", timeout_seconds=10.0
+            )
+            finish = mesh_native_core.apply_native_mesh_editor_session(
+                session_id, brush(190.0, 10.0), stroke_phase="end", stroke_id="grab-fixed", timeout_seconds=10.0
+            )
+            after_stroke = export_vertices()
+            undo = mesh_native_core.undo_native_mesh_editor_session(session_id, timeout_seconds=10.0)
+            after_undo = export_vertices()
+        finally:
+            mesh_native_core.close_native_mesh_editor_session(session_id)
+
+        self.assertIsNotNone(begin)
+        self.assertIsNotNone(update)
+        self.assertIsNotNone(finish)
+        self.assertIsNotNone(undo)
+        _assert_vec3_close(self, after_stroke[0], (0.0, 0.0, 3.0))
+        _assert_vec3_close(self, after_stroke[3], (1.0, 1.0, 0.0))
+        _assert_vec3_close(self, after_undo[0], (0.0, 0.0, 0.0))
+        _assert_vec3_close(self, after_undo[3], (1.0, 1.0, 0.0))
 
     def test_native_session_brush_uses_d3d11_selection_weight_descriptor(self) -> None:
         from cdmw.modding import mesh_native_core

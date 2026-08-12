@@ -12,7 +12,8 @@ internal sealed record MeshInteractionSoakResult(
     int SelectedPartCount,
     int SelectedVertexCount,
     int SelectedEdgeCount,
-    int SelectedFaceCount);
+    int SelectedFaceCount,
+    bool AuthorityStreamed);
 
 /// <summary>
 /// Drives the same local gesture methods used by WinForms mouse input while a
@@ -137,7 +138,9 @@ internal sealed partial class MeshViewport
         ReleasePaintProjectionCache();
     }
 
-    internal MeshInteractionSoakResult FinishInteractionSoak(Point point)
+    internal MeshInteractionSoakResult FinishInteractionSoak(
+        Point point,
+        bool deferStreamedAuthority = false)
     {
         StepInteractionSoak(point);
         if (_interactionSoakSelectionShape.Length > 0)
@@ -177,7 +180,8 @@ internal sealed partial class MeshViewport
                 _selectedSources.Count,
                 _selectedVertices.Values.Sum(values => values.Count),
                 _selectedEdges.Count,
-                _selectedFaces.Values.Sum(values => values.Count));
+                _selectedFaces.Values.Sum(values => values.Count),
+                false);
         }
 
         var state = _provisionalStroke
@@ -190,6 +194,20 @@ internal sealed partial class MeshViewport
             status: "rejected");
         var staleIgnored = ReferenceEquals(state, _provisionalStroke);
         EndEditorStroke(point, cancelled: false);
+        if (deferStreamedAuthority && !state.LocalGeometryPreview)
+        {
+            return new MeshInteractionSoakResult(
+                false,
+                staleIgnored,
+                false,
+                _interactionSoakCoveragePixels,
+                0,
+                _selectedSources.Count,
+                _selectedVertices.Values.Sum(values => values.Count),
+                _selectedEdges.Count,
+                _selectedFaces.Values.Sum(values => values.Count),
+                false);
+        }
         var changed = CommitInteractionSoakGeometry(state, out var finalAuthorityMatches);
         var requestId = Math.Max(1L, _authoritativeEditRevision + 1L);
         var revision = _authoritativeEditRevision + 1L;
@@ -214,7 +232,33 @@ internal sealed partial class MeshViewport
             _selectedSources.Count,
             _selectedVertices.Values.Sum(values => values.Count),
             _selectedEdges.Count,
-            _selectedFaces.Values.Sum(values => values.Count));
+            _selectedFaces.Values.Sum(values => values.Count),
+            !state.LocalGeometryPreview);
+    }
+
+    internal bool BeginPendingFaceSelectionCommandDiagnostic()
+    {
+        if (_document.Submeshes.Count == 0 || _document.Submeshes[0].Faces.Count == 0)
+        {
+            return false;
+        }
+        _ = UpdateSelection(
+            new Dictionary<int, HashSet<int>>(),
+            new Dictionary<int, HashSet<int>>(),
+            new Dictionary<int, HashSet<(int A, int B)>>(),
+            new HashSet<int>(),
+            revision: _authoritativeEditRevision);
+        _provisionalSelectedFaces[0] = new HashSet<int> { 0 };
+        BeginProvisionalSelection(
+            Math.Max(1L, _authoritativeEditRevision + 1L),
+            _authoritativeEditRevision,
+            "pending-topology-diagnostic",
+            0,
+            "end");
+        return HasPendingSelectionAuthority
+            && !HasEditableSelection
+            && _provisionalSelectedFaces.TryGetValue(0, out var faces)
+            && faces.Contains(0);
     }
 
     private int CommitInteractionSoakGeometry(

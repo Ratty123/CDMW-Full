@@ -290,16 +290,22 @@ def _mesh_editor_commit_action_bar_service_result(_state, _callbacks,
         action_text: str,
         topology_action: bool,
         native_update_already_applied: bool = False,
+        undo_snapshot_recorded: bool = True,
+        geometry_snapshot_recorded: bool = True,
     ) -> bool:
     if not _callbacks._mesh_editor_action_result_changed(result):
-        _callbacks._mesh_edit_pop_undo_snapshot()
-        _state._pop_geometry_undo_snapshot()
+        if undo_snapshot_recorded:
+            _callbacks._mesh_edit_pop_undo_snapshot()
+        if geometry_snapshot_recorded:
+            _state._pop_geometry_undo_snapshot()
         _callbacks._refresh_mesh_edit_controls()
         _state.self.set_status_message(f"Mesh Editor action made no changes: {action_text}.")
         return True
     if not _callbacks._mesh_editor_action_result_within_allowed_scope(result):
-        _callbacks._mesh_edit_pop_undo_snapshot()
-        _state._pop_geometry_undo_snapshot()
+        if undo_snapshot_recorded:
+            _callbacks._mesh_edit_pop_undo_snapshot()
+        if geometry_snapshot_recorded:
+            _state._pop_geometry_undo_snapshot()
         _callbacks._refresh_mesh_edit_controls()
         _state.self.set_status_message(
             f"Mesh Editor action blocked outside selected scope: {action_text}.",
@@ -359,6 +365,7 @@ def _mesh_editor_commit_dotnet_edit_result(_state, _callbacks,
         action_key: str = "",
         action_text: str = "",
         selection: object = None,
+        resident_history: bool = False,
     ) -> bool:
     """Run the commit sequence for an edit the embedded editor raised itself.
 
@@ -415,7 +422,26 @@ def _mesh_editor_commit_dotnet_edit_result(_state, _callbacks,
         )
         return False
     _state.mesh_editor_static_replacement_session_state["dotnet_committed_revision"] = revision
-    _callbacks._mesh_edit_record_snapshot()
+    changed = _callbacks._mesh_editor_action_result_changed(result)
+    undo_snapshot_recorded = False
+    geometry_snapshot_recorded = False
+    if resident_history and changed:
+        # The resident native session already owns the full reversible stroke
+        # delta. A lightweight marker keeps Builder Undo enabled without taking
+        # up to three full-mesh snapshots after mouse-up.
+        undo_snapshot_recorded = bool(
+            _callbacks._mesh_edit_push_undo_snapshot(
+                {
+                    "kind": "resident_native_history_marker",
+                    "revision": revision,
+                    "action": normalized_key,
+                }
+            )
+        )
+    elif not resident_history:
+        _callbacks._mesh_edit_record_snapshot()
+        undo_snapshot_recorded = True
+        geometry_snapshot_recorded = True
     return bool(
         _callbacks._mesh_editor_commit_action_bar_service_result(
             result,
@@ -423,6 +449,8 @@ def _mesh_editor_commit_dotnet_edit_result(_state, _callbacks,
             action_text=str(action_text or normalized_key or "edit"),
             topology_action=normalized_key in {"delete", "duplicate", "subdivide", "refine_smooth", "split", "separate"},
             native_update_already_applied=True,
+            undo_snapshot_recorded=undo_snapshot_recorded,
+            geometry_snapshot_recorded=geometry_snapshot_recorded,
         )
     )
 

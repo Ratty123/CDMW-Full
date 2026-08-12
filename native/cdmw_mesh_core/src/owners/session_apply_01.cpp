@@ -16,6 +16,52 @@ std::string mesh_editor_apply_edit_report(const MeshEditorApplyState& state) {
     return mesh_edit_report_json(state.results, state.include_preview_deltas);
 }
 
+void mesh_editor_attach_terminal_stroke_preview(
+    MeshEditorSession& session,
+    const std::map<int, MeshSessionSubmesh>& native_session,
+    MeshEditorApplyState& state,
+    const std::string& session_id
+) {
+    if (state.stroke_phase != "end" || state.stroke_id.empty() || session.undo_stack.empty()) {
+        return;
+    }
+    const MeshEditorHistoryEntry& history = session.undo_stack.back();
+    if (history.stroke_id != state.stroke_id || history.topology_changed || history.deltas.empty()) {
+        return;
+    }
+    // Publish one cumulative, terminal geometry frame correlated to stroke_end.
+    // Without it an inert release could clear the helper's provisional surface
+    // while the last update was still ack-paced in the host queue, producing a
+    // visible snap-back and leaving Builder with an empty terminal result.
+    state.results.clear();
+    state.affected_indices.clear();
+    state.existing_result_indices.clear();
+    for (const auto& item : history.deltas) {
+        if (mesh_editor_channel_delta_empty(item.second.vertices)) {
+            continue;
+        }
+        const auto current = native_session.find(item.first);
+        if (current == native_session.end()) {
+            throw std::runtime_error("mesh editor terminal stroke preview submesh is missing");
+        }
+        std::vector<Vec3> current_positions = mesh_editor_history_current_positions(
+            current->second,
+            item.second
+        );
+        state.results.push_back(mesh_editor_sparse_position_history_result(
+            item.first,
+            current->second,
+            item.second,
+            std::move(current_positions),
+            state.operation,
+            state.delta_output_dir,
+            session_id
+        ));
+        state.affected_indices.insert(item.first);
+        state.existing_result_indices.insert(item.first);
+    }
+}
+
 std::size_t mesh_editor_apply_result_count(const MeshEditorApplyState& state) {
     if (state.normal_operation) return state.normal_results.size();
     if (state.uv_operation) return state.auto_uv_operation ? state.results.size() : state.uv_results.size();
@@ -125,6 +171,7 @@ std::string mesh_editor_apply_session_report(
     try {
         mesh_editor_execute_apply_operation(session, *edit, native_session, state);
         mesh_editor_commit_apply_results(session, native_session, state);
+        mesh_editor_attach_terminal_stroke_preview(session, native_session, state, session_id);
     } catch (...) {
         if (state.stroke_phase == "end") {
             session.active_stroke = MeshEditorStroke{};

@@ -18,7 +18,10 @@ from cdmw.domain.mesh import (
     MeshEditSessionView,
 )
 from cdmw.ui.mesh_editor.controller import MeshEditorNativeUpdate
-from cdmw.ui.mesh_editor.live_stroke_dispatcher import MeshLiveStrokeOutcome
+from cdmw.ui.mesh_editor.live_stroke_dispatcher import (
+    MeshLiveStrokeFailure,
+    MeshLiveStrokeOutcome,
+)
 from cdmw.ui.mesh_editor import tab as _mesh_editor_tab_facade  # noqa: F401
 from cdmw.ui.mesh_editor.tab_dotnet_commands import MeshEditorDotNetCommandMixin
 from cdmw.ui.mesh_editor.tab_interaction import MeshEditorInteractionMixin
@@ -67,6 +70,7 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.standalone_native_mesh_edit_stroke_id = ""
         self.standalone_native_selection_stroke_id = ""
         self.standalone_live_stroke_dispatcher = None
+        self.standalone_pending_dotnet_topology_request = None
         self.applied_revisions: list[int] = []
         self.applied_update_count = 0
         self.committed_revisions: list[int] = []
@@ -81,6 +85,7 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.selection_summary_refreshes = 0
         self.forwarded_session_views: list[MeshEditSessionView | None] = []
         self.forwarded_selections: list[MeshEditSelection | None] = []
+        self.resident_history_commits: list[bool] = []
 
     def _dotnet_target_controller(self):
         return self.controller
@@ -131,12 +136,14 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         command_name: str = "",
         request_payload=None,
         authoritative_selection=None,
+        resident_history: bool = False,
     ) -> bool:
         # The builder-side half of a finished edit: without it the preview moves
         # but the builder's mesh, totals and revision do not.
         del command_name, request_payload
         self.committed_revisions.append(int(result.revision))
         self.forwarded_selections.append(authoritative_selection)
+        self.resident_history_commits.append(bool(resident_history))
         return True
 
     def _refresh_embedded_workspace_from_builder(
@@ -233,6 +240,150 @@ def test_stroke_scope_filters_screen_candidates_without_promoting_a_part_selecti
     assert command.params["screen_brush"]["source_submesh_indices"] == (2,)
 
 
+@pytest.mark.parametrize("tool", ["smooth", "inflate", "pinch"])
+def test_sculpt_terminal_preserves_an_absorbed_final_drag_but_not_an_inert_release(tool: str) -> None:
+    class _SelectionController:
+        @staticmethod
+        def session_view():
+            return type("View", (), {"selection": MeshEditSelection()})()
+
+    class _PayloadHarness(MeshEditorInteractionMixin):
+        standalone_dotnet_target_controller = _SelectionController()
+        standalone_native_mesh_edit_stroke_id = "sculpt-1"
+
+    harness = _PayloadHarness()
+    common = {
+        "stroke_id": "sculpt-1",
+        "tool": tool,
+        "strength": 0.75,
+        "screen_brush": {"x": 15, "y": 10, "radius_pixels": 24},
+    }
+    inert = harness._standalone_native_mesh_edit_stroke_command(
+        {
+            **common,
+            "screen_drag": {"start_x": 15, "start_y": 10, "end_x": 15, "end_y": 10},
+        },
+        "end",
+    )
+    absorbed = harness._standalone_native_mesh_edit_stroke_command(
+        {
+            **common,
+            "screen_drag": {"start_x": 10, "start_y": 10, "end_x": 15, "end_y": 10},
+            "screen_path": (
+                {"x": 10, "y": 10},
+                {"x": 10, "y": 15},
+                {"x": 15, "y": 15},
+            ),
+        },
+        "end",
+    )
+
+    assert inert is not None and absorbed is not None
+    assert inert.params["strength"] == 0.0
+    assert absorbed.params["strength"] == 0.75
+    assert absorbed.params["screen_path"] == (
+        {"x": 10.0, "y": 10.0},
+        {"x": 10.0, "y": 15.0},
+        {"x": 15.0, "y": 15.0},
+    )
+
+
+def test_topology_waiting_for_selection_drops_the_stale_helper_snapshot() -> None:
+    harness = _Harness(_Controller())
+    try:
+        harness.standalone_native_selection_stroke_id = "selection-1"
+        assert harness._queue_dotnet_topology_after_selection(
+            "subdivide",
+            {
+                "command": "subdivide",
+                "request_id": 90,
+                "selection_pending": True,
+                "local_selection": {"faces_by_submesh": {"0": [1]}},
+            },
+        )
+        queued = harness.standalone_pending_dotnet_topology_request
+        assert queued is not None
+        assert "local_selection" not in queued
+        assert "selection" not in queued
+
+        retried: list[dict[str, object]] = []
+        harness.standalone_native_selection_stroke_id = ""
+        harness._handle_dotnet_command_request = lambda payload: retried.append(dict(payload)) or True  # type: ignore[method-assign]
+        MeshEditorDotNetCommandMixin._retry_pending_dotnet_topology_command(harness)
+
+        assert len(retried) == 1
+        assert retried[0]["command"] == "subdivide"
+        assert "local_selection" not in retried[0]
+        assert harness.standalone_pending_dotnet_topology_request is None
+    finally:
+        harness.deleteLater()
+
+
+def test_failed_selection_rejects_its_queued_topology_command() -> None:
+    controller = _Controller()
+    harness = _Harness(controller)
+    try:
+        harness.standalone_native_selection_stroke_id = "selection-1"
+        harness.standalone_pending_dotnet_topology_request = {
+            "command": "subdivide",
+            "request_id": 91,
+        }
+        harness._handle_dotnet_live_stroke_failed(
+            MeshLiveStrokeFailure(
+                1,
+                "end",
+                controller,
+                "selection failed",
+                source="dotnet_selection",
+                request_payloads=({"request_id": 89},),
+            )
+        )
+
+        assert harness.standalone_pending_dotnet_topology_request is None
+        assert ("subdivide", "cancelled") in harness.command_results
+        assert controller.calls == []
+    finally:
+        harness.deleteLater()
+
+
+def test_cancelled_selection_does_not_run_queued_topology_on_the_restored_selection() -> None:
+    controller = _Controller()
+    harness = _Harness(controller)
+    restored = MeshEditSelection.from_maps(faces_by_submesh={0: (1,)})
+    restored_view = MeshEditSessionView(
+        session_id="selection-session",
+        mode="edit",
+        revision=3,
+        selection=restored,
+        submesh_count=1,
+        vertex_count=4,
+        face_count=2,
+    )
+    try:
+        harness.standalone_native_selection_stroke_id = "selection-1"
+        harness.standalone_pending_dotnet_topology_request = {
+            "command": "subdivide",
+            "request_id": 92,
+        }
+        harness._handle_dotnet_live_stroke_completed(
+            MeshLiveStrokeOutcome(
+                2,
+                "cancel",
+                controller,
+                MeshEditResult(action="select", status="ok", revision=3),
+                MeshEditorNativeUpdate(session_view=restored_view),
+                "dotnet_selection",
+                ({"request_id": 93, "stroke_id": "selection-1"},),
+            )
+        )
+
+        assert harness.standalone_pending_dotnet_topology_request is None
+        assert ("subdivide", "cancelled") in harness.command_results
+        assert controller.calls == []
+    finally:
+        harness.deleteLater()
+
+
 def test_dotnet_stroke_updates_return_quickly_coalesce_and_apply_final_revision() -> None:
     app = QApplication.instance() or QApplication(["dotnet-live-stroke-test"])
     controller = _Controller()
@@ -273,9 +424,14 @@ def test_dotnet_stroke_updates_return_quickly_coalesce_and_apply_final_revision(
             ("transform", "update", 3),
             ("transform", "end", 0),
         ]
-        assert harness.applied_revisions == [1, 2, 3, 4]
+        # The correlated queue is the sole helper geometry route. Applying the
+        # same native update directly used a fresh request id and was rejected
+        # whenever a provisional stroke was active.
+        assert harness.applied_revisions == []
         assert harness.sent_revisions == [1, 2, 3, 4]
         assert harness.sent_request_ids == [1, 2, 4, 5]
+        assert harness.committed_revisions == [4]
+        assert harness.resident_history_commits == [True]
         assert harness.command_results == [("transform", "coalesced")]
         assert harness.standalone_native_mesh_edit_stroke_id == ""
     finally:

@@ -91,10 +91,34 @@ def _merge_pending_screen_drag(
         "start_x": previous_drag["start_x"],
         "start_y": previous_drag["start_y"],
     }
+    def _path_points(command: MeshEditCommand, drag: Mapping[str, object]) -> list[dict[str, object]]:
+        raw_path = command.params.get("screen_path")
+        if isinstance(raw_path, (tuple, list)):
+            points = [
+                {"x": point["x"], "y": point["y"]}
+                for point in raw_path
+                if isinstance(point, Mapping) and "x" in point and "y" in point
+            ]
+            if len(points) >= 2:
+                return points
+        return [
+            {"x": drag["start_x"], "y": drag["start_y"]},
+            {"x": drag["end_x"], "y": drag["end_y"]},
+        ]
+
+    merged_path = _path_points(previous.command, previous_drag)
+    for point in _path_points(newest.command, newest_drag):
+        if merged_path and point == merged_path[-1]:
+            continue
+        merged_path.append(point)
     return MeshEditCommand(
         newest.command.action,
         selection=newest.command.selection,
-        params={**newest.command.params, "screen_drag": merged_drag},
+        params={
+            **newest.command.params,
+            "screen_drag": merged_drag,
+            "screen_path": tuple(merged_path),
+        },
         mode=newest.command.mode,
         label=newest.command.label,
     )

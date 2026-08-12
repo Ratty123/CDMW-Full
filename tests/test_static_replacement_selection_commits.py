@@ -166,6 +166,58 @@ def test_embedded_dotnet_selection_commit_skips_geometry_snapshot_round_trip(
     assert mirrored == [current_selection, replacement_selection]
 
 
+def test_terminal_resident_stroke_records_only_a_lightweight_undo_marker() -> None:
+    class _ResidentSession:
+        submesh_counts = ((4, 2),)
+
+        @staticmethod
+        def _result(*_args: object, **_kwargs: object) -> object:
+            return SimpleNamespace(action="brush", changed=True)
+
+    session = _ResidentSession()
+    markers: list[object] = []
+    commit_kwargs: list[dict[str, object]] = []
+    state = SimpleNamespace(
+        StaticReplacementMeshEditSession=_ResidentSession,
+        MeshEditSelection=MeshEditSelection,
+        mesh_editor_static_replacement_session_state={},
+    )
+    callbacks = SimpleNamespace(
+        _mesh_editor_fresh_static_replacement_session=lambda: session,
+        _mesh_editor_action_result_changed=lambda _result: True,
+        _mesh_edit_push_undo_snapshot=lambda marker: markers.append(marker) or True,
+        _mesh_edit_record_snapshot=lambda: (_ for _ in ()).throw(
+            AssertionError("resident stroke captured a full mesh snapshot")
+        ),
+        _mesh_editor_commit_action_bar_service_result=lambda _result, **kwargs: commit_kwargs.append(kwargs) or True,
+        _record_mesh_edit_event=lambda *_args, **_kwargs: None,
+    )
+    actions = create_actions_callbacks(state, callbacks)
+
+    assert actions._mesh_editor_commit_dotnet_edit_result(
+        MeshEditResult(
+            action="brush",
+            status="ok",
+            revision=12,
+            affected_submesh_indices=(0,),
+            changed_vertices_by_submesh=((0, (1, 2)),),
+        ),
+        action_key="brush",
+        action_text="Grab",
+        resident_history=True,
+    )
+
+    assert markers == [
+        {
+            "kind": "resident_native_history_marker",
+            "revision": 12,
+            "action": "brush",
+        }
+    ]
+    assert commit_kwargs[0]["undo_snapshot_recorded"] is True
+    assert commit_kwargs[0]["geometry_snapshot_recorded"] is False
+
+
 def test_a_result_that_changed_topology_still_must_report_counts(
     monkeypatch: pytest.MonkeyPatch
 ) -> None:
