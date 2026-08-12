@@ -90,6 +90,67 @@ class CrimsonShaderRegistryTests(unittest.TestCase):
         self.assertEqual("diagnostic_only", decode["disposition"])
         self.assertEqual({}, decode["promoted_channels"])
 
+    def test_embedded_mesh_reference_requires_exact_native_mesh_provenance(self) -> None:
+        cases = (
+            ("albedo", "base", "promoted", {"base_color": "rgb"}),
+            ("base", "base", "promoted", {"base_color": "rgb"}),
+            ("normal", "normal", "promoted", {"normal": "rgb"}),
+            ("emissive", "emissive", "promoted", {"emissive": "rgb"}),
+            ("height", "height", "recorded", {}),
+            ("opacity", "opacity", "recorded", {}),
+            ("ao", "occlusion", "recorded", {}),
+            ("roughness", "roughness", "recorded", {}),
+            ("metalness", "metallic", "recorded", {}),
+            ("specular", "specular", "recorded", {}),
+            ("packed_material", "material", "recorded", {}),
+            ("detail_mask", "detail", "recorded", {}),
+            ("flow", "layer", "recorded", {}),
+        )
+        for semantic, slot, disposition, promoted_channels in cases:
+            with self.subTest(semantic=semantic):
+                decode = decode_crimson_texture_binding(
+                    parameter_name="embedded_mesh_reference",
+                    source_path="character/texture/cd_phw_00_nude_00_0001.dds",
+                    slot_name=semantic,
+                    sidecar_kind="embedded_mesh",
+                    parameter_declared_by="mesh",
+                )
+                self.assertEqual(AUTHORITY_AUTHORITATIVE, decode["authority"])
+                self.assertEqual("embedded_mesh_reference", decode["source_kind"])
+                self.assertEqual(slot, decode["slot"])
+                self.assertEqual(disposition, decode["disposition"])
+                self.assertEqual(promoted_channels, decode["promoted_channels"])
+                self.assertTrue(decode["known_slot"])
+
+        for sidecar_kind, parameter_declared_by in (
+            ("", "mesh"),
+            ("embedded_mesh", ""),
+            ("pac_xml", "mesh"),
+        ):
+            with self.subTest(
+                sidecar_kind=sidecar_kind,
+                parameter_declared_by=parameter_declared_by,
+            ):
+                untrusted = decode_crimson_texture_binding(
+                    parameter_name="embedded_mesh_reference",
+                    source_path="character/texture/cd_phw_00_nude_00_0001.dds",
+                    slot_name="albedo",
+                    sidecar_kind=sidecar_kind,
+                    parameter_declared_by=parameter_declared_by,
+                )
+                self.assertEqual("diagnostic_only", untrusted["disposition"])
+                self.assertFalse(untrusted["known_slot"])
+
+        unknown_semantic = decode_crimson_texture_binding(
+            parameter_name="embedded_mesh_reference",
+            source_path="character/texture/cd_phw_00_nude_00_0001.dds",
+            slot_name="unknown_role",
+            sidecar_kind="embedded_mesh",
+            parameter_declared_by="mesh",
+        )
+        self.assertEqual("diagnostic_only", unknown_semantic["disposition"])
+        self.assertFalse(unknown_semantic["known_slot"])
+
     def test_detail_grime_and_hair_controls_are_layer_only(self) -> None:
         cases = (
             ("_detailMaskTexture", "blade_mg.dds", "layer_only"),

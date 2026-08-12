@@ -81,6 +81,23 @@ _DIRECT_SLOT_RULES = {
     "alphatexture": ("opacity", "crimson_opacity", {}, "opacity/cutout map"),
 }
 
+_EMBEDDED_MESH_REFERENCE_REASON = "mesh-owned texture resolved directly from the archive"
+_EMBEDDED_MESH_SLOT_RULES = {
+    "albedo": ("base", "embedded_mesh_reference", {"base_color": "rgb"}, _EMBEDDED_MESH_REFERENCE_REASON),
+    "base": ("base", "embedded_mesh_reference", {"base_color": "rgb"}, _EMBEDDED_MESH_REFERENCE_REASON),
+    "normal": ("normal", "embedded_mesh_reference", {"normal": "rgb"}, _EMBEDDED_MESH_REFERENCE_REASON),
+    "emissive": ("emissive", "embedded_mesh_reference", {"emissive": "rgb"}, _EMBEDDED_MESH_REFERENCE_REASON),
+    "height": ("height", "embedded_mesh_reference", {}, _EMBEDDED_MESH_REFERENCE_REASON),
+    "opacity": ("opacity", "embedded_mesh_reference", {}, _EMBEDDED_MESH_REFERENCE_REASON),
+    "ao": ("occlusion", "embedded_mesh_reference", {}, _EMBEDDED_MESH_REFERENCE_REASON),
+    "roughness": ("roughness", "embedded_mesh_reference", {}, _EMBEDDED_MESH_REFERENCE_REASON),
+    "metalness": ("metallic", "embedded_mesh_reference", {}, _EMBEDDED_MESH_REFERENCE_REASON),
+    "specular": ("specular", "embedded_mesh_reference", {}, _EMBEDDED_MESH_REFERENCE_REASON),
+    "packed_material": ("material", "embedded_mesh_reference", {}, _EMBEDDED_MESH_REFERENCE_REASON),
+    "detail_mask": ("detail", "embedded_mesh_reference", {}, _EMBEDDED_MESH_REFERENCE_REASON),
+    "flow": ("layer", "embedded_mesh_reference", {}, _EMBEDDED_MESH_REFERENCE_REASON),
+}
+
 _WATER_ENVIRONMENT_RULES = {
     "gwaternormaltexture": ("normal", "crimson_water_normal", "environment_layer", "Water surface normal input; keep runtime-owned"),
     "gdisplacementtexture": ("height", "crimson_water_displacement", "environment_height", "Water displacement input; keep runtime-owned"),
@@ -362,27 +379,27 @@ def decode_crimson_texture_binding(
     )
 
     direct_rule = _DIRECT_SLOT_RULES.get(parameter_key)
+    if (
+        direct_rule is None
+        and parameter_key == "embeddedmeshreference"
+        and source
+        and _normalize_key(sidecar_kind) == "embeddedmesh"
+        and _normalize_key(parameter_declared_by) == "mesh"
+    ):
+        direct_rule = _EMBEDDED_MESH_SLOT_RULES.get(slot)
     if direct_rule is not None:
         target_slot, source_kind, promoted, reason = direct_rule
-        decode.update(
-            {
-                "slot": target_slot,
-                "source_kind": source_kind,
-                "authority": _authority_from_source(
-                    exact_rule=True,
-                    sidecar_kind=sidecar_kind,
-                    parameter_declared_by=parameter_declared_by,
-                    capture_inferred=capture_inferred,
-                    fallback_guess=fallback_guess,
-                ),
-                "disposition": "promoted" if promoted else "recorded",
-                "promoted_channels": dict(promoted),
-                "source_channels": dict(promoted),
-                "srgb": "true" if target_slot in {"base", "emissive"} else "false",
-                "known_slot": True,
-                "reason": reason,
-            }
-        )
+        decode.update({
+            "slot": target_slot,
+            "source_kind": source_kind,
+            "authority": _authority_from_source(exact_rule=True, sidecar_kind=sidecar_kind, parameter_declared_by=parameter_declared_by, capture_inferred=capture_inferred, fallback_guess=fallback_guess),
+            "disposition": "promoted" if promoted else "recorded",
+            "promoted_channels": dict(promoted),
+            "source_channels": dict(promoted),
+            "srgb": "true" if target_slot in {"base", "emissive"} else "false",
+            "known_slot": True,
+            "reason": reason,
+        })
         return decode
 
     water_rule = _WATER_ENVIRONMENT_RULES.get(parameter_key)
