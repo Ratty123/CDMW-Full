@@ -29,6 +29,8 @@ struct MeshEditorApplyState {
     bool history_coalesced = false;
     int response_stroke_update_count = 0;
     bool applied_topology_changed = false;
+    double topology_provenance_ms = 0.0;
+    std::size_t topology_provenance_parent_entries = 0;
 };
 
 struct MeshEditorCancelState {

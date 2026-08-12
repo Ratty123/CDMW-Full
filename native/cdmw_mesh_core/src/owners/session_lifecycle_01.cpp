@@ -25,6 +25,10 @@ std::string mesh_editor_open_session_report(
         if (submesh.vertices.empty()) {
             continue;
         }
+        // Every editable original submesh starts as its own provenance: each
+        // vertex is one original parent at weight 1, each triangle is its own
+        // original face. Every later topology edit folds onto this anchor.
+        mesh_editor_initialize_identity_topology_provenance(submesh);
         editor_submeshes[index] = std::move(submesh);
         ++stored;
     }
@@ -38,6 +42,10 @@ std::string mesh_editor_open_session_report(
     std::ostringstream out;
     out << "{\"status\":\"ok\",\"backend\":\"cdmw_mesh_core_0.1\",\"protocol\":\"mesh-editor-session-json\",\"command\":\"open\",\"session_id\":";
     write_escaped(out, session_id);
+    out << ",\"capabilities\":[";
+    write_escaped(out, MESH_TOPOLOGY_PROVENANCE_CAPABILITY);
+    out << "],\"topology_contract\":";
+    write_escaped(out, MESH_TOPOLOGY_PROVENANCE_VERSION);
     out << ',';
     mesh_editor_write_session_counts(out, g_mesh_editor_sessions[session_id]);
     out << ',';

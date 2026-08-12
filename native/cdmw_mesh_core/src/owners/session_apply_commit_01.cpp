@@ -275,6 +275,15 @@ void mesh_editor_commit_apply_results(
 ) {
     mesh_editor_append_refit_after_geometry(session, state);
     mesh_editor_collect_apply_result_indices(state);
+    // Compose original-relative provenance against the session as it still is.
+    // An admitted operation that will not compose throws from here, before the
+    // first erase below, so geometry, history, and revisions stay untouched.
+    mesh_editor_prepare_topology_provenance(
+        native_session,
+        state.results,
+        state.topology_provenance_ms,
+        state.topology_provenance_parent_entries
+    );
     mesh_editor_delete_apply_parts(native_session, state);
     mesh_editor_append_apply_submeshes(session, native_session, state);
     if (!state.stroke_phase.empty() && session.active_stroke.active) {

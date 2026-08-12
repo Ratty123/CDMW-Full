@@ -426,6 +426,93 @@ void prepare_appended_mesh_edit_result(
     result.index_map_path = suffixed_output_path(result.index_map_path, suffix);
 }
 
+// Fold each topology result onto the provenance the session still holds. This
+// runs before any submesh is written, so an admitted operation that cannot be
+// described exactly leaves the whole edit unapplied instead of half applied.
+void mesh_edit_compose_result_topology_provenance(
+    std::vector<SubmeshMeshEditResult>& results,
+    const std::vector<const JsonValue*>& result_items
+) {
+    for (std::size_t position = 0; position < results.size() && position < result_items.size(); ++position) {
+        SubmeshMeshEditResult& result = results[position];
+        if (!result.topology_changed || result.append_submesh || result.vertices.empty()) {
+            continue;
+        }
+        const MeshSessionSubmesh* session = mesh_session_submesh_for_item(*result_items[position]);
+        if (session == nullptr) {
+            continue;
+        }
+        result.topology_provenance_prepared = true;
+        result.topology_original_vertex_count = session->topology_original_vertex_count;
+        result.topology_original_face_count = session->topology_original_face_count;
+        if (!mesh_editor_is_rebuildable_topology_action(result.action)) {
+            result.topology_rebuild_valid = false;
+            result.topology_blocker = MESH_TOPOLOGY_BLOCKER_OPERATION_NOT_REBUILDABLE;
+            continue;
+        }
+        std::string blocker;
+        if (!mesh_editor_compose_topology_provenance(
+                *session,
+                result,
+                result.topology_vertex_origin_offsets,
+                result.topology_vertex_origin_parents,
+                result.topology_vertex_origin_weights,
+                blocker)) {
+            if (blocker == MESH_TOPOLOGY_BLOCKER_PROVENANCE_REQUIRED
+                || blocker == MESH_TOPOLOGY_BLOCKER_CONTRACT_UNSUPPORTED) {
+                // The submesh never had a usable anchor. The edit is still fine;
+                // only the exact rebuild is unavailable.
+                result.topology_rebuild_valid = false;
+                result.topology_blocker = blocker;
+                continue;
+            }
+            throw std::runtime_error(
+                "mesh editor topology provenance composition failed for submesh "
+                + std::to_string(result.index) + ": " + blocker
+            );
+        }
+        result.topology_rebuild_valid = true;
+        result.topology_blocker.clear();
+    }
+}
+
+void mesh_edit_write_results_to_session(
+    std::vector<SubmeshMeshEditResult>& results,
+    const std::vector<const JsonValue*>& result_items
+) {
+    for (std::size_t position = 0; position < results.size() && position < result_items.size(); ++position) {
+        SubmeshMeshEditResult& result = results[position];
+        MeshSessionSubmesh* session = mutable_mesh_session_submesh_for_item(*result_items[position]);
+        if (session == nullptr) {
+            continue;
+        }
+        if (result.topology_changed && !result.append_submesh) {
+            session->vertices = result.vertices;
+            session->faces = result.faces;
+            session->source_face_indices = result.source_face_indices.size() == result.faces.size()
+                ? result.source_face_indices
+                : identity_indices(session->faces.size());
+            session->normals = result.normals.size() == result.vertices.size() ? result.normals : std::vector<Vec3>();
+            session->uvs = result.preview_uvs.size() == result.vertices.size() ? result.preview_uvs : std::vector<Vec2>();
+            session->tangents = result.tangents.size() == result.vertices.size() ? result.tangents : std::vector<Vec3>();
+            session->tangent_signs = result.tangent_signs.size() == result.vertices.size() ? result.tangent_signs : std::vector<double>();
+            if (valid_bone_assignments(result.bones) && result.bones.indices.size() == result.vertices.size()) {
+                session->bone_indices = result.bones.indices;
+                session->bone_weights = result.bones.weights;
+            } else {
+                session->bone_indices.clear();
+                session->bone_weights.clear();
+            }
+            session->source_vertex_map = result.source_vertex_map.size() == result.vertices.size() ? result.source_vertex_map : std::vector<int>();
+            session->source_vertex_offsets = result.source_vertex_offsets.size() == result.vertices.size() ? result.source_vertex_offsets : std::vector<int>();
+            mesh_editor_store_result_topology_provenance(*session, result);
+        } else if (!result.topology_changed && session->vertices.size() == result.vertices.size()) {
+            session->vertices = result.vertices;
+            session->normals.clear();
+        }
+    }
+}
+
 std::vector<SubmeshMeshEditResult> run_mesh_edit(const JsonValue& root) {
     const JsonValue* submeshes = root.get("submeshes");
     if (submeshes == nullptr || submeshes->type != JsonValue::Type::Array) {
@@ -454,6 +541,7 @@ std::vector<SubmeshMeshEditResult> run_mesh_edit(const JsonValue& root) {
         }
     }
     std::vector<SubmeshMeshEditResult> results;
+    std::vector<const JsonValue*> result_items;
     for (const JsonValue& item : submeshes->array_value) {
         if (item.type != JsonValue::Type::Object) {
             continue;
@@ -516,35 +604,16 @@ std::vector<SubmeshMeshEditResult> run_mesh_edit(const JsonValue& root) {
                         result.before_positions
                     );
                 }
-                if (MeshSessionSubmesh* session = mutable_mesh_session_submesh_for_item(item)) {
-                    if (result.topology_changed && !result.append_submesh) {
-                        session->vertices = result.vertices;
-                        session->faces = result.faces;
-                        session->source_face_indices = result.source_face_indices.size() == result.faces.size()
-                            ? result.source_face_indices
-                            : identity_indices(session->faces.size());
-                        session->normals = result.normals.size() == result.vertices.size() ? result.normals : std::vector<Vec3>();
-                        session->uvs = result.preview_uvs.size() == result.vertices.size() ? result.preview_uvs : std::vector<Vec2>();
-                        session->tangents = result.tangents.size() == result.vertices.size() ? result.tangents : std::vector<Vec3>();
-                        session->tangent_signs = result.tangent_signs.size() == result.vertices.size() ? result.tangent_signs : std::vector<double>();
-                        if (valid_bone_assignments(result.bones) && result.bones.indices.size() == result.vertices.size()) {
-                            session->bone_indices = result.bones.indices;
-                            session->bone_weights = result.bones.weights;
-                        } else {
-                            session->bone_indices.clear();
-                            session->bone_weights.clear();
-                        }
-                        session->source_vertex_map = result.source_vertex_map.size() == result.vertices.size() ? result.source_vertex_map : std::vector<int>();
-                        session->source_vertex_offsets = result.source_vertex_offsets.size() == result.vertices.size() ? result.source_vertex_offsets : std::vector<int>();
-                    } else if (!result.topology_changed && session->vertices.size() == result.vertices.size()) {
-                        session->vertices = result.vertices;
-                        session->normals.clear();
-                    }
-                }
+                result_items.push_back(&item);
                 results.push_back(std::move(result));
             }
         }
     }
+    // Compose every topology result against the session as it still is, then
+    // write. Composition throws on a malformed derivation, so a rejected
+    // operation leaves every submesh's geometry and provenance untouched.
+    mesh_edit_compose_result_topology_provenance(results, result_items);
+    mesh_edit_write_results_to_session(results, result_items);
     return results;
 }
 

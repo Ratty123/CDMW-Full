@@ -34,6 +34,12 @@ internal static class HelperBuildProvenance
         // child of a window that is no longer the one on screen. An older helper
         // ignores the request, so the host sends it without gating.
         "embedded_host_reparent_v1",
+        // The resident editor keeps original-relative vertex and face lineage
+        // for a topology-changed submesh, which is what lets the host rebuild
+        // that submesh exactly into the source PAC. An older helper still
+        // previews and edits; its topology-changed state is simply not
+        // rebuildable, so the host gates on this rather than requiring it.
+        "topology_provenance_v1",
         "resident_material_updates_v2",
         "resident_material_parameter_updates_v1",
         "resident_texture_region_updates_v1",
@@ -69,7 +75,8 @@ internal static class HelperBuildProvenance
                 or "correlated_selection_strokes_v1"
                 or "geometry_layers_v1"
                 or "authoring_provisional_session_v1"
-                or "authoring_session_handoff_v1"));
+                or "authoring_session_handoff_v1"
+                or "topology_provenance_v1"));
         }
         return capabilities.Order(StringComparer.Ordinal).ToArray();
     }
