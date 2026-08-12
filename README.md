@@ -26,7 +26,7 @@ is smaller and safer to hand to someone who is not modding.
 | **Format status** | [docs/features/format-decode-progress.md](docs/features/format-decode-progress.md) |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
 
-> `0.11.0-alpha.4` is the current source version and has not been published as a
+> `0.11.0-alpha.5` is the current source version and has not been published as a
 > release yet. The newest build on the Releases page is `0.10.0-alpha.2`.
 
 ---
