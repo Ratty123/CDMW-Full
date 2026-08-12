@@ -106,6 +106,13 @@ enrichment reuse those bounded maps and materialized files instead of the
 legacy process-wide catalogue indexes. Attachment authoring also keeps donor
 search, item icons, socket/skeleton evidence, placement comparison, and native
 placement-preview inputs inside the selected target's prepared candidate set.
+For model previews, the worker repairs only registered path extensions followed
+by one printable prefab length byte, derives the base DDS beside explicit
+`_sp`/`_n` references, resolves selected-mesh `CD_*` material names as DDS
+basename hints, and includes the shared identity skeleton. Archive existence
+still validates every derived candidate, so an unmatched binary fragment cannot
+enter the snapshot. A complete snapshot is the native preview core's in-memory
+archive index; it does not trigger a second full-PAMT parse.
 The two-entry in-game mesh-swap flow merges the already prepared target and
 source snapshots into one immutable request context capped at 8,192 entries;
 both cancellable preflight phases consume that context instead of reading the

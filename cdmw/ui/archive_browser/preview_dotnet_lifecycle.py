@@ -131,13 +131,8 @@ class ArchivePreviewDotNetLifecycleMixin:
         if bool(getattr(self, "_archive_texture_request_loading", False)):
             self._sync_archive_texture_action_state()
             return
-        # `_archive_textures_visible` mirrors what the renderer is showing, and the
-        # two drift apart: loading a package asks for untextured_wire and records
-        # False, while the renderer settles on textured because the package
-        # carries texture resources. Gating the send on the mirror then made
-        # unticking "Load textures" a no-op against a visibly textured model. The
-        # display mode is idempotent, so state it every time rather than trusting
-        # a local belief about what the viewport already shows.
+        # The display mode is idempotent, so state it every time rather than
+        # trusting a local visibility mirror that can lag a renderer event.
         showing = bool(getattr(self, "_archive_textures_visible", False))
         if enabled:
             if package_dir is None or not self._archive_active_package_has_textures():
@@ -164,7 +159,10 @@ class ArchivePreviewDotNetLifecycleMixin:
         texture_request_id = int(getattr(self, "_archive_texture_request_id", 0) or 0)
         return replace(
             settings,
-            use_textures_by_default=bool(texture_request_id and active_request_id == texture_request_id),
+            use_textures_by_default=bool(
+                settings.use_textures_by_default
+                or (texture_request_id and active_request_id == texture_request_id)
+            ),
         )
 
     def _archive_active_package_has_textures(self) -> bool:

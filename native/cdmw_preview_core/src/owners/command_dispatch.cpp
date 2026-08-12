@@ -5,6 +5,23 @@ static void require_material_contract(bool condition, const char* message) {
 }
 
 static void run_material_contract_self_test() {
+    EntryJob bounded_job;
+    bounded_job.archive_dependency_entries_complete = true;
+    bounded_job.entry.path = "character/model/example.pac";
+    bounded_job.entry.basename = "example.pac";
+    bounded_job.entry.extension = ".pac";
+    bounded_job.entry.pamt_path = "missing/0.pamt";
+    ArchiveEntryRef bounded_sidecar;
+    bounded_sidecar.path = "character/model/example.pac_xml";
+    bounded_sidecar.basename = "example.pac_xml";
+    bounded_sidecar.extension = ".pac_xml";
+    bounded_sidecar.pamt_path = "missing/0.pamt";
+    bounded_job.archive_dependency_entries.push_back(bounded_sidecar);
+    const PamtIndex bounded_index = build_bounded_pamt_index(bounded_job);
+    require_material_contract(
+        bounded_index.entry_count == 2 && bounded_index.material_sidecars.size() == 1,
+        "bounded preview dependencies did not form a complete in-memory index");
+
     NativeSubmesh head;
     head.name = "head_skin";
     head.material = "head_skin";

@@ -53,6 +53,7 @@ $TestsByArea = @{
         "tests/test_archive_caches.py",
         "tests/test_progressive_archive_preview.py",
         "tests/test_archive_preview_request_coalescing.py",
+        "tests/test_archive_d3d11_process_lifecycle.py",
         "tests/test_archive_extract_progress.py",
         "tests/test_archive_progress_bar_writes_on_change.py",
         # Unregistered until 2026-08-08, which is how its progress-bar and

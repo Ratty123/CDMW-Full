@@ -615,6 +615,9 @@ def combine_preview_material(
         layer_mask_channel = ""
         layer_weight = 1.0
         mask_item, mask_channel, mask_label = _material_layer_mask_for_input(item, inputs)
+        if mask_label and mask_item is None:
+            notes.append(f"material layer selector missing:{mask_label}")
+            continue
         if mask_item is not None:
             layer_mask_channel = mask_channel or "r"
             layer_weight = _layer_weight_from_parameters(item, has_base=bool(base_source))
@@ -626,6 +629,7 @@ def combine_preview_material(
             )
             if layer_mask_image.isNull():
                 notes.append(f"material layer mask unreadable:{mask_label}")
+                continue
             else:
                 notes.append(f"material layer mask applied:{mask_label}")
         generated_slots, generated_paths = _generate_material_maps(

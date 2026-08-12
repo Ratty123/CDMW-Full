@@ -128,6 +128,38 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertFalse(job["capabilities"]["python_fallback_allowed"])
         self.assertTrue(job["capabilities"]["native_material_runtime"])
 
+    def test_complete_dependency_snapshot_bypasses_full_pamt_index(self) -> None:
+        bounded_source = Path(
+            "native/cdmw_preview_core/src/owners/bounded_archive_dependencies.cpp"
+        ).read_text(encoding="utf-8")
+        report_source = Path(
+            "native/cdmw_preview_core/src/owners/preview_report.cpp"
+        ).read_text(encoding="utf-8")
+        writer_source = Path(
+            "native/cdmw_preview_core/src/owners/package_writer_types.cpp"
+        ).read_text(encoding="utf-8")
+        binding_source = Path(
+            "native/cdmw_preview_core/src/owners/material_binding_build.cpp"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("static PamtIndex build_bounded_pamt_index", bounded_source)
+        branch_start = report_source.index("if (job.archive_dependency_entries_complete)")
+        branch_end = report_source.index("package.pamt_index_ms", branch_start)
+        branch = report_source[branch_start:branch_end]
+        self.assertIn("build_bounded_pamt_index(job)", branch)
+        self.assertIn("cached_pamt_index", branch)
+        self.assertLess(
+            branch.index("build_bounded_pamt_index(job)"),
+            branch.index("cached_pamt_index"),
+        )
+        self.assertIn("native_pamt_index_bounded_snapshot", report_source)
+        self.assertIn("&index", writer_source)
+        self.assertNotIn(
+            "&cached_pamt_index(job.entry.pamt_path, job.cache_root)",
+            writer_source,
+        )
+        self.assertIn("build_bounded_native_material_graph(index)", binding_source)
+
     def test_archive_d3d11_preview_is_native_cpp_only_when_core_is_enabled(self) -> None:
         worker_source = Path("cdmw/workers/archive_preview_workers.py").read_text(encoding="utf-8")
         native_worker_source = Path("cdmw/workers/archive_preview_native.py").read_text(encoding="utf-8")
@@ -1296,7 +1328,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('collect_xml_tag_blocks(text, "SkinnedMeshMaterialWrapper")', source)
         self.assertIn("material_keys_overlap", source)
         self.assertIn("normalized_texture_family_key", source)
-        self.assertIn("build_material_bindings(job, index, parsed.meshes, package)", source)
+        self.assertIn("build_material_bindings(job, *index, parsed.meshes, package)", source)
         self.assertIn("int considered = 0", source)
         self.assertIn("state.package.dds_candidates += considered", source)
         self.assertIn("sidecar skipped unrelated material wrapper", source)

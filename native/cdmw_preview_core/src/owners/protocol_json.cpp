@@ -725,6 +725,7 @@ struct NativePackage {
     double material_binding_ms = 0.0;
     double package_write_ms = 0.0;
     size_t pamt_index_entries = 0;
+    bool pamt_index_bounded_snapshot = false;
     bool pamt_index_cache_hit = false;
     std::string pamt_index_cache_path;
     std::string mesh_parse = "unsupported";

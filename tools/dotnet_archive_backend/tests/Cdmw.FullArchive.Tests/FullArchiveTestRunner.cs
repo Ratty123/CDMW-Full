@@ -899,13 +899,24 @@ internal static class FullArchiveTestRunner
                 [
                     "character/modelproperty/hero.pac_xml",
                     "character/texture/hero_body_d.dds",
+                    "character/texture/hero_body.dds",
                     "character/texture/hero_body_n.dds",
+                    "character/texture/cd_hero_embedded.dds",
                     "character/physics/hero.hkx",
                     "character/model/hero.meshinfo",
                     "character/model/hero.prefab",
+                    "character/model/hero_underwear.pac",
+                    "character/identityskeleton.pab",
+                    "character/texture/hero_fallback.dds",
+                    "character/texture/hero_response.dds",
+                    "character/texture/hero_response_sp.dds",
                 ]),
                 "preview association did not preserve the bounded semantic dependency set");
-            Require(!paths.Contains("unrelated/other.dds") && !association.Truncated, "preview association included unrelated rows");
+            Require(
+                !paths.Contains("unrelated/other.dds")
+                && !paths.Contains("character/model/not_a_reference.H")
+                && !association.Truncated,
+                "preview association included unrelated rows");
             Require(
                 File.Exists(Path.Combine(session.GenerationPath, "archive.adi")) &&
                 !File.Exists(Path.Combine(session.GenerationPath, "lookups.bin")),
@@ -920,7 +931,7 @@ internal static class FullArchiveTestRunner
                 new PrepareEntriesRequest(handle.SessionId, entryIds),
                 CancellationToken.None).ConfigureAwait(false);
             Require(
-                prepared.Prepared == 7 && prepared.Items.Count == 7 && prepared.TotalBytes > 0,
+                prepared.Prepared == 14 && prepared.Items.Count == 14 && prepared.TotalBytes > 0,
                 "preview dependency preparation batch changed");
             Require(
                 prepared.Items.All(static item => File.Exists(item.PreparedPath)),

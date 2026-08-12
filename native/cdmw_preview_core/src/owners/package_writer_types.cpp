@@ -127,7 +127,8 @@ static PackageWriteState start_package_write(
     const EntryJob& job,
     const std::vector<NativeSubmesh>& submeshes,
     const std::vector<TextureBinding>& bindings,
-    NativePackage package
+    NativePackage package,
+    const PamtIndex& index
 ) {
     const fs::path package_dir = job.output_root;
     const fs::path geometry_dir = package_dir / "geometry";
@@ -139,7 +140,7 @@ static PackageWriteState start_package_write(
         std::move(package),
         package_dir,
         geometry_dir,
-        &cached_pamt_index(job.entry.pamt_path, job.cache_root),
+        &index,
         inspect_package_geometry(submeshes),
     };
 }

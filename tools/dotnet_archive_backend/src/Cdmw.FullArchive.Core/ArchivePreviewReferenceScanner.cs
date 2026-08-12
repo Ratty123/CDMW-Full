@@ -1,3 +1,5 @@
+using Cdmw.Archive.Content;
+
 namespace Cdmw.FullArchive.Core;
 
 internal static class ArchivePreviewReferenceScanner
@@ -7,18 +9,20 @@ internal static class ArchivePreviewReferenceScanner
 
     public static ArchivePreviewReferenceTokens Extract(
         byte[] data,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool includeMaterialBasenameHints)
     {
         var tokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var truncated = CollectAsciiTokens(data, tokens, cancellationToken);
-        truncated |= CollectUtf16Tokens(data, tokens, cancellationToken);
+        var truncated = CollectAsciiTokens(data, tokens, cancellationToken, includeMaterialBasenameHints);
+        truncated |= CollectUtf16Tokens(data, tokens, cancellationToken, includeMaterialBasenameHints);
         return new ArchivePreviewReferenceTokens(tokens, truncated);
     }
 
     private static bool CollectAsciiTokens(
         byte[] data,
         HashSet<string> destination,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool includeMaterialBasenameHints)
     {
         var token = new char[MaximumTokenCharacters];
         var length = 0;
@@ -43,17 +47,18 @@ internal static class ArchivePreviewReferenceScanner
             }
             else
             {
-                truncated |= FlushToken(token, ref length, ref overlong, destination);
+                truncated |= FlushToken(token, ref length, ref overlong, destination, includeMaterialBasenameHints);
             }
         }
-        truncated |= FlushToken(token, ref length, ref overlong, destination);
+        truncated |= FlushToken(token, ref length, ref overlong, destination, includeMaterialBasenameHints);
         return truncated;
     }
 
     private static bool CollectUtf16Tokens(
         byte[] data,
         HashSet<string> destination,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool includeMaterialBasenameHints)
     {
         var truncated = false;
         for (var parity = 0; parity < 2; parity++)
@@ -80,10 +85,10 @@ internal static class ArchivePreviewReferenceScanner
                 }
                 else
                 {
-                    truncated |= FlushToken(token, ref length, ref overlong, destination);
+                    truncated |= FlushToken(token, ref length, ref overlong, destination, includeMaterialBasenameHints);
                 }
             }
-            truncated |= FlushToken(token, ref length, ref overlong, destination);
+            truncated |= FlushToken(token, ref length, ref overlong, destination, includeMaterialBasenameHints);
         }
         return truncated;
     }
@@ -92,7 +97,8 @@ internal static class ArchivePreviewReferenceScanner
         char[] buffer,
         ref int length,
         ref bool overlong,
-        HashSet<string> destination)
+        HashSet<string> destination,
+        bool includeMaterialBasenameHints)
     {
         var truncated = overlong;
         if (!overlong && length >= 4)
@@ -109,10 +115,58 @@ internal static class ArchivePreviewReferenceScanner
                     truncated = true;
                 }
             }
+            if (includeMaterialBasenameHints && IsMaterialBasenameHint(token))
+            {
+                var materialPath = token + ".dds";
+                if (!destination.Contains(materialPath))
+                {
+                    if (destination.Count >= MaximumTokens)
+                    {
+                        truncated = true;
+                    }
+                    else
+                    {
+                        destination.Add(materialPath);
+                    }
+                }
+            }
+            var recoveredPath = RecoverPathBeforeTrailingLengthByte(token);
+            if (!string.IsNullOrEmpty(recoveredPath) && !destination.Contains(recoveredPath))
+            {
+                if (destination.Count >= MaximumTokens)
+                {
+                    truncated = true;
+                }
+                else
+                {
+                    destination.Add(recoveredPath);
+                }
+            }
         }
         length = 0;
         overlong = false;
         return truncated;
+    }
+
+    private static bool IsMaterialBasenameHint(string token) =>
+        token.Length > 3
+        && token.StartsWith("cd_", StringComparison.OrdinalIgnoreCase)
+        && !token.Contains('.')
+        && !token.Contains('/')
+        && !token.Contains('\\');
+
+    private static string RecoverPathBeforeTrailingLengthByte(string token)
+    {
+        if (token.Length < 5 || (!token.Contains('/') && !token.Contains('\\')))
+        {
+            return string.Empty;
+        }
+        var candidate = token[..^1];
+        return ArchiveContentRegistry.All.Any(capability =>
+            capability.Extension.Length >= 4
+            && candidate.EndsWith(capability.Extension, StringComparison.OrdinalIgnoreCase))
+                ? candidate
+                : string.Empty;
     }
 
     private static bool IsTokenCharacter(byte value) =>

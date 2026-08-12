@@ -4,8 +4,9 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from cdmw.models import ModelPreviewRenderSettings
+from cdmw.models import ArchivePreviewResult, ModelPreviewRenderSettings
 from cdmw.ui.archive_browser.preview_dotnet_lifecycle import ArchivePreviewDotNetLifecycleMixin
+from cdmw.ui.archive_browser.preview_result import ArchivePreviewResultMixin
 
 
 class _FakeController:
@@ -36,7 +37,14 @@ class _FakeHost:
         self.clear_count += 1
         return True
 
-    def load_package(self, package: Path, *, reset_view: bool) -> bool:
+    def load_package(
+        self,
+        package: Path,
+        *,
+        reset_view: bool,
+        initial_view_state: object | None = None,
+    ) -> bool:
+        del initial_view_state
         self.loads.append((Path(package), bool(reset_view)))
         return self.accept_load
 
@@ -112,6 +120,48 @@ class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
     def _refresh_archive_preview_details_text(self) -> None:
         self.details_refresh_count += 1
 
+    def _mesh_replacement_builder_active(self) -> bool:
+        return False
+
+
+class _NoOpWidget:
+    def __getattr__(self, _name: str):
+        return lambda *_args, **_kwargs: None
+
+
+class _PreviewResultHarness(ArchivePreviewResultMixin, _LifecycleHarness):
+    def __init__(self) -> None:
+        super().__init__()
+        widget = _NoOpWidget()
+        self.archive_preview_title_label = widget
+        self.archive_preview_meta_label = widget
+        self.archive_preview_role_badge = widget
+        self.archive_preview_label = widget
+        self.archive_media_preview = widget
+        self.archive_preview_stack = widget
+        self.archive_preview_tabs = widget
+        self.archive_preview_scroll = widget
+        self.archive_d3d11_preview_status_label = widget
+        self.archive_preview_zoom_out_button = widget
+        self.archive_preview_zoom_fit_button = widget
+        self.archive_preview_zoom_100_button = widget
+        self.archive_preview_zoom_in_button = widget
+        self.archive_preview_zoom_value = widget
+        self.archive_isolated_renderer_button = None
+        self.archive_preview_showing_loose = False
+        self.archive_preview_requested_loose = False
+        self._archive_texture_request_id = 0
+        self._archive_texture_request_loading = False
+
+    def __getattr__(self, _name: str):
+        return lambda *_args, **_kwargs: None
+
+    def _archive_entry_role_label(self, _entry: object) -> str:
+        return "Model"
+
+    def _detail_text_with_renderer_note(self, detail: str, _note: object) -> str:
+        return detail
+
 
 def test_archive_lifecycle_reads_shared_controller_process_state() -> None:
     harness = _LifecycleHarness()
@@ -167,6 +217,65 @@ def test_archive_texture_action_starts_one_latest_wins_texture_request() -> None
     assert harness._archive_texture_request_loading is True
     harness._open_archive_isolated_d3d11_preview()
     assert harness.render_requests == [(harness.entry, True)]
+
+
+def test_initial_package_uses_persisted_textured_mode_without_followup_job(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    package = tmp_path / "textured-package"
+    package.mkdir()
+    (package / "net_materials.json").write_text(
+        json.dumps({"resources": [{"resource_id": "texture:base", "path": "base.dds"}]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "cdmw.ui.archive_browser.preview_result.validate_dotnet_preview_package",
+        lambda _path: (True, ()),
+    )
+    harness = _PreviewResultHarness()
+    harness.settings = ModelPreviewRenderSettings(use_textures_by_default=True)
+    result = ArchivePreviewResult(
+        status="ok",
+        preferred_view="model",
+        dotnet_preview_package_path=str(package),
+    )
+
+    harness._show_archive_preview_result(result, use_loose=False, request_id=0)
+
+    assert harness.archive_d3d11_preview_host.loads == [(package, True)]
+    assert harness.archive_d3d11_preview_host.viewport_modes == ["textured"]
+    assert harness._archive_textures_visible is True
+    assert harness.render_requests == []
+
+
+def test_initial_package_keeps_wire_mode_when_texture_preference_is_disabled(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    package = tmp_path / "textured-package"
+    package.mkdir()
+    (package / "net_materials.json").write_text(
+        json.dumps({"resources": [{"resource_id": "texture:base", "path": "base.dds"}]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "cdmw.ui.archive_browser.preview_result.validate_dotnet_preview_package",
+        lambda _path: (True, ()),
+    )
+    harness = _PreviewResultHarness()
+    harness.settings = ModelPreviewRenderSettings(use_textures_by_default=False)
+    result = ArchivePreviewResult(
+        status="ok",
+        preferred_view="model",
+        dotnet_preview_package_path=str(package),
+    )
+
+    harness._show_archive_preview_result(result, use_loose=False, request_id=0)
+
+    assert harness.archive_d3d11_preview_host.loads == [(package, True)]
+    assert harness.archive_d3d11_preview_host.viewport_modes == ["untextured_wire"]
+    assert harness._archive_textures_visible is False
 
 
 def test_archive_texture_action_hides_and_shows_loaded_textures_without_package_reload(tmp_path: Path) -> None:
@@ -368,13 +477,7 @@ def test_material_debug_reads_canonical_net_materials(tmp_path: Path) -> None:
 
 
 def test_untick_hides_textures_even_when_the_mirror_says_they_are_hidden(tmp_path: Path) -> None:
-    """Loading a package records "hidden" while the renderer settles on textured.
-
-    `_archive_textures_visible` mirrors the renderer, and a package load asks for
-    untextured_wire and records False even though the renderer lands on textured
-    because the package carries texture resources. Gating the send on that mirror
-    made unticking Load textures a no-op against a visibly textured model.
-    """
+    """The explicit hide remains idempotent if the local visibility mirror drifted."""
 
     package = tmp_path / "textured-package"
     package.mkdir()

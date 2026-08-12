@@ -752,6 +752,68 @@ def test_package_layered_normal_synthesis_reports_unreadable_input(
     assert "normal unreadable:missing_grime_normal.png" in synthesis["notes"]
 
 
+def test_skin_damage_response_without_selector_preserves_base_roughness(
+    tmp_path: Path,
+) -> None:
+    base_material = QImage(2, 1, QImage.Format.Format_RGBA8888)
+    base_material.setPixelColor(0, 0, QColor(64, 112, 0, 255))
+    base_material.setPixelColor(1, 0, QColor(64, 208, 0, 255))
+    base_material_path = tmp_path / "skin_base_sp.png"
+    assert base_material.save(str(base_material_path), "PNG")
+    damage_material_path = _image(
+        tmp_path / "skin_damage_sp.png",
+        (64, 76, 0, 255),
+        size=(2, 1),
+    )
+    submesh = _submesh("skin_without_damage_selector")
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_materialTexture",
+            texture_name="skin_base_sp.dds",
+            source_texture_path="skin_base_sp.dds",
+            preview_texture_path=str(base_material_path),
+            semantic_type="material",
+            semantic_subtype="material_mask",
+            shader_family="SkinnedMeshSkin",
+            sidecar_kind="pac_xml",
+            binding_authority="authoritative",
+            binding_disposition="layer_material_response",
+            source_kind="crimson_skin_material_response",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_damageBlendingMaterialTexture",
+            texture_name="skin_damage_sp.dds",
+            source_texture_path="skin_damage_sp.dds",
+            preview_texture_path=str(damage_material_path),
+            semantic_type="material",
+            semantic_subtype="material_mask",
+            shader_family="SkinnedMeshSkin",
+            sidecar_kind="pac_xml",
+            binding_authority="authoritative",
+            binding_disposition="layer_material_response",
+            source_kind="crimson_layer_material_response",
+            layer_role="damage",
+            visualized=True,
+        ),
+    )
+
+    payload = _write_manifest(tmp_path / "package", [submesh])
+    binding = payload["submeshes"][0]
+    roughness_resource = next(
+        resource
+        for resource in payload["resources"]
+        if resource["resource_id"] == binding["resource_channels"]["roughness"]
+    )
+    roughness = QImage(str(tmp_path / "package" / roughness_resource["path"]))
+
+    assert not roughness.isNull()
+    assert roughness.pixelColor(0, 0).red() < roughness.pixelColor(1, 0).red()
+    assert "material layer selector missing:damage" in binding["material_synthesis"]["notes"]
+
+
 def test_dark_neutral_pac_readability_lifts_only_conserved_generated_albedo() -> None:
     raw_contract = {
         "source_contract": {

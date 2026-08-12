@@ -212,9 +212,15 @@ class ArchivePreviewResultMixin:
             else:
                 self.archive_isolated_renderer_active_package = package_dir
                 self.archive_isolated_renderer_package_source = "dotnet-canonical"
+                show_textures = bool(
+                    render_settings.use_textures_by_default
+                    and self._archive_active_package_has_textures()
+                )
                 self.archive_d3d11_preview_host.set_render_tuning(render_settings)
-                self.archive_d3d11_preview_host.set_viewport_display_mode("untextured_wire")
-                self._archive_textures_visible = False
+                self.archive_d3d11_preview_host.set_viewport_display_mode(
+                    "textured" if show_textures else "untextured_wire"
+                )
+                self._archive_textures_visible = show_textures
                 sync_texture_action = getattr(self, "_sync_archive_texture_action_state", None)
                 if callable(sync_texture_action):
                     sync_texture_action()

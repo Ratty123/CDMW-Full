@@ -7856,7 +7856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 428,
+          "line": 434,
           "sink": "_write_crash_report"
         }
       ]
@@ -9261,12 +9261,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 388,
+          "line": 394,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 435,
+          "line": 441,
           "sink": "set_status_message"
         },
         {
@@ -9306,7 +9306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 369,
+          "line": 375,
           "sink": "_write_crash_report"
         }
       ]
@@ -16351,7 +16351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 362,
+          "line": 360,
           "sink": "setToolTip"
         }
       ]
@@ -43296,12 +43296,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 353,
+          "line": 351,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 378,
+          "line": 376,
           "sink": "setText"
         },
         {
@@ -43826,7 +43826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 198,
+          "line": 196,
           "sink": "set_status_message"
         }
       ]
@@ -43836,7 +43836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 349,
+          "line": 347,
           "sink": "setText"
         }
       ]
@@ -53266,17 +53266,17 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 248,
+          "line": 254,
           "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 271,
+          "line": 277,
           "sink": "clear_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 281,
+          "line": 287,
           "sink": "clear_preview"
         },
         {
@@ -53641,12 +53641,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 272,
+          "line": 278,
           "sink": "clear_media"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 282,
+          "line": 288,
           "sink": "clear_media"
         },
         {
@@ -54136,7 +54136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 278,
+          "line": 284,
           "sink": "setPlainText"
         },
         {
@@ -54871,7 +54871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 268,
+          "line": 274,
           "sink": "setPlainText"
         },
         {
@@ -58166,7 +58166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 223,
+          "line": 229,
           "sink": "set_status_message"
         }
       ]
@@ -64986,12 +64986,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 387,
+          "line": 393,
           "sink": "_clear_archive_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 434,
+          "line": 440,
           "sink": "_clear_archive_preview"
         },
         {
@@ -65271,52 +65271,52 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 249,
+          "line": 255,
           "sink": "set_media"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 249,
+          "line": 255,
           "sink": "set_media"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 249,
+          "line": 255,
           "sink": "set_media"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 249,
+          "line": 255,
           "sink": "set_media"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 278,
+          "line": 284,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 278,
+          "line": 284,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 278,
+          "line": 284,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 278,
+          "line": 284,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 278,
+          "line": 284,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 278,
+          "line": 284,
           "sink": "setPlainText"
         },
         {
@@ -72256,7 +72256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 351,
+          "line": 349,
           "sink": "setToolTip"
         }
       ]
@@ -78201,12 +78201,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 411,
+          "line": 417,
           "sink": "_clear_archive_preview"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 415,
+          "line": 421,
           "sink": "_clear_archive_preview"
         },
         {
@@ -88331,7 +88331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 328,
+          "line": 326,
           "sink": "set_status_message"
         }
       ]
@@ -88706,7 +88706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 156,
+          "line": 151,
           "sink": "set_status_message"
         }
       ]
@@ -88716,7 +88716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 236,
+          "line": 234,
           "sink": "set_status_message"
         }
       ]
@@ -88726,7 +88726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 236,
+          "line": 234,
           "sink": "set_status_message"
         }
       ]
@@ -88756,7 +88756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 151,
+          "line": 146,
           "sink": "set_status_message"
         }
       ]
@@ -89471,7 +89471,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 242,
+          "line": 248,
           "sink": "set_status_message"
         }
       ]
@@ -89521,7 +89521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 225,
+          "line": 223,
           "sink": "_finish_archive_texture_request"
         }
       ]
@@ -89541,7 +89541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 400,
+          "line": 398,
           "sink": "set_status_message"
         }
       ]
@@ -91981,7 +91981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/preview_dotnet_lifecycle.py",
-          "line": 358,
+          "line": 356,
           "sink": "setToolTip"
         }
       ]
@@ -195306,27 +195306,27 @@
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 249,
+          "line": 255,
           "sink": "set_media"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 249,
+          "line": 255,
           "sink": "set_media"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 278,
+          "line": 284,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 278,
+          "line": 284,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/archive_browser/preview_result.py",
-          "line": 278,
+          "line": 284,
           "sink": "setPlainText"
         }
       ]
