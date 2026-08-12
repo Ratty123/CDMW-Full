@@ -46,6 +46,23 @@ def _np_module():
         _NUMPY_CHECKED = True
     return _NUMPY
 
+
+def _reject_path_argument(data: object, function: str) -> None:
+    """Fail loudly when a parser is handed a path instead of its payload.
+
+    Every parser here takes bytes with a defaulted `filename`, so passing a path
+    is valid Python. It then reads the path's own first characters as the magic
+    number and raises "bad magic 'test'" or "bad magic 'C:\\U'", which accuses
+    the asset rather than the caller. That message is convincing enough to be
+    read as a corrupt or placeholder file.
+    """
+    if isinstance(data, (str, os.PathLike)):
+        raise TypeError(
+            f"{function}() takes the mesh payload as bytes, not a path. "
+            f"Read it first: {function}(path.read_bytes(), str(path))"
+        )
+
+
 # ── Constants ────────────────────────────────────────────────────────
 
 PAR_MAGIC = b"PAR "
@@ -584,6 +601,7 @@ def _map_pam_faces(indices: list[int], unique: list[int], *, base_offset: int = 
 
 def parse_pam(data: bytes, filename: str = "") -> ParsedMesh:
     """Parse a .pam static mesh file."""
+    _reject_path_argument(data, "parse_pam")
     if len(data) < 0x40 or data[:4] != PAR_MAGIC:
         raise ValueError(f"Not a valid PAM file: bad magic {data[:4]!r}")
 
@@ -1015,6 +1033,7 @@ def _extract_global_mesh(data, geom_off, ni, ioff, bmin, bmax):
 
 def parse_pamlod(data: bytes, filename: str = "", lod_level: int = 0) -> ParsedMesh:
     """Parse a .pamlod LOD mesh file. lod_level=0 is highest quality."""
+    _reject_path_argument(data, "parse_pamlod")
     result = ParsedMesh(path=filename, format="pamlod")
 
     lod_count = struct.unpack_from("<I", data, PAMLOD_LOD_COUNT)[0]
@@ -2108,6 +2127,7 @@ def _parse_compact_skinnedmesh_box_pac(data: bytes, filename: str = "") -> Parse
 
 def parse_pac(data: bytes, filename: str = "") -> ParsedMesh:
     """Parse a decompressed PAC skinned mesh file."""
+    _reject_path_argument(data, "parse_pac")
     if len(data) < 0x50 or data[:4] != PAR_MAGIC:
         raise ValueError(f"Not a valid PAC file: bad magic {data[:4]!r}")
 
@@ -2730,6 +2750,7 @@ def resolve_pac_bone_palette(data: bytes, skeleton: object) -> tuple[int, ...]:
 
 def parse_mesh(data: bytes, filename: str = "") -> ParsedMesh:
     """Auto-detect file type and parse accordingly."""
+    _reject_path_argument(data, "parse_mesh")
     ext = os.path.splitext(filename.lower())[1]
     if ext == ".pamlod":
         return parse_pamlod(data, filename)
