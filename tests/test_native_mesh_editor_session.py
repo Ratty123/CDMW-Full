@@ -2920,6 +2920,105 @@ class NativeMeshEditorSessionBridgeTests(unittest.TestCase):
         self.assertTrue(xray_face.ok)
         self.assertEqual({0: {0, 2}}, xray_faces)
 
+    def test_native_session_visible_lasso_uses_full_polygon_for_depth_mask(self) -> None:
+        from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+        from cdmw.services.mesh_service import MeshService
+
+        def screen_payload(depth_mode: str, target_mode: str = "vertex") -> dict[str, object]:
+            return {
+                "target_mode": target_mode,
+                "selection_depth_mode": depth_mode,
+                "screen_region": {
+                    "mode": "lasso",
+                    "start_x": 110.0,
+                    "start_y": 90.0,
+                    "end_x": 112.0,
+                    "end_y": 88.0,
+                    "points": [
+                        [110.0, 90.0],
+                        [140.0, 90.0],
+                        [140.0, 60.0],
+                        [110.0, 60.0],
+                        [112.0, 88.0],
+                    ],
+                    "viewport_width": 200.0,
+                    "viewport_height": 200.0,
+                    "world_view_projection": [
+                        1.0, 0.0, 0.0, 0.0,
+                        0.0, 1.0, 0.0, 0.0,
+                        0.0, 0.0, 0.5, 0.0,
+                        0.0, 0.0, 0.5, 1.0,
+                    ],
+                },
+            }
+
+        service = MeshService()
+        view = service.open_edit_session(
+            _overlapping_depth_mesh(),
+            session_id=f"native-editor-select-lasso-depth-{uuid4().hex}",
+            mode="edit",
+        )
+        try:
+            visible = service.apply_command(
+                view.session_id,
+                MeshEditCommand(
+                    "select",
+                    selection=MeshEditSelection(),
+                    params={
+                        "operation": "replace",
+                        "_native_screen_selection_payload": screen_payload("visible"),
+                    },
+                ),
+            )
+            visible_vertices = service.session_view(view.session_id).selection.vertex_map()
+            xray = service.apply_command(
+                view.session_id,
+                MeshEditCommand(
+                    "select",
+                    selection=MeshEditSelection(),
+                    params={
+                        "operation": "replace",
+                        "_native_screen_selection_payload": screen_payload("xray"),
+                    },
+                ),
+            )
+            xray_vertices = service.session_view(view.session_id).selection.vertex_map()
+            visible_face = service.apply_command(
+                view.session_id,
+                MeshEditCommand(
+                    "select",
+                    selection=MeshEditSelection(),
+                    params={
+                        "operation": "replace",
+                        "_native_screen_selection_payload": screen_payload("visible", "face"),
+                    },
+                ),
+            )
+            visible_faces = service.session_view(view.session_id).selection.face_map()
+            xray_face = service.apply_command(
+                view.session_id,
+                MeshEditCommand(
+                    "select",
+                    selection=MeshEditSelection(),
+                    params={
+                        "operation": "replace",
+                        "_native_screen_selection_payload": screen_payload("xray", "face"),
+                    },
+                ),
+            )
+            xray_faces = service.session_view(view.session_id).selection.face_map()
+        finally:
+            service.close_edit_session(view.session_id)
+
+        self.assertTrue(visible.ok)
+        self.assertEqual({0: {8}}, visible_vertices)
+        self.assertTrue(xray.ok)
+        self.assertEqual({0: {8, 9}}, xray_vertices)
+        self.assertTrue(visible_face.ok)
+        self.assertEqual({0: {0}}, visible_faces)
+        self.assertTrue(xray_face.ok)
+        self.assertEqual({0: {0, 2}}, xray_faces)
+
     def test_native_session_select_source_resolves_d3d11_screen_region(self) -> None:
         from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
         from cdmw.services.mesh_service import MeshService

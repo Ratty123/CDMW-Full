@@ -4,6 +4,8 @@ import os
 import threading
 import time
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QObject
@@ -11,6 +13,7 @@ from PySide6.QtWidgets import QApplication
 
 from cdmw.domain.mesh import MeshEditCommand, MeshEditResult, MeshEditSelection
 from cdmw.ui.mesh_editor.controller import MeshEditorNativeUpdate
+from cdmw.ui.mesh_editor.live_stroke_dispatcher import MeshLiveStrokeOutcome
 from cdmw.ui.mesh_editor import tab as _mesh_editor_tab_facade  # noqa: F401
 from cdmw.ui.mesh_editor.tab_dotnet_commands import MeshEditorDotNetCommandMixin
 from cdmw.ui.mesh_editor.tab_interaction import MeshEditorInteractionMixin
@@ -57,12 +60,15 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.controller = controller
         self.standalone_dotnet_target_embedded = True
         self.standalone_native_mesh_edit_stroke_id = ""
+        self.standalone_native_selection_stroke_id = ""
         self.standalone_live_stroke_dispatcher = None
         self.applied_revisions: list[int] = []
+        self.applied_update_count = 0
         self.committed_revisions: list[int] = []
         self.sent_revisions: list[int] = []
         self.sent_request_ids: list[int] = []
         self.command_results: list[tuple[str, str]] = []
+        self.sent_update_count = 0
         self.statuses: list[str] = []
 
     def _dotnet_target_controller(self):
@@ -103,6 +109,7 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         return result.status != "error"
 
     def _apply_embedded_native_update(self, update: MeshEditorNativeUpdate) -> bool:
+        self.applied_update_count += 1
         self.applied_revisions.extend(int(group["revision"]) for group in update.vertex_groups)
         return True
 
@@ -118,6 +125,7 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         return None
 
     def _send_dotnet_native_update(self, _update, *, result=None, request_payload=None) -> None:
+        self.sent_update_count += 1
         if result is not None:
             self.sent_revisions.append(int(result.revision))
             self.sent_request_ids.append(int((request_payload or {}).get("request_id", 0)))
@@ -132,6 +140,14 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         # run -- a crash report per test while the assertions stayed green.
         self.session_state_sends = getattr(self, "session_state_sends", 0) + 1
         return True
+
+    @staticmethod
+    def _retry_pending_dotnet_finish() -> None:
+        return None
+
+    @staticmethod
+    def _retry_pending_dotnet_topology_command() -> None:
+        return None
 
     def _set_dotnet_status(self, message: str, *, error: bool = False) -> None:
         del error
@@ -229,5 +245,53 @@ def test_dotnet_stroke_updates_return_quickly_coalesce_and_apply_final_revision(
         dispatcher = harness.standalone_live_stroke_dispatcher
         if dispatcher is not None:
             assert dispatcher.stop(2.0)
+        harness.deleteLater()
+        app.processEvents()
+
+
+@pytest.mark.parametrize("terminal_phase", ["end", "cancel"])
+def test_selection_updates_defer_full_ui_payload_until_terminal_authority(terminal_phase: str) -> None:
+    app = QApplication.instance() or QApplication(["dotnet-selection-presentation-test"])
+    controller = _Controller()
+    harness = _Harness(controller)
+    update = MeshEditorNativeUpdate(
+        selection_groups=({"source_submesh_index": 0, "vertex_indices": tuple(range(50_000))},),
+        refresh_selection=True,
+    )
+    try:
+        harness.standalone_native_selection_stroke_id = "selection-1"
+        intermediate = MeshLiveStrokeOutcome(
+            1,
+            "update",
+            controller,
+            MeshEditResult(action="select", status="ok", revision=1),
+            update,
+            "dotnet_selection",
+            ({"request_id": 41, "stroke_id": "selection-1"},),
+        )
+        harness._handle_dotnet_live_stroke_completed(intermediate)
+
+        assert harness.applied_update_count == 0
+        assert harness.sent_update_count == 0
+        assert harness.command_results == [("select", "coalesced")]
+
+        terminal = MeshLiveStrokeOutcome(
+            2,
+            terminal_phase,
+            controller,
+            MeshEditResult(action="select", status="ok", revision=2),
+            update,
+            "dotnet_selection",
+            ({"request_id": 42, "stroke_id": "selection-1"},),
+        )
+        harness._handle_dotnet_live_stroke_completed(terminal)
+
+        assert harness.applied_update_count == 1
+        assert harness.sent_update_count == 1
+        assert harness.sent_revisions == [2]
+        assert harness.sent_request_ids == [42]
+        assert harness.committed_revisions == [2]
+        assert harness.standalone_native_selection_stroke_id == ""
+    finally:
         harness.deleteLater()
         app.processEvents()

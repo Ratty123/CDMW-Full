@@ -261,10 +261,64 @@ internal sealed partial class MeshViewport
         public Dictionary<int, bool[]> FrontFacingVertices { get; } = new();
         public Dictionary<int, RectangleF> PartBounds { get; } = new();
         public Dictionary<int, int[][]> VertexBuckets { get; } = new();
+        public Dictionary<int, int[][]> FaceBuckets { get; } = new();
+        public Dictionary<int, int[]> LargeFaceCandidates { get; } = new();
+        public Dictionary<int, List<int>> FaceQueryCandidates { get; } = new();
+        public Dictionary<int, int[]> FaceVisitStamps { get; } = new();
+        public Dictionary<int, RectangleF[]> FaceBounds { get; } = new();
+        private int _faceVisitStamp;
+
+        public int BeginFaceQuery()
+        {
+            if (_faceVisitStamp == int.MaxValue)
+            {
+                foreach (var stamps in FaceVisitStamps.Values)
+                {
+                    Array.Clear(stamps);
+                }
+                _faceVisitStamp = 0;
+            }
+            return ++_faceVisitStamp;
+        }
     }
 
-    private const int PaintProjectionCellPixels = 32;
+    private const int PaintProjectionCellPixels = 16;
+    private const int PaintProjectionMaximumFaceBucketCells = 16;
     private PaintProjectionCache? _paintProjection;
+
+    internal static bool PaintProjectionFaceUsesLargeCandidateList(
+        int leftCell,
+        int rightCell,
+        int topCell,
+        int bottomCell) =>
+        (long)(rightCell - leftCell + 1) * (bottomCell - topCell + 1)
+            > PaintProjectionMaximumFaceBucketCells;
+
+    internal static bool RoutePaintProjectionFaceCandidate(
+        List<int>?[] faceBuckets,
+        List<int> largeFaceCandidates,
+        int faceIndex,
+        int gridColumns,
+        int leftCell,
+        int rightCell,
+        int topCell,
+        int bottomCell)
+    {
+        if (PaintProjectionFaceUsesLargeCandidateList(leftCell, rightCell, topCell, bottomCell))
+        {
+            largeFaceCandidates.Add(faceIndex);
+            return true;
+        }
+        for (var row = topCell; row <= bottomCell; row++)
+        {
+            for (var column = leftCell; column <= rightCell; column++)
+            {
+                var bucketIndex = row * gridColumns + column;
+                (faceBuckets[bucketIndex] ??= new List<int>()).Add(faceIndex);
+            }
+        }
+        return false;
+    }
 
     /// <summary>
     /// Drops the per-drag projection cache. Called when the gesture ends, so a
@@ -298,9 +352,17 @@ internal sealed partial class MeshViewport
             var submesh = _document.Submeshes[submeshIndex];
             var points = new PointF[submesh.Vertices.Count];
             var pendingVertexBuckets = new List<int>?[cache.GridColumns * cache.GridRows];
+            var minX = float.PositiveInfinity;
+            var minY = float.PositiveInfinity;
+            var maxX = float.NegativeInfinity;
+            var maxY = float.NegativeInfinity;
             for (var vertexIndex = 0; vertexIndex < points.Length; vertexIndex++)
             {
                 points[vertexIndex] = SceneProjectedPoint(camera, submeshIndex, submesh.Vertices[vertexIndex]);
+                minX = Math.Min(minX, points[vertexIndex].X);
+                minY = Math.Min(minY, points[vertexIndex].Y);
+                maxX = Math.Max(maxX, points[vertexIndex].X);
+                maxY = Math.Max(maxY, points[vertexIndex].Y);
                 var column = (int)MathF.Floor(points[vertexIndex].X / PaintProjectionCellPixels);
                 var row = (int)MathF.Floor(points[vertexIndex].Y / PaintProjectionCellPixels);
                 if (column >= 0 && column < cache.GridColumns && row >= 0 && row < cache.GridRows)
@@ -315,13 +377,12 @@ internal sealed partial class MeshViewport
                 .ToArray();
             if (points.Length > 0)
             {
-                var minX = points.Min(point => point.X);
-                var minY = points.Min(point => point.Y);
-                var maxX = points.Max(point => point.X);
-                var maxY = points.Max(point => point.Y);
                 cache.PartBounds[submeshIndex] = RectangleF.FromLTRB(minX, minY, maxX, maxY);
             }
             var frontFacing = new bool[submesh.Vertices.Count];
+            var faceBounds = new RectangleF[submesh.Faces.Count];
+            var pendingFaceBuckets = new List<int>?[cache.GridColumns * cache.GridRows];
+            var largeFaceCandidates = new List<int>();
             for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
             {
                 var face = submesh.Faces[faceIndex];
@@ -344,8 +405,52 @@ internal sealed partial class MeshViewport
                     frontFacing[b] = true;
                     frontFacing[c] = true;
                 }
+                var faceLeft = MathF.Min(points[a].X, MathF.Min(points[b].X, points[c].X));
+                var faceTop = MathF.Min(points[a].Y, MathF.Min(points[b].Y, points[c].Y));
+                var faceRight = MathF.Max(points[a].X, MathF.Max(points[b].X, points[c].X));
+                var faceBottom = MathF.Max(points[a].Y, MathF.Max(points[b].Y, points[c].Y));
+                faceBounds[faceIndex] = RectangleF.FromLTRB(faceLeft, faceTop, faceRight, faceBottom);
+                if (faceRight < 0.0f
+                    || faceBottom < 0.0f
+                    || faceLeft >= viewport.Width
+                    || faceTop >= viewport.Height)
+                {
+                    continue;
+                }
+                var leftCell = Math.Clamp(
+                    (int)MathF.Floor(faceLeft / PaintProjectionCellPixels),
+                    0,
+                    cache.GridColumns - 1);
+                var rightCell = Math.Clamp(
+                    (int)MathF.Floor(faceRight / PaintProjectionCellPixels),
+                    0,
+                    cache.GridColumns - 1);
+                var topCell = Math.Clamp(
+                    (int)MathF.Floor(faceTop / PaintProjectionCellPixels),
+                    0,
+                    cache.GridRows - 1);
+                var bottomCell = Math.Clamp(
+                    (int)MathF.Floor(faceBottom / PaintProjectionCellPixels),
+                    0,
+                    cache.GridRows - 1);
+                _ = RoutePaintProjectionFaceCandidate(
+                    pendingFaceBuckets,
+                    largeFaceCandidates,
+                    faceIndex,
+                    cache.GridColumns,
+                    leftCell,
+                    rightCell,
+                    topCell,
+                    bottomCell);
             }
             cache.FrontFacingVertices[submeshIndex] = frontFacing;
+            cache.FaceBuckets[submeshIndex] = pendingFaceBuckets
+                .Select(bucket => bucket?.ToArray() ?? Array.Empty<int>())
+                .ToArray();
+            cache.LargeFaceCandidates[submeshIndex] = largeFaceCandidates.ToArray();
+            cache.FaceQueryCandidates[submeshIndex] = new List<int>();
+            cache.FaceVisitStamps[submeshIndex] = new int[submesh.Faces.Count];
+            cache.FaceBounds[submeshIndex] = faceBounds;
         }
         _paintProjection = cache;
         return cache;
@@ -390,6 +495,7 @@ internal sealed partial class MeshViewport
             Invalidate();
             return;
         }
+        var faceQueryStamp = _selectionDragTargetMode == "face" ? cache.BeginFaceQuery() : 0;
         foreach (var pair in cache.Points)
         {
             var submeshIndex = pair.Key;
@@ -403,6 +509,11 @@ internal sealed partial class MeshViewport
             if (_selectionDragTargetMode == "face")
             {
                 var submesh = _document.Submeshes[submeshIndex];
+                var faceBuckets = cache.FaceBuckets[submeshIndex];
+                var largeFaceCandidates = cache.LargeFaceCandidates[submeshIndex];
+                var faceQueryCandidates = cache.FaceQueryCandidates[submeshIndex];
+                var faceVisitStamps = cache.FaceVisitStamps[submeshIndex];
+                var faceBounds = cache.FaceBounds[submeshIndex];
                 if (!_provisionalSelectedFaces.TryGetValue(submeshIndex, out var selectedFaces))
                 {
                     selectedFaces = new HashSet<int>();
@@ -411,20 +522,49 @@ internal sealed partial class MeshViewport
                         _provisionalSelectedFaces[submeshIndex] = selectedFaces;
                     }
                 }
-                for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
+                var faceQueryLeft = Math.Clamp((int)MathF.Floor(bandBounds.Left / PaintProjectionCellPixels), 0, cache.GridColumns - 1);
+                var faceQueryRight = Math.Clamp((int)MathF.Floor(bandBounds.Right / PaintProjectionCellPixels), 0, cache.GridColumns - 1);
+                var faceQueryTop = Math.Clamp((int)MathF.Floor(bandBounds.Top / PaintProjectionCellPixels), 0, cache.GridRows - 1);
+                var faceQueryBottom = Math.Clamp((int)MathF.Floor(bandBounds.Bottom / PaintProjectionCellPixels), 0, cache.GridRows - 1);
+                faceQueryCandidates.Clear();
+                for (var row = faceQueryTop; row <= faceQueryBottom; row++)
                 {
-                    var face = submesh.Faces[faceIndex];
-                    if (face.Corners.Length != 3)
+                    for (var column = faceQueryLeft; column <= faceQueryRight; column++)
+                    {
+                        foreach (var faceIndex in faceBuckets[row * cache.GridColumns + column])
+                        {
+                            if (faceVisitStamps[faceIndex] == faceQueryStamp)
+                            {
+                                continue;
+                            }
+                            faceVisitStamps[faceIndex] = faceQueryStamp;
+                            faceQueryCandidates.Add(faceIndex);
+                        }
+                    }
+                }
+                foreach (var faceIndex in largeFaceCandidates)
+                {
+                    if (faceVisitStamps[faceIndex] == faceQueryStamp)
                     {
                         continue;
                     }
+                    faceVisitStamps[faceIndex] = faceQueryStamp;
+                    faceQueryCandidates.Add(faceIndex);
+                }
+                foreach (var faceIndex in faceQueryCandidates)
+                {
+                    var candidateBounds = faceBounds[faceIndex];
+                    if (candidateBounds.Right < bandBounds.Left
+                        || candidateBounds.Left > bandBounds.Right
+                        || candidateBounds.Bottom < bandBounds.Top
+                        || candidateBounds.Top > bandBounds.Bottom)
+                    {
+                        continue;
+                    }
+                    var face = submesh.Faces[faceIndex];
                     var a = face.Corners[0].VertexIndex;
                     var b = face.Corners[1].VertexIndex;
                     var c = face.Corners[2].VertexIndex;
-                    if (a < 0 || b < 0 || c < 0 || a >= points.Length || b >= points.Length || c >= points.Length)
-                    {
-                        continue;
-                    }
                     if (!ShowXRay && !frontFacing[a] && !frontFacing[b] && !frontFacing[c])
                     {
                         continue;

@@ -26766,7 +26766,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 694,
+          "line": 665,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -33101,7 +33101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 485,
+          "line": 515,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -37936,7 +37936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 495,
+          "line": 525,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -46306,7 +46306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 858,
+          "line": 888,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46506,7 +46506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 686,
+          "line": 716,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46611,7 +46611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 623,
+          "line": 653,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46696,7 +46696,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 445,
+          "line": 475,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -49131,7 +49131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 764,
+          "line": 794,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -50396,7 +50396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 533,
+          "line": 563,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -50416,7 +50416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 473,
+          "line": 503,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -65226,7 +65226,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 279,
+          "line": 286,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -65236,7 +65236,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 278,
+          "line": 285,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -71941,7 +71941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 612,
+          "line": 642,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -78586,7 +78586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 820,
+          "line": 850,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -85896,7 +85896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 385,
+          "line": 392,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -99481,12 +99481,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 640,
+          "line": 670,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 696,
+          "line": 726,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -100451,7 +100451,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 485,
+          "line": 515,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -100626,7 +100626,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 533,
+          "line": 563,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -101386,7 +101386,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 385,
+          "line": 392,
+          "sink": "_send_dotnet_command_result"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
+          "line": 414,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -101476,7 +101481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 764,
+          "line": 794,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -103416,37 +103421,37 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 448,
+          "line": 478,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 473,
+          "line": 503,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 495,
+          "line": 525,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 624,
+          "line": 654,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 687,
+          "line": 717,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 764,
+          "line": 794,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 859,
+          "line": 889,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -109986,7 +109991,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 694,
+          "line": 665,
           "sink": "csharp:StatusRequested?.Invoke("
         },
         {
@@ -110121,7 +110126,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 694,
+          "line": 665,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -114201,7 +114206,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 448,
+          "line": 478,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -189506,7 +189511,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 448,
+          "line": 478,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -190531,7 +190536,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_commands.py",
-          "line": 612,
+          "line": 642,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -194721,7 +194726,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 316,
+          "line": 323,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]
@@ -194826,12 +194831,12 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 249,
+          "line": 256,
           "sink": "csharp:StatusRequested?.Invoke("
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs",
-          "line": 294,
+          "line": 301,
           "sink": "csharp:StatusRequested?.Invoke("
         }
       ]

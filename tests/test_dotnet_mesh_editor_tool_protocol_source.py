@@ -467,7 +467,7 @@ def test_dotnet_interaction_rendering_is_uncapped_without_self_scheduling_and_co
     assert '["frame_interval_p95_ms"]' in protocol_source
 
 
-def test_dotnet_overlay_geometry_reuses_one_dynamic_vertex_buffer_per_frame() -> None:
+def test_dotnet_overlay_geometry_reuses_frame_and_retained_vertex_buffers() -> None:
     d3d_source = _source("D3D11MaterialViewport.cs")
     overlay_source = _source("D3D11MaterialViewport.Overlay.cs")
     metrics_source = _source("D3D11MaterialViewport.Metrics.cs")
@@ -478,17 +478,38 @@ def test_dotnet_overlay_geometry_reuses_one_dynamic_vertex_buffer_per_frame() ->
     assert "ResourceUsage.Dynamic" in overlay_source
     assert "CpuAccessFlags.Write" in overlay_source
     assert "MapMode.WriteDiscard" in overlay_source
+    assert "MapMode.WriteNoOverwrite" in overlay_source
     flush_source = overlay_source.split("private unsafe void FlushOverlayPrimitives()", maxsplit=1)[1]
-    queue_source = overlay_source.split("private unsafe void FlushOverlayPrimitives()", maxsplit=1)[0]
+    queue_source = overlay_source.split("private unsafe void DrawOverlayPrimitive(", maxsplit=1)[1].split(
+        "private void DrawRetainedOverlayPrimitive(", maxsplit=1
+    )[0]
+    retained_source = overlay_source.split("private unsafe void UpdateRetainedOverlayBuffer(", maxsplit=1)[1].split(
+        "private void DrawSelectedEdgesOverlay()", maxsplit=1
+    )[0]
     assert "_overlayBatchFlushCount++;" in flush_source
     assert "_overlayBatchedDrawCount++;" in flush_source
     assert "if (command.DrawSceneVertices)" in flush_source
     assert "DrawD3D11VertexOverlay();" in flush_source
     assert "_context.Map(" not in queue_source
+    assert "MapMode.WriteNoOverwrite" in retained_source
+    assert "if (vertices.Count == 0)" in retained_source
+    assert "buffer.Dispose();" in retained_source
+    assert "buffer = null;" in retained_source
+    assert "capacity = 0;" in retained_source
+    selected_faces_source = overlay_source.split("private void DrawSelectedFacesOverlay()", maxsplit=1)[1].split(
+        "private void DrawFaceSelectionOverlay(", maxsplit=1
+    )[0]
+    selected_vertices_source = overlay_source.split("private void DrawSelectedVerticesOverlay()", maxsplit=1)[1].split(
+        "private static Dictionary<int, HashSet<int>> VertexOverlaySelections", maxsplit=1
+    )[0]
+    assert "DisposeFaceOverlayCache(_provisionalFaceOverlayCache);" in selected_faces_source
+    assert "DisposeVertexOverlayCache(_provisionalVertexOverlayCache);" in selected_vertices_source
+    assert "VertexBuffer: vertexBuffer" in overlay_source
     assert "using var vertexBuffer = _device.CreateBuffer" not in overlay_source
     assert "_context.Draw((uint)command.VertexCount, (uint)command.StartVertex);" in overlay_source
     assert '["overlay_vertex_buffer_creates"]' in metrics_source
     assert '["overlay_vertex_buffer_reused"]' in metrics_source
+    assert '["retained_wire_overlay_buffer_creates"]' in metrics_source
 
 
 def test_dotnet_d3d11_interaction_skips_hidden_gdi_rendering_and_uses_flip_model() -> None:

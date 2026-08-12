@@ -358,8 +358,12 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
             triangle_group_count=len(tuple(update.triangle_groups or ())),
             selection_group_count=len(tuple(update.selection_groups or ())),
         )
+        defer_selection_presentation = (
+            outcome.source == "dotnet_selection" and outcome.phase == "update"
+        )
         if self.standalone_dotnet_target_embedded:
-            self._apply_embedded_native_update(update)
+            if not defer_selection_presentation:
+                self._apply_embedded_native_update(update)
             if outcome.phase != "update":
                 # Only a finished stroke is worth recording; the update phases
                 # are provisional and are superseded by the one that lands.
@@ -370,13 +374,16 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
                 )
                 self._refresh_embedded_workspace_from_builder()
         elif (
-            update.vertex_groups
-            or update.triangle_groups
-            or update.triangle_source_submesh_indices
-            or update.selection_groups
-            or update.refresh_selection
-            or update.material_override_groups
-            or update.replace_all_triangles
+            not defer_selection_presentation
+            and (
+                update.vertex_groups
+                or update.triangle_groups
+                or update.triangle_source_submesh_indices
+                or update.selection_groups
+                or update.refresh_selection
+                or update.material_override_groups
+                or update.replace_all_triangles
+            )
         ):
             self._apply_standalone_native_update(update)
             if outcome.phase != "update":
@@ -390,14 +397,37 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
                 diagnostics=("Superseded by a newer cumulative stroke update.",),
                 request_payload=coalesced_payload,
             )
-        self._send_dotnet_native_update(
-            update,
-            result=outcome.result,
-            request_payload=request_payloads[-1] if request_payloads else None,
-        )
+        latest_request_payload = request_payloads[-1] if request_payloads else None
+        if defer_selection_presentation:
+            # The native session still consumes every bounded/coalesced update,
+            # while WinForms already paints the complete local brush echo. A
+            # full selection_update here serializes and reparses the growing
+            # selection on both UI threads, then replaces newer local pixels
+            # with an older authoritative snapshot. Publish only the terminal
+            # selection; updates need a lightweight request acknowledgement.
+            _record_interaction_decision(self,
+                "mesh_edit_selection_presentation_deferred",
+                dispatcher_sequence=int(outcome.sequence),
+                revision=int(getattr(outcome.result, "revision", 0) or 0),
+                request_id=int((latest_request_payload or {}).get("request_id", 0) or 0),
+            )
+            self._send_dotnet_command_result(
+                outcome.result.action,
+                ok=str(outcome.result.status or "").strip().lower() != "error",
+                status="coalesced",
+                revision=outcome.result.revision,
+                diagnostics=(),
+                request_payload=latest_request_payload,
+            )
+        else:
+            self._send_dotnet_native_update(
+                update,
+                result=outcome.result,
+                request_payload=latest_request_payload,
+            )
         if outcome.source == "dotnet_morph":
             self._send_dotnet_cached_morph_state(
-                request_payload=request_payloads[-1] if request_payloads else None,
+                request_payload=latest_request_payload,
             )
         if outcome.phase in {"end", "cancel"}:
             if outcome.source == "dotnet_morph":

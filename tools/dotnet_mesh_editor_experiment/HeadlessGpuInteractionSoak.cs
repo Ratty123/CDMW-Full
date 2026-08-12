@@ -84,6 +84,10 @@ internal static class HeadlessGpuInteractionSoak
         viewport.ToolOptionsProvider = () => toolOptions;
         var protocol = new InteractionProtocolProbe();
         viewport.EditorEventRequested = protocol.Accept;
+        if (!viewport.TrySetDisplayMode("untextured_wire", out var displayModeError))
+        {
+            throw new InvalidOperationException($"Hidden Edit Mesh wire mode failed: {displayModeError}");
+        }
         host.Controls.Add(viewport);
         host.CreateControl();
         _ = host.Handle;
@@ -95,6 +99,9 @@ internal static class HeadlessGpuInteractionSoak
         {
             throw new InvalidOperationException($"Hidden {mode} interaction viewport did not initialize the production renderer.");
         }
+
+        var lassoReleaseProof = CaptureLassoReleaseProof(viewport);
+        viewport.EditorEventRequested = protocol.Accept;
 
         var start = new Point(Math.Max(1, viewport.ClientSize.Width / 2), Math.Max(1, viewport.ClientSize.Height / 2));
         viewport.BeginInteractionSoak(mode, start);
@@ -178,7 +185,213 @@ internal static class HeadlessGpuInteractionSoak
             resourcesAfter,
             interaction,
             protocol,
-            driver);
+            driver,
+            lassoReleaseProof);
+    }
+
+    private static Dictionary<string, object?> CaptureLassoReleaseProof(MeshViewport viewport)
+    {
+        var resourcesBefore = viewport.RendererResourceMetricsPayload();
+        var openStart = new Point(40, 40);
+        var openMove = new Point(Math.Max(80, viewport.ClientSize.Width - 40), 40);
+        var openRelease = new Point(
+            Math.Max(60, viewport.ClientSize.Width / 2),
+            Math.Max(80, viewport.ClientSize.Height - 40));
+        var open = CaptureLassoReleaseCase(
+            viewport,
+            new[] { openStart, openMove, openRelease },
+            renderClearedFrame: false);
+
+        var closedStart = new Point(40, 40);
+        var closedRight = Math.Max(80, viewport.ClientSize.Width - 40);
+        var closedBottom = Math.Max(80, viewport.ClientSize.Height - 40);
+        var closed = CaptureLassoReleaseCase(
+            viewport,
+            new[]
+            {
+                closedStart,
+                new Point(closedRight, 40),
+                new Point(closedRight, closedBottom),
+                new Point(40, closedBottom),
+                new Point(42, 42),
+            },
+            renderClearedFrame: true);
+        var createsBefore = Convert.ToInt64(resourcesBefore.GetValueOrDefault("retained_overlay_buffer_creates") ?? 0);
+        var disposalsBefore = Convert.ToInt64(resourcesBefore.GetValueOrDefault("retained_overlay_buffer_disposals") ?? 0);
+        var createsAfterOpen = Convert.ToInt64(open.GetValueOrDefault("retained_overlay_buffer_creates_after_selection") ?? 0);
+        var disposalsAfterOpen = Convert.ToInt64(open.GetValueOrDefault("retained_overlay_buffer_disposals_after_selection") ?? 0);
+        var createsAfterClear = Convert.ToInt64(closed.GetValueOrDefault("retained_overlay_buffer_creates_after_clear") ?? 0);
+        var disposalsAfterClear = Convert.ToInt64(closed.GetValueOrDefault("retained_overlay_buffer_disposals_after_clear") ?? 0);
+        var createsAfterRebuild = Convert.ToInt64(closed.GetValueOrDefault("retained_overlay_buffer_creates_after_selection") ?? 0);
+        var disposalsAfterRebuild = Convert.ToInt64(closed.GetValueOrDefault("retained_overlay_buffer_disposals_after_selection") ?? 0);
+        var clearRebuildOk = createsAfterOpen >= createsBefore + 2
+            && disposalsAfterOpen >= disposalsBefore
+            && disposalsAfterClear >= disposalsAfterOpen + 2
+            && createsAfterRebuild >= createsAfterClear + 2
+            && disposalsAfterRebuild >= disposalsAfterClear;
+        var mismatchReconciliation = CaptureTerminalSelectionMismatchProof(
+            viewport,
+            createsAfterRebuild,
+            disposalsAfterRebuild);
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = open.GetValueOrDefault("ok") is true
+                && closed.GetValueOrDefault("ok") is true
+                && clearRebuildOk
+                && mismatchReconciliation.GetValueOrDefault("ok") is true,
+            ["open_release"] = open,
+            ["closed_release"] = closed,
+            ["terminal_mismatch_reconciliation"] = mismatchReconciliation,
+            ["retained_overlay_clear_rebuild_ok"] = clearRebuildOk,
+            ["retained_overlay_buffer_creates_before"] = createsBefore,
+            ["retained_overlay_buffer_creates_after_open"] = createsAfterOpen,
+            ["retained_overlay_buffer_creates_after_clear"] = createsAfterClear,
+            ["retained_overlay_buffer_creates_after_rebuild"] = createsAfterRebuild,
+            ["retained_overlay_buffer_disposals_before"] = disposalsBefore,
+            ["retained_overlay_buffer_disposals_after_open"] = disposalsAfterOpen,
+            ["retained_overlay_buffer_disposals_after_clear"] = disposalsAfterClear,
+            ["retained_overlay_buffer_disposals_after_rebuild"] = disposalsAfterRebuild,
+        };
+    }
+
+    private static Dictionary<string, object?> CaptureTerminalSelectionMismatchProof(
+        MeshViewport viewport,
+        long createsBefore,
+        long disposalsBefore)
+    {
+        _ = viewport.UpdateSelection(
+            new Dictionary<int, HashSet<int>>(),
+            new Dictionary<int, HashSet<int>>(),
+            new Dictionary<int, HashSet<(int A, int B)>>(),
+            new HashSet<int>(),
+            revision: viewport.AcknowledgedSelectionRevision + 1);
+        if (!viewport.TryRunHeadlessRendererFrame(out _, out _, out var reconciliationFrameError))
+        {
+            throw new InvalidOperationException($"Hidden terminal selection mismatch frame failed: {reconciliationFrameError}");
+        }
+        var afterFirstFrame = viewport.RendererResourceMetricsPayload();
+        if (!viewport.TryRunHeadlessRendererFrame(out _, out _, out var stableFrameError))
+        {
+            throw new InvalidOperationException($"Hidden terminal selection stability frame failed: {stableFrameError}");
+        }
+        var afterSecondFrame = viewport.RendererResourceMetricsPayload();
+        var createsAfterFirst = Convert.ToInt64(afterFirstFrame.GetValueOrDefault("retained_overlay_buffer_creates") ?? 0);
+        var disposalsAfterFirst = Convert.ToInt64(afterFirstFrame.GetValueOrDefault("retained_overlay_buffer_disposals") ?? 0);
+        var createsAfterSecond = Convert.ToInt64(afterSecondFrame.GetValueOrDefault("retained_overlay_buffer_creates") ?? 0);
+        var disposalsAfterSecond = Convert.ToInt64(afterSecondFrame.GetValueOrDefault("retained_overlay_buffer_disposals") ?? 0);
+        var rebuildsAfterFirst = Convert.ToInt64(afterFirstFrame.GetValueOrDefault("retained_overlay_rebuilds") ?? 0);
+        var rebuildsAfterSecond = Convert.ToInt64(afterSecondFrame.GetValueOrDefault("retained_overlay_rebuilds") ?? 0);
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = createsAfterFirst == createsBefore
+                && disposalsAfterFirst >= disposalsBefore + 2
+                && createsAfterSecond == createsAfterFirst
+                && disposalsAfterSecond == disposalsAfterFirst
+                && rebuildsAfterSecond == rebuildsAfterFirst,
+            ["creates_before"] = createsBefore,
+            ["creates_after_first_frame"] = createsAfterFirst,
+            ["creates_after_second_frame"] = createsAfterSecond,
+            ["disposals_before"] = disposalsBefore,
+            ["disposals_after_first_frame"] = disposalsAfterFirst,
+            ["disposals_after_second_frame"] = disposalsAfterSecond,
+            ["rebuilds_after_first_frame"] = rebuildsAfterFirst,
+            ["rebuilds_after_second_frame"] = rebuildsAfterSecond,
+        };
+    }
+
+    private static Dictionary<string, object?> CaptureLassoReleaseCase(
+        MeshViewport viewport,
+        IReadOnlyList<Point> path,
+        bool renderClearedFrame)
+    {
+        var probe = new InteractionProtocolProbe();
+        viewport.EditorEventRequested = probe.Accept;
+        viewport.BeginInteractionSoak("select_lasso_face", path[0]);
+        long? createsAfterClear = null;
+        long? disposalsAfterClear = null;
+        if (renderClearedFrame
+            && !viewport.TryRunHeadlessRendererFrame(out _, out _, out var clearedFrameError))
+        {
+            throw new InvalidOperationException($"Hidden lasso cleared-overlay proof frame failed: {clearedFrameError}");
+        }
+        if (renderClearedFrame)
+        {
+            var resourcesAfterClear = viewport.RendererResourceMetricsPayload();
+            createsAfterClear = Convert.ToInt64(resourcesAfterClear.GetValueOrDefault("retained_overlay_buffer_creates") ?? 0);
+            disposalsAfterClear = Convert.ToInt64(resourcesAfterClear.GetValueOrDefault("retained_overlay_buffer_disposals") ?? 0);
+        }
+        for (var index = 1; index < path.Count - 1; index++)
+        {
+            viewport.StepInteractionSoak(path[index]);
+        }
+        viewport.FinishLassoInteractionSoakWithoutFinalMove(path[^1]);
+        if (!viewport.TryRunHeadlessRendererFrame(out _, out _, out var selectionFrameError))
+        {
+            throw new InvalidOperationException($"Hidden lasso selected-overlay proof frame failed: {selectionFrameError}");
+        }
+        var resourcesAfterSelection = viewport.RendererResourceMetricsPayload();
+        probe.CompleteAll();
+        var actual = probe.TerminalSelectionPoints;
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = probe.TerminalSelectionMode == "lasso"
+                && actual.SequenceEqual(path),
+            ["selection_mode"] = probe.TerminalSelectionMode,
+            ["expected_points"] = path.Select(point => new[] { point.X, point.Y }).ToArray(),
+            ["actual_points"] = actual.Select(point => new[] { point.X, point.Y }).ToArray(),
+            ["retained_overlay_buffer_creates_after_clear"] = createsAfterClear,
+            ["retained_overlay_buffer_disposals_after_clear"] = disposalsAfterClear,
+            ["retained_overlay_buffer_creates_after_selection"] =
+                Convert.ToInt64(resourcesAfterSelection.GetValueOrDefault("retained_overlay_buffer_creates") ?? 0),
+            ["retained_overlay_buffer_disposals_after_selection"] =
+                Convert.ToInt64(resourcesAfterSelection.GetValueOrDefault("retained_overlay_buffer_disposals") ?? 0),
+        };
+    }
+
+    private static Dictionary<string, object?> CaptureFaceProjectionCandidateRoutingProof()
+    {
+        const int largeFaceIndex = 37;
+        var largeBuckets = new List<int>?[20];
+        var largeCandidates = new List<int>();
+        var routedLarge = MeshViewport.RoutePaintProjectionFaceCandidate(
+            largeBuckets,
+            largeCandidates,
+            largeFaceIndex,
+            gridColumns: 5,
+            leftCell: 0,
+            rightCell: 4,
+            topCell: 0,
+            bottomCell: 3);
+
+        const int bucketedFaceIndex = 41;
+        var smallBuckets = new List<int>?[16];
+        var smallLargeCandidates = new List<int>();
+        var routedSmallAsLarge = MeshViewport.RoutePaintProjectionFaceCandidate(
+            smallBuckets,
+            smallLargeCandidates,
+            bucketedFaceIndex,
+            gridColumns: 4,
+            leftCell: 0,
+            rightCell: 3,
+            topCell: 0,
+            bottomCell: 3);
+        var largeEntryCount = largeCandidates.Count(candidate => candidate == largeFaceIndex);
+        var largeBucketEntryCount = largeBuckets.Sum(bucket => bucket?.Count ?? 0);
+        var smallBucketEntryCount = smallBuckets.Sum(bucket => bucket?.Count ?? 0);
+        var ok = routedLarge
+            && !routedSmallAsLarge
+            && largeEntryCount == 1
+            && largeBucketEntryCount == 0
+            && smallLargeCandidates.Count == 0
+            && smallBucketEntryCount == 16
+            && smallBuckets.All(bucket => bucket is { Count: 1 } && bucket[0] == bucketedFaceIndex);
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = ok,
+            ["large_candidate_entry_count"] = largeEntryCount,
+            ["large_candidate_bucket_entry_count"] = largeBucketEntryCount,
+            ["threshold_candidate_bucket_entry_count"] = smallBucketEntryCount,
+        };
     }
 
     private static int BuildInteractionReport(
@@ -191,7 +404,8 @@ internal static class HeadlessGpuInteractionSoak
         Dictionary<string, object?> resourcesAfter,
         MeshInteractionSoakResult interaction,
         InteractionProtocolProbe protocol,
-        InteractionPathDriver driver)
+        InteractionPathDriver driver,
+        Dictionary<string, object?> lassoReleaseProof)
     {
         var lifecycle = new Dictionary<string, object?>
         {
@@ -205,6 +419,7 @@ internal static class HeadlessGpuInteractionSoak
         };
         var report = PreviewPerformanceReport.Build(snapshot, resourcesBefore, resourcesAfter, lifecycle);
         var rendererGates = new Dictionary<string, bool>((Dictionary<string, bool>)report["gates"]!);
+        var faceProjectionRoutingProof = CaptureFaceProjectionCandidateRoutingProof();
         var gcDeltas = snapshot.GcCountsStop
             .Select((count, index) => count - snapshot.GcCountsStart[index])
             .ToArray();
@@ -220,11 +435,26 @@ internal static class HeadlessGpuInteractionSoak
             ["zero_gen2_collections"] = gcDeltas[2] == 0,
             ["final_authority_matches_visible_provisional_result"] = interaction.FinalAuthorityMatches,
             ["provisional_state_cleared_after_authority"] = interaction.ProvisionalCleared,
-            ["one_terminal_history_event"] = mode == "select_brush" || protocol.TerminalStrokeEvents == 1,
-            ["interaction_changed_expected_scope"] = mode == "select_brush"
-                ? interaction.SelectedVertexCount > 0
+            ["one_terminal_history_event"] = protocol.TerminalStrokeEvents == 1,
+            ["interaction_changed_expected_scope"] = mode.StartsWith("select_", StringComparison.Ordinal)
+                ? interaction.SelectedVertexCount + interaction.SelectedEdgeCount + interaction.SelectedFaceCount > 0
                 : interaction.ChangedVertexCount > 0,
             ["viewport_tools_did_not_select_parts"] = interaction.SelectedPartCount == 0,
+            ["release_only_lasso_commits_exact_polygon"] = lassoReleaseProof.GetValueOrDefault("ok") is true,
+            ["retained_overlay_clear_rebuild_is_discard_safe"] =
+                lassoReleaseProof.GetValueOrDefault("retained_overlay_clear_rebuild_ok") is true,
+            ["terminal_depth_mismatch_discards_provisional_overlay_once"] =
+                lassoReleaseProof.GetValueOrDefault("terminal_mismatch_reconciliation")
+                    is IReadOnlyDictionary<string, object?> mismatchProof
+                && mismatchProof.GetValueOrDefault("ok") is true,
+            ["oversized_face_projection_uses_bounded_candidate_list"] =
+                faceProjectionRoutingProof.GetValueOrDefault("ok") is true,
+            ["wire_overlay_gpu_buffer_retained"] =
+                Convert.ToInt64(resourcesBefore.GetValueOrDefault("retained_wire_overlay_buffer_creates") ?? 0) > 0
+                && Convert.ToInt64(resourcesAfter.GetValueOrDefault("retained_wire_overlay_buffer_creates") ?? 0)
+                    == Convert.ToInt64(resourcesBefore.GetValueOrDefault("retained_wire_overlay_buffer_creates") ?? 0)
+                && Convert.ToInt64(resourcesAfter.GetValueOrDefault("retained_wire_overlay_buffer_disposals") ?? 0)
+                    == Convert.ToInt64(resourcesBefore.GetValueOrDefault("retained_wire_overlay_buffer_disposals") ?? 0),
             ["production_d3d11_backend"] = string.Equals(viewport.RendererBackendName, "d3d11_vortice_shader", StringComparison.Ordinal),
             ["native_window_remained_hidden"] = !host.Visible && !host.ShowInTaskbar,
         };
@@ -247,6 +477,8 @@ internal static class HeadlessGpuInteractionSoak
             ["maximum_pending_depth"] = protocol.MaximumPendingDepth,
             ["terminal_stroke_events"] = protocol.TerminalStrokeEvents,
         };
+        report["lasso_release_proof"] = lassoReleaseProof;
+        report["face_projection_candidate_routing_proof"] = faceProjectionRoutingProof;
         report["ok"] = ok;
         report["release_gate_eligible"] = !options.Smoke
             && options.DurationSeconds >= 30.0
@@ -298,7 +530,8 @@ internal static class HeadlessGpuInteractionSoak
                 return args[index + 1].Trim().ToLowerInvariant();
             }
         }
-        throw new ArgumentException("--interaction-soak-mode is required (select_brush, move, grab, smooth, inflate, or pinch).");
+        throw new ArgumentException(
+            "--interaction-soak-mode is required (select_brush_vertex, select_brush_face, select_lasso_face, move, grab, smooth, inflate, or pinch).");
     }
 
     private sealed class InteractionPathDriver
@@ -341,17 +574,34 @@ internal static class HeadlessGpuInteractionSoak
         public long CoalescedUpdates { get; private set; }
         public int MaximumPendingDepth { get; private set; }
         public int TerminalStrokeEvents { get; private set; }
+        public string TerminalSelectionMode { get; private set; } = string.Empty;
+        public Point[] TerminalSelectionPoints { get; private set; } = Array.Empty<Point>();
 
-        public void Accept(string eventName, Dictionary<string, object?> _payload)
+        public void Accept(string eventName, Dictionary<string, object?> payload)
         {
             if (eventName is not ("select_request" or "selection_request" or "stroke_begin" or "stroke_update" or "stroke_end" or "stroke_cancel"))
             {
                 return;
             }
             EventCount++;
-            if (eventName is "stroke_end" or "stroke_cancel")
+            var phase = Convert.ToString(payload.GetValueOrDefault("phase"))?.Trim().ToLowerInvariant() ?? string.Empty;
+            if (eventName is "stroke_end" or "stroke_cancel" || phase is "end" or "cancel")
             {
                 TerminalStrokeEvents++;
+            }
+            if (eventName is "select_request"
+                && phase == "end"
+                && payload.GetValueOrDefault("screen_region") is IReadOnlyDictionary<string, object?> region)
+            {
+                TerminalSelectionMode = Convert.ToString(region.GetValueOrDefault("mode"))?.Trim().ToLowerInvariant()
+                    ?? string.Empty;
+                if (region.GetValueOrDefault("points") is IEnumerable<double[]> points)
+                {
+                    TerminalSelectionPoints = points
+                        .Where(point => point.Length >= 2)
+                        .Select(point => new Point((int)Math.Round(point[0]), (int)Math.Round(point[1])))
+                        .ToArray();
+                }
             }
             if (!_inFlight)
             {

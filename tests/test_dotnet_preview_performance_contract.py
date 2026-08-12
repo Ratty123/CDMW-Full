@@ -84,7 +84,7 @@ def test_interaction_soak_drives_real_provisional_paths_and_required_gates() -> 
         "LaunchOptions.Parse(args)"
     )
     assert '"--headless-gpu-interaction-soak"' in entry
-    for mode in ("select_brush", "move", "grab", "smooth", "inflate", "pinch"):
+    for mode in ("select_brush_vertex", "select_brush_face", "select_lasso_face", "move", "grab", "smooth", "inflate", "pinch"):
         assert f'"{mode}"' in soak + probe
     assert "SelectionInteractionSoakMode(_interactionSoakMode)" in probe
     assert "SetSelectionDragMode(_interactionSoakSelectionShape)" in probe
@@ -100,7 +100,16 @@ def test_interaction_soak_drives_real_provisional_paths_and_required_gates() -> 
     assert "SpatialBuckets" in strokes
     assert "GrabIndices" in strokes
     assert "VertexBuckets" in picking
-    assert "DrawOverlayPrimitive(\n                PrimitiveTopology.PointList" in _source("D3D11MaterialViewport.Overlay.cs")
+    assert "FaceBuckets" in picking
+    assert "LargeFaceCandidates" in picking
+    assert "PaintProjectionFaceUsesLargeCandidateList" in picking
+    assert "RoutePaintProjectionFaceCandidate" in picking
+    assert "release_only_lasso_commits_exact_polygon" in soak
+    assert "retained_overlay_clear_rebuild_is_discard_safe" in soak
+    assert "terminal_depth_mismatch_discards_provisional_overlay_once" in soak
+    assert "oversized_face_projection_uses_bounded_candidate_list" in soak
+    assert "wire_overlay_gpu_buffer_retained" in soak
+    assert "DrawRetainedOverlayPrimitive(\n                PrimitiveTopology.PointList" in _source("D3D11MaterialViewport.Overlay.cs")
     assert "PrimitiveTopology.PointList when command.LineWidthPixels > 0.0f" in _source("D3D11MaterialViewport.Overlay.cs")
     provisional = _source("D3D11MaterialViewport.ProvisionalGeometry.cs")
     assert "ProvisionalRotatingFaceThreshold" in provisional
@@ -305,7 +314,13 @@ def test_retained_overlays_and_texture_updates_have_explicit_generation_and_fram
     assert "_gridGeometryValid" in overlay
     assert "_retainedOverlayCacheHitCount++" in overlay
     assert "FlushOverlayPrimitives();" in overlay
-    assert overlay.count("MapMode.WriteDiscard") == 1
+    flush = overlay.split("private unsafe void FlushOverlayPrimitives()", maxsplit=1)[1]
+    retained_selection = overlay.split("private unsafe void UpdateRetainedOverlayBuffer(", maxsplit=1)[1].split(
+        "private void DrawSelectedEdgesOverlay()", maxsplit=1
+    )[0]
+    assert "MapMode.WriteDiscard" in flush
+    assert "MapMode.WriteDiscard" in retained_selection
+    assert "MapMode.WriteNoOverwrite" in retained_selection
     assert "private Dictionary<int, HashSet<int>> _overlaySelectedVertices" in renderer
     assert "_resizeCommitTimer.Start();" in lifecycle
     assert "_renderResourcesDirty = true;" in lifecycle

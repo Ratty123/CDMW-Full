@@ -228,16 +228,23 @@ internal sealed partial class MeshViewport
     private void FinishEdgeDrag(Point point)
     {
         _edgeDragCurrent = point;
+        if (_selectionLassoPoints.Count > 0 && _selectionLassoPoints[^1] != point)
+        {
+            // MouseUp is not guaranteed to be preceded by a MouseMove at the
+            // same location. Keep the terminal point so the polygon committed
+            // to native selection is exactly the outline that reached the
+            // cursor, including a fast three-point gesture.
+            _selectionLassoPoints.Add(point);
+        }
         var rectangle = EdgeDragRectangle();
         var targetMode = _selectionDragTargetMode;
         _edgeDragActive = false;
         var paintActive = _selectionPaintActive;
         var paintPainted = _selectionPaintPainted;
         _selectionPaintActive = false;
-        var simplifiedLasso = _selectionLassoPoints.Count >= 3
-            ? SimplifyLassoPoints(_selectionLassoPoints)
-            : Array.Empty<Point>();
-        var lassoPoints = simplifiedLasso.Length >= 3 ? simplifiedLasso : null;
+        var lassoPoints = _selectionLassoPoints.Count >= 3
+            ? _selectionLassoPoints.ToArray()
+            : null;
         _selectionLassoPoints.Clear();
         var draggedBeyondClick = rectangle.Width >= 4 || rectangle.Height >= 4;
         if (paintActive && (paintPainted || draggedBeyondClick))
@@ -281,7 +288,7 @@ internal sealed partial class MeshViewport
             Invalidate();
             return;
         }
-        if (rectangle.Width < 4 && rectangle.Height < 4)
+        if (lassoPoints is null && rectangle.Width < 4 && rectangle.Height < 4)
         {
             var clickOperation = CurrentSelectionOperation();
             if (clickOperation == "replace")
@@ -317,42 +324,6 @@ internal sealed partial class MeshViewport
         _hoverEdgeId = -1;
         UpdateGpuViewport();
         Invalidate();
-    }
-
-    private static Point[] SimplifyLassoPoints(IReadOnlyList<Point> points)
-    {
-        var simplified = new List<Point>(points.Count);
-        foreach (var point in points)
-        {
-            if (simplified.Count > 0)
-            {
-                var previous = simplified[^1];
-                var dx = point.X - previous.X;
-                var dy = point.Y - previous.Y;
-                if (dx * dx + dy * dy <= 4)
-                {
-                    continue;
-                }
-            }
-            while (simplified.Count >= 2)
-            {
-                var first = simplified[^2];
-                var second = simplified[^1];
-                var cross = (second.X - first.X) * (point.Y - second.Y)
-                    - (second.Y - first.Y) * (point.X - second.X);
-                if (Math.Abs(cross) > 2)
-                {
-                    break;
-                }
-                simplified.RemoveAt(simplified.Count - 1);
-            }
-            simplified.Add(point);
-        }
-        if (simplified.Count >= 3)
-        {
-            return simplified.ToArray();
-        }
-        return points.Distinct().ToArray();
     }
 
     private void UpdateProvisionalRegionHits(
