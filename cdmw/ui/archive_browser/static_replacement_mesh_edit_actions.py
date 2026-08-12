@@ -319,7 +319,12 @@ def _mesh_editor_commit_action_bar_service_result(_state, _callbacks,
         _callbacks._morph_slider_mark_topology_changed(
             _state._mesh_edit_topology_changed_status_helper(action_key) or _state._morph_slider_topology_changed_reason_text_helper()
         )
-        _callbacks._mesh_edit_clear_topology_selection()
+        authoritative_selection = getattr(result, "selection", None)
+        selection_type = getattr(_state, "MeshEditSelection", None)
+        if selection_type is not None and isinstance(authoritative_selection, selection_type):
+            _callbacks._mesh_edit_set_selection_state(authoritative_selection)
+        else:
+            _callbacks._mesh_edit_clear_topology_selection()
     # A command the editor itself raised has already had its preview payload
     # pushed on the way back through the protocol; sending it again would only
     # repaint what is already on screen.

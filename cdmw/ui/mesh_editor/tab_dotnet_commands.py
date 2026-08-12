@@ -385,6 +385,7 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
             selection_outcome and outcome.phase in {"end", "cancel"}
         )
         defer_selection_presentation = selection_outcome and not terminal_selection_presentation
+        presentation_sent = True
         terminal_selection_started = (
             time.perf_counter() if terminal_selection_presentation else None
         )
@@ -467,7 +468,7 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
                 revision=int(getattr(outcome.result, "revision", 0) or 0),
                 request_id=int((latest_request_payload or {}).get("request_id", 0) or 0),
             )
-            self._send_dotnet_command_result(
+            presentation_sent = self._send_dotnet_command_result(
                 outcome.result.action,
                 ok=str(outcome.result.status or "").strip().lower() != "error",
                 status="coalesced",
@@ -477,7 +478,7 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
             )
         else:
             stage_started = time.perf_counter()
-            self._send_dotnet_native_update(
+            presentation_sent = self._send_dotnet_native_update(
                 update,
                 result=outcome.result,
                 request_payload=latest_request_payload,
@@ -498,19 +499,24 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
             else:
                 self.standalone_native_mesh_edit_stroke_id = ""
             stage_started = time.perf_counter()
-            self._send_dotnet_session_state(
-                include_selection=not selection_outcome,
-                session_view=(
-                    update.session_view if terminal_selection_presentation else None
-                ),
-            )
+            if presentation_sent:
+                self._send_dotnet_session_state(
+                    include_selection=not selection_outcome,
+                    session_view=(
+                        update.session_view if terminal_selection_presentation else None
+                    ),
+                )
             if terminal_selection_presentation and terminal_selection_started is not None:
                 terminal_selection_stages["session_state_ms"] = (
                     time.perf_counter() - stage_started
                 ) * 1000.0
                 _record_interaction_decision(
                     self,
-                    "mesh_edit_selection_terminal_completed",
+                    (
+                        "mesh_edit_selection_terminal_completed"
+                        if presentation_sent
+                        else "mesh_edit_selection_terminal_publish_failed"
+                    ),
                     phase=str(outcome.phase or ""),
                     revision=int(getattr(outcome.result, "revision", 0) or 0),
                     request_id=int((latest_request_payload or {}).get("request_id", 0) or 0),
@@ -528,12 +534,33 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
                         else None
                     )
                 )
-            self._retry_pending_dotnet_finish()
-            if selection_outcome and outcome.phase == "cancel":
-                cancel_reason = "selection gesture cancelled."
+            if selection_outcome and not presentation_sent:
+                # The helper is about to be retired, so a deferred Finish must
+                # not start a placement transition against that failed process.
+                self.standalone_dotnet_finish_retry_pending = False
+            else:
+                self._retry_pending_dotnet_finish()
+            if selection_outcome and (outcome.phase == "cancel" or not presentation_sent):
+                cancel_reason = (
+                    "mesh_dotnet_selection_authority_publish_failed"
+                    if not presentation_sent
+                    else "selection gesture cancelled."
+                )
                 self._reject_pending_dotnet_topology_command(
                     f"Mesh .NET editor selection failed: {cancel_reason}"
                 )
+                if not presentation_sent:
+                    failure_code = "mesh_dotnet_selection_authority_publish_failed"
+                    self._set_dotnet_status(
+                        f"Mesh .NET editor command failed: {failure_code}",
+                        error=True,
+                    )
+                    if self.standalone_dotnet_target_embedded:
+                        self._request_or_stop_blocked_embedded_dotnet(
+                            "mesh_dotnet_selection_authority_publish_failed"
+                        )
+                    else:
+                        self._stop_standalone_dotnet_editor_process(embedded_state="failed")
             else:
                 self._retry_pending_dotnet_topology_command()
     def _handle_dotnet_live_stroke_failed(self, failure: object) -> None:
@@ -554,11 +581,30 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
                 f"Mesh .NET editor selection failed: {failure.message}"
             )
         if failure.cancelled:
+            request_payloads = tuple(failure.request_payloads) or (None,)
+            for request_payload in request_payloads:
+                self._send_dotnet_command_result(
+                    (
+                        "morph_change"
+                        if failure.source == "dotnet_morph"
+                        else "select"
+                        if failure.source == "dotnet_selection"
+                        else "stroke"
+                    ),
+                    ok=False,
+                    status="cancelled",
+                    diagnostics=(failure.message,),
+                    request_payload=request_payload,
+                )
             _record_interaction_decision(self,
                 "mesh_edit_dispatch_cancelled",
                 source=str(failure.source or ""),
                 phase=str(failure.phase or ""),
                 dispatcher_sequence=int(failure.sequence),
+                request_ids=tuple(
+                    int(payload.get("request_id", 0) or 0)
+                    for payload in failure.request_payloads
+                ),
             )
             return
         _record_interaction_decision(self,

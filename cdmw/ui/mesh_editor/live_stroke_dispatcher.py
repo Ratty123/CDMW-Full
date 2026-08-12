@@ -61,6 +61,27 @@ class _RetireControllerRequest:
     controller: MeshEditorController
 
 
+def _request_stream_id(request: MeshLiveStrokeRequest) -> str:
+    params = request.command.params
+    if request.source == "dotnet_selection":
+        return str(params.get("selection_stroke_id", "") or "")
+    if request.source == "dotnet_morph":
+        return str(params.get("change_id", "") or "")
+    return str(params.get("stroke_id", "") or "")
+
+
+def _same_pending_update_stream(
+    previous: MeshLiveStrokeRequest,
+    newest: MeshLiveStrokeRequest,
+) -> bool:
+    return (
+        previous.controller is newest.controller
+        and previous.source == newest.source
+        and previous.command.action == newest.command.action
+        and _request_stream_id(previous) == _request_stream_id(newest)
+    )
+
+
 def _merge_pending_screen_drag(
     previous: MeshLiveStrokeRequest,
     newest: MeshLiveStrokeRequest,
@@ -223,6 +244,7 @@ class MeshLiveStrokeDispatcher(QObject):
         normalized_phase = str(phase or "").strip().lower()
         if normalized_phase not in {"begin", "update", "end", "cancel"}:
             return 0
+        cancelled_pending: MeshLiveStrokeRequest | None = None
         with self._condition:
             if self._stopping:
                 return 0
@@ -230,16 +252,26 @@ class MeshLiveStrokeDispatcher(QObject):
             request_payloads = (dict(request_payload),) if request_payload is not None else ()
             request_source = str(source or "")
             if normalized_phase == "update":
+                candidate = MeshLiveStrokeRequest(
+                    self._sequence,
+                    normalized_phase,
+                    controller,
+                    command,
+                    request_source,
+                    request_payloads,
+                )
+                if (
+                    self._pending_update is not None
+                    and not _same_pending_update_stream(self._pending_update, candidate)
+                ):
+                    # A pending update from another gesture is an ordering
+                    # boundary, not a sample that the newer gesture may
+                    # supersede. Preserve it in FIFO order before installing
+                    # the new stream's coalescing slot.
+                    self._controls.append(self._pending_update)
+                    self._pending_update = None
                 if self._pending_update is not None:
                     superseded_payloads = self._pending_update.request_payloads
-                    candidate = MeshLiveStrokeRequest(
-                        self._sequence,
-                        normalized_phase,
-                        controller,
-                        command,
-                        request_source,
-                        request_payloads,
-                    )
                     command = _merge_pending_screen_selection(
                         self._pending_update,
                         candidate,
@@ -290,22 +322,51 @@ class MeshLiveStrokeDispatcher(QObject):
                         self._controls.append(self._pending_update)
                     else:
                         self._pending_update.stop_event.set()
+                        cancelled_pending = self._pending_update
                     self._pending_update = None
                 self._controls.append(request)
             self._condition.notify_all()
-            return request.sequence
+            sequence = request.sequence
+        if cancelled_pending is not None:
+            self.failed.emit(
+                MeshLiveStrokeFailure(
+                    cancelled_pending.sequence,
+                    cancelled_pending.phase,
+                    cancelled_pending.controller,
+                    "Mesh Editor live-stroke update was cancelled by its terminal request.",
+                    cancelled=True,
+                    source=cancelled_pending.source,
+                    request_payloads=cancelled_pending.request_payloads,
+                )
+            )
+        return sequence
 
     def cancel_pending(self) -> None:
+        cancelled: list[MeshLiveStrokeRequest] = []
         with self._condition:
             if self._active is not None:
                 self._active.stop_event.set()
             for request in self._controls:
                 request.stop_event.set()
+                cancelled.append(request)
             self._controls.clear()
             if self._pending_update is not None:
                 self._pending_update.stop_event.set()
+                cancelled.append(self._pending_update)
                 self._pending_update = None
             self._condition.notify_all()
+        for request in cancelled:
+            self.failed.emit(
+                MeshLiveStrokeFailure(
+                    request.sequence,
+                    request.phase,
+                    request.controller,
+                    "Mesh Editor live-stroke request was cancelled.",
+                    cancelled=True,
+                    source=request.source,
+                    request_payloads=request.request_payloads,
+                )
+            )
 
     def wait_idle(self, timeout_seconds: float = 2.0) -> bool:
         deadline = time.monotonic() + max(0.0, float(timeout_seconds))
@@ -410,7 +471,19 @@ class MeshLiveStrokeDispatcher(QObject):
                     result,
                     stop_event=request.stop_event,
                 )
-                if not request.stop_event.is_set():
+                if request.stop_event.is_set():
+                    self.failed.emit(
+                        MeshLiveStrokeFailure(
+                            request.sequence,
+                            request.phase,
+                            request.controller,
+                            "Mesh Editor live-stroke request was cancelled.",
+                            cancelled=True,
+                            source=request.source,
+                            request_payloads=request.request_payloads,
+                        )
+                    )
+                else:
                     self.completed.emit(
                         MeshLiveStrokeOutcome(
                             request.sequence,

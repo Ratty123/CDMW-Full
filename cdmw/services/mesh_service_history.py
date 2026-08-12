@@ -315,7 +315,7 @@ class MeshHistoryServiceMixin:
         result_metrics.update(_history_metrics(session))
         session_view = (
             self._session_view_locked(session, selection_is_authoritative=True)
-            if action == "select"
+            if action == "select" or topology_changed
             else None
         )
         return MeshEditResult(

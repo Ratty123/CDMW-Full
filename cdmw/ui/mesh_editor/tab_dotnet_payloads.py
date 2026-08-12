@@ -344,7 +344,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
         *,
         result: _tab.MeshEditResult | None = None,
         request_payload: Mapping[str, object] | None = None,
-    ) -> None:
+    ) -> bool:
         controller = self._dotnet_target_controller()
         session_id = ""
         revision = None
@@ -396,13 +396,41 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                 "selection": self._dotnet_selection_payload(selection or _tab.MeshEditSelection()),
                 "selection_groups": update.selection_groups,
             })
-        self.standalone_dotnet_update_queue.enqueue(int(revision or 0), edit_packets)
-        self.standalone_dotnet_update_ack_start_timer.start(0)
+        queued = self.standalone_dotnet_update_queue.enqueue(
+            int(revision or 0),
+            edit_packets,
+        )
+        if queued:
+            self.standalone_dotnet_update_ack_start_timer.start(0)
+        elif result is not None and edit_packets:
+            failure_code = "mesh_dotnet_native_update_enqueue_failed"
+            diagnostics = (
+                f"Mesh .NET editor command failed: {failure_code}",
+            )
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_native_update_enqueue_failed",
+                command=str(result.action or "command"),
+                request_id=int((request_payload or {}).get("request_id", 0) or 0),
+                revision=int(revision or 0),
+                packet_events=tuple(
+                    str(packet.get("event", "") or "") for packet in edit_packets
+                ),
+                queue_metrics=self.standalone_dotnet_update_queue.metrics(),
+            )
+            self._send_dotnet_command_result(
+                result.action,
+                ok=False,
+                status="error",
+                revision=result.revision,
+                diagnostics=diagnostics,
+                request_payload=request_payload,
+            )
+            return False
         if result is not None:
             request_event = str(
                 request_payload.get("event", "") if request_payload is not None else ""
             ).strip().lower()
-            self._send_dotnet_command_result(
+            return self._send_dotnet_command_result(
                 result.action,
                 ok=str(result.status or "").strip().lower() != "error",
                 status=str(result.status or ""),
@@ -415,6 +443,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                     and bool(update.vertex_groups)
                 ),
             )
+        return queued
     def _dotnet_screen_selection_payload(self, payload: Mapping[str, object]) -> dict[str, object]:
         screen_payload: dict[str, object] = {}
         raw_screen_brush = payload.get("screen_brush")
@@ -535,11 +564,24 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
         ):
             self._apply_standalone_native_update(update)
             QTimer.singleShot(0, self._sync_state)
-        self._send_dotnet_native_update(
+        presentation_sent = self._send_dotnet_native_update(
             update,
             result=result,
             request_payload=request_payload,
         )
+        if not presentation_sent:
+            failure_code = "mesh_dotnet_native_update_publish_failed"
+            self._set_dotnet_status(
+                f"Mesh .NET editor command failed: {failure_code}",
+                error=True,
+            )
+            if self.standalone_dotnet_target_embedded:
+                self._request_or_stop_blocked_embedded_dotnet(
+                    "mesh_dotnet_native_update_publish_failed"
+                )
+            else:
+                self._stop_standalone_dotnet_editor_process(embedded_state="failed")
+            return False
         self._send_dotnet_session_state(
             include_selection=not selection_result,
             session_view=update.session_view if selection_result else None,

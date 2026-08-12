@@ -262,6 +262,97 @@ def test_selection_snapshot_follows_active_topology_without_waiting_for_a_second
     assert queue.acknowledge("preview_triangle_update_ack", _ack(sent))
 
 
+def test_same_revision_terminal_selection_keeps_its_own_mutation_request_id() -> None:
+    sent: list[dict[str, object]] = []
+    queue = _correlated_queue(sent)
+    geometry = _vertex_packet([0], [1.0])
+    geometry["request_id"] = 40
+    selection = {
+        "event": "selection_update",
+        "request_id": 55,
+        "selection": {"faces_by_submesh": {"0": [3]}},
+    }
+
+    assert queue.enqueue(7, (geometry,))
+    assert queue.enqueue(7, (selection,))
+    assert [(packet["event"], packet["request_id"]) for packet in sent] == [
+        ("preview_vertex_update", 40),
+    ]
+
+    assert queue.acknowledge("preview_vertex_update_ack", _ack(sent))
+    assert [(packet["event"], packet["request_id"]) for packet in sent] == [
+        ("preview_vertex_update", 40),
+        ("selection_update", 55),
+    ]
+    assert queue.metrics()["recovery_failed"] is False
+
+
+def test_pending_geometry_and_selection_mutations_remain_separate_batches() -> None:
+    sent: list[dict[str, object]] = []
+    queue = _correlated_queue(sent)
+    active = _vertex_packet([0], [1.0])
+    active["request_id"] = 100
+    pending_geometry = _vertex_packet([1], [2.0])
+    pending_geometry["request_id"] = 101
+    terminal_selection = {
+        "event": "selection_update",
+        "request_id": 102,
+        "selection": {"vertices_by_submesh": {"0": [1]}},
+    }
+
+    assert queue.enqueue(10, (active,))
+    assert queue.enqueue(11, (pending_geometry,))
+    assert queue.enqueue(12, (terminal_selection,))
+    assert queue.metrics()["pending_depth"] == 2
+    assert queue.metrics()["coalesced_updates"] == 0
+
+    assert queue.acknowledge("preview_vertex_update_ack", _ack(sent))
+    assert sent[-1]["event"] == "preview_vertex_update"
+    assert sent[-1]["request_id"] == 101
+    assert sent[-1]["edit_revision"] == 11
+    assert queue.acknowledge("preview_vertex_update_ack", _ack(sent))
+    assert sent[-1]["event"] == "selection_update"
+    assert sent[-1]["request_id"] == 102
+    assert sent[-1]["edit_revision"] == 12
+
+
+def test_distinct_correlated_selection_mutations_never_collapse() -> None:
+    sent: list[dict[str, object]] = []
+    queue = _correlated_queue(sent)
+    active = _vertex_packet([0], [1.0])
+    active["request_id"] = 200
+    first = {"event": "selection_update", "request_id": 201, "selection": {}}
+    second = {"event": "selection_update", "request_id": 202, "selection": {}}
+
+    assert queue.enqueue(20, (active,))
+    assert queue.enqueue(21, (first,))
+    assert queue.enqueue(21, (second,))
+    assert queue.metrics()["pending_depth"] == 2
+    assert queue.acknowledge("preview_vertex_update_ack", _ack(sent))
+    # No ack is required for selection, so finishing the first batch sends the
+    # second one immediately without rewriting either envelope.
+    assert [(packet["event"], packet["request_id"]) for packet in sent] == [
+        ("preview_vertex_update", 200),
+        ("selection_update", 201),
+        ("selection_update", 202),
+    ]
+
+
+def test_one_batch_cannot_mix_independent_correlated_requests() -> None:
+    sent: list[dict[str, object]] = []
+    queue = _correlated_queue(sent)
+
+    assert not queue.enqueue(
+        4,
+        (
+            {"event": "selection_update", "request_id": 10, "selection": {}},
+            {"event": "selection_update", "request_id": 11, "selection": {}},
+        ),
+    )
+    assert sent == []
+    assert queue.metrics()["correlation_conflicts"] == 1
+
+
 def test_bounded_pending_state_applies_backpressure_without_dropping_existing_work() -> None:
     sent: list[dict[str, object]] = []
     queue = _correlated_queue(sent, max_pending_batches=1)

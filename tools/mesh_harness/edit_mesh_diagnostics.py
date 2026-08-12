@@ -338,6 +338,7 @@ def _run_dotnet_stroke(
 ) -> tuple[dict[str, object], int]:
     controller = tab.standalone_controller
     controller.select(vertices_by_submesh={0: tuple(range(4))})
+    selection_before = controller.session_view().selection
     tab.standalone_dotnet_target_controller = controller
     tab.update_editor_session_state(
         controller.session_view(), active_selection_mode=controller.active_selection_mode
@@ -456,6 +457,8 @@ def _run_dotnet_stroke(
     end_idle = _wait_for_live_stroke_idle(tab, app, timeout_seconds=10.0)
     terminal_elapsed_ms = (time.perf_counter() - terminal_started) * 1000.0
     after_end = _vertices(controller)
+    selection_after = controller.session_view().selection
+    selection_persisted = selection_after == selection_before
     changed_distance = _max_vertex_distance(before, after_update)
     snapback_distance = _max_vertex_distance(after_update, after_end)
     undo = controller.undo()
@@ -473,6 +476,7 @@ def _run_dotnet_stroke(
             and all(call["accepted"] for call in calls)
             and changed_distance > 1.0e-8
             and snapback_distance <= 1.0e-8
+            and selection_persisted
             and dispatcher_drained
             and max(dispatch_times, default=0.0) < 100.0
             and terminal_elapsed_ms < 250.0
@@ -482,6 +486,7 @@ def _run_dotnet_stroke(
             "submitted_update_samples": update_count,
             "changed_distance": changed_distance,
             "snapback_distance": snapback_distance,
+            "selection_persisted": selection_persisted,
             "begin_idle": begin_idle,
             "update_idle": update_idle,
             "end_idle": end_idle,
@@ -814,15 +819,87 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
             for payload in nonterminal_payloads
             if str(payload.get("event", "") or "") == "selection_update"
         ]
+        # Reproduce the escaped packaged-app race: a geometry frame is still
+        # awaiting its renderer acknowledgement when the terminal Select result
+        # arrives at the same resident revision. The queue must preserve both
+        # mutation envelopes and publish Select only after the geometry ack.
+        active_geometry_request_id = 99
+        active_geometry_revision = bumped.revision
+        active_geometry_ok = tab.standalone_dotnet_update_queue.enqueue(
+            active_geometry_revision,
+            (
+                {
+                    "event": "preview_vertex_update",
+                    "request_id": active_geometry_request_id,
+                    "vertex_groups": (
+                        {
+                            "source_submesh_index": 0,
+                            "source_vertex_indices": (0,),
+                            "positions": tuple(float(value) for value in submesh.vertices[0]),
+                        },
+                    ),
+                },
+            ),
+        )
+        active_geometry_wire = sent_payloads[-1] if active_geometry_ok else {}
         terminal_protocol_start = len(sent_payloads)
+        terminal_decision_start = len(decisions)
         terminal_native_apply_start = len(native_applies)
         pre_terminal_heartbeat = heartbeat_times[-1] if heartbeat_times else 0.0
         terminal_started = time.perf_counter()
         end_ok = submit("end", 2, screen=True)
         end_request_id = request_id
         end_idle = _wait_for_live_stroke_idle(tab, app, timeout_seconds=10.0)
+        selection_waited_for_geometry = bool(
+            active_geometry_ok
+            and not any(
+                str(payload.get("event", "") or "") == "selection_update"
+                for payload in sent_payloads[terminal_protocol_start:]
+            )
+            and int(tab.standalone_dotnet_update_queue.metrics().get("pending_depth", 0) or 0)
+            == 1
+        )
+        geometry_acknowledged = bool(
+            active_geometry_wire
+            and tab.standalone_dotnet_update_queue.acknowledge(
+                "preview_vertex_update_ack",
+                {
+                    "session_id": active_geometry_wire.get("session_id", ""),
+                    "request_id": active_geometry_wire.get("request_id", 0),
+                    "process_generation": active_geometry_wire.get("process_generation", 0),
+                    "edit_revision": active_geometry_wire.get("edit_revision", 0),
+                    "status": "applied",
+                    "capabilities": [
+                        MESH_EDIT_REVISION_CAPABILITY,
+                        MESH_MUTATION_ENVELOPE_CAPABILITY,
+                    ],
+                },
+            )
+        )
+        app.processEvents()
         terminal_finished = time.perf_counter()
         terminal_elapsed_ms = (time.perf_counter() - terminal_started) * 1000.0
+        terminal_protocol_end = len(sent_payloads)
+        terminal_decision_end = len(decisions)
+
+        # Prove the completed authority handoff did not poison the next Select
+        # gesture. This is the user-visible failure that followed the stranded
+        # blue provisional overlay in packaged sessions.
+        stroke_id = "dense-face-brush-terminal-second"
+        second_terminal_protocol_start = len(sent_payloads)
+        second_terminal_decision_start = len(decisions)
+        second_terminal_started = time.perf_counter()
+        second_begin_ok = submit("begin", 0, screen=False)
+        second_begin_idle = _wait_for_live_stroke_idle(tab, app, timeout_seconds=10.0)
+        second_end_ok = submit("end", 1, screen=True)
+        second_end_request_id = request_id
+        second_end_idle = _wait_for_live_stroke_idle(tab, app, timeout_seconds=10.0)
+        second_terminal_elapsed_ms = (
+            time.perf_counter() - second_terminal_started
+        ) * 1000.0
+        app.processEvents()
+        second_terminal_protocol_end = len(sent_payloads)
+        second_terminal_decision_end = len(decisions)
         app.processEvents()
         deadline = time.monotonic() + 0.05
         while time.monotonic() < deadline:
@@ -833,7 +910,7 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
         product_qt_geometry_layer_state_call_count = len(ui_geometry_layer_state_calls)
         selection = session.view().selection
         selected_face_count = sum(len(values) for values in selection.face_map().values())
-        terminal_payloads = sent_payloads[terminal_protocol_start:]
+        terminal_payloads = sent_payloads[terminal_protocol_start:terminal_protocol_end]
         terminal_selection_updates = [
             payload
             for payload in terminal_payloads
@@ -846,7 +923,22 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
         ]
         completion_events = [
             payload
-            for event, payload in decisions
+            for event, payload in decisions[terminal_decision_start:terminal_decision_end]
+            if event == "mesh_edit_selection_terminal_completed"
+        ]
+        second_terminal_payloads = sent_payloads[
+            second_terminal_protocol_start:second_terminal_protocol_end
+        ]
+        second_terminal_selection_updates = [
+            payload
+            for payload in second_terminal_payloads
+            if str(payload.get("event", "") or "") == "selection_update"
+        ]
+        second_completion_events = [
+            payload
+            for event, payload in decisions[
+                second_terminal_decision_start:second_terminal_decision_end
+            ]
             if event == "mesh_edit_selection_terminal_completed"
         ]
         heartbeat_gaps_ms = [
@@ -876,6 +968,19 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
             and int(correlated_update.get("edit_revision", 0) or 0) > 0
             and str(correlated_update.get("session_id", "") or "") == session_id
         )
+        second_correlated_update = (
+            second_terminal_selection_updates[0]
+            if len(second_terminal_selection_updates) == 1
+            else {}
+        )
+        second_correlated = bool(
+            second_correlated_update
+            and int(second_correlated_update.get("request_id", 0) or 0)
+            == second_end_request_id
+            and int(second_correlated_update.get("edit_revision", 0) or 0) > 0
+            and str(second_correlated_update.get("session_id", "") or "") == session_id
+            and second_end_request_id != end_request_id
+        )
         completion_ms = float(
             completion_events[0].get("elapsed_ms", float("inf"))
             if len(completion_events) == 1
@@ -892,6 +997,7 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
             and "selection" not in terminal_session_states[0]
             and "geometry_layers" not in terminal_session_states[0]
         )
+        final_queue_metrics = dict(tab.standalone_dotnet_update_queue.metrics())
         return {
             "ok": bool(
                 begin_ok
@@ -899,8 +1005,18 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
                 and update_ok
                 and update_idle
                 and not nonterminal_selection_updates
+                and active_geometry_ok
                 and end_ok
                 and end_idle
+                and selection_waited_for_geometry
+                and geometry_acknowledged
+                and second_begin_ok
+                and second_begin_idle
+                and second_end_ok
+                and second_end_idle
+                and len(second_terminal_selection_updates) == 1
+                and second_correlated
+                and len(second_completion_events) == 1
                 and selected_face_count >= 10_000
                 and len(terminal_selection_updates) == 1
                 and correlated
@@ -913,6 +1029,7 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
                 and len(completion_events) == 1
                 and completion_ms < 200.0
                 and terminal_elapsed_ms < 200.0
+                and second_terminal_elapsed_ms < 200.0
                 and initial_uv_summary_ready
                 and initial_uv_topology_face_count == mesh.total_faces
                 and final_uv_selected_faces == selected_face_count
@@ -921,6 +1038,9 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
                 and product_qt_geometry_layer_state_call_count == 0
                 and heartbeat_bracketed_terminal
                 and maximum_heartbeat_gap_ms < 200.0
+                and final_queue_metrics.get("recovery_failed") is False
+                and int(final_queue_metrics.get("pending_depth", -1) or 0) == 0
+                and int(final_queue_metrics.get("active_revision", -1) or 0) == 0
             ),
             "fixture": "normalized_native_benchmark_grid",
             "vertex_count": mesh.total_vertices,
@@ -933,10 +1053,25 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
             "terminal_protocol_events": [
                 str(payload.get("event", "") or "") for payload in terminal_payloads
             ],
-            "terminal_protocol_bytes": sum(sent_bytes[terminal_protocol_start:]),
+            "terminal_protocol_bytes": sum(
+                sent_bytes[terminal_protocol_start:terminal_protocol_end]
+            ),
             "terminal_selection_update_count": len(terminal_selection_updates),
             "nonterminal_selection_update_count": len(nonterminal_selection_updates),
             "terminal_selection_update_correlated": correlated,
+            "selection_waited_for_inflight_geometry": selection_waited_for_geometry,
+            "inflight_geometry_acknowledged": geometry_acknowledged,
+            "inflight_geometry_request_id": active_geometry_request_id,
+            "second_selection_succeeded": bool(
+                second_begin_ok
+                and second_begin_idle
+                and second_end_ok
+                and second_end_idle
+                and second_correlated
+            ),
+            "second_selection_request_id": second_end_request_id,
+            "second_selection_elapsed_ms": second_terminal_elapsed_ms,
+            "second_selection_update_count": len(second_terminal_selection_updates),
             "terminal_session_state_compact": compact_session_state,
             "terminal_direct_embedded_apply_count": len(native_applies) - terminal_native_apply_start,
             "builder_snapshot_count": len(snapshots),
@@ -951,6 +1086,7 @@ def _run_embedded_selection_terminal_authority() -> dict[str, object]:
             "heartbeat_bracketed_terminal": heartbeat_bracketed_terminal,
             "completion_diagnostics": completion_events,
             "dispatcher_metrics": dict(tab.standalone_live_stroke_dispatcher.metrics()),
+            "revision_queue_metrics": final_queue_metrics,
         }
     except Exception as exc:
         return {

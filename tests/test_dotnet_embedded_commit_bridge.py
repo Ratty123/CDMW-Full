@@ -187,3 +187,32 @@ def test_direct_selection_aliases_publish_once_without_derived_workspace_refresh
     assert native_sends == [update]
     assert session_selection_flags == [False]
     assert summary_refreshes == [True]
+
+
+def test_direct_selection_alias_enqueue_failure_does_not_bypass_ordered_preview_updates() -> None:
+    bridge = _Bridge(_builder_recording_commits())
+    bridge.standalone_dotnet_target_embedded = True
+    update = MeshEditorNativeUpdate(
+        selection_groups=({"source_submesh_index": 0, "face_indices": (0, 1)},),
+        refresh_selection=True,
+    )
+    controller = SimpleNamespace(native_update_for_result=lambda _result: update)
+    session_states: list[bool] = []
+    stopped: list[str] = []
+    bridge._refresh_embedded_workspace_from_builder = lambda **_kwargs: None
+    bridge._send_dotnet_native_update = lambda *_args, **_kwargs: False
+    bridge._send_dotnet_session_state = (
+        lambda *, include_selection=True, session_view=None: session_states.append(bool(include_selection)) or True
+    )
+    bridge._request_or_stop_blocked_embedded_dotnet = lambda reason: stopped.append(str(reason))
+    bridge._set_dotnet_status = lambda *_args, **_kwargs: None
+
+    assert not bridge._apply_dotnet_result_update(
+        controller,
+        MeshEditResult(action="select", status="ok", revision=7),
+        command_name="select_all",
+        request_payload={"request_id": 12},
+    )
+
+    assert session_states == []
+    assert stopped == ["mesh_dotnet_native_update_publish_failed"]

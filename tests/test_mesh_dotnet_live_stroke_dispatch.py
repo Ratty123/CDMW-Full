@@ -155,11 +155,12 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.workspace_refreshes.append(bool(include_derived))
         self.forwarded_session_views.append(session_view)
 
-    def _send_dotnet_native_update(self, _update, *, result=None, request_payload=None) -> None:
+    def _send_dotnet_native_update(self, _update, *, result=None, request_payload=None) -> bool:
         self.sent_update_count += 1
         if result is not None:
             self.sent_revisions.append(int(result.revision))
             self.sent_request_ids.append(int((request_payload or {}).get("request_id", 0)))
+        return True
 
     def _send_dotnet_command_result(self, command: str, *, status: str, **_kwargs) -> bool:
         self.command_results.append((command, status))
@@ -346,6 +347,38 @@ def test_failed_selection_rejects_its_queued_topology_command() -> None:
         harness.deleteLater()
 
 
+def test_cancelled_dispatch_request_returns_correlated_terminal_result() -> None:
+    controller = _Controller()
+    harness = _Harness(controller)
+    try:
+        harness.standalone_native_selection_stroke_id = "selection-cancelled"
+        harness._handle_dotnet_live_stroke_failed(
+            MeshLiveStrokeFailure(
+                3,
+                "update",
+                controller,
+                "request cancelled",
+                cancelled=True,
+                source="dotnet_selection",
+                request_payloads=(
+                    {"request_id": 94, "stroke_id": "selection-cancelled"},
+                ),
+            )
+        )
+
+        assert harness.standalone_native_selection_stroke_id == ""
+        assert harness.command_results == [("select", "cancelled")]
+        cancelled = [
+            payload
+            for event, payload in harness.interaction_decisions
+            if event == "mesh_edit_dispatch_cancelled"
+        ]
+        assert len(cancelled) == 1
+        assert cancelled[0]["request_ids"] == (94,)
+    finally:
+        harness.deleteLater()
+
+
 def test_cancelled_selection_does_not_run_queued_topology_on_the_restored_selection() -> None:
     controller = _Controller()
     harness = _Harness(controller)
@@ -380,6 +413,65 @@ def test_cancelled_selection_does_not_run_queued_topology_on_the_restored_select
         assert harness.standalone_pending_dotnet_topology_request is None
         assert ("subdivide", "cancelled") in harness.command_results
         assert controller.calls == []
+    finally:
+        harness.deleteLater()
+
+
+def test_failed_terminal_selection_publication_stops_preview_and_rejects_queued_topology() -> None:
+    controller = _Controller()
+    harness = _Harness(controller)
+    authority = MeshEditSelection.from_maps(faces_by_submesh={0: (1,)})
+    authority_view = MeshEditSessionView(
+        session_id="selection-session",
+        mode="edit",
+        revision=3,
+        selection=authority,
+        submesh_count=1,
+        vertex_count=4,
+        face_count=2,
+    )
+    stopped: list[str] = []
+    topology_retries: list[bool] = []
+    finish_retries: list[bool] = []
+    try:
+        harness.standalone_native_selection_stroke_id = "selection-1"
+        harness.standalone_dotnet_finish_retry_pending = True
+        harness.standalone_pending_dotnet_topology_request = {
+            "command": "subdivide",
+            "request_id": 92,
+        }
+        harness._send_dotnet_native_update = lambda *_args, **_kwargs: False  # type: ignore[method-assign]
+        harness._request_or_stop_blocked_embedded_dotnet = (  # type: ignore[method-assign]
+            lambda reason: stopped.append(str(reason))
+        )
+        harness._retry_pending_dotnet_topology_command = (  # type: ignore[method-assign]
+            lambda: topology_retries.append(True)
+        )
+        harness._retry_pending_dotnet_finish = lambda: finish_retries.append(True)  # type: ignore[method-assign]
+        harness._handle_dotnet_live_stroke_completed(
+            MeshLiveStrokeOutcome(
+                2,
+                "end",
+                controller,
+                MeshEditResult(action="select", status="ok", revision=3),
+                MeshEditorNativeUpdate(
+                    selection_groups=({"source_submesh_index": 0, "face_indices": (1,)},),
+                    refresh_selection=True,
+                    session_view=authority_view,
+                ),
+                "dotnet_selection",
+                ({"request_id": 93, "stroke_id": "selection-1"},),
+            )
+        )
+
+        assert harness.standalone_pending_dotnet_topology_request is None
+        assert ("subdivide", "cancelled") in harness.command_results
+        assert topology_retries == []
+        assert finish_retries == []
+        assert not harness.standalone_dotnet_finish_retry_pending
+        assert harness.session_state_selection_flags == []
+        assert harness.standalone_native_selection_stroke_id == ""
+        assert stopped == ["mesh_dotnet_selection_authority_publish_failed"]
     finally:
         harness.deleteLater()
 

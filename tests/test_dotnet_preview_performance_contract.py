@@ -95,7 +95,9 @@ def test_interaction_soak_drives_real_provisional_paths_and_required_gates() -> 
             assert f'"select_{shape}_{target}"' in probe
     assert "BeginEditorStroke(start)" in probe
     assert "UpdateProvisionalEditorStroke(point)" in probe
-    assert "FinishEdgeDrag(point)" in probe
+    assert "FinishSelectionGesture(point, cancelled: false)" in probe
+    assert "OnMouseMove(new MouseEventArgs(MouseButtons.None" in probe
+    assert "FinishSelectionGesture(e.Location, cancelled: false)" in input_source
     assert "CommitInteractionSoakGeometry" in probe
     assert "CompleteProvisionalAuthoritativeUpdate" in probe
     assert "ApplyInteractionSoakAuthoritativeGeometry" in tool_diagnostics

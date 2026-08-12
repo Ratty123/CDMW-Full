@@ -29,6 +29,7 @@ class StaticReplacementMeshEditResult:
     previous_submesh_count: int = 0
     selected_source_indices: tuple[int, ...] = ()
     new_submesh_source_indices: tuple[tuple[int, int], ...] = ()
+    selection: MeshEditSelection = field(default_factory=MeshEditSelection)
 
 
 @dataclass(slots=True)
@@ -141,6 +142,12 @@ class StaticReplacementMeshEditSession:
         selection: MeshEditSelection,
     ) -> StaticReplacementMeshEditResult:
         native_update = self.controller.native_update_for_result(edit_result)
+        native_session_view = getattr(native_update, "session_view", None)
+        authoritative_selection = (
+            native_session_view.selection
+            if native_session_view is not None
+            else selection
+        )
         after = edit_result.submesh_counts
         if not after:
             if str(edit_result.action or "").strip().lower() not in self._SELECTION_ONLY_ACTIONS:
@@ -164,6 +171,7 @@ class StaticReplacementMeshEditSession:
             before=before,
             after=after,
             selection=selection,
+            authoritative_selection=authoritative_selection,
         )
 
 
@@ -201,6 +209,7 @@ def _static_result(
     before: tuple[tuple[int, int], ...],
     after: tuple[tuple[int, int], ...] | None = None,
     selection: MeshEditSelection,
+    authoritative_selection: MeshEditSelection | None = None,
 ) -> StaticReplacementMeshEditResult:
     after = after or _mesh_counts(mesh)
     before_vertices = sum(vertex_count for vertex_count, _face_count in before)
@@ -233,6 +242,7 @@ def _static_result(
         previous_submesh_count=len(before),
         selected_source_indices=tuple(selection.source_indices),
         new_submesh_source_indices=new_sources,
+        selection=authoritative_selection if authoritative_selection is not None else selection,
     )
 
 

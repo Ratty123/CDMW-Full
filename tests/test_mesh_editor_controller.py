@@ -370,6 +370,10 @@ class MeshEditorControllerTests(unittest.TestCase):
         self.assertEqual([0], update.material_override_groups[0]["source_submesh_indices"])
         self.assertEqual(0.0, update.material_override_groups[0]["roughness"])
         self.assertEqual(1.0, update.material_override_groups[0]["texture_brightness"])
+        self.assertIsNotNone(result.session_view)
+        self.assertEqual(result.session_view, update.session_view)
+        self.assertEqual(controller.session_view().selection, update.session_view.selection)
+        self.assertTrue(update.refresh_selection)
 
     def test_controller_topology_duplicate_returns_material_override_payload_for_new_part(self) -> None:
         controller = MeshEditorController()
