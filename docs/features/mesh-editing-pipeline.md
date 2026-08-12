@@ -368,7 +368,24 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   the startup overlay closes, and only then does one queued reveal activate Mesh
   Editor. Runtime open-step diagnostics record mount, overlay close, show, and
   reveal in order, or name the exact construction, parent, visibility, or
-  progress condition that blocked the reveal.
+  progress condition that blocked the reveal. Embedded construction never
+  presents the standalone progress dialog: it resets the force-show timer that
+  `QProgressDialog` arms during construction, and the offscreen smoke rejects an
+  active child timer as well as a visible dialog.
+- Modify Original preflight copies its already-parsed replacement mesh twice in
+  the cancellable worker, producing independent base and working containers
+  without a native serialization round trip. An exact original clone also goes
+  directly to one-to-one submesh mappings instead of running the generic routing
+  scorer first. Runtime events report source inspection, workspace preparation
+  stages and byte counts, clone strategy and duration, routing duration, total
+  preflight time, presentation mode, and every builder startup step. The
+  `real-archive-mesh-editor-load-smoke` harness exercises one real PAC through
+  cold, refresh, and warm preparation/preflight/construction runs, captures the
+  workspace before and after reveal, rejects progress or partial-builder show
+  events and surviving startup timers, and fingerprints the PAMT and PAZ before
+  and after. It clears renderer post-open tasks to isolate shell construction;
+  textured rendering and Edit Mesh tools remain the responsibility of the
+  independent hidden interaction and real visual gates.
 - The .NET/Vortice child starts automatically when an embedded replacement
   builder or standalone original/imported mesh session is ready. `Edit Mesh`
   now changes the resident scene from placement-only interaction to geometry
@@ -515,8 +532,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   moving instead of waiting for one protocol packet per raw mouse event. It
   requires at least one bounded update, compares the terminal packet with the
   release-time cursor and child-window rectangle, and fails if the final cursor
-  segment was coalesced away. Its selection seed and projected region are vertex
-  maps; the same evidence requires the PARTS selection to remain empty.
+  segment was coalesced away. A non-mutating Select screen-brush probe obtains
+  the renderer projection before the measured gesture; the harness then follows
+  the helper's authoritative vertex map even when the visible hit spans or lands
+  in front of the largest projection-seed submesh. Evidence records selected,
+  changed, and unexpected vertex counts per submesh and requires the PARTS
+  selection and unexpected-change set to remain empty.
   The reported FPS is calculated from completion-to-completion frame intervals;
   render work, Present time, interval p95/max, and pacing jitter are reported
   separately so fast submission cannot masquerade as smooth output. Placement

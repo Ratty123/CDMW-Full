@@ -6301,7 +6301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 320,
+          "line": 322,
           "sink": "report"
         }
       ]
@@ -13656,7 +13656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 262,
+          "line": 261,
           "sink": "report"
         }
       ]
@@ -14926,7 +14926,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 509,
+          "line": 523,
           "sink": "QPushButton"
         },
         {
@@ -16386,7 +16386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 466,
+          "line": 480,
           "sink": "_run_utility_task"
         }
       ]
@@ -19846,7 +19846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 249,
+          "line": 248,
           "sink": "report"
         }
       ]
@@ -22226,7 +22226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 637,
+          "line": 691,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -22236,7 +22236,7 @@
       "origins": [
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 340,
+          "line": 343,
           "sink": "emit"
         }
       ]
@@ -25611,7 +25611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 370,
+          "line": 373,
           "sink": "report"
         }
       ]
@@ -47331,7 +47331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 275,
+          "line": 284,
           "sink": "set_status_message"
         }
       ]
@@ -47391,7 +47391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 273,
+          "line": 282,
           "sink": "set_status_message"
         }
       ]
@@ -47526,17 +47526,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 193,
+          "line": 202,
           "sink": "set_status_message"
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 200,
-          "sink": "set_status_message"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 220,
+          "line": 209,
           "sink": "set_status_message"
         },
         {
@@ -47547,6 +47542,11 @@
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
           "line": 238,
+          "sink": "set_status_message"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/shell_bridge.py",
+          "line": 247,
           "sink": "set_status_message"
         }
       ]
@@ -47836,7 +47836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 277,
+          "line": 286,
           "sink": "set_status_message"
         }
       ]
@@ -50071,7 +50071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 701,
+          "line": 755,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -50091,7 +50091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 661,
+          "line": 715,
           "sink": "set_status_message"
         }
       ]
@@ -50111,7 +50111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 626,
+          "line": 680,
           "sink": "set_status_message"
         }
       ]
@@ -50121,7 +50121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 628,
+          "line": 682,
           "sink": "set_status_message"
         }
       ]
@@ -50131,7 +50131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 701,
+          "line": 755,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -50141,7 +50141,7 @@
       "origins": [
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 346,
+          "line": 349,
           "sink": "emit"
         }
       ]
@@ -50156,17 +50156,17 @@
         },
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 311,
+          "line": 312,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 366,
+          "line": 371,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 387,
+          "line": 396,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -50176,7 +50176,7 @@
       "origins": [
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 324,
+          "line": 326,
           "sink": "ValueError"
         }
       ]
@@ -50196,7 +50196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 446,
+          "line": 451,
           "sink": "set_status_message"
         }
       ]
@@ -50206,7 +50206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 619,
+          "line": 650,
           "sink": "set_status_message"
         }
       ]
@@ -50216,7 +50216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 614,
+          "line": 645,
           "sink": "set_status_message"
         }
       ]
@@ -50226,7 +50226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 624,
+          "line": 678,
           "sink": "set_status_message"
         }
       ]
@@ -50251,7 +50251,7 @@
       "origins": [
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 338,
+          "line": 341,
           "sink": "report"
         }
       ]
@@ -50271,7 +50271,7 @@
       "origins": [
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 373,
+          "line": 378,
           "sink": "report"
         }
       ]
@@ -50281,7 +50281,7 @@
       "origins": [
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 376,
+          "line": 383,
           "sink": "report"
         }
       ]
@@ -50301,7 +50301,7 @@
       "origins": [
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 397,
+          "line": 409,
           "sink": "report"
         }
       ]
@@ -50331,7 +50331,7 @@
       "origins": [
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 313,
+          "line": 314,
           "sink": "report"
         }
       ]
@@ -50341,7 +50341,7 @@
       "origins": [
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 351,
+          "line": 354,
           "sink": "report"
         }
       ]
@@ -51651,7 +51651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 238,
+          "line": 241,
           "sink": "RuntimeError"
         }
       ]
@@ -51661,7 +51661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 247,
+          "line": 245,
           "sink": "RuntimeError"
         }
       ]
@@ -55871,7 +55871,7 @@
       "origins": [
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 369,
+          "line": 374,
           "sink": "ValueError"
         }
       ]
@@ -59606,7 +59606,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 231,
+          "line": 240,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -63406,7 +63406,7 @@
       "origins": [
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 372,
+          "line": 377,
           "sink": "emit"
         }
       ]
@@ -63416,7 +63416,7 @@
       "origins": [
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 375,
+          "line": 382,
           "sink": "emit"
         }
       ]
@@ -63606,7 +63606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 637,
+          "line": 691,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -63616,7 +63616,7 @@
       "origins": [
         {
           "path": "cdmw/services/modify_original_workspace_service.py",
-          "line": 340,
+          "line": 343,
           "sink": "emit"
         }
       ]
@@ -64131,7 +64131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 227,
+          "line": 230,
           "sink": "report"
         }
       ]
@@ -64446,7 +64446,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 222,
+          "line": 231,
           "sink": "_mesh_editor_rebuilt_asset_setup"
         },
         {
@@ -67301,7 +67301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 305,
+          "line": 307,
           "sink": "report"
         }
       ]
@@ -68281,7 +68281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 210,
+          "line": 219,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -68336,7 +68336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 208,
+          "line": 217,
           "sink": "set_status_message"
         }
       ]
@@ -72331,7 +72331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 299,
+          "line": 301,
           "sink": "report"
         }
       ]
@@ -72681,7 +72681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 507,
+          "line": 521,
           "sink": "QPushButton"
         }
       ]
@@ -72691,7 +72691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 483,
+          "line": 497,
           "sink": "setWindowTitle"
         }
       ]
@@ -72711,7 +72711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 637,
+          "line": 691,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -74941,7 +74941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 487,
+          "line": 501,
           "sink": "QLabel"
         }
       ]
@@ -77921,7 +77921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 282,
+          "line": 291,
           "sink": "set_status_message"
         }
       ]
@@ -84321,7 +84321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 508,
+          "line": 522,
           "sink": "QPushButton"
         }
       ]
@@ -84886,62 +84886,62 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 163,
+          "line": 166,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 176,
+          "line": 179,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 208,
+          "line": 211,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 236,
+          "line": 239,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 245,
+          "line": 243,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 260,
+          "line": 259,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 275,
+          "line": 274,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 298,
+          "line": 300,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 312,
+          "line": 314,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 328,
+          "line": 330,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 368,
+          "line": 371,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 393,
+          "line": 396,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -84971,7 +84971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 395,
+          "line": 398,
           "sink": "report"
         }
       ]
@@ -85851,7 +85851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 342,
+          "line": 344,
           "sink": "report"
         }
       ]
@@ -90201,7 +90201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 701,
+          "line": 755,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -194696,7 +194696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 210,
+          "line": 219,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -194966,7 +194966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 210,
+          "line": 219,
           "sink": "MeshImportSetupSelection"
         }
       ]
@@ -195641,7 +195641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_modify_original.py",
-          "line": 496,
+          "line": 510,
           "sink": "addItem"
         }
       ]

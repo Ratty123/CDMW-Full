@@ -30,6 +30,7 @@ from cdmw.services.mesh_workflow_service import ParsedMesh, parse_mesh
 from cdmw.services.mesh_workflow_service import (
     SCENE_TEXTURE_SOURCE_EXTENSIONS,
     SceneImportResult,
+    clone_mesh_for_editing,
     discover_scene_texture_files,
     import_scene_mesh_with_report,
 )
@@ -43,9 +44,6 @@ from cdmw.ui.archive_browser.static_replacement_geometry_math import (
     Bounds3,
     WorkAreaPlacementFit,
     external_import_work_area_fit_from_bounds,
-)
-from cdmw.ui.archive_browser.static_replacement_sparse_history import (
-    clone_mesh_for_static_replacement_native_first,
 )
 from cdmw.ui.archive_browser.static_replacement_texture_sources import (
     archive_texture_lookup_indexes_for_alignment,
@@ -101,6 +99,9 @@ class StaticReplacementPromptPreflightResult:
     sidecar_lookup_error: str = ""
     routing_error: str = ""
     routing_elapsed_ms: int = 0
+    mesh_clone_elapsed_ms: float = 0.0
+    total_elapsed_ms: float = 0.0
+    mesh_clone_strategy: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +116,8 @@ class _PreparedMeshes:
     replacement_preview: ModelPreviewData
     had_scene_result: bool
     scene_flip_v: bool
+    clone_elapsed_ms: float
+    clone_strategy: str
 
 
 def _modify_original_clone_mode(obj_path: Path, entry: ArchiveEntry) -> bool:
@@ -227,24 +230,20 @@ def _prepare_meshes(
     report(3, 8, "Preparing replacement mesh copies...")
     had_scene_result = request.scene_import_result is not None
     scene_result = request.scene_import_result or import_scene_mesh_with_report(request.obj_path, stop_event=stop)
-    replacement_base = clone_mesh_for_static_replacement_native_first(
-        scene_result.mesh,
-        "prompt_setup.replacement_base_clone",
-        "Python replacement setup base clone fallback blocked while native mesh core is available",
-        allow_python_setup_fallback=True,
-    )
+    clone_started = time.perf_counter()
+    # Preflight already runs on a cancellable worker. The source is an
+    # in-memory ParsedMesh, so two native snapshot/restore round trips only
+    # serialize lists that can be copied directly while preserving independent
+    # base and working containers.
+    replacement_base = clone_mesh_for_editing(scene_result.mesh)
     raise_if_cancelled(stop, "Static replacement preflight stopped by user.")
     if not isinstance(replacement_base, ParsedMesh):
         raise RuntimeError("Native replacement setup base clone failed.")
-    replacement_mesh = clone_mesh_for_static_replacement_native_first(
-        replacement_base,
-        "prompt_setup.replacement_working_clone",
-        "Python replacement setup working clone fallback blocked while native mesh core is available",
-        allow_python_setup_fallback=True,
-    )
+    replacement_mesh = clone_mesh_for_editing(replacement_base)
     raise_if_cancelled(stop, "Static replacement preflight stopped by user.")
     if not isinstance(replacement_mesh, ParsedMesh):
         raise RuntimeError("Native replacement setup working clone failed.")
+    clone_elapsed_ms = max(0.0, (time.perf_counter() - clone_started) * 1000.0)
 
     report(4, 8, "Computing work-area bounds...")
     source_bounds = static_replacement_prompt_mesh_bounds(replacement_base, stop_event=stop)
@@ -284,6 +283,8 @@ def _prepare_meshes(
         replacement_preview,
         had_scene_result,
         scene_flip_v,
+        clone_elapsed_ms,
+        "python_worker_copy",
     )
 
 
@@ -293,6 +294,7 @@ def prepare_static_replacement_prompt_preflight(
     progress: ProgressCallback | None = None,
     stop_event: threading.Event | None = None,
 ) -> StaticReplacementPromptPreflightResult:
+    preflight_started = time.perf_counter()
     stop = stop_event or threading.Event()
     report = progress or (lambda _current, _total, _detail: None)
     raise_if_cancelled(stop, "Static replacement preflight stopped by user.")
@@ -342,12 +344,6 @@ def prepare_static_replacement_prompt_preflight(
     report(6, 8, "Suggesting draw-section routing...")
     routing_started = time.perf_counter()
     routing_error = ""
-    try:
-        suggested_mappings = suggest_static_submesh_mappings(original_mesh, replacement_mesh)
-    except Exception as exc:
-        suggested_mappings = []
-        routing_error = str(exc)
-    routing_elapsed_ms = int((time.perf_counter() - routing_started) * 1000)
     if modify_original_clone_mode and len(original_mesh.submeshes) == len(replacement_mesh.submeshes):
         suggested_mappings = [
             StaticSubmeshMapping(
@@ -365,6 +361,13 @@ def prepare_static_replacement_prompt_preflight(
             )
             for index in range(len(original_mesh.submeshes))
         ]
+    else:
+        try:
+            suggested_mappings = suggest_static_submesh_mappings(original_mesh, replacement_mesh)
+        except Exception as exc:
+            suggested_mappings = []
+            routing_error = str(exc)
+    routing_elapsed_ms = int((time.perf_counter() - routing_started) * 1000)
     raise_if_cancelled(stop, "Static replacement preflight stopped by user.")
 
     report(7, 8, "Discovering replacement texture sources...")
@@ -393,6 +396,7 @@ def prepare_static_replacement_prompt_preflight(
     raise_if_cancelled(stop, "Static replacement preflight stopped by user.")
     texture_sets = group_replacement_texture_sets(texture_files, obj_mesh=replacement_mesh)
     report(8, 8, "Static replacement setup ready.")
+    total_elapsed_ms = max(0.0, (time.perf_counter() - preflight_started) * 1000.0)
     return StaticReplacementPromptPreflightResult(
         request_id=request.request_id,
         scene_import_result=scene_result,
@@ -424,6 +428,9 @@ def prepare_static_replacement_prompt_preflight(
         sidecar_lookup_error=sidecar_error,
         routing_error=routing_error,
         routing_elapsed_ms=routing_elapsed_ms,
+        mesh_clone_elapsed_ms=prepared.clone_elapsed_ms,
+        total_elapsed_ms=total_elapsed_ms,
+        mesh_clone_strategy=prepared.clone_strategy,
     )
 
 
@@ -450,6 +457,16 @@ def dispatch_static_replacement_prompt_preflight(
         archive_entries_by_basename=getattr(owner, "archive_entries_by_basename", {}) or {},
         archive_entries_by_extension=getattr(owner, "archive_entries_by_extension", {}) or {},
     )
+    recorder = getattr(owner, "_record_runtime_event", None)
+    if callable(recorder):
+        recorder(
+            "mesh_alignment_preflight_requested",
+            request_id=request_id,
+            path=str(entry.path or ""),
+            source_path=str(obj_path),
+            has_preloaded_scene=scene_import_result is not None,
+            has_preloaded_original=original_mesh is not None,
+        )
 
     def task(
         _log: Callable[[str], None],
@@ -465,6 +482,19 @@ def dispatch_static_replacement_prompt_preflight(
             or bool(getattr(owner, "_shutting_down", False))
         ):
             return
+        if callable(recorder):
+            recorder(
+                "mesh_alignment_preflight_ready",
+                request_id=payload.request_id,
+                path=str(entry.path or ""),
+                source_path=str(obj_path),
+                preflight_total_elapsed_ms=round(float(payload.total_elapsed_ms), 3),
+                mesh_clone_elapsed_ms=round(float(payload.mesh_clone_elapsed_ms), 3),
+                mesh_clone_strategy=str(payload.mesh_clone_strategy or ""),
+                routing_elapsed_ms=int(payload.routing_elapsed_ms),
+                modify_original_clone=bool(payload.modify_original_clone_mode),
+                replacement_submesh_count=len(payload.replacement_mesh.submeshes),
+            )
         on_complete(payload)
 
     def failed(message: str) -> None:
@@ -475,6 +505,14 @@ def dispatch_static_replacement_prompt_preflight(
             or "cancel" in str(message).casefold()
         ):
             return
+        if callable(recorder):
+            recorder(
+                "mesh_alignment_preflight_failed",
+                request_id=request_id,
+                path=str(entry.path or ""),
+                source_path=str(obj_path),
+                message=str(message or ""),
+            )
         getattr(owner, "set_status_message")(
             f"Mesh Replacement Builder setup failed: {message}",
             error=True,

@@ -98,6 +98,13 @@ def test_modify_original_preparation_service_is_the_exact_cancellable_clone_path
     assert manifest["workspace_mode"] == "internal_app_session"
     assert manifest["policy"] == "safe_clone_workspace_imports_through_mesh_replacement_geometry_path"
     assert progress[0][0] == 1 and progress[-1][0] == 5
+    performance = result["performance"]
+    assert performance["total_elapsed_ms"] >= 0.0
+    assert performance["obj_export_ms"] >= 0.0
+    assert performance["editable_clone_import_ms"] >= 0.0
+    assert performance["original_mesh_parse_ms"] >= 0.0
+    assert performance["source_asset_bytes"] == 4
+    assert performance["editable_obj_bytes"] == obj_path.stat().st_size
 
 
 def test_modify_original_preparation_service_honors_prestart_cancellation(

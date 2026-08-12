@@ -197,23 +197,28 @@ def _prepare_selection_projection(
     state: SimpleNamespace,
 ) -> tuple[tuple[int, ...], list[int], tuple[object, ...]]:
     # Edit Mesh viewport gestures own mesh-vertex selection; whole parts belong
-    # only to the PARTS list.  Seed a vertex selection so Move can provide the
-    # projection used to find a visible cluster, then narrow the authoritative
-    # selection to that cluster before the measured physical drag.
+    # only to the PARTS list. Ask Select for a screen payload at the viewport
+    # centre so the projection probe cannot move the temporary seed submesh.
+    # The probe's selection is cleared before the measured physical gesture.
+    state.projection_seed_submesh_index = int(state.submesh_index)
+    state.projection_probe_mode = "select_screen_brush"
     initial_faces = tuple(range(len(state.submesh.faces)))
     initial_vertex_indices = sorted(
         {vertex for face_index in initial_faces for vertex in state.submesh.faces[int(face_index)]}
     )
-    state.select_result = state.controller.select(
-        vertices_by_submesh={state.submesh_index: initial_vertex_indices},
-        operation="replace",
-    )
-    state.tab._send_dotnet_session_state()
     tool_cursor = len(state.tab.standalone_dotnet_protocol_events)
     state.tool_state_sent = state.tab._send_dotnet_protocol_message(
-        {"event": "tool_state", "tool": "move", "target_mode": "vertex"}
+        {
+            "event": "tool_state",
+            "tool": "select",
+            "target_mode": "vertex",
+            "selection_mode": "brush",
+            "selection_operation": "replace",
+        }
     )
-    state.tool_state_event = _wait_protocol_event(state, "tool_state_applied", tool_cursor, 5.0)
+    state.projection_tool_state_event = _wait_protocol_event(
+        state, "tool_state_applied", tool_cursor, 5.0
+    )
     # Re-read the viewport rectangle before using it to aim anything. The one
     # carried on the ready event describes the embedded editor window before it
     # was revealed and grown -- 547x603 against a live 1467x1139 here -- and the
@@ -229,18 +234,28 @@ def _prepare_selection_projection(
     probe = (client_x + max(1, width // 2), client_y + max(1, height // 2))
     cursor = len(state.tab.standalone_dotnet_protocol_events)
     state.probe_down_sent = _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONDOWN, *probe, wparam=_MK_LBUTTON)
-    state.probe_started = _wait_protocol_event(state, "stroke_begin", cursor, 2.0)
+    state.probe_started = _wait_protocol_event(state, "select_request", cursor, 2.0)
     cursor = len(state.tab.standalone_dotnet_protocol_events)
     state.probe_up_sent = _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONUP, *probe)
-    state.probe_finished = _wait_protocol_event(state, "stroke_end", cursor, 0.25)
-    if not state.probe_finished:
-        # Focusing the embedded render child may cancel this zero-distance probe
-        # after publishing the projection-bearing begin event. That is a valid
-        # terminal state for the probe, not a reason to consume the scenario's
-        # entire deadline before the measured stroke starts.
-        state.probe_finished = _wait_protocol_event(state, "stroke_cancel", cursor, 1.75)
-    drag = state.probe_started.get("screen_drag", {}) if isinstance(state.probe_started, Mapping) else {}
-    state.projection_drag = dict(drag) if isinstance(drag, Mapping) else {}
+    state.probe_finished = _wait_protocol_event(
+        state, "select_request", cursor, 2.0
+    )
+    state.projection_probe_authority_settled = bool(
+        state.probe_finished
+        and _pump_until(
+            state,
+            lambda: not state.tab._standalone_action_worker_active(),
+            5.0,
+        )
+    )
+    screen_brush = (
+        state.probe_finished.get("screen_brush", {})
+        if isinstance(state.probe_finished, Mapping)
+        else {}
+    )
+    state.projection_drag = (
+        dict(screen_brush) if isinstance(screen_brush, Mapping) else {}
+    )
     matrix = tuple(state.projection_drag.get("world_view_projection", ()) or ())
     # Project through the surface this matrix was actually built for. The
     # renderer pairs each matrix with the active pane's bounds, which are not
@@ -388,9 +403,40 @@ def _drive_projected_vertex_selection(
             except (TypeError, ValueError):
                 continue
     state.selected_vertex_keys = selected_vertex_keys
-    selected_vertices = tuple(
-        sorted(vertex_index for submesh_index, vertex_index in selected_vertex_keys if submesh_index == state.submesh_index)
+    selected_vertices_by_submesh: dict[int, tuple[int, ...]] = {}
+    for selected_submesh_index in sorted(
+        {submesh_index for submesh_index, _vertex_index in selected_vertex_keys}
+    ):
+        selected_vertices_by_submesh[selected_submesh_index] = tuple(
+            sorted(
+                vertex_index
+                for submesh_index, vertex_index in selected_vertex_keys
+                if submesh_index == selected_submesh_index
+            )
+        )
+    projection_seed_submesh_index = int(
+        getattr(state, "projection_seed_submesh_index", state.submesh_index)
     )
+    if projection_seed_submesh_index in selected_vertices_by_submesh:
+        selected_submesh_index = projection_seed_submesh_index
+    elif selected_vertices_by_submesh:
+        selected_submesh_index = max(
+            selected_vertices_by_submesh,
+            key=lambda submesh_index: (
+                len(selected_vertices_by_submesh[submesh_index]),
+                -submesh_index,
+            ),
+        )
+    else:
+        selected_submesh_index = projection_seed_submesh_index
+    selected_vertices = selected_vertices_by_submesh.get(selected_submesh_index, ())
+    if selected_vertices and 0 <= selected_submesh_index < len(current.submeshes):
+        # Overlapping archive parts can put the visible brush hit on a different
+        # submesh from the largest part used to obtain the projection matrix.
+        # The helper's authoritative selection owns the subsequent Move proof;
+        # rejecting that valid hit made the real-PAC gate fail intermittently.
+        state.submesh_index = selected_submesh_index
+        state.submesh = current.submeshes[selected_submesh_index]
     selected_part_rows = tuple(state.tool_state_event.get("parts_list_selected_indices", ()) or ())
     state.part_selection_remained_empty = bool(
         not selected_sources
@@ -405,7 +451,12 @@ def _drive_projected_vertex_selection(
         and selected_vertex_keys
         and selected_vertices
     )
-    state.selected_faces = tuple(state.projected_anchor_faces)
+    selected_vertex_set = set(selected_vertices)
+    state.selected_faces = tuple(
+        face_index
+        for face_index, face in enumerate(state.submesh.faces)
+        if any(int(vertex_index) in selected_vertex_set for vertex_index in face)
+    )
     state.face_vertices = list(selected_vertices)
     if (
         not state.tool_state_sent
@@ -578,8 +629,54 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "selected_face_vertices": state.face_vertices,
         "selected_face_before_vertices": [list(vertex) for vertex in state.before_vertices],
         "selected_face_after_vertices": [list(vertex) for vertex in state.after_vertices],
+        "selected_vertex_count": len(state.selected_vertex_keys),
+        "selected_vertex_counts_by_submesh": {
+            str(submesh_index): sum(
+                1
+                for selected_submesh_index, _vertex_index in state.selected_vertex_keys
+                if selected_submesh_index == submesh_index
+            )
+            for submesh_index in sorted(
+                {submesh_index for submesh_index, _vertex_index in state.selected_vertex_keys}
+            )
+        },
         "changed_vertex_count": len(state.changed_vertex_keys),
+        "changed_vertex_counts_by_submesh": {
+            str(submesh_index): sum(
+                1
+                for changed_submesh_index, _vertex_index in state.changed_vertex_keys
+                if changed_submesh_index == submesh_index
+            )
+            for submesh_index in sorted(
+                {submesh_index for submesh_index, _vertex_index in state.changed_vertex_keys}
+            )
+        },
+        "unexpected_changed_vertex_count": len(
+            state.unexpected_changed_vertex_keys
+        ),
+        "unexpected_changed_vertex_sample": [
+            [submesh_index, vertex_index]
+            for submesh_index, vertex_index in sorted(
+                state.unexpected_changed_vertex_keys
+            )[:64]
+        ],
         "changed_only_selected_geometry": state.changed_only_selected_geometry,
+        "selection_diagnostics": {
+            "projection_seed_submesh_index": int(
+                state.projection_seed_submesh_index
+            ),
+            "authoritative_primary_submesh_index": int(state.submesh_index),
+            "projection_probe_mode": state.projection_probe_mode,
+            "projection_probe_authority_settled": bool(
+                state.projection_probe_authority_settled
+            ),
+            "projection_surface_reconciliation": dict(
+                state.projection_surface_reconciliation
+            ),
+            "physical_selection_anchor": dict(
+                state.physical_selection_anchor
+            ),
+        },
         "selected_projected_screen_center": list(state.projected_center),
         "selected_projected_after_screen_center": list(state.projected_after_center),
         "selected_projected_screen_delta": list(projected_delta),

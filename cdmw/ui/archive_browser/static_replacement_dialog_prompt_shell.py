@@ -60,11 +60,27 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
     startup_progress.setMinimumDuration(0)
     startup_progress.setAutoClose(False)
     startup_progress.setWindowModality(Qt.NonModal)
-    startup_progress.show()
+    startup_presentation = "archive_browser_hold" if embedded_alignment_builder else "progress_dialog"
+    if embedded_alignment_builder:
+        # QProgressDialog starts its force-show timer during construction even
+        # when no value is assigned. Reset it so a completed earlier load
+        # cannot flash over a later embedded Mesh Editor transition.
+        startup_progress.reset()
+    else:
+        startup_progress.show()
     startup_progress_closed = _alignment_startup_progress_initial_state_helper()
     alignment_startup_step_state = _alignment_startup_step_initial_state_helper()
 
-    _paint_alignment_startup_progress_helper(startup_progress)
+    if not embedded_alignment_builder:
+        _paint_alignment_startup_progress_helper(startup_progress)
+    _record_runtime_event(
+        "mesh_alignment_startup_presentation",
+        path=getattr(entry, "path", ""),
+        dialog_title=dialog_title,
+        embedded=embedded_alignment_builder,
+        presentation=startup_presentation,
+        startup_progress_visible=bool(startup_progress.isVisible()),
+    )
 
     def _alignment_startup_step(message: str) -> None:
         if _alignment_startup_progress_closed_helper(startup_progress_closed):
@@ -81,10 +97,14 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
             builder_startup_step_elapsed_ms=elapsed_ms,
             modify_original_clone=modify_original_clone_mode,
             defer_original_texture_preview=defer_original_texture_preview,
+            embedded=embedded_alignment_builder,
+            presentation=startup_presentation,
+            startup_progress_visible=bool(startup_progress.isVisible()),
         )
-        startup_progress.setLabelText(message)
-        startup_progress.setValue(0)
-        _paint_alignment_startup_progress_helper(startup_progress)
+        if not embedded_alignment_builder:
+            startup_progress.setLabelText(message)
+            startup_progress.setValue(0)
+            _paint_alignment_startup_progress_helper(startup_progress)
 
     def _finish_alignment_startup_progress() -> None:
         if not _alignment_startup_progress_mark_closed_helper(startup_progress_closed):

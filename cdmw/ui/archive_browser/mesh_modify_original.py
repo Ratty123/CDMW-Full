@@ -430,6 +430,7 @@ class ArchiveMeshModifyOriginalMixin:
             _progress: Callable[[int, int, str], None],
             stop_event: threading.Event,
         ) -> dict[str, object]:
+            inspection_started = time.perf_counter()
             self._cleanup_stale_modify_original_sessions(on_log=log)
             source_data, source_hash = read_modify_original_source_asset(
                 entry,
@@ -439,6 +440,10 @@ class ArchiveMeshModifyOriginalMixin:
                 "source_data": source_data,
                 "source_hash": source_hash,
                 "drafts": discover_modify_original_drafts(session_root, source_hash),
+                "inspection_elapsed_ms": round(
+                    max(0.0, (time.perf_counter() - inspection_started) * 1000.0),
+                    3,
+                ),
             }
 
         def _source_inspected(result: object) -> None:
@@ -447,6 +452,15 @@ class ArchiveMeshModifyOriginalMixin:
                 return
             source_data = result.get("source_data")
             source_hash = str(result.get("source_hash") or "")
+            recorder = getattr(self, "_record_runtime_event", None)
+            if callable(recorder):
+                recorder(
+                    "mesh_modify_original_source_inspected",
+                    path=str(entry.path or ""),
+                    source_asset_bytes=len(source_data) if isinstance(source_data, (bytes, bytearray)) else 0,
+                    inspection_elapsed_ms=float(result.get("inspection_elapsed_ms", 0.0) or 0.0),
+                    matching_draft_count=len(tuple(result.get("drafts") or ())),
+                )
             drafts = tuple(
                 item for item in tuple(result.get("drafts") or ()) if isinstance(item, ModifyOriginalDraft)
             )
@@ -587,6 +601,23 @@ class ArchiveMeshModifyOriginalMixin:
             source_asset_sha256=str(source_asset_sha256 or ""),
             resume_manifest_path=resume_manifest_path,
         )
+        recorder = getattr(self, "_record_runtime_event", None)
+        if callable(recorder):
+            recorder(
+                "mesh_modify_original_preparation_requested",
+                path=str(entry.path or ""),
+                workspace_mode=(
+                    "user_workspace"
+                    if create_workspace
+                    else "resume_app_draft"
+                    if resume_manifest_path is not None
+                    else "internal_app_session"
+                ),
+                source_asset_preloaded=bool(source_asset_data),
+                source_asset_bytes=len(source_asset_data),
+                cached_texture_reference_count=len(cached_texture_references),
+                cached_family_graph=bool(cached_family_graph is not None),
+            )
 
         def _task(
             log: Callable[[str], None],
@@ -618,6 +649,29 @@ class ArchiveMeshModifyOriginalMixin:
             if not isinstance(workspace, Path) or not isinstance(obj_path, Path):
                 self.set_status_message("Modify Original workspace did not return an editable OBJ clone.", error=True)
                 return
+            performance = result.get("performance")
+            performance_values = performance if isinstance(performance, Mapping) else {}
+            if callable(recorder):
+                recorder(
+                    "mesh_modify_original_preparation_ready",
+                    path=str(entry.path or ""),
+                    workspace_mode=str(result.get("workspace_mode") or ""),
+                    resumed_draft=bool(result.get("resumed_draft")),
+                    source_verify_ms=float(performance_values.get("source_verify_ms", 0.0) or 0.0),
+                    obj_export_ms=float(performance_values.get("obj_export_ms", 0.0) or 0.0),
+                    editable_clone_import_ms=float(
+                        performance_values.get("editable_clone_import_ms", 0.0) or 0.0
+                    ),
+                    original_mesh_parse_ms=float(
+                        performance_values.get("original_mesh_parse_ms", 0.0) or 0.0
+                    ),
+                    metadata_write_ms=float(performance_values.get("metadata_write_ms", 0.0) or 0.0),
+                    preparation_total_elapsed_ms=float(
+                        performance_values.get("total_elapsed_ms", 0.0) or 0.0
+                    ),
+                    source_asset_bytes=int(performance_values.get("source_asset_bytes", 0) or 0),
+                    editable_obj_bytes=int(performance_values.get("editable_obj_bytes", 0) or 0),
+                )
             if open_after:
                 QDesktopServices.openUrl(QUrl.fromLocalFile(str(workspace.resolve())))
             if create_workspace:

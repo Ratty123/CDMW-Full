@@ -186,6 +186,15 @@ class MeshEditorShellBridgeMixin:
             path=getattr(entry, "path", ""),
             package=str(getattr(entry, "pamt_path", "") or ""),
         )
+        recorder = getattr(self, "_record_runtime_event", None)
+        if callable(recorder):
+            recorder(
+                "mesh_editor_archive_open_requested",
+                path=str(entry.path or ""),
+                package=str(entry.pamt_path or ""),
+                source="archive_browser",
+                mode="modify_original",
+            )
         QTimer.singleShot(0, lambda current_entry=entry: self._start_archive_modify_original_workspace(current_entry))
 
     def _mesh_editor_import_replacement_requested(self, entry: object) -> None:

@@ -297,6 +297,7 @@ def prepare_modify_original_workspace(
     never writes to PAMT/PAZ sources; all output is confined to ``workspace_dir``.
     """
 
+    preparation_started = time.perf_counter()
     stop = stop_event or threading.Event()
     emit = log or (lambda _message: None)
     report = progress or (lambda _current, _total, _detail: None)
@@ -313,6 +314,7 @@ def prepare_modify_original_workspace(
     report(1, total_steps, "Modify Original: verifying source asset...")
     if request.cleanup_stale_sessions and cleanup_stale_sessions is not None:
         cleanup_stale_sessions(emit)
+    source_verify_started = time.perf_counter()
     if original_data:
         source_asset_sha256 = hashlib.sha256(original_data).hexdigest()
     else:
@@ -322,6 +324,7 @@ def prepare_modify_original_workspace(
         )
     if requested_source_hash and requested_source_hash != source_asset_sha256:
         raise ValueError("Modify Original source fingerprint changed before the workspace opened")
+    source_verify_ms = max(0.0, (time.perf_counter() - source_verify_started) * 1000.0)
 
     resumed = _resume_modify_original_workspace(
         request,
@@ -349,6 +352,7 @@ def prepare_modify_original_workspace(
         )
 
     report(2, total_steps, "Modify Original: writing editable OBJ clone...")
+    export_started = time.perf_counter()
     export_result = export_archive_mesh(
         entry,
         workspace_dir,
@@ -363,6 +367,7 @@ def prepare_modify_original_workspace(
         build_preview_context=create_workspace,
         on_log=emit,
     )
+    obj_export_ms = max(0.0, (time.perf_counter() - export_started) * 1000.0)
     raise_if_cancelled(stop, "Modify Original preparation cancelled.")
     obj_paths = [path for path in export_result.output_paths if path.suffix.lower() == ".obj"]
     if not obj_paths:
@@ -371,10 +376,14 @@ def prepare_modify_original_workspace(
 
     emit("Preloading Modify Original clone geometry off the UI thread...")
     report(3, total_steps, "Modify Original: loading editable clone geometry...")
+    clone_import_started = time.perf_counter()
     scene_import_result = import_scene_mesh_with_report(obj_path, stop_event=stop)
+    editable_clone_import_ms = max(0.0, (time.perf_counter() - clone_import_started) * 1000.0)
     emit("Preloading original archive mesh for Geometry alignment...")
     report(4, total_steps, "Modify Original: loading original archive mesh...")
+    original_parse_started = time.perf_counter()
     original_mesh = parse_mesh(original_data, entry.path)
+    original_mesh_parse_ms = max(0.0, (time.perf_counter() - original_parse_started) * 1000.0)
     source_skeleton = None
     supplemental_files = tuple(
         Path(path)
@@ -386,6 +395,7 @@ def prepare_modify_original_workspace(
     )
     raise_if_cancelled(stop, "Modify Original preparation cancelled.")
 
+    metadata_started = time.perf_counter()
     readme_path, manifest_path, mesh_layer_project_path = _write_modify_original_workspace_metadata(
         request,
         workspace_dir,
@@ -394,6 +404,8 @@ def prepare_modify_original_workspace(
         supplemental_files,
         export_result,
     )
+    metadata_write_ms = max(0.0, (time.perf_counter() - metadata_started) * 1000.0)
+    total_elapsed_ms = max(0.0, (time.perf_counter() - preparation_started) * 1000.0)
     report(5, total_steps, "Modify Original: opening Geometry workspace...")
     return {
         "workspace_dir": workspace_dir,
@@ -411,6 +423,16 @@ def prepare_modify_original_workspace(
         "scene_import_result": scene_import_result,
         "source_skeleton": source_skeleton,
         "original_mesh": original_mesh,
+        "performance": {
+            "source_verify_ms": round(source_verify_ms, 3),
+            "obj_export_ms": round(obj_export_ms, 3),
+            "editable_clone_import_ms": round(editable_clone_import_ms, 3),
+            "original_mesh_parse_ms": round(original_mesh_parse_ms, 3),
+            "metadata_write_ms": round(metadata_write_ms, 3),
+            "total_elapsed_ms": round(total_elapsed_ms, 3),
+            "source_asset_bytes": len(original_data),
+            "editable_obj_bytes": obj_path.stat().st_size if obj_path.is_file() else 0,
+        },
     }
 
 
