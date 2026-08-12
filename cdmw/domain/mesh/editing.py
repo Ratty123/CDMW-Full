@@ -241,6 +241,7 @@ class MeshEditResult:
     native_selection_groups: tuple[Mapping[str, object], ...] = ()
     native_preview_vertex_update_groups: tuple[Mapping[str, object], ...] = ()
     native_preview_triangle_groups: tuple[Mapping[str, object], ...] = ()
+    session_view: MeshEditSessionView | None = None
 
     @property
     def ok(self) -> bool:

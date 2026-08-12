@@ -318,7 +318,9 @@ class MeshEditorDotNetProcessMixin:
         command = self._standalone_action_command(action, controller, action_text=action_text)
         if command is None:
             return False
-        session_id = controller.session_view().session_id
+        session_id = str(controller.active_session_id or "")
+        if not session_id:
+            return False
         self.standalone_action_request_id += 1
         request_id = self.standalone_action_request_id
         worker = _tab.MeshEditCommandWorker(request_id, controller.mesh_service, session_id, command, action_text=action_text)
@@ -374,7 +376,7 @@ class MeshEditorDotNetProcessMixin:
         worker = _tab.MeshEditCommandWorker(
             request_id,
             controller.mesh_service,
-            controller.session_view().session_id,
+            str(controller.active_session_id or ""),
             command,
             action_text=str(command.label or normalized_name),
         )
@@ -465,6 +467,7 @@ class MeshEditorDotNetProcessMixin:
                 diagnostics=(text,),
                 request_payload=self.standalone_action_dotnet_request_payload,
             )
+            self._send_dotnet_session_state()
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, False)
         self._complete_pending_dotnet_exit()
@@ -481,6 +484,7 @@ class MeshEditorDotNetProcessMixin:
                 diagnostics=(text,),
                 request_payload=self.standalone_action_dotnet_request_payload,
             )
+            self._send_dotnet_session_state()
             if self.standalone_action_dotnet_command.startswith("morph_"):
                 self._send_dotnet_cached_morph_state(
                     request_payload=self.standalone_action_dotnet_request_payload,
@@ -494,21 +498,28 @@ class MeshEditorDotNetProcessMixin:
         thread: QThread,
         worker: _tab.MeshEditCommandWorker,
     ) -> None:
-        if self.standalone_action_thread is thread:
-            self.standalone_action_thread = None
-        if self.standalone_action_worker is worker:
-            self.standalone_action_worker = None
-            self.standalone_action_text = ""
-            self.standalone_action_controller = None
-            self.standalone_action_dotnet_command = ""
-            self.standalone_action_dotnet_request_payload = None
+        if (
+            self.standalone_action_thread is not thread
+            or self.standalone_action_worker is not worker
+        ):
+            # A completed .NET command may start its correlated successor before
+            # QThread delivers this older cleanup. Every shared field below now
+            # belongs to that successor, so stale cleanup must have no effects.
+            return
+        dotnet_action = bool(self.standalone_action_dotnet_command)
+        self.standalone_action_thread = None
+        self.standalone_action_worker = None
+        self.standalone_action_text = ""
+        self.standalone_action_controller = None
+        self.standalone_action_dotnet_command = ""
+        self.standalone_action_dotnet_request_payload = None
         progress = self.standalone_action_progress
         if progress is not None:
             progress.close()
             progress.deleteLater()
             self.standalone_action_progress = None
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
-        if self._standalone_dotnet_editor_process_running():
+        if self._standalone_dotnet_editor_process_running() and not dotnet_action:
             self._send_dotnet_session_state()
         self._complete_pending_dotnet_exit()
         self._retry_pending_dotnet_finish()

@@ -399,7 +399,11 @@ std::string uv_summary_report_json(const std::vector<UvIslandSummaryResult>& isl
             << ",\"selected\":" << (island.selected ? "true" : "false")
             << ",\"selected_vertex_count\":" << island.selected_vertex_count
             << ",\"selected_face_count\":" << island.selected_face_count
-            << '}';
+            << ",\"vertex_indices\":";
+        write_int_vector(out, island.vertex_indices);
+        out << ",\"face_indices\":";
+        write_int_vector(out, island.face_indices);
+        out << '}';
     }
     out << "]}";
     return out.str();

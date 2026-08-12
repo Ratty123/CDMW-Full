@@ -23,12 +23,16 @@ because that one really is a broken hydration contract.
 from __future__ import annotations
 
 import os
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
 
 from cdmw.domain.mesh import MeshEditResult, MeshEditSelection
+from cdmw.ui.archive_browser.static_replacement_mesh_edit_actions import (
+    create_actions_callbacks,
+)
 from cdmw.ui.mesh_editor import static_replacement_adapter as adapter_module
 from cdmw.ui.mesh_editor.static_replacement_adapter import StaticReplacementMeshEditSession
 
@@ -102,6 +106,64 @@ def test_a_selection_commits_without_submesh_counts(
         "unchanged rather than the action being rejected"
     )
     assert session.submesh_counts == BEFORE_COUNTS
+
+
+@pytest.mark.parametrize(
+    "action_key",
+    ["select", "clear_selection", "select_all", "grow", "shrink", "invert"],
+)
+def test_embedded_dotnet_selection_commit_skips_geometry_snapshot_round_trip(
+    action_key: str,
+) -> None:
+    current_selection = MeshEditSelection.from_maps(faces_by_submesh={0: range(20_000)})
+
+    class _SelectionSession:
+        selection = current_selection
+
+        def _result(self, *_args: object, **_kwargs: object) -> object:
+            raise AssertionError("selection-only commit rebuilt a native update on the UI thread")
+
+        def view(self) -> object:
+            raise AssertionError("selection-only commit refetched the authoritative selection")
+
+    session = _SelectionSession()
+    refreshed: list[bool] = []
+    mirrored: list[MeshEditSelection] = []
+    state = SimpleNamespace(
+        StaticReplacementMeshEditSession=_SelectionSession,
+        MeshEditSelection=MeshEditSelection,
+        mesh_editor_static_replacement_session_state={},
+    )
+    callbacks = SimpleNamespace(
+        _mesh_editor_fresh_static_replacement_session=lambda: session,
+        _refresh_mesh_edit_controls=lambda: refreshed.append(True),
+        _mesh_edit_record_snapshot=lambda: (_ for _ in ()).throw(
+            AssertionError("selection-only commit captured a full mesh snapshot")
+        ),
+        _mesh_editor_commit_action_bar_service_result=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("selection-only commit entered the geometry result path")
+        ),
+        _mesh_edit_set_selection_state=lambda selection: mirrored.append(selection),
+    )
+    actions = create_actions_callbacks(state, callbacks)
+
+    assert actions._mesh_editor_commit_dotnet_edit_result(
+        MeshEditResult(action="select", status="ok", revision=9),
+        action_key=action_key,
+        action_text="Select Mesh",
+        selection=current_selection,
+    )
+    replacement_selection = MeshEditSelection.from_maps(vertices_by_submesh={0: (1, 2, 3)})
+    session.selection = replacement_selection
+    assert actions._mesh_editor_commit_dotnet_edit_result(
+        MeshEditResult(action="select", status="ok", revision=9),
+        action_key=action_key,
+        action_text="Select Mesh",
+        selection=replacement_selection,
+    )
+    assert "dotnet_committed_revision" not in state.mesh_editor_static_replacement_session_state
+    assert refreshed == [True, True]
+    assert mirrored == [current_selection, replacement_selection]
 
 
 def test_a_result_that_changed_topology_still_must_report_counts(

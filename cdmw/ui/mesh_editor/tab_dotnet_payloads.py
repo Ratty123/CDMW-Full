@@ -16,25 +16,22 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
     def _flush_dotnet_protocol_messages(self, timeout_ms: int = 500) -> bool:
         del timeout_ms
         return True
-    def _send_dotnet_session_state(self) -> bool:
+    def _send_dotnet_session_state(
+        self,
+        *,
+        include_selection: bool = True,
+        session_view: _tab.MeshEditSessionView | None = None,
+    ) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None:
             return False
-        try:
-            view = controller.session_view()
-        except (AttributeError, RuntimeError, TypeError, ValueError):
-            return False
+        view = session_view
+        if view is None:
+            try:
+                view = controller.session_view()
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                return False
         actions = sorted(mesh_editor_actions_by_key().keys())
-        selection = view.selection
-        try:
-            geometry_layers = controller.geometry_layer_state()
-        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
-            geometry_layers = {
-                "revision": 0,
-                "active_layer_id": "base",
-                "clipboard_ready": False,
-                "layers": (),
-            }
         payload = {
             "event": "session_state",
             "session_id": view.session_id,
@@ -42,7 +39,6 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             "mode": view.mode,
             "revision": view.revision,
             "selection_mode": str(getattr(controller, "active_selection_mode", "") or self.current_selection_mode or "brush"),
-            "selection": self._dotnet_selection_payload(selection),
             "submesh_count": view.submesh_count,
             "vertex_count": view.vertex_count,
             "face_count": view.face_count,
@@ -59,8 +55,18 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             ],
             "actions": actions,
             "selection_depth_mode": "visible",
-            "geometry_layers": geometry_layers,
         }
+        if include_selection:
+            payload["selection"] = self._dotnet_selection_payload(view.selection)
+            try:
+                payload["geometry_layers"] = controller.geometry_layer_state()
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+                payload["geometry_layers"] = {
+                    "revision": 0,
+                    "active_layer_id": "base",
+                    "clipboard_ready": False,
+                    "layers": (),
+                }
         return self._send_dotnet_protocol_message(payload)
 
     def _send_dotnet_cached_morph_state(
@@ -344,13 +350,16 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
         revision = None
         selection: _tab.MeshEditSelection | None = None
         if controller is not None:
-            try:
-                view = controller.session_view()
+            view = update.session_view
+            if view is None:
+                try:
+                    view = controller.session_view()
+                except (AttributeError, RuntimeError, TypeError, ValueError):
+                    view = None
+            if view is not None:
                 session_id = view.session_id
                 revision = view.revision
                 selection = view.selection
-            except (AttributeError, RuntimeError, TypeError, ValueError):
-                pass
         base: dict[str, object] = {}
         if session_id:
             base["session_id"] = session_id
@@ -438,6 +447,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
         *,
         command_name: str = "",
         request_payload: object = None,
+        authoritative_selection: _tab.MeshEditSelection | None = None,
     ) -> bool:
         """Let the builder record an edit the embedded editor raised itself.
 
@@ -450,8 +460,8 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
         commit = getattr(builder, "_mesh_editor_commit_dotnet_edit_result", None) if builder is not None else None
         if not callable(commit):
             return False
-        selection = None
-        if isinstance(request_payload, Mapping):
+        selection = authoritative_selection
+        if selection is None and isinstance(request_payload, Mapping):
             try:
                 selection = self._dotnet_local_selection_payload_to_selection(request_payload)
             except (AttributeError, TypeError, ValueError):
@@ -485,14 +495,27 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                 request_payload=request_payload,
             )
             return False
+        selection_result = str(result.action or "").strip().lower() in {
+            "select",
+            "clear_selection",
+        }
         if self.standalone_dotnet_target_embedded:
-            self._apply_embedded_native_update(update)
+            if not selection_result:
+                self._apply_embedded_native_update(update)
             self._commit_embedded_edit_result(
                 result,
                 command_name=command_name,
                 request_payload=request_payload,
+                authoritative_selection=(
+                    update.session_view.selection
+                    if selection_result and update.session_view is not None
+                    else None
+                ),
             )
-            self._refresh_embedded_workspace_from_builder()
+            self._refresh_embedded_workspace_from_builder(
+                include_derived=not selection_result,
+                session_view=update.session_view if selection_result else None,
+            )
         elif (
             update.vertex_groups
             or update.triangle_groups
@@ -509,7 +532,18 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             result=result,
             request_payload=request_payload,
         )
-        self._send_dotnet_session_state()
+        self._send_dotnet_session_state(
+            include_selection=not selection_result,
+            session_view=update.session_view if selection_result else None,
+        )
+        if selection_result and self.standalone_dotnet_target_embedded:
+            self._refresh_embedded_active_selection_summary(
+                selection=(
+                    update.session_view.selection
+                    if update.session_view is not None
+                    else None
+                )
+            )
         normalized_command = (command_name or result.action).strip().lower()
         if normalized_command.startswith("morph_") or normalized_command in {"undo", "redo"} or result.topology_changed:
             self._send_dotnet_cached_morph_state(request_payload=request_payload)

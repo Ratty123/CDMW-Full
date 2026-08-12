@@ -11,9 +11,12 @@ from __future__ import annotations
 import os
 from types import SimpleNamespace
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from cdmw.domain.mesh import MeshEditResult, MeshEditSelection
+from cdmw.ui.mesh_editor.controller import MeshEditorNativeUpdate
 from cdmw.ui.mesh_editor import tab as _mesh_editor_tab_facade  # noqa: F401  (loads the compat facade)
 from cdmw.ui.mesh_editor.tab_dotnet_payloads import MeshEditorDotNetPayloadMixin
 from cdmw.ui.mesh_editor.tab_interaction import MeshEditorInteractionMixin
@@ -104,3 +107,54 @@ def test_a_failing_builder_commit_is_reported_rather_than_raised() -> None:
     # down over a bookkeeping failure.
     assert bridge._commit_embedded_edit_result(_result()) is False
     assert [name for name, _ in bridge.runtime_events] == ["mesh_editor_embedded_commit_failed"]
+
+
+@pytest.mark.parametrize(
+    "command_name",
+    ["clear_selection", "select_all", "grow", "shrink", "invert"],
+)
+def test_direct_selection_aliases_publish_once_without_derived_workspace_refresh(
+    command_name: str,
+) -> None:
+    bridge = _Bridge(_builder_recording_commits())
+    bridge.standalone_dotnet_target_embedded = True
+    embedded_applies: list[object] = []
+    workspace_refreshes: list[bool] = []
+    native_sends: list[object] = []
+    session_selection_flags: list[bool] = []
+    update = MeshEditorNativeUpdate(
+        selection_groups=({"source_submesh_index": 0, "face_indices": (0, 1)},),
+        refresh_selection=True,
+    )
+    controller = SimpleNamespace(native_update_for_result=lambda _result: update)
+    bridge._apply_embedded_native_update = lambda payload: embedded_applies.append(payload) or True
+    bridge._refresh_embedded_workspace_from_builder = (
+        lambda *, include_derived=True, session_view=None: workspace_refreshes.append(bool(include_derived))
+    )
+    bridge._send_dotnet_native_update = (
+        lambda payload, **_kwargs: native_sends.append(payload) or True
+    )
+    bridge._send_dotnet_session_state = (
+        lambda *, include_selection=True, session_view=None: session_selection_flags.append(bool(include_selection)) or True
+    )
+    bridge._send_dotnet_cached_morph_state = lambda **_kwargs: True
+    bridge._set_dotnet_status = lambda *_args, **_kwargs: None
+    summary_refreshes: list[bool] = []
+    bridge._refresh_embedded_active_selection_summary = (
+        lambda *, selection=None: summary_refreshes.append(True)
+    )
+
+    assert bridge._apply_dotnet_result_update(
+        controller,
+        MeshEditResult(action="select", status="ok", revision=7),
+        command_name=command_name,
+        request_payload={"request_id": 12},
+    )
+
+    assert embedded_applies == []
+    assert len(bridge._builder.calls) == 1
+    assert bridge._builder.calls[0]["action_key"] == command_name
+    assert workspace_refreshes == [False]
+    assert native_sends == [update]
+    assert session_selection_flags == [False]
+    assert summary_refreshes == [True]

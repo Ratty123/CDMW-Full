@@ -45,6 +45,7 @@ from cdmw.domain.mesh import (
     MeshEditSelection,
     MeshExportValidationIssue,
     MeshExportValidationReport,
+    summarize_mesh_uvs,
 )
 from cdmw.modding.mesh_importer import MeshRebuildReport
 from cdmw.modding.mesh_exporter import _build_roundtrip_manifest_payload
@@ -1378,6 +1379,122 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertEqual(["uv_flip_u"], [getattr(action, "key", "") for action in emitted])
         app.processEvents()
         tab.deleteLater()
+
+    def test_embedded_selection_refresh_does_not_recompute_derived_mesh_reports(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedSelectionRefresh"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        builder.controller.select(vertices_by_submesh={0: (0,)})
+
+        expensive = (
+            "workspace_summary",
+            "uv_summary",
+            "skeleton_summary",
+            "compare_summary",
+            "export_validation_report",
+        )
+        patches = [
+            patch.object(
+                builder.controller,
+                name,
+                side_effect=AssertionError(f"selection refresh recomputed {name}"),
+            )
+            for name in expensive
+        ]
+        try:
+            for target in patches:
+                target.start()
+            tab._refresh_embedded_workspace_from_builder(include_derived=False)
+            assert tab.embedded_workspace is not None
+            self.assertIn("Revision", tab.embedded_workspace.status_label.text())
+            summary = tab.embedded_workspace._workspace_summary
+            assert summary is not None
+            self.assertTrue(summary.parts[0].selected)
+            self.assertEqual(1, summary.parts[0].selected_vertex_count)
+        finally:
+            for target in reversed(patches):
+                target.stop()
+            tab.deleteLater()
+            app.processEvents()
+
+    def test_embedded_uv_panel_refreshes_selection_summary_on_demand(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedUvSelectionRefresh"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        cached = summarize_mesh_uvs(builder.controller.working_mesh(clone=False))
+        assert tab.embedded_workspace is not None
+        tab.embedded_workspace.update_uv_summary(cached)
+        result = builder.controller.select(faces_by_submesh={0: (0,)})
+        assert result.session_view is not None
+        tab._refresh_embedded_workspace_from_builder(
+            include_derived=False,
+            session_view=result.session_view,
+        )
+        panels = tab.embedded_workspace.right_panels
+        uv_index = next(
+            index
+            for index in range(panels.count())
+            if panels.tabText(index) == "UV Map"
+        )
+
+        with patch.object(
+            builder.controller,
+            "uv_summary",
+            side_effect=AssertionError("selection rebuilt UV topology"),
+        ):
+            panels.setCurrentIndex(uv_index)
+
+        summary = tab.embedded_workspace._uv_summary
+        assert summary is not None
+        self.assertGreater(summary.selected_island_count, 0)
+        tab.deleteLater()
+        app.processEvents()
+
+    def test_embedded_active_uv_selection_summary_does_not_wait_for_service_report(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedUvCachedRefresh"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        cached = summarize_mesh_uvs(builder.controller.working_mesh(clone=False))
+        assert tab.embedded_workspace is not None
+        tab.embedded_workspace.update_uv_summary(cached)
+        result = builder.controller.select(faces_by_submesh={0: (0,)})
+        assert result.session_view is not None
+        tab._refresh_embedded_workspace_from_builder(
+            include_derived=False,
+            session_view=result.session_view,
+        )
+        panels = tab.embedded_workspace.right_panels
+        uv_index = next(
+            index
+            for index in range(panels.count())
+            if panels.tabText(index) == "UV Map"
+        )
+        try:
+            with (
+                patch.object(
+                    builder.controller,
+                    "session_view",
+                    side_effect=AssertionError("panel switch refetched dense selection"),
+                ),
+                patch.object(
+                    builder.controller,
+                    "uv_summary",
+                    side_effect=AssertionError("selection waited for service UV report"),
+                ),
+            ):
+                started = time.perf_counter()
+                panels.setCurrentIndex(uv_index)
+                elapsed_ms = (time.perf_counter() - started) * 1000.0
+            summary = tab.embedded_workspace._uv_summary
+            assert summary is not None
+            self.assertEqual(1, summary.selected_island_count)
+            self.assertLess(elapsed_ms, 50.0)
+        finally:
+            tab.deleteLater()
+            app.processEvents()
 
     def test_mesh_editor_embedded_rig_is_readable_and_selects_bones(self) -> None:
         app = QApplication.instance() or QApplication([])
@@ -3531,6 +3648,84 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertEqual(15, errors[0][0])
         self.assertIn("legacy display-shape cleanup", errors[0][1])
         app.processEvents()
+
+    def test_dotnet_direct_selection_worker_completes_without_ui_session_refetch(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDirectSelectionWorkerAuthority"))
+        builder = _EmbeddedMeshBuilder(session_id="direct-selection-worker-authority")
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_controller = builder.controller
+        tab.standalone_dotnet_target_embedded = True
+        sent_payloads: list[dict[str, object]] = []
+        native_updates: list[object] = []
+        command = MeshEditCommand(
+            "select",
+            selection=MeshEditSelection(),
+            params={"operation": "all", "target_mode": "face"},
+            mode="edit",
+            label="Select All",
+        )
+        try:
+            with (
+                patch.object(
+                    builder.controller,
+                    "session_view",
+                    side_effect=AssertionError("direct selection completion refetched the session on the UI thread"),
+                ),
+                patch.object(
+                    builder.controller,
+                    "geometry_layer_state",
+                    side_effect=AssertionError("direct selection completion entered the geometry lock on the UI thread"),
+                ),
+                patch.object(
+                    tab,
+                    "_send_dotnet_native_update",
+                    side_effect=lambda update, **_kwargs: native_updates.append(update) or True,
+                ),
+                patch.object(
+                    tab,
+                    "_send_dotnet_protocol_message",
+                    side_effect=lambda payload: sent_payloads.append(dict(payload)) or True,
+                ),
+                patch.object(tab, "_standalone_dotnet_editor_process_running", return_value=True),
+            ):
+                self.assertTrue(
+                    tab._start_dotnet_action_worker(
+                        builder.controller,
+                        command,
+                        command_name="select_all",
+                        request_payload={"request_id": 77},
+                    )
+                )
+                self.assertTrue(
+                    _wait_for(
+                        app,
+                        lambda: tab.standalone_action_thread is None,
+                        timeout_seconds=_LOW_PRIORITY_THREAD_TIMEOUT_SECONDS,
+                    )
+                )
+
+            session_states = [
+                payload
+                for payload in sent_payloads
+                if str(payload.get("event", "") or "") == "session_state"
+            ]
+            self.assertEqual(1, len(native_updates))
+            self.assertEqual(1, len(session_states))
+            self.assertNotIn("selection", session_states[0])
+            self.assertNotIn("geometry_layers", session_states[0])
+            self.assertEqual(
+                builder.controller.session_view().face_count,
+                sum(
+                    len(indices)
+                    for indices in builder.controller.session_view().selection.face_map().values()
+                ),
+            )
+        finally:
+            tab.request_shutdown()
+            tab.deleteLater()
+            builder.deleteLater()
+            app.processEvents()
 
     def test_mesh_editor_tab_runs_standalone_topology_action_in_worker_by_default(self) -> None:
         app = QApplication.instance() or QApplication([])

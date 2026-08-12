@@ -529,7 +529,24 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   construction per frame. Native selection remains single-flight in the
   background, but its growing intermediate snapshots receive lightweight
   acknowledgements instead of replacing a newer local echo; the complete
-  depth-resolved selection is published on release. Move applies a transient transform only to the selected mesh elements
+  depth-resolved selection is published on release. That terminal selection is
+  one correlated authority update: it does not reapply to the same embedded
+  helper, repeat inside the following session-state payload, enter Builder
+  geometry history, or rebuild mesh-derived workspace reports. The Parts panel
+  updates its selection markers and counts from the cached geometry summary;
+  the worker-produced session view follows the terminal update through every
+  Qt-side consumer, avoiding another selection-prune session read. UV-island
+  source-face membership, including topology fan-out multiplicity, travels with
+  the ordinary topology report, so active UV Map selection counts update from
+  that cache without a mesh scan or session lock. UV and Rig panels are matched
+  by stable widget identity rather than their translated captions. Rig reuses
+  its cached part summary and clears stale per-vertex weight rows when the
+  selection changes.
+  The compact post-selection session status also omits unchanged geometry-layer
+  state, and direct Select All/Grow/Shrink/Invert commands carry the same
+  worker-produced view, so neither path re-enters the session lock on the Qt
+  thread after completing.
+  Move applies a transient transform only to the selected mesh elements
   (or an explicitly selected PARTS row). Fixed Move and Grab scopes cache their
   incident face ranges on the first sample and rotate three transient vertex
   buffers, keeping later samples off a buffer the GPU may still be drawing.
@@ -1020,7 +1037,19 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   fit, yaw, and orbit run against a real hidden D3D frame. The gate writes the
   correlated protocol, command, timeline, renderer, and flight-recorder evidence
   without opening a window or reading a licensed asset; it does not replace PAC
-  visual or real-game validation.
+  visual or real-game validation. A second composed phase drives dense Face
+  Brush begin/update/end requests through a real offscreen Qt `MeshEditorTab`,
+  live dispatcher, resident native session, Builder commit bridge, workspace,
+  and JSON serialization over a 20,000-face grid. It requires a single
+  correlated terminal selection, no duplicate session-state selection or
+  unchanged geometry-layer payload, no direct helper apply, zero geometry
+  snapshots, exact cached workspace counts, no begin/update selection
+  publication, and sub-200 ms mouse-up-to-idle,
+  terminal-completion, and Qt heartbeat gaps. The UV Map panel remains active
+  for the terminal case; its cached island membership must cover all fixture
+  faces and reconcile the final selected-face count without breaking the same
+  heartbeat, and the Qt thread must not call back into the selection-pruning
+  session-view or geometry-layer paths.
 - External static replacement/import previews clear inherited reference
   skeleton and physics overlay metadata by default. Overlays are preserved only
   through explicit diagnostic/overlay paths. Native original-reference splicing

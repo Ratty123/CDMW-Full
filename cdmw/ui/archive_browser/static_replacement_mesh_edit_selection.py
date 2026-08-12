@@ -219,12 +219,15 @@ def _mesh_edit_selection_worker_completed(_state, _callbacks, request_id: int, r
     if int(_state.mesh_edit_revision.get("value", 0) or 0) != start_revision:
         _state.self.set_status_message("Selection result was discarded because the mesh changed while it was running.", error=True)
         return
-    controller = getattr(session, "controller", None)
-    session_view = getattr(controller, "session_view", None)
-    if not callable(session_view):
-        _state.self.set_status_message("Selection update failed.", error=True)
-        return
-    selection = session_view().selection
+    view = getattr(result, "session_view", None)
+    if view is None:
+        controller = getattr(session, "controller", None)
+        session_view = getattr(controller, "session_view", None)
+        if not callable(session_view):
+            _state.self.set_status_message("Selection update failed.", error=True)
+            return
+        view = session_view()
+    selection = view.selection
     _callbacks._mesh_edit_set_vertex_selection(selection.vertex_map())
     diagnostics = tuple(getattr(result, "diagnostics", ()) or ())
     if diagnostics:

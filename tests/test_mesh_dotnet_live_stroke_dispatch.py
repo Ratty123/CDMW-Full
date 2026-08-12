@@ -11,7 +11,12 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QObject
 from PySide6.QtWidgets import QApplication
 
-from cdmw.domain.mesh import MeshEditCommand, MeshEditResult, MeshEditSelection
+from cdmw.domain.mesh import (
+    MeshEditCommand,
+    MeshEditResult,
+    MeshEditSelection,
+    MeshEditSessionView,
+)
 from cdmw.ui.mesh_editor.controller import MeshEditorNativeUpdate
 from cdmw.ui.mesh_editor.live_stroke_dispatcher import MeshLiveStrokeOutcome
 from cdmw.ui.mesh_editor import tab as _mesh_editor_tab_facade  # noqa: F401
@@ -70,6 +75,12 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.command_results: list[tuple[str, str]] = []
         self.sent_update_count = 0
         self.statuses: list[str] = []
+        self.workspace_refreshes: list[bool] = []
+        self.session_state_selection_flags: list[bool] = []
+        self.interaction_decisions: list[tuple[str, dict[str, object]]] = []
+        self.selection_summary_refreshes = 0
+        self.forwarded_session_views: list[MeshEditSessionView | None] = []
+        self.forwarded_selections: list[MeshEditSelection | None] = []
 
     def _dotnet_target_controller(self):
         return self.controller
@@ -113,16 +124,29 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.applied_revisions.extend(int(group["revision"]) for group in update.vertex_groups)
         return True
 
-    def _commit_embedded_edit_result(self, result, *, command_name: str = "", request_payload=None) -> bool:
+    def _commit_embedded_edit_result(
+        self,
+        result,
+        *,
+        command_name: str = "",
+        request_payload=None,
+        authoritative_selection=None,
+    ) -> bool:
         # The builder-side half of a finished edit: without it the preview moves
         # but the builder's mesh, totals and revision do not.
         del command_name, request_payload
         self.committed_revisions.append(int(result.revision))
+        self.forwarded_selections.append(authoritative_selection)
         return True
 
-    @staticmethod
-    def _refresh_embedded_workspace_from_builder() -> None:
-        return None
+    def _refresh_embedded_workspace_from_builder(
+        self,
+        *,
+        include_derived: bool = True,
+        session_view=None,
+    ) -> None:
+        self.workspace_refreshes.append(bool(include_derived))
+        self.forwarded_session_views.append(session_view)
 
     def _send_dotnet_native_update(self, _update, *, result=None, request_payload=None) -> None:
         self.sent_update_count += 1
@@ -134,11 +158,18 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.command_results.append((command, status))
         return True
 
-    def _send_dotnet_session_state(self) -> bool:
+    def _send_dotnet_session_state(
+        self,
+        *,
+        include_selection: bool = True,
+        session_view=None,
+    ) -> bool:
         # The completion path publishes a session_state after end/cancel; the
         # missing stub raised AttributeError out of the queued slot on every
         # run -- a crash report per test while the assertions stayed green.
         self.session_state_sends = getattr(self, "session_state_sends", 0) + 1
+        self.session_state_selection_flags.append(bool(include_selection))
+        self.forwarded_session_views.append(session_view)
         return True
 
     @staticmethod
@@ -152,6 +183,13 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
     def _set_dotnet_status(self, message: str, *, error: bool = False) -> None:
         del error
         self.statuses.append(message)
+
+    def _record_dotnet_interaction_decision(self, event: str, **payload: object) -> None:
+        self.interaction_decisions.append((event, dict(payload)))
+
+    def _refresh_embedded_active_selection_summary(self, *, selection=None) -> None:
+        self.selection_summary_refreshes += 1
+        self.forwarded_selections.append(selection)
 
 
 def _process_until(app: QApplication, predicate, timeout: float = 2.0) -> bool:
@@ -254,12 +292,33 @@ def test_selection_updates_defer_full_ui_payload_until_terminal_authority(termin
     app = QApplication.instance() or QApplication(["dotnet-selection-presentation-test"])
     controller = _Controller()
     harness = _Harness(controller)
+    authority = MeshEditSelection.from_maps(vertices_by_submesh={0: range(50_000)})
+    authority_view = MeshEditSessionView(
+        session_id="selection-session",
+        mode="edit",
+        revision=2,
+        selection=authority,
+        submesh_count=1,
+        vertex_count=50_000,
+        face_count=0,
+    )
     update = MeshEditorNativeUpdate(
         selection_groups=({"source_submesh_index": 0, "vertex_indices": tuple(range(50_000))},),
         refresh_selection=True,
+        session_view=authority_view,
     )
     try:
         harness.standalone_native_selection_stroke_id = "selection-1"
+        begin = MeshLiveStrokeOutcome(
+            0,
+            "begin",
+            controller,
+            MeshEditResult(action="select", status="ok", revision=1),
+            update,
+            "dotnet_selection",
+            ({"request_id": 40, "stroke_id": "selection-1"},),
+        )
+        harness._handle_dotnet_live_stroke_completed(begin)
         intermediate = MeshLiveStrokeOutcome(
             1,
             "update",
@@ -273,7 +332,10 @@ def test_selection_updates_defer_full_ui_payload_until_terminal_authority(termin
 
         assert harness.applied_update_count == 0
         assert harness.sent_update_count == 0
-        assert harness.command_results == [("select", "coalesced")]
+        assert harness.command_results == [
+            ("select", "coalesced"),
+            ("select", "coalesced"),
+        ]
 
         terminal = MeshLiveStrokeOutcome(
             2,
@@ -286,12 +348,32 @@ def test_selection_updates_defer_full_ui_payload_until_terminal_authority(termin
         )
         harness._handle_dotnet_live_stroke_completed(terminal)
 
-        assert harness.applied_update_count == 1
+        # The correlated queue below owns the one terminal publication. The
+        # embedded host is the same helper process, so applying it directly as
+        # well would serialize and parse the full selection twice on the UI
+        # threads after mouse-up.
+        assert harness.applied_update_count == 0
         assert harness.sent_update_count == 1
         assert harness.sent_revisions == [2]
         assert harness.sent_request_ids == [42]
         assert harness.committed_revisions == [2]
+        assert harness.workspace_refreshes == [False]
+        assert harness.session_state_selection_flags == [False]
+        assert harness.selection_summary_refreshes == 1
+        assert harness.forwarded_session_views == [authority_view, authority_view]
+        assert harness.forwarded_selections == [authority, authority]
         assert harness.standalone_native_selection_stroke_id == ""
+        completion = [
+            payload
+            for event, payload in harness.interaction_decisions
+            if event == "mesh_edit_selection_terminal_completed"
+        ]
+        assert len(completion) == 1
+        assert completion[0]["request_id"] == 42
+        assert completion[0]["direct_embedded_apply"] is False
+        assert completion[0]["derived_workspace_refresh"] is False
+        assert completion[0]["session_state_selection"] is False
+        assert float(completion[0]["elapsed_ms"]) >= 0.0
     finally:
         harness.deleteLater()
         app.processEvents()

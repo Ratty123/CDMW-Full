@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+- **Large Face and Vertex Brush selections no longer freeze Edit Mesh for seconds when the mouse is released.** The terminal selection was treated as a geometry edit even though no vertex moved: the Builder could snapshot the complete working mesh twice and the base mesh once, rebuild five derived reports, then serialize the same large selection through three competing publications. Selection-only commits now bypass geometry history and synchronous reports, refresh visible Parts counts from the cached workspace, publish no full selection during begin/update and one correlated authority at release, and omit its duplicate and unchanged geometry-layer state from the following session status. The worker-produced selection state is reused through the complete terminal path and direct selection commands, so the Qt thread performs no selection-prune session or geometry-layer read. UV-island source-face membership is cached with multiplicity so UV Map remains correct after topology fan-out, and localized UV/Rig panels are resolved by identity; Rig reuses its cached part summary. A hidden 10,201-vertex/20,000-face production-path run with UV Map active selected all 20,000 faces with zero Qt-thread session or geometry-layer reads, zero Builder snapshots, zero duplicate embedded applies, and zero nonterminal selection updates; the terminal handler measured 5.6 ms, mouse-up-to-dispatcher-idle 34.6 ms, and the worst bracketing Qt heartbeat gap 15.6 ms.
+
 ## [0.11.0-alpha.5] - 2026-08-12
 
 ### Fixed

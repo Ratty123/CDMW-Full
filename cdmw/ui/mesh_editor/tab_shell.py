@@ -389,6 +389,9 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         setattr(builder, "_mesh_editor_embedded_show_part_context_menu", self._show_embedded_part_context_menu)
         setattr(builder, "_mesh_editor_embedded_set_controls_visible", self._set_embedded_edit_controls_visible)
         control_tabs.currentChanged.connect(lambda _index: self._refresh_embedded_workspace_from_builder())
+        workspace.right_panels.currentChanged.connect(
+            self._refresh_embedded_active_selection_summary
+        )
         if control_tabs.currentIndex() == classic_index:
             for index in range(control_tabs.count()):
                 is_visible = getattr(control_tabs, "isTabVisible", lambda _index: True)

@@ -171,6 +171,28 @@ licensed asset. It proves deterministic synthetic protocol, renderer-resource,
 responsiveness, command semantics, and terminal reconciliation contracts; it
 is not real-game PAC visual proof.
 
+The same scenario includes a dense embedded Brush mouse-up authority case. It
+opens the real Qt `MeshEditorTab`, live-stroke dispatcher, resident native edit
+session, and Builder commit bridge over a normalized 10,201-vertex/20,000-face
+grid, selects at least 10,000 faces, and serializes the real host payloads. The
+case requires no full selection publication during begin/update, one correlated
+terminal `selection_update`, a compact following `session_state` with no
+duplicate selection or unchanged geometry-layer payload, zero direct embedded
+reapply, zero Builder geometry snapshots, and exact Builder/workspace selection
+mirrors. Mouse-up-to-dispatcher
+idle and terminal completion must both remain below 200 ms, with heartbeat
+samples bracketing that interval and a worst 10 ms Qt heartbeat gap below 200
+ms. The UV Map panel stays active while its real selection-aware dense summary
+updates from cached island membership, and the gate requires that membership to
+cover every fixture face and reproduce the final selected-face count. The same
+heartbeat therefore covers the formerly synchronous side-panel path without a
+report worker or session-lock contention, and the case rejects any Qt-thread
+session-view or geometry-layer call during the production gesture. Focused
+regressions preserve source-face multiplicity after Subdivide and resolve
+translated UV/Rig tabs by stable widget identity. This closes the former gap between
+the hidden renderer-only soak and the tiny Python/native selection fixture; the
+combined gate still remains synthetic and nonvisual.
+
 Resident Python/WinForms interface-localization negotiation, exact manifest and
 acknowledgement correlation, Unicode payload bounds, stale rejection,
 reconnect replay, and live switching without process or package replacement:

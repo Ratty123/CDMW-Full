@@ -316,6 +316,8 @@ struct UvIslandSummaryResult {
     bool selected = false;
     int selected_vertex_count = 0;
     int selected_face_count = 0;
+    std::vector<int> vertex_indices;
+    std::vector<int> face_indices;
 };
 
 struct SubmeshMetadataResult {

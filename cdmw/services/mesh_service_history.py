@@ -313,6 +313,11 @@ class MeshHistoryServiceMixin:
                 changed_items.append((submesh_index, normalized_indices))
         result_metrics = _coerce_metrics(metrics)
         result_metrics.update(_history_metrics(session))
+        session_view = (
+            self._session_view_locked(session, selection_is_authoritative=True)
+            if action == "select"
+            else None
+        )
         return MeshEditResult(
             action=action,
             status=status,
@@ -327,4 +332,5 @@ class MeshHistoryServiceMixin:
             submesh_counts=tuple((int(vertices), int(faces)) for vertices, faces in submesh_counts),
             diagnostics=diagnostics,
             metrics=result_metrics,
+            session_view=session_view,
         )
