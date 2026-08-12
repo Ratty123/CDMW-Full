@@ -127,6 +127,16 @@ internal sealed partial class MeshViewport
         _interactionSoakPrevious = point;
     }
 
+    internal void FinishLassoInteractionSoakWithoutFinalMove(Point point)
+    {
+        if (_interactionSoakSelectionShape != "lasso")
+        {
+            throw new InvalidOperationException("The release-only diagnostic requires a lasso selection gesture.");
+        }
+        FinishEdgeDrag(point);
+        ReleasePaintProjectionCache();
+    }
+
     internal MeshInteractionSoakResult FinishInteractionSoak(Point point)
     {
         StepInteractionSoak(point);

@@ -501,13 +501,16 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   stale `source`/`part` targets to `vertex`; it cannot promote a viewport hit to
   a part. Legacy element maps remain available to native readers and existing
   profile data.
-  Grid, gizmo, selection, wire, and divider vertices stream through one
+  Transient grid, gizmo, vertex, lasso, and divider geometry streams through one
   capacity-growing dynamic D3D11 vertex buffer and one discard map per pane
-  frame. Draw commands preserve the established grid/wire/vertex/selection
-  layering after that single upload. Grid, wire, reference, selection, and
-  highlight geometry is retained by topology, scene, presentation, material,
-  and selection generations, so unchanged overlays do not rebuild or create
-  and dispose GPU buffers in the draw loop.
+  frame. Static wire geometry and growing face/vertex-selection geometry use
+  retained buffers; live selection appends only newly selected points or
+  triangle/line vertices with no-overwrite maps and hands the completed buffer
+  to the committed selection at terminal authority. Draw commands preserve the established
+  grid/wire/vertex/selection layering across both buffer families. Topology,
+  scene, presentation, material, and selection generations invalidate retained
+  geometry, so unchanged overlays do not rebuild or create and dispose GPU
+  buffers in the draw loop.
   The production D3D11 child exclusively owns viewport painting: the parent
   WinForms CPU/GDI fallback returns before traversing any faces while that child
   exists. Windowed presentation uses DXGI flip-discard rather than the legacy
@@ -515,10 +518,18 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   hover hit-testing constructs one camera per event. Continuous mouse input
   performs one latest-wins renderer update and does not directly invalidate the
   parent surface as a second paint path.
-  Select Brush paints a renderer-local vertex overlay on every pointer update;
-  selected and provisional vertices use the GPU point-marker geometry shader,
-  so selection size does not multiply CPU projection and cross construction per
-  frame. Move applies a transient transform only to the selected mesh elements
+  Select Brush paints a renderer-local vertex, wire, or face overlay on every
+  pointer update. Vertex and face candidates are projected once per gesture and
+  indexed into 16-pixel screen buckets; later samples inspect only cells crossed
+  by the swept band. A face spanning more than 16 cells is stored once in a
+  large-face candidate list and still receives the exact swept-triangle test,
+  avoiding screen-area multiplication for long or full-screen triangles.
+  Selected and provisional vertices use the GPU point-marker
+  geometry shader, so selection size does not multiply CPU projection and cross
+  construction per frame. Native selection remains single-flight in the
+  background, but its growing intermediate snapshots receive lightweight
+  acknowledgements instead of replacing a newer local echo; the complete
+  depth-resolved selection is published on release. Move applies a transient transform only to the selected mesh elements
   (or an explicitly selected PARTS row). Fixed Move and Grab scopes cache their
   incident face ranges on the first sample and rotate three transient vertex
   buffers, keeping later samples off a buffer the GPU may still be drawing.
@@ -529,7 +540,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   Protocol stroke samples are
   bounded to 16 ms and carry the complete segment since the last publication;
   Python's existing single-flight dispatcher keeps one in-flight plus one
-  latest cumulative pending update. Reconciliation requires matching stroke ID,
+  latest cumulative pending update. Lasso mouse-up is always an exact polygon
+  point, and the same spatially sampled points drive the visible outline,
+  provisional hit test, native polygon, and visible-depth mask bounds.
+  Reconciliation requires matching stroke ID,
   request, and revision. Cancel restores the baseline, and only stroke end adds
   history. The visible real-PAC driver therefore keeps the physical pointer
   moving instead of waiting for one protocol packet per raw mouse event. It

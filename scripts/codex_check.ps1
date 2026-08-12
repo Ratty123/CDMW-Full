@@ -113,6 +113,7 @@ $TestsByArea = @{
         "tests/test_native_preview_core.py",
         "tests/test_dotnet_icon_capture_protocol.py",
         "tests/test_mesh_edit_native_coverage.py",
+        "tests/test_native_mesh_editor_session.py",
         "tests/test_mesh_service_editing.py",
         "tests/test_mesh_editor_controller.py",
         "tests/test_mesh_editor_actions.py",

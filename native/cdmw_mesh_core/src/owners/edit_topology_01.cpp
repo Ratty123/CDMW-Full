@@ -512,16 +512,35 @@ std::array<double, 4> mesh_editor_screen_depth_mask_bounds(
         right = x + extent;
         bottom = y + extent;
     } else {
-        const double start_x = number_or(brush.get("start_x"), std::numeric_limits<double>::quiet_NaN());
-        const double start_y = number_or(brush.get("start_y"), std::numeric_limits<double>::quiet_NaN());
-        const double end_x = number_or(brush.get("end_x"), std::numeric_limits<double>::quiet_NaN());
-        const double end_y = number_or(brush.get("end_y"), std::numeric_limits<double>::quiet_NaN());
-        if (std::isfinite(start_x) && std::isfinite(start_y)
-            && std::isfinite(end_x) && std::isfinite(end_y)) {
-            left = std::min(start_x, end_x) - kPaddingPixels;
-            top = std::min(start_y, end_y) - kPaddingPixels;
-            right = std::max(start_x, end_x) + kPaddingPixels;
-            bottom = std::max(start_y, end_y) + kPaddingPixels;
+        const std::vector<Vec2> points = vec2_array_from_json(brush.get("points"));
+        if (!points.empty()) {
+            const double extent = radius + kPaddingPixels;
+            left = points.front()[0];
+            top = points.front()[1];
+            right = points.front()[0];
+            bottom = points.front()[1];
+            for (const Vec2& point : points) {
+                left = std::min(left, point[0]);
+                top = std::min(top, point[1]);
+                right = std::max(right, point[0]);
+                bottom = std::max(bottom, point[1]);
+            }
+            left -= extent;
+            top -= extent;
+            right += extent;
+            bottom += extent;
+        } else {
+            const double start_x = number_or(brush.get("start_x"), std::numeric_limits<double>::quiet_NaN());
+            const double start_y = number_or(brush.get("start_y"), std::numeric_limits<double>::quiet_NaN());
+            const double end_x = number_or(brush.get("end_x"), std::numeric_limits<double>::quiet_NaN());
+            const double end_y = number_or(brush.get("end_y"), std::numeric_limits<double>::quiet_NaN());
+            if (std::isfinite(start_x) && std::isfinite(start_y)
+                && std::isfinite(end_x) && std::isfinite(end_y)) {
+                left = std::min(start_x, end_x) - kPaddingPixels;
+                top = std::min(start_y, end_y) - kPaddingPixels;
+                right = std::max(start_x, end_x) + kPaddingPixels;
+                bottom = std::max(start_y, end_y) + kPaddingPixels;
+            }
         }
     }
     left = std::clamp(left, viewport_left, std::max(viewport_left, viewport_right - 1.0));

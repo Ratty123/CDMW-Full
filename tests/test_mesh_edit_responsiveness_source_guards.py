@@ -2216,6 +2216,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         # polygon, with the rectangle endpoints kept for older cores.
         self.assertIn('region["mode"] = "lasso";', source)
         self.assertIn('region["points"]', source)
+        self.assertIn(
+            "if (_selectionLassoPoints.Count > 0 && _selectionLassoPoints[^1] != point)",
+            source,
+        )
+        self.assertIn("_selectionLassoPoints.Add(point);", source)
+        self.assertIn("var lassoPoints = _selectionLassoPoints.Count >= 3", source)
+        self.assertIn("if (lassoPoints is null && rectangle.Width < 4 && rectangle.Height < 4)", source)
+        self.assertNotIn("SimplifyLassoPoints", source)
         self.assertIn('EditorEventRequested?.Invoke("select_request", payload)', source)
         self.assertIn('["world_view_projection"] = camera.WorldViewProjectionRowMajorArray()', input_source)
         self.assertIn('["selection_depth_mode"] = ShowXRay ? "xray" : "visible"', source)
