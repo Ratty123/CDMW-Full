@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$ExecutablePath,
-    [ValidateSet("default", "mesh_builder")]
+    [ValidateSet("default", "mesh_builder", "mesh_archive_textures")]
     [string]$Target = "default",
     [ValidateRange(1, 900)]
     [int]$TimeoutSeconds = 180
@@ -15,7 +15,7 @@ function Assert-PackagedStartupResult {
     param(
         [Parameter(Mandatory = $true)]
         [string]$ResultPath,
-        [ValidateSet("default", "mesh_builder")]
+        [ValidateSet("default", "mesh_builder", "mesh_archive_textures")]
         [string]$ExpectedTarget = "default"
     )
 
@@ -28,7 +28,9 @@ function Assert-PackagedStartupResult {
         throw "Packaged startup smoke wrote invalid result JSON: $($_.Exception.Message)"
     }
     if ($payload.ok -ne $true) {
-        throw "Packaged startup smoke reported failure at stage '$([string]$payload.stage)'."
+        $detail = [string]$payload.detail
+        $suffix = if ([string]::IsNullOrWhiteSpace($detail)) { "" } else { " Detail: $detail" }
+        throw "Packaged startup smoke reported failure at stage '$([string]$payload.stage)'.$suffix"
     }
     if ([string]$payload.stage -ne "post_construction") {
         throw "Packaged startup smoke did not prove post-construction success. Stage: '$([string]$payload.stage)'."
@@ -43,7 +45,59 @@ function Assert-PackagedStartupResult {
         throw "Packaged startup smoke result did not contain a valid process id."
     }
     Assert-PackagedBundledHelpers -Payload $payload
+    if ($ExpectedTarget -eq "mesh_archive_textures") {
+        Assert-PackagedMeshTextureEvidence -Payload $payload
+    }
     return $payload
+}
+
+
+function Assert-PackagedMeshTextureEvidence {
+    param([Parameter(Mandatory = $true)]$Payload)
+
+    if (-not ($Payload.PSObject.Properties.Name -contains "evidence")) {
+        throw "Packaged Mesh Editor texture smoke reported no evidence section."
+    }
+    $evidence = $Payload.evidence
+    if ([string]$evidence.schema -ne "cdmw_packaged_mesh_texture_smoke_v1") {
+        throw "Packaged Mesh Editor texture smoke returned an unknown evidence schema."
+    }
+    if ($evidence.read_only -ne $true -or $evidence.archive_sources_unchanged -ne $true) {
+        throw "Packaged Mesh Editor texture smoke did not prove read-only archive access."
+    }
+    foreach ($modeName in @("normal_mode", "edit_mode")) {
+        $mode = $evidence.$modeName
+        if ([string]$mode.selected_mode -ne "textured") {
+            throw "Packaged Mesh Editor texture smoke did not retain Solid (Textured) in $modeName."
+        }
+        if ([string]$mode.renderer_resources.display_mode -ne "textured") {
+            throw "Packaged Mesh Editor texture smoke renderer did not apply textured mode in $modeName."
+        }
+        if ($mode.renderer_resources.textures_enabled -ne $true) {
+            throw "Packaged Mesh Editor texture smoke renderer disabled texture sampling in $modeName."
+        }
+        if ([int64]$mode.renderer_resources.live_texture_srvs -le 0) {
+            throw "Packaged Mesh Editor texture smoke reported no live texture SRV in $modeName."
+        }
+        if ([int64]$mode.renderer_resources.textured_draw_calls -le 0) {
+            throw "Packaged Mesh Editor texture smoke reported no textured draw call in $modeName."
+        }
+    }
+    if ([int64]$evidence.material_update.resource_count -le 0) {
+        throw "Packaged Mesh Editor texture smoke compiled zero texture resources."
+    }
+    if ([int64]$evidence.material_update.resource_file_count -ne [int64]$evidence.material_update.resource_count) {
+        throw "Packaged Mesh Editor texture smoke compiled a missing texture resource."
+    }
+    if (@($evidence.material_failures).Count -ne 0) {
+        throw "Packaged Mesh Editor texture smoke recorded material failures."
+    }
+    Write-Host (
+        "Packaged Mesh Editor textures verified: model={0}, resources={1}, live_srvs={2}" -f `
+            [string]$evidence.model_path, `
+            [int64]$evidence.material_update.resource_count, `
+            [int64]$evidence.edit_mode.renderer_resources.live_texture_srvs
+    )
 }
 
 
@@ -121,7 +175,7 @@ function Invoke-PackagedStartupVerification {
         [string]$Path,
         [Parameter(Mandatory = $true)]
         [int]$Timeout,
-        [ValidateSet("default", "mesh_builder")]
+        [ValidateSet("default", "mesh_builder", "mesh_archive_textures")]
         [string]$SmokeTarget = "default"
     )
 
@@ -132,11 +186,20 @@ function Invoke-PackagedStartupVerification {
     $crashRoot = Join-Path $smokeRoot "crash-reports"
     New-Item -ItemType Directory -Path $smokeRoot -Force | Out-Null
     $targetEnvironment = if ($SmokeTarget -eq "default") { "" } else { $SmokeTarget }
+    if (
+        $SmokeTarget -eq "mesh_archive_textures" -and
+        [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable("CDMW_GUI_STARTUP_SMOKE_MESH_ASSET", "Process"))
+    ) {
+        throw (
+            "Target mesh_archive_textures requires CDMW_GUI_STARTUP_SMOKE_MESH_ASSET " +
+            "to name the game root or 0009/0.pamt."
+        )
+    }
 
     $smokeEnvironment = [ordered]@{
         "TEMP" = $smokeRoot
         "TMP" = $smokeRoot
-        "QT_QPA_PLATFORM" = "offscreen"
+        "QT_QPA_PLATFORM" = if ($SmokeTarget -eq "mesh_archive_textures") { "windows" } else { "offscreen" }
         "CDMW_GUI_STARTUP_SMOKE" = "1"
         "CDMW_GUI_STARTUP_SMOKE_RESULT" = $resultPath
         "CDMW_GUI_STARTUP_SMOKE_TARGET" = $targetEnvironment
@@ -151,9 +214,19 @@ function Invoke-PackagedStartupVerification {
             $previousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
             [Environment]::SetEnvironmentVariable($name, $smokeEnvironment[$name], "Process")
         }
-        $process = Start-Process -FilePath $resolvedExecutable `
-            -WorkingDirectory (Split-Path -Parent $resolvedExecutable) `
-            -WindowStyle Hidden -PassThru
+        $startParameters = @{
+            FilePath = $resolvedExecutable
+            WorkingDirectory = (Split-Path -Parent $resolvedExecutable)
+            PassThru = $true
+        }
+        if ($SmokeTarget -ne "mesh_archive_textures") {
+            $startParameters["WindowStyle"] = "Hidden"
+        }
+        # D3D11 must own a genuinely shown HWND to exercise swap-chain painting.
+        # The mesh texture target moves that real window off-screen inside the
+        # app; SW_HIDE here would suppress every frame and test a state the GUI
+        # can never enter instead of validating the packaged renderer.
+        $process = Start-Process @startParameters
         if (-not $process.WaitForExit($Timeout * 1000)) {
             Stop-PackagedStartupProcess -Process $process
             throw "Packaged startup smoke target '$SmokeTarget' timed out after $Timeout second(s)."

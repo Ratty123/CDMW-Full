@@ -333,6 +333,65 @@ def test_renderer_ready_keeps_process_for_nonfatal_material_audit_gaps(tmp_path:
     controller.shutdown()
 
 
+def test_stale_ready_watchdog_cannot_restart_an_already_ready_process(tmp_path: Path) -> None:
+    controller, process, _package_a = _start_controller(tmp_path)
+    _make_ready(controller)
+    watchdog_events: list[dict[str, object]] = []
+    controller.protocol_event.connect(
+        lambda payload: watchdog_events.append(dict(payload))
+        if str(payload.get("event", "")) == "ready_watchdog_ignored"
+        else None
+    )
+
+    assert not controller._ready_timer.isActive()  # noqa: SLF001
+    controller._handle_ready_timeout()  # noqa: SLF001 - reproduces a queued Qt timer callback
+
+    assert controller.process is process
+    assert not controller._retry_timer.isActive()  # noqa: SLF001
+    assert watchdog_events == [
+        {
+            "event": "ready_watchdog_ignored",
+            "reason": "renderer_already_ready",
+            "process_generation": controller.process_generation,
+            "package_generation": controller.package_generation,
+            "protocol_ready": True,
+            "renderer_ready": True,
+            "session_established": True,
+            "localization_established": True,
+            "timer_active": False,
+        }
+    ]
+
+
+def test_ready_watchdog_still_restarts_a_process_with_missing_gates(tmp_path: Path) -> None:
+    controller, process, _package_a = _start_controller(tmp_path)
+    watchdog_events: list[dict[str, object]] = []
+    controller.protocol_event.connect(
+        lambda payload: watchdog_events.append(dict(payload))
+        if str(payload.get("event", "")) == "ready_watchdog_expired"
+        else None
+    )
+
+    controller._ready_timer.stop()  # noqa: SLF001 - model a fired single-shot timer
+    controller._handle_ready_timeout()  # noqa: SLF001
+
+    assert controller.process is None
+    assert process.state() == QProcess.ProcessState.NotRunning
+    assert controller._retry_timer.isActive()  # noqa: SLF001
+    assert watchdog_events == [
+        {
+            "event": "ready_watchdog_expired",
+            "process_generation": controller.process_generation,
+            "package_generation": controller.package_generation,
+            "protocol_ready": False,
+            "renderer_ready": False,
+            "session_established": False,
+            "localization_established": False,
+            "timer_active": False,
+        }
+    ]
+
+
 def test_localization_ack_gates_initial_ready_and_live_switch_is_resident(
     tmp_path: Path,
 ) -> None:

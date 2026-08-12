@@ -228,9 +228,14 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         lines.append(f"  status_file: {current_d3d11_state.get('status_file')}")
         process = current_d3d11_state.get("process")
         if isinstance(process, QProcess):
-            lines.append(f"  process_state: {process.state()}")
-            lines.append(f"  process_program: {process.program()}")
-            lines.append(f"  process_start_arguments: {' '.join(process.arguments())}")
+            try:
+                lines.append(f"  process_state: {process.state()}")
+                lines.append(f"  process_program: {process.program()}")
+                lines.append(f"  process_start_arguments: {' '.join(process.arguments())}")
+            except RuntimeError:
+                current_d3d11_state["process"] = None
+                process_state = "deleted"
+                lines.append(f"  process_state: {process_state}")
         lines.append("")
         lines.append("Source geometry")
         try:

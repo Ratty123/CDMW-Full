@@ -158,6 +158,7 @@ $TestsByArea = @{
         # flip-V needles had drifted from the source they guard.
         "tests/test_alignment_dialog_source_guards.py",
         "tests/test_static_replacement_dialog_helpers.py",
+        "tests/test_static_replacement_d3d11_deleted_process.py",
         "tests/test_mesh_editor_nonblocking_close.py",
         "tests/test_dotnet_overlay_color_controls.py",
         "tests/test_mesh_deformer.py",

@@ -94,7 +94,17 @@ def create_startup_splash(
     )
     if not app.windowIcon().isNull():
         startup_splash.setWindowIcon(app.windowIcon())
-    startup_splash.center_on_screen()
+    if (
+        os.environ.get("CDMW_GUI_STARTUP_SMOKE") == "1"
+        and os.environ.get("CDMW_GUI_STARTUP_SMOKE_TARGET", "").strip().lower()
+        == "mesh_archive_textures"
+    ):
+        # This startup target needs a shown Win32/D3D11 surface, so its launcher
+        # cannot use SW_HIDE. Keep the ordinary splash lifecycle but place the
+        # unattended proof outside the desktop along with the main window.
+        startup_splash.move(-32_000, -32_000)
+    else:
+        startup_splash.center_on_screen()
     startup_splash.show()
     app.processEvents()
     close_pyinstaller_boot_splash()

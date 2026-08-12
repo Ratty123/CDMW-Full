@@ -515,6 +515,12 @@ def test_same_session_package_swap_republishes_before_restoring_textured_view() 
     controller = tab._active_shared_dotnet_controller()
     assert controller is not None
     controller._applied_package_generation = 2
+    runtime_events: list[tuple[str, object]] = []
+    tab.runtime_event_requested.connect(
+        lambda event, fields: runtime_events.append((str(event), fields))
+    )
+    tab.standalone_dotnet_pending_textured_view = True
+    tab.standalone_dotnet_pending_textured_view_mode = "textured"
 
     # The accepted-package rehydrator runs before the helper is revealed. It
     # must invalidate the old acknowledgement before replaying presentation, so
@@ -526,6 +532,12 @@ def test_same_session_package_swap_republishes_before_restoring_textured_view() 
     assert not tab.standalone_dotnet_applied_material_generation_by_role
     assert not tab.standalone_dotnet_texture_resources_ready_by_role
     assert not tab._dotnet_material_roles_ready()
+    assert "mesh_dotnet_textured_view_deferred" in {
+        event for event, _fields in runtime_events
+    }
+    assert "mesh_dotnet_textured_view_failed" not in {
+        event for event, _fields in runtime_events
+    }
     assert combo.currentData() == "untextured_faces"
     assert (
         tab.standalone_dotnet_presentation_desired["display"]["mode"]

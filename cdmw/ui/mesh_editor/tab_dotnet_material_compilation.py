@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 from PySide6.QtCore import QThread, QTimer
 
@@ -139,6 +141,31 @@ class MeshEditorDotNetMaterialCompilationMixin:
                 "protocol_version": 3,
             }
         )
+        resources = tuple(
+            resource
+            for resource in tuple(correlated.get("resources", ()) or ())
+            if isinstance(resource, Mapping)
+        )
+        resource_file_count = 0
+        resource_bytes = 0
+        missing_resources: list[dict[str, str]] = []
+        for resource in resources:
+            path_text = str(resource.get("path", "") or "").strip()
+            try:
+                path = Path(path_text)
+                if path_text and path.is_file():
+                    resource_file_count += 1
+                    resource_bytes += max(0, int(path.stat().st_size))
+                    continue
+            except OSError:
+                pass
+            if len(missing_resources) < 8:
+                missing_resources.append(
+                    {
+                        "resource_id": str(resource.get("resource_id", "") or ""),
+                        "path": path_text,
+                    }
+                )
         if not self._send_dotnet_protocol_message(correlated):
             self.standalone_dotnet_pending_paired_material_upgrade = None
             self.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
@@ -203,6 +230,16 @@ class MeshEditorDotNetMaterialCompilationMixin:
             )
             if isinstance(correlated.get("compiler", {}), Mapping)
             else False,
+            compiler_cache_dir=str(
+                (correlated.get("compiler", {}) or {}).get("cache_dir", "") or ""
+            )
+            if isinstance(correlated.get("compiler", {}), Mapping)
+            else "",
+            resource_count=len(resources),
+            resource_file_count=resource_file_count,
+            resource_bytes=resource_bytes,
+            missing_resource_count=max(0, len(resources) - resource_file_count),
+            missing_resource_sample=missing_resources,
             compile_elapsed_ms=max(0.0, float(elapsed_ms)),
         )
 
@@ -236,6 +273,28 @@ class MeshEditorDotNetMaterialCompilationMixin:
             self.standalone_dotnet_material_error_by_role[applied_role] = str(message)
         self.standalone_dotnet_lifecycle_counts["material_compile_failed_count"] += 1
         self.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
+        from cdmw.core.texture_native import (
+            directxtex_texture_failure_reports,
+            find_directxtex_texture_binary,
+        )
+
+        texture_failures = directxtex_texture_failure_reports()
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_material_compile_failed",
+            role=self._dotnet_material_role_key(request.role),
+            roles=roles,
+            generation=int(request.generation),
+            edit_revision=int(request.edit_revision),
+            process_generation=int(request.process_generation),
+            request_reason=str(request.reason or "changed"),
+            message=str(message),
+            texture_preview_deferred=bool(
+                os.environ.get("CDMW_DEFER_TEXTURE_PREVIEW", "").strip()
+            ),
+            texture_helper_path=str(find_directxtex_texture_binary() or ""),
+            texture_decode_failure_count=len(texture_failures),
+            recent_texture_decode_failures=list(texture_failures[-8:]),
+        )
         self._notify_dotnet_material_resources_finished(
             request.generation,
             False,

@@ -91,7 +91,7 @@ def _ensure_preview_batch_leased(
             staged_by_output: Dict[str, tuple[backend.NativeTextureDecodeCacheJob, Path]] = {}
             helper_jobs: list[Dict[str, object]] = []
             for index, job in enumerate(pending):
-                staged = job_root / f"{index:04d}-{job.request.output_path.name}"
+                staged = job_root / f"{index:04d}{job.request.output_path.suffix or '.png'}"
                 helper_jobs.append(backend._decode_request_payload(job.request, output_path=staged))
                 staged_by_output[str(staged.resolve())] = (job, staged)
             job_path.write_text(
@@ -171,6 +171,19 @@ def _ensure_preview_batch_leased(
                 job, staged = matched
                 responded_cache_keys.add(job.cache_key)
                 if str(item.get("status") or "").lower() != "decoded":
+                    backend._record_directxtex_failure(
+                        binary=binary,
+                        operation="batch-preview-json",
+                        returncode=returncode,
+                        stderr=str(
+                            item.get("message")
+                            or item.get("error")
+                            or "native texture decode item failed"
+                        ),
+                        source_path=job.request.input_path,
+                        retry_available=False,
+                        reason="native_decode_failed",
+                    )
                     continue
                 item.setdefault("backend", backend.DIRECTXTEX_TEXTURE_BACKEND_ID)
                 item.setdefault("native_backend", "directxtex")

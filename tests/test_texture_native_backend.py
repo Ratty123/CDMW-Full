@@ -182,6 +182,7 @@ class NativeTextureBackendTests(unittest.TestCase):
         self.assertNotEqual(base_key, normal_key)
 
     def test_directxtex_preview_defer_env_skips_helper_probe(self) -> None:
+        texture_native.directxtex_texture_failure_reports(clear=True)
         with tempfile.TemporaryDirectory() as temp_dir:
             dds_path = Path(temp_dir) / "sample.dds"
             dds_path.write_bytes(_minimal_bc_dds())
@@ -194,6 +195,8 @@ class NativeTextureBackendTests(unittest.TestCase):
                 )
 
         self.assertEqual({}, result)
+        reports = texture_native.directxtex_texture_failure_reports(clear=True)
+        self.assertEqual("preview_deferred_by_environment", reports[-1]["reason"])
 
     def test_dds_native_parser_reads_legacy_bc_mips(self) -> None:
         info = inspect_dds_native(_minimal_bc_dds(b"DXT5", width=8, height=4, mip_count=1))
@@ -260,6 +263,7 @@ class NativeTextureBackendTests(unittest.TestCase):
             dds_a.write_bytes(_minimal_bc_dds(b"DXT1"))
             dds_b.write_bytes(_minimal_bc_dds(b"DXT5"))
             run_commands = []
+            staged_output_names = []
 
             def fake_run(command, **_kwargs):
                 self.assertIn("timeout_seconds", _kwargs)
@@ -271,6 +275,7 @@ class NativeTextureBackendTests(unittest.TestCase):
                 items = []
                 for item in job["jobs"]:
                     output = Path(item["output"])
+                    staged_output_names.append(output.name)
                     output.parent.mkdir(parents=True, exist_ok=True)
                     output.write_bytes(_MINIMAL_PNG)
                     items.append(
@@ -297,11 +302,63 @@ class NativeTextureBackendTests(unittest.TestCase):
                     )
 
             self.assertEqual(1, len(run_commands))
+            self.assertEqual(["0000.png", "0001.png"], staged_output_names)
             self.assertEqual({"batch-preview-json"}, {Path(run_commands[0][1]).name})
             self.assertFalse(Path(run_commands[0][2]).parent.exists())
             self.assertEqual({str(dds_a.resolve()), str(dds_b.resolve())}, set(results))
             for preview_path in results.values():
                 self.assertTrue(texture_native.native_texture_report_sidecar_path(preview_path).is_file())
+
+    def test_directxtex_batch_preview_records_per_item_decode_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            binary_path = root / "cd-texture-dx.exe"
+            binary_path.write_bytes(b"fake")
+            dds_path = root / "failed.dds"
+            dds_path.write_bytes(_minimal_bc_dds(b"DXT1"))
+            texture_native.directxtex_texture_failure_reports(clear=True)
+
+            def fake_run(command, **_kwargs):
+                job_path = Path(command[2])
+                report_path = Path(command[3])
+                job = json.loads(job_path.read_text(encoding="utf-8"))["jobs"][0]
+                report_path.write_text(
+                    json.dumps(
+                        {
+                            "status": "ok",
+                            "items": [
+                                {
+                                    "status": "error",
+                                    "source_path": job["input"],
+                                    "output_path": job["output"],
+                                    "message": "SaveToWICFile failed: 0x800700ce",
+                                }
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return 2, "", ""
+
+            with (
+                patch(
+                    "cdmw.core.texture_native.find_directxtex_texture_binary",
+                    return_value=binary_path,
+                ),
+                patch(
+                    "cdmw.core.texture_native.run_process_with_cancellation",
+                    side_effect=fake_run,
+                ),
+            ):
+                results = texture_native.ensure_directxtex_dds_preview_pngs(
+                    ({"dds_path": str(dds_path), "slot_kind": "base"},)
+                )
+
+            reports = texture_native.directxtex_texture_failure_reports(clear=True)
+
+        self.assertEqual({}, results)
+        self.assertEqual("native_decode_failed", reports[-1]["reason"])
+        self.assertIn("0x800700ce", reports[-1]["stderr_summary"])
 
     def test_directxtex_batch_preview_records_structured_failure_report(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

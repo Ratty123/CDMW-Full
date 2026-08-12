@@ -122,7 +122,7 @@ def _decode_synthesis_input_previews(
     raw_channels: Mapping[str, str],
     *,
     cancelled: Callable[[], bool] | None,
-) -> tuple[tuple[object, ...], int, dict[str, set[str]]]:
+) -> tuple[tuple[object, ...], int, dict[str, set[str]], dict[str, object]]:
     from cdmw.core.texture_native import (
         directxtex_preview_result_key,
         ensure_directxtex_dds_preview_pngs,
@@ -135,6 +135,17 @@ def _decode_synthesis_input_previews(
 
     jobs: list[dict[str, object]] = []
     job_keys: dict[int, str] = {}
+    diagnostics: dict[str, object] = {
+        "input_count": len(inputs),
+        "dds_candidate_count": 0,
+        "decode_job_count": 0,
+        "native_channel_deferred_count": 0,
+        "missing_dds_input_count": 0,
+        "missing_dds_input_sample": [],
+        "preview_deferred_by_environment": bool(
+            os.environ.get("CDMW_DEFER_TEXTURE_PREVIEW", "").strip()
+        ),
+    }
     # Raw DDS inputs are normally deferred. Keep their labels so the combiner's
     # unreadable note can be relabelled after its diagnostic pass.
     deferred_raw_channel_labels: dict[str, set[str]] = {}
@@ -166,11 +177,51 @@ def _decode_synthesis_input_previews(
     for index, item in enumerate(inputs):
         dds_path = _local_synthesis_dds_path(item)
         if dds_path is None:
+            candidates = {
+                field_name: str(_input_value(item, field_name) or "").strip()
+                for field_name in (
+                    "preview_texture_path",
+                    "source_dds_path",
+                    "source_texture_path",
+                )
+                if str(_input_value(item, field_name) or "").strip()
+            }
+            if any(
+                str(value).casefold().endswith(".dds")
+                for value in (
+                    *candidates.values(),
+                    _input_value(item, "texture_name"),
+                )
+            ):
+                diagnostics["missing_dds_input_count"] = int(
+                    diagnostics["missing_dds_input_count"]
+                ) + 1
+                sample = diagnostics["missing_dds_input_sample"]
+                if isinstance(sample, list) and len(sample) < 8:
+                    sample.append(
+                        {
+                            "index": index,
+                            "slot_kind": str(_input_value(item, "slot_kind") or ""),
+                            "semantic_type": str(
+                                _input_value(item, "semantic_type") or ""
+                            ),
+                            "texture_name": str(
+                                _input_value(item, "texture_name") or ""
+                            ),
+                            "candidate_paths": candidates,
+                        }
+                    )
             continue
+        diagnostics["dds_candidate_count"] = int(
+            diagnostics["dds_candidate_count"]
+        ) + 1
         native_channel = _native_support_map_channel(item, raw_channels)
         if native_channel and not (
             native_channel == "normal" and layered_normal_synthesis
         ):
+            diagnostics["native_channel_deferred_count"] = int(
+                diagnostics["native_channel_deferred_count"]
+            ) + 1
             deferred_raw_channel_labels.setdefault(native_channel, set()).add(
                 _texture_label(
                     _input_value(item, "preview_texture_path"),
@@ -198,8 +249,10 @@ def _decode_synthesis_input_previews(
             srgb=srgb,
             normal_space=normal_space,
         )
+    diagnostics["decode_job_count"] = len(jobs)
     if not jobs:
-        return inputs, 0, deferred_raw_channel_labels
+        diagnostics["decoded_input_count"] = 0
+        return inputs, 0, deferred_raw_channel_labels, diagnostics
     results = ensure_directxtex_dds_preview_pngs(
         jobs,
         include_job_keys=True,
@@ -242,7 +295,13 @@ def _decode_synthesis_input_previews(
                 != "normal"
             )
         ]
-    return tuple(updated_inputs), len(decoded_indices), deferred_raw_channel_labels
+    diagnostics["decoded_input_count"] = len(decoded_indices)
+    return (
+        tuple(updated_inputs),
+        len(decoded_indices),
+        deferred_raw_channel_labels,
+        diagnostics,
+    )
 
 
 def _relabel_deferred_raw_channel_notes(

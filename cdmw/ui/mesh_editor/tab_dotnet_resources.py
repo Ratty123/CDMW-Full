@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 from typing import Mapping, Sequence
@@ -157,6 +158,9 @@ class MeshEditorDotNetResourceProtocolMixin(
         if event == "material_state_applied":
             if not _material_commit.commit_acknowledged_material_resources(self, payload):
                 return False
+            renderer = payload.get("renderer")
+            if isinstance(renderer, Mapping):
+                self.standalone_dotnet_status_payload["renderer"] = dict(renderer)
             texture_resources_ready = payload.get("texture_resources_ready") is True
             if "texture_resources_ready" not in payload:
                 try:
@@ -244,6 +248,18 @@ class MeshEditorDotNetResourceProtocolMixin(
             message = str(
                 payload.get("message", payload.get("reason", "Material update failed."))
                 or "Material update failed."
+            )
+            failure_reason = str(payload.get("reason", "material_state_failed") or "material_state_failed")
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_material_state_failed",
+                role=role,
+                roles=roles,
+                generation=generation,
+                package_generation=package_generation,
+                resident_package_generation=resident_package_generation,
+                process_generation=int(self.standalone_dotnet_process_generation),
+                failure_reason=failure_reason,
+                failure_message=message,
             )
             for applied_role in roles:
                 self.standalone_dotnet_material_error_by_role[applied_role] = message
@@ -363,8 +379,13 @@ class MeshEditorDotNetResourceProtocolMixin(
         self.standalone_dotnet_deferred_textured_view_uses_presentation = (
             use_presentation_state
         )
+        transition_event = (
+            "mesh_dotnet_textured_view_deferred"
+            if str(reason or "") == "resident_package_replaced"
+            else "mesh_dotnet_textured_view_failed"
+        )
         self._record_mesh_dotnet_event(
-            "mesh_dotnet_textured_view_failed",
+            transition_event,
             reason=str(reason or "unspecified"),
             requested_mode=requested_mode,
             uses_presentation_state=use_presentation_state,
@@ -807,13 +828,38 @@ class MeshEditorDotNetResourceProtocolMixin(
                 error=True,
             )
             return False
-        if not self._dotnet_resident_material_updates_supported():
+        shared_controller = self._active_shared_dotnet_controller()
+        desired_package_path = str(
+            getattr(shared_controller, "desired_package_path", "") or ""
+        )
+        applied_package_path = str(
+            getattr(shared_controller, "applied_package_path", "") or ""
+        )
+        resident_package_pending = bool(
+            desired_package_path
+            and (
+                not applied_package_path
+                or os.path.normcase(desired_package_path)
+                != os.path.normcase(applied_package_path)
+            )
+        )
+        if (
+            not self._dotnet_resident_material_updates_supported()
+            or resident_package_pending
+        ):
             if self.standalone_dotnet_target_embedded and (
                 self.standalone_dotnet_embedded_state == "launching"
                 or self._standalone_dotnet_package_worker_active()
                 or self._standalone_dotnet_editor_process_running()
             ):
                 self.standalone_dotnet_pending_paired_material_model = preview_model
+                if resident_package_pending:
+                    self._record_mesh_dotnet_event(
+                        "mesh_dotnet_material_state_deferred",
+                        reason="resident_package_pending",
+                        desired_package_path=desired_package_path,
+                        applied_package_path=applied_package_path,
+                    )
                 return True
             return False
         if self.standalone_dotnet_material_generation > self.standalone_dotnet_completed_material_generation:

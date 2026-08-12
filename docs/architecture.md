@@ -629,9 +629,22 @@ probes the published bundle and the exact packaged bundle for protocol/ABI,
 synthetic open/query/page, cancellation, and clean no-orphan shutdown.
 
 Before a PyInstaller candidate is moved into `dist/`,
-`scripts/verify_packaged_startup.ps1` launches it offscreen with a unique
-single-instance scope and temp root, then reads the atomic startup result. Only
-`ok=true`, `stage=post_construction`, and `target=default` pass.
+`scripts/verify_packaged_startup.ps1` launches it with a unique single-instance
+scope and temp root, then reads the atomic startup result. The default and Mesh
+Builder targets use Qt's offscreen platform. The explicitly requested
+`mesh_archive_textures` target uses the Windows platform because its evidence
+comes from the production HWND-backed D3D11 renderer. Its Qt and WinForms
+windows are genuinely shown but placed off-screen; launching that target with
+`SW_HIDE` is forbidden because it suppresses all swap-chain paints and cannot
+prove the behavior of the visible packaged application. That target reads a real
+PAC through `0009/0.pamt`, switches from an untextured mode back to Solid
+(Textured) in normal and Edit Mesh views, waits for scene, presentation,
+package, and material work to settle, and accepts only a correlated renderer
+status with texture sampling enabled, live SRVs, and textured draw calls. It
+hashes the source PAMT and PAZ before and after and never writes either archive.
+A target failure is returned through the atomic startup result with its
+preserved diagnostic path; the frozen process shuts down without presenting a
+PyInstaller unhandled-exception dialog.
 
 ## Workers
 

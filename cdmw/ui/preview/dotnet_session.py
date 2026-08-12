@@ -1706,6 +1706,49 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
             pass
 
     def _handle_ready_timeout(self) -> None:
+        timer_active = self._ready_timer.isActive()
+        renderer_already_ready = bool(
+            self._protocol_ready
+            and self._renderer_ready
+            and self._session_established
+            and self._localization_initial_established
+        )
+        if timer_active or renderer_already_ready:
+            # QTimer can already have queued its timeout callback when another
+            # readiness gate stops or restarts the single-shot timer. A callback
+            # from that superseded deadline must not kill the current process;
+            # this is especially visible in a one-file package, where extraction
+            # makes the prewarm-to-real-package transition overlap the deadline.
+            self.protocol_event.emit(
+                {
+                    "event": "ready_watchdog_ignored",
+                    "reason": (
+                        "superseded_timer"
+                        if timer_active
+                        else "renderer_already_ready"
+                    ),
+                    "process_generation": self._process_generation,
+                    "package_generation": self._package_generation,
+                    "protocol_ready": self._protocol_ready,
+                    "renderer_ready": self._renderer_ready,
+                    "session_established": self._session_established,
+                    "localization_established": self._localization_initial_established,
+                    "timer_active": timer_active,
+                }
+            )
+            return
+        self.protocol_event.emit(
+            {
+                "event": "ready_watchdog_expired",
+                "process_generation": self._process_generation,
+                "package_generation": self._package_generation,
+                "protocol_ready": self._protocol_ready,
+                "renderer_ready": self._renderer_ready,
+                "session_established": self._session_established,
+                "localization_established": self._localization_initial_established,
+                "timer_active": False,
+            }
+        )
         self._fail_current_process(".NET/Vortice Preview did not become ready in time.", static_failure=False)
 
     def _handle_activation_timeout(self) -> None:

@@ -480,6 +480,28 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
                 "generation": int(self.standalone_dotnet_material_generation),
                 "applied_generation": int(self.standalone_dotnet_applied_material_generation),
                 "completed_generation": int(self.standalone_dotnet_completed_material_generation),
+                "desired_generation_by_role": dict(
+                    self.standalone_dotnet_material_generation_by_role
+                ),
+                "completed_generation_by_role": dict(
+                    self.standalone_dotnet_completed_material_generation_by_role
+                ),
+                "applied_generation_by_role": dict(
+                    self.standalone_dotnet_applied_material_generation_by_role
+                ),
+                "texture_resources_ready_by_role": dict(
+                    self.standalone_dotnet_texture_resources_ready_by_role
+                ),
+                "errors_by_role": dict(self.standalone_dotnet_material_error_by_role),
+                "pending_textured_view": bool(
+                    self.standalone_dotnet_pending_textured_view
+                ),
+                "pending_textured_view_mode": str(
+                    self.standalone_dotnet_pending_textured_view_mode or ""
+                ),
+                "deferred_textured_view_mode": str(
+                    self.standalone_dotnet_deferred_textured_view_mode or ""
+                ),
             },
             "renderer": renderer_status,
             "host_status": status,
@@ -722,7 +744,20 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
             "viewport_display_request",
             "viewport_display_applied",
             "viewport_display_failed",
+            "ready_watchdog_ignored",
+            "ready_watchdog_expired",
         }:
+            watchdog_fields = (
+                {
+                    "protocol_ready": payload.get("protocol_ready", False),
+                    "renderer_ready": payload.get("renderer_ready", False),
+                    "session_established": payload.get("session_established", False),
+                    "localization_established": payload.get("localization_established", False),
+                    "timer_active": payload.get("timer_active", False),
+                }
+                if event.startswith("ready_watchdog_")
+                else {}
+            )
             self._record_mesh_dotnet_event(
                 "mesh_dotnet_shared_protocol_event",
                 helper_event=event,
@@ -737,6 +772,7 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
                 optional_resource_failure_count=len(
                     tuple(payload.get("optional_resource_failures", ()) or ())
                 ),
+                **watchdog_fields,
             )
         self._handle_dotnet_protocol_event(payload)
 

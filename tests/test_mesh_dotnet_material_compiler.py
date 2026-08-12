@@ -173,6 +173,46 @@ def test_resident_compiler_reuses_content_addressed_outputs(tmp_path: Path) -> N
             assert Path(raw_path).is_file()
 
 
+def test_resident_compiler_rebuilds_a_cache_with_a_missing_texture_file(
+    tmp_path: Path,
+) -> None:
+    mesh = _mesh_with_layer_graph(tmp_path)
+    request = _request(mesh, tmp_path / "cache")
+    first = compile_mesh_dotnet_material_update(request)
+    missing_path = Path(first["resources"][0]["path"])
+    missing_path.unlink()
+
+    rebuilt = compile_mesh_dotnet_material_update(request)
+
+    assert rebuilt["compiler"]["cache_hit"] is False
+    assert all(Path(resource["path"]).is_file() for resource in rebuilt["resources"])
+
+
+def test_resident_compiler_does_not_publish_logical_texture_names_as_files(
+    tmp_path: Path,
+) -> None:
+    mesh = ParsedMesh(
+        path="character/model/body.pac",
+        format="pac",
+        submeshes=[
+            SubMesh(
+                name="Body",
+                material="Body",
+                texture="CD_PDW_00_Nude_00_0001",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                faces=[],
+            )
+        ],
+    )
+
+    resident = compile_mesh_dotnet_material_update(_request(mesh, tmp_path / "cache"))
+
+    assert resident["resources"] == []
+    assert resident["submeshes"][0]["channels"] == {}
+    assert resident["submeshes"][0]["packaged_texture_count"] == 0
+
+
 def test_manifest_rebase_resolves_roots_once(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
