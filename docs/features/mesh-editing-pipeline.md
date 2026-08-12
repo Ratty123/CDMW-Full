@@ -244,7 +244,77 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   present on the original session mesh.
 - Export validation blocks changed geometry when the edited submesh lacks a
   complete non-negative `source_vertex_map`, so rebuildable vertex edits remain
-  traceable to source asset data.
+  traceable to source asset data. A submesh carrying a validated topology
+  contract is the one exception, described below.
+
+### Topology provenance contract v1
+
+`cdmw.domain.mesh.topology` owns `cdmw_mesh_topology_provenance_v1`: one
+`VertexOrigin` per output vertex and one original face index per output triangle,
+both indices in the *original* LOD0 submesh rather than in whatever intermediate
+edit produced them. Composition merges duplicate parents with `math.fsum`,
+divides by the merged total, and checks the normalized sum exactly, so a chain of
+edits stays one level deep and does not drift. Only Face Delete, Loop Cut, and
+midpoint Subdivide are representable; children inherit the original face identity
+already attached to their input face, and a generated synthetic face id is not.
+
+A validated contract is what authorizes the compatibility sentinels, and it is
+checked rather than waived:
+
+- `source_vertex_map[i]` is the single original index for a direct vertex and
+  `-1` where the vertex was derived; it must equal the contract's origins entry
+  for entry, and `source_vertex_map_authority` must read `topology`.
+- `source_vertex_offsets[i]` is the original record offset for a direct vertex
+  and `-1` for a derived one.
+- `MeshAssetSubmesh.source_index_map` is empty, while
+  `IndexBuffer.original_count` still carries the original source index count.
+  Face lineage lives in the contract, not in an invented per-index identity.
+- A direct vertex keeps its original raw record and its original skin row
+  byte for byte; a derived vertex carries `b""` and no submitted skin row is
+  trusted.
+
+A contract that does not validate is reported with its stable blocker code and
+then treated as absent, so every same-count blocker still fires. Without a
+contract nothing changes at all.
+
+Natively, every editable submesh opens with identity origins, each admitted edit
+composes against the untouched session before anything is written, and a
+malformed derivation from an admitted operation aborts the whole edit. Anything
+else — including Auto UV, which splits vertices along seams — marks its submesh
+`TOPOLOGY_OPERATION_NOT_REBUILDABLE` and stays available for experimentation.
+The CSR arrays live in `MeshSessionSubmesh`, so the existing topology history
+snapshot restores them through undo and redo without recomputing anything from an
+operation name, and their capacity counts toward the unchanged 64-operation and
+256 MiB native history limits. Reports carry counts, validity, and the blocker;
+the arrays travel as binary descriptors beside their payload files and never
+through production JSON. The session advertises `topology_provenance_v1`, and
+`HelperBuildProvenance.cs` carries the matching helper capability.
+
+`cdmw.modding.mesh_pac_topology_builder` is the exact LOD0 writer. It shares
+nothing with the in-place patcher or the generic full rebuild, and it never
+chooses a spatial donor, transfers weights by proximity, drops an influence to
+fit six slots, moves the descriptor bounds, or touches a lower LOD. A direct
+vertex keeps its original 40-byte record; a derived one starts from the lowest
+original parent's record and only after every parent compares equal under the
+ownership mask (position, UV0, the low 30 bits of the normal, and on a proven
+skinned record the two palette groups and six weight bytes; everything else,
+including the top two bits of each owned u32, is protected). Derived skin rows
+normalize each parent row on its own first, because observed source rows total
+`255 ± 2`. Only the LOD0 section and its LOD0 count entries are rebuilt; lower
+LOD payloads, lower LOD counts, and unknown sections are copied and re-verified
+by hash after the finished file is reparsed. Three layout hazards are refused up
+front: a shared LOD0 vertex buffer, stored counts that disagree with the parsed
+geometry, and a rebuilt LOD0 that would stop outranking a stored lower LOD under
+`parse_pac`'s own section ranking.
+
+Measured read-only against the installed game on 2026-08-13, over twelve body and
+clothing PACs and 151,927 unique LOD0 edges: 89.4% of edges merge into six or
+fewer palette slots, but only 0.0072% have parent records that agree on every
+protected byte, so the combined exact-midpoint eligibility is 0.0066%. Loop Cut
+and midpoint Subdivide are therefore exact where they apply and blocked on most
+stock geometry today; Face Delete derives no new vertices and is unaffected. The
+divergence is dominated by record bytes 6-7 and 12-15, two per-vertex channels
+this project has not proven.
 - Export validation blocks changed MeshAsset unknown sections and submesh
   `unknown_fields` against the original session mesh. Those metadata blobs are
   copied through service session clones so an imported/edit-session mesh cannot
