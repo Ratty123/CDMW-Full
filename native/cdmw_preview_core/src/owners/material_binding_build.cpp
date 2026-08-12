@@ -350,17 +350,27 @@ static std::vector<TextureBinding> build_material_bindings(
     const std::vector<NativeSubmesh>& meshes,
     NativePackage& package
 ) {
-    const NativeMaterialGraph& graph = cached_native_material_graph(job, index);
+    std::optional<NativeMaterialGraph> bounded_graph;
+    const NativeMaterialGraph* graph = nullptr;
+    if (job.archive_dependency_entries_complete) {
+        bounded_graph.emplace(build_bounded_native_material_graph(index));
+        graph = &*bounded_graph;
+    } else {
+        graph = &cached_native_material_graph(job, index);
+    }
     package.material_graph_status = "active";
-    package.material_graph_cache_path = graph.cache_path.string();
-    package.material_graph_cache_hit = graph.persistent_cache_hit;
+    package.material_graph_cache_path = graph->cache_path.string();
+    package.material_graph_cache_hit = graph->persistent_cache_hit;
     package.notes.push_back(
-        "native material graph: version=" + std::to_string(graph.version)
-        + "; cache=" + std::string(graph.persistent_cache_hit ? "hit" : "write")
-        + "; pamts=" + std::to_string(graph.pamt_count)
-        + "; entries=" + std::to_string(graph.entry_count)
-        + "; sidecars=" + std::to_string(graph.material_sidecar_count)
-        + "; dds_basenames=" + std::to_string(graph.texture_candidate_count));
+        "native material graph: version=" + std::to_string(graph->version)
+        + "; cache=" + std::string(
+            job.archive_dependency_entries_complete
+                ? "bounded_snapshot"
+                : (graph->persistent_cache_hit ? "hit" : "write"))
+        + "; pamts=" + std::to_string(graph->pamt_count)
+        + "; entries=" + std::to_string(graph->entry_count)
+        + "; sidecars=" + std::to_string(graph->material_sidecar_count)
+        + "; dds_basenames=" + std::to_string(graph->texture_candidate_count));
     const std::vector<ArchiveEntryRef> sidecars = material_sidecar_candidates_for_job(job, index);
     if (sidecars.empty()) {
         package.material_index = "native_index_no_sidecar";
@@ -368,13 +378,13 @@ static std::vector<TextureBinding> build_material_bindings(
         package.notes.push_back("native material index: no matching .pac_xml/.pam_xml/.pamlod_xml/.pami/.material/.technique/.prefab sidecar");
         return {};
     }
-    if (graph.technique_index.files_scanned > 0) {
+    if (graph->technique_index.files_scanned > 0) {
         package.notes.push_back(
-            "native technique index: files=" + std::to_string(graph.technique_index.files_scanned)
-            + "; techniques=" + std::to_string(graph.technique_index.technique_names.size())
-            + "; texture_params=" + std::to_string(graph.technique_index.texture_parameters));
+            "native technique index: files=" + std::to_string(graph->technique_index.files_scanned)
+            + "; techniques=" + std::to_string(graph->technique_index.technique_names.size())
+            + "; texture_params=" + std::to_string(graph->technique_index.texture_parameters));
     }
-    MaterialBindingBuildState state{job, index, meshes, package, graph.technique_index};
+    MaterialBindingBuildState state{job, index, meshes, package, graph->technique_index};
     for (const ArchiveEntryRef& sidecar : sidecars) process_material_sidecar(state, sidecar);
     finish_material_bindings(state, sidecars.size());
     return std::move(state.bindings);

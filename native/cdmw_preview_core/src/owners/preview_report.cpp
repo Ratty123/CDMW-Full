@@ -85,12 +85,20 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     NativePackage package;
     NativeMeshParseResult parsed;
     const auto pamt_index_started = std::chrono::steady_clock::now();
-    const PamtIndex& index = cached_pamt_index(job.entry.pamt_path, job.cache_root);
+    std::optional<PamtIndex> bounded_index;
+    const PamtIndex* index = nullptr;
+    if (job.archive_dependency_entries_complete) {
+        bounded_index.emplace(build_bounded_pamt_index(job));
+        index = &*bounded_index;
+        package.pamt_index_bounded_snapshot = true;
+    } else {
+        index = &cached_pamt_index(job.entry.pamt_path, job.cache_root);
+    }
     package.pamt_index_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - pamt_index_started).count();
-    package.pamt_index_entries = index.entry_count;
-    package.pamt_index_cache_hit = index.persistent_cache_hit;
-    package.pamt_index_cache_path = index.persistent_cache_path.string();
+    package.pamt_index_entries = index->entry_count;
+    package.pamt_index_cache_hit = index->persistent_cache_hit;
+    package.pamt_index_cache_path = index->persistent_cache_path.string();
     const auto mesh_parse_started = std::chrono::steady_clock::now();
     if (job.extension == ".pac") {
         parsed.meshes = parse_pac_submeshes(data);
@@ -107,7 +115,7 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
         int component_models_added = 0;
         int component_batches_added = 0;
         int component_models_available = 0;
-        const std::vector<ArchiveEntryRef> prefab_components = prefab_model_component_refs_for_job(job, index, 8);
+        const std::vector<ArchiveEntryRef> prefab_components = prefab_model_component_refs_for_job(job, *index, 8);
         for (const ArchiveEntryRef& component : prefab_components) {
             if (lower_copy(component.path) == lower_copy(job.path)) continue;
             ++component_models_available;
@@ -208,8 +216,8 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     const auto material_binding_started = std::chrono::steady_clock::now();
     std::vector<TextureBinding> bindings;
     if (job.use_textures) {
-        bindings = build_material_bindings(job, index, parsed.meshes, package);
-        append_mesh_reference_bindings(job, index, parsed.meshes, bindings, package);
+        bindings = build_material_bindings(job, *index, parsed.meshes, package);
+        append_mesh_reference_bindings(job, *index, parsed.meshes, bindings, package);
     } else {
         package.material_index = "disabled";
         package.material_graph_status = "disabled";
@@ -226,7 +234,7 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     package.material_binding_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - material_binding_started).count();
     const auto package_write_started = std::chrono::steady_clock::now();
-    NativePackage written = write_d3d11_package(job, parsed.meshes, bindings, package);
+    NativePackage written = write_d3d11_package(job, parsed.meshes, bindings, package, *index);
     written.package_write_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - package_write_started).count();
     return written;
@@ -355,6 +363,7 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"dds_candidates\":" << package.dds_candidates << ","
         << "\"dds_extracted\":" << package.dds_extracted << ","
         << "\"native_pamt_index_entries\":" << package.pamt_index_entries << ","
+        << "\"native_pamt_index_bounded_snapshot\":" << (package.pamt_index_bounded_snapshot ? "true" : "false") << ","
         << "\"native_pamt_index_cache_hit\":" << (package.pamt_index_cache_hit ? "true" : "false") << ","
         << "\"native_pamt_index_cache_path\":\"" << json_escape(package.pamt_index_cache_path) << "\",";
     append_native_phase_timing_report(out, package);

@@ -266,7 +266,12 @@ public sealed class ArchiveLookupService(
                     entry.Path)).ConfigureAwait(false);
             }
             var decoded = await Task.Run(() => native.Decode(entry), cancellationToken).ConfigureAwait(false);
-            var extracted = ArchivePreviewReferenceScanner.Extract(decoded.Bytes, cancellationToken);
+            var includeMaterialBasenameHints = entry.EntryId == selected.EntryId
+                && entry.Extension is ".pac" or ".pam" or ".pamlod";
+            var extracted = ArchivePreviewReferenceScanner.Extract(
+                decoded.Bytes,
+                cancellationToken,
+                includeMaterialBasenameHints);
             incomplete |= extracted.Truncated;
             foreach (var token in extracted.Tokens)
             {
@@ -492,6 +497,10 @@ public sealed class ArchiveLookupService(
         {
             candidates.Add(path[..^7] + ".pam");
         }
+        if (selected.Extension is ".pac" or ".pam" or ".pamlod" or ".pat")
+        {
+            candidates.Add("character/identityskeleton.pab");
+        }
         foreach (var candidate in candidates)
         {
             incomplete |= AddExactPathMatches(index, candidate, ids, cancellationToken);
@@ -520,30 +529,42 @@ public sealed class ArchiveLookupService(
     {
         var incomplete = false;
         var normalized = NormalizePath(token);
-        incomplete |= AddExactPathMatches(session.Index, normalized, ids, cancellationToken);
-        var separatorPath = normalized.Replace('/', Path.DirectorySeparatorChar);
-        incomplete |= AddDependencyMatches(
-            dependencyIndex.FindEntryIdsByBasename(
-                session.Index,
-                Path.GetFileName(separatorPath),
-                MaximumPreviewLookupResults,
-                cancellationToken),
-            ids,
-            cancellationToken);
-
-        var slash = normalized.IndexOf('/');
-        if (slash <= 0)
+        var referencePaths = new List<string> { normalized };
+        if (normalized.EndsWith("_sp.dds", StringComparison.OrdinalIgnoreCase))
         {
-            return incomplete;
+            referencePaths.Add(normalized[..^7] + ".dds");
         }
-        var firstSegment = normalized[..slash];
-        if (firstSegment.All(char.IsDigit) || firstSegment.StartsWith("dmm", StringComparison.OrdinalIgnoreCase))
+        else if (normalized.EndsWith("_n.dds", StringComparison.OrdinalIgnoreCase))
         {
-            incomplete |= AddExactPathMatches(
-                session.Index,
-                normalized[(slash + 1)..],
+            referencePaths.Add(normalized[..^6] + ".dds");
+        }
+        foreach (var referencePath in referencePaths)
+        {
+            incomplete |= AddExactPathMatches(session.Index, referencePath, ids, cancellationToken);
+            var separatorPath = referencePath.Replace('/', Path.DirectorySeparatorChar);
+            incomplete |= AddDependencyMatches(
+                dependencyIndex.FindEntryIdsByBasename(
+                    session.Index,
+                    Path.GetFileName(separatorPath),
+                    MaximumPreviewLookupResults,
+                    cancellationToken),
                 ids,
                 cancellationToken);
+
+            var slash = referencePath.IndexOf('/');
+            if (slash <= 0)
+            {
+                continue;
+            }
+            var firstSegment = referencePath[..slash];
+            if (firstSegment.All(char.IsDigit) || firstSegment.StartsWith("dmm", StringComparison.OrdinalIgnoreCase))
+            {
+                incomplete |= AddExactPathMatches(
+                    session.Index,
+                    referencePath[(slash + 1)..],
+                    ids,
+                    cancellationToken);
+            }
         }
         return incomplete;
     }

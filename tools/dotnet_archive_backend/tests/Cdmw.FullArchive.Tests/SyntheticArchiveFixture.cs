@@ -67,19 +67,36 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         var minifiedPrefix = string.Concat(Enumerable.Repeat("<a/>", 1011)) + "  ";
         var payloads = new (string Path, byte[] Bytes)[]
         {
-            ("character/model/hero.pac", [0x50, 0x41, 0x43, 0x00, 0x01]),
+            (
+                "character/model/hero.pac",
+                Encoding.ASCII.GetBytes("PAC\0cd_hero_embedded\0")),
+            ("character/model/hero_underwear.pac", [0x50, 0x41, 0x43, 0x00, 0x02]),
             (
                 "character/modelproperty/hero.pac_xml",
                 Encoding.UTF8.GetBytes(
                     minifiedPrefix
                     + "<material><texture path=\"character/texture/hero_body_d.dds\" />"
                     + "<texture path=\"character/texture/hero_body_n.dds\" />"
+                    + "<texture path=\"character/texture/hero_response_sp.dds\" />"
                     + "<physics path=\"character/physics/hero.hkx\" /></material>")),
             ("character/texture/hero_body_d.dds", "DDS synthetic diffuse"u8.ToArray()),
+            ("character/texture/hero_body.dds", "DDS synthetic normal sibling base"u8.ToArray()),
             ("character/texture/hero_body_n.dds", "DDS synthetic normal"u8.ToArray()),
+            ("character/texture/cd_hero_embedded.dds", "DDS synthetic embedded material"u8.ToArray()),
+            ("character/texture/hero_response.dds", "DDS synthetic response base"u8.ToArray()),
+            ("character/texture/hero_response_sp.dds", "DDS synthetic response"u8.ToArray()),
+            ("character/texture/hero_fallback.dds", "DDS synthetic fallback"u8.ToArray()),
             ("character/physics/hero.hkx", [0x48, 0x4B, 0x58, 0x00]),
             ("character/model/hero.meshinfo", Encoding.UTF8.GetBytes("mesh metadata")),
-            ("character/model/hero.prefab", Encoding.UTF8.GetBytes("prefab metadata")),
+            (
+                "character/model/hero.prefab",
+                Encoding.UTF8.GetBytes(
+                    "character/model/hero.pacB\0"
+                    + "character/model/hero_underwear.pacN\0"
+                    + "character/texture/hero_fallback.ddsQ\0"
+                    + "character/model/not_a_reference.HS\0")),
+            ("character/identityskeleton.pab", Encoding.UTF8.GetBytes("identity skeleton")),
+            ("character/model/not_a_reference.H", Encoding.UTF8.GetBytes("not a preview dependency")),
             ("unrelated/other.dds", "DDS unrelated"u8.ToArray()),
         };
 

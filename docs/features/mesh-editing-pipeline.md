@@ -116,10 +116,13 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   - Durable archive preview packages are pinned from renderer launch through
     reload, process failure, cancellation, or close. A loaded reload retires the
     old pin; pruning and manual cache clearing skip every active package lease.
-  - Fast untextured geometry is the stable first display. Archive Preview and
-    Mesh Editor both use matte faces plus topology wire so depth and part
-    boundaries remain legible before textures are ready. Both keep the accepted
-    scene and camera visible while one latest-wins texture/material request
+  - Mesh Editor keeps fast untextured geometry as its stable first display and
+    uses matte faces plus topology wire so depth and part boundaries remain
+    legible before textures are ready. Archive Browser applies its persisted
+    **Load textures** preference to the initial PAC package request; when the
+    prepared snapshot contains DDS resources, that one request loads and selects
+    textured mode instead of scheduling the same decode again. Both surfaces keep
+    the accepted scene and camera visible while a latest-wins material request
     prepares. A successful acknowledged update changes the resident package or
     material generation once; failure remains stably untextured and does not
     restart the helper.
@@ -811,6 +814,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   source resource no longer resolves.
   Package-time material-graph baking keeps source DDS paths authoritative for
   renderer binding and decodes cached PNG previews only for combiner operands.
+  A layer-scoped response with a declared selector is skipped when that selector
+  is missing or unreadable, matching the native Archive Browser combiner; it is
+  never promoted to an implicit full-surface layer that overwrites base
+  roughness or colour.
   A native `embedded_mesh_reference` is a supported direct material binding only
   when its provenance is exactly `embedded_mesh` declared by `mesh`; the native
   semantic then selects base, normal, emissive, or the recorded support-map

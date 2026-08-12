@@ -392,6 +392,26 @@ static size_t count_dds_basenames(const PamtIndex& index) {
     return count;
 }
 
+static NativeMaterialGraph build_bounded_native_material_graph(
+    const PamtIndex& index
+) {
+    NativeMaterialGraph graph;
+    graph.key = "bounded_snapshot";
+    graph.entry_count = index.entry_count;
+    graph.material_sidecar_count = index.material_sidecars.size();
+    graph.texture_candidate_count = count_dds_basenames(index);
+    graph.technique_index = build_technique_index_for_pamt(index);
+    std::set<std::string> pamt_paths;
+    for (const auto& [basename, refs] : index.by_basename) {
+        (void)basename;
+        for (const ArchiveEntryRef& ref : refs) {
+            pamt_paths.insert(lower_copy(ref.pamt_path.string()));
+        }
+    }
+    graph.pamt_count = static_cast<int>(std::max<size_t>(1, pamt_paths.size()));
+    return graph;
+}
+
 static std::map<std::string, NativeMaterialGraph>& resident_native_material_graph_cache() {
     static std::map<std::string, NativeMaterialGraph> cache;
     return cache;

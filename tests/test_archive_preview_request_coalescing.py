@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Optional
 
-from cdmw.models import ArchiveEntry
+from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings
 from cdmw.ui.archive_browser.preview_dotnet_lifecycle import (
     ArchivePreviewDotNetLifecycleMixin,
 )
@@ -94,6 +94,7 @@ class _TextureRequestHost(ArchivePreviewDotNetLifecycleMixin):
         self.deferred: list[object] = []
         self.render_requests: list[tuple[object, bool]] = []
         self.status_messages: list[str] = []
+        self.render_settings = ModelPreviewRenderSettings(use_textures_by_default=True)
 
     def _current_archive_entry(self) -> object:
         return self.entry
@@ -106,6 +107,9 @@ class _TextureRequestHost(ArchivePreviewDotNetLifecycleMixin):
 
     def _sync_archive_texture_action_state(self) -> None:
         pass
+
+    def _current_model_preview_render_settings(self) -> ModelPreviewRenderSettings:
+        return self.render_settings
 
     def set_status_message(self, message: str, *, error: bool = False) -> None:
         self.status_messages.append(str(message))
@@ -219,6 +223,22 @@ class _LoadingHost(ArchivePreviewLoadingMixin):
 
 
 class ArchivePreviewRequestCoalescingTests(unittest.TestCase):
+    def test_initial_preview_honors_persisted_texture_preference(self) -> None:
+        host = _TextureRequestHost()
+
+        settings = host._archive_preview_effective_render_settings(host.archive_preview_request_id)
+
+        self.assertTrue(settings.use_textures_by_default)
+
+    def test_explicit_texture_request_overrides_disabled_preference(self) -> None:
+        host = _TextureRequestHost()
+        host.render_settings = ModelPreviewRenderSettings(use_textures_by_default=False)
+        host._archive_texture_request_id = host.archive_preview_request_id
+
+        settings = host._archive_preview_effective_render_settings(host.archive_preview_request_id)
+
+        self.assertTrue(settings.use_textures_by_default)
+
     def test_automatic_texture_request_waits_while_mesh_builder_is_active(self) -> None:
         host = _TextureRequestHost()
         host.builder_active = True
