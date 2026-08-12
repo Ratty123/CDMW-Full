@@ -1,0 +1,4 @@
+# Written next to the scripts on every run, rebuilt from the templates in them.
+_spike.qml
+_picking.qml
+probe_*_result.json
