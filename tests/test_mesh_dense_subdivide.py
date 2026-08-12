@@ -115,6 +115,8 @@ def test_dense_multi_part_subdivide_changes_every_selected_region_and_round_trip
     assert subdivided.submesh_counts == ((1_710, 1_110), (1_710, 1_110))
     assert post_view.undo_count == 1
     assert _selection_sizes(post_selection, target) == (post_selection_count, post_selection_count)
+    assert subdivided.session_view is not None
+    assert subdivided.session_view.selection == post_selection
 
     undone = service.undo(session_id)
     undo_view = service.session_view(session_id)

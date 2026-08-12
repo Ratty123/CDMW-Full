@@ -57,6 +57,7 @@ internal sealed partial class ExperimentForm
             }
 
             var commandPages = RunEditMeshCommandPageDiagnostics();
+            var selectionReleaseRecovery = RunSelectionReleaseRecoveryDiagnostic(protocolEvents);
             var pendingSelectionTopology = RunPendingSelectionTopologyDiagnostic(formProtocolEvents);
             var controlSurface = RunEditMeshControlSurfaceDiagnostics();
             var finalFrame = RunEditMeshDiagnosticFrame();
@@ -88,6 +89,7 @@ internal sealed partial class ExperimentForm
                     && _viewport.HasTexturedMaterialResources
                     && interactionsOk
                     && pagesOk
+                    && selectionReleaseRecovery.GetValueOrDefault("ok") is true
                     && pendingSelectionTopology.GetValueOrDefault("ok") is true
                     && controlSurface.GetValueOrDefault("ok") is true
                     && formProtocolOk
@@ -111,6 +113,7 @@ internal sealed partial class ExperimentForm
                 ["all_rail_rows_covered"] = allRowsCovered,
                 ["interaction_cases"] = interactionCases,
                 ["command_pages"] = commandPages,
+                ["selection_release_recovery"] = selectionReleaseRecovery,
                 ["pending_selection_topology"] = pendingSelectionTopology,
                 ["control_surface"] = controlSurface,
                 ["form_protocol_ok"] = formProtocolOk,
@@ -480,6 +483,68 @@ internal sealed partial class ExperimentForm
             ["textures_enabled_after"] = _viewport.TexturesEnabled,
             ["bound_texture_resources_after"] = _viewport.HasTexturedMaterialResources,
         };
+    }
+
+    private Dictionary<string, object?> RunSelectionReleaseRecoveryDiagnostic(
+        List<(string Name, Dictionary<string, object?> Payload)> protocolEvents)
+    {
+        var size = _viewport.ClientSize;
+        var start = _viewport.InteractionSoakMeshAnchor();
+        var firstEnd = new Point(
+            Math.Clamp(start.X + 18, 1, Math.Max(1, size.Width - 2)),
+            Math.Clamp(start.Y + 12, 1, Math.Max(1, size.Height - 2)));
+        var secondEnd = new Point(
+            Math.Clamp(start.X - 14, 1, Math.Max(1, size.Width - 2)),
+            Math.Clamp(start.Y + 20, 1, Math.Max(1, size.Height - 2)));
+        var protocolStart = protocolEvents.Count;
+
+        _viewport.BeginInteractionSoak("select_brush_face", start);
+        _viewport.StepInteractionSoak(firstEnd);
+        _viewport.FinishSelectionInteractionSoakAfterLostMouseUp(firstEnd);
+        var firstGestureClean = _viewport.SelectionInteractionSoakStateClean;
+
+        _viewport.BeginInteractionSoak("select_brush_face", start);
+        var secondResult = _viewport.FinishInteractionSoak(secondEnd);
+        var secondGestureClean = _viewport.SelectionInteractionSoakStateClean;
+
+        var terminalRequests = protocolEvents
+            .Skip(protocolStart)
+            .Where(item => item.Name is "select_request" or "selection_request")
+            .Where(item => string.Equals(
+                Convert.ToString(item.Payload.GetValueOrDefault("phase")),
+                "end",
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var strokeIds = terminalRequests
+            .Select(item => Convert.ToString(item.Payload.GetValueOrDefault("stroke_id")) ?? string.Empty)
+            .Where(item => item.Length > 0)
+            .ToArray();
+        var distinctTerminalStrokes = strokeIds
+            .Distinct(StringComparer.Ordinal)
+            .Count() == 2;
+        var result = new Dictionary<string, object?>
+        {
+            ["ok"] = firstGestureClean
+                && secondGestureClean
+                && terminalRequests.Length == 2
+                && distinctTerminalStrokes
+                && secondResult.FinalAuthorityMatches
+                && secondResult.ProvisionalCleared,
+            ["first_gesture_state_clean"] = firstGestureClean,
+            ["second_gesture_state_clean"] = secondGestureClean,
+            ["terminal_request_count"] = terminalRequests.Length,
+            ["terminal_stroke_ids"] = strokeIds,
+            ["distinct_terminal_strokes"] = distinctTerminalStrokes,
+            ["second_selection_authority_matches"] = secondResult.FinalAuthorityMatches,
+            ["second_selection_provisional_cleared"] = secondResult.ProvisionalCleared,
+        };
+        // The hidden proof emits real protocol requests without a host process
+        // answering them. Retire that synthetic authority before the next
+        // diagnostic (pending Subdivide) starts, exactly as a session boundary
+        // would, so the proof cannot poison the case that follows it.
+        _viewport.SetAuthoritativeEditRevision(_viewport.AcknowledgedSelectionRevision);
+        _viewport.ResetSelectionAuthority();
+        return result;
     }
 
     private MeshInteractionSoakResult ApplyInteractionSoakAuthoritativeGeometry(

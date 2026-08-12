@@ -134,9 +134,29 @@ internal sealed partial class MeshViewport
         {
             throw new InvalidOperationException("The release-only diagnostic requires a lasso selection gesture.");
         }
-        FinishEdgeDrag(point);
-        ReleasePaintProjectionCache();
+        FinishSelectionGesture(point, cancelled: false);
     }
+
+    internal void FinishSelectionInteractionSoakAfterLostMouseUp(Point point)
+    {
+        if (_interactionSoakSelectionShape.Length == 0)
+        {
+            throw new InvalidOperationException("The lost-release diagnostic requires a selection gesture.");
+        }
+        OnMouseMove(new MouseEventArgs(MouseButtons.None, 0, point.X, point.Y, 0));
+    }
+
+    internal bool SelectionInteractionSoakStateClean =>
+        !_edgeDragActive
+        && !_selectionPaintActive
+        && !_selectionPaintPainted
+        && string.IsNullOrWhiteSpace(_selectionStrokeId)
+        && _selectionLassoPoints.Count == 0
+        && _selectionPaintPathPoints.Count == 0
+        && _selectionPaintToggleTouchedVertices.Count == 0
+        && _selectionPaintToggleTouchedFaces.Count == 0
+        && _selectionPaintToggleTouchedEdges.Count == 0
+        && _paintProjection is null;
 
     internal MeshInteractionSoakResult FinishInteractionSoak(
         Point point,
@@ -145,7 +165,7 @@ internal sealed partial class MeshViewport
         StepInteractionSoak(point);
         if (_interactionSoakSelectionShape.Length > 0)
         {
-            FinishEdgeDrag(point);
+            FinishSelectionGesture(point, cancelled: false);
             var expectedVertices = CloneSelectionMap(_provisionalSelectedVertices);
             var expectedFaces = CloneSelectionMap(_provisionalSelectedFaces);
             var expectedEdges = _provisionalSelectedEdges
@@ -166,8 +186,6 @@ internal sealed partial class MeshViewport
                 new HashSet<int>(),
                 selectionRequestId,
                 _authoritativeEditRevision + 1L);
-            _selectionPaintActive = false;
-            ReleasePaintProjectionCache();
             var matches = accepted && SelectionMapsMatch(expectedVertices, _selectedVertices)
                 && SelectionMapsMatch(expectedFaces, _selectedFaces)
                 && expectedEdges.Sum(pair => pair.Value.Count) == _selectedEdges.Count;

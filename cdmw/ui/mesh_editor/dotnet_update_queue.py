@@ -64,6 +64,23 @@ def _event(packet: Mapping[str, object]) -> str:
     return str(packet.get("event", "") or "")
 
 
+def _correlated_request_ids(
+    packets: Sequence[Mapping[str, object]],
+) -> frozenset[int]:
+    request_ids: set[int] = set()
+    for packet in packets:
+        raw_value = packet.get("request_id", 0)
+        if isinstance(raw_value, bool):
+            continue
+        try:
+            request_id = int(raw_value or 0)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if request_id > 0:
+            request_ids.add(request_id)
+    return frozenset(request_ids)
+
+
 def _packet_has_topology(packets: Sequence[Mapping[str, object]]) -> bool:
     return any(_event(packet) == _TOPOLOGY_EVENT for packet in packets)
 
@@ -196,6 +213,19 @@ def _coalesce_packets(
     older: Sequence[Mapping[str, object]],
     newer: Sequence[Mapping[str, object]],
 ) -> tuple[dict[str, object], ...] | None:
+    # A positive request id is the helper's mutation-authority identity, not
+    # merely transport metadata. Combining two independently correlated
+    # requests makes _send_batch choose one id and causes the helper to reject
+    # the other result as stale or unrelated. Uncorrelated snapshots may still
+    # coalesce with one another, and packets from the same request may coalesce.
+    older_request_ids = _correlated_request_ids(older)
+    newer_request_ids = _correlated_request_ids(newer)
+    if (
+        len(older_request_ids) > 1
+        or len(newer_request_ids) > 1
+        or older_request_ids != newer_request_ids
+    ):
+        return None
     if _packet_has_topology(older) or _packet_has_topology(newer):
         return None
     result = [dict(packet) for packet in older]
@@ -256,6 +286,7 @@ class DotNetRevisionUpdateQueue:
         self._resync_attempts = 0
         self._resync_active = False
         self._recovery_failed = False
+        self._correlation_conflicts = 0
 
     def set_context(self, *, session_id: str, process_generation: int) -> None:
         normalized = str(session_id or "").strip()
@@ -299,6 +330,7 @@ class DotNetRevisionUpdateQueue:
         self._resync_attempts = 0
         self._resync_active = False
         self._recovery_failed = False
+        self._correlation_conflicts = 0
 
     def observe_capabilities(self, payload: Mapping[str, object]) -> bool:
         raw = payload.get("capabilities", ())
@@ -324,6 +356,14 @@ class DotNetRevisionUpdateQueue:
         if not prepared:
             return True
         paths = _owned_payload_paths(prepared)
+        request_ids = _correlated_request_ids(prepared)
+        if len(request_ids) > 1:
+            # Never invent a replacement envelope for multiple mutations. A
+            # caller can retry them as separate ordered batches; sending them
+            # under either id would silently strand the other provisional UI.
+            _remove_paths(paths)
+            self._correlation_conflicts += 1
+            return False
         expected_acks = self._expected_acks(prepared)
         if not self._capable or revision <= 0:
             sent = all(self._send(packet) for packet in prepared)
@@ -336,7 +376,15 @@ class DotNetRevisionUpdateQueue:
             _remove_paths(paths)
             return False
         if self._active_revision > 0 or self._resync_active:
-            if int(revision) == self._active_revision and not expected_acks and not self._resync_active:
+            same_active_request = not request_ids or request_ids == frozenset(
+                {self._active_request_id}
+            )
+            if (
+                int(revision) == self._active_revision
+                and not expected_acks
+                and not self._resync_active
+                and same_active_request
+            ):
                 return self._send_uncorrelated_supplement(prepared, paths)
             return self._accumulate_pending(int(revision), prepared, paths)
         return self._send_batch(int(revision), prepared, paths)
@@ -423,12 +471,13 @@ class DotNetRevisionUpdateQueue:
         *,
         resync: bool = False,
     ) -> bool:
-        supplied_request_ids = {
-            int(packet.get("request_id", 0) or 0)
-            for packet in packets
-            if not isinstance(packet.get("request_id"), bool)
-        }
-        supplied_request_ids.discard(0)
+        supplied_request_ids = set(_correlated_request_ids(packets))
+        if len(supplied_request_ids) > 1:
+            _remove_paths(paths)
+            self._correlation_conflicts += 1
+            if resync:
+                self._fail_recovery()
+            return False
         if len(supplied_request_ids) == 1:
             request_id = supplied_request_ids.pop()
             self._request_sequence = max(self._request_sequence, request_id)
@@ -582,6 +631,7 @@ class DotNetRevisionUpdateQueue:
             "resync_attempts": self._resync_attempts,
             "resync_active": self._resync_active,
             "recovery_failed": self._recovery_failed,
+            "correlation_conflicts": self._correlation_conflicts,
             "legacy_cleanup_depth": len(self._legacy_paths),
         }
 

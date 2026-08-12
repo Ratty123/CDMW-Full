@@ -690,6 +690,55 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         tab.deleteLater()
         builder.deleteLater()
 
+    def test_failed_terminal_selection_enqueue_rejects_provisional_authority(self) -> None:
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorSelectionEnqueueFailure"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_controller = builder.controller
+        tab.standalone_dotnet_update_ack_start_timer.stop()
+        recorded: list[tuple[str, dict[str, object]]] = []
+        sent: list[dict[str, object]] = []
+        tab.standalone_dotnet_update_queue = SimpleNamespace(
+            enqueue=lambda _revision, _packets: False,
+            metrics=lambda: {"recovery_failed": True},
+        )
+        tab._record_mesh_dotnet_event = (  # type: ignore[method-assign]
+            lambda event, **payload: recorded.append((event, dict(payload)))
+        )
+
+        with patch.object(
+            tab,
+            "_send_dotnet_protocol_message",
+            side_effect=lambda payload: sent.append(dict(payload)) or True,
+        ):
+            published = tab._send_dotnet_native_update(
+                MeshEditorNativeUpdate(
+                    refresh_selection=True,
+                    session_view=builder.controller.session_view(),
+                ),
+                result=MeshEditResult(action="select", status="ok", revision=0),
+                request_payload={
+                    "event": "select_request",
+                    "session_id": builder.controller.session_view().session_id,
+                    "request_id": 55,
+                    "base_revision": 0,
+                    "process_generation": 7,
+                    "protocol_version": 2,
+                },
+            )
+
+        self.assertFalse(published)
+        self.assertFalse(tab.standalone_dotnet_update_ack_start_timer.isActive())
+        self.assertEqual("mesh_dotnet_native_update_enqueue_failed", recorded[0][0])
+        self.assertEqual(55, recorded[0][1]["request_id"])
+        self.assertEqual(1, len(sent))
+        self.assertEqual("command_result", sent[0]["event"])
+        self.assertEqual("error", sent[0]["status"])
+        self.assertFalse(sent[0]["ok"])
+        self.assertEqual(55, sent[0]["request_id"])
+        tab.deleteLater()
+        builder.deleteLater()
+
     def test_successful_part_command_uses_current_controller_for_result_revision(self) -> None:
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorPartCommandControllerHandoff"))
         builder = _EmbeddedMeshBuilder()

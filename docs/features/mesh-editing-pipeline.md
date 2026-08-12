@@ -546,6 +546,18 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   state, and direct Select All/Grow/Shrink/Invert commands carry the same
   worker-produced view, so neither path re-enters the session lock on the Qt
   thread after completing.
+  Positive mutation request IDs are strict queue boundaries. A selection that
+  completes at the same resident revision as an unacknowledged geometry frame
+  waits behind that frame and retains its own request ID; independently
+  correlated updates are never coalesced or re-enveloped together. Queue
+  refusal and cooperative cancellation return correlated failure results so the
+  helper rolls back provisional authority instead of keeping a blue local echo.
+  Lost mouse-up commits through the same exact release path as an ordinary
+  mouse-up, while focus/tool cancellation uses the same idempotent closer to
+  clear every stroke, paint, lasso, touched-element, and projection-cache field.
+  Committed selection persists unchanged through Move, Grab, Smooth, Inflate,
+  and Pinch. Topology publishes its native pruned/remapped selection to the
+  Builder mirror; only elements removed by the operation naturally disappear.
   Move applies a transient transform only to the selected mesh elements
   (or an explicitly selected PARTS row). Fixed Move and Grab scopes cache their
   incident face ranges on the first sample and rotate three transient vertex

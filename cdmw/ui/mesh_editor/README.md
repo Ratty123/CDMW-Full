@@ -53,7 +53,8 @@ descriptor owns the 200,000-faces-per-submesh safety cap, which is merged into
 resident requests before caller overrides. Faces subdivide exactly; selected
 wires and vertices expand to incident faces and remap back to the split wires or
 the original/generated vertices. Geometry and selection are one native history
-pair, so one Undo or Redo restores both.
+pair, so one Undo or Redo restores both. The Builder adopts the native remapped
+selection after topology rather than clearing its mirror independently.
 Normal tools include service-routed recalc, tangent generation, flip,
 sharpen/soften, weighted normals, and source-normal copy commands; cleanup
 tools include remove doubles, delete loose vertices, compact orphans, winding
@@ -69,6 +70,11 @@ state in the feature tab, including embedded static-builder refreshes.
 descriptors; UI shells should emit actions, not implement edit commands.
 `MeshEditorController.run_editor_action()` wraps that bridge with native preview
 update packaging for action-bar consumers.
+Correlated resident updates treat every positive helper request ID as an
+ordering boundary. A terminal selection may wait behind an acknowledged
+geometry frame at the same revision, but it cannot be merged into that frame or
+published under its ID. Cancellation or publication failure returns an explicit
+rollback result so provisional selection cannot remain stranded.
 `MeshEditorController.export_validation_report()` exposes the service-backed
 pre-export validator for the active session.
 `MeshEditorController.workspace_summary()` exposes the service-backed part,

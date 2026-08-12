@@ -4,6 +4,8 @@ import threading
 import time
 from collections.abc import Mapping
 
+from PySide6.QtCore import Qt
+
 from cdmw.domain.mesh import MeshEditCommand, MeshEditResult, MeshEditSelection
 from cdmw.ui.mesh_editor.controller import MeshEditorNativeUpdate
 from cdmw.ui.mesh_editor.live_stroke_dispatcher import MeshLiveStrokeDispatcher
@@ -215,15 +217,126 @@ def test_two_minute_equivalent_selection_stream_keeps_one_pending_update_and_all
         assert dispatcher.stop()
 
 
-def test_live_stroke_dispatcher_cancellation_reaches_active_request() -> None:
+def test_pending_selection_and_deformation_updates_keep_fifo_stream_boundaries() -> None:
+    controller = _BlockingController()
+    dispatcher = MeshLiveStrokeDispatcher()
+    coalesced_request_ids: list[int] = []
+    dispatcher.coalesced.connect(
+        lambda notice: coalesced_request_ids.extend(
+            int(payload["request_id"]) for payload in notice.request_payloads
+        )
+    )
+    try:
+        assert dispatcher.submit(controller, _command("begin"), "begin") > 0
+        assert controller.begin_started.wait(1.0)
+
+        assert dispatcher.submit(
+            controller,
+            _selection_command("update", 1),
+            "update",
+            source="dotnet_selection",
+            request_payload={"request_id": 51},
+        ) > 0
+        assert dispatcher.submit(
+            controller,
+            _drag_command(10, 20),
+            "update",
+            source="dotnet",
+            request_payload={"request_id": 52},
+        ) > 0
+        assert dispatcher.metrics()["control_depth"] == 1
+        assert dispatcher.metrics()["queue_depth"] == 1
+        assert dispatcher.metrics()["coalesced_updates"] == 0
+
+        controller.release_begin.set()
+        assert dispatcher.wait_idle(2.0)
+        assert controller.calls == ["begin", "update-1", "update-20"]
+        assert coalesced_request_ids == []
+    finally:
+        controller.release_begin.set()
+        assert dispatcher.stop()
+
+
+def test_distinct_deformation_stroke_updates_are_not_coalesced() -> None:
     controller = _BlockingController()
     dispatcher = MeshLiveStrokeDispatcher()
     try:
         assert dispatcher.submit(controller, _command("begin"), "begin") > 0
         assert controller.begin_started.wait(1.0)
+        first = _drag_command(0, 1)
+        second_params = dict(_drag_command(1, 2).params)
+        second_params["marker"] = "other-stroke"
+        second_params["stroke_id"] = "other-stroke"
+        second = MeshEditCommand("transform", params=second_params)
+
+        assert dispatcher.submit(controller, first, "update", source="dotnet") > 0
+        assert dispatcher.submit(controller, second, "update", source="dotnet") > 0
+        assert dispatcher.metrics()["control_depth"] == 1
+        assert dispatcher.metrics()["queue_depth"] == 1
+        assert dispatcher.metrics()["coalesced_updates"] == 0
+
+        controller.release_begin.set()
+        assert dispatcher.wait_idle(2.0)
+        assert controller.calls == ["begin", "update-1", "other-stroke"]
+    finally:
+        controller.release_begin.set()
+        assert dispatcher.stop()
+
+
+def test_cancel_phase_terminalizes_the_discarded_pending_update() -> None:
+    controller = _BlockingController()
+    dispatcher = MeshLiveStrokeDispatcher()
+    failures = []
+    dispatcher.failed.connect(failures.append, Qt.ConnectionType.DirectConnection)
+    try:
+        assert dispatcher.submit(controller, _command("begin"), "begin") > 0
+        assert controller.begin_started.wait(1.0)
+        assert dispatcher.submit(
+            controller,
+            _command("update"),
+            "update",
+            source="dotnet",
+            request_payload={"request_id": 61},
+        ) > 0
+        assert dispatcher.submit(
+            controller,
+            _command("cancel"),
+            "cancel",
+            source="dotnet",
+            request_payload={"request_id": 62},
+        ) > 0
+
+        assert len(failures) == 1
+        assert failures[0].cancelled is True
+        assert failures[0].request_payloads == ({"request_id": 61},)
+        controller.release_begin.set()
+        assert dispatcher.wait_idle(2.0)
+        assert controller.calls == ["begin", "cancel"]
+    finally:
+        controller.release_begin.set()
+        assert dispatcher.stop()
+
+
+def test_live_stroke_dispatcher_cancellation_reaches_active_request() -> None:
+    controller = _BlockingController()
+    dispatcher = MeshLiveStrokeDispatcher()
+    failures = []
+    dispatcher.failed.connect(failures.append, Qt.ConnectionType.DirectConnection)
+    try:
+        assert dispatcher.submit(
+            controller,
+            _command("begin"),
+            "begin",
+            source="dotnet",
+            request_payload={"request_id": 70},
+        ) > 0
+        assert controller.begin_started.wait(1.0)
         dispatcher.cancel_pending()
         assert dispatcher.wait_idle(2.0)
         assert controller.calls == ["begin"]
+        assert len(failures) == 1
+        assert failures[0].cancelled is True
+        assert failures[0].request_payloads == ({"request_id": 70},)
     finally:
         controller.release_begin.set()
         assert dispatcher.stop()

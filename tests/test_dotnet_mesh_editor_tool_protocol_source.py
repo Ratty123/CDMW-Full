@@ -1229,6 +1229,12 @@ def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
     overlay_source = _source("D3D11MaterialViewport.Overlay.cs")
     assert "private void DrawSelectionLassoOverlay()" in overlay_source
     assert "DrawSelectionLassoOverlay();" in overlay_source
+    diagnostic_source = _source("ExperimentForm.EditMeshToolDiagnostics.cs")
+    assert "RunSelectionReleaseRecoveryDiagnostic" in diagnostic_source
+    assert '["selection_release_recovery"]' in diagnostic_source
+    interaction_soak_source = _source("MeshViewport.InteractionSoak.cs")
+    assert "FinishSelectionInteractionSoakAfterLostMouseUp" in interaction_soak_source
+    assert "SelectionInteractionSoakStateClean" in interaction_soak_source
 
 
 def test_the_local_click_selection_pickers_stay_removed() -> None:

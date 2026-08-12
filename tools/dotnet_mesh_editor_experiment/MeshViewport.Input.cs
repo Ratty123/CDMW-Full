@@ -231,25 +231,15 @@ internal sealed partial class MeshViewport
                 return;
             }
             e = PaneMouseEvent(e, paneId);
-            if (_edgeDragActive)
-            {
-                FinishEdgeDrag(e.Location);
-            }
+            FinishSelectionGesture(e.Location, cancelled: false);
             EndEditorStroke(e.Location, cancelled: false);
             base.OnMouseUp(e);
         }
         finally
         {
-            if (_edgeDragActive)
-            {
-                CancelSelectionStroke();
-            }
+            FinishSelectionGesture(_edgeDragCurrent, cancelled: true);
             _rotating = false;
             _panning = false;
-            _edgeDragActive = false;
-            _selectionPaintActive = false;
-            _selectionLassoPoints.Clear();
-            ReleasePaintProjectionCache();
             EndEditorStroke(_strokePrevious, cancelled: true);
             _capturedInputPane = string.Empty;
             SetRenderSurfaceCapture(false);
@@ -285,6 +275,7 @@ internal sealed partial class MeshViewport
             // was waiting for a mouse-up is over whether or not that mouse-up
             // ever arrived. Closing it here keeps a lost capture from leaving a
             // stroke open across later gestures.
+            FinishSelectionGesture(e.Location, cancelled: false);
             EndEditorStroke(e.Location, cancelled: false);
             if (_placementDragActive)
             {
@@ -305,6 +296,8 @@ internal sealed partial class MeshViewport
             // to pan do nothing.
             _rotating = false;
             _panning = false;
+            _capturedInputPane = string.Empty;
+            SetRenderSurfaceCapture(false);
         }
         if (_placementDragActive && (e.Button & MouseButtons.Left) == MouseButtons.Left)
         {
@@ -515,10 +508,49 @@ internal sealed partial class MeshViewport
     /// </summary>
     internal void CancelActiveStroke()
     {
-        CancelSelectionStroke();
+        FinishSelectionGesture(_edgeDragCurrent, cancelled: true);
         EndEditorStroke(_strokePrevious, cancelled: true);
         _rotating = false;
         _panning = false;
+        _capturedInputPane = string.Empty;
+        SetRenderSurfaceCapture(false);
+    }
+
+    /// <summary>
+    /// Closes every piece of a Select gesture through one idempotent path. A
+    /// release commits exactly what the viewport drew; cancellation restores
+    /// the committed overlay and retires all paint/lasso/cache state so the
+    /// next gesture cannot inherit a stale stroke id.
+    /// </summary>
+    private void FinishSelectionGesture(Point location, bool cancelled)
+    {
+        var wasActive = _edgeDragActive || !string.IsNullOrWhiteSpace(_selectionStrokeId);
+        if (wasActive)
+        {
+            if (cancelled)
+            {
+                CancelSelectionStroke();
+                ClearProvisionalSelectionEcho();
+            }
+            else if (_edgeDragActive)
+            {
+                FinishEdgeDrag(location);
+            }
+            else
+            {
+                CancelSelectionStroke();
+                ClearProvisionalSelectionEcho();
+            }
+        }
+        _edgeDragActive = false;
+        _selectionPaintActive = false;
+        _selectionPaintPainted = false;
+        _selectionLassoPoints.Clear();
+        _selectionPaintPathPoints.Clear();
+        _selectionPaintToggleTouchedVertices.Clear();
+        _selectionPaintToggleTouchedFaces.Clear();
+        _selectionPaintToggleTouchedEdges.Clear();
+        ReleasePaintProjectionCache();
     }
 
     protected override void OnLostFocus(EventArgs e)

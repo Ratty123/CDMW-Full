@@ -555,10 +555,7 @@ class MeshEditorController:
         native_triangle_groups = _native_preview_triangle_groups_for_result(result)
         current_view: MeshEditSessionView | None = None
         current_selection: MeshEditSelection | None = None
-        if (
-            result.action in {"select", "undo", "redo"}
-            or (result.topology_changed and result.ok and result.submesh_count_delta < 0)
-        ):
+        if result.action in {"select", "undo", "redo"} or (result.topology_changed and result.ok):
             current_view = result.session_view or _current_session_view(self)
             current_selection = (
                 current_view.selection if current_view is not None else MeshEditSelection()
@@ -606,6 +603,7 @@ class MeshEditorController:
                 refresh_selection=True,
                 material_override_groups=_material_override_groups_for_native_triangle_groups(native_triangle_groups),
                 final_submesh_count=final_count,
+                session_view=current_view,
             )
         if (
             result.topology_changed
@@ -625,6 +623,7 @@ class MeshEditorController:
                 selection_groups=selection_groups,
                 refresh_selection=True,
                 material_override_groups=_material_override_groups_for_native_triangle_groups(native_triangle_groups),
+                session_view=current_view,
             )
         if result.ok and native_triangle_groups:
             requested = _native_topology_refresh_source_indices(result, native_triangle_groups)

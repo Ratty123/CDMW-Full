@@ -158,6 +158,10 @@ def test_helper_pins_the_stroke_tool_and_paces_stroke_updates() -> None:
 
     # A gesture that loses its mouse-up must not leave the stroke open.
     assert "EndEditorStroke(e.Location, cancelled: false)" in input_source
+    assert "FinishSelectionGesture(e.Location, cancelled: false)" in input_source
+    assert "FinishSelectionGesture(_edgeDragCurrent, cancelled: true)" in input_source
+    assert "_selectionPaintPathPoints.Clear();" in input_source
+    assert "_selectionPaintToggleTouchedFaces.Clear();" in input_source
     assert "internal void CancelActiveStroke()" in input_source
     assert "protected override void OnLostFocus" in input_source
 

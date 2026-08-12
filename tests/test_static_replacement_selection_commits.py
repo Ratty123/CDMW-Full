@@ -29,11 +29,12 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
 
-from cdmw.domain.mesh import MeshEditResult, MeshEditSelection
+from cdmw.domain.mesh import MeshEditResult, MeshEditSelection, MeshEditSessionView
 from cdmw.ui.archive_browser.static_replacement_mesh_edit_actions import (
     create_actions_callbacks,
 )
 from cdmw.ui.mesh_editor import static_replacement_adapter as adapter_module
+from cdmw.ui.mesh_editor.controller import MeshEditorNativeUpdate
 from cdmw.ui.mesh_editor.static_replacement_adapter import StaticReplacementMeshEditSession
 
 BEFORE_COUNTS = ((120, 60), (40, 20))
@@ -67,7 +68,7 @@ def _session(result: MeshEditResult, monkeypatch: pytest.MonkeyPatch) -> StaticR
     monkeypatch.setattr(
         adapter_module,
         "_static_result",
-        lambda mesh, edit_result, native_update, *, before, after=None, selection: {
+        lambda mesh, edit_result, native_update, *, before, after=None, selection, authoritative_selection=None: {
             "before": before,
             "after": after,
             "action": edit_result.action,
@@ -216,6 +217,91 @@ def test_terminal_resident_stroke_records_only_a_lightweight_undo_marker() -> No
     ]
     assert commit_kwargs[0]["undo_snapshot_recorded"] is True
     assert commit_kwargs[0]["geometry_snapshot_recorded"] is False
+
+
+def test_topology_commit_adopts_the_authoritative_remapped_selection() -> None:
+    remapped = MeshEditSelection.from_maps(faces_by_submesh={0: (0, 1, 2, 3)})
+    mirrored: list[MeshEditSelection] = []
+    state = SimpleNamespace(
+        MeshEditSelection=MeshEditSelection,
+        context={},
+        self=SimpleNamespace(set_status_message=lambda *_args, **_kwargs: None),
+        mesh_edit_revision={"value": 0},
+        _mesh_edit_topology_changed_status_helper=lambda _action: "topology changed",
+        _morph_slider_topology_changed_reason_text_helper=lambda: "topology changed",
+        _refresh_source_tree_selection_state=lambda: None,
+        _refresh_source_assignment_columns=lambda: None,
+    )
+    callbacks = SimpleNamespace(
+        _mesh_editor_action_result_changed=lambda _result: True,
+        _mesh_editor_action_result_within_allowed_scope=lambda _result: True,
+        _mesh_editor_store_result_mesh=lambda _result: None,
+        _morph_slider_mark_topology_changed=lambda _reason: None,
+        _mesh_edit_set_selection_state=lambda selection: mirrored.append(selection),
+        _mesh_edit_clear_topology_selection=lambda: (_ for _ in ()).throw(
+            AssertionError("topology discarded its authoritative selection")
+        ),
+        _mesh_editor_send_embedded_dotnet_update=lambda _update: True,
+        _mesh_editor_apply_result_native_update=lambda _result: False,
+        _mesh_edit_update_mesh_totals=lambda: None,
+        _mesh_editor_sync_static_replacement_session_to_working_mesh=lambda _reason: False,
+        _mesh_edit_commit_geometry_preview_state=lambda: None,
+        _refresh_mesh_edit_controls=lambda: None,
+        _mesh_edit_replace_live_triangles_or_queue_rebuild=lambda _indices: None,
+    )
+    actions = create_actions_callbacks(state, callbacks)
+
+    assert actions._mesh_editor_commit_action_bar_service_result(
+        SimpleNamespace(
+            selection=remapped,
+            native_update=object(),
+            edit_result=SimpleNamespace(topology_changed=True, submesh_count_delta=0),
+            affected_submesh_indices=(0,),
+        ),
+        action_key="subdivide",
+        action_text="Subdivide",
+        topology_action=True,
+    )
+    assert mirrored == [remapped]
+
+
+def test_static_adapter_carries_topology_selection_authority_without_losing_source_scope() -> None:
+    requested = MeshEditSelection.from_maps(source_indices=(0,))
+    remapped = MeshEditSelection.from_maps(faces_by_submesh={0: (0, 1, 2, 3)})
+    view = MeshEditSessionView(
+        session_id="topology-selection",
+        mode="edit",
+        revision=4,
+        selection=remapped,
+        submesh_count=2,
+        vertex_count=160,
+        face_count=80,
+    )
+
+    class _TopologyController:
+        @staticmethod
+        def native_update_for_result(_result: MeshEditResult) -> MeshEditorNativeUpdate:
+            return MeshEditorNativeUpdate(session_view=view)
+
+    session = StaticReplacementMeshEditSession.__new__(StaticReplacementMeshEditSession)
+    session.controller = _TopologyController()  # type: ignore[assignment]
+    session.mesh = object()  # type: ignore[assignment]
+    session.submesh_counts = BEFORE_COUNTS
+
+    result = session._result(
+        MeshEditResult(
+            action="subdivide",
+            status="ok",
+            revision=4,
+            topology_changed=True,
+            submesh_counts=BEFORE_COUNTS,
+        ),
+        before=BEFORE_COUNTS,
+        selection=requested,
+    )
+
+    assert result.selection == remapped
+    assert result.selected_source_indices == (0,)
 
 
 def test_a_result_that_changed_topology_still_must_report_counts(

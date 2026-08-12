@@ -180,7 +180,14 @@ case requires no full selection publication during begin/update, one correlated
 terminal `selection_update`, a compact following `session_state` with no
 duplicate selection or unchanged geometry-layer payload, zero direct embedded
 reapply, zero Builder geometry snapshots, and exact Builder/workspace selection
-mirrors. Mouse-up-to-dispatcher
+mirrors. It deliberately leaves a geometry frame unacknowledged at the same
+revision, requires the terminal selection to wait without losing its own
+request ID, acknowledges that frame, and then performs a second independent
+selection to prove no provisional or stroke state remained poisoned. The
+WinForms phase separately loses mouse-up during a real selection input path and
+requires two distinct terminal stroke IDs with all paint/lasso/cache state
+closed. Every 320-update deformation case also requires its committed selection
+to remain byte-for-byte equal before and after the stroke. Mouse-up-to-dispatcher
 idle and terminal completion must both remain below 200 ms, with heartbeat
 samples bracketing that interval and a worst 10 ms Qt heartbeat gap below 200
 ms. The UV Map panel stays active while its real selection-aware dense summary
