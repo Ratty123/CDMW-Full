@@ -811,6 +811,11 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   source resource no longer resolves.
   Package-time material-graph baking keeps source DDS paths authoritative for
   renderer binding and decodes cached PNG previews only for combiner operands.
+  A native `embedded_mesh_reference` is a supported direct material binding only
+  when its provenance is exactly `embedded_mesh` declared by `mesh`; the native
+  semantic then selects base, normal, emissive, or the recorded support-map
+  channel. Unknown parameters, missing provenance, and unknown semantics remain
+  compile blockers instead of being guessed from a filename.
   Color layers and albedo blend masks use a 512 px cap; direct native normal and
   height DDS maps retain their source resolution and mip chains. Missing or
   unreadable operands fail closed to the raw channel set instead of publishing a

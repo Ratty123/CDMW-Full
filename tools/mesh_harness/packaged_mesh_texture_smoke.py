@@ -31,8 +31,10 @@ from cdmw.ui.archive_browser.static_replacement_prompt_preflight import (
 )
 
 
+# This PHW model is the escaped packaged-runtime regression: its visible body
+# textures arrive as exact native ``embedded_mesh_reference`` bindings.
 _PACKAGED_TEXTURE_SAMPLE = (
-    "character/model/1_pc/8_pdw/nude/cd_pdw_00_nude_00_0001.pac"
+    "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_4001.pac"
 )
 
 

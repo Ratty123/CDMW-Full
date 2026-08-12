@@ -227,9 +227,12 @@ paint messages without putting the test UI on the desktop. It drives
 both normal Mesh Editor and Edit Mesh, waits for queued scene, presentation,
 package, and material work, then requires a fresh correlated renderer status
 with textured mode, texture sampling, live SRVs, and textured draw calls. The
-gate reads the fixed PAC through `0.pamt` and rejects any PAMT or PAZ hash
-change; it is not part of `mesh-unit` because it needs a packaged executable and
-licensed local game data.
+gate reads the fixed escaped-regression PAC,
+`character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_4001.pac`, through `0.pamt`
+and rejects any PAMT or PAZ hash change. This sample carries mesh-owned
+`embedded_mesh_reference` base textures, so the gate covers the material route
+that the earlier PDW sample did not. It is not part of `mesh-unit` because it
+needs a packaged executable and licensed local game data.
 
 Preview Core decode/package ownership, shared .NET host lifecycle, native
 renderer retirement guards, Release build, and headless self-tests:

@@ -153,6 +153,54 @@ def test_initial_and_resident_paths_use_the_same_compiler_contract(tmp_path: Pat
     assert all(Path(resource["path"]).is_file() for resource in resident["resources"])
 
 
+def test_resident_compiler_accepts_exact_embedded_mesh_base_reference(
+    tmp_path: Path,
+) -> None:
+    base = _image(tmp_path / "cd_phw_00_nude_00_0001.png", (132, 92, 78, 255))
+    submesh = SubMesh(
+        name="CD_PHW_00_Nude_00_0001",
+        material="CD_PHW_00_Nude_00_0001",
+        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+        uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+        faces=[(0, 1, 2)],
+    )
+    submesh.submesh_index = 1
+    submesh.material_slot_index = 1
+    submesh.preview_pac_material_owner_slot_index = 1
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            parameter_name="embedded_mesh_reference",
+            source_texture_path="character/texture/cd_phw_00_nude_00_0001.dds",
+            source_dds_path=str(base),
+            preview_texture_path=str(base),
+            texture_name="cd_phw_00_nude_00_0001.dds",
+            semantic_type="albedo",
+            material_name="CD_PHW_00_Nude_00_0001",
+            sidecar_kind="embedded_mesh",
+            parameter_declared_by="mesh",
+            material_output_quality="exact",
+            owner_slot_index=1,
+        ),
+    )
+    mesh = ParsedMesh(
+        path="character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_4001.pac",
+        format="pac",
+        submeshes=[submesh],
+    )
+
+    graph = build_pac_material_graph_v1(submesh)
+    resident = compile_mesh_dotnet_material_update(_request(mesh, tmp_path / "cache"))
+
+    assert graph["unsupported_features"] == []
+    assert graph["bindings"][0]["parameter_disposition"] == "bound"
+    assert graph["bindings"][0]["binding_disposition"] == "promoted"
+    assert resident["submeshes"][0]["source_contract"]["unsupported_features"] == []
+    assert "base" in resident["submeshes"][0]["channels"]
+    assert resident["resources"]
+    assert all(Path(resource["path"]).is_file() for resource in resident["resources"])
+
+
 def test_resident_compiler_reuses_content_addressed_outputs(tmp_path: Path) -> None:
     mesh = _mesh_with_layer_graph(tmp_path)
     request = _request(mesh, tmp_path / "cache")
