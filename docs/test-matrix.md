@@ -235,7 +235,10 @@ PAC side by side and physically proves Archive Browser wheel-step parity,
 panned focal-point locking, exact inverse restoration, per-pane ownership, and unchanged
 archive fingerprints without contaminating the edit session's resource-lifetime
 counters. The edit proof also requires an initially empty Parts selection and
-proves face/vertex selection does not select or highlight a part.
+proves face/vertex selection does not select or highlight a part. Its projection
+probe uses Select rather than Move, so evidence setup cannot deform the temporary
+seed part; the subsequent physical gesture follows the authoritative multi-part
+vertex map and reports any changed vertex outside that map.
 `mesh-unit` excludes visual scenarios, so it never opens the synthetic legacy
 checker-square window. Its visual-audit harness coverage is nonvisual: corpus
 validation, stale-result guards, resident-device source contracts, comparison
@@ -357,7 +360,18 @@ Native edit-core protocol, responsiveness, and production .NET checks:
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-animation-binding-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-animation"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-sequence-binding-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-sequence"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-app-workflow-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-app-workflow"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-mesh-editor-load-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-real-archive-mesh-editor-load"
 ```
+
+The read-only `real-archive-mesh-editor-load-smoke` scenario opens the fixed PDW
+sample through production Modify Original preparation, prompt preflight, and
+embedded Builder construction for cold, refresh, and warm runs. It captures the
+Archive Browser and each fully revealed Mesh Editor, fails on any transient
+progress dialog, partially constructed child show, or surviving startup timer,
+and compares SHA-256 fingerprints for the source PAMT and PAZ before and after.
+It deliberately clears renderer post-open tasks to isolate transition cost and
+publication ordering; run `headless-edit-mesh-diagnostics` and the real visual
+gate separately for textured rendering and tool behavior.
 
 The `real-archive-mesh-editor-dotnet-edit-smoke` scenario is the sole visual
 renderer proof. Registry validation fails if a production visual role is not

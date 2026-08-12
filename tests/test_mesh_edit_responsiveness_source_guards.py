@@ -361,6 +361,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             ("cdmw/ui/shell/model_library_bridge.py", "preview_model = parsed_mesh_to_preview_model(scene_result.mesh)"),
             (
                 "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
+                "replacement_base = clone_mesh_for_editing(scene_result.mesh)",
+            ),
+            (
+                "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
+                "replacement_mesh = clone_mesh_for_editing(replacement_base)",
+            ),
+            (
+                "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
                 "original_preview = parsed_mesh_to_preview_model(original_mesh)",
             ),
             (
@@ -3224,7 +3232,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("snapshot_native_mesh_submeshes(mesh)", sparse_history_source)
         self.assertIn("restore_native_mesh_submesh_snapshot(restored, native_snapshot)", sparse_history_source)
         self.assertIn("allow_python_full_mesh_clone_fallback(mesh, operation, reason)", sparse_history_source)
-        self.assertIn("clone_mesh_for_static_replacement_native_first(", prompt_preflight_source)
+        self.assertNotIn("clone_mesh_for_static_replacement_native_first(", prompt_preflight_source)
+        self.assertIn("replacement_base = clone_mesh_for_editing(scene_result.mesh)", prompt_preflight_source)
+        self.assertIn("replacement_mesh = clone_mesh_for_editing(replacement_base)", prompt_preflight_source)
         self.assertNotIn("replacement_mesh_base_for_mapping = clone_mesh_for_editing(", prompt_setup_source)
         self.assertNotIn("replacement_mesh_for_mapping = clone_mesh_for_editing(", prompt_setup_source)
         self.assertIn("edited_source_mesh = _state.replacement_mesh_for_mapping", callback_factory_source)

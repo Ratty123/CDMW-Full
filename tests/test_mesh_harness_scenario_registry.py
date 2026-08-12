@@ -63,6 +63,34 @@ def test_nonvisual_harness_metadata_names_optional_backends_truthfully() -> None
     assert scenario_metadata("asset-authoring-mesh-health").expected_backend == "python+optional-meshoptimizer"
     assert scenario_metadata("asset-authoring-uv-report").expected_backend == "python+optional-xatlas"
     assert scenario_metadata("real-archive-app-workflow-smoke").expected_backend == "qt-offscreen+python"
+    load = scenario_metadata("real-archive-mesh-editor-load-smoke")
+    assert load.expected_backend == "qt-offscreen+python"
+    assert load.scenario_role == "real_archive_mesh_editor_load"
+    assert load.real_game is True
+
+
+def test_real_archive_mesh_editor_load_scenario_dispatches_registered_harness(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    game_root = tmp_path / "game"
+    proof = {"ok": True, "read_only": True, "runs": [{"label": "cold"}]}
+    calls: list[tuple[Path, Path]] = []
+    monkeypatch.setattr(
+        scenario_runner,
+        "run_real_archive_mesh_editor_load_smoke",
+        lambda root, output: calls.append((root, output)) or proof,
+    )
+
+    result = scenario_runner.run_scenario(
+        "real-archive-mesh-editor-load-smoke",
+        tmp_path / "output",
+        game_root=game_root,
+    )
+
+    assert result["ok"] is True
+    assert result["real_archive_mesh_editor_load"] == proof
+    assert calls == [(game_root, tmp_path / "output")]
 
 
 def test_default_cli_uses_dotnet_real_proof_and_game_root_resolution_order(monkeypatch, tmp_path: Path) -> None:

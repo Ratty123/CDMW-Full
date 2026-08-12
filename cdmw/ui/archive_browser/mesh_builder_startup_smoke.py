@@ -5,8 +5,8 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, QEvent, QTimer
-from PySide6.QtWidgets import QApplication, QComboBox
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, QTimer
+from PySide6.QtWidgets import QApplication, QComboBox, QProgressDialog
 
 from cdmw.domain.archives.backend_mode import ArchiveBackendMode, ArchiveBackendSelection
 from cdmw.models import ArchiveEntry, ModelPreviewData
@@ -133,6 +133,24 @@ def active_builder_timer_names(context: object) -> tuple[str, ...]:
     return tuple(sorted(active))
 
 
+class _EmbeddedStartupProgressProbe(QObject):
+    """Observe transient progress windows during one embedded construction."""
+
+    def __init__(self, owner: object) -> None:
+        super().__init__(owner)
+        self.owner = owner
+        self.shown_titles: list[str] = []
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
+        if (
+            event.type() == QEvent.Type.Show
+            and isinstance(watched, QProgressDialog)
+            and watched.parentWidget() is self.owner
+        ):
+            self.shown_titles.append(str(watched.windowTitle() or ""))
+        return False
+
+
 def _exercise_builder_mode(
     window: object,
     app: QApplication,
@@ -144,17 +162,28 @@ def _exercise_builder_mode(
 ) -> None:
     existing_keys = set(window._modeless_alignment_dialogs)
     mode_event_start = len(events)
-    prompt_archive_static_replacement_options(
-        window,
-        window.archive_entries[0],
-        root / f"{mode_name}.obj",
-        dialog_title=f"Synthetic {mode_name}",
-        embedded_host=window.mesh_editor_tab.builder_host(),
-        _prepared_prompt_preflight=synthetic_builder_preflight(
-            modify_original_clone_mode=modify_original_clone_mode,
-        ),
-    )
-    app.processEvents()
+    progress_probe = _EmbeddedStartupProgressProbe(window)
+    app.installEventFilter(progress_probe)
+    try:
+        prompt_archive_static_replacement_options(
+            window,
+            window.archive_entries[0],
+            root / f"{mode_name}.obj",
+            dialog_title=f"Synthetic {mode_name}",
+            embedded_host=window.mesh_editor_tab.builder_host(),
+            _prepared_prompt_preflight=synthetic_builder_preflight(
+                modify_original_clone_mode=modify_original_clone_mode,
+            ),
+        )
+        app.processEvents()
+    finally:
+        app.removeEventFilter(progress_probe)
+
+    if progress_probe.shown_titles:
+        raise RuntimeError(
+            f"Mesh Builder {mode_name} showed transient startup progress over Archive Browser: "
+            f"{progress_probe.shown_titles!r}."
+        )
 
     new_keys = set(window._modeless_alignment_dialogs) - existing_keys
     if len(new_keys) != 1:
@@ -179,6 +208,12 @@ def _exercise_builder_mode(
         if startup_progress is not None and startup_progress.isVisible():
             raise RuntimeError(
                 f"Mesh Builder {mode_name} startup smoke revealed while startup progress remained visible."
+            )
+        if startup_progress is not None and any(
+            timer.isActive() for timer in startup_progress.findChildren(QTimer)
+        ):
+            raise RuntimeError(
+                f"Mesh Builder {mode_name} left a delayed startup progress timer armed."
             )
         if dialog.parentWidget() is not window.mesh_editor_tab.builder_host():
             raise RuntimeError(
@@ -209,6 +244,20 @@ def _exercise_builder_mode(
         if any(step.startswith("reveal_skipped_") for step in open_steps):
             raise RuntimeError(
                 f"Mesh Builder {mode_name} reveal was skipped: {open_steps!r}."
+            )
+        presentations = [
+            fields
+            for event, fields in events[mode_event_start:]
+            if event == "mesh_alignment_startup_presentation"
+        ]
+        if not presentations or any(
+            fields.get("presentation") != "archive_browser_hold"
+            or fields.get("startup_progress_visible") is not False
+            for fields in presentations
+        ):
+            raise RuntimeError(
+                f"Mesh Builder {mode_name} did not preserve the Archive Browser during construction: "
+                f"{presentations!r}."
             )
     finally:
         dialog.reject()

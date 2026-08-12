@@ -88,6 +88,14 @@ _ROWS = (
     _scenario("real-archive-sequence-binding-smoke", real_game=True, timeout_seconds=120.0, scenario_role="real_archive_readonly"),
     _scenario("real-archive-app-workflow-smoke", real_game=True, timeout_seconds=120.0, scenario_role="real_archive_ui_model_smoke", expected_backend="qt-offscreen+python"),
     _scenario(
+        "real-archive-mesh-editor-load-smoke",
+        real_game=True,
+        timeout_seconds=180.0,
+        process_ownership="harness",
+        scenario_role="real_archive_mesh_editor_load",
+        expected_backend="qt-offscreen+python",
+    ),
+    _scenario(
         "real-archive-mesh-editor-dotnet-edit-smoke",
         headless=False,
         visual=True,

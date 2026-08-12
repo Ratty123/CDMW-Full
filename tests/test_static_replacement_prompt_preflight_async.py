@@ -80,6 +80,7 @@ class _Owner:
         self.threads: list[threading.Thread] = []
         self.stop_events: list[threading.Event] = []
         self.statuses: list[tuple[str, bool]] = []
+        self.runtime_events: list[tuple[str, dict[str, object]]] = []
 
     def _run_utility_task_when_idle(self, **kwargs: object) -> None:
         self.worker_kwargs.append(dict(kwargs))
@@ -109,6 +110,9 @@ class _Owner:
 
     def set_status_message(self, message: str, *, error: bool = False) -> None:
         self.statuses.append((message, error))
+
+    def _record_runtime_event(self, event: str, **fields: object) -> None:
+        self.runtime_events.append((event, dict(fields)))
 
 
 def _wait(thread: threading.Thread) -> None:
@@ -142,6 +146,10 @@ def test_static_prompt_preflight_dispatch_is_under_50ms_with_slow_io() -> None:
     assert completed and completed[0].request_id == 1
     assert owner.worker_kwargs[0]["task_accepts_progress"] is True
     assert owner.worker_kwargs[0]["task_accepts_cancel"] is True
+    assert [event for event, _fields in owner.runtime_events] == [
+        "mesh_alignment_preflight_requested",
+        "mesh_alignment_preflight_ready",
+    ]
 
 
 def test_public_static_prompt_handler_only_dispatches() -> None:
@@ -267,7 +275,7 @@ def test_million_vertex_preflight_keeps_heartbeat_below_200ms() -> None:
     with (
         patch.object(preflight, "_extract_archive_model_sidecar_texture_references", return_value=((), (), {}, {})),
         patch.object(preflight, "analyze_replacement_asset", return_value=_profile()),
-        patch.object(preflight, "clone_mesh_for_static_replacement_native_first", side_effect=lambda value, *_a, **_k: value),
+        patch.object(preflight, "clone_mesh_for_editing", side_effect=lambda value: value),
         patch.object(preflight, "parsed_mesh_to_preview_model", return_value=ModelPreviewData(path="source.obj")),
         patch.object(preflight, "attach_scene_preview_textures"),
         patch.object(preflight, "suggest_static_submesh_mappings", return_value=[]),
@@ -294,6 +302,60 @@ def test_million_vertex_preflight_keeps_heartbeat_below_200ms() -> None:
 
     assert completed
     assert max_gap < 0.2
+
+
+def test_modify_original_preflight_uses_fast_independent_clones_and_exact_routing() -> None:
+    mesh = ParsedMesh(
+        path="character/test.pac",
+        format="pac",
+        submeshes=[
+            SubMesh(
+                name="body",
+                material="body_material",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                faces=[(0, 1, 2)],
+            )
+        ],
+        total_vertices=3,
+        total_faces=1,
+    )
+    request = preflight.StaticReplacementPromptPreflightRequest(
+        7,
+        _entry(),
+        Path("source.obj"),
+        (),
+        SceneImportResult(mesh=mesh),
+        mesh,
+        {_entry().path.casefold(): (_entry(),)},
+        {"test.pac": (_entry(),)},
+        {},
+    )
+
+    with (
+        patch.object(preflight, "_modify_original_clone_mode", return_value=True),
+        patch.object(preflight, "_sidecar_context", return_value=((), (), {}, {}, "")),
+        patch.object(preflight, "analyze_replacement_asset", return_value=_profile()),
+        patch.object(preflight, "attach_scene_preview_textures"),
+        patch.object(
+            preflight,
+            "suggest_static_submesh_mappings",
+            side_effect=AssertionError("exact clone must not run generic routing"),
+        ),
+        patch.object(preflight, "discover_scene_texture_files", return_value=()),
+        patch.object(preflight, "group_replacement_texture_sets", return_value={}),
+    ):
+        result = preflight.prepare_static_replacement_prompt_preflight(request)
+
+    assert result.mesh_clone_strategy == "python_worker_copy"
+    assert result.mesh_clone_elapsed_ms >= 0.0
+    assert result.total_elapsed_ms >= result.mesh_clone_elapsed_ms
+    assert result.routing_elapsed_ms >= 0
+    assert result.replacement_mesh_base is not result.replacement_mesh
+    assert result.replacement_mesh_base.submeshes[0] is not result.replacement_mesh.submeshes[0]
+    result.replacement_mesh.submeshes[0].vertices[0] = (9.0, 9.0, 9.0)
+    assert result.replacement_mesh_base.submeshes[0].vertices[0] == (0.0, 0.0, 0.0)
+    assert len(result.suggested_mappings) == 1
+    assert result.suggested_mappings[0].confidence_label == "exact-original-clone"
 
 
 def test_prompt_construction_contains_no_fallback_io_or_nested_event_pump() -> None:

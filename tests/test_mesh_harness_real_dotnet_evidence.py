@@ -326,6 +326,7 @@ def test_stroke_geometry_gate_is_frozen_before_later_workflow_edits() -> None:
     mesh.submeshes[0].vertices[1] = (2.0, 0.0, 0.0)
 
     assert state.changed_vertex_keys == {(0, 0)}
+    assert state.unexpected_changed_vertex_keys == set()
     assert state.changed_only_selected_geometry is True
 
 
@@ -352,10 +353,11 @@ def test_stroke_geometry_gate_uses_the_full_authoritative_multisubmesh_selection
     _record_stroke_geometry_evidence(state)
 
     assert state.changed_vertex_keys == {(0, 0), (1, 0)}
+    assert state.unexpected_changed_vertex_keys == set()
     assert state.changed_only_selected_geometry is True
 
 
-def test_real_pac_move_selects_the_visible_vertex_cluster_not_the_whole_part(
+def test_real_pac_move_adopts_the_frontmost_authoritative_submesh(
     monkeypatch,
 ) -> None:
     from tools.mesh_harness import real_dotnet
@@ -371,13 +373,21 @@ def test_real_pac_move_selects_the_visible_vertex_cluster_not_the_whole_part(
         ],
         faces=[(0, 1, 2), (3, 4, 5)],
     )
+    frontmost_submesh = SimpleNamespace(
+        vertices=[
+            (10.0, 0.0, 0.0),
+            (13.0, 0.0, 0.0),
+            (10.0, 3.0, 0.0),
+        ],
+        faces=[(0, 1, 2)],
+    )
     projected_world_points: list[tuple[float, float, float]] = []
     tool_state_events = iter(
         (
             {
                 "local_selection": {
                     "source_indices": [],
-                    "vertices_by_submesh": {"0": [0, 1, 2, 3, 4, 5]},
+                    "vertices_by_submesh": {},
                 },
                 "selected_part_index": -1,
                 "parts_list_selected_index": -1,
@@ -394,7 +404,7 @@ def test_real_pac_move_selects_the_visible_vertex_cluster_not_the_whole_part(
                 "local_selection": {
                     "source_indices": [],
                     "target_mode": "vertex",
-                    "vertices_by_submesh": {"0": [0, 1, 2], "1": [4, 5]},
+                    "vertices_by_submesh": {"1": [0, 1, 2]},
                 },
                 "selected_part_index": -1,
                 "parts_list_selected_index": -1,
@@ -403,14 +413,13 @@ def test_real_pac_move_selects_the_visible_vertex_cluster_not_the_whole_part(
         )
     )
     protocol_events = {
-        "stroke_begin": {
-            "screen_drag": {
+        "select_request": {
+            "screen_brush": {
                 "world_view_projection": [1.0] * 16,
                 "viewport_width": 100,
                 "viewport_height": 100,
             }
         },
-        "stroke_end": {"event": "stroke_end"},
     }
     select_calls: list[dict[str, object]] = []
     physical_points: list[tuple[float, float]] = []
@@ -419,12 +428,15 @@ def test_real_pac_move_selects_the_visible_vertex_cluster_not_the_whole_part(
         submesh_index=0,
         controller=SimpleNamespace(
             select=lambda **kwargs: select_calls.append(dict(kwargs)) or SimpleNamespace(ok=True),
-            working_mesh=lambda *, clone: SimpleNamespace(submeshes=[submesh]),
+            working_mesh=lambda *, clone: SimpleNamespace(
+                submeshes=[submesh, frontmost_submesh]
+            ),
         ),
         tab=SimpleNamespace(
             standalone_dotnet_protocol_events=[],
             _send_dotnet_session_state=lambda: None,
             _send_dotnet_protocol_message=lambda _payload: True,
+            _standalone_action_worker_active=lambda: False,
         ),
         viewport={
             "width": 100,
@@ -458,6 +470,7 @@ def test_real_pac_move_selects_the_visible_vertex_cluster_not_the_whole_part(
         lambda _matrix, point, **_kwargs: projected_world_points.append(tuple(point)) or (50.0, 50.0),
     )
     monkeypatch.setattr(real_dotnet, "_pump_for", lambda *_args: None)
+    monkeypatch.setattr(real_dotnet, "_pump_until", lambda *_args: True)
     monkeypatch.setattr(real_dotnet, "_capture_viewport", lambda *_args: {})
     monkeypatch.setattr(
         real_dotnet,
@@ -470,13 +483,15 @@ def test_real_pac_move_selects_the_visible_vertex_cluster_not_the_whole_part(
 
     assert error is None
     assert state.face_vertices == [0, 1, 2]
-    assert state.selected_vertex_keys == {(0, 0), (0, 1), (0, 2), (1, 4), (1, 5)}
+    assert state.selected_vertex_keys == {(1, 0), (1, 1), (1, 2)}
+    assert state.projection_seed_submesh_index == 0
+    assert state.submesh_index == 1
+    assert state.submesh is frontmost_submesh
     assert len(state.before_vertices) == 3
     assert state.projected_anchor_faces == (0,)
-    assert projected_world_points == [(1.0, 1.0, 0.0)]
+    assert projected_world_points == [(11.0, 1.0, 0.0)]
     assert physical_points == [(50.0, 50.0)]
     assert select_calls == [
-        {"vertices_by_submesh": {0: [0, 1, 2, 3, 4, 5]}, "operation": "replace"},
         {"operation": "replace"},
     ]
     assert state.part_selection_remained_empty is True

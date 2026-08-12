@@ -140,6 +140,27 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
         "input_evidence": {
             "physical_select": dict(getattr(state, "physical_select_gesture", {}) or {}),
             "physical_selection_anchor": dict(getattr(state, "physical_selection_anchor", {}) or {}),
+            "projection_probe": {
+                "mode": str(getattr(state, "projection_probe_mode", "") or ""),
+                "authority_settled": bool(
+                    getattr(state, "projection_probe_authority_settled", False)
+                ),
+                "begin_phase": str(
+                    dict(getattr(state, "probe_started", {}) or {}).get("phase", "")
+                    or ""
+                ),
+                "end_phase": str(
+                    dict(getattr(state, "probe_finished", {}) or {}).get("phase", "")
+                    or ""
+                ),
+                "viewport_width": float(getattr(state, "projection_viewport_width", 0.0) or 0.0),
+                "viewport_height": float(getattr(state, "projection_viewport_height", 0.0) or 0.0),
+                "surface_reconciliation": dict(
+                    getattr(state, "projection_surface_reconciliation", {}) or {}
+                ),
+            },
+            "selection_tool_state": dict(getattr(state, "selection_tool_state_event", {}) or {}),
+            "post_selection_tool_state": dict(getattr(state, "tool_state_event", {}) or {}),
             "requested_end": list(getattr(state, "mouse_drag_end", ()) or ()),
             "effective_end": list(getattr(state, "mouse_drag_effective_end", ()) or ()),
             "actual_screen_end": list(getattr(state, "mouse_drag_actual_screen_end", ()) or ()),
@@ -322,8 +343,11 @@ def _record_stroke_geometry_evidence(state: SimpleNamespace) -> None:
         getattr(state, "selected_vertex_keys", ())
         or {(state.submesh_index, index) for index in state.face_vertices}
     )
+    state.unexpected_changed_vertex_keys = (
+        state.changed_vertex_keys - state.selected_vertex_keys
+    )
     state.changed_only_selected_geometry = bool(state.changed_vertex_keys) and (
-        state.changed_vertex_keys <= state.selected_vertex_keys
+        not state.unexpected_changed_vertex_keys
     )
 
 def _result_gates(state: SimpleNamespace) -> dict[str, bool]:

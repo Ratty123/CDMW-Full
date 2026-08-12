@@ -19,6 +19,7 @@ from tools.mesh_harness.performance_contract import resolve_performance_request
 from tools.mesh_harness.qt_probes import run_native_mesh_editor_qt_cancellation, run_native_mesh_editor_qt_responsiveness
 from tools.mesh_harness.real_animation import run_real_archive_animation_binding_smoke
 from tools.mesh_harness.real_app import run_real_archive_app_workflow_smoke
+from tools.mesh_harness.real_mesh_editor_load import run_real_archive_mesh_editor_load_smoke
 from tools.mesh_harness.real_rigging import run_real_archive_rigging_smoke
 from tools.mesh_harness.real_sequence import run_real_archive_sequence_binding_smoke
 from tools.mesh_harness.service_smoke import run_service_smoke
@@ -97,6 +98,16 @@ def run_scenario(
     elif scenario == 'real-archive-app-workflow-smoke':
         app_result = run_real_archive_app_workflow_smoke(Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT, output_dir)
         result = {'scenario': scenario, 'ok': bool(app_result.get('ok')), 'real_archive_app': app_result}
+    elif scenario == 'real-archive-mesh-editor-load-smoke':
+        load_result = run_real_archive_mesh_editor_load_smoke(
+            Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
+            output_dir,
+        )
+        result = {
+            'scenario': scenario,
+            'ok': bool(load_result.get('ok')),
+            'real_archive_mesh_editor_load': load_result,
+        }
     elif scenario == _REAL_MESH_EDITOR_VISUAL_SCENARIO:
         from tools.mesh_harness.real_dotnet import (
             run_real_archive_mesh_editor_dotnet_edit_smoke,
