@@ -203,6 +203,11 @@ class SubMesh:
     source_bbox_min: tuple[float, float, float] = (0.0, 0.0, 0.0)
     source_bbox_extent: tuple[float, float, float] = (0.0, 0.0, 0.0)
     source_lod_count: int = 0
+    # Original-relative lineage for a topology-changed submesh. ``None`` on every
+    # parse and on every same-count workflow, which keeps their behaviour
+    # unchanged; only an admitted topology edit fills it in. See
+    # cdmw.domain.mesh.topology.
+    topology_provenance: object | None = None
 
 @dataclass
 class ParsedMesh:

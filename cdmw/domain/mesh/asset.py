@@ -6,6 +6,20 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
+from .topology import (
+    SubmeshTopologyProvenance,
+    TOPOLOGY_CONTRACT_UNSUPPORTED,
+    TOPOLOGY_DERIVED_SOURCE_SENTINEL,
+    TOPOLOGY_FACE_ORIGIN_INVALID,
+    TOPOLOGY_OPERATION_NOT_REBUILDABLE,
+    TOPOLOGY_PROVENANCE_REQUIRED,
+    validate_topology_provenance,
+)
+
+#: Matches ``cdmw.modding.mesh_skinning.SOURCE_VERTEX_MAP_TOPOLOGY``. Stated here
+#: because the pure domain must not import the modding layer.
+SOURCE_VERTEX_MAP_TOPOLOGY = "topology"
+
 
 LAYOUT_CONFIDENCE_EXACT = "exact"
 LAYOUT_CONFIDENCE_INFERRED = "inferred"
@@ -83,6 +97,12 @@ class MeshAssetSubmesh:
     )
     metadata: dict[str, Any] = field(default_factory=dict)
     unknown_fields: dict[str, Any] = field(default_factory=dict)
+    # Original-relative lineage produced by an admitted topology edit. ``None``
+    # for every parse and every same-count workflow. A validated contract is what
+    # authorizes the -1 sentinels in ``source_vertex_map`` /
+    # ``source_vertex_offsets`` and the empty ``source_index_map``.
+    topology_provenance: SubmeshTopologyProvenance | None = None
+    source_vertex_map_authority: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,6 +247,18 @@ def _validate_submesh(
     original_source_index_count = _source_index_count(original)
     edited_source_index_count = _source_index_count(edited)
 
+    # A topology contract is what authorizes the compatibility sentinels below.
+    # Without one, every legacy blocker keeps its current meaning; with one, the
+    # sentinels are checked against the contract instead of being waived.
+    topology_contract = _validated_topology_contract(
+        issues,
+        original,
+        edited,
+        lod_index=lod_index,
+        submesh_index=submesh_index,
+        allow_topology_change=allow_topology_change,
+    )
+
     if not allow_topology_change and original_vertex_count != edited_vertex_count:
         _add(
             issues,
@@ -275,7 +307,16 @@ def _validate_submesh(
         )
     original_raw_records = original.vertex_buffer.raw_vertex_records
     edited_raw_records = edited.vertex_buffer.raw_vertex_records
-    if original_raw_records and edited_raw_records != original_raw_records:
+    if topology_contract is not None:
+        _validate_topology_raw_records(
+            issues,
+            original,
+            edited,
+            topology_contract,
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+        )
+    elif original_raw_records and edited_raw_records != original_raw_records:
         _add(
             issues,
             "error",
@@ -321,18 +362,247 @@ def _validate_submesh(
         _add(issues, "error", "NORMAL_DATA_MISSING", "Original normals are not preserved.", lod_index=lod_index, submesh_index=submesh_index)
     if _has_tangents(original) and not _has_complete_tangents(edited):
         _add(issues, "error", "TANGENT_DATA_MISSING", "Original tangent data is not preserved.", lod_index=lod_index, submesh_index=submesh_index)
-    if _has_skinning(original) and _skinning_rows(edited) != _skinning_rows(original):
-        _add(issues, "error", "BONE_DATA_CHANGED", "Bone indices or weights changed.", lod_index=lod_index, submesh_index=submesh_index)
+    if _has_skinning(original):
+        if topology_contract is not None:
+            _validate_topology_skin_rows(
+                issues,
+                original,
+                edited,
+                topology_contract,
+                lod_index=lod_index,
+                submesh_index=submesh_index,
+            )
+        elif _skinning_rows(edited) != _skinning_rows(original):
+            _add(issues, "error", "BONE_DATA_CHANGED", "Bone indices or weights changed.", lod_index=lod_index, submesh_index=submesh_index)
 
-    if len(edited.source_vertex_map) != edited_vertex_count or any(value < 0 for value in edited.source_vertex_map):
-        _add(issues, "fatal", "SOURCE_VERTEX_MAP_MISSING", "Each edited vertex must map back to an original source vertex.", lod_index=lod_index, submesh_index=submesh_index)
-    if (
-        len(edited.source_index_map) != edited_source_index_count
-        or any(value < 0 or value >= max(edited_source_index_count, 1) for value in edited.source_index_map)
-    ):
-        _add(issues, "fatal", "SOURCE_INDEX_MAP_MISSING", "Each edited index must map back to an original source index.", lod_index=lod_index, submesh_index=submesh_index)
+    if topology_contract is not None:
+        expected_map = tuple(origin.direct_parent for origin in topology_contract.vertex_origins)
+        if tuple(edited.source_vertex_map) != expected_map:
+            _add(
+                issues,
+                "fatal",
+                "SOURCE_VERTEX_MAP_MISSING",
+                "Topology source vertex map does not match the validated vertex origins.",
+                lod_index=lod_index,
+                submesh_index=submesh_index,
+                expected=len(expected_map),
+                actual=len(edited.source_vertex_map),
+            )
+        if tuple(edited.source_index_map) != ():
+            _add(
+                issues,
+                "fatal",
+                "SOURCE_INDEX_MAP_MISSING",
+                "A topology-changed submesh must leave the same-count source index map empty.",
+                lod_index=lod_index,
+                submesh_index=submesh_index,
+                expected=0,
+                actual=len(edited.source_index_map),
+            )
+        if edited_source_index_count != original_source_index_count:
+            _add(
+                issues,
+                "fatal",
+                "SOURCE_INDEX_COUNT_CHANGED",
+                "A topology-changed submesh must retain the original source index count.",
+                lod_index=lod_index,
+                submesh_index=submesh_index,
+                expected=original_source_index_count,
+                actual=edited_source_index_count,
+            )
+    else:
+        if len(edited.source_vertex_map) != edited_vertex_count or any(value < 0 for value in edited.source_vertex_map):
+            _add(issues, "fatal", "SOURCE_VERTEX_MAP_MISSING", "Each edited vertex must map back to an original source vertex.", lod_index=lod_index, submesh_index=submesh_index)
+        if (
+            len(edited.source_index_map) != edited_source_index_count
+            or any(value < 0 or value >= max(edited_source_index_count, 1) for value in edited.source_index_map)
+        ):
+            _add(issues, "fatal", "SOURCE_INDEX_MAP_MISSING", "Each edited index must map back to an original source index.", lod_index=lod_index, submesh_index=submesh_index)
     if original.unknown_fields != edited.unknown_fields:
         _add(issues, "error", "UNKNOWN_FIELDS_CHANGED", "Unknown submesh fields were not preserved.", lod_index=lod_index, submesh_index=submesh_index)
+
+
+def _validated_topology_contract(
+    issues: list[MeshValidationIssue],
+    original: MeshAssetSubmesh,
+    edited: MeshAssetSubmesh,
+    *,
+    lod_index: int,
+    submesh_index: int,
+    allow_topology_change: bool,
+) -> SubmeshTopologyProvenance | None:
+    """Return the edited submesh's topology contract only when it fully validates.
+
+    A submitted contract that does not validate is reported with its stable
+    blocker code and then treated as absent, so the legacy same-count blockers
+    still run. Silence is never the outcome of a malformed contract.
+    """
+    provenance = edited.topology_provenance
+    if provenance is None:
+        return None
+    if not allow_topology_change:
+        _add(
+            issues,
+            "fatal",
+            TOPOLOGY_OPERATION_NOT_REBUILDABLE,
+            "Topology provenance was submitted without an authorized topology change.",
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+        )
+        return None
+
+    blockers = validate_topology_provenance(
+        provenance,
+        output_vertex_count=len(edited.vertex_buffer.vertices),
+        output_face_count=len(edited.index_buffer.indices) // 3,
+    )
+    original_vertex_count = len(original.vertex_buffer.vertices)
+    original_face_count = len(original.index_buffer.indices) // 3
+    if not blockers and (
+        provenance.original_vertex_count != original_vertex_count
+        or provenance.original_face_count != original_face_count
+    ):
+        blockers = (TOPOLOGY_CONTRACT_UNSUPPORTED,)
+    if not blockers and len(edited.index_buffer.indices) % 3 != 0:
+        blockers = (TOPOLOGY_FACE_ORIGIN_INVALID,)
+    if not blockers and str(edited.source_vertex_map_authority or "") != SOURCE_VERTEX_MAP_TOPOLOGY:
+        blockers = (TOPOLOGY_PROVENANCE_REQUIRED,)
+    if blockers:
+        for code in blockers:
+            _add(
+                issues,
+                "fatal",
+                code,
+                f"Topology provenance is not usable for an exact rebuild: {code}.",
+                lod_index=lod_index,
+                submesh_index=submesh_index,
+            )
+        return None
+    return provenance
+
+
+def _validate_topology_raw_records(
+    issues: list[MeshValidationIssue],
+    original: MeshAssetSubmesh,
+    edited: MeshAssetSubmesh,
+    provenance: SubmeshTopologyProvenance,
+    *,
+    lod_index: int,
+    submesh_index: int,
+) -> None:
+    """Direct vertices keep their original record byte-for-byte; derived carry none."""
+    original_records = original.vertex_buffer.raw_vertex_records
+    edited_records = edited.vertex_buffer.raw_vertex_records
+    if not original_records:
+        return
+    if len(edited_records) != len(provenance.vertex_origins):
+        _add(
+            issues,
+            "error",
+            "RAW_VERTEX_RECORDS_CHANGED",
+            "Topology output does not carry one raw vertex record entry per output vertex.",
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            expected=len(provenance.vertex_origins),
+            actual=len(edited_records),
+        )
+        return
+    original_vertices = original.vertex_buffer.vertices
+    for index, origin in enumerate(provenance.vertex_origins):
+        parent = origin.direct_parent
+        if parent == TOPOLOGY_DERIVED_SOURCE_SENTINEL:
+            if edited_records[index] != b"":
+                _add(
+                    issues,
+                    "error",
+                    "RAW_VERTEX_RECORDS_CHANGED",
+                    "A derived topology vertex must not carry a synthesized raw record.",
+                    lod_index=lod_index,
+                    submesh_index=submesh_index,
+                    actual=index,
+                )
+                return
+            if index < len(edited.vertex_buffer.vertices) and edited.vertex_buffer.vertices[index].source_offset != -1:
+                _add(
+                    issues,
+                    "error",
+                    "SOURCE_VERTEX_OFFSET_CHANGED",
+                    "A derived topology vertex must report no original record offset.",
+                    lod_index=lod_index,
+                    submesh_index=submesh_index,
+                    actual=index,
+                )
+                return
+            continue
+        if parent >= len(original_records) or edited_records[index] != original_records[parent]:
+            _add(
+                issues,
+                "error",
+                "RAW_VERTEX_RECORDS_CHANGED",
+                "A direct topology vertex did not preserve its original raw record.",
+                lod_index=lod_index,
+                submesh_index=submesh_index,
+                actual=index,
+            )
+            return
+        expected_offset = original_vertices[parent].source_offset if parent < len(original_vertices) else -1
+        if index < len(edited.vertex_buffer.vertices) and edited.vertex_buffer.vertices[index].source_offset != expected_offset:
+            _add(
+                issues,
+                "error",
+                "SOURCE_VERTEX_OFFSET_CHANGED",
+                "A direct topology vertex did not preserve its original record offset.",
+                lod_index=lod_index,
+                submesh_index=submesh_index,
+                expected=expected_offset,
+                actual=index,
+            )
+            return
+
+
+def _validate_topology_skin_rows(
+    issues: list[MeshValidationIssue],
+    original: MeshAssetSubmesh,
+    edited: MeshAssetSubmesh,
+    provenance: SubmeshTopologyProvenance,
+    *,
+    lod_index: int,
+    submesh_index: int,
+) -> None:
+    """Direct vertices keep their original skin row exactly.
+
+    Derived rows are not asserted here: the exact serializer recomputes them from
+    the original parents and never trusts a submitted row.
+    """
+    original_rows = _skinning_rows(original)
+    edited_rows = _skinning_rows(edited)
+    if len(edited_rows) != len(provenance.vertex_origins):
+        _add(
+            issues,
+            "error",
+            "BONE_DATA_CHANGED",
+            "Topology output does not carry one skin row per output vertex.",
+            lod_index=lod_index,
+            submesh_index=submesh_index,
+            expected=len(provenance.vertex_origins),
+            actual=len(edited_rows),
+        )
+        return
+    for index, origin in enumerate(provenance.vertex_origins):
+        parent = origin.direct_parent
+        if parent == TOPOLOGY_DERIVED_SOURCE_SENTINEL:
+            continue
+        if parent >= len(original_rows) or edited_rows[index] != original_rows[parent]:
+            _add(
+                issues,
+                "error",
+                "BONE_DATA_CHANGED",
+                "A direct topology vertex did not preserve its original bone indices or weights.",
+                lod_index=lod_index,
+                submesh_index=submesh_index,
+                actual=index,
+            )
+            return
 
 
 def _add(

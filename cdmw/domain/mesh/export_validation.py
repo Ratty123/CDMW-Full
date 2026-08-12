@@ -9,6 +9,11 @@ from pathlib import PurePath
 
 from .operations import validate_mesh_edit_operation_coverage, validate_mesh_edit_operations
 from .skeleton import MAX_SKIN_INFLUENCES
+from .topology import (
+    SubmeshTopologyProvenance,
+    TOPOLOGY_DERIVED_SOURCE_SENTINEL,
+    validate_topology_provenance,
+)
 
 
 SUPPORTED_GAME_MESH_FORMATS = frozenset({"pac", "pam", "pamlod"})
@@ -433,7 +438,10 @@ def _validate_skinning(
             actual={"bone_indices": len(bone_indices), "bone_weights": len(bone_weights)},
         )
         return True
-    if original_submesh is not None and _skinning_changed_from_original(original_submesh, bone_indices, bone_weights):
+    topology_contract = _export_topology_contract(submesh, original_submesh)
+    if original_submesh is not None and _skinning_changed_from_original(
+        original_submesh, bone_indices, bone_weights, topology_contract=topology_contract
+    ):
         _add(
             issues,
             "blocker",
@@ -505,7 +513,13 @@ def _validate_skinning(
                 clean_weights.append(weight)
         total = sum(clean_weights)
         if clean_weights and not math.isclose(total, 1.0, rel_tol=0.02, abs_tol=0.02):
-            if _skinning_row_matches_original(original_submesh, vertex_index, index_row, weight_row):
+            if _skinning_row_matches_original(
+                original_submesh,
+                vertex_index,
+                index_row,
+                weight_row,
+                topology_contract=topology_contract,
+            ):
                 preserved_unnormalized = True
             else:
                 _add(
@@ -538,11 +552,21 @@ def _skinning_row_matches_original(
     vertex_index: int,
     index_row: tuple[object, ...],
     weight_row: tuple[object, ...],
+    *,
+    topology_contract: SubmeshTopologyProvenance | None = None,
 ) -> bool:
     if original_submesh is None:
         return False
     original_indices = tuple(getattr(original_submesh, "bone_indices", ()) or ())
     original_weights = tuple(getattr(original_submesh, "bone_weights", ()) or ())
+    if topology_contract is not None:
+        # Output positions are renumbered by a topology edit, so "the original
+        # row" is the row of this vertex's single original parent.
+        if vertex_index >= len(topology_contract.vertex_origins):
+            return False
+        vertex_index = topology_contract.vertex_origins[vertex_index].direct_parent
+        if vertex_index == TOPOLOGY_DERIVED_SOURCE_SENTINEL:
+            return False
     if vertex_index >= len(original_indices) or vertex_index >= len(original_weights):
         return False
     return tuple(original_indices[vertex_index] or ()) == index_row and tuple(original_weights[vertex_index] or ()) == weight_row
@@ -552,9 +576,28 @@ def _skinning_changed_from_original(
     original_submesh: object,
     bone_indices: Sequence[object],
     bone_weights: Sequence[object],
+    *,
+    topology_contract: SubmeshTopologyProvenance | None = None,
 ) -> bool:
     original_indices = tuple(getattr(original_submesh, "bone_indices", ()) or ())
     original_weights = tuple(getattr(original_submesh, "bone_weights", ()) or ())
+    if topology_contract is not None:
+        # Every direct vertex must still carry its original row exactly. A derived
+        # row is not compared here: the exact serializer recomputes it from the
+        # original parents and never trusts a submitted row.
+        if len(bone_indices) != len(topology_contract.vertex_origins):
+            return True
+        for index, origin in enumerate(topology_contract.vertex_origins):
+            parent = origin.direct_parent
+            if parent == TOPOLOGY_DERIVED_SOURCE_SENTINEL:
+                continue
+            if parent >= len(original_indices) or parent >= len(original_weights):
+                return True
+            if tuple(original_indices[parent] or ()) != tuple(bone_indices[index] or ()):
+                return True
+            if tuple(original_weights[parent] or ()) != tuple(bone_weights[index] or ()):
+                return True
+        return False
     return tuple(tuple(row or ()) for row in original_indices) != tuple(tuple(row or ()) for row in bone_indices) or tuple(
         tuple(row or ()) for row in original_weights
     ) != tuple(tuple(row or ()) for row in bone_weights)
@@ -656,7 +699,11 @@ def _validate_original_compatibility(issues: list[MeshExportValidationIssue], me
     for submesh_index, (submesh, original_submesh) in enumerate(zip(submeshes, original_submeshes)):
         vertex_count = len(tuple(getattr(submesh, "vertices", ()) or ()))
         original_vertex_count = len(tuple(getattr(original_submesh, "vertices", ()) or ()))
-        if vertex_count != original_vertex_count:
+        # An exact topology contract is the only thing that turns a count change
+        # from a blocker into a described rebuild. Without one, both gates below
+        # keep their existing meaning.
+        topology_contract = _validated_export_topology_contract(issues, submesh, original_submesh, submesh_index)
+        if topology_contract is None and vertex_count != original_vertex_count:
             _add(
                 issues,
                 "blocker",
@@ -669,7 +716,7 @@ def _validate_original_compatibility(issues: list[MeshExportValidationIssue], me
             )
         index_count = len(tuple(getattr(submesh, "faces", ()) or ())) * 3
         original_index_count = len(tuple(getattr(original_submesh, "faces", ()) or ())) * 3
-        if index_count != original_index_count:
+        if topology_contract is None and index_count != original_index_count:
             _add(
                 issues,
                 "blocker",
@@ -681,10 +728,14 @@ def _validate_original_compatibility(issues: list[MeshExportValidationIssue], me
                 actual=index_count,
             )
         if _geometry_changed_from_original(submesh, original_submesh):
-            _validate_changed_geometry_source_map(issues, submesh, submesh_index, vertex_count)
+            _validate_changed_geometry_source_map(
+                issues, submesh, submesh_index, vertex_count, topology_contract=topology_contract
+            )
         _validate_unknown_fields_preserved(issues, submesh, original_submesh, submesh_index)
         _validate_vertex_stride_preserved(issues, submesh, original_submesh, submesh_index)
-        _validate_source_offsets_preserved(issues, submesh, original_submesh, submesh_index)
+        _validate_source_offsets_preserved(
+            issues, submesh, original_submesh, submesh_index, topology_contract=topology_contract
+        )
         if str(getattr(submesh, "material", "") or "") != str(getattr(original_submesh, "material", "") or ""):
             _add(
                 issues,
@@ -831,12 +882,35 @@ def _validate_source_offsets_preserved(
     submesh: object,
     original_submesh: object,
     submesh_index: int,
+    *,
+    topology_contract: SubmeshTopologyProvenance | None = None,
 ) -> None:
     original_vertex_offsets = _submesh_source_vertex_offsets(original_submesh)
     if original_vertex_offsets is not None:
         edited_vertex_offsets = _submesh_source_vertex_offsets(submesh)
         actual_vertex_offsets: object = edited_vertex_offsets if edited_vertex_offsets is not None else "missing"
-        if actual_vertex_offsets != original_vertex_offsets:
+        if topology_contract is not None:
+            # A direct vertex points at its original record; a derived one has no
+            # original record to point at and reports the -1 sentinel.
+            expected_offsets = tuple(
+                original_vertex_offsets[origin.direct_parent]
+                if origin.direct_parent != TOPOLOGY_DERIVED_SOURCE_SENTINEL
+                and origin.direct_parent < len(original_vertex_offsets)
+                else TOPOLOGY_DERIVED_SOURCE_SENTINEL
+                for origin in topology_contract.vertex_origins
+            )
+            if tuple(edited_vertex_offsets or ()) != expected_offsets:
+                _add(
+                    issues,
+                    "blocker",
+                    "source_vertex_offsets_changed",
+                    "Topology source vertex offsets disagree with the validated vertex origins.",
+                    "metadata",
+                    submesh_index=submesh_index,
+                    expected="topology origin record offsets",
+                    actual=actual_vertex_offsets,
+                )
+        elif actual_vertex_offsets != original_vertex_offsets:
             _add(
                 issues,
                 "blocker",
@@ -995,11 +1069,74 @@ def _geometry_changed_from_original(submesh: object, original_submesh: object) -
     )
 
 
+def _export_topology_blockers(submesh: object, original_submesh: object | None) -> tuple[str, ...]:
+    """Stable blocker codes that make a submitted topology contract unusable."""
+    provenance = getattr(submesh, "topology_provenance", None)
+    if provenance is None:
+        return ()
+    blockers = list(
+        validate_topology_provenance(
+            provenance,
+            output_vertex_count=len(tuple(getattr(submesh, "vertices", ()) or ())),
+            output_face_count=len(tuple(getattr(submesh, "faces", ()) or ())),
+        )
+    )
+    if blockers or not isinstance(provenance, SubmeshTopologyProvenance):
+        return tuple(dict.fromkeys(blockers)) or ("TOPOLOGY_PROVENANCE_REQUIRED",)
+    if original_submesh is None:
+        return ("TOPOLOGY_PROVENANCE_REQUIRED",)
+    if (
+        provenance.original_vertex_count != len(tuple(getattr(original_submesh, "vertices", ()) or ()))
+        or provenance.original_face_count != len(tuple(getattr(original_submesh, "faces", ()) or ()))
+    ):
+        return ("TOPOLOGY_CONTRACT_UNSUPPORTED",)
+    if str(getattr(submesh, "source_vertex_map_authority", "") or "") != "topology":
+        return ("TOPOLOGY_PROVENANCE_REQUIRED",)
+    return ()
+
+
+def _export_topology_contract(
+    submesh: object,
+    original_submesh: object | None,
+) -> SubmeshTopologyProvenance | None:
+    """The submesh's topology contract, or ``None`` when it does not validate."""
+    provenance = getattr(submesh, "topology_provenance", None)
+    if provenance is None or _export_topology_blockers(submesh, original_submesh):
+        return None
+    return provenance if isinstance(provenance, SubmeshTopologyProvenance) else None
+
+
+def _validated_export_topology_contract(
+    issues: list[MeshExportValidationIssue],
+    submesh: object,
+    original_submesh: object,
+    submesh_index: int,
+) -> SubmeshTopologyProvenance | None:
+    """Report why a submitted contract is unusable, then treat it as absent.
+
+    Falling back to absent is what keeps the ordinary same-count blockers firing.
+    Silence is never the outcome of a malformed contract.
+    """
+    blockers = _export_topology_blockers(submesh, original_submesh)
+    for code in blockers:
+        _add(
+            issues,
+            "blocker",
+            code.lower(),
+            f"Topology provenance is not usable for an exact rebuild: {code}.",
+            "topology",
+            submesh_index=submesh_index,
+        )
+    return None if blockers else _export_topology_contract(submesh, original_submesh)
+
+
 def _validate_changed_geometry_source_map(
     issues: list[MeshExportValidationIssue],
     submesh: object,
     submesh_index: int,
     vertex_count: int,
+    *,
+    topology_contract: SubmeshTopologyProvenance | None = None,
 ) -> None:
     source_map = tuple(getattr(submesh, "source_vertex_map", ()) or ())
     if len(source_map) != vertex_count:
@@ -1013,6 +1150,22 @@ def _validate_changed_geometry_source_map(
             expected=vertex_count,
             actual=len(source_map),
         )
+        return
+    if topology_contract is not None:
+        # A -1 produced for a blended origin is provenance, not missing
+        # provenance. It has to agree with the validated contract entry by entry.
+        expected_map = tuple(origin.direct_parent for origin in topology_contract.vertex_origins)
+        if tuple(_coerce_index(value) for value in source_map) != expected_map:
+            _add(
+                issues,
+                "blocker",
+                "source_vertex_map_invalid",
+                "Changed geometry source vertex map disagrees with the validated topology origins.",
+                "topology",
+                submesh_index=submesh_index,
+                expected="topology origin lineage",
+                actual=source_map,
+            )
         return
     if any((index := _coerce_index(value)) is None or index < 0 for value in source_map):
         _add(
