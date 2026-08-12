@@ -56,6 +56,8 @@ class _WindowStub:
         self.hold_main_window = False
         self.released = False
         self.finalized = False
+        self.move_calls: list[tuple[int, int]] = []
+        self.show_normal_count = 0
 
     def setWindowIcon(self, icon: QIcon) -> None:
         return
@@ -66,6 +68,12 @@ class _WindowStub:
 
     def _release_startup_splash(self) -> None:
         self.released = True
+
+    def move(self, x: int, y: int) -> None:
+        self.move_calls.append((int(x), int(y)))
+
+    def showNormal(self) -> None:
+        self.show_normal_count += 1
 
     def _finalize_close(self) -> None:
         self.finalized = True
@@ -340,6 +348,75 @@ class ShellAppStartupTests(unittest.TestCase):
             self.assertTrue(finish_gui_startup_smoke_if_requested(window, app))  # type: ignore[arg-type]
 
         verify_builder.assert_called_once_with(window, app)
+        self.assertTrue(window.finalized)
+
+    def test_finish_gui_startup_smoke_can_record_packaged_mesh_texture_evidence(self) -> None:
+        window = _WindowStub()
+        app = _AppStub()
+        evidence = {
+            "schema": "cdmw_packaged_mesh_texture_smoke_v1",
+            "read_only": True,
+            "archive_sources_unchanged": True,
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_path = Path(temp_dir) / "startup-result.json"
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "CDMW_GUI_STARTUP_SMOKE": "1",
+                        "CDMW_GUI_STARTUP_SMOKE_RESULT": str(result_path),
+                        "CDMW_GUI_STARTUP_SMOKE_TARGET": "mesh_archive_textures",
+                    },
+                ),
+                patch(
+                    "cdmw.ui.shell.app_startup._verify_mesh_archive_textures_startup_smoke_target",
+                    return_value=evidence,
+                ) as verify_textures,
+            ):
+                self.assertTrue(finish_gui_startup_smoke_if_requested(window, app))  # type: ignore[arg-type]
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+
+        verify_textures.assert_called_once_with(window, app)
+        self.assertEqual("mesh_archive_textures", payload["target"])
+        self.assertEqual(evidence, payload["evidence"])
+        self.assertEqual([(-32_000, -32_000), (-32_000, -32_000)], window.move_calls)
+        self.assertEqual(1, window.show_normal_count)
+        self.assertTrue(window.finalized)
+
+    def test_finish_gui_startup_smoke_records_target_failure_without_raising(self) -> None:
+        window = _WindowStub()
+        app = _AppStub()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result_path = Path(temp_dir) / "startup-result.json"
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "CDMW_GUI_STARTUP_SMOKE": "1",
+                        "CDMW_GUI_STARTUP_SMOKE_RESULT": str(result_path),
+                        "CDMW_GUI_STARTUP_SMOKE_TARGET": "mesh_archive_textures",
+                    },
+                ),
+                patch(
+                    "cdmw.ui.shell.app_startup._verify_mesh_archive_textures_startup_smoke_target",
+                    side_effect=RuntimeError(
+                        "texture draw failed; diagnostics: C:/Temp/failure-diagnostics.json"
+                    ),
+                ),
+            ):
+                self.assertTrue(finish_gui_startup_smoke_if_requested(window, app))  # type: ignore[arg-type]
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+
+        self.assertFalse(payload["ok"])
+        self.assertEqual("target_verification", payload["stage"])
+        self.assertEqual("mesh_archive_textures", payload["target"])
+        self.assertEqual(
+            "RuntimeError: texture draw failed; diagnostics: C:/Temp/failure-diagnostics.json",
+            payload["detail"],
+        )
         self.assertTrue(window.finalized)
 
     def test_finish_gui_startup_smoke_can_load_mesh_editor_asset_target(self) -> None:

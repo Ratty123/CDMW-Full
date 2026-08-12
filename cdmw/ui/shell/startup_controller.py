@@ -270,12 +270,12 @@ class StartupPromptMixin:
             pass
 
     def _release_startup_splash(self) -> None:
-        if getattr(self, "_startup_splash_released", False):
-            return
-        splash = getattr(self, "_startup_splash_window", None)
         if bool(getattr(self, "_startup_texture_preview_defer_env", False)):
             os.environ.pop("CDMW_DEFER_TEXTURE_PREVIEW", None)
             self._startup_texture_preview_defer_env = False
+        if getattr(self, "_startup_splash_released", False):
+            return
+        splash = getattr(self, "_startup_splash_window", None)
         self._startup_splash_released = True
         self._startup_splash_release_pending = False
         if self.archive_scan_worker is None and self.worker_thread is None:

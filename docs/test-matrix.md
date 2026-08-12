@@ -211,6 +211,26 @@ This suite is deterministic protocol and native readback evidence. The hidden
 GPU sparse soak below exercises the production upload path without opening a
 window; neither is visible licensed-game or real-PAC proof.
 
+Exact packaged-app Solid (Textured) restoration against the read-only archive
+sample (explicit real-game and packaging authorization required):
+
+```powershell
+$env:CDMW_GUI_STARTUP_SMOKE_MESH_ASSET = "C:\games\Steam\steamapps\common\Crimson Desert"
+.\scripts\verify_packaged_startup.ps1 -ExecutablePath .\dist\CrimsonDesertModWorkbench.exe -Target mesh_archive_textures
+```
+
+This target must use Qt's Windows platform so the bundled .NET/Vortice helper
+owns a real D3D11 HWND. The launcher must not pass `SW_HIDE`: the smoke-only
+startup path shows the Qt/WinForms surface off-screen, preserving real swap-chain
+paint messages without putting the test UI on the desktop. It drives
+`Faces (No Textures) -> Solid (Textured)` in
+both normal Mesh Editor and Edit Mesh, waits for queued scene, presentation,
+package, and material work, then requires a fresh correlated renderer status
+with textured mode, texture sampling, live SRVs, and textured draw calls. The
+gate reads the fixed PAC through `0.pamt` and rejects any PAMT or PAZ hash
+change; it is not part of `mesh-unit` because it needs a packaged executable and
+licensed local game data.
+
 Preview Core decode/package ownership, shared .NET host lifecycle, native
 renderer retirement guards, Release build, and headless self-tests:
 

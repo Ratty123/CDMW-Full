@@ -17,7 +17,7 @@ internal sealed partial class ExperimentForm
         BuildAuthoringToolPanels();
         ActivateToolRailLayout();
         _scene.SetInteractionMode("mesh_edit");
-        var displayApplied = _viewport.TrySetDisplayMode("textured", out var displayError);
+        var displayApplied = _viewport.TrySetSynchronizedDisplayMode("textured", out var displayError);
         var materialApplied = _viewport.TryApplyMaterialState(
             Enumerable.Range(0, _document.Submeshes.Count).ToArray(),
             out var materialError);
@@ -195,6 +195,8 @@ internal sealed partial class ExperimentForm
                 expectedMode,
                 StringComparison.OrdinalIgnoreCase);
             var xrayMatches = _viewport.ShowXRay == (index == 6);
+            var paneTexturesMatch = _viewport.PresentationContextTexturesEnabled()
+                == _viewport.TexturesEnabled;
             previewCases.Add(new Dictionary<string, object?>
             {
                 ["index"] = index,
@@ -203,9 +205,12 @@ internal sealed partial class ExperimentForm
                 ["frame"] = frame,
                 ["mode_matches"] = modeMatches,
                 ["xray_matches"] = xrayMatches,
+                ["viewport_textures_enabled"] = _viewport.TexturesEnabled,
+                ["pane_textures_match"] = paneTexturesMatch,
                 ["ok"] = frame.GetValueOrDefault("ok") is true
                     && modeMatches
-                    && xrayMatches,
+                    && xrayMatches
+                    && paneTexturesMatch,
             });
         }
         _previewMode.SelectedIndex = 6;

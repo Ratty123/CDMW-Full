@@ -207,11 +207,28 @@ def _d3d11_loading_step_010(_state):
 
 def _d3d11_loading_step_011(_state):
 
-    def _alignment_d3d11_request_active() -> bool:
+    def _alignment_d3d11_process_active() -> bool:
         process = _state.alignment_d3d11_state.get('process')
-        process_active = isinstance(process, _state.QProcess) and process.state() != _state.QProcess.NotRunning
+        if not isinstance(process, _state.QProcess):
+            return False
+        try:
+            return process.state() != _state.QProcess.NotRunning
+        except RuntimeError:
+            if _state.alignment_d3d11_state.get('process') is process:
+                _state.alignment_d3d11_state['process'] = None
+            return False
+    _state._alignment_d3d11_process_active = _alignment_d3d11_process_active
+
+    def _alignment_d3d11_request_active() -> bool:
+        process_active = _state._alignment_d3d11_process_active()
         thread = _state.alignment_d3d11_state.get('thread')
-        thread_active = isinstance(thread, _state.QThread) and thread.isRunning()
+        thread_active = False
+        if isinstance(thread, _state.QThread):
+            try:
+                thread_active = bool(thread.isRunning())
+            except RuntimeError:
+                if _state.alignment_d3d11_state.get('thread') is thread:
+                    _state.alignment_d3d11_state['thread'] = None
         queued_model_active = isinstance(_state.alignment_d3d11_state.get('queued_model'), _state.ModelPreviewData)
         pending_model_active = isinstance(_state.alignment_d3d11_state.get('pending_model'), _state.ModelPreviewData)
         active_package = _state.alignment_d3d11_state.get('active_package')
@@ -222,9 +239,8 @@ def _d3d11_loading_step_011(_state):
 def _d3d11_loading_step_012(_state):
 
     def _alignment_d3d11_live_frame_available() -> bool:
-        process = _state.alignment_d3d11_state.get('process')
         active_package = _state.alignment_d3d11_state.get('active_package')
-        return _state._alignment_d3d11_live_frame_available_helper(_state.alignment_d3d11_state, process_active=isinstance(process, _state.QProcess) and process.state() != _state.QProcess.NotRunning, active_package_exists=isinstance(active_package, _state.Path) and active_package.exists())
+        return _state._alignment_d3d11_live_frame_available_helper(_state.alignment_d3d11_state, process_active=_state._alignment_d3d11_process_active(), active_package_exists=isinstance(active_package, _state.Path) and active_package.exists())
     _state._alignment_d3d11_live_frame_available = _alignment_d3d11_live_frame_available
 
 def _d3d11_loading_step_013(_state):
@@ -266,8 +282,7 @@ def _d3d11_loading_step_014(_state):
         started_at = float(_state.alignment_d3d11_state.get('loading_started_at', 0.0) or 0.0)
         elapsed_s = _state.time.perf_counter() - started_at if started_at > 0.0 else 0.0
         request_active = _state._alignment_d3d11_request_active()
-        process = _state.alignment_d3d11_state.get('process')
-        process_active = isinstance(process, _state.QProcess) and process.state() != _state.QProcess.NotRunning
+        process_active = _state._alignment_d3d11_process_active()
         active_package = _state.alignment_d3d11_state.get('active_package')
         active_package_exists = isinstance(active_package, _state.Path) and active_package.exists()
         return _state._alignment_d3d11_loading_stuck_helper(loading_active=loading_active, preview_loaded=False, queued_model_active=False, pending_model_active=False, thread_active=False, loading_started_at=started_at, loading_elapsed_s=elapsed_s, timeout_s=_state.alignment_d3d11_reload_stuck_timeout_s, request_active=request_active, process_active=process_active, active_package_exists=active_package_exists)
@@ -285,9 +300,8 @@ def _d3d11_loading_step_015(_state):
                 _state._alignment_d3d11_clear_loading_start_helper(_state.alignment_d3d11_state)
             _state._safe_stop_alignment_timer(_state.alignment_d3d11_loading_timer)
             return
-        process = _state.alignment_d3d11_state.get('process')
         active_package = _state.alignment_d3d11_state.get('active_package')
-        process_active = isinstance(process, _state.QProcess) and process.state() != _state.QProcess.NotRunning
+        process_active = _state._alignment_d3d11_process_active()
         package_active = isinstance(active_package, _state.Path) and active_package.exists()
         watchdog_snapshot = _state._alignment_d3d11_loading_watchdog_snapshot_helper(_state.alignment_d3d11_state, now_s=_state.time.perf_counter())
         host_ready = False

@@ -87,6 +87,7 @@ def test_modify_original_reuses_the_current_archive_native_package(tmp_path: Pat
         ),
         _current_archive_entry=lambda: entry,
         _same_archive_entry=lambda current, expected: current is expected,
+        _archive_active_package_has_textures=lambda: True,
     )
     state = SimpleNamespace(
         ModelPreviewData=None,
@@ -99,6 +100,38 @@ def test_modify_original_reuses_the_current_archive_native_package(tmp_path: Pat
     _texture_original_texture_material_step_008(state)
 
     assert state._current_archive_native_preview_package_path() == str(package)
+
+
+def test_modify_original_does_not_reuse_an_untextured_archive_native_package(
+    tmp_path: Path,
+) -> None:
+    class _Entry:
+        pass
+
+    package = tmp_path / "native-package"
+    package.mkdir()
+    (package / "manifest.json").write_text('{"batches":[{},{}]}', encoding="utf-8")
+    entry = _Entry()
+    owner = SimpleNamespace(
+        current_archive_preview_result=SimpleNamespace(
+            native_preview_diagnostics={"native_decode_package_path": str(package)},
+            dotnet_preview_package_path="",
+        ),
+        _current_archive_entry=lambda: entry,
+        _same_archive_entry=lambda current, expected: current is expected,
+        _archive_active_package_has_textures=lambda: False,
+    )
+    state = SimpleNamespace(
+        ModelPreviewData=None,
+        ArchiveEntry=_Entry,
+        Path=Path,
+        self=owner,
+        entry=entry,
+    )
+
+    _texture_original_texture_material_step_008(state)
+
+    assert state._current_archive_native_preview_package_path() == ""
 
 
 def test_mapping_status_summary_badge_escapes_label_and_value() -> None:

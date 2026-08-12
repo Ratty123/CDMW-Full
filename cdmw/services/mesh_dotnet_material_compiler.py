@@ -31,7 +31,7 @@ from cdmw.services.mesh_dotnet_material_semantics import (
 )
 
 
-MESH_DOTNET_MATERIAL_COMPILER_VERSION = 6
+MESH_DOTNET_MATERIAL_COMPILER_VERSION = 7
 MESH_DOTNET_MATERIAL_CACHE_NAME = "cdmw-mesh-dotnet-material-cache-v1"
 
 
@@ -193,7 +193,44 @@ def _load_cached_manifest(path: Path, signature: str) -> dict[str, object] | Non
         return None
     if str(compiler.get("cache_key", "") or "") != signature:
         return None
+    if _material_resource_file_blockers(payload, path.parent):
+        return None
     return payload
+
+
+def _material_resource_file_blockers(
+    manifest: Mapping[str, object],
+    package_dir: Path,
+) -> list[dict[str, object]]:
+    blockers: list[dict[str, object]] = []
+    resources = manifest.get("resources", ())
+    if not isinstance(resources, Sequence) or isinstance(
+        resources,
+        (str, bytes, bytearray),
+    ):
+        return blockers
+    for raw_resource in resources:
+        if not isinstance(raw_resource, Mapping):
+            continue
+        raw_path = str(raw_resource.get("path", "") or "").strip()
+        resource_path = Path(raw_path).expanduser() if raw_path else Path()
+        if raw_path and not resource_path.is_absolute():
+            resource_path = package_dir / resource_path
+        try:
+            available = bool(raw_path and resource_path.is_file())
+        except OSError:
+            available = False
+        if available:
+            continue
+        blockers.append(
+            {
+                "kind": "missing_resource_file",
+                "resource_id": str(raw_resource.get("resource_id", "") or ""),
+                "path": raw_path,
+                "resolved_path": str(resource_path),
+            }
+        )
+    return blockers
 
 
 def _material_compile_blockers(manifest: Mapping[str, object]) -> list[dict[str, object]]:
@@ -242,13 +279,15 @@ def _material_compile_blockers(manifest: Mapping[str, object]) -> list[dict[str,
             if "unreadable:" in str(note).casefold()
         ]
         if unreadable_inputs:
-            blockers.append(
-                {
-                    "submesh_index": submesh_index,
-                    "kind": "unreadable_material_inputs",
-                    "notes": unreadable_inputs,
-                }
-            )
+            unreadable_blocker: dict[str, object] = {
+                "submesh_index": submesh_index,
+                "kind": "unreadable_material_inputs",
+                "notes": unreadable_inputs,
+            }
+            decode_diagnostics = synthesis.get("decode_diagnostics", {})
+            if isinstance(decode_diagnostics, Mapping) and decode_diagnostics:
+                unreadable_blocker["decode_diagnostics"] = dict(decode_diagnostics)
+            blockers.append(unreadable_blocker)
         if (
             isinstance(synthesis, Mapping)
             and bool(synthesis.get("attempted", False))
@@ -256,16 +295,18 @@ def _material_compile_blockers(manifest: Mapping[str, object]) -> list[dict[str,
             and isinstance(raw_contract, Mapping)
             and bool(tuple(raw_contract.get("layer_bindings", ()) or ()))
         ):
-            blockers.append(
-                {
-                    "submesh_index": submesh_index,
-                    "kind": "synthesis_failure",
-                    "failure": str(
-                        synthesis.get("failure", synthesis.get("skipped", "no generated output"))
-                        or "no generated output"
-                    ),
-                }
-            )
+            synthesis_blocker: dict[str, object] = {
+                "submesh_index": submesh_index,
+                "kind": "synthesis_failure",
+                "failure": str(
+                    synthesis.get("failure", synthesis.get("skipped", "no generated output"))
+                    or "no generated output"
+                ),
+            }
+            decode_diagnostics = synthesis.get("decode_diagnostics", {})
+            if isinstance(decode_diagnostics, Mapping) and decode_diagnostics:
+                synthesis_blocker["decode_diagnostics"] = dict(decode_diagnostics)
+            blockers.append(synthesis_blocker)
     return blockers
 
 
@@ -281,6 +322,11 @@ def _compile_manifest_to_cache(
     cached = _load_cached_manifest(manifest_path, cache_key)
     if cached is not None:
         return cached, cache_dir, True
+    if manifest_path.is_file():
+        # This is an immutable, content-addressed temp cache. A manifest whose
+        # declared files are gone cannot be repaired in place and would also
+        # prevent the atomic staging directory from taking its cache key.
+        shutil.rmtree(cache_dir, ignore_errors=True)
     if cancelled is not None and cancelled():
         raise RunCancelled("Mesh .NET resident material compilation cancelled.")
     root.mkdir(parents=True, exist_ok=True)
@@ -299,6 +345,7 @@ def _compile_manifest_to_cache(
             cancelled=cancelled,
         )
         blockers = _material_compile_blockers(manifest)
+        blockers.extend(_material_resource_file_blockers(manifest, staging))
         if blockers:
             raise MeshDotNetMaterialCompilationError(
                 "PAC material graph could not be compiled: "

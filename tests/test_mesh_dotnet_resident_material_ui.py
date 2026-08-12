@@ -61,6 +61,62 @@ def test_shared_package_lifecycle_is_correlated_by_the_resident_controller() -> 
     )
 
 
+def test_full_renderer_status_survives_compact_metrics() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorRendererStatus"))
+    builder = _EmbeddedMeshBuilder()
+    tab.mount_embedded_builder(builder)
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    controller = _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("renderer_status_request_v1", "resident_mutation_envelope_v2"),
+    )
+    session_id = builder.controller.session_view().session_id
+    full_renderer = {
+        "backend": "d3d11_vortice_shader",
+        "gpu_backed": True,
+        "renderer_blocked": False,
+        "geometry_resources": {"live_texture_srvs": 7},
+    }
+
+    assert tab._handle_dotnet_protocol_event(
+        {
+            "event": "renderer_status",
+            "request_id": 1,
+            "session_id": session_id,
+            "process_generation": 1,
+            "renderer": full_renderer,
+        }
+    )
+    assert tab._handle_dotnet_protocol_event(
+        {
+            "event": "metrics",
+            "metrics": {
+                "renderer": {
+                    "backend": "d3d11_vortice_shader",
+                    "gpu_backed": True,
+                    "renderer_blocked": False,
+                    "geometry_resources": {"textured_solid_batch_draws": 11},
+                }
+            },
+        }
+    )
+
+    assert tab.standalone_dotnet_status_payload["renderer"] == full_renderer
+    assert tab.standalone_dotnet_status_payload["renderer_status_response"] == {
+        "request_id": 1,
+        "session_id": session_id,
+        "process_generation": 1,
+    }
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
 def _wait_for_material_compile_idle(
     app: QApplication,
     tab: MeshEditorTab,
@@ -330,6 +386,52 @@ def test_textured_view_waits_for_resident_material_ack_without_reload() -> None:
     app.processEvents()
 
 
+def test_textured_view_toggle_reuses_ready_reference_resources() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorTexturedViewReuse"))
+    builder = _EmbeddedMeshBuilder()
+    texture_requests: list[str] = []
+    setattr(
+        builder,
+        "_mesh_editor_embedded_request_material_resources",
+        lambda: texture_requests.append("requested"),
+    )
+    tab.mount_embedded_builder(builder)
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab._connect_dotnet_protocol(process)
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2", "viewport_display_modes_v1"),
+    )
+    tab.standalone_dotnet_experiment_package = SimpleNamespace(reference_submesh_count=1)
+    setattr(builder, "_mesh_editor_embedded_dotnet_active", True)
+    for role in ("editable_imported", "original_reference"):
+        tab.standalone_dotnet_material_generation_by_role[role] = 4
+        tab.standalone_dotnet_completed_material_generation_by_role[role] = 4
+        tab.standalone_dotnet_applied_material_generation_by_role[role] = 4
+        tab.standalone_dotnet_texture_resources_ready_by_role[role] = True
+
+    assert tab._handle_embedded_viewport_display_mode("untextured_faces")
+    assert tab._handle_embedded_viewport_display_mode("textured")
+
+    display_modes = [
+        payload.get("mode")
+        for payload in (
+            json.loads(raw.decode("utf-8")) for raw in process.stdin_writes
+        )
+        if payload.get("event") == "viewport_display_update"
+    ]
+    assert display_modes[-2:] == ["untextured_faces", "textured"]
+    assert texture_requests == []
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
 def test_builder_textured_selector_resolves_materials_before_presentation_update() -> None:
     app = QApplication.instance() or QApplication([])
     tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorBuilderTexturedRequest"))
@@ -480,6 +582,10 @@ def test_generated_material_resource_commits_only_after_matching_renderer_ack(tm
         process,
         capabilities=("resident_material_updates_v2",),
     )
+    recorded_events: list[tuple[str, dict[str, object]]] = []
+    tab._record_mesh_dotnet_event = (
+        lambda event, **fields: recorded_events.append((event, dict(fields)))
+    )
     source = tmp_path / "generated-base.dds"
     source.write_bytes(b"generated")
     binding = {
@@ -497,7 +603,21 @@ def test_generated_material_resource_commits_only_after_matching_renderer_ack(tm
     hook = getattr(builder, "_mesh_editor_embedded_apply_material_resources")
 
     assert hook(builder.controller.working_mesh(clone=False), (binding,), affected_submeshes=(0,))
-    payload = _material_writes(app, process)[0]
+    writes = _material_writes(app, process)
+    assert writes, " | ".join(
+        f"{event}: {fields}" for event, fields in recorded_events
+    )
+    payload = writes[0]
+    update_event = next(
+        fields
+        for event, fields in recorded_events
+        if event == "mesh_dotnet_material_state_update"
+    )
+    assert update_event["resource_count"] == 1
+    assert update_event["resource_file_count"] == 1
+    assert update_event["missing_resource_count"] == 0
+    assert update_event["resource_bytes"] > 0
+    assert Path(update_event["compiler_cache_dir"]).is_dir()
     session_id = builder.controller.session_view().session_id
     assert builder.controller.mesh_service.capture_export_snapshot(session_id).texture_resources == ()
     applied = {
@@ -521,12 +641,21 @@ def test_generated_material_resource_commits_only_after_matching_renderer_ack(tm
     assert not tab._handle_dotnet_protocol_event({
         "event": "material_state_failed",
         "generation": failed_payload["generation"],
-        "reason": "decode_failed",
+        "reason": "texture_decode_failed",
+        "message": "authority/base: texture_file_missing",
     })
     assert builder.controller.mesh_service.capture_export_snapshot(session_id).texture_revisions == (
         ("authority/base", "base", 1),
     )
     assert completions[-1][0:2] == (failed_payload["generation"], False)
+    failure_event = next(
+        fields
+        for event, fields in recorded_events
+        if event == "mesh_dotnet_material_state_failed"
+    )
+    assert failure_event["failure_reason"] == "texture_decode_failed"
+    assert failure_event["failure_message"] == "authority/base: texture_file_missing"
+    assert failure_event["generation"] == failed_payload["generation"]
     tab.deleteLater()
     builder.deleteLater()
     app.processEvents()
@@ -604,6 +733,57 @@ def test_late_exact_clone_materials_compile_once_for_editable_and_reference_reso
     assert tab._dotnet_material_roles_ready()
     app.processEvents()
     assert len(_material_writes(app, process)) == 1
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
+def test_late_paired_materials_wait_for_the_desired_resident_package(
+    tmp_path: Path,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorPairedMaterialsWaitForPackage"))
+    builder = _EmbeddedMeshBuilder()
+    tab.mount_embedded_builder(builder)
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab._connect_dotnet_protocol(process)
+    controller = _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2",),
+    )
+    pending_package = SimpleNamespace(package_dir=tmp_path / "desired-package")
+    controller._desired_package = pending_package
+    controller._desired_package_identity = ("desired",)
+    controller._applied_package = None
+    controller._applied_package_path = ""
+    controller._applied_package_generation = 0
+    texture_path = tmp_path / "resolved-body.dds"
+    texture_path.write_bytes(b"resolved-body")
+    editable_mesh = builder.controller.working_mesh(clone=False)
+    preview_model = SimpleNamespace(
+        meshes=[
+            SimpleNamespace(
+                source_submesh_index=index,
+                material_name=f"resolved-{index}",
+                preview_texture_path=str(texture_path),
+                preview_texture_dds_path=str(texture_path),
+                preview_texture_flip_vertical=False,
+                preview_material_texture_inputs=(),
+            )
+            for index, _submesh in enumerate(editable_mesh.submeshes)
+        ]
+    )
+
+    assert tab.apply_resident_clone_and_reference_material_resources(preview_model)
+    app.processEvents()
+
+    assert _material_writes(app, process) == []
+    assert tab.standalone_dotnet_pending_paired_material_model is preview_model
 
     tab.deleteLater()
     builder.deleteLater()

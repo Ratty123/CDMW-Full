@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, QThread
 from PySide6.QtWidgets import QApplication
 
 from cdmw.domain.cancellation import RunCancelled
@@ -74,6 +74,14 @@ def test_material_compiler_keeps_one_active_and_only_latest_pending_generation()
         process,
         capabilities=("resident_material_updates_v2",),
     )
+    compile_start_threads: list[QThread] = []
+    original_start = tab._start_dotnet_material_compile
+
+    def record_start_thread(request, committed_resources) -> None:
+        compile_start_threads.append(QThread.currentThread())
+        original_start(request, committed_resources)
+
+    tab._start_dotnet_material_compile = record_start_thread
     try:
         with patch(
             "cdmw.workers.mesh_dotnet_material_update_worker.compile_mesh_dotnet_material_update",
@@ -91,6 +99,8 @@ def test_material_compiler_keeps_one_active_and_only_latest_pending_generation()
         assert [payload["generation"] for payload in updates] == [3]
         assert updates[0]["reason"] == "latest"
         assert tab.standalone_dotnet_lifecycle_counts["material_compile_replaced_count"] == 2
+        assert compile_start_threads
+        assert all(thread is app.thread() for thread in compile_start_threads)
     finally:
         tab._stop_standalone_dotnet_editor_process()
         _wait_for(app, lambda: not tab._dotnet_material_compile_active())

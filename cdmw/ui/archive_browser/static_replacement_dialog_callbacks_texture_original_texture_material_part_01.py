@@ -333,6 +333,14 @@ def _texture_original_texture_material_step_008(_state):
         current_result = getattr(_state.self, 'current_archive_preview_result', None)
         diagnostics = getattr(current_result, 'native_preview_diagnostics', None)
         diagnostic_path = diagnostics.get('native_decode_package_path', '') if isinstance(diagnostics, Mapping) else ''
+        package_has_textures = getattr(_state.self, '_archive_active_package_has_textures', None)
+        if not callable(package_has_textures) or not bool(package_has_textures()):
+            # The archive's fast geometry package still contains one batch per
+            # submesh, but its material manifest deliberately has no DDS
+            # resources. Treating those batches as resolved textures made the
+            # worker return early with bare PAC texture names, so the resident
+            # helper received paths to files that had never existed.
+            return ''
         for candidate in (diagnostic_path, getattr(current_result, 'dotnet_preview_package_path', '')):
             package_path = str(candidate or '').strip()
             if package_path and (_state.Path(package_path) / 'manifest.json').is_file():

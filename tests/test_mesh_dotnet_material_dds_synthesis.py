@@ -206,6 +206,16 @@ def test_unreadable_neutral_metal_graph_fails_closed_without_index_error(
     assert binding["material_synthesis"]["attempted"] is True
     assert binding["material_synthesis"]["succeeded"] is False
     assert binding["material_synthesis"]["decoded_preview_input_count"] == 0
+    assert binding["material_synthesis"]["decode_diagnostics"] == {
+        "input_count": 1,
+        "dds_candidate_count": 1,
+        "decode_job_count": 1,
+        "native_channel_deferred_count": 0,
+        "missing_dds_input_count": 0,
+        "missing_dds_input_sample": [],
+        "preview_deferred_by_environment": False,
+        "decoded_input_count": 0,
+    }
     assert "failure" not in binding["material_synthesis"]
     assert binding["resolved_channels"] == binding["raw_resolved_channels"]
     assert "albedo synthesis failed" in binding["material_synthesis"]["notes"]
@@ -667,6 +677,10 @@ def test_unreadable_input_without_a_raw_channel_still_blocks_the_compile(
 
     assert unreadable
     assert unreadable[0]["notes"] == ["normal unreadable:cd_phm_01_blade_0070_n.dds"]
+    assert unreadable[0]["decode_diagnostics"]["missing_dds_input_count"] == 1
+    assert unreadable[0]["decode_diagnostics"]["missing_dds_input_sample"][0][
+        "candidate_paths"
+    ]["source_dds_path"] == str(missing_normal_dds)
 
 
 def test_missing_raw_height_dds_uses_valid_generated_height(

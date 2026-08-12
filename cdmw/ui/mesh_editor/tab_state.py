@@ -824,6 +824,13 @@ class MeshEditorStateMixin(MeshEditorEmbeddedPartsMixin):
         an error banner over a correct preview reads as the mode not having
         worked at all.
         """
+        if bool(
+            self.standalone_dotnet_texture_resources_ready_by_role.get(
+                "original_reference",
+                False,
+            )
+        ):
+            return
         if not callable(request_textures):
             return
         try:

@@ -312,6 +312,21 @@ class MeshEditorDotNetProtocolMixin(
         }:
             self.standalone_dotnet_status_payload["performance_capture"] = dict(payload)
             return True
+        if event == "renderer_status":
+            renderer = payload.get("renderer")
+            if not isinstance(renderer, Mapping):
+                return False
+            self.standalone_dotnet_status_payload["renderer"] = dict(renderer)
+            self.standalone_dotnet_status_payload["renderer_status_response"] = {
+                "request_id": int(payload.get("request_id", 0) or 0),
+                "session_id": str(payload.get("session_id", "") or ""),
+                "process_generation": int(payload.get("process_generation", 0) or 0),
+            }
+            return self._handle_dotnet_renderer_status(
+                {"renderer": renderer},
+                source_event="renderer_status",
+                emit_warning=False,
+            )
         if event == "select_request":
             return self._handle_dotnet_select_request(payload)
         if event == "selection_request":
@@ -514,7 +529,6 @@ class MeshEditorDotNetProtocolMixin(
                 self.standalone_dotnet_status_payload["metrics"] = dict(metrics)
                 renderer = metrics.get("renderer", payload.get("renderer"))
                 if isinstance(renderer, Mapping):
-                    self.standalone_dotnet_status_payload["renderer"] = dict(renderer)
                     if not self._handle_dotnet_renderer_status({"renderer": renderer}, source_event="metrics", emit_warning=False):
                         return False
             return True

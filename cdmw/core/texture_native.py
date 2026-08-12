@@ -552,6 +552,13 @@ def ensure_directxtex_dds_preview_pngs(
 ) -> Dict[str, Path]:
     raise_if_cancelled(stop_event, "DirectXTex preview conversion cancelled.")
     if os.environ.get("CDMW_DEFER_TEXTURE_PREVIEW", "").strip():
+        _record_directxtex_failure(
+            binary=None,
+            operation="batch-preview-json",
+            returncode="deferred",
+            retry_available=True,
+            reason="preview_deferred_by_environment",
+        )
         return {}
     binary = _resolve_directxtex_texture_binary(
         stop_event=stop_event,

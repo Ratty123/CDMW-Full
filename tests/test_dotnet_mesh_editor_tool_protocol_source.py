@@ -14,6 +14,21 @@ def _source(name: str) -> str:
     }.get(name, (name,))
     return "\n".join(path.read_text(encoding="utf-8") for path in sorted({path for pattern in patterns for path in DOTNET_EDITOR.glob(pattern)}))
 
+
+def test_renderer_status_response_preserves_mutation_correlation() -> None:
+    source = _source("ExperimentForm.MaterialProtocol.cs")
+    handler = source.split(
+        "private void HandleRendererStatusRequest(JsonElement request)", maxsplit=1
+    )[1].split(
+        "private Dictionary<string, object?> RendererCompactStatusWithLifecycle()",
+        maxsplit=1,
+    )[0]
+
+    assert '["request_id"] = JsonLongValue(request, "request_id")' in handler
+    assert '["session_id"] = JsonString(request, "session_id")' in handler
+    assert '["process_generation"] = JsonLongValue(request, "process_generation")' in handler
+    assert 'WriteProtocolEvent("renderer_status", payload)' in handler
+
 def test_equal_surface_resize_refreshes_initial_render_pane_layout() -> None:
     renderer_source = _source("MeshViewport.Renderer.cs")
     equal_bounds = renderer_source.split(

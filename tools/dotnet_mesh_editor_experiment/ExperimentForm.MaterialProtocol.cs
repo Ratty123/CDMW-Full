@@ -121,6 +121,7 @@ internal sealed partial class ExperimentForm
         {
             ["request_id"] = JsonLongValue(request, "request_id"),
             ["session_id"] = JsonString(request, "session_id"),
+            ["process_generation"] = JsonLongValue(request, "process_generation"),
             ["renderer"] = RendererStatusWithLifecycle(),
         };
         WriteProtocolEvent("renderer_status", payload);

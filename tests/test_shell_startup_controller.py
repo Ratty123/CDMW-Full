@@ -278,6 +278,30 @@ class ShellStartupControllerTests(unittest.TestCase):
             self.assertEqual("Preparing application...", payload["detail"])
             self.assertFalse(payload["closed"])
 
+    def test_mesh_texture_startup_smoke_places_real_splash_off_screen(self) -> None:
+        app = SimpleNamespace(
+            windowIcon=lambda: SimpleNamespace(isNull=lambda: True),
+            processEvents=lambda: None,
+        )
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "CDMW_GUI_STARTUP_SMOKE": "1",
+                    "CDMW_GUI_STARTUP_SMOKE_TARGET": "mesh_archive_textures",
+                },
+                clear=True,
+            ),
+            patch("cdmw.ui.shell.startup_dialogs.StartupSplashDialog") as dialog_type,
+            patch("cdmw.ui.shell.startup_splash.close_pyinstaller_boot_splash"),
+        ):
+            splash = create_startup_splash(app, "graphite")
+
+        self.assertIs(splash, dialog_type.return_value)
+        splash.move.assert_called_once_with(-32_000, -32_000)
+        splash.center_on_screen.assert_not_called()
+        splash.show.assert_called_once_with()
+
     def test_startup_splash_pump_noops_without_splash(self) -> None:
         pump = make_startup_splash_pump(None)
 

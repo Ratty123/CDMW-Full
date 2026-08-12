@@ -746,10 +746,12 @@ def _synthesize_dotnet_material_channels(
             "skipped": "cancelled",
         }, ()
     try:
+        decode_diagnostics: dict[str, object] = {}
         (
             inputs,
             decoded_preview_input_count,
             deferred_raw_channel_labels,
+            decode_diagnostics,
         ) = _decode_synthesis_input_previews(
             inputs,
             raw_channels,
@@ -801,6 +803,7 @@ def _synthesize_dotnet_material_channels(
             "attempted": True,
             "succeeded": False,
             "failure": f"{type(exc).__name__}: {exc}",
+            "decode_diagnostics": decode_diagnostics,
         }, ()
     if cancelled is not None and cancelled():
         shutil.rmtree(output_dir, ignore_errors=True)
@@ -836,6 +839,7 @@ def _synthesize_dotnet_material_channels(
         "notes": synthesis_notes,
         "texture_flip_vertical": bool(getattr(combined, "texture_flip_vertical", False)),
         "decoded_preview_input_count": int(decoded_preview_input_count),
+        "decode_diagnostics": decode_diagnostics,
     }
     if base_alpha_summary:
         metadata["base_alpha_summary"] = base_alpha_summary
@@ -1014,8 +1018,13 @@ def _dotnet_submesh_material_payload(
         packaged_channels = _copy_dotnet_texture_channel_resources(
             resolved_channels, package_dir, texture_copy_cache
         )
+        concrete_channels = {
+            channel: resolved_channels[channel]
+            for channel in packaged_channels
+            if channel in resolved_channels
+        }
         resource_channels, resources = _dotnet_manifest_resource_bindings(
-            resolved_channels,
+            concrete_channels,
             packaged_channels,
             source=source_submesh,
             source_asset_path=source_asset_path,

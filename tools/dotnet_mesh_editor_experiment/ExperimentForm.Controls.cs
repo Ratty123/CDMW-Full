@@ -172,7 +172,7 @@ internal sealed partial class ExperimentForm
                 RequestResidentViewportDisplay(mode);
                 return;
             }
-            if (_viewport.TrySetDisplayMode(mode, out var error))
+            if (_viewport.TrySetSynchronizedDisplayMode(mode, out var error))
             {
                 if (!_meshEditInteractionActive)
                 {

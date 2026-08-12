@@ -23,6 +23,7 @@ def write_gui_startup_smoke_result(
     target: str = "",
     detail: str = "",
     bundled_helpers: Optional[Sequence[Mapping[str, object]]] = None,
+    evidence: Optional[Mapping[str, object]] = None,
 ) -> Optional[Path]:
     result_text = os.environ.get(GUI_STARTUP_SMOKE_RESULT_ENV, "").strip()
     if not result_text:
@@ -46,6 +47,8 @@ def write_gui_startup_smoke_result(
         payload["bundled_helpers"] = [
             {str(key): str(value) for key, value in dict(helper).items()} for helper in bundled_helpers
         ]
+    if evidence is not None:
+        payload["evidence"] = dict(evidence)
 
     descriptor, temp_name = tempfile.mkstemp(
         dir=result_path.parent,

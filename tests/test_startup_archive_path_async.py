@@ -101,6 +101,24 @@ def test_startup_windows_cannot_leave_application_input_blocked() -> None:
     splash.finish()
 
 
+def test_releasing_an_already_released_splash_clears_texture_preview_defer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _app()
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.IniFormat)
+    window = _StartupPromptHarness(settings)
+    window._startup_splash_released = True
+    window._startup_texture_preview_defer_env = True
+    monkeypatch.setenv("CDMW_DEFER_TEXTURE_PREVIEW", "1")
+
+    window._release_startup_splash()
+
+    assert "CDMW_DEFER_TEXTURE_PREVIEW" not in os.environ
+    assert window._startup_texture_preview_defer_env is False
+    window.close()
+
+
 def test_first_run_prompt_is_modeless_and_main_window_stays_clickable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
