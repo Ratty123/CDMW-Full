@@ -749,6 +749,7 @@ struct SubmeshMeshEditResult {
     int topology_original_face_count = 0;
     bool topology_rebuild_valid = false;
     bool topology_provenance_prepared = false;
+    double topology_provenance_ms = 0.0;
     std::string topology_blocker;
     std::string vertex_origin_offsets_path;
     std::string vertex_origin_parents_path;
