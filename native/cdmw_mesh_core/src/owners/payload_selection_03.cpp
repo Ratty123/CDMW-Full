@@ -690,6 +690,18 @@ std::set<std::array<int, 2>> selected_edges_from_binary_or_json(const JsonValue&
     return selected_edges_from_binary_or_json_keys(item, vertex_count, "selected_edges_binary", "selected_edges");
 }
 
+MeshEditorSession* mutable_mesh_editor_session_for_item(const JsonValue& item) {
+    std::string session_id = string_or(item.get("editor_session_id"), "");
+    if (session_id.empty()) {
+        session_id = string_or(item.get("mesh_editor_session_id"), "");
+    }
+    if (session_id.empty() || int_or(item.get("index"), -1) < 0) {
+        return nullptr;
+    }
+    const auto found = g_mesh_editor_sessions.find(session_id);
+    return found == g_mesh_editor_sessions.end() ? nullptr : &found->second;
+}
+
 bool source_face_indices_are_identity(const std::vector<int>& source_faces) {
     for (std::size_t index = 0; index < source_faces.size(); ++index) {
         if (source_faces[index] != static_cast<int>(index)) {

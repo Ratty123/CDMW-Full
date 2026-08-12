@@ -75,6 +75,7 @@ def test_sustained_frame_pacing_cli_and_evidence_contract_are_versioned() -> Non
 def test_interaction_soak_drives_real_provisional_paths_and_required_gates() -> None:
     entry = _source("ProgramEntry.cs")
     soak = _source("HeadlessGpuInteractionSoak.cs")
+    tool_diagnostics = _source("ExperimentForm.EditMeshToolDiagnostics.cs")
     probe = _source("MeshViewport.InteractionSoak.cs")
     strokes = _source("MeshViewport.ProvisionalStrokes.cs")
     picking = _source("MeshViewport.SelectionPicking.cs") + _source("MeshViewport.SelectionPaint.cs")
@@ -97,7 +98,12 @@ def test_interaction_soak_drives_real_provisional_paths_and_required_gates() -> 
     assert "FinishEdgeDrag(point)" in probe
     assert "CommitInteractionSoakGeometry" in probe
     assert "CompleteProvisionalAuthoritativeUpdate" in probe
-    assert "SpatialBuckets" in strokes
+    assert "ApplyInteractionSoakAuthoritativeGeometry" in tool_diagnostics
+    assert "ApplyPreviewVertexUpdate(" in tool_diagnostics
+    assert "authoritative_geometry_pending" in tool_diagnostics
+    assert 'normalizedTool is "move" or "grab"' in strokes
+    assert "var candidates = localGeometryPreview" in strokes
+    assert "SpatialBuckets" not in strokes
     assert "GrabIndices" in strokes
     assert "VertexBuckets" in picking
     assert "FaceBuckets" in picking

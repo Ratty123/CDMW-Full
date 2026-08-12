@@ -42,9 +42,30 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
                 request_payload=request_payload,
             )
             return True
-        self.standalone_pending_dotnet_topology_request = dict(request_payload)
+        queued_payload = dict(request_payload)
+        # The helper's local_selection is the last acknowledged selection,
+        # not the brush/lasso echo currently visible under the cursor. Execute
+        # after the selection terminal with no explicit snapshot so the
+        # resident service supplies its newly authoritative selection.
+        queued_payload.pop("local_selection", None)
+        queued_payload.pop("selection", None)
+        self.standalone_pending_dotnet_topology_request = queued_payload
         self._set_dotnet_status("Finishing the selection gesture before applying topology...")
         return True
+
+    def _reject_pending_dotnet_topology_command(self, reason: str) -> None:
+        payload = self.standalone_pending_dotnet_topology_request
+        self.standalone_pending_dotnet_topology_request = None
+        if payload is None:
+            return
+        command_name = str(payload.get("command", payload.get("action", "subdivide")) or "subdivide")
+        self._send_dotnet_command_result(
+            command_name,
+            ok=False,
+            status="cancelled",
+            diagnostics=(str(reason or "The selection gesture did not complete."),),
+            request_payload=payload,
+        )
 
     def _retry_pending_dotnet_topology_command(self) -> None:
         payload = self.standalone_pending_dotnet_topology_request
@@ -369,10 +390,9 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
         )
         terminal_selection_stages: dict[str, float] = {}
         if self.standalone_dotnet_target_embedded:
-            if not selection_outcome:
-                self._apply_embedded_native_update(update)
-            commit_embedded = outcome.phase != "update" and (
-                not selection_outcome or terminal_selection_presentation
+            commit_embedded = (
+                terminal_selection_presentation
+                or (not selection_outcome and outcome.phase == "end")
             )
             if commit_embedded:
                 # Only a finished stroke is worth recording; the update phases
@@ -386,6 +406,11 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
                         update.session_view.selection
                         if terminal_selection_presentation and update.session_view is not None
                         else None
+                    ),
+                    resident_history=(
+                        outcome.source == "dotnet"
+                        and not selection_outcome
+                        and outcome.phase == "end"
                     ),
                 )
                 if terminal_selection_presentation:
@@ -504,7 +529,13 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
                     )
                 )
             self._retry_pending_dotnet_finish()
-            self._retry_pending_dotnet_topology_command()
+            if selection_outcome and outcome.phase == "cancel":
+                cancel_reason = "selection gesture cancelled."
+                self._reject_pending_dotnet_topology_command(
+                    f"Mesh .NET editor selection failed: {cancel_reason}"
+                )
+            else:
+                self._retry_pending_dotnet_topology_command()
     def _handle_dotnet_live_stroke_failed(self, failure: object) -> None:
         if not isinstance(failure, _tab.MeshLiveStrokeFailure) or failure.source not in {"dotnet", "dotnet_morph", "dotnet_selection"}:
             return
@@ -518,6 +549,10 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
                 self.standalone_native_selection_stroke_id = ""
             else:
                 self.standalone_native_mesh_edit_stroke_id = ""
+        if failure.source == "dotnet_selection":
+            self._reject_pending_dotnet_topology_command(
+                f"Mesh .NET editor selection failed: {failure.message}"
+            )
         if failure.cancelled:
             _record_interaction_decision(self,
                 "mesh_edit_dispatch_cancelled",
@@ -553,7 +588,8 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetLifecycleMixin):
                 request_payload=request_payloads[-1],
                 failure=failure.message,
             )
-        self._retry_pending_dotnet_topology_command()
+        if failure.source != "dotnet_selection":
+            self._retry_pending_dotnet_topology_command()
 
     def _handle_dotnet_morph_command_request(
         self,

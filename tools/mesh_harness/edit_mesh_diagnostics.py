@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import subprocess
 import threading
@@ -363,7 +364,11 @@ def _run_dotnet_stroke(
 
     sequence = 0
 
-    def submit(phase: str, screen_drag: dict[str, object] | None = None) -> None:
+    def submit(
+        phase: str,
+        screen_drag: dict[str, object] | None = None,
+        screen_brush: dict[str, object] | None = None,
+    ) -> None:
         nonlocal request_sequence
         nonlocal sequence
         request_sequence += 1
@@ -376,6 +381,9 @@ def _run_dotnet_stroke(
         }
         if screen_drag is not None:
             payload["screen_drag"] = screen_drag
+        if screen_brush is not None:
+            payload["screen_brush"] = screen_brush
+            payload["screen_radius"] = {**screen_brush, "amount_scale": 0.08}
         accepted, elapsed_ms = _timed_call(tab._handle_dotnet_stroke_event, payload, phase)
         calls.append(
             {
@@ -386,21 +394,67 @@ def _run_dotnet_stroke(
             }
         )
 
-    sustained = tool in {"move", "grab"}
-    update_count = 320 if sustained else 1
+    sustained = True
+    update_count = 320
     dispatcher_before = dict(tab.standalone_live_stroke_dispatcher.metrics())
-    begin_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.0))
-    submit("begin", begin_drag)
+    if tool in {"move", "grab"}:
+        begin_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.0))
+        previous_point = (100.0, 25.0)
+        begin_brush = _screen_brush(*previous_point, 100.0)
+    else:
+        previous_point = (170.0, 100.0)
+        begin_drag = {
+            **_screen_brush(*previous_point, 90.0),
+            "start_x": previous_point[0],
+            "start_y": previous_point[1],
+            "end_x": previous_point[0],
+            "end_y": previous_point[1],
+        }
+        begin_brush = _screen_brush(*previous_point, 90.0)
+    submit("begin", begin_drag, begin_brush)
     begin_idle = _wait_for_live_stroke_idle(tab, app, timeout_seconds=10.0)
     for index in range(1, update_count + 1):
-        update_drag = _matrix_only_screen_payload(
-            _screen_drag_for_z_delta(0.08 * index / update_count)
-        )
-        submit("update", update_drag)
+        if tool in {"move", "grab"}:
+            previous_z = 1.5 * (index - 1) / update_count
+            update_drag = _matrix_only_screen_payload(
+                _screen_drag_for_z_delta(1.5 / update_count, start_z=previous_z)
+            )
+            current_point = (
+                100.0 + 90.0 * index / update_count,
+                25.0 + 165.0 * index / update_count,
+            )
+            update_brush = _screen_brush(*current_point, 100.0)
+        else:
+            angle = 2.0 * math.pi * index / 80.0
+            current_point = (100.0 + 70.0 * math.cos(angle), 100.0 + 70.0 * math.sin(angle))
+            update_brush = _screen_brush(*current_point, 90.0)
+            update_drag = {
+                **update_brush,
+                "start_x": previous_point[0],
+                "start_y": previous_point[1],
+                "end_x": current_point[0],
+                "end_y": current_point[1],
+            }
+        submit("update", update_drag, update_brush)
+        previous_point = current_point
     update_idle = _wait_for_live_stroke_idle(tab, app, timeout_seconds=10.0)
     after_update = _vertices(controller)
-    submit("end")
+    if tool in {"move", "grab"}:
+        end_drag = _matrix_only_screen_payload(_screen_drag_for_z_delta(0.0, start_z=1.5))
+        end_brush = _screen_brush(*previous_point, 100.0)
+    else:
+        end_brush = _screen_brush(*previous_point, 90.0)
+        end_drag = {
+            **end_brush,
+            "start_x": previous_point[0],
+            "start_y": previous_point[1],
+            "end_x": previous_point[0],
+            "end_y": previous_point[1],
+        }
+    terminal_started = time.perf_counter()
+    submit("end", end_drag, end_brush)
     end_idle = _wait_for_live_stroke_idle(tab, app, timeout_seconds=10.0)
+    terminal_elapsed_ms = (time.perf_counter() - terminal_started) * 1000.0
     after_end = _vertices(controller)
     changed_distance = _max_vertex_distance(before, after_update)
     snapback_distance = _max_vertex_distance(after_update, after_end)
@@ -421,6 +475,7 @@ def _run_dotnet_stroke(
             and snapback_distance <= 1.0e-8
             and dispatcher_drained
             and max(dispatch_times, default=0.0) < 100.0
+            and terminal_elapsed_ms < 250.0
             and undo.ok,
             "tool": tool,
             "sustained": sustained,
@@ -430,6 +485,7 @@ def _run_dotnet_stroke(
             "begin_idle": begin_idle,
             "update_idle": update_idle,
             "end_idle": end_idle,
+            "terminal_elapsed_ms": terminal_elapsed_ms,
             "maximum_submit_ms": max(dispatch_times, default=0.0),
             "average_submit_ms": sum(dispatch_times) / max(1, len(dispatch_times)),
             "calls": calls if len(calls) <= 12 else calls[:3] + calls[-8:],

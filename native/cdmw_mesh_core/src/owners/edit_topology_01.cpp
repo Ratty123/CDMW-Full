@@ -479,7 +479,9 @@ struct MeshEditorScreenBrushDepthMask {
 
 std::array<double, 4> mesh_editor_screen_depth_mask_bounds(
     const JsonValue& brush,
-    const MeshEditorScreenBrushProjection& projection
+    const MeshEditorScreenBrushProjection& projection,
+    const JsonValue* raw_path = nullptr,
+    const JsonValue* raw_drag = nullptr
 ) {
     const double viewport_left = projection.viewport_x;
     const double viewport_top = projection.viewport_y;
@@ -505,7 +507,45 @@ std::array<double, 4> mesh_editor_screen_depth_mask_bounds(
         )
     );
     constexpr double kPaddingPixels = 2.0;
-    if (std::isfinite(x) && std::isfinite(y)) {
+    std::vector<Vec2> path_points;
+    if (raw_path != nullptr && raw_path->type == JsonValue::Type::Array) {
+        path_points.reserve(raw_path->array_value.size());
+        for (const JsonValue& point : raw_path->array_value) {
+            if (point.type != JsonValue::Type::Object) continue;
+            const double point_x = number_or(point.get("x"), std::numeric_limits<double>::quiet_NaN());
+            const double point_y = number_or(point.get("y"), std::numeric_limits<double>::quiet_NaN());
+            if (std::isfinite(point_x) && std::isfinite(point_y)) {
+                path_points.push_back({point_x, point_y});
+            }
+        }
+    }
+    if (path_points.size() < 2 && raw_drag != nullptr && raw_drag->type == JsonValue::Type::Object) {
+        const double start_x = number_or(raw_drag->get("start_x"), std::numeric_limits<double>::quiet_NaN());
+        const double start_y = number_or(raw_drag->get("start_y"), std::numeric_limits<double>::quiet_NaN());
+        const double end_x = number_or(raw_drag->get("end_x"), std::numeric_limits<double>::quiet_NaN());
+        const double end_y = number_or(raw_drag->get("end_y"), std::numeric_limits<double>::quiet_NaN());
+        if (std::isfinite(start_x) && std::isfinite(start_y)
+            && std::isfinite(end_x) && std::isfinite(end_y)) {
+            path_points = {{start_x, start_y}, {end_x, end_y}};
+        }
+    }
+    if (!path_points.empty()) {
+        const double extent = std::max(radius, 1.0) + kPaddingPixels;
+        left = path_points.front()[0];
+        top = path_points.front()[1];
+        right = path_points.front()[0];
+        bottom = path_points.front()[1];
+        for (const Vec2& point : path_points) {
+            left = std::min(left, point[0]);
+            top = std::min(top, point[1]);
+            right = std::max(right, point[0]);
+            bottom = std::max(bottom, point[1]);
+        }
+        left -= extent;
+        top -= extent;
+        right += extent;
+        bottom += extent;
+    } else if (std::isfinite(x) && std::isfinite(y)) {
         const double extent = std::max(radius, 1.0) + kPaddingPixels;
         left = x - extent;
         top = y - extent;
@@ -552,7 +592,9 @@ std::array<double, 4> mesh_editor_screen_depth_mask_bounds(
 
 MeshEditorScreenBrushDepthMask mesh_editor_screen_brush_depth_mask(
     const MeshEditorSession* session,
-    const JsonValue& brush
+    const JsonValue& brush,
+    const JsonValue* raw_path = nullptr,
+    const JsonValue* raw_drag = nullptr
 ) {
     MeshEditorScreenBrushDepthMask mask;
     if (session == nullptr) {
@@ -562,7 +604,12 @@ MeshEditorScreenBrushDepthMask mesh_editor_screen_brush_depth_mask(
     if (!projection.has_world_view_projection && projection.source_world_view_projections.empty()) {
         return mask;
     }
-    const std::array<double, 4> bounds = mesh_editor_screen_depth_mask_bounds(brush, projection);
+    const std::array<double, 4> bounds = mesh_editor_screen_depth_mask_bounds(
+        brush,
+        projection,
+        raw_path,
+        raw_drag
+    );
     const double mask_width = std::max(1.0, bounds[2] - bounds[0]);
     const double mask_height = std::max(1.0, bounds[3] - bounds[1]);
     constexpr double kMaxDepthMaskDimension = 1024.0;
@@ -795,6 +842,11 @@ const MeshEditorScreenBrushDepthMask* mesh_editor_screen_brush_depth_mask_for_ed
     if (session == nullptr) {
         return nullptr;
     }
-    storage = mesh_editor_screen_brush_depth_mask(session, *raw_brush);
+    storage = mesh_editor_screen_brush_depth_mask(
+        session,
+        *raw_brush,
+        edit.get("screen_path"),
+        edit.get("screen_drag")
+    );
     return storage.valid ? &storage : nullptr;
 }

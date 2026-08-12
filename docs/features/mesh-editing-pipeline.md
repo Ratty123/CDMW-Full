@@ -550,19 +550,26 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   (or an explicitly selected PARTS row). Fixed Move and Grab scopes cache their
   incident face ranges on the first sample and rotate three transient vertex
   buffers, keeping later samples off a buffer the GPU may still be drawing.
-  Grab and sculpt tools patch that provisional geometry from immutable
-  per-stroke projections, falloff data, and screen-space spatial buckets;
+  Native Grab also captures the initial weight map and weighted center, so its
+  authoritative target cannot follow a far-moving cursor away from the locally
+  previewed patch. Smooth, Inflate, and Pinch are authority-streamed from the
+  resident native session rather than rendered from a second approximation;
   without a selection their initial hit establishes an internal stroke scope
   without selecting that whole part. Grab has its own visible radius control.
-  Protocol stroke samples are
-  bounded to 16 ms and carry the complete segment since the last publication;
-  Python's existing single-flight dispatcher keeps one in-flight plus one
-  latest cumulative pending update. Lasso mouse-up is always an exact polygon
+  Protocol stroke samples are bounded to 16 ms. Both helper and Python
+  coalescing preserve a compact `screen_path`, and native sculpt integrates
+  exposure over every retained segment. Its visible-depth mask covers the
+  swept path rather than only the newest endpoint circle. The single-flight
+  dispatcher keeps one in-flight plus one pending update. Lasso mouse-up is
+  always an exact polygon
   point, and the same spatially sampled points drive the visible outline,
   provisional hit test, native polygon, and visible-depth mask bounds.
-  Reconciliation requires matching stroke ID,
-  request, and revision. Cancel restores the baseline, and only stroke end adds
-  history. The visible real-PAC driver therefore keeps the physical pointer
+  Reconciliation requires matching stroke ID, request, and revision. Stroke end
+  publishes cumulative current positions for every touched vertex, providing a
+  terminal revision barrier before provisional state clears. Cancel restores
+  the baseline, and only stroke end adds history. Dense stroke previews use
+  binary geometry above 256 selected vertex equivalents; small updates remain
+  inline. The visible real-PAC driver therefore keeps the physical pointer
   moving instead of waiting for one protocol packet per raw mouse event. It
   requires at least one bounded update, compares the terminal packet with the
   release-time cursor and child-window rectangle, and fails if the final cursor
@@ -1030,8 +1037,9 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   native edit session. It inventories the complete declared control surface and
   verifies command results for every selection family, axis nudge, topology
   action, part action, geometry-layer action, colour publication, and Morph &
-  Refit variant. Move and Grab each stream 320 updates and require bounded
-  coalescing, exact final native authority, an idle dispatcher, and no snap-back;
+  Refit variant. Move, Grab, Smooth, Inflate, and Pinch each stream 320 updates
+  and require bounded path-preserving coalescing, exact final native authority,
+  an idle dispatcher, sub-250 ms terminal reconciliation, and no snap-back;
   Brush/Lasso/Rectangle cover vertex, wire, and face targets plus all selection
   operations. All seven display modes, X-Ray disable behavior, camera presets,
   fit, yaw, and orbit run against a real hidden D3D frame. The gate writes the

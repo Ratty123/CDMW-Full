@@ -778,8 +778,11 @@ internal sealed partial class ExperimentForm : Form
             return 0;
         }
         var normalizedCommand = (command ?? string.Empty).Trim().ToLowerInvariant();
+        var topologyCanWaitForSelection = normalizedCommand is "subdivide" or "refine_smooth"
+            && _viewport.HasPendingSelectionAuthority;
         if (normalizedCommand is "transform_move" or "delete" or "duplicate" or "subdivide" or "refine_smooth" or "copy"
-            && !_viewport.HasEditableSelection)
+            && !_viewport.HasEditableSelection
+            && !topologyCanWaitForSelection)
         {
             _statusLabel.Text = normalizedCommand == "transform_move"
                 ? "Move requires a selection. Use Select in the viewport or choose a part under PARTS."
@@ -792,8 +795,19 @@ internal sealed partial class ExperimentForm : Form
             ["command"] = command,
             ["target_mode"] = targetMode,
             ["selection_depth_mode"] = SelectionDepthMode(),
-            ["local_selection"] = _viewport.SelectionSnapshotPayload()
         };
+        if (topologyCanWaitForSelection)
+        {
+            // The visible brush/lasso result is still provisional. Sending the
+            // previous authoritative snapshot here would make the host queue
+            // the right command for the wrong faces. The host waits for the
+            // selection terminal and then executes against resident authority.
+            payload["selection_pending"] = true;
+        }
+        else
+        {
+            payload["local_selection"] = _viewport.SelectionSnapshotPayload();
+        }
         if (extraPayload is not null)
         {
             foreach (var pair in extraPayload)

@@ -15,6 +15,7 @@ class _BlockingController:
         self.release_begin = threading.Event()
         self.calls: list[str] = []
         self.screen_drags: list[tuple[float, float]] = []
+        self.screen_paths: list[tuple[tuple[float, float], ...]] = []
         self.closed = threading.Event()
 
     def apply(self, action: str, **params: object) -> MeshEditResult:
@@ -30,6 +31,15 @@ class _BlockingController:
         if isinstance(screen_drag, Mapping):
             self.screen_drags.append(
                 (float(screen_drag["start_x"]), float(screen_drag["end_x"]))
+            )
+        screen_path = params.get("screen_path")
+        if isinstance(screen_path, (tuple, list)):
+            self.screen_paths.append(
+                tuple(
+                    (float(point["x"]), float(point["y"]))
+                    for point in screen_path
+                    if isinstance(point, Mapping)
+                )
             )
         self.calls.append(marker)
         return MeshEditResult(action=action, status="ok", revision=len(self.calls))
@@ -148,6 +158,7 @@ def test_live_stroke_dispatcher_preserves_cumulative_drag_when_updates_coalesce(
         assert dispatcher.wait_idle(2.0)
         assert controller.calls == ["begin", "update-5", "end"]
         assert controller.screen_drags == [(0.0, 5.0)]
+        assert controller.screen_paths == [tuple((float(x), 20.0) for x in range(6))]
         assert dispatcher.metrics()["coalesced_updates"] == 4
     finally:
         controller.release_begin.set()

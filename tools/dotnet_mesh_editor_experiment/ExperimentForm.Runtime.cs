@@ -32,8 +32,9 @@ internal sealed partial class ExperimentForm
         // projection matrix per editable submesh. Left unpaced that is megabytes
         // per second of protocol traffic on a multi-part model, which overruns
         // the host's read buffer and takes the editor down mid-stroke. Only the
-        // newest intermediate sample matters, so coalesce to it; the phases that
-        // carry meaning are always written through.
+        // newest intermediate sample carries the projection state, while the
+        // compact screen path keeps every sculpt segment that was coalesced;
+        // the phases that carry meaning are always written through.
         if (string.Equals(eventName, "stroke_update", StringComparison.OrdinalIgnoreCase))
         {
             _pendingStrokeUpdatePayload = CoalesceStrokeSample(_pendingStrokeUpdatePayload, payload);
@@ -118,7 +119,42 @@ internal sealed partial class ExperimentForm
             }
         }
         merged["screen_drag"] = drag;
+        var path = StrokeSamplePath(pending, pendingDrag);
+        foreach (var point in StrokeSamplePath(merged, newestDrag))
+        {
+            if (path.Count > 0
+                && Equals(path[^1].GetValueOrDefault("x"), point.GetValueOrDefault("x"))
+                && Equals(path[^1].GetValueOrDefault("y"), point.GetValueOrDefault("y")))
+            {
+                continue;
+            }
+            path.Add(point);
+        }
+        merged["screen_path"] = path;
         return merged;
+    }
+
+    private static List<Dictionary<string, object?>> StrokeSamplePath(
+        Dictionary<string, object?> payload,
+        Dictionary<string, object?> drag)
+    {
+        if (payload.GetValueOrDefault("screen_path") is IEnumerable<Dictionary<string, object?>> existing)
+        {
+            return existing.Select(point => new Dictionary<string, object?>(point)).ToList();
+        }
+        return new List<Dictionary<string, object?>>
+        {
+            new()
+            {
+                ["x"] = drag.GetValueOrDefault("start_x"),
+                ["y"] = drag.GetValueOrDefault("start_y"),
+            },
+            new()
+            {
+                ["x"] = drag.GetValueOrDefault("end_x"),
+                ["y"] = drag.GetValueOrDefault("end_y"),
+            },
+        };
     }
 
     private void FlushPendingStrokeUpdate(bool force = false)

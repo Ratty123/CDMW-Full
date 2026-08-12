@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Drawing;
+using System.Numerics;
+using System.Text.Json;
 
 namespace Cdmw.MeshEditorExperiment;
 
@@ -41,6 +43,7 @@ internal sealed partial class ExperimentForm
                     interactionCases.Add(RunEditMeshInteractionDiagnostic(
                         $"select_{shape}_{target}",
                         protocolEvents,
+                        formProtocolEvents,
                         sustained: shape == "brush" && target == "face"));
                 }
             }
@@ -49,10 +52,12 @@ internal sealed partial class ExperimentForm
                 interactionCases.Add(RunEditMeshInteractionDiagnostic(
                     tool,
                     protocolEvents,
-                    sustained: tool == "grab"));
+                    formProtocolEvents,
+                    sustained: true));
             }
 
             var commandPages = RunEditMeshCommandPageDiagnostics();
+            var pendingSelectionTopology = RunPendingSelectionTopologyDiagnostic(formProtocolEvents);
             var controlSurface = RunEditMeshControlSurfaceDiagnostics();
             var finalFrame = RunEditMeshDiagnosticFrame();
             var formProtocolOk = formProtocolEvents.Any(item =>
@@ -83,6 +88,7 @@ internal sealed partial class ExperimentForm
                     && _viewport.HasTexturedMaterialResources
                     && interactionsOk
                     && pagesOk
+                    && pendingSelectionTopology.GetValueOrDefault("ok") is true
                     && controlSurface.GetValueOrDefault("ok") is true
                     && formProtocolOk
                     && finalFrame.GetValueOrDefault("ok") is true
@@ -105,6 +111,7 @@ internal sealed partial class ExperimentForm
                 ["all_rail_rows_covered"] = allRowsCovered,
                 ["interaction_cases"] = interactionCases,
                 ["command_pages"] = commandPages,
+                ["pending_selection_topology"] = pendingSelectionTopology,
                 ["control_surface"] = controlSurface,
                 ["form_protocol_ok"] = formProtocolOk,
                 ["captured_viewport_protocol_events"] = protocolEvents.Count,
@@ -365,6 +372,7 @@ internal sealed partial class ExperimentForm
     private Dictionary<string, object?> RunEditMeshInteractionDiagnostic(
         string mode,
         List<(string Name, Dictionary<string, object?> Payload)> protocolEvents,
+        List<(string Name, Dictionary<string, object?> Payload)> formProtocolEvents,
         bool sustained)
     {
         var size = _viewport.ClientSize;
@@ -373,9 +381,12 @@ internal sealed partial class ExperimentForm
             : new Point(Math.Max(16, size.Width / 2), Math.Max(16, size.Height / 2));
         var points = EditMeshDiagnosticPath(mode, start, size, sustained);
         var protocolStart = protocolEvents.Count;
+        var formProtocolStart = formProtocolEvents.Count;
         var sampleTimes = new List<double>(points.Count);
         var total = Stopwatch.StartNew();
+        var beginStarted = Stopwatch.GetTimestamp();
         _viewport.BeginInteractionSoak(mode, start);
+        var beginMs = ElapsedMilliseconds(beginStarted);
         foreach (var point in points)
         {
             var sampleStarted = Stopwatch.GetTimestamp();
@@ -383,7 +394,15 @@ internal sealed partial class ExperimentForm
             sampleTimes.Add(ElapsedMilliseconds(sampleStarted));
         }
         var finishStarted = Stopwatch.GetTimestamp();
-        var result = _viewport.FinishInteractionSoak(points[^1]);
+        var authorityStreamed = mode is "smooth" or "inflate" or "pinch";
+        var result = _viewport.FinishInteractionSoak(
+            points[^1],
+            deferStreamedAuthority: authorityStreamed);
+        var emittedBeforeAuthority = formProtocolEvents.Skip(formProtocolStart).ToArray();
+        if (authorityStreamed)
+        {
+            result = ApplyInteractionSoakAuthoritativeGeometry(result, emittedBeforeAuthority);
+        }
         var finishMs = ElapsedMilliseconds(finishStarted);
         var frame = RunEditMeshDiagnosticFrame();
         total.Stop();
@@ -405,12 +424,13 @@ internal sealed partial class ExperimentForm
             "vertex" => result.SelectedVertexCount > 0,
             "edge" => result.SelectedEdgeCount > 0,
             "face" => result.SelectedFaceCount > 0,
-            _ => result.ChangedVertexCount > 0,
+            _ => result.ChangedVertexCount > 0 || result.AuthorityStreamed,
         };
         var railRow = selectionCase ? "select" : mode;
         var maxSampleMs = sampleTimes.Count == 0 ? 0.0 : sampleTimes.Max();
         var p95SampleMs = Percentile(sampleTimes, 0.95);
         var pointerLatencyOk = p95SampleMs <= 20.0 && maxSampleMs <= 100.0;
+        var beginLatencyOk = beginMs <= 250.0;
         var terminalLatencyOk = finishMs <= 250.0;
         return new Dictionary<string, object?>
         {
@@ -419,6 +439,7 @@ internal sealed partial class ExperimentForm
                 && selectionShapePreserved
                 && selectedExpectedScope
                 && pointerLatencyOk
+                && beginLatencyOk
                 && terminalLatencyOk
                 && frame.GetValueOrDefault("ok") is true
                 && _viewport.TexturesEnabled
@@ -428,11 +449,13 @@ internal sealed partial class ExperimentForm
             ["sustained"] = sustained,
             ["sample_count"] = sampleTimes.Count,
             ["total_ms"] = total.Elapsed.TotalMilliseconds,
+            ["begin_ms"] = beginMs,
             ["maximum_sample_ms"] = maxSampleMs,
             ["p95_sample_ms"] = p95SampleMs,
             ["finish_ms"] = finishMs,
             ["latency_gates"] = new Dictionary<string, bool>
             {
+                ["begin_at_most_250_ms"] = beginLatencyOk,
                 ["pointer_p95_at_most_20_ms"] = p95SampleMs <= 20.0,
                 ["no_pointer_sample_over_100_ms"] = maxSampleMs <= 100.0,
                 ["terminal_reconciliation_at_most_250_ms"] = terminalLatencyOk,
@@ -446,6 +469,7 @@ internal sealed partial class ExperimentForm
             ["final_authority_matches"] = result.FinalAuthorityMatches,
             ["stale_result_ignored"] = result.StaleResultIgnored,
             ["provisional_cleared"] = result.ProvisionalCleared,
+            ["authority_streamed"] = result.AuthorityStreamed,
             ["selection_shape_preserved"] = selectionShapePreserved,
             ["selection_target"] = selectionTarget,
             ["selection_shape"] = selectionShape,
@@ -455,6 +479,91 @@ internal sealed partial class ExperimentForm
             ["frame"] = frame,
             ["textures_enabled_after"] = _viewport.TexturesEnabled,
             ["bound_texture_resources_after"] = _viewport.HasTexturedMaterialResources,
+        };
+    }
+
+    private MeshInteractionSoakResult ApplyInteractionSoakAuthoritativeGeometry(
+        MeshInteractionSoakResult pending,
+        IReadOnlyList<(string Name, Dictionary<string, object?> Payload)> emitted)
+    {
+        var terminal = emitted.LastOrDefault(item => item.Name == "stroke_end");
+        if (terminal.Payload is null || _document.Submeshes.Count == 0)
+        {
+            return pending;
+        }
+        var submesh = _document.Submeshes[0];
+        if (submesh.Vertices.Count == 0)
+        {
+            return pending;
+        }
+        var revision = Math.Max(
+            Math.Max(_lastAppliedEditRevision, _lastObservedSessionRevision),
+            _viewport.AuthoritativeEditRevision) + 1L;
+        var response = new Dictionary<string, object?>(terminal.Payload)
+        {
+            ["status"] = "ok",
+            ["revision"] = revision,
+            ["edit_revision"] = revision,
+            ["authoritative_geometry_pending"] = true,
+        };
+        var root = JsonSerializer.SerializeToElement(response);
+        var vertexIndex = Math.Max(0, submesh.Vertices.Count / 2);
+        var before = submesh.Vertices[vertexIndex];
+        var expected = new Vec3(before.X, before.Y, before.Z + 0.01f);
+        ApplyPreviewVertexUpdate(
+            root,
+            new[]
+            {
+                new PreviewVertexGroup(
+                    0,
+                    new[] { vertexIndex },
+                    new double[] { expected.X, expected.Y, expected.Z },
+                    Array.Empty<double>(),
+                    Array.Empty<double>(),
+                    false),
+            },
+            vertexUpdatePrepared: true);
+        HandleCommandResult(root);
+        var actual = submesh.Vertices[vertexIndex];
+        var applied = Vector3.Distance(
+            new Vector3(actual.X, actual.Y, actual.Z),
+            new Vector3(expected.X, expected.Y, expected.Z)) <= 0.000001f;
+        return pending with
+        {
+            FinalAuthorityMatches = applied,
+            ProvisionalCleared = !_viewport.HasProvisionalStroke,
+            ChangedVertexCount = applied ? 1 : 0,
+            AuthorityStreamed = applied && !_viewport.HasProvisionalStroke,
+        };
+    }
+
+    private Dictionary<string, object?> RunPendingSelectionTopologyDiagnostic(
+        List<(string Name, Dictionary<string, object?> Payload)> formProtocolEvents)
+    {
+        var protocolStart = formProtocolEvents.Count;
+        var pendingPrepared = _viewport.BeginPendingFaceSelectionCommandDiagnostic();
+        var requestId = pendingPrepared ? WriteCommandRequest("subdivide") : 0;
+        var emitted = formProtocolEvents
+            .Skip(protocolStart)
+            .Where(item => item.Name == "command_request")
+            .Select(item => item.Payload)
+            .ToArray();
+        var payload = emitted.LastOrDefault();
+        var queuedWithoutStaleSelection = payload is not null
+            && Convert.ToString(payload.GetValueOrDefault("command")) == "subdivide"
+            && payload.GetValueOrDefault("selection_pending") is true
+            && !payload.ContainsKey("local_selection");
+        _viewport.ResetSelectionAuthority();
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = pendingPrepared
+                && requestId > 0
+                && emitted.Length == 1
+                && queuedWithoutStaleSelection,
+            ["pending_prepared"] = pendingPrepared,
+            ["request_id"] = requestId,
+            ["command_request_count"] = emitted.Length,
+            ["queued_without_stale_selection"] = queuedWithoutStaleSelection,
         };
     }
 

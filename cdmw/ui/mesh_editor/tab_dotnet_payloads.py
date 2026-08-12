@@ -448,6 +448,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
         command_name: str = "",
         request_payload: object = None,
         authoritative_selection: _tab.MeshEditSelection | None = None,
+        resident_history: bool = False,
     ) -> bool:
         """Let the builder record an edit the embedded editor raised itself.
 
@@ -468,8 +469,15 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
                 selection = None
         action = str(command_name or getattr(result, "action", "") or "")
         try:
+            commit_kwargs: dict[str, object] = {
+                "action_key": action,
+                "action_text": action or "edit",
+                "selection": selection,
+            }
+            if resident_history:
+                commit_kwargs["resident_history"] = True
             return bool(
-                commit(result, action_key=action, action_text=action or "edit", selection=selection)
+                commit(result, **commit_kwargs)
             )
         except Exception as exc:
             self._record_runtime_event("mesh_editor_embedded_commit_failed", error=str(exc))

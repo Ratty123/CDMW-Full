@@ -43,13 +43,21 @@ def _result(action: str = "subdivide", revision: int = 7) -> MeshEditResult:
 def _builder_recording_commits() -> SimpleNamespace:
     calls: list[dict[str, object]] = []
 
-    def commit(result, *, action_key="", action_text="", selection=None) -> bool:
+    def commit(
+        result,
+        *,
+        action_key="",
+        action_text="",
+        selection=None,
+        resident_history=False,
+    ) -> bool:
         calls.append(
             {
                 "action_key": action_key,
                 "action_text": action_text,
                 "selection": selection,
                 "revision": int(result.revision),
+                "resident_history": bool(resident_history),
             }
         )
         return True
@@ -87,6 +95,27 @@ def test_the_action_name_falls_back_to_the_result_when_the_command_is_unnamed() 
     assert call["action_key"] == "duplicate"
     assert call["action_text"] == "duplicate"
     assert call["selection"] is None
+
+
+def test_a_terminal_resident_stroke_forwards_native_history_ownership() -> None:
+    builder = _builder_recording_commits()
+    bridge = _Bridge(builder)
+
+    assert bridge._commit_embedded_edit_result(
+        _result(action="brush"),
+        command_name="brush",
+        resident_history=True,
+    )
+
+    assert builder.calls == [
+        {
+            "action_key": "brush",
+            "action_text": "brush",
+            "selection": None,
+            "revision": 7,
+            "resident_history": True,
+        }
+    ]
 
 
 def test_a_builder_without_the_bridge_is_not_an_error() -> None:

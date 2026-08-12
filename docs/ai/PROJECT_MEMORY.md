@@ -81,11 +81,16 @@ Last updated: 2026-08-12
   layer vertices, wires, or faces without requiring a part filter. Correlated
   strokes keep one active and one cumulative pending request, preserve newer
   provisional tails across stale replies, and create one history entry at end.
-  Topology drains the gesture first; failure restores its pre-stroke selection.
+  Grab freezes its initial weighted footprint; sculpt coalescing retains a
+  compact full pointer path, visible-depth bounds cover that path or the paced
+  drag segment, and terminal authority publishes cumulative touched vertices.
+  Topology drains the gesture first; failure or cancel restores its pre-stroke
+  selection and rejects any queued command instead of using that old selection.
 - Live edit packets have monotonic revisions. One sender per preview source has
   queue depth one, latest-wins coalescing, ack pacing, stale-revision rejection,
-  and cleanup of superseded payload files. Revisionless bundled readers remain
-  supported during migration.
+  adaptive binary geometry above 256 selected vertex equivalents, and cleanup
+  of superseded payload files. Revisionless bundled readers remain supported
+  during migration.
 - Linked base/albedo painting uses negotiated
   `resident_texture_region_updates_v1`: one in-flight patch per resource,
   latest-wins union coalescing, owned immutable composite leases, region-only

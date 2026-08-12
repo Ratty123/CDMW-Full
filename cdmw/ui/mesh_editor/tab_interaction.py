@@ -468,6 +468,20 @@ class MeshEditorInteractionMixin:
         raw_screen_drag = payload.get("screen_drag")
         if isinstance(raw_screen_drag, Mapping):
             params["screen_drag"] = MeshEditorInteractionMixin._native_screen_payload(raw_screen_drag)
+        raw_screen_path = payload.get("screen_path")
+        if isinstance(raw_screen_path, (tuple, list)):
+            screen_path: list[dict[str, float]] = []
+            for raw_point in raw_screen_path:
+                if not isinstance(raw_point, Mapping) or "x" not in raw_point or "y" not in raw_point:
+                    continue
+                screen_path.append(
+                    {
+                        "x": self._standalone_native_payload_float(raw_point.get("x"), 0.0),
+                        "y": self._standalone_native_payload_float(raw_point.get("y"), 0.0),
+                    }
+                )
+            if len(screen_path) >= 2:
+                params["screen_path"] = tuple(screen_path)
         if "radius" in payload:
             params["radius"] = self._standalone_native_payload_float(payload.get("radius"), 1.0)
         raw_screen_radius = payload.get("screen_radius")
@@ -488,7 +502,22 @@ class MeshEditorInteractionMixin:
             params["selection_depth_mode"] = str(payload.get("selection_depth_mode") or "visible")
         if "strength" in payload:
             params["strength"] = self._standalone_native_payload_float(payload.get("strength"), 0.5)
-        if normalized_phase == "end" and tool in {"smooth", "inflate", "pinch"}:
+        terminal_drag_has_motion = False
+        if isinstance(raw_screen_drag, Mapping):
+            try:
+                terminal_drag_has_motion = (
+                    float(raw_screen_drag.get("start_x", 0.0) or 0.0)
+                    != float(raw_screen_drag.get("end_x", 0.0) or 0.0)
+                    or float(raw_screen_drag.get("start_y", 0.0) or 0.0)
+                    != float(raw_screen_drag.get("end_y", 0.0) or 0.0)
+                )
+            except (TypeError, ValueError, OverflowError):
+                terminal_drag_has_motion = False
+        if (
+            normalized_phase == "end"
+            and tool in {"smooth", "inflate", "pinch"}
+            and not terminal_drag_has_motion
+        ):
             # The terminal phase exists to close the stroke, not to sculpt again.
             # These three tools are sample-driven rather than drag-driven --
             # smooth relaxes by weight alone, and inflate/pinch derive their
@@ -497,11 +526,14 @@ class MeshEditorInteractionMixin:
             # and a click that never moved gets sculpted twice. Grab is left
             # alone: its delta comes from screen_drag, so its terminal phase is
             # already inert when the pointer has not moved and still applies the
-            # residual travel when it has. Zero strength is the one lever every
+            # residual travel when it has. A sculpt end can also absorb the
+            # final paced update; preserve its strength when that payload still
+            # carries pointer travel. Zero strength is the one lever every
             # tool honours -- smooth blends by weight*strength, and grab,
             # inflate and pinch all scale their displacement by it -- so the
             # native core reports no changed vertices and still closes the
-            # stroke. Must be set unconditionally: the native default is 1.0.
+            # stroke. It must be explicit for an inert release because the
+            # native default is 1.0.
             params["strength"] = 0.0
         if "amount" in payload:
             params["amount"] = self._standalone_native_payload_float(payload.get("amount"), 0.0)
