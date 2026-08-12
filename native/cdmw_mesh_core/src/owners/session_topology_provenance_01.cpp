@@ -346,6 +346,7 @@ void mesh_editor_prepare_topology_provenance(
 ) {
     const auto started = std::chrono::steady_clock::now();
     out_parent_entries = 0;
+    double prepared_ms = 0.0;
     for (SubmeshMeshEditResult& result : results) {
         if (!result.topology_changed || result.index < 0 || result.vertices.empty()) {
             continue;
@@ -354,6 +355,7 @@ void mesh_editor_prepare_topology_provenance(
             // run_mesh_edit already composed this against the pre-mutation
             // session; re-reading the map here would see the mutated state.
             out_parent_entries += result.topology_vertex_origin_parents.size();
+            prepared_ms += result.topology_provenance_ms;
             continue;
         }
         if (result.append_submesh) {
@@ -403,7 +405,9 @@ void mesh_editor_prepare_topology_provenance(
         out_parent_entries += result.topology_vertex_origin_parents.size();
     }
     const auto finished = std::chrono::steady_clock::now();
-    out_elapsed_ms = std::chrono::duration<double, std::milli>(finished - started).count();
+    // Composition that already ran before the session was mutated is the real
+    // cost; this pass only sweeps up whatever it did not cover.
+    out_elapsed_ms = prepared_ms + std::chrono::duration<double, std::milli>(finished - started).count();
 }
 
 void mesh_editor_store_result_topology_provenance(

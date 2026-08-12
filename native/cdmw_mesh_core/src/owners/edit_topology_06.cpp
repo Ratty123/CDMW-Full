@@ -442,12 +442,20 @@ void mesh_edit_compose_result_topology_provenance(
         if (session == nullptr) {
             continue;
         }
+        // Timed here, where the work actually happens. The commit pass only
+        // collects what this produced, so timing it there would report nothing.
+        const auto started = std::chrono::steady_clock::now();
+        const auto record_elapsed = [&result, &started]() {
+            result.topology_provenance_ms =
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+        };
         result.topology_provenance_prepared = true;
         result.topology_original_vertex_count = session->topology_original_vertex_count;
         result.topology_original_face_count = session->topology_original_face_count;
         if (!mesh_editor_is_rebuildable_topology_action(result.action)) {
             result.topology_rebuild_valid = false;
             result.topology_blocker = MESH_TOPOLOGY_BLOCKER_OPERATION_NOT_REBUILDABLE;
+            record_elapsed();
             continue;
         }
         std::string blocker;
@@ -464,6 +472,7 @@ void mesh_edit_compose_result_topology_provenance(
                 // only the exact rebuild is unavailable.
                 result.topology_rebuild_valid = false;
                 result.topology_blocker = blocker;
+                record_elapsed();
                 continue;
             }
             throw std::runtime_error(
@@ -473,6 +482,7 @@ void mesh_edit_compose_result_topology_provenance(
         }
         result.topology_rebuild_valid = true;
         result.topology_blocker.clear();
+        record_elapsed();
     }
 }
 
