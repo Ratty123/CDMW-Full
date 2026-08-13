@@ -17,6 +17,29 @@ internal sealed partial class MeshViewport
         new HashSet<int>(),
         0,
         0);
+    internal int HostSelectionPushCount { get; private set; }
+    internal Dictionary<string, object?>? LastHostSelectionPush { get; private set; }
+
+    private void RecordHostSelectionPush(
+        long requestId,
+        long revision,
+        Dictionary<int, HashSet<int>> vertices,
+        string strokePhase)
+    {
+        HostSelectionPushCount++;
+        LastHostSelectionPush = new Dictionary<string, object?>
+        {
+            ["request_id"] = requestId,
+            ["revision"] = revision,
+            ["acknowledged_request_id"] = _acknowledgedSelection.RequestId,
+            ["acknowledged_revision"] = _acknowledgedSelection.Revision,
+            ["offered_vertex_count"] = vertices.Values.Sum(values => values.Count),
+            ["offered_submeshes"] = vertices.Keys.OrderBy(key => key).ToArray(),
+            ["accepted"] = CanAcceptAuthoritativeSelection(requestId, revision),
+            ["stroke_phase"] = strokePhase ?? string.Empty,
+        };
+    }
+
     private long _provisionalSelectionRequestId;
     private long _provisionalSelectionBaseRevision;
     private string _provisionalSelectionStrokeId = string.Empty;

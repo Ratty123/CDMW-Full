@@ -358,7 +358,11 @@ def _pick_probe(event: object) -> dict[str, object]:
     """
     selection = (event or {}).get("local_selection") if isinstance(event, Mapping) else None
     probe = selection.get("pick_probe") if isinstance(selection, Mapping) else None
-    return dict(probe or {}) if isinstance(probe, Mapping) else {}
+    result = dict(probe) if isinstance(probe, Mapping) else {}
+    if isinstance(selection, Mapping):
+        result["host_selection_push_count"] = selection.get("host_selection_push_count")
+        result["last_host_selection_push"] = selection.get("last_host_selection_push")
+    return result
 
 
 def _indices_by_submesh(keys: object) -> dict[str, list[int]]:
