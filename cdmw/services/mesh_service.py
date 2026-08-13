@@ -1677,7 +1677,7 @@ class MeshService(_MeshServiceSessionLayerCore):
         self._dispatch_geometry_command(execution, command_for_apply, require_native)
         result = self._finish_geometry_command(execution)
         if result.ok and result.topology_changed:
-            self._record_topology_edit_operations(session, action, result)
+            self._record_topology_edit_operations(session, action, command, result)
         if result.ok and result.topology_changed and topology_before is not None:
             after_count = (
                 len(result.submesh_counts)
@@ -1707,6 +1707,7 @@ class MeshService(_MeshServiceSessionLayerCore):
         self,
         session: _MeshEditSession,
         action: str,
+        command: MeshEditCommand,
         result: MeshEditResult,
     ) -> None:
         """Record one stable operation per submesh that came back rebuildable.
@@ -1718,6 +1719,11 @@ class MeshService(_MeshServiceSessionLayerCore):
         """
         operation_name = topology_operation_for_native_action(action)
         if not operation_name:
+            return
+        if action == "delete" and _truthy(command.params.get("delete_parts")):
+            # Deleting whole parts is not Face Delete. It removes submeshes
+            # rather than triangles, and recording it as the face operation would
+            # claim a lineage for geometry that is simply gone.
             return
         affected = set(int(index) for index in tuple(result.affected_submesh_indices or ()))
         recorded: list[MeshEditOperation] = []
