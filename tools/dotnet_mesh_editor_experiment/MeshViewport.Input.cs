@@ -612,6 +612,7 @@ internal sealed partial class MeshViewport
             ["world_view_projection"] = camera.WorldViewProjectionRowMajorArray(),
             ["source_submesh_indices"] = VisibleEditableSubmeshIndices(),
             ["source_submesh_world_view_projections"] = SourceProjectionOverrides(camera),
+            ["pane_bounds_diagnostics"] = PaneBoundsDiagnostics(),
         };
     }
 
@@ -630,6 +631,7 @@ internal sealed partial class MeshViewport
             ["world_view_projection"] = camera.WorldViewProjectionRowMajorArray(),
             ["source_submesh_indices"] = VisibleEditableSubmeshIndices(),
             ["source_submesh_world_view_projections"] = SourceProjectionOverrides(camera),
+            ["pane_bounds_diagnostics"] = PaneBoundsDiagnostics(),
         };
     }
 

@@ -20,6 +20,7 @@ from cdmw.domain.mesh.operations import (
     mesh_edit_operations_to_dicts,
     validate_mesh_edit_operations,
 )
+from cdmw.domain.mesh.topology import topology_contract_submesh_indices
 from cdmw.modding.mesh_exporter import export_obj
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_obj_importer import import_obj
@@ -468,6 +469,25 @@ def _scene_material_slot_indices(
     return tuple(result)
 
 
+def _refuse_topology_changed_editable_package(mesh: ParsedMesh) -> None:
+    """An editable package cannot carry a topology contract, so it must refuse one.
+
+    The v2 sidecar describes a same-count round trip: one source index per edited
+    index, one non-negative source vertex per edited vertex. A submesh whose
+    lineage lives in a topology contract would be written out as if it had none,
+    and would come back rebuilt generically, on donor-chosen records. Blocking
+    here keeps the exact contract the only way back.
+    """
+    blocked = topology_contract_submesh_indices(mesh)
+    if not blocked:
+        return
+    raise RuntimeError(
+        "Editable Package Export is unavailable while a resident topology edit is present "
+        f"(part {blocked[0]}). Rebuild the mesh into its original PAC, or undo the topology edit, "
+        "then export again."
+    )
+
+
 def build_mesh_dotnet_experiment_package(
     mesh: ParsedMesh,
     *,
@@ -484,6 +504,7 @@ def build_mesh_dotnet_experiment_package(
     preview_overlays: Mapping[str, object] | None = None,
     include_material_resources: bool = True,
 ) -> MeshDotNetExperimentPackage:
+    _refuse_topology_changed_editable_package(mesh)
     material_signature = mesh_dotnet_material_input_signature(mesh)
     root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_mesh_dotnet_experiment"
     package_dir = (

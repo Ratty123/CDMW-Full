@@ -314,12 +314,28 @@ dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-me
 'select_brush_vertex','select_brush_face','select_lasso_face','move','grab','smooth','inflate','pinch' | ForEach-Object { dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-interaction-soak --interaction-soak-mode $_ --frame-pacing-report "$env:TEMP\cdmw-dotnet-interaction-$_.json" }
 .\.venv\Scripts\python.exe -m pytest tests/test_dotnet_preview_performance_contract.py tests/test_mesh_harness_performance_contract.py tests/test_dotnet_texture_region_protocol.py tests/test_mesh_harness_scenario_registry.py tests/test_mesh_harness_real_dotnet_evidence.py tests/test_mesh_dotnet_live_stroke_dispatch.py
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_asset_pipeline.py tests/test_mesh_pipeline_cli.py tests/test_mesh_dotnet_experiment.py tests/test_mesh_dotnet_experiment_output.py tests/test_mesh_dotnet_material_state.py tests/test_mesh_dotnet_material_visual_parity.py tests/test_mesh_dotnet_material_package.py tests/test_mesh_dotnet_material_dds_synthesis.py tests/test_mesh_dotnet_material_parameters.py tests/test_mesh_visual_audit_harness.py tests/test_mesh_visual_audit_integrity.py tests/test_mesh_visual_audit_package.py tests/test_mesh_visual_audit_v2.py tests/test_dotnet_mesh_editor_tool_protocol_source.py tests/test_dotnet_material_parameter_protocol.py tests/test_native_preview_material_authority_protocol.py tests/test_dotnet_icon_capture_protocol.py tests/test_dotnet_gpu_geometry_resources.py tests/test_dotnet_topology_channel_updates.py tests/test_mesh_edit_revision_protocol.py tests/test_mesh_history_bounds.py tests/test_native_preview_package_cache_concurrency.py tests/test_mesh_edit_operations.py tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_resident_editor_regressions.py tests/test_static_replacement_mesh_edit_dotnet_toggle.py tests/test_static_replacement_d3d11_cache.py tests/test_mesh_deformer.py tests/test_mesh_body_regions.py tests/test_mesh_body_region_falloff.py tests/test_mesh_body_region_sliders.py tests/test_mesh_body_region_slider_native.py tests/test_mesh_region_decompose.py tests/test_mesh_body_region_atlas.py tests/test_native_morph_field_generation.py tests/test_pac_skin_layout_regression.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_topology_provenance.py tests/test_native_mesh_topology_provenance.py tests/test_mesh_pac_topology_serializer.py tests/test_mesh_topology_rebuild_integration.py tests/test_mesh_topology_checks_panel.py
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_harness_scenario_registry.py tests/test_mesh_harness_real_dotnet_evidence.py tests/test_mesh_dotnet_live_stroke_dispatch.py
 .\.venv\Scripts\python.exe -m pytest tests/test_dotnet_mesh_editor_tool_protocol_source.py tests/test_dotnet_mesh_editor_display_protocol_source.py tests/test_mesh_edit_preview_host_source_guard.py tests/test_mesh_edit_responsiveness_source_guards.py tests/test_alignment_dialog_resident_protocol_source_guards.py
 .\.venv\Scripts\python.exe -m pytest tests/test_scene_import_uv_contract.py tests/test_scene_import_normalization.py tests/test_scene_importer_gltf.py
 .\scripts\codex_check.ps1 -Area mesh -GameRoot "C:\games\Steam\steamapps\common\Crimson Desert"
 .\scripts\codex_check.ps1 -Area mesh-unit
 ```
+
+The three topology provenance files own
+`cdmw_mesh_topology_provenance_v1`. `test_mesh_topology_provenance.py` covers the
+pure composition, canonical form, rejection, and the branched rebuild/export
+gates; `test_native_mesh_topology_provenance.py` drives the real
+`cdmw-mesh-core` session for identity at open, composition before mutation,
+invalidation by an unsupported topology edit, and restoration through undo and
+redo; `test_mesh_pac_topology_serializer.py` covers the exact LOD0 writer,
+including the ownership mask, protected-byte divergence, seven-slot influence
+unions, preserved bounds, preserved lower LODs, and the refusal to emit anything
+when a rebuild is blocked. `test_mesh_topology_rebuild_integration.py` drives the
+real service and native session end to end for Face Delete, Loop Cut, and
+midpoint Subdivide, and `test_mesh_topology_checks_panel.py` proves the Checks
+panel names a broken contract and disables Rebuild. Run all five after any change
+to the topology contract, the native session provenance, or the PAC LOD0 writer.
 
 The default .NET GPU soak is the release-scale 1,000,000-vertex / 1,000-update
 60 Hz-equivalent upload gate and never shows a window. Verified frames bracket

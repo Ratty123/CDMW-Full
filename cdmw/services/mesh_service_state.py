@@ -171,6 +171,14 @@ class _MeshEditSession:
     sidecar_warnings: tuple[object, ...] = ()
     edit_operations: tuple[object, ...] = ()
     requires_edit_operations: bool = False
+    # Monotonic per-session counter behind the topology operations' recorded
+    # source/result revisions. Continuity is proven from these, not inferred
+    # from the operation names.
+    topology_operation_revision: int = 0
+    # Contract state from the most recent native apply report, kept because the
+    # Python working mesh is still deliberately stale when an operation is
+    # recorded.
+    native_editor_topology_summaries: tuple[Mapping[str, int], ...] = ()
     base_mesh_is_original_parse: bool = False
     mode: str = "object"
     selection: MeshEditSelection = field(default_factory=MeshEditSelection)

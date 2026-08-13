@@ -244,7 +244,135 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   present on the original session mesh.
 - Export validation blocks changed geometry when the edited submesh lacks a
   complete non-negative `source_vertex_map`, so rebuildable vertex edits remain
-  traceable to source asset data.
+  traceable to source asset data. A submesh carrying a validated topology
+  contract is the one exception, described below.
+
+### Topology provenance contract v1
+
+`cdmw.domain.mesh.topology` owns `cdmw_mesh_topology_provenance_v1`: one
+`VertexOrigin` per output vertex and one original face index per output triangle,
+both indices in the *original* LOD0 submesh rather than in whatever intermediate
+edit produced them. Composition merges duplicate parents with `math.fsum`,
+divides by the merged total, and checks the normalized sum exactly, so a chain of
+edits stays one level deep and does not drift. Only Face Delete, Loop Cut, and
+midpoint Subdivide are representable; children inherit the original face identity
+already attached to their input face, and a generated synthetic face id is not.
+
+A validated contract is what authorizes the compatibility sentinels, and it is
+checked rather than waived:
+
+- `source_vertex_map[i]` is the single original index for a direct vertex and
+  `-1` where the vertex was derived; it must equal the contract's origins entry
+  for entry, and `source_vertex_map_authority` must read `topology`.
+- `source_vertex_offsets[i]` is the original record offset for a direct vertex
+  and `-1` for a derived one.
+- `MeshAssetSubmesh.source_index_map` is empty, while
+  `IndexBuffer.original_count` still carries the original source index count.
+  Face lineage lives in the contract, not in an invented per-index identity.
+- A direct vertex keeps its original raw record and its original skin row
+  byte for byte; a derived vertex carries `b""` and no submitted skin row is
+  trusted.
+
+A contract that does not validate is reported with its stable blocker code and
+then treated as absent, so every same-count blocker still fires. Without a
+contract nothing changes at all.
+
+Those blocker codes reach the user through the existing Checks panel, in the
+`topology_contract` category, and the panel gains one `Exact topology rebuild`
+row reading `ready` or `blocked`. The row appears only for a session that
+actually offered a contract, so a same-count session's Checks list is unchanged.
+It answers for the contract alone: an unrelated blocker such as missing skeleton
+metadata leaves it `ready` and is reported by its own row and by
+`Rebuild allowed`, which stays the overall gate on the Rebuild button.
+
+Natively, every editable submesh opens with identity origins, each admitted edit
+composes against the untouched session before anything is written, and a
+malformed derivation from an admitted operation aborts the whole edit. Anything
+else — including Auto UV, which splits vertices along seams — marks its submesh
+`TOPOLOGY_OPERATION_NOT_REBUILDABLE` and stays available for experimentation.
+The CSR arrays live in `MeshSessionSubmesh`, so the existing topology history
+snapshot restores them through undo and redo without recomputing anything from an
+operation name, and their capacity counts toward the unchanged 64-operation and
+256 MiB native history limits. Reports carry counts, validity, and the blocker;
+the arrays travel as binary descriptors beside their payload files and never
+through production JSON. The session advertises `topology_provenance_v1`, and
+`HelperBuildProvenance.cs` carries the matching helper capability.
+
+`cdmw.modding.mesh_pac_topology_builder` is the exact LOD0 writer. It shares
+nothing with the in-place patcher or the generic full rebuild, and it never
+chooses a spatial donor, transfers weights by proximity, drops an influence to
+fit six slots, moves the descriptor bounds, or touches a lower LOD. A direct
+vertex keeps its original 40-byte record; a derived one starts from the lowest
+original parent's record and only after every parent compares equal under the
+ownership mask (position, UV0, the low 30 bits of the normal, and on a proven
+skinned record the two palette groups and six weight bytes; everything else,
+including the top two bits of each owned u32, is protected). Derived skin rows
+normalize each parent row on its own first, because observed source rows total
+`255 ± 2`. The writer authors the palette lanes only: a record's two further
+influences live in protected bytes, so a derived vertex inherits them unchanged
+from parents that already had to agree on them, and a merge wider than six slots
+is refused rather than truncated. Only the LOD0 section and its LOD0 count entries are rebuilt; lower
+LOD payloads, lower LOD counts, and unknown sections are copied and re-verified
+by hash after the finished file is reparsed. Three layout hazards are refused up
+front: a shared LOD0 vertex buffer, stored counts that disagree with the parsed
+geometry, and a rebuilt LOD0 that would stop outranking a stored lower LOD under
+`parse_pac`'s own section ranking.
+
+Measured read-only against the installed game on 2026-08-13, over twelve body and
+clothing PACs and 151,927 unique LOD0 edges: 89.4% of edges merge into six or
+fewer palette slots, but only 0.0072% have parent records that agree on every
+protected byte, so the combined exact-midpoint eligibility is 0.0066%. Loop Cut
+and midpoint Subdivide are therefore exact where they apply and blocked on most
+stock geometry today; Face Delete derives no new vertices and is unaffected. The
+divergence is dominated by record bytes 6-7 and 12-15.
+
+### The proven 40-byte record
+
+Every field below was read out of the game's own shipped shaders rather than
+inferred. The character vertex shaders take no vertex input semantics at all,
+only `SV_VertexID`, and pull each record from a `StructuredBuffer` whose declared
+stride is 40; their reflection metadata names the fields and their DXIL says what
+each bit becomes. `tools/pac_shader_consumer_study.py` reproduces the evidence
+read-only from the archives, and `tools/pac_vertex_channel_study.py` measures
+what it costs the rebuild path.
+
+Writing `P` for the u32 at bytes 16-19 and `t` for bytes 6-7 read as signed
+`int16`:
+
+| bytes | contents |
+| --- | --- |
+| 0-5 | position, three u16, each `v / 32767` across the descriptor extent |
+| **6-7** | `tangent.x` as `2*abs(t/32767) - 1`, and `t < 0` negates `tangent.z` |
+| 8-11 | UV0, two halves |
+| **12-15** | bone indices 7 and 8, halves holding whole numbers, `fptoui(h + 0.5)` |
+| 16-19 | `tangent.y` in bits 0-9; `normal.x` bits 10-19; `normal.y` bits 20-29; bit 30 the sign of the reconstructed `normal.z`; bit 31 the bitangent handedness |
+| 20-27 | six 10-bit palette slots in two u32 groups; bits 30-31 of each are unread |
+| 28-35 | eight `u8 / 255` weights, one per influence |
+| 36-38 | vertex colour R and G, and one unidentified byte |
+| 39 | low six bits gate influences 7 and 8, `63` meaning off; top two bits unidentified |
+
+Both direction vectors reconstruct their third component as
+`sqrt(max(0, 1 - x^2 - y^2))`, and that clamp is load bearing: 10-bit
+quantization puts `x^2 + y^2` slightly above 1 on about 1.5% of real vertices.
+Decoding real records this way gives unit-length normals for 100% of vertices and
+`|dot(T, N)| < 0.05` for 6,217 of 6,217, against 7-31% for a control that shuffles
+bytes 6-7 against their own normals.
+
+Two consequences for this pipeline. The eight-influence skin explains the
+`255 ± 2` figure above: a six-influence row does sum to 255, but a row that opens
+byte 39's gate sums to about 500 across all eight, and the shader divides the
+accumulated transform by the accumulated weight, so only proportions are
+meaningful. And bytes 12-15 and 34-35 are skin rather than unknown channels,
+which is why owning them buys nothing: measured exhaustively, they admit zero
+additional faces, because wherever they disagree bytes 6-7 disagree too.
+
+Bytes 6-7 stay protected regardless. They are identified but not derivable: over
+9,412 real split-edge fixtures no interpolation or regeneration rule predicts the
+tangent to within the codec's quantization, while the normal, carried as a
+positive control, converges on it. A tangent depends on the UV parameterization
+and on the whole fan around a vertex, which inserting a vertex changes, so a
+midpoint's authored tangent is not its neighbours' interpolant. Identification is
+not authorization, and the fail-closed rule stands.
 - Export validation blocks changed MeshAsset unknown sections and submesh
   `unknown_fields` against the original session mesh. Those metadata blobs are
   copied through service session clones so an imported/edit-session mesh cannot

@@ -257,6 +257,11 @@ internal sealed partial class MeshViewport
         public required Matrix4x4 Camera { get; init; }
         public required int GridColumns { get; init; }
         public required int GridRows { get; init; }
+        // The pane size these screen positions were computed for. The cache is
+        // keyed on the camera matrix alone, and a resize that leaves the matrix
+        // untouched would otherwise reuse positions measured at the old size.
+        public required int ViewportWidth { get; init; }
+        public required int ViewportHeight { get; init; }
         public Dictionary<int, PointF[]> Points { get; } = new();
         public Dictionary<int, bool[]> FrontFacingVertices { get; } = new();
         public Dictionary<int, RectangleF> PartBounds { get; } = new();
@@ -342,6 +347,8 @@ internal sealed partial class MeshViewport
             Camera = camera.WorldViewProjection,
             GridColumns = Math.Max(1, (viewport.Width + PaintProjectionCellPixels - 1) / PaintProjectionCellPixels),
             GridRows = Math.Max(1, (viewport.Height + PaintProjectionCellPixels - 1) / PaintProjectionCellPixels),
+            ViewportWidth = Math.Max(1, viewport.Width),
+            ViewportHeight = Math.Max(1, viewport.Height),
         };
         for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount && submeshIndex < _document.Submeshes.Count; submeshIndex++)
         {
@@ -462,6 +469,47 @@ internal sealed partial class MeshViewport
     /// Projection, visibility and spatial buckets are immutable for the drag,
     /// so dense meshes do not turn each pointer sample into a whole-mesh scan.
     /// </summary>
+    // What the picker last compared, in its own numbers: the segment it tested,
+    // the pane size in force at that moment, and the pane size the projected
+    // positions were actually built for. A pick that reads correct from inside
+    // the helper and lands elsewhere from outside is only distinguishable with
+    // both sizes side by side.
+    internal Dictionary<string, object?>? LastPickProbe { get; private set; }
+
+    private void RecordPickProbe(PaintProjectionCache cache, Point start, Point end, double radius)
+    {
+        var live = ActivePaneBounds();
+        var sample = _provisionalSelectedVertices
+            .FirstOrDefault(pair => pair.Value.Count > 0 && cache.Points.ContainsKey(pair.Key));
+        var probe = new Dictionary<string, object?>
+        {
+            ["segment_start_x"] = start.X,
+            ["segment_start_y"] = start.Y,
+            ["segment_end_x"] = end.X,
+            ["segment_end_y"] = end.Y,
+            ["radius_pixels"] = radius,
+            ["cache_viewport_width"] = cache.ViewportWidth,
+            ["cache_viewport_height"] = cache.ViewportHeight,
+            ["live_viewport_width"] = live.Width,
+            ["live_viewport_height"] = live.Height,
+            ["cache_matches_live_viewport"] =
+                cache.ViewportWidth == live.Width && cache.ViewportHeight == live.Height,
+        };
+        if (sample.Value is { Count: > 0 })
+        {
+            var vertexIndex = sample.Value.First();
+            var points = cache.Points[sample.Key];
+            if (vertexIndex >= 0 && vertexIndex < points.Length)
+            {
+                probe["sample_submesh_index"] = sample.Key;
+                probe["sample_vertex_index"] = vertexIndex;
+                probe["sample_cache_point_x"] = points[vertexIndex].X;
+                probe["sample_cache_point_y"] = points[vertexIndex].Y;
+            }
+        }
+        LastPickProbe = probe;
+    }
+
     private void UpdateProvisionalPaintHits(Point start, Point end, double radius, string operation)
     {
         var cache = EnsurePaintProjectionCache(CurrentCamera());
@@ -640,6 +688,7 @@ internal sealed partial class MeshViewport
                 _provisionalSelectedVertices.Remove(submeshIndex);
             }
         }
+        RecordPickProbe(cache, start, end, radius);
         _provisionalPartSelectionActive = false;
         UpdateGpuViewport();
         Invalidate();

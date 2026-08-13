@@ -740,6 +740,20 @@ struct SubmeshMeshEditResult {
     bool sparse = false;
     bool resident_sparse = false;
     bool suppress_vertex_remap_report = false;
+    // Topology provenance composed before the session is mutated. Empty unless
+    // this result is an admitted topology operation that composed cleanly.
+    std::vector<int> topology_vertex_origin_offsets;
+    std::vector<int> topology_vertex_origin_parents;
+    std::vector<double> topology_vertex_origin_weights;
+    int topology_original_vertex_count = 0;
+    int topology_original_face_count = 0;
+    bool topology_rebuild_valid = false;
+    bool topology_provenance_prepared = false;
+    double topology_provenance_ms = 0.0;
+    std::string topology_blocker;
+    std::string vertex_origin_offsets_path;
+    std::string vertex_origin_parents_path;
+    std::string vertex_origin_weights_path;
 };
 
 struct MeshSessionSubmesh {
@@ -758,6 +772,18 @@ struct MeshSessionSubmesh {
     std::vector<std::vector<double>> bone_weights;
     std::vector<int> source_vertex_map;
     std::vector<int> source_vertex_offsets;
+    // Original-relative topology provenance, in compressed sparse row form:
+    // vertex_origin_offsets has vertex_count + 1 entries, and the parents and
+    // weights between two consecutive offsets describe one output vertex.
+    // source_face_indices above already carries one original face index per
+    // output triangle. See session_topology_provenance_01.cpp.
+    std::vector<int> vertex_origin_offsets;
+    std::vector<int> vertex_origin_parents;
+    std::vector<double> vertex_origin_weights;
+    int topology_original_vertex_count = 0;
+    int topology_original_face_count = 0;
+    bool topology_rebuild_valid = false;
+    std::string topology_blocker;
 };
 
 bool mesh_editor_same_material_metadata(const MeshSessionSubmesh& left, const MeshSessionSubmesh& right);

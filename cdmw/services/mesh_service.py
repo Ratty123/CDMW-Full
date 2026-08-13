@@ -41,6 +41,12 @@ from cdmw.domain.mesh import (
     summarize_mesh_workspace,
     validate_mesh_export,
 )
+from cdmw.domain.mesh.operations import MeshEditOperation
+from cdmw.domain.mesh.topology import (
+    topology_operation_for_native_action,
+    topology_operation_metadata,
+    validate_topology_provenance,
+)
 from cdmw.domain.textures.material_authority import complete_swap_material_authority_contract, sanitize_texture_component
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing, copy_extra_submesh_attrs
 from cdmw.modding.mesh_deformer import recompute_mesh_normals
@@ -1670,6 +1676,8 @@ class MeshService(_MeshServiceSessionLayerCore):
         )
         self._dispatch_geometry_command(execution, command_for_apply, require_native)
         result = self._finish_geometry_command(execution)
+        if result.ok and result.topology_changed:
+            self._record_topology_edit_operations(session, action, command, result)
         if result.ok and result.topology_changed and topology_before is not None:
             after_count = (
                 len(result.submesh_counts)
@@ -1694,6 +1702,56 @@ class MeshService(_MeshServiceSessionLayerCore):
                     marker.retained_bytes = _history_snapshot_retained_bytes(marker)
                 self._schedule_mesh_layer_autosave(session)
         return result
+
+    def _record_topology_edit_operations(
+        self,
+        session: _MeshEditSession,
+        action: str,
+        command: MeshEditCommand,
+        result: MeshEditResult,
+    ) -> None:
+        """Record one stable operation per submesh that came back rebuildable.
+
+        Recorded from the contract the native session actually produced, not from
+        the action name: an admitted action whose submesh came back
+        non-rebuildable records nothing, so the operation list never claims a
+        lineage the geometry does not carry.
+        """
+        operation_name = topology_operation_for_native_action(action)
+        if not operation_name:
+            return
+        if action == "delete" and _truthy(command.params.get("delete_parts")):
+            # Deleting whole parts is not Face Delete. It removes submeshes
+            # rather than triangles, and recording it as the face operation would
+            # claim a lineage for geometry that is simply gone.
+            return
+        affected = set(int(index) for index in tuple(result.affected_submesh_indices or ()))
+        recorded: list[MeshEditOperation] = []
+        for summary in tuple(session.native_editor_topology_summaries or ()):
+            submesh_index = int(summary.get("index", -1))
+            if submesh_index < 0 or (affected and submesh_index not in affected):
+                continue
+            previous = session.topology_operation_revision
+            session.topology_operation_revision = previous + 1
+            recorded.append(
+                MeshEditOperation(
+                    operation=operation_name,
+                    lod_index=0,
+                    submesh_index=submesh_index,
+                    vertex_count=int(summary.get("vertex_count", 0)),
+                    source="resident_native",
+                    metadata=topology_operation_metadata(
+                        input_vertex_count=int(summary.get("original_vertex_count", 0)),
+                        input_face_count=int(summary.get("original_face_count", 0)),
+                        output_vertex_count=int(summary.get("vertex_count", 0)),
+                        output_face_count=int(summary.get("face_count", 0)),
+                        source_revision=previous,
+                        result_revision=previous + 1,
+                    ),
+                )
+            )
+        if recorded:
+            session.edit_operations = tuple(session.edit_operations) + tuple(recorded)
 
     def _dispatch_geometry_command(
         self,

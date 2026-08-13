@@ -1,3 +1,34 @@
+// The CSR payload moves as three binary files with matching descriptors, and
+// only when the caller asked for all three and the contract is valid. A partial
+// request publishes no descriptor at all, so Python can never decode half a
+// contract.
+void mesh_editor_write_export_snapshot_topology(
+    std::ostream& exported_submeshes,
+    const JsonValue& item,
+    const MeshSessionSubmesh& submesh
+) {
+    mesh_editor_write_topology_provenance_summary(exported_submeshes, submesh);
+    const std::string offsets_path = string_or(item.get("vertex_origin_offsets_output_path"), "");
+    const std::string parents_path = string_or(item.get("vertex_origin_parents_output_path"), "");
+    const std::string weights_path = string_or(item.get("vertex_origin_weights_output_path"), "");
+    if (!submesh.topology_rebuild_valid
+        || offsets_path.empty()
+        || parents_path.empty()
+        || weights_path.empty()
+        || !mesh_editor_topology_provenance_shape_valid(submesh)) {
+        return;
+    }
+    write_int_binary_file(offsets_path, submesh.vertex_origin_offsets);
+    write_int_binary_file(parents_path, submesh.vertex_origin_parents);
+    write_double_binary_file(weights_path, submesh.vertex_origin_weights);
+    exported_submeshes << ",\"vertex_origin_offsets_binary\":";
+    write_int_binary_descriptor(exported_submeshes, offsets_path, submesh.vertex_origin_offsets.size(), 1);
+    exported_submeshes << ",\"vertex_origin_parents_binary\":";
+    write_int_binary_descriptor(exported_submeshes, parents_path, submesh.vertex_origin_parents.size(), 1);
+    exported_submeshes << ",\"vertex_origin_weights_binary\":";
+    write_f64_binary_descriptor(exported_submeshes, weights_path, submesh.vertex_origin_weights.size());
+}
+
 void mesh_editor_write_export_snapshot_submesh(
     std::ostream& exported_submeshes,
     bool& wrote_exported_submesh,
@@ -134,6 +165,7 @@ void mesh_editor_write_export_snapshot_submesh(
             write_int_binary_descriptor(exported_submeshes, source_vertex_offsets_path, submesh.source_vertex_offsets.size(), 1);
         }
     }
+    mesh_editor_write_export_snapshot_topology(exported_submeshes, item, submesh);
     exported_submeshes << '}';
 }
 

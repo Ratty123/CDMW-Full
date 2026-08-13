@@ -48,6 +48,68 @@ keeps core user workflows working behind stable facades.
 
 ## Latest Validation
 
+2026-08-13:
+
+- The authorized real-game gate `scripts/codex_check.ps1 -Area mesh` ran against
+  `character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac` after the PAC
+  normal and eight-influence skin corrections. 63 of 65 gates passed, including
+  `renderer_backend_ok` (`d3d11_vortice_shader`), `edit_backend_ok`
+  (`cdmw_mesh_core_0.1`), `no_synthetic_fallback`, `real_textures_bound_and_decoded`,
+  `real_pac_geometry_display_modes`, every material and presentation gate,
+  `exact_topology_rebuild`, `exact_topology_rebuild_no_fallback`, and
+  `source_archives_unchanged`. Source PAMT/PAZ fingerprints were byte-identical
+  before and after, verified again after the second run below.
+- The two failures, `selected_geometry_only` and `selected_projection_tracks_cursor`,
+  are the drag gates already recorded as known-red and inherited from `main`. That
+  was confirmed rather than assumed: the identical gate was rerun at the branch
+  base `cdb96302` and produced the same two failures with identical numbers, 203
+  changed vertices against a 39-vertex selection, `{1: 141, 2: 62}` changed by
+  submesh, a `[0.0, 0.0]` projected screen delta, and 40.0 px projection error.
+  A drag moves geometry outside the selection and the selection's projected centre
+  does not follow the cursor; neither path reads a normal or a skin row.
+- The exact LOD0 topology serializer behaved as its contract requires.
+  `delete_faces_topology` rebuilt exactly, 3,784 to 3,783 faces, with
+  `fallback_used: false`, `protected_bytes_preserved: true`,
+  `original_bounds_preserved: true`, `lower_lods_preserved: true`, and
+  `max_absolute_quantization_error: 0.0` over 13,161 direct vertices.
+  `loop_cut_topology` and `subdivide_midpoint_topology` were both refused with
+  `TOPOLOGY_PROTECTED_BYTES_DIVERGE` and wrote no output, so
+  `blended_skin_path_proven` remains false. That is the fail-closed rule working:
+  bytes 6-7 are identified but not derivable, so a derived vertex on stock
+  geometry is refused rather than approximated.
+- Evidence is licensed-game derived and stays under system TEMP, never in the
+  repository: run `42b44795555c4c0ab566e72df487f35e` for the branch and
+  `96e455116da54c0fa4905e543b656e98` for the base comparison, each holding
+  `result.json`, `evidence_report.json`, the rendered captures, the rebuilt LOD0
+  PAC, and the editable export.
+- Dated material-audit totals moved here from `docs/ai/PROJECT_MEMORY.md`, which
+  keeps durable rules rather than completion logs. The 120-PAC material
+  classification audit moved from 99 PASS / 4 CONCERN / 17 FAIL to 119/1/0 after
+  repair, its one remaining concern being sword 004's localized guard
+  tint/material region. A fifth 120-PAC material-first audit excluding all 317
+  prior-evidence paths finalized at 120/0/0 after direct review of all 720 paired
+  views, finding no new shared defect across swords, shields, other weapons,
+  helmets, full armor slots, hair/beard, skin, fur, bone, crystal, organic shell,
+  and unusual mixed creatures; visually ambiguous pale mask 091 was confirmed by
+  its extracted contract as dominant metal. Evidence:
+  `workspace/mesh-editor-visual-audit/20260717-fifth-material-classification-120`.
+- The 2026-07-22 source-fidelity v2 run at
+  `cdmw-material-parity-final-120-20260720-111535` completed 3,558/3,558 direct
+  original-detail inspections with clean path/hash integrity and finalized at
+  120 PASS / 0 CONCERN / 0 FAIL across 1,359 regions. Forty-one of 42 parked rows
+  cleared against source/region/PAC state; the one real defect was textureless
+  generic base tint incorrectly gated by zero blend strength, fixed by honoring
+  explicit `MaterialBaseTint.w` and directly recaptured on spear-0057 with a
+  textured control unchanged. Native DDS source-board previews (21 rows) and
+  hair/fur anisotropy/flow (68 rows) remain explicit unchanged unsupported
+  features; no licensed real-game proof was run.
+- Exact cold `cd_pgm_00_nude_00_0001.pac` external material synthesis fell from
+  5.103 s to 1.812 s, against an earlier 93.214 s baseline.
+- Representative hair PAC `cd_ptm_00_hair_00_0003.pac` must resolve at least one
+  source DDS; prepared audit packages own and rewrite every nested selectable
+  `source_path`, including non-direct candidates, so cache eviction cannot
+  invalidate capture.
+
 2026-07-23:
 
 - Full catalogue-v2 cache construction was benchmarked against the authorized

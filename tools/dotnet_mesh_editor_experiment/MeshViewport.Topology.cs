@@ -278,6 +278,10 @@ internal sealed partial class MeshViewport
         long selectionStrokeSequence = -1,
         string selectionStrokePhase = "")
     {
+        // The published selection is only ever what a host push leaves here, so
+        // "the host never pushed" and "the push was refused" have to be told
+        // apart from outside; they need opposite fixes.
+        RecordHostSelectionPush(requestId, revision, vertices, selectionStrokePhase);
         if (!CanAcceptAuthoritativeSelection(requestId, revision))
         {
             return false;

@@ -23,6 +23,13 @@ from cdmw.domain.mesh.asset import (
     MeshVertex,
     VertexBuffer,
 )
+from cdmw.domain.mesh.topology import (
+    SubmeshTopologyProvenance,
+    removed_original_faces,
+    removed_original_vertices,
+    topology_source_vertex_map,
+    validate_topology_provenance,
+)
 
 from .mesh_parser import MeshBinaryLayout, ParsedMesh, SubMesh, inspect_mesh_binary_layout, parse_mesh
 
@@ -167,6 +174,8 @@ def _lod_to_dict(lod: MeshLod) -> dict[str, object]:
                 "original_vertex_stride": submesh.original_vertex_stride,
                 "source_vertex_map_count": len(submesh.source_vertex_map),
                 "source_index_map_count": len(submesh.source_index_map),
+                "source_vertex_map_authority": submesh.source_vertex_map_authority,
+                "topology_provenance": _topology_provenance_summary(submesh.topology_provenance),
                 "raw_vertex_record_count": sum(1 for record in submesh.vertex_buffer.raw_vertex_records if record),
                 "bounds": submesh.bounds,
                 "metadata": _json_safe(submesh.metadata),
@@ -175,6 +184,24 @@ def _lod_to_dict(lod: MeshLod) -> dict[str, object]:
             for submesh in lod.submeshes
         ],
         "metadata": _json_safe(lod.metadata),
+    }
+
+
+def _topology_provenance_summary(provenance: object) -> dict[str, object] | None:
+    """A JSON-safe inspection view; the CSR arrays themselves stay out of reports."""
+    if not isinstance(provenance, SubmeshTopologyProvenance):
+        return None
+    return {
+        "version": provenance.version,
+        "original_vertex_count": provenance.original_vertex_count,
+        "original_face_count": provenance.original_face_count,
+        "output_vertex_count": provenance.output_vertex_count,
+        "output_face_count": provenance.output_face_count,
+        "direct_vertex_count": provenance.direct_vertex_count,
+        "derived_vertex_count": provenance.derived_vertex_count,
+        "max_influence_union_width": provenance.max_influence_union_width,
+        "removed_vertex_count": len(removed_original_vertices(provenance)),
+        "removed_face_count": len(removed_original_faces(provenance)),
     }
 
 
@@ -266,8 +293,23 @@ def _submesh_asset(
         for index in range(len(vertices))
     )
     indices = tuple(int(index) for face in faces for index in tuple(face or ()))
-    source_vertex_map = _source_vertex_map(submesh, len(vertices))
     original_index_count = int(getattr(submesh, "source_index_count", 0) or len(indices))
+    topology_provenance = _topology_provenance(submesh, len(vertices), len(faces))
+    if topology_provenance is not None:
+        # A topology-changed submesh has no same-count index lineage to state.
+        # ``original_count`` stays the original source index count, the
+        # compatibility map is empty, and per-vertex lineage moves to the
+        # contract's vertex origins.
+        source_vertex_map = topology_source_vertex_map(topology_provenance)
+        source_index_map: tuple[int, ...] = ()
+    else:
+        source_vertex_map = _source_vertex_map(submesh, len(vertices))
+        source_index_map = tuple(range(original_index_count))
+    # The declared authority is carried through, never synthesized. A submesh that
+    # holds a topology contract but still claims donor lineage would be read as
+    # donor lineage by the PAC skin path, so the rebuild validator has to see the
+    # disagreement rather than a laundered value.
+    source_vertex_map_authority = str(getattr(submesh, "source_vertex_map_authority", "") or "")
     return MeshAssetSubmesh(
         submesh_index=submesh_index,
         stable_id=f"lod{lod_index}_submesh{submesh_index}",
@@ -281,7 +323,7 @@ def _submesh_asset(
             original_count=original_index_count,
         ),
         source_vertex_map=source_vertex_map,
-        source_index_map=tuple(range(original_index_count)),
+        source_index_map=source_index_map,
         original_descriptor_offset=_int_attr(getattr(submesh, "source_descriptor_offset", -1)),
         original_vertex_offset=min((offset for offset in source_offsets if offset >= 0), default=-1),
         original_index_offset=_int_attr(getattr(submesh, "source_index_offset", -1)),
@@ -296,7 +338,32 @@ def _submesh_asset(
             "source_bbox_min": tuple(getattr(submesh, "source_bbox_min", ()) or ()),
             "source_bbox_extent": tuple(getattr(submesh, "source_bbox_extent", ()) or ()),
         },
+        topology_provenance=topology_provenance,
+        source_vertex_map_authority=source_vertex_map_authority,
     )
+
+
+def _topology_provenance(
+    submesh: SubMesh,
+    vertex_count: int,
+    face_count: int,
+) -> SubmeshTopologyProvenance | None:
+    """Carry a submesh's topology contract only when it describes this submesh.
+
+    A contract whose shape disagrees with the geometry it is attached to is
+    dropped here rather than propagated: the rebuild validator then reports the
+    ordinary same-count blockers instead of trusting a mismatched lineage.
+    """
+    provenance = getattr(submesh, "topology_provenance", None)
+    if not isinstance(provenance, SubmeshTopologyProvenance):
+        return None
+    if validate_topology_provenance(
+        provenance,
+        output_vertex_count=vertex_count,
+        output_face_count=face_count,
+    ):
+        return None
+    return provenance
 
 
 def _layout_confidence(mesh: ParsedMesh, layout: MeshBinaryLayout | None) -> str:
