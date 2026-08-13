@@ -251,6 +251,8 @@ internal sealed partial class MeshViewport
             ["target_mode"] = CurrentTargetMode(),
             ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
             ["pick_probe"] = LastPickProbe,
+            ["host_selection_push_count"] = HostSelectionPushCount,
+            ["last_host_selection_push"] = LastHostSelectionPush,
         };
     }
 
