@@ -101,6 +101,50 @@ def test_a_resident_subdivide_rebuilds_through_the_exact_serializer() -> None:
         service.close_edit_session(view.session_id)
 
 
+def test_a_face_delete_that_removes_the_first_face_keeps_its_contract() -> None:
+    # The surviving face origins are then a contiguous range that does not start
+    # at zero, and the native report sends them as start/count rather than as a
+    # binary payload. Bounding that range by the output face count instead of the
+    # original one silently dropped the whole contract, which read as "Face
+    # Delete produced no usable topology contract".
+    data = _pac_fixture(skinned=True)
+    original = parse_pac(data, "target.pac")
+    service = MeshService()
+    view = _session(service, "topology-rebuild-first-face", data)
+    try:
+        result = service.apply_command(
+            view.session_id,
+            MeshEditCommand(
+                "delete",
+                selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}),
+                params={"_include_preview_deltas": False},
+                mode="edit",
+            ),
+        )
+        assert result.ok
+
+        working = service.working_mesh(view.session_id, clone=True)
+        submesh = working.submeshes[0]
+        provenance = submesh.topology_provenance
+
+        assert provenance is not None
+        assert provenance.face_origins == (1,)
+        assert provenance.original_face_count == 2
+        assert (
+            validate_topology_provenance(
+                provenance,
+                output_vertex_count=len(submesh.vertices),
+                output_face_count=len(submesh.faces),
+            )
+            == ()
+        )
+
+        rebuild = rebuild_mesh_with_report(working, data, original_mesh=original)
+        assert dict(rebuild.report.topology_rebuild or {})["serializer"] == "pac_lod0_topology_exact_v1"
+    finally:
+        service.close_edit_session(view.session_id)
+
+
 def test_the_session_records_a_continuous_topology_operation_history() -> None:
     data = _pac_fixture()
     service = MeshService()
