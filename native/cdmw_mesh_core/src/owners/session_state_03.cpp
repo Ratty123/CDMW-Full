@@ -175,10 +175,13 @@ void mesh_editor_write_topology_provenance_summary(std::ostream& out, const Mesh
     out << ",\"topology_original_vertex_count\":" << submesh.topology_original_vertex_count
         << ",\"topology_original_face_count\":" << submesh.topology_original_face_count
         << ",\"topology_direct_vertex_count\":" << mesh_editor_topology_direct_vertex_count(submesh)
+        // Derived from the CSR's own row count, not from the geometry, so a
+        // report can never state a negative count if the two ever disagree.
         << ",\"topology_derived_vertex_count\":" << (
             submesh.vertex_origin_offsets.empty()
                 ? 0
-                : static_cast<int>(submesh.vertices.size()) - mesh_editor_topology_direct_vertex_count(submesh)
+                : static_cast<int>(submesh.vertex_origin_offsets.size()) - 1
+                    - mesh_editor_topology_direct_vertex_count(submesh)
         )
         << ",\"topology_provenance_parent_entries\":" << mesh_editor_topology_provenance_parent_entries(submesh);
 }
