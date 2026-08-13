@@ -1108,3 +1108,35 @@ def test_resident_selection_inputs_record_a_raising_session_view() -> None:
     assert report["target_controller_present"] is True
     assert report["target_selection_empty"] is None
     assert report["target_error"] == "RuntimeError: no active session"
+
+
+def test_last_select_request_id_takes_the_newest_selection_request() -> None:
+    from tools.mesh_harness.real_dotnet import _last_select_request_id
+
+    state = SimpleNamespace(
+        tab=SimpleNamespace(
+            standalone_dotnet_protocol_events=[
+                {"event": "select_request", "request_id": 4},
+                {"event": "stroke_begin", "request_id": 99},
+                {"event": "select_request", "request_id": 8},
+                {"event": "select_request", "request_id": 5},
+            ]
+        )
+    )
+
+    assert _last_select_request_id(state) == 8
+
+
+def test_applied_selection_push_id_reads_the_push_the_helper_answered_with() -> None:
+    from tools.mesh_harness.real_dotnet import _applied_selection_push_id
+
+    event = {
+        "event": "tool_state_applied",
+        "local_selection": {"last_host_selection_push": {"request_id": 4}},
+    }
+
+    # The helper answers from the push it has applied, which trails the gesture,
+    # so this is the number that says whether the answer is current.
+    assert _applied_selection_push_id(event) == 4
+    assert _applied_selection_push_id({"event": "tool_state_applied"}) == 0
+    assert _applied_selection_push_id(None) == 0

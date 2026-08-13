@@ -377,17 +377,39 @@ def _drive_projected_vertex_selection(
         if projected_anchor_center is not None
         else {"ok": False, "reason": "projection_missing"}
     )
-    tool_cursor = len(state.tab.standalone_dotnet_protocol_events)
-    state.tool_state_sent = bool(
-        state.tool_state_sent
-        and state.selection_tool_state_sent
-        and state.tab._send_dotnet_protocol_message(
-            {"event": "tool_state", "tool": "move", "target_mode": "vertex"}
+    # The helper answers tool_state from the selection push it has already
+    # applied, and that trails the gesture by one. Measured in the trail: the
+    # answer following the push for request 8 still reported request 4, the
+    # projection probe's 39 vertices, so a single ask samples the selection
+    # before last. Re-ask until the applied push has caught up with the
+    # gesture's own newest request.
+    expected_push = _last_select_request_id(state)
+    arming: dict[str, object] = {"expected_push_request_id": expected_push, "attempts": 0}
+    state.tool_state_sent = bool(state.tool_state_sent and state.selection_tool_state_sent)
+    state.tool_state_event = {}
+    for attempt in range(1, 5):
+        if not state.tool_state_sent:
+            break
+        tool_cursor = len(state.tab.standalone_dotnet_protocol_events)
+        state.tool_state_sent = bool(
+            state.tab._send_dotnet_protocol_message(
+                {"event": "tool_state", "tool": "move", "target_mode": "vertex"}
+            )
         )
+        if not state.tool_state_sent:
+            break
+        state.tool_state_event = _wait_protocol_event(
+            state, "tool_state_applied", tool_cursor, 5.0
+        )
+        arming["attempts"] = attempt
+        arming["applied_push_request_id"] = _applied_selection_push_id(state.tool_state_event)
+        if _applied_selection_push_id(state.tool_state_event) >= expected_push:
+            break
+        _pump_for(state, 0.1)
+    arming["caught_up"] = bool(
+        int(arming.get("applied_push_request_id", 0) or 0) >= expected_push
     )
-    state.tool_state_event = _wait_protocol_event(
-        state, "tool_state_applied", tool_cursor, 5.0
-    )
+    state.selection_publication_settled = arming
     state.resident_selection_inputs = _resident_selection_inputs(state)
     tool_selection = state.tool_state_event.get("local_selection", {})
     tool_selection = tool_selection if isinstance(tool_selection, Mapping) else {}
@@ -480,6 +502,35 @@ def _drive_projected_vertex_selection(
 #: Selections of a few hundred stay whole, which is the point; a full-mesh
 #: selection would otherwise bury the trail it is meant to make readable.
 _TRAIL_ARRAY_LIMIT = 512
+
+
+def _last_select_request_id(state: SimpleNamespace) -> int:
+    """The request id of the newest selection request the helper raised."""
+
+    newest = 0
+    for event in tuple(state.tab.standalone_dotnet_protocol_events):
+        if str(event.get("event", "") or "").strip().lower() != "select_request":
+            continue
+        try:
+            newest = max(newest, int(event.get("request_id", 0) or 0))
+        except (TypeError, ValueError):
+            continue
+    return newest
+
+
+def _applied_selection_push_id(event: object) -> int:
+    """Which push the helper had applied when it answered a tool state."""
+
+    local_selection = event.get("local_selection") if isinstance(event, Mapping) else None
+    push = (
+        local_selection.get("last_host_selection_push")
+        if isinstance(local_selection, Mapping)
+        else None
+    )
+    try:
+        return int((push or {}).get("request_id", 0) or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _resident_selection_inputs(state: SimpleNamespace) -> dict[str, object]:
@@ -899,6 +950,9 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
             ),
             "resident_selection_inputs": dict(
                 getattr(state, "resident_selection_inputs", {}) or {}
+            ),
+            "selection_publication_settled": dict(
+                getattr(state, "selection_publication_settled", {}) or {}
             ),
         },
         "selected_projected_screen_center": list(state.projected_center),
