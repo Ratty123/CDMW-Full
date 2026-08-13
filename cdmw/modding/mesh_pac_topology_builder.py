@@ -37,7 +37,7 @@ from cdmw.domain.mesh.topology import (
 
 from .logging import get_logger
 from .mesh_parser import (
-    PAC_SKIN_INFLUENCES,
+    PAC_SKIN_PALETTE_SLOTS,
     PAC_SKIN_SLOT_BITS,
     PAC_SKIN_SLOT_GROUPS,
     PAC_SKIN_SLOT_MASK,
@@ -102,7 +102,13 @@ def _decoded_live_slots(record: bytes) -> tuple[tuple[int, ...], tuple[int, ...]
             (group >> (PAC_SKIN_SLOT_BITS * position)) & PAC_SKIN_SLOT_MASK
             for position in range(PAC_SKIN_SLOTS_PER_GROUP)
         )
-    weights = struct.unpack_from(f"<{PAC_SKIN_INFLUENCES}B", record, PAC_SKIN_WEIGHT_OFFSET)
+    # Palette lanes only, deliberately. A record can carry two further
+    # influences at bytes 12-15 with weights at bytes 34-35, but all of those
+    # bytes are protected by this writer's ownership mask, so every parent of a
+    # derived vertex already holds identical values there and the template
+    # carries them across untouched. Merging them here would mean authoring
+    # protected bytes, which this serializer does not do.
+    weights = struct.unpack_from(f"<{PAC_SKIN_PALETTE_SLOTS}B", record, PAC_SKIN_WEIGHT_OFFSET)
     live = [(slot, weight) for slot, weight in zip(slots, weights) if weight > 0]
     return tuple(slot for slot, _ in live), tuple(weight for _, weight in live)
 
@@ -142,8 +148,9 @@ def derived_skin_row(
     if len(live) > TOPOLOGY_MAX_SKIN_INFLUENCES:
         raise PacTopologyRebuildBlocked(
             (TOPOLOGY_SKIN_INFLUENCE_CAPACITY_EXCEEDED,),
-            f"Derived vertex needs {len(live)} palette slots; a PAC record holds "
-            f"{TOPOLOGY_MAX_SKIN_INFLUENCES}.",
+            f"Derived vertex needs {len(live)} palette slots; this writer authors "
+            f"{TOPOLOGY_MAX_SKIN_INFLUENCES}. The record can carry two more influences, "
+            "but their lanes are protected here and are inherited from the parents unchanged.",
         )
     total = math.fsum(live.values())
     if total <= 0.0 or not math.isfinite(total):

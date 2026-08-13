@@ -1091,7 +1091,10 @@ class MeshImportRegressionTests(unittest.TestCase):
     def test_pac_in_place_rebuild_writes_imported_normals(self) -> None:
         data = bytearray(128)
         record_offset = 80
-        struct.pack_into("<I", data, record_offset + 16, 0xC0000000)
+        # Bits 0-9 are the tangent's y and bit 31 the bitangent handedness, so
+        # seed both with something recognisable; bit 30 is the normal's own z
+        # sign and is expected to be authored, not carried over.
+        struct.pack_into("<I", data, record_offset + 16, 0xC0000000 | 0x2AB)
         original_sm = SubMesh(
             vertices=[(0.0, 0.0, 0.0)],
             source_vertex_offsets=[record_offset],
@@ -1108,8 +1111,35 @@ class MeshImportRegressionTests(unittest.TestCase):
         rebuilt = _build_pac_in_place(original_mesh, imported_mesh, bytes(data))
 
         packed_normal = struct.unpack_from("<I", rebuilt, record_offset + 16)[0]
-        self.assertEqual(packed_normal, _pack_pac_normal((0.0, 0.0, 1.0), 0xC0000000))
-        self.assertEqual(packed_normal & 0xC0000000, 0xC0000000)
+        self.assertEqual(packed_normal, _pack_pac_normal((0.0, 0.0, 1.0), 0xC0000000 | 0x2AB))
+        self.assertEqual(packed_normal & 0x3FF, 0x2AB, "the tangent's y component must survive")
+        self.assertEqual(packed_normal & 0x80000000, 0x80000000, "handedness must survive")
+        self.assertEqual(packed_normal & 0x40000000, 0, "a +z normal must clear the z sign bit")
+
+    def test_pac_in_place_rebuild_authors_the_normal_z_sign(self) -> None:
+        data = bytearray(128)
+        record_offset = 80
+        struct.pack_into("<I", data, record_offset + 16, 0)
+        original_sm = SubMesh(
+            vertices=[(0.0, 0.0, 0.0)],
+            source_vertex_offsets=[record_offset],
+            source_vertex_stride=32,
+            source_descriptor_offset=0,
+        )
+        imported_sm = SubMesh(
+            vertices=[(1.0, 2.0, 3.0)],
+            normals=[(0.0, 0.0, -1.0)],
+        )
+        original_mesh = ParsedMesh(path="character/test.pac", format="pac", submeshes=[original_sm])
+        imported_mesh = ParsedMesh(path="character/test.pac", format="pac", submeshes=[imported_sm])
+
+        rebuilt = _build_pac_in_place(original_mesh, imported_mesh, bytes(data))
+
+        packed_normal = struct.unpack_from("<I", rebuilt, record_offset + 16)[0]
+        # The source record said +z. The imported normal says -z, and the game
+        # reads that sign from bit 30, so leaving it alone would render the
+        # normal inverted.
+        self.assertEqual(packed_normal & 0x40000000, 0x40000000)
 
     def test_pac_in_place_rebuild_can_clean_donor_shading_records(self) -> None:
         data = bytearray(128)

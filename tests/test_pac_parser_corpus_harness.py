@@ -174,9 +174,11 @@ def test_validate_parsed_pac_mesh_accepts_six_wide_bone_influences() -> None:
 
 
 def test_validate_parsed_pac_mesh_reports_bone_influences_wider_than_the_record() -> None:
+    # Nine, not seven: a record holds eight influences, six as palette slots and
+    # two more indexed at bytes 12-15, so a seven-wide row is legitimate.
     submesh = _valid_submesh()
-    submesh.bone_indices = [(0, 1, 2, 3, 4, 5, 6)] * 3
-    submesh.bone_weights = [(0.2, 0.2, 0.15, 0.15, 0.1, 0.1, 0.1)] * 3
+    submesh.bone_indices = [(0, 1, 2, 3, 4, 5, 6, 7, 8)] * 3
+    submesh.bone_weights = [(0.2, 0.15, 0.15, 0.1, 0.1, 0.1, 0.1, 0.05, 0.05)] * 3
     mesh = ParsedMesh(
         path="character/model/sample.pac",
         format="pac",
