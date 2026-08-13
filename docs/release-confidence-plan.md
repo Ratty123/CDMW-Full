@@ -50,6 +50,30 @@ keeps core user workflows working behind stable facades.
 
 2026-08-13:
 
+- **The two red drag gates are not an aiming problem, and the next attempt should
+  not start there.** `selected_geometry_only` and `selected_projection_tracks_cursor`
+  fail because the Move deforms a fixed 203-vertex set, `{submesh 1: 141,
+  submesh 2: 62}`, that is unrelated to both the committed selection (39 vertices,
+  submesh 2) and the press point. Not one selected vertex moves, which is why the
+  projected centre reports a `[0.0, 0.0]` delta at 40.0 px error.
+- That was established by falsifying the obvious hypothesis rather than by
+  argument. The harness was aiming its drag through a stale pane: the projection
+  probe runs while the embedded viewport is 1047 px wide, the viewport settles to
+  1242 px on the first real pointer input, and the press was therefore dispatched
+  about 97 px left of the selection. Correcting it moved the press from x=523 to
+  x=621 and changed the outcome by not one vertex: 203 changed, same submeshes,
+  same counts, same delta, same error, identical across the branch base, the
+  uncorrected run, and the corrected run. The moved set is invariant to the
+  cursor, so whatever selects it is decided before the drag. The probe click that
+  obtains the projection matrix lands at the viewport centre and is itself a real
+  Select gesture, which is the first place to look.
+- A genuine product defect surfaced on the way: the renderer's status payload
+  publishes a viewport rectangle that disagrees with the pane it renders and
+  picks against. Measured here it reports 1047x1195 while its own
+  `ActivePaneBounds` and Win32 `GetWindowRect` both report 1242x1195, so the
+  status is the outlier of the three. Anything trusting that payload to aim at
+  the pane is being misled, and the harness now records the disagreement as
+  `status_disagreed_with_settled_pane` instead of inheriting it silently.
 - The authorized real-game gate `scripts/codex_check.ps1 -Area mesh` ran against
   `character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac` after the PAC
   normal and eight-influence skin corrections. 63 of 65 gates passed, including

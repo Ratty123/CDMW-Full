@@ -474,6 +474,111 @@ def _drive_projected_vertex_selection(
     return None
 
 
+def _settled_screen_projection(
+    state: SimpleNamespace,
+) -> tuple[tuple[object, ...], float, float] | None:
+    """The newest matrix the helper emitted, with the pane it was built for.
+
+    Every ``select_request`` carries ``world_view_projection`` beside the
+    ``viewport_width``/``viewport_height`` of the pane that produced it, so the
+    pair is always self-consistent. Reading the newest one is how a caller
+    obtains a projection for the pane as it stands now rather than as it stood
+    when an earlier probe ran.
+    """
+    for event in reversed(tuple(state.tab.standalone_dotnet_protocol_events)):
+        if str(event.get("event", "") or "").strip().lower() != "select_request":
+            continue
+        brush = event.get("screen_brush")
+        if not isinstance(brush, Mapping):
+            continue
+        matrix = tuple(brush.get("world_view_projection", ()) or ())
+        width = float(brush.get("viewport_width", 0) or 0)
+        height = float(brush.get("viewport_height", 0) or 0)
+        if len(matrix) == 16 and width > 0.0 and height > 0.0:
+            return matrix, width, height
+    return None
+
+
+def _adopt_settled_projection(
+    state: SimpleNamespace,
+    matrix: tuple[object, ...],
+) -> tuple[object, ...]:
+    """Re-aim the projection at the pane the drag will actually be dispatched into.
+
+    The embedded viewport settles to its final width on the first real pointer
+    input: measured here it is 1047 wide when the projection probe runs and 1242
+    once the physical Select gesture has landed, at the same origin and height.
+    Projecting the selection centre through the narrower pane and then clicking
+    that pixel in the wider one put the press about 97 px left of the selection,
+    onto a different submesh, so the Move grabbed geometry the selection never
+    contained and the selected vertices never moved at all.
+
+    The gesture that just ran published its own matrix beside its own pane
+    bounds, so adopting that pair costs no extra input and cannot disturb the
+    selection under test. The refresh is what makes the stroke driver's existing
+    surface guard meaningful, because that guard compares the projection against
+    ``state.viewport``.
+    """
+    state.selection_viewport_refresh = refresh_editable_viewport_rectangle(state, _pump_until)
+    settled = _settled_screen_projection(state)
+    reconciliation = getattr(state, "projection_surface_reconciliation", None)
+    if not isinstance(reconciliation, dict):
+        reconciliation = {}
+        state.projection_surface_reconciliation = reconciliation
+    if settled is None:
+        reconciliation["settled_projection_adopted"] = False
+        reconciliation["settled_projection_reason"] = "no select_request carried a screen payload"
+        return matrix
+
+    settled_matrix, settled_width, settled_height = settled
+    previous = (
+        float(getattr(state, "projection_viewport_width", 0.0) or 0.0),
+        float(getattr(state, "projection_viewport_height", 0.0) or 0.0),
+    )
+    reconciliation["settled_projection_width"] = settled_width
+    reconciliation["settled_projection_height"] = settled_height
+    reconciliation["probe_projection_width"] = previous[0]
+    reconciliation["probe_projection_height"] = previous[1]
+    if (settled_width, settled_height) == previous:
+        reconciliation["settled_projection_adopted"] = False
+        reconciliation["settled_projection_reason"] = "pane unchanged since the probe"
+        return matrix
+
+    state.projection_viewport_width = settled_width
+    state.projection_viewport_height = settled_height
+    updated = dict(state.projection_drag) if isinstance(state.projection_drag, Mapping) else {}
+    updated.update(
+        {
+            "world_view_projection": settled_matrix,
+            "viewport_width": settled_width,
+            "viewport_height": settled_height,
+        }
+    )
+    state.projection_drag = updated
+
+    # Aim input at the same pane the matrix was built for. The renderer's status
+    # payload disagrees with it here, publishing 1047x1195 for a pane that its
+    # own ActivePaneBounds and Windows both report as 1242x1195, and the status
+    # is the outlier of the three. Projection and input have to come from one
+    # rectangle or the press lands somewhere the projection never described, so
+    # both take the bounds the renderer itself paired with the matrix. The
+    # disagreement is recorded rather than smoothed over.
+    status_width = float(state.viewport.get("width", 0) or 0)
+    status_height = float(state.viewport.get("height", 0) or 0)
+    reconciliation["status_disagreed_with_settled_pane"] = (
+        status_width,
+        status_height,
+    ) != (settled_width, settled_height)
+    reconciliation["status_viewport_width"] = status_width
+    reconciliation["status_viewport_height"] = status_height
+    state.viewport.update(
+        {"width": int(round(settled_width)), "height": int(round(settled_height))}
+    )
+    reconciliation["settled_projection_adopted"] = True
+    reconciliation["settled_projection_reason"] = "the pane settled after the probe"
+    return settled_matrix
+
+
 def _capture_selected_projection_state(
     state: SimpleNamespace,
     matrix: tuple[object, ...],
@@ -481,6 +586,7 @@ def _capture_selected_projection_state(
     # Replaying host selection restores Orbit, so the final Move publication
     # above must remain the last tool state before the physical deformation.
     _pump_for(state, 0.15)
+    matrix = _adopt_settled_projection(state, matrix)
     current = state.controller.working_mesh(clone=False)
     state.before_vertices = [
         tuple(float(value) for value in current.submeshes[state.submesh_index].vertices[index])
