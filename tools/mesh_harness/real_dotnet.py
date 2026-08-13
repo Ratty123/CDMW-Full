@@ -88,7 +88,9 @@ from tools.mesh_harness.real_dotnet_evidence import (
     _base_error,
     _drive_viewport_stroke,
     _has_real_archive_texture_provenance,
+    _indices_by_submesh,
     _part_selection_evidence,
+    _pick_probe,
     _prepare_real_asset,
     _pump_for,
     _pump_until,
@@ -527,13 +529,6 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
     return _capture_selected_projection_state(state, matrix)
 
 
-def _indices_by_submesh(keys: object) -> dict[str, list[int]]:
-    grouped: dict[int, list[int]] = {}
-    for submesh_index, vertex_index in tuple(keys or ()):
-        grouped.setdefault(int(submesh_index), []).append(int(vertex_index))
-    return {str(submesh): sorted(indices) for submesh, indices in sorted(grouped.items())}
-
-
 def _finish_result(state: SimpleNamespace) -> dict[str, object]:
     state.after_center = tuple(sum(vertex[axis] for vertex in state.after_vertices) / len(state.after_vertices) for axis in range(3))
     matrix = tuple(state.projection_drag.get("world_view_projection", ()) or ())
@@ -660,6 +655,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
                 {submesh_index for submesh_index, _vertex_index in state.changed_vertex_keys}
             )
         },
+        "selection_pick_probe": _pick_probe(state.tool_state_event),
         # Both index sets in full, per submesh. A 64-entry sample cannot tell a
         # subset apart from a disjoint set living in another index space, and
         # that distinction is the whole diagnosis when these two disagree.

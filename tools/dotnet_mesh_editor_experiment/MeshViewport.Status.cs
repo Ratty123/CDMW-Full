@@ -250,6 +250,7 @@ internal sealed partial class MeshViewport
             ["sources"] = _selectedSources.OrderBy(id => id).ToArray(),
             ["target_mode"] = CurrentTargetMode(),
             ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
+            ["pick_probe"] = LastPickProbe,
         };
     }
 
