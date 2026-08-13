@@ -308,7 +308,10 @@ ownership mask (position, UV0, the low 30 bits of the normal, and on a proven
 skinned record the two palette groups and six weight bytes; everything else,
 including the top two bits of each owned u32, is protected). Derived skin rows
 normalize each parent row on its own first, because observed source rows total
-`255 ± 2`. Only the LOD0 section and its LOD0 count entries are rebuilt; lower
+`255 ± 2`. The writer authors the palette lanes only: a record's two further
+influences live in protected bytes, so a derived vertex inherits them unchanged
+from parents that already had to agree on them, and a merge wider than six slots
+is refused rather than truncated. Only the LOD0 section and its LOD0 count entries are rebuilt; lower
 LOD payloads, lower LOD counts, and unknown sections are copied and re-verified
 by hash after the finished file is reparsed. Three layout hazards are refused up
 front: a shared LOD0 vertex buffer, stored counts that disagree with the parsed
@@ -321,8 +324,55 @@ fewer palette slots, but only 0.0072% have parent records that agree on every
 protected byte, so the combined exact-midpoint eligibility is 0.0066%. Loop Cut
 and midpoint Subdivide are therefore exact where they apply and blocked on most
 stock geometry today; Face Delete derives no new vertices and is unaffected. The
-divergence is dominated by record bytes 6-7 and 12-15, two per-vertex channels
-this project has not proven.
+divergence is dominated by record bytes 6-7 and 12-15.
+
+### The proven 40-byte record
+
+Every field below was read out of the game's own shipped shaders rather than
+inferred. The character vertex shaders take no vertex input semantics at all,
+only `SV_VertexID`, and pull each record from a `StructuredBuffer` whose declared
+stride is 40; their reflection metadata names the fields and their DXIL says what
+each bit becomes. `tools/pac_shader_consumer_study.py` reproduces the evidence
+read-only from the archives, and `tools/pac_vertex_channel_study.py` measures
+what it costs the rebuild path.
+
+Writing `P` for the u32 at bytes 16-19 and `t` for bytes 6-7 read as signed
+`int16`:
+
+| bytes | contents |
+| --- | --- |
+| 0-5 | position, three u16, each `v / 32767` across the descriptor extent |
+| **6-7** | `tangent.x` as `2*abs(t/32767) - 1`, and `t < 0` negates `tangent.z` |
+| 8-11 | UV0, two halves |
+| **12-15** | bone indices 7 and 8, halves holding whole numbers, `fptoui(h + 0.5)` |
+| 16-19 | `tangent.y` in bits 0-9; `normal.x` bits 10-19; `normal.y` bits 20-29; bit 30 the sign of the reconstructed `normal.z`; bit 31 the bitangent handedness |
+| 20-27 | six 10-bit palette slots in two u32 groups; bits 30-31 of each are unread |
+| 28-35 | eight `u8 / 255` weights, one per influence |
+| 36-38 | vertex colour R and G, and one unidentified byte |
+| 39 | low six bits gate influences 7 and 8, `63` meaning off; top two bits unidentified |
+
+Both direction vectors reconstruct their third component as
+`sqrt(max(0, 1 - x^2 - y^2))`, and that clamp is load bearing: 10-bit
+quantization puts `x^2 + y^2` slightly above 1 on about 1.5% of real vertices.
+Decoding real records this way gives unit-length normals for 100% of vertices and
+`|dot(T, N)| < 0.05` for 6,217 of 6,217, against 7-31% for a control that shuffles
+bytes 6-7 against their own normals.
+
+Two consequences for this pipeline. The eight-influence skin explains the
+`255 ± 2` figure above: a six-influence row does sum to 255, but a row that opens
+byte 39's gate sums to about 500 across all eight, and the shader divides the
+accumulated transform by the accumulated weight, so only proportions are
+meaningful. And bytes 12-15 and 34-35 are skin rather than unknown channels,
+which is why owning them buys nothing: measured exhaustively, they admit zero
+additional faces, because wherever they disagree bytes 6-7 disagree too.
+
+Bytes 6-7 stay protected regardless. They are identified but not derivable: over
+9,412 real split-edge fixtures no interpolation or regeneration rule predicts the
+tangent to within the codec's quantization, while the normal, carried as a
+positive control, converges on it. A tangent depends on the UV parameterization
+and on the whole fan around a vertex, which inserting a vertex changes, so a
+midpoint's authored tangent is not its neighbours' interpolant. Identification is
+not authorization, and the fail-closed rule stands.
 - Export validation blocks changed MeshAsset unknown sections and submesh
   `unknown_fields` against the original session mesh. Those metadata blobs are
   copied through service session clones so an imported/edit-session mesh cannot

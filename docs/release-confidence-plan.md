@@ -48,6 +48,36 @@ keeps core user workflows working behind stable facades.
 
 ## Latest Validation
 
+2026-08-13:
+
+- Dated material-audit totals moved here from `docs/ai/PROJECT_MEMORY.md`, which
+  keeps durable rules rather than completion logs. The 120-PAC material
+  classification audit moved from 99 PASS / 4 CONCERN / 17 FAIL to 119/1/0 after
+  repair, its one remaining concern being sword 004's localized guard
+  tint/material region. A fifth 120-PAC material-first audit excluding all 317
+  prior-evidence paths finalized at 120/0/0 after direct review of all 720 paired
+  views, finding no new shared defect across swords, shields, other weapons,
+  helmets, full armor slots, hair/beard, skin, fur, bone, crystal, organic shell,
+  and unusual mixed creatures; visually ambiguous pale mask 091 was confirmed by
+  its extracted contract as dominant metal. Evidence:
+  `workspace/mesh-editor-visual-audit/20260717-fifth-material-classification-120`.
+- The 2026-07-22 source-fidelity v2 run at
+  `cdmw-material-parity-final-120-20260720-111535` completed 3,558/3,558 direct
+  original-detail inspections with clean path/hash integrity and finalized at
+  120 PASS / 0 CONCERN / 0 FAIL across 1,359 regions. Forty-one of 42 parked rows
+  cleared against source/region/PAC state; the one real defect was textureless
+  generic base tint incorrectly gated by zero blend strength, fixed by honoring
+  explicit `MaterialBaseTint.w` and directly recaptured on spear-0057 with a
+  textured control unchanged. Native DDS source-board previews (21 rows) and
+  hair/fur anisotropy/flow (68 rows) remain explicit unchanged unsupported
+  features; no licensed real-game proof was run.
+- Exact cold `cd_pgm_00_nude_00_0001.pac` external material synthesis fell from
+  5.103 s to 1.812 s, against an earlier 93.214 s baseline.
+- Representative hair PAC `cd_ptm_00_hair_00_0003.pac` must resolve at least one
+  source DDS; prepared audit packages own and rewrite every nested selectable
+  `source_path`, including non-direct candidates, so cache eviction cannot
+  invalidate capture.
+
 2026-07-23:
 
 - Full catalogue-v2 cache construction was benchmarked against the authorized
