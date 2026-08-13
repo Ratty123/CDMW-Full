@@ -28,7 +28,12 @@ std::string mesh_editor_open_session_report(
         // Every editable original submesh starts as its own provenance: each
         // vertex is one original parent at weight 1, each triangle is its own
         // original face. Every later topology edit folds onto this anchor.
-        mesh_editor_initialize_identity_topology_provenance(submesh);
+        // A submesh that arrived carrying a valid contract keeps it: reopening a
+        // session on already-edited geometry must not relabel that geometry as
+        // its own original.
+        if (!mesh_editor_topology_provenance_shape_valid(submesh)) {
+            mesh_editor_initialize_identity_topology_provenance(submesh);
+        }
         editor_submeshes[index] = std::move(submesh);
         ++stored;
     }

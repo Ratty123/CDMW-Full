@@ -472,9 +472,22 @@ def _mesh_session_item_from_native_snapshot(item: Mapping[str, object]) -> dict[
         "bone_weights_binary",
         "source_vertex_map_binary",
         "source_vertex_offsets_binary",
+        # The contract travels with the geometry. A store that dropped it would
+        # leave the next edit composing against nothing, which reads as a lost
+        # rebuild rather than as the transport gap it is.
+        "vertex_origin_offsets_binary",
+        "vertex_origin_parents_binary",
+        "vertex_origin_weights_binary",
     ):
         if isinstance(item.get(key), Mapping):
             session_item[key] = item[key]
+    if all(
+        key in session_item
+        for key in ("vertex_origin_offsets_binary", "vertex_origin_parents_binary", "vertex_origin_weights_binary")
+    ):
+        session_item["topology_contract"] = str(item.get("topology_contract") or "")
+        session_item["topology_original_vertex_count"] = _index(item.get("topology_original_vertex_count")) or 0
+        session_item["topology_original_face_count"] = _index(item.get("topology_original_face_count")) or 0
     if "source_face_indices_binary" not in session_item:
         source_face_start = _index(item.get("source_face_start"))
         source_face_count = _index(item.get("source_face_count"))

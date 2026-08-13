@@ -148,6 +148,33 @@ bool mesh_editor_topology_provenance_shape_valid(const MeshSessionSubmesh& subme
     return true;
 }
 
+// Read a carried contract off a session-store item. A store re-seats geometry
+// that may already be topology-changed, so the lineage has to travel with it.
+// Anything short, stale, or disagreeing with the geometry it arrived beside
+// leaves the submesh without a contract rather than with a half-decoded one.
+void mesh_editor_ingest_topology_provenance(MeshSessionSubmesh& submesh, const JsonValue& item) {
+    const JsonValue* offsets = item.get("vertex_origin_offsets_binary");
+    const JsonValue* parents = item.get("vertex_origin_parents_binary");
+    const JsonValue* weights = item.get("vertex_origin_weights_binary");
+    if (offsets == nullptr || parents == nullptr || weights == nullptr) {
+        return;
+    }
+    if (string_or(item.get("topology_contract"), "") != MESH_TOPOLOGY_PROVENANCE_VERSION) {
+        mesh_editor_clear_topology_provenance(submesh, MESH_TOPOLOGY_BLOCKER_CONTRACT_UNSUPPORTED);
+        return;
+    }
+    submesh.topology_original_vertex_count = int_or(item.get("topology_original_vertex_count"), 0);
+    submesh.topology_original_face_count = int_or(item.get("topology_original_face_count"), 0);
+    submesh.vertex_origin_offsets = int_vector_from_binary(offsets);
+    submesh.vertex_origin_parents = int_vector_from_binary(parents);
+    submesh.vertex_origin_weights = double_vector_from_binary(weights);
+    submesh.topology_rebuild_valid = true;
+    submesh.topology_blocker.clear();
+    if (!mesh_editor_topology_provenance_shape_valid(submesh)) {
+        mesh_editor_clear_topology_provenance(submesh, MESH_TOPOLOGY_BLOCKER_VERTEX_ORIGIN_INVALID);
+    }
+}
+
 std::size_t mesh_editor_topology_provenance_parent_entries(const MeshSessionSubmesh& submesh) {
     return submesh.vertex_origin_parents.size();
 }

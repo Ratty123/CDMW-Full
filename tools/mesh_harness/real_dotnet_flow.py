@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 from cdmw.core.atomic_file import atomic_binary_writer
 from cdmw.domain.mesh.editing import MeshEditSelection
+from cdmw.domain.mesh.topology import validate_topology_provenance
 from cdmw.models import TextureEditorSourceBinding
 from cdmw.ui.texture_workflow.editor_resident_texture import build_texture_editor_resident_patch
 from tools.mesh_harness.real_dotnet_material import (
@@ -799,21 +800,30 @@ def exercise_exact_topology_rebuild(state: SimpleNamespace, *, pump_until: Calla
     archive, and requires the exact serializer rather than accepting whatever
     the generic rebuild would have produced.
     """
-    from cdmw.domain.mesh.topology import validate_topology_provenance
     from cdmw.modding.mesh_parser import parse_pac
 
     controller = state.controller
-    working = controller.working_mesh(clone=False)
-    part_index = next(
-        (
-            index
-            for index, submesh in enumerate(working.submeshes)
-            if len(tuple(submesh.faces or ())) >= 4 and int(getattr(submesh, "source_vertex_stride", 0) or 0) == 40
-        ),
-        -1,
-    )
+    working = controller.working_mesh(clone=True)
+    # Not simply the first proven part: the earlier steps run Auto UV and a part
+    # duplicate/delete on state.submesh_index, and Auto UV splits vertices along
+    # seams, which correctly retires that part's contract for the rest of the
+    # session. Pick a part whose contract survived, which is also the stronger
+    # claim -- the lineage held through a long, unrelated editing session.
+    part_index = -1
+    for index, submesh in enumerate(working.submeshes):
+        if len(tuple(submesh.faces or ())) < 4 or int(getattr(submesh, "source_vertex_stride", 0) or 0) != 40:
+            continue
+        candidate = getattr(submesh, "topology_provenance", None)
+        if candidate is None or validate_topology_provenance(
+            candidate,
+            output_vertex_count=len(tuple(submesh.vertices or ())),
+            output_face_count=len(tuple(submesh.faces or ())),
+        ):
+            continue
+        part_index = index
+        break
     if part_index < 0:
-        return "No proven 40-byte PAC part with enough faces to Face Delete."
+        return "No proven 40-byte PAC part still carries identity topology provenance."
     face_count_before = len(tuple(working.submeshes[part_index].faces or ()))
     selection = MeshEditSelection.from_maps(faces_by_submesh={part_index: (0,)})
     deleted = controller.run_editor_action("delete", selection=selection, mode="edit")
