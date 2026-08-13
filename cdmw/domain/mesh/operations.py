@@ -12,6 +12,7 @@ from .topology import (
     TOPOLOGY_METADATA_OUTPUT_VERTEX_COUNT,
     TOPOLOGY_PROVENANCE_VERSION,
     TOPOLOGY_REBUILDABLE_OPERATIONS,
+    validate_topology_provenance,
 )
 
 
@@ -354,6 +355,23 @@ def _validate_topology_operation_target(
             operation_index,
             operation.submesh_index,
         )
+    # A topology name is safe only while the submesh still carries the contract
+    # that makes it describable. Without one the -1 entries below would be
+    # unexplained rather than authorized.
+    if validate_topology_provenance(
+        getattr(submesh, "topology_provenance", None),
+        output_vertex_count=actual,
+        output_face_count=len(tuple(getattr(submesh, "faces", ()) or ())),
+    ):
+        _add(
+            issues,
+            "blocker",
+            "topology_operation_provenance_missing",
+            "Topology edit operation requires validated topology provenance on its submesh.",
+            operation_index,
+            operation.submesh_index,
+        )
+        return
     source_map = tuple(getattr(submesh, "source_vertex_map", ()) or ())
     if len(source_map) != actual:
         _add(

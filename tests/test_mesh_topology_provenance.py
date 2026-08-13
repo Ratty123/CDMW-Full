@@ -338,26 +338,43 @@ def test_revision_continuity_is_proven_not_inferred_from_names() -> None:
     assert TOPOLOGY_REVISION_DISCONTINUOUS in validate_topology_operation_history(backwards)
 
 
-def test_topology_operation_validation_accepts_the_derived_sentinel() -> None:
-    submesh = SubMesh(
-        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
-        faces=[(0, 1, 2)],
-        source_vertex_map=[0, 1, TOPOLOGY_DERIVED_SOURCE_SENTINEL],
+def _contract_submesh() -> SubMesh:
+    provenance = compose_topology_provenance(
+        identity_topology_provenance(3, 2),
+        copy_vertex_indices=(0, 1, -1),
+        vertex_blends=({"index": 2, "left": 0, "right": 1, "factor": 0.5},),
+        face_origins=(0,),
     )
-    mesh = ParsedMesh(format="pac", submeshes=[submesh])
+    return SubMesh(
+        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.5, 0.0, 0.0)],
+        faces=[(0, 1, 2)],
+        source_vertex_map=list(topology_source_vertex_map(provenance)),
+        source_vertex_map_authority="topology",
+        topology_provenance=provenance,
+    )
+
+
+def test_topology_operation_validation_accepts_the_derived_sentinel() -> None:
+    mesh = ParsedMesh(format="pac", submeshes=[_contract_submesh()])
 
     issues = validate_mesh_edit_operations((_topology_operation(0, 1),), mesh=mesh)
 
     assert issues == ()
+    assert mesh.submeshes[0].source_vertex_map[2] == TOPOLOGY_DERIVED_SOURCE_SENTINEL
+
+
+def test_a_topology_operation_without_a_contract_on_its_submesh_is_blocked() -> None:
+    bare = _contract_submesh()
+    bare.topology_provenance = None
+    mesh = ParsedMesh(format="pac", submeshes=[bare])
+
+    codes = {issue.code for issue in validate_mesh_edit_operations((_topology_operation(0, 1),), mesh=mesh)}
+
+    assert "topology_operation_provenance_missing" in codes
 
 
 def test_topology_operation_without_its_metadata_is_blocked() -> None:
-    submesh = SubMesh(
-        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
-        faces=[(0, 1, 2)],
-        source_vertex_map=[0, 1, -1],
-    )
-    mesh = ParsedMesh(format="pac", submeshes=[submesh])
+    mesh = ParsedMesh(format="pac", submeshes=[_contract_submesh()])
     bare = MeshEditOperation(
         operation=TOPOLOGY_OPERATION_SUBDIVIDE_MIDPOINT,
         submesh_index=0,
