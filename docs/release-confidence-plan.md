@@ -50,23 +50,40 @@ keeps core user workflows working behind stable facades.
 
 2026-08-13:
 
-- **The two red drag gates are not an aiming problem, and the next attempt should
-  not start there.** `selected_geometry_only` and `selected_projection_tracks_cursor`
-  fail because the Move deforms a fixed 203-vertex set, `{submesh 1: 141,
-  submesh 2: 62}`, that is unrelated to both the committed selection (39 vertices,
-  submesh 2) and the press point. Not one selected vertex moves, which is why the
-  projected centre reports a `[0.0, 0.0]` delta at 40.0 px error.
-- That was established by falsifying the obvious hypothesis rather than by
-  argument. The harness was aiming its drag through a stale pane: the projection
-  probe runs while the embedded viewport is 1047 px wide, the viewport settles to
-  1242 px on the first real pointer input, and the press was therefore dispatched
-  about 97 px left of the selection. Correcting it moved the press from x=523 to
-  x=621 and changed the outcome by not one vertex: 203 changed, same submeshes,
-  same counts, same delta, same error, identical across the branch base, the
-  uncorrected run, and the corrected run. The moved set is invariant to the
-  cursor, so whatever selects it is decided before the drag. The probe click that
-  obtains the projection matrix lands at the viewport centre and is itself a real
-  Select gesture, which is the first place to look.
+- **The two red drag gates fail because Move runs as a sculpt brush, not as a
+  transform of the committed selection.** The ordered protocol trail settles it:
+  `stroke_begin` and `stroke_end` both carry `tool=move`, `target_mode=vertex`,
+  `operation=replace`, `radius=24`, `falloff=smooth`, `strength=0.5` and
+  `scope_source_indices=[1, 2]`. The stroke therefore re-picks a brush footprint
+  along the drag path and deforms that, so the committed 39-vertex selection in
+  submesh 2 is not what moves and far more geometry does: 1,560 vertices,
+  `{submesh 1: 1065, submesh 2: 495}`, in the run that produced this trail. That
+  is `selected_geometry_only`. The same parameters explain
+  `selected_projection_tracks_cursor`: a smooth falloff at strength 0.5 displaces
+  the footprint's centre by a fraction of the cursor delta, measured at 14.36 px
+  of a 40 px drag, or 36 %.
+- An earlier entry here claimed the deformed set was a fixed 203 vertices
+  invariant to the cursor. That was wrong and is retracted. It rested on three
+  runs that happened to agree; a fourth run at the identical drag start produced
+  1,560 changed vertices and a `[14.36, 0.0]` delta, so the outcome varies with
+  what the brush sweeps rather than being fixed. The retraction matters because
+  the invariance claim pointed at the projection probe's centre click as the
+  culprit, and the trail shows the probe's selection is properly replaced: the
+  authoritative `tool_state_applied` immediately before the stroke reports
+  exactly `{submesh 2: 39}`.
+- The aiming defect that hypothesis came from was real and is fixed. The
+  projection probe ran while the embedded viewport was 1047 px wide, the viewport
+  settles to 1242 px on the first real pointer input, and the press was dispatched
+  about 97 px left of the selection; it now lands at 621 instead of 523, and the
+  renderer's own `pane_bounds_diagnostics` confirms the stroke is measured against
+  a 1242 px render surface. Fixing it was necessary but not sufficient.
+- What remains is a product-semantics question rather than a bug hunt: should
+  Move deform a brush footprint at all, when `docs/ai/PROJECT_MEMORY.md` records
+  that Move applies a local part transform and that deformation preserves the
+  committed selection? Both invariants are contradicted by the trail. The
+  harness configures Move with `tool_state {tool: move, target_mode: vertex}` and
+  never clears the brush radius, strength or `selection_operation` left over from
+  arming Select, so the leftover configuration is the first thing to test.
 - A genuine product defect surfaced on the way: the renderer's status payload
   publishes a viewport rectangle that disagrees with the pane it renders and
   picks against. Measured here it reports 1047x1195 while its own

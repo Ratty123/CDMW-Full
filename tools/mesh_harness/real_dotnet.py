@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import os
 import time
@@ -474,6 +475,57 @@ def _drive_projected_vertex_selection(
     return None
 
 
+#: Arrays longer than this are recorded as a length plus their head and tail.
+#: Selections of a few hundred stay whole, which is the point; a full-mesh
+#: selection would otherwise bury the trail it is meant to make readable.
+_TRAIL_ARRAY_LIMIT = 512
+
+
+def _trail_value(value: object, depth: int = 0) -> object:
+    if depth > 6:
+        return "<deep>"
+    if isinstance(value, Mapping):
+        return {str(key): _trail_value(item, depth + 1) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        items = list(value)
+        if len(items) > _TRAIL_ARRAY_LIMIT:
+            return {
+                "length": len(items),
+                "head": [_trail_value(item, depth + 1) for item in items[:32]],
+                "tail": [_trail_value(item, depth + 1) for item in items[-8:]],
+            }
+        return [_trail_value(item, depth + 1) for item in items]
+    return value
+
+
+def write_protocol_trail(state: SimpleNamespace, name: str = "protocol_trail.jsonl") -> str:
+    """Write every protocol event in order, beside the rest of the evidence.
+
+    ``result.json`` keeps only the newest event of a handful of named kinds,
+    which cannot answer *which* message committed a selection: the question needs
+    the ordering, and it needs the events the summary drops, ``select_request``
+    among them. One JSON object per line, in arrival order, with long arrays
+    summarised so a whole-mesh selection cannot bury the trail.
+    """
+    output_dir = getattr(state, "output_dir", None)
+    if output_dir is None:
+        return ""
+    path = Path(output_dir) / name
+    events = tuple(getattr(state.tab, "standalone_dotnet_protocol_events", ()) or ())
+    lines: list[str] = []
+    for index, event in enumerate(events):
+        payload = {"index": index}
+        if isinstance(event, Mapping):
+            payload.update({str(key): _trail_value(item) for key, item in event.items()})
+        else:
+            payload["event"] = repr(event)
+        lines.append(json.dumps(payload, sort_keys=True))
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    temporary.replace(path)
+    return str(path)
+
+
 def _settled_screen_projection(
     state: SimpleNamespace,
 ) -> tuple[tuple[object, ...], float, float] | None:
@@ -835,6 +887,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "command": _command_summary(last_result) if last_result is not None else {},
         "native_fallback_counts": state.fallback_counts,
         "native_fallback_events": list(native_mesh_core_fallback_events()),
+        "protocol_trail_jsonl": write_protocol_trail(state),
         "gates": gates,
     }
 
