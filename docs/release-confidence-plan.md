@@ -103,13 +103,30 @@ keeps core user workflows working behind stable facades.
   unrestricted across the whole mesh. That matches every symptom: changes spanning
   submeshes the selection never touched, a count that varies with whatever the
   brush sweeps, and a selection that does not move as a unit.
-- So the remaining question is why the Python-side selection is empty while the
-  resident helper is reporting 39 vertices in submesh 2 in the same breath. The
-  helper's authority is correct and arrives before the stroke; something between
-  that `tool_state_applied` and `_native_brush_edit_payload` is dropping it. That
-  is a selection-mirroring defect in the host, and it is where the next change
-  belongs. Fixing it requires no native rebuild if the mirroring is the only
-  fault, which is worth establishing before touching `edit_topology_02.cpp`.
+- The selection is **not** empty, so that reading was wrong too. The host pushed
+  it to the helper and the helper accepted it: `last_host_selection_push` records
+  `accepted: true`, `offered_submeshes: [2]`, `offered_vertex_count: 39`. Both
+  sides agree on the selection throughout.
+- The defect is that the resident stroke path never asks for the restriction.
+  `selection_restricts_vertices` is read in exactly one place,
+  `edit_topology_02.cpp:445`, and written in exactly one file,
+  `cdmw/modding/mesh_native_brush.py`, which serves the Python-side brush. A
+  resident .NET stroke goes through the native editor session instead and never
+  sets it, so `restrict_selection` is false, `allowed` is `nullptr`, and the brush
+  is unrestricted for every resident stroke regardless of what is selected. Two
+  independent rules therefore have to be wrong at once for this to work, and both
+  are: `prefer_screen_brush` bypasses the session selection on update and end, and
+  `allowed` is null so the brush is not clipped to it either.
+- Every acknowledgement in the trail reports 1,560 changed items from the first
+  update onward, not just at the end, which is what an unrestricted brush looks
+  like from the first frame.
+- The fix cannot simply feed `selected_vertices_from_edit_domains` into `allowed`.
+  A resident stroke deliberately omits its selection payload on update and end
+  and relies on the native session retaining it, so the item's domains are empty
+  and restricting to them would move nothing at all. The restriction has to come
+  from the editor session's own selection, which `edit_topology_02.cpp:165`
+  already reads through `selected_vertex_weights_from_editor_session`. That is the
+  next change, and it is native, so it carries a rebuild.
 - A genuine product defect surfaced on the way: the renderer's status payload
   publishes a viewport rectangle that disagrees with the pane it renders and
   picks against. Measured here it reports 1047x1195 while its own
