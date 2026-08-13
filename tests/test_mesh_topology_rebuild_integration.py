@@ -178,6 +178,29 @@ def test_recorded_operations_do_not_divert_the_rebuild_back_to_the_original() ->
         service.close_edit_session(view.session_id)
 
 
+def test_the_rebuild_report_carries_json_serializable_operations() -> None:
+    # The snapshot and report declare plain dicts. Sidecar operations always
+    # arrived that way, so nothing converted them; the resident editor records
+    # dataclasses, and evidence JSON could not serialize them.
+    import json
+
+    data = _pac_fixture()
+    service = MeshService()
+    view = _session(service, "topology-rebuild-json", data)
+    try:
+        _subdivide(service, view.session_id)
+        snapshot = service.capture_export_snapshot(view.session_id)
+        assert snapshot.edit_operations
+        assert all(isinstance(operation, dict) for operation in snapshot.edit_operations)
+
+        _result, report = service.rebuild_result_from_snapshot(snapshot, skeleton_bone_count=8)
+
+        assert all(isinstance(operation, dict) for operation in report.edit_operations)
+        json.dumps(list(report.edit_operations))
+    finally:
+        service.close_edit_session(view.session_id)
+
+
 def test_the_session_records_a_continuous_topology_operation_history() -> None:
     data = _pac_fixture()
     service = MeshService()
