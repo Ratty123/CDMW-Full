@@ -999,7 +999,12 @@ def test_dotnet_embedded_ready_requires_a_verified_native_parent() -> None:
 
 def test_codex_mesh_checks_use_real_game_pac_and_keep_unit_runs_non_visual() -> None:
     source = (ROOT / "scripts" / "codex_check.ps1").read_text(encoding="utf-8")
-    real_proof_source = (ROOT / "tools" / "mesh_harness" / "real_dotnet.py").read_text(encoding="utf-8")
+    # The proof drives the editor from real_dotnet and assembles its result in
+    # real_dotnet_report, so the recorded input backend lives in the second half.
+    real_proof_source = "\n".join(
+        (ROOT / "tools" / "mesh_harness" / name).read_text(encoding="utf-8")
+        for name in ("real_dotnet.py", "real_dotnet_report.py")
+    )
     real_input_source = (ROOT / "tools" / "mesh_harness" / "real_dotnet_input.py").read_text(encoding="utf-8")
 
     assert "real-archive-mesh-editor-dotnet-edit-smoke" in source
