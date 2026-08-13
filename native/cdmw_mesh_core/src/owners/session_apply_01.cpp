@@ -103,7 +103,13 @@ std::string mesh_editor_apply_report_json(
     out << ',';
     mesh_editor_write_selection_state_fields(out, session, state.delta_output_dir, session_id);
     out << ',';
-    mesh_editor_write_metrics(out, cpp_ms, io_serialization_ms);
+    mesh_editor_write_metrics(
+        out,
+        cpp_ms,
+        io_serialization_ms,
+        state.topology_provenance_ms,
+        state.topology_provenance_parent_entries
+    );
     if (state.include_edit_report) {
         out << ",\"edit_report\":" << edit_report;
     }

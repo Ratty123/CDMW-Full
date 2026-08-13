@@ -113,9 +113,17 @@ std::string mesh_editor_tool_from_edit(const JsonValue& edit) {
     return lower_ascii(string_or(edit.get("tool"), string_or(edit.get("mode"), "")));
 }
 
-void mesh_editor_write_metrics(std::ostream& out, double cpp_ms, double io_serialization_ms = 0.0) {
+void mesh_editor_write_metrics(
+    std::ostream& out,
+    double cpp_ms,
+    double io_serialization_ms = 0.0,
+    double topology_provenance_ms = 0.0,
+    std::size_t topology_provenance_parent_entries = 0
+) {
     out << "\"metrics\":{\"cpp_ms\":" << cpp_ms
         << ",\"io_serialization_ms\":" << io_serialization_ms
+        << ",\"topology_provenance_ms\":" << topology_provenance_ms
+        << ",\"topology_provenance_parent_entries\":" << topology_provenance_parent_entries
         << ",\"python_apply_ms\":0,\"d3d11_update_ms\":0}";
 }
 
@@ -154,6 +162,28 @@ void mesh_editor_write_extra_attrs_field(std::ostream& out, const JsonValue& ext
     }
     out << ",\"extra_attrs\":";
     write_json_value(out, extra_attrs);
+}
+
+// Counts and validity only. The CSR arrays themselves never travel through
+// production JSON; they move as binary descriptors beside their payload files.
+void mesh_editor_write_topology_provenance_summary(std::ostream& out, const MeshSessionSubmesh& submesh) {
+    out << ",\"topology_contract\":";
+    write_escaped(out, MESH_TOPOLOGY_PROVENANCE_VERSION);
+    out << ",\"topology_rebuild_valid\":" << (submesh.topology_rebuild_valid ? "true" : "false")
+        << ",\"topology_blocker\":";
+    write_escaped(out, submesh.topology_blocker);
+    out << ",\"topology_original_vertex_count\":" << submesh.topology_original_vertex_count
+        << ",\"topology_original_face_count\":" << submesh.topology_original_face_count
+        << ",\"topology_direct_vertex_count\":" << mesh_editor_topology_direct_vertex_count(submesh)
+        // Derived from the CSR's own row count, not from the geometry, so a
+        // report can never state a negative count if the two ever disagree.
+        << ",\"topology_derived_vertex_count\":" << (
+            submesh.vertex_origin_offsets.empty()
+                ? 0
+                : static_cast<int>(submesh.vertex_origin_offsets.size()) - 1
+                    - mesh_editor_topology_direct_vertex_count(submesh)
+        )
+        << ",\"topology_provenance_parent_entries\":" << mesh_editor_topology_provenance_parent_entries(submesh);
 }
 
 void mesh_editor_write_submesh_summaries(std::ostream& out, const MeshEditorSession& session) {
@@ -206,8 +236,9 @@ void mesh_editor_write_submesh_summaries(std::ostream& out, const MeshEditorSess
             )
             << ",\"has_skinning\":" << (
                 (!entry.second.bone_indices.empty() || !entry.second.bone_weights.empty()) ? "true" : "false"
-            )
-            << "}";
+            );
+        mesh_editor_write_topology_provenance_summary(out, entry.second);
+        out << "}";
     }
     out << "]";
 }
@@ -350,6 +381,13 @@ std::size_t mesh_editor_submesh_retained_bytes(const MeshSessionSubmesh& submesh
     retained += submesh.tangent_signs.capacity() * sizeof(double);
     retained += submesh.source_vertex_map.capacity() * sizeof(int);
     retained += submesh.source_vertex_offsets.capacity() * sizeof(int);
+    // The CSR provenance rides in every topology history snapshot, so its
+    // capacity has to count against the 256 MiB eviction limit like everything
+    // else the snapshot retains.
+    retained += submesh.vertex_origin_offsets.capacity() * sizeof(int);
+    retained += submesh.vertex_origin_parents.capacity() * sizeof(int);
+    retained += submesh.vertex_origin_weights.capacity() * sizeof(double);
+    retained += submesh.topology_blocker.capacity();
     for (const auto& values : submesh.bone_indices) retained += sizeof(values) + values.capacity() * sizeof(int);
     for (const auto& values : submesh.bone_weights) retained += sizeof(values) + values.capacity() * sizeof(double);
     retained += mesh_editor_json_retained_bytes(submesh.extra_attrs);
@@ -470,6 +508,9 @@ MeshSessionSubmesh mesh_editor_submesh_from_result(const SubmeshMeshEditResult& 
     }
     submesh.source_vertex_map = result.source_vertex_map.size() == result.vertices.size() ? result.source_vertex_map : std::vector<int>();
     submesh.source_vertex_offsets = result.source_vertex_offsets.size() == result.vertices.size() ? result.source_vertex_offsets : std::vector<int>();
+    // Provenance was composed before any mutation; a result that carries none is
+    // stored as non-rebuildable rather than as unknown.
+    mesh_editor_store_result_topology_provenance(submesh, result);
     return submesh;
 }
 

@@ -33,6 +33,10 @@ PRODUCTION_FLOW_STEPS = (
     "redo",
     "export",
     "output_reparse",
+    # Last, because it deliberately leaves a topology-changed session behind for
+    # the exact PAC LOD0 writer and every earlier step wants the original
+    # connectivity.
+    "topology_rebuild",
 )
 
 
@@ -85,6 +89,15 @@ def production_flow_gates(state: SimpleNamespace) -> dict[str, bool]:
         "export_source_asset_hash_matches": bool(export.get("source_asset_hash_matches")),
         "complete_output_reparse": export.get("output_reparse_status") == "passed",
         "export_artifact_hashes_present": bool(export.get("artifact_hashes_present")),
+        "exact_topology_rebuild": bool(getattr(state, "topology_rebuild_ok", False)),
+        # Reads the aggregate, so one admitted operation reaching the generic
+        # path fails this even when the other two did not.
+        "exact_topology_rebuild_no_fallback": bool(
+            dict(getattr(state, "topology_rebuild_evidence", {}) or {}).get(
+                "all_operations_avoided_fallback"
+            )
+            is True
+        ),
     }
 
 

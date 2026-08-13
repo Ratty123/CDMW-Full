@@ -263,6 +263,41 @@ def _changed_vertex_descriptor_for_result(indices: Mapping[object, object]) -> d
     return None
 
 
+def _native_editor_topology_summaries(report: Mapping[str, object]) -> tuple[dict[str, int], ...]:
+    """Per-submesh topology contract state, straight from the apply report.
+
+    Read here rather than from the working mesh because the Python mesh is
+    deliberately still stale at this point; forcing its sync just to record an
+    operation would undo the deferred export the edit path depends on.
+    """
+    raw_items = report.get("submeshes")
+    if not isinstance(raw_items, list):
+        return ()
+    summaries: list[dict[str, int]] = []
+    for raw_item in raw_items:
+        if not isinstance(raw_item, Mapping) or not bool(raw_item.get("topology_rebuild_valid")):
+            continue
+        index = _coerce_index(raw_item.get("index"))
+        original_vertex_count = _coerce_index(raw_item.get("topology_original_vertex_count"))
+        original_face_count = _coerce_index(raw_item.get("topology_original_face_count"))
+        vertex_count = _coerce_index(raw_item.get("vertex_count"))
+        face_count = _coerce_index(raw_item.get("face_count"))
+        if index is None or index < 0:
+            continue
+        if not original_vertex_count or not original_face_count or not vertex_count or not face_count:
+            continue
+        summaries.append(
+            {
+                "index": index,
+                "original_vertex_count": original_vertex_count,
+                "original_face_count": original_face_count,
+                "vertex_count": vertex_count,
+                "face_count": face_count,
+            }
+        )
+    return tuple(summaries)
+
+
 def _native_editor_report_submesh_counts(report: Mapping[str, object], expected_count: int) -> tuple[tuple[int, int], ...]:
     raw_items = report.get("submeshes")
     if not isinstance(raw_items, list) or expected_count < 0:

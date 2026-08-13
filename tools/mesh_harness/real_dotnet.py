@@ -72,6 +72,7 @@ from tools.mesh_harness.real_dotnet_flow import (
     production_flow_gates,
     record_flow_step,
 )
+from tools.mesh_harness.real_dotnet_topology import exercise_exact_topology_rebuild
 from tools.mesh_harness.real_dotnet_input import (
     drive_viewport_selection,
     drive_viewport_stroke,
@@ -87,7 +88,9 @@ from tools.mesh_harness.real_dotnet_evidence import (
     _base_error,
     _drive_viewport_stroke,
     _has_real_archive_texture_provenance,
+    _indices_by_submesh,
     _part_selection_evidence,
+    _pick_probe,
     _prepare_real_asset,
     _pump_for,
     _pump_until,
@@ -605,6 +608,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "linked_texture_updates": dict(state.texture_flow_evidence),
         "resident_mesh_edits": dict(state.edit_flow_evidence),
         "resident_export": dict(state.export_flow_evidence),
+        "exact_topology_rebuild": dict(getattr(state, "topology_rebuild_evidence", {}) or {}),
         "performance_capture": dict(getattr(state, "performance_capture_evidence", {}) or {}),
         "lifecycle_counts": dict(state.tab.standalone_dotnet_lifecycle_counts),
         "process_identity": {
@@ -651,6 +655,12 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
                 {submesh_index for submesh_index, _vertex_index in state.changed_vertex_keys}
             )
         },
+        "selection_pick_probe": _pick_probe(state.tool_state_event),
+        # Both index sets in full, per submesh. A 64-entry sample cannot tell a
+        # subset apart from a disjoint set living in another index space, and
+        # that distinction is the whole diagnosis when these two disagree.
+        "selected_vertex_indices_by_submesh": _indices_by_submesh(state.selected_vertex_keys),
+        "changed_vertex_indices_by_submesh": _indices_by_submesh(state.changed_vertex_keys),
         "unexpected_changed_vertex_count": len(
             state.unexpected_changed_vertex_keys
         ),
@@ -758,6 +768,9 @@ def run_real_archive_mesh_editor_dotnet_edit_smoke(
         return prepared
     state = prepared
     state.tab = state.controller = state.heartbeat_timer = state.process = None
+    state.output_dir = Path(output_dir)
+    state.topology_rebuild_evidence = {}
+    state.topology_rebuild_ok = False
     state.performance_request = performance_request
     state.performance_capture_evidence = (
         {
@@ -839,6 +852,9 @@ def run_real_archive_mesh_editor_dotnet_edit_smoke(
         if message:
             return _base_error(state, message)
         message = exercise_coherent_export(state, pump_until=_pump_until)
+        if message:
+            return _base_error(state, message)
+        message = exercise_exact_topology_rebuild(state, pump_until=_pump_until)
         if message:
             return _base_error(state, message)
         if performance_request is not None and not performance_completed:

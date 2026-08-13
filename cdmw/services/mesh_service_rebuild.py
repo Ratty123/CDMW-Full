@@ -129,6 +129,25 @@ def _affected_indices(values: Sequence[int]) -> tuple[int, ...]:
     return tuple(sorted(result))
 
 
+def _serializable_edit_operations(operations: Sequence[object]) -> tuple[object, ...]:
+    """Normalize recorded operations to the plain dicts the snapshot declares.
+
+    Sidecar operations always arrived as dicts, so nothing had to convert them.
+    The resident editor records MeshEditOperation values, and those travel into
+    the rebuild report and out to evidence JSON, where a dataclass is not
+    serializable.
+    """
+    normalized: list[object] = []
+    for operation in operations or ():
+        if isinstance(operation, Mapping):
+            normalized.append(dict(operation))
+        elif hasattr(operation, "to_dict"):
+            normalized.append(operation.to_dict())
+        else:
+            normalized.append(operation)
+    return tuple(normalized)
+
+
 def _native_source_parse_eligible(mesh: object, original_data: bytes) -> bool:
     declared_hash = str(getattr(mesh, "_cdmw_mesh_asset_source_hash", "") or "").strip().lower()
     return bool(
@@ -406,10 +425,7 @@ class MeshRebuildServiceMixin:
                     else session.no_op_roundtrip_report
                 ),
                 sidecar_warnings=tuple(session.sidecar_warnings),
-                edit_operations=tuple(
-                    dict(operation) if isinstance(operation, Mapping) else operation
-                    for operation in session.edit_operations
-                ),
+                edit_operations=_serializable_edit_operations(session.edit_operations),
                 requires_edit_operations=bool(session.requires_edit_operations),
                 texture_resources=texture_resources,
                 material_parameter_groups=self.resident_material_parameter_groups(session.session_id),
@@ -715,10 +731,7 @@ class MeshRebuildServiceMixin:
             warnings=tuple(issue.code for issue in validation.warnings)
             + tuple(f"developer_override_blocker:{code}" for code in overridden_blockers),
             developer_overrides=tuple(getattr(result.report, "developer_overrides", ()) or ()) + override_entries,
-            edit_operations=tuple(
-                dict(operation) if isinstance(operation, Mapping) else operation
-                for operation in snapshot.edit_operations
-            ),
+            edit_operations=_serializable_edit_operations(snapshot.edit_operations),
             output_path=str(output_path or result.report.output_path or ""),
             export_snapshot=self.export_snapshot_report(snapshot),
         )

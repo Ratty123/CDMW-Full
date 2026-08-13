@@ -351,6 +351,10 @@ MeshSessionSubmesh mesh_editor_submesh_after_auto_uv(
         updated.source_vertex_offsets = source.source_vertex_offsets.size() == source.vertices.size()
             ? source.source_vertex_offsets
             : std::vector<int>();
+        // Auto UV splits vertices along seams. That is not one of the three
+        // operations the exact rebuild can describe, so the inherited contract
+        // stops being true the moment it runs.
+        mesh_editor_clear_topology_provenance(updated, MESH_TOPOLOGY_BLOCKER_OPERATION_NOT_REBUILDABLE);
     }
     if (source.uvs.size() == updated.vertices.size()) {
         updated.uvs = source.uvs;

@@ -155,6 +155,36 @@ internal sealed partial class MeshViewport
             surface is not null);
     }
 
+    // Which size a screen payload was actually measured against, and which one
+    // it would have used had the other been chosen. A screen selection that
+    // resolves against a different width than the pointer coordinates come from
+    // is a silent horizontal stretch, and nothing downstream can tell that from
+    // an honest miss without seeing both numbers.
+    internal Dictionary<string, object?> PaneBoundsDiagnostics()
+    {
+        var surface = ActiveRenderSurface();
+        var surfaceSize = surface?.ClientSize ?? Size.Empty;
+        var owner = ClientSize;
+        var effective = EffectivePaneSurfaceSize(owner, surfaceSize, surface is not null);
+        var usedSurface = surface is not null && surfaceSize.Width > 0 && surfaceSize.Height > 0;
+        return new Dictionary<string, object?>
+        {
+            ["owner_client_width"] = owner.Width,
+            ["owner_client_height"] = owner.Height,
+            ["render_surface_present"] = surface is not null,
+            ["render_surface_kind"] = surface is null
+                ? string.Empty
+                : surface.GetType().Name,
+            ["render_surface_width"] = surfaceSize.Width,
+            ["render_surface_height"] = surfaceSize.Height,
+            ["measured_against"] = usedSurface ? "render_surface" : "owner_client",
+            ["effective_width"] = effective.Width,
+            ["effective_height"] = effective.Height,
+            ["simultaneous_role_panes"] = HasSimultaneousRolePanes,
+            ["active_camera_context"] = _activeCameraContextId,
+        };
+    }
+
     private void SetRenderSurfaceCapture(bool capture)
     {
         var surface = ActiveRenderSurface() ?? this;

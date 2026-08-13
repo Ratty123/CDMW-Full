@@ -23,6 +23,7 @@ from cdmw.domain.mesh.body_regions import build_body_region_map
 from cdmw.modding.mesh_parser import (
     PAC_SKIN_INFLUENCES,
     PAC_SKIN_MAX_BONE_INDEX,
+    PAC_SKIN_PALETTE_SLOTS,
     PAC_SKIN_SLOT_BITS,
     PAC_SKIN_SLOT_GROUPS,
     PAC_SKIN_SLOT_MASK,
@@ -52,7 +53,13 @@ def _body_paths() -> tuple[Path, ...]:
 
 
 def _raw_influences(data: bytes, offset: int) -> tuple[tuple[int, ...], tuple[int, ...]]:
-    """The six slots and six raw u8 weights at a vertex record, straight from bytes."""
+    """The six palette slots and their six raw u8 weights, straight from bytes.
+
+    Deliberately the palette lanes only. A record carries two further influences
+    whose indices sit at bytes 12-15 and whose weights are bytes 34-35, but those
+    are a separate encoding and are not part of the descending-order-summing-to
+    -255 invariant these assertions pin.
+    """
 
     slots: list[int] = []
     for group_offset in PAC_SKIN_SLOT_GROUPS:
@@ -61,7 +68,7 @@ def _raw_influences(data: bytes, offset: int) -> tuple[tuple[int, ...], tuple[in
             (group >> (PAC_SKIN_SLOT_BITS * position)) & PAC_SKIN_SLOT_MASK
             for position in range(PAC_SKIN_SLOTS_PER_GROUP)
         )
-    weights = struct.unpack_from(f"<{PAC_SKIN_INFLUENCES}B", data, offset + PAC_SKIN_WEIGHT_OFFSET)
+    weights = struct.unpack_from(f"<{PAC_SKIN_PALETTE_SLOTS}B", data, offset + PAC_SKIN_WEIGHT_OFFSET)
     return tuple(slots), tuple(weights)
 
 
@@ -200,7 +207,14 @@ class PacSkinLayoutTests(unittest.TestCase):
         self.assertGreater(checked, 5, "no bodies resolved a palette to check against")
 
     def test_bodies_use_every_influence_count(self) -> None:
-        """Smooth-skinned bodies spread one to six influences, not one to four."""
+        """Smooth-skinned bodies spread one to six influences, not one to four.
+
+        These bodies fill the palette and stop there: none of them opens the gate
+        at byte 39 for the two extra influences, so the histogram tops out at six
+        even though the record holds eight. Asserting six here is a statement
+        about this fixture set, not about the format's capacity, which is why the
+        upper bound is checked separately.
+        """
 
         counts: dict[int, int] = {}
         for path in self.paths:
@@ -208,8 +222,9 @@ class PacSkinLayoutTests(unittest.TestCase):
             for submesh in mesh.submeshes:
                 for row in submesh.bone_indices:
                     counts[len(row)] = counts.get(len(row), 0) + 1
-        self.assertEqual(max(counts), PAC_SKIN_INFLUENCES, f"influence histogram {counts}")
-        for influence_count in range(1, PAC_SKIN_INFLUENCES + 1):
+        self.assertEqual(max(counts), PAC_SKIN_PALETTE_SLOTS, f"influence histogram {counts}")
+        self.assertLessEqual(max(counts), PAC_SKIN_INFLUENCES)
+        for influence_count in range(1, PAC_SKIN_PALETTE_SLOTS + 1):
             self.assertGreater(counts.get(influence_count, 0), 0, f"no vertex used {influence_count}")
 
 

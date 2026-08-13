@@ -95,6 +95,10 @@ _TRANSIENT_NATIVE_SUBMESH_ATTRS = frozenset(
         "cdmw_native_preview_triangle_group",
         "cdmw_native_preview_vertex_update_group",
         NATIVE_MESH_HISTORY_VERTEX_DELTA_ATTR,
+        # The topology contract's CSR arrays are not allowed through JSON
+        # snapshot metadata. The snapshot codec carries them as binary
+        # descriptors and rebuilds the value type on the way back in.
+        "topology_provenance",
     }
 )
 _NATIVE_MESH_SESSION_TOKEN_ATTR = "_cdmw_native_mesh_session_token"

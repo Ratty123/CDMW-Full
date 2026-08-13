@@ -11,6 +11,12 @@ import time
 from tools.mesh_harness.fixtures import _build_long_edit_mesh, _long_edit_split_selection, _long_edit_topology_selection, _long_edit_vertex_selection, build_native_benchmark_mesh
 from tools.mesh_harness.service_summary import _command_summary, _mesh_face_count, _mesh_geometry_signature, _mesh_textures, _mesh_vertex_count, _mesh_vertices_changed, _selection_snapshot
 
+_BENCHMARK_BOUNDED_FACE_COUNT = 512
+# The native gate compares the whole predicted submesh face count, and the
+# session selection carried into refine_smooth is the remapped subdivide output,
+# so the headroom has to cover more than 3x the originally selected faces.
+_BENCHMARK_BOUNDED_FACE_HEADROOM = 16_384
+
 def run_long_edit_mesh_tools() -> dict[str, object]:
     clear_native_mesh_core_fallback_counts()
     native_available = native_mesh_core_available()
@@ -144,8 +150,15 @@ def run_native_mesh_editor_benchmark() -> dict[str, object]:
     select_grow_source = run_selection_command('select_grow_source_100k', MeshEditCommand('select', selection=MeshEditSelection.from_maps(source_indices=(0,)), params={'operation': 'grow'}, mode='edit'))
     select_smooth_local = run_selection_command('select_smooth_local_512', MeshEditCommand('select', selection=MeshEditSelection.from_maps(vertices_by_submesh={0: tuple(range(min(512, benchmark_vertex_count)))}), params={'operation': 'smooth'}, mode='edit'))
     delete = run_command('delete', MeshEditCommand('delete', selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}), params={'_include_preview_deltas': False}, mode='edit'))
-    subdivide = run_command('subdivide', MeshEditCommand('subdivide', selection=MeshEditSelection.from_maps(source_indices=(0,)), params={'max_faces_per_submesh': 512, 'recompute_normals': True, '_include_preview_deltas': False}, mode='edit'))
-    refine = run_command('refine_smooth', MeshEditCommand('refine_smooth', selection=MeshEditSelection.from_maps(source_indices=(0,)), params={'max_faces_per_submesh': 512, 'smooth_iterations': 1, 'smooth_strength': 0.35, 'recompute_normals': True, '_include_preview_deltas': False}, mode='edit'))
+    # Subdivide and refine 512 selected faces, not the whole submesh. The native
+    # gate compares the whole predicted output face count against
+    # max_faces_per_submesh, so a whole-submesh selection on a 200k-face fixture
+    # can never be admitted under any bounded limit.
+    bounded_faces = tuple(range(min(_BENCHMARK_BOUNDED_FACE_COUNT, max(1, service.session_view(view.session_id).face_count))))
+    subdivide_face_limit = service.session_view(view.session_id).face_count + _BENCHMARK_BOUNDED_FACE_HEADROOM
+    subdivide = run_command('subdivide', MeshEditCommand('subdivide', selection=MeshEditSelection.from_maps(faces_by_submesh={0: bounded_faces}), params={'max_faces_per_submesh': subdivide_face_limit, 'recompute_normals': True, '_include_preview_deltas': False}, mode='edit'))
+    refine_face_limit = service.session_view(view.session_id).face_count + _BENCHMARK_BOUNDED_FACE_HEADROOM
+    refine = run_command('refine_smooth', MeshEditCommand('refine_smooth', selection=MeshEditSelection.from_maps(faces_by_submesh={0: bounded_faces}), params={'max_faces_per_submesh': refine_face_limit, 'smooth_iterations': 1, 'smooth_strength': 0.35, 'recompute_normals': True, '_include_preview_deltas': False}, mode='edit'))
     vertex_count = service.session_view(view.session_id).vertex_count
     brush_selection = tuple(range(min(32, vertex_count)))
     brush = run_command('brush', MeshEditCommand('brush', selection=MeshEditSelection.from_maps(vertices_by_submesh={0: brush_selection}), params={'tool': 'grab', 'center': (16.0, 0.0, 0.0), 'radius': 8.0, 'strength': 0.5, 'delta': (0.0, 0.0, 0.05)}, mode='sculpt'))

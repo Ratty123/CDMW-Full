@@ -10111,7 +10111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -11686,7 +11686,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 871,
+          "line": 877,
           "sink": "ValueError"
         }
       ]
@@ -11696,7 +11696,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 802,
+          "line": 808,
           "sink": "ValueError"
         }
       ]
@@ -11706,7 +11706,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 853,
+          "line": 859,
           "sink": "ValueError"
         }
       ]
@@ -11726,7 +11726,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 829,
+          "line": 835,
           "sink": "ValueError"
         }
       ]
@@ -12206,7 +12206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -14066,7 +14066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -15851,7 +15851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -15861,7 +15861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -24921,7 +24921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -27176,7 +27176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -27328,6 +27328,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 490,
           "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Editable Package Export is unavailable while a resident topology edit is present (part {value_0}). Rebuild the mesh into its original PAC, or undo the topology edit, then export again.",
+      "origins": [
+        {
+          "path": "cdmw/services/mesh_dotnet_experiment.py",
+          "line": 484,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -27501,7 +27511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -27611,7 +27621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -28628,6 +28638,16 @@
           "path": "cdmw/ui/archive_browser/pac_xml_editor_source_view.py",
           "line": 304,
           "sink": "setTabToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Exact topology rebuild",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/workspace_reports.py",
+          "line": 378,
+          "sink": "QTreeWidgetItem"
         }
       ]
     },
@@ -34206,7 +34226,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -41881,7 +41901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -42251,7 +42271,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 793,
+          "line": 799,
           "sink": "ValueError"
         }
       ]
@@ -46256,7 +46276,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 950,
+          "line": 971,
           "sink": "ValueError"
         }
       ]
@@ -46421,7 +46441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 719,
+          "line": 740,
           "sink": "ValueError"
         }
       ]
@@ -46731,7 +46751,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 570,
+          "line": 591,
           "sink": "RunCancelled"
         }
       ]
@@ -46741,7 +46761,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 500,
+          "line": 521,
           "sink": "RuntimeError"
         }
       ]
@@ -46751,7 +46771,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 502,
+          "line": 523,
           "sink": "RuntimeError"
         }
       ]
@@ -46761,7 +46781,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 535,
+          "line": 556,
           "sink": "RuntimeError"
         }
       ]
@@ -46771,7 +46791,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 537,
+          "line": 558,
           "sink": "RuntimeError"
         }
       ]
@@ -46781,7 +46801,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 540,
+          "line": 561,
           "sink": "RuntimeError"
         }
       ]
@@ -46791,7 +46811,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 508,
+          "line": 529,
           "sink": "RuntimeError"
         }
       ]
@@ -46866,7 +46886,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 849,
+          "line": 870,
           "sink": "ValueError"
         }
       ]
@@ -46876,7 +46896,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 846,
+          "line": 867,
           "sink": "ValueError"
         }
       ]
@@ -46886,7 +46906,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 881,
+          "line": 902,
           "sink": "ValueError"
         }
       ]
@@ -46896,12 +46916,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 879,
+          "line": 900,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 883,
+          "line": 904,
           "sink": "ValueError"
         }
       ]
@@ -46976,7 +46996,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 722,
+          "line": 743,
           "sink": "ValueError"
         }
       ]
@@ -47016,7 +47036,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 911,
+          "line": 932,
           "sink": "ValueError"
         }
       ]
@@ -47026,7 +47046,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 872,
+          "line": 893,
           "sink": "ValueError"
         }
       ]
@@ -47036,7 +47056,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 891,
+          "line": 912,
           "sink": "ValueError"
         }
       ]
@@ -47046,7 +47066,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 869,
+          "line": 890,
           "sink": "ValueError"
         }
       ]
@@ -47091,7 +47111,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2033,
+          "line": 2091,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -47501,7 +47521,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 734,
+          "line": 740,
           "sink": "RuntimeError"
         }
       ]
@@ -47586,7 +47606,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1116,
+          "line": 1122,
           "sink": "RuntimeError"
         }
       ]
@@ -47706,7 +47726,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 752,
+          "line": 758,
           "sink": "RuntimeError"
         }
       ]
@@ -48286,7 +48306,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 334,
+          "line": 340,
           "sink": "ValueError"
         }
       ]
@@ -48296,7 +48316,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 321,
+          "line": 327,
           "sink": "ValueError"
         }
       ]
@@ -48306,12 +48326,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 359,
+          "line": 365,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 361,
+          "line": 367,
           "sink": "ValueError"
         }
       ]
@@ -48321,7 +48341,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 326,
+          "line": 332,
           "sink": "ValueError"
         }
       ]
@@ -48331,7 +48351,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 330,
+          "line": 336,
           "sink": "ValueError"
         }
       ]
@@ -48341,7 +48361,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 351,
+          "line": 357,
           "sink": "ValueError"
         }
       ]
@@ -48351,7 +48371,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 332,
+          "line": 338,
           "sink": "ValueError"
         }
       ]
@@ -48371,7 +48391,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 349,
+          "line": 355,
           "sink": "ValueError"
         }
       ]
@@ -48381,7 +48401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 315,
+          "line": 321,
           "sink": "ValueError"
         }
       ]
@@ -50491,7 +50511,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2032,
+          "line": 2090,
           "sink": "python-return:_history_action_label"
         },
         {
@@ -52716,7 +52736,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 724,
+          "line": 730,
           "sink": "RuntimeError"
         }
       ]
@@ -54241,7 +54261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 420,
+          "line": 433,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -58991,7 +59011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -60241,7 +60261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -68076,7 +68096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -68356,7 +68376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -68841,7 +68861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -81911,7 +81931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -82146,7 +82166,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -83751,7 +83771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -85116,12 +85136,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 420,
+          "line": 433,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -85836,7 +85856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -90996,7 +91016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -92526,7 +92546,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 688,
+          "line": 694,
           "sink": "ValueError"
         }
       ]
@@ -92601,7 +92621,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1412,
+          "line": 1418,
           "sink": "ValueError"
         }
       ]
@@ -92621,12 +92641,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 511,
+          "line": 517,
           "sink": "ValueError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 526,
+          "line": 532,
           "sink": "ValueError"
         }
       ]
@@ -94256,7 +94276,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -94331,7 +94351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -95746,7 +95766,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 441,
+          "line": 454,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -99996,8 +100016,13 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/workspace_reports.py",
+          "line": 384,
+          "sink": "python-return:_topology_rebuild_status"
         }
       ]
     },
@@ -101546,12 +101571,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 269,
+          "line": 288,
           "sink": "FileNotFoundError"
         },
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 482,
+          "line": 498,
           "sink": "FileNotFoundError"
         }
       ]
@@ -102196,7 +102221,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 643,
+          "line": 649,
           "sink": "_project_non_negative_int"
         }
       ]
@@ -103181,7 +103206,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 724,
+          "line": 745,
           "sink": "_resolve_package_output_path"
         }
       ]
@@ -103281,12 +103306,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 828,
+          "line": 849,
           "sink": "_resolve_package_output_path"
         },
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 924,
+          "line": 945,
           "sink": "_resolve_package_output_path"
         }
       ]
@@ -103296,7 +103321,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 925,
+          "line": 946,
           "sink": "_resolve_package_output_path"
         }
       ]
@@ -103551,7 +103576,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 727,
+          "line": 748,
           "sink": "_resolve_package_output_path"
         }
       ]
@@ -106821,7 +106846,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 647,
+          "line": 653,
           "sink": "_project_non_negative_int"
         }
       ]
@@ -108366,7 +108391,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 322,
+          "line": 341,
           "sink": "RuntimeError"
         }
       ]
@@ -108376,7 +108401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 364,
+          "line": 383,
           "sink": "RuntimeError"
         }
       ]
@@ -108386,7 +108411,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 373,
+          "line": 392,
           "sink": "RuntimeError"
         }
       ]
@@ -108416,7 +108441,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 559,
+          "line": 565,
           "sink": "TypeError"
         },
         {
@@ -108431,7 +108456,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 515,
+          "line": 521,
           "sink": "TypeError"
         }
       ]
@@ -108441,7 +108466,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 698,
+          "line": 714,
           "sink": "RuntimeError"
         }
       ]
@@ -108451,7 +108476,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 658,
+          "line": 674,
           "sink": "RuntimeError"
         },
         {
@@ -108466,7 +108491,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 654,
+          "line": 670,
           "sink": "RuntimeError"
         }
       ]
@@ -108476,7 +108501,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 683,
+          "line": 699,
           "sink": "RuntimeError"
         }
       ]
@@ -109076,7 +109101,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 690,
+          "line": 696,
           "sink": "RuntimeError"
         }
       ]
@@ -109086,7 +109111,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 714,
+          "line": 720,
           "sink": "RuntimeError"
         }
       ]
@@ -109096,7 +109121,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 700,
+          "line": 706,
           "sink": "RuntimeError"
         }
       ]
@@ -109106,7 +109131,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 725,
+          "line": 731,
           "sink": "RuntimeError"
         }
       ]
@@ -109201,7 +109226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_session.py",
-          "line": 881,
+          "line": 883,
           "sink": "RuntimeError"
         }
       ]
@@ -109211,7 +109236,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1876,
+          "line": 1934,
           "sink": "RuntimeError"
         }
       ]
@@ -109256,7 +109281,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1274,
+          "line": 1280,
           "sink": "RuntimeError"
         }
       ]
@@ -109266,7 +109291,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1268,
+          "line": 1274,
           "sink": "RuntimeError"
         }
       ]
@@ -109276,7 +109301,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 336,
+          "line": 355,
           "sink": "RuntimeError"
         }
       ]
@@ -109286,7 +109311,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2174,
+          "line": 2232,
           "sink": "RuntimeError"
         }
       ]
@@ -109296,7 +109321,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1225,
+          "line": 1231,
           "sink": "RuntimeError"
         }
       ]
@@ -109306,12 +109331,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1202,
+          "line": 1208,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1236,
+          "line": 1242,
           "sink": "RuntimeError"
         }
       ]
@@ -109321,7 +109346,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1214,
+          "line": 1220,
           "sink": "RuntimeError"
         }
       ]
@@ -109351,7 +109376,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 355,
+          "line": 374,
           "sink": "RuntimeError"
         }
       ]
@@ -109361,12 +109386,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1189,
+          "line": 1195,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 532,
+          "line": 548,
           "sink": "RuntimeError"
         }
       ]
@@ -109376,7 +109401,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1761,
+          "line": 1819,
           "sink": "RuntimeError"
         }
       ]
@@ -109386,7 +109411,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1140,
+          "line": 1146,
           "sink": "RuntimeError"
         }
       ]
@@ -109481,7 +109506,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1624,
+          "line": 1630,
           "sink": "RuntimeError"
         }
       ]
@@ -109501,7 +109526,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1260,
+          "line": 1266,
           "sink": "RuntimeError"
         }
       ]
@@ -109511,7 +109536,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2227,
+          "line": 2285,
           "sink": "RuntimeError"
         }
       ]
@@ -109521,7 +109546,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2196,
+          "line": 2254,
           "sink": "RuntimeError"
         }
       ]
@@ -109531,7 +109556,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 339,
+          "line": 358,
           "sink": "RuntimeError"
         }
       ]
@@ -109541,7 +109566,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2064,
+          "line": 2122,
           "sink": "RuntimeError"
         }
       ]
@@ -109551,7 +109576,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 2392,
+          "line": 2450,
           "sink": "RuntimeError"
         }
       ]
@@ -109601,7 +109626,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_session.py",
-          "line": 858,
+          "line": 860,
           "sink": "RuntimeError"
         }
       ]
@@ -109681,7 +109706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -110686,7 +110711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -111341,7 +111366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -112275,6 +112300,11 @@
           "sink": "_set_alignment_d3d11_progress"
         },
         {
+          "path": "cdmw/ui/mesh_editor/workspace_reports.py",
+          "line": 384,
+          "sink": "python-return:_topology_rebuild_status"
+        },
+        {
           "path": "cdmw/ui/preview/dotnet_session.py",
           "line": 1214,
           "sink": "_set_state"
@@ -112921,7 +112951,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 217,
+          "line": 236,
           "sink": "ValueError"
         }
       ]
@@ -112961,7 +112991,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 214,
+          "line": 233,
           "sink": "ValueError"
         }
       ]
@@ -112971,7 +113001,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 212,
+          "line": 231,
           "sink": "ValueError"
         }
       ]
@@ -112981,7 +113011,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 210,
+          "line": 229,
           "sink": "ValueError"
         }
       ]
@@ -113131,7 +113161,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 221,
+          "line": 240,
           "sink": "FileNotFoundError"
         }
       ]
@@ -113141,7 +113171,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 228,
+          "line": 247,
           "sink": "ValueError"
         }
       ]
@@ -113151,7 +113181,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 464,
+          "line": 480,
           "sink": "ValueError"
         }
       ]
@@ -189391,7 +189421,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_rebuild.py",
-          "line": 203,
+          "line": 222,
           "sink": "RuntimeError"
         }
       ]
@@ -189451,7 +189481,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_dotnet_experiment.py",
-          "line": 723,
+          "line": 744,
           "sink": "_resolve_package_output_path"
         }
       ]
@@ -190726,7 +190756,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         },
         {
@@ -190781,12 +190811,12 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1727,
+          "line": 1785,
           "sink": "RuntimeError"
         },
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1765,
+          "line": 1823,
           "sink": "RuntimeError"
         }
       ]
@@ -191941,7 +191971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 371,
+          "line": 378,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -193336,7 +193366,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1725,
+          "line": 1783,
           "sink": "RuntimeError"
         },
         {
@@ -193546,7 +193576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 398,
+          "line": 411,
           "sink": "python-return:_validation_status"
         }
       ]
@@ -193631,7 +193661,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1441,
+          "line": 1447,
           "sink": "RuntimeError"
         }
       ]
@@ -194131,7 +194161,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service.py",
-          "line": 1435,
+          "line": 1441,
           "sink": "RuntimeError"
         }
       ]
@@ -195176,7 +195206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
-          "line": 398,
+          "line": 411,
           "sink": "python-return:_validation_status"
         }
       ]

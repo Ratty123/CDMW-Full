@@ -23,6 +23,37 @@ from tools.mesh_harness.real_dotnet_evidence import (
 )
 
 
+def _proof_screen(app: object) -> object:
+    """The display this proof should occupy.
+
+    The primary screen by default, which is what every existing run used.
+    ``CDMW_HARNESS_SCREEN`` names another one, by Qt screen name such as
+    ``\\\\.\\DISPLAY1`` or by index, so a run can be kept off a display someone
+    is working on. The gate shows a real window, takes foreground ownership, and
+    moves the cursor, so where it lands is not cosmetic.
+    """
+    requested = str(os.environ.get("CDMW_HARNESS_SCREEN", "") or "").strip()
+    primary = app.primaryScreen()
+    if not requested:
+        return primary
+    screens = list(app.screens() or ())
+    for screen in screens:
+        if str(screen.name() or "").strip().casefold() == requested.casefold():
+            return screen
+    if requested.lstrip("-").isdigit():
+        index = int(requested)
+        if 0 <= index < len(screens):
+            return screens[index]
+    # Falling back to primary here would put the window on the very display the
+    # caller asked to keep clear, and report a pass as though it had not. Qt
+    # names screens by model, not by \\.\DISPLAYn, so a plausible-looking name
+    # is the likely mistake; say what is actually available.
+    available = ", ".join(f"[{index}] {screen.name()!r}" for index, screen in enumerate(screens))
+    raise RuntimeError(
+        f"CDMW_HARNESS_SCREEN={requested!r} matches no screen. Available: {available or '(none)'}."
+    )
+
+
 def _install_timing_probes(state: SimpleNamespace) -> None:
     state.measure_stroke_handlers = False
     state.stroke_handler_timings = []
@@ -190,7 +221,7 @@ def _start_embedded_editor(
         lambda reason="", diagnostics="": setattr(state, "dotnet_failed", f"{reason}: {diagnostics}".strip(": ")),
     )
     state.tab.mount_embedded_builder(state.builder)
-    screen = state.app.primaryScreen().availableGeometry()
+    screen = _proof_screen(state.app).availableGeometry()
     state.tab.setGeometry(screen.x() + 24, screen.y() + 24, max(960, min(1400, screen.width() - 48)), max(640, min(900, screen.height() - 48)))
     state.tab.show()
     state.tab.raise_()

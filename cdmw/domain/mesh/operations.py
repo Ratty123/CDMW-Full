@@ -6,7 +6,20 @@ import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
+from .topology import (
+    TOPOLOGY_METADATA_CONTRACT,
+    TOPOLOGY_METADATA_KEYS,
+    TOPOLOGY_METADATA_OUTPUT_VERTEX_COUNT,
+    TOPOLOGY_PROVENANCE_VERSION,
+    TOPOLOGY_REBUILDABLE_OPERATIONS,
+    validate_topology_provenance,
+)
 
+
+#: Topology-changing operations the exact PAC LOD0 rebuild can serialize. They are
+#: safe only because every output vertex and triangle carries validated
+#: original-relative provenance; see :mod:`cdmw.domain.mesh.topology`.
+TOPOLOGY_MESH_EDIT_OPERATIONS = frozenset(TOPOLOGY_REBUILDABLE_OPERATIONS)
 SAFE_MESH_EDIT_OPERATIONS = frozenset(
     {
         "replace_positions_same_count",
@@ -19,7 +32,7 @@ SAFE_MESH_EDIT_OPERATIONS = frozenset(
         "recompute_bounds",
         "preview_submesh_visibility",
     }
-)
+) | TOPOLOGY_MESH_EDIT_OPERATIONS
 BLOCKED_MESH_EDIT_OPERATIONS = frozenset(
     {
         "vertex_count_change",
@@ -59,6 +72,20 @@ _OPERATION_CHANGED_CHANNELS = {
     "recompute_bounds": "bounds",
     "preview_submesh_visibility": "visibility",
 }
+# A topology operation owns every geometry channel of its target submesh: it can
+# add, remove, and renumber vertices and triangles at once.
+_TOPOLOGY_CHANGED_CHANNELS = (
+    "positions",
+    "normals",
+    "tangents",
+    "uv0",
+    "indices",
+    "bone_indices",
+    "bone_weights",
+    "vertex_count",
+    "index_count",
+    "topology",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +205,11 @@ def validate_mesh_edit_operation_coverage(
         return ()
     allowed_by_target: dict[tuple[int, int], set[str]] = {}
     for operation in normalized:
+        if _operation_name(operation.operation) in TOPOLOGY_MESH_EDIT_OPERATIONS:
+            allowed_by_target.setdefault((operation.lod_index, operation.submesh_index), set()).update(
+                _TOPOLOGY_CHANGED_CHANNELS
+            )
+            continue
         channel = mesh_edit_operation_changed_channel(operation.operation)
         if not channel:
             continue
@@ -246,6 +278,9 @@ def _validate_operation_target(
             operation.submesh_index,
         )
         return
+    if name in TOPOLOGY_MESH_EDIT_OPERATIONS:
+        _validate_topology_operation_target(issues, operation, operation_index, submeshes)
+        return
     if name in _SOURCE_MAPPED_OPERATIONS:
         submesh = submeshes[operation.submesh_index]
         actual = len(tuple(getattr(submesh, "vertices", ()) or ()))
@@ -277,6 +312,87 @@ def _validate_operation_target(
                 operation_index,
                 operation.submesh_index,
             )
+
+
+def _validate_topology_operation_target(
+    issues: list[MeshEditOperationIssue],
+    operation: MeshEditOperation,
+    operation_index: int,
+    submeshes: Sequence[object],
+) -> None:
+    """A topology operation states the output it produced, not a same-count map."""
+    submesh = submeshes[operation.submesh_index]
+    actual = len(tuple(getattr(submesh, "vertices", ()) or ()))
+    metadata = operation.metadata if isinstance(operation.metadata, Mapping) else {}
+    missing = [key for key in TOPOLOGY_METADATA_KEYS if key not in metadata]
+    if missing:
+        _add(
+            issues,
+            "blocker",
+            "topology_operation_metadata_missing",
+            f"Topology edit operation is missing metadata: {', '.join(missing)}.",
+            operation_index,
+            operation.submesh_index,
+        )
+        return
+    if str(metadata.get(TOPOLOGY_METADATA_CONTRACT) or "") != TOPOLOGY_PROVENANCE_VERSION:
+        _add(
+            issues,
+            "blocker",
+            "topology_operation_contract_unsupported",
+            "Topology edit operation names an unsupported provenance contract.",
+            operation_index,
+            operation.submesh_index,
+        )
+        return
+    output_vertex_count = _coerce_index(metadata.get(TOPOLOGY_METADATA_OUTPUT_VERTEX_COUNT), default=-1)
+    if operation.vertex_count != actual or output_vertex_count != actual:
+        _add(
+            issues,
+            "blocker",
+            "operation_vertex_count_mismatch",
+            f"Topology edit operation expected {operation.vertex_count} vertices but submesh has {actual}.",
+            operation_index,
+            operation.submesh_index,
+        )
+    # A topology name is safe only while the submesh still carries the contract
+    # that makes it describable. Without one the -1 entries below would be
+    # unexplained rather than authorized.
+    if validate_topology_provenance(
+        getattr(submesh, "topology_provenance", None),
+        output_vertex_count=actual,
+        output_face_count=len(tuple(getattr(submesh, "faces", ()) or ())),
+    ):
+        _add(
+            issues,
+            "blocker",
+            "topology_operation_provenance_missing",
+            "Topology edit operation requires validated topology provenance on its submesh.",
+            operation_index,
+            operation.submesh_index,
+        )
+        return
+    source_map = tuple(getattr(submesh, "source_vertex_map", ()) or ())
+    if len(source_map) != actual:
+        _add(
+            issues,
+            "blocker",
+            "operation_source_map_missing",
+            "Topology edit operation requires one source vertex map entry per output vertex.",
+            operation_index,
+            operation.submesh_index,
+        )
+    elif any(_coerce_index(value, default=-2) < -1 for value in source_map):
+        # -1 is the derived-vertex sentinel a validated contract authorizes; any
+        # other negative value is a malformed map.
+        _add(
+            issues,
+            "blocker",
+            "operation_source_map_invalid",
+            "Topology edit operation source vertex map contains invalid entries.",
+            operation_index,
+            operation.submesh_index,
+        )
 
 
 def _operation_set(values: Iterable[object] | None) -> frozenset[str]:
@@ -357,6 +473,7 @@ def _add(
 __all__ = [
     "BLOCKED_MESH_EDIT_OPERATIONS",
     "SAFE_MESH_EDIT_OPERATIONS",
+    "TOPOLOGY_MESH_EDIT_OPERATIONS",
     "MeshEditOperation",
     "MeshEditOperationIssue",
     "mesh_edit_operation_changed_channel",

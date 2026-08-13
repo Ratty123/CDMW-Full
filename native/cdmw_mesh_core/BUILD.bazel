@@ -17,6 +17,7 @@ MESH_CORE_OWNER_SOURCES = [
     "src/owners/payload_selection_02.cpp",
     "src/owners/payload_selection_03.cpp",
     "src/owners/payload_selection_04.cpp",
+    "src/owners/session_topology_provenance_01.cpp",
     "src/owners/geometry_uv_01.cpp",
     "src/owners/geometry_uv_02.cpp",
     "src/owners/geometry_uv_03.cpp",
