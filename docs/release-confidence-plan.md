@@ -48,7 +48,43 @@ keeps core user workflows working behind stable facades.
 
 ## Latest Validation
 
-2026-08-13:
+2026-08-14:
+
+- **The two red drag gates are fixed and `-Area mesh` is 65 of 65.** Neither
+  number they compared was wrong. The helper answers `tool_state` from the
+  selection push it has already applied, and that trails the gesture by one, so
+  asking once samples the selection before last. The product's own ordered trail
+  at `workspace/logs/dotnet_protocol_current.jsonl` shows it directly: the
+  `tool_state_applied` following the `selection_update` for request 8 still
+  reported `last_host_selection_push.request_id: 4`, which was the projection
+  probe's 39 vertices, while the session already held the gesture's 203. The
+  harness recorded that 39 as the selection under test and the stroke deformed
+  the 203, so both gates failed on a comparison between two different gestures.
+  `_drive_projected_vertex_selection` now re-asks until the applied push has
+  caught up with the newest `select_request` id, which takes two asks, and
+  records the expected and applied ids, the attempt count and whether they
+  converged. Afterwards selected and changed are the same
+  `{submesh 1: 141, submesh 2: 62}`, and the projected screen delta is 40.0 px
+  against a 40 px drag with 1.6e-13 px of error. `-Area mesh-unit` is 1,995
+  passed with 1 skipped and `-Area smoke` passes.
+- Every earlier explanation of these two gates reasoned from geometry and none
+  survived a run. Recorded so they are not re-derived: the native brush was
+  clipped to the session selection in `edit_topology_02.cpp`, which was built,
+  gated, changed nothing and was reverted, because Move is a `transform` command
+  and never takes the brush path; `selection_depth_mode` was confirmed to reach
+  native correctly as `visible`; and the selection anchor was re-aimed at the
+  settled pane, which moved it from 522.41 to 619.91 as intended and then
+  selected nothing at all, since a click at 523 hits geometry and 622 misses it.
+  That last result is the useful one: the roughly 98 px gap between the anchor
+  and the host's selection centroid is two coordinate spaces describing one
+  point, not an aiming error.
+- The harness evidence trail in the run directory carries only helper-to-host
+  events, which is why this ordering stayed invisible in it. The product-side
+  trail carries both directions plus its own `host_decision` entries and is the
+  cheaper first read for anything about who knew what when.
+
+2026-08-13 (**superseded by the entry above**; the root cause below is wrong and
+the retraction it records still stands):
 
 - **The two red drag gates fail because Move runs as a sculpt brush, not as a
   transform of the committed selection.** The ordered protocol trail settles it:
