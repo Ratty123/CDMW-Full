@@ -803,6 +803,7 @@ def exercise_exact_topology_rebuild(state: SimpleNamespace, *, pump_until: Calla
     from the archive again, so the proof is still real game data and still
     read-only.
     """
+    from cdmw.domain.mesh.skeleton import summarize_mesh_skinning
     from cdmw.modding.mesh_parser import parse_pac
     from cdmw.services.mesh_service import MeshService
     from tools.mesh_harness.real_common import _read_archive_payload
@@ -811,6 +812,9 @@ def exercise_exact_topology_rebuild(state: SimpleNamespace, *, pump_until: Calla
     if sha256(original_data).hexdigest() != state.source_payload_sha256:
         return "Real PAC payload changed between the visual flow and the rebuild proof."
     mesh = parse_pac(original_data, state.model_entry.path)
+    # The session needs the source bytes to rebuild into them at all; without
+    # this the snapshot has nothing to write back over.
+    setattr(mesh, "_cdmw_original_data", original_data)
     part_index = next(
         (
             index
@@ -864,7 +868,14 @@ def exercise_exact_topology_rebuild(state: SimpleNamespace, *, pump_until: Calla
 
         output_path = Path(state.output_dir) / "topology_rebuild" / "rebuilt_lod0.pac"
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        report = service.rebuild_asset(view.session_id, output_path)
+        # This session is opened straight from archive bytes, so it has no
+        # skeleton link the way the visual flow's session does. The skinned-mesh
+        # gate wants the bone count the skinning actually references, which the
+        # mesh itself proves.
+        skeleton_bone_count = int(summarize_mesh_skinning(mesh).inferred_bone_count or 0) or None
+        report = service.rebuild_asset(
+            view.session_id, output_path, skeleton_bone_count=skeleton_bone_count
+        )
         topology_report = dict(getattr(report, "topology_rebuild", {}) or {})
         if topology_report.get("serializer") != "pac_lod0_topology_exact_v1":
             return f"Rebuild did not use the exact topology serializer: {topology_report.get('serializer')!r}."
