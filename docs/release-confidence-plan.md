@@ -50,6 +50,38 @@ keeps core user workflows working behind stable facades.
 
 2026-08-13:
 
+- The authorized real-game gate `scripts/codex_check.ps1 -Area mesh` ran against
+  `character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac` after the PAC
+  normal and eight-influence skin corrections. 63 of 65 gates passed, including
+  `renderer_backend_ok` (`d3d11_vortice_shader`), `edit_backend_ok`
+  (`cdmw_mesh_core_0.1`), `no_synthetic_fallback`, `real_textures_bound_and_decoded`,
+  `real_pac_geometry_display_modes`, every material and presentation gate,
+  `exact_topology_rebuild`, `exact_topology_rebuild_no_fallback`, and
+  `source_archives_unchanged`. Source PAMT/PAZ fingerprints were byte-identical
+  before and after, verified again after the second run below.
+- The two failures, `selected_geometry_only` and `selected_projection_tracks_cursor`,
+  are the drag gates already recorded as known-red and inherited from `main`. That
+  was confirmed rather than assumed: the identical gate was rerun at the branch
+  base `cdb96302` and produced the same two failures with identical numbers, 203
+  changed vertices against a 39-vertex selection, `{1: 141, 2: 62}` changed by
+  submesh, a `[0.0, 0.0]` projected screen delta, and 40.0 px projection error.
+  A drag moves geometry outside the selection and the selection's projected centre
+  does not follow the cursor; neither path reads a normal or a skin row.
+- The exact LOD0 topology serializer behaved as its contract requires.
+  `delete_faces_topology` rebuilt exactly, 3,784 to 3,783 faces, with
+  `fallback_used: false`, `protected_bytes_preserved: true`,
+  `original_bounds_preserved: true`, `lower_lods_preserved: true`, and
+  `max_absolute_quantization_error: 0.0` over 13,161 direct vertices.
+  `loop_cut_topology` and `subdivide_midpoint_topology` were both refused with
+  `TOPOLOGY_PROTECTED_BYTES_DIVERGE` and wrote no output, so
+  `blended_skin_path_proven` remains false. That is the fail-closed rule working:
+  bytes 6-7 are identified but not derivable, so a derived vertex on stock
+  geometry is refused rather than approximated.
+- Evidence is licensed-game derived and stays under system TEMP, never in the
+  repository: run `42b44795555c4c0ab566e72df487f35e` for the branch and
+  `96e455116da54c0fa4905e543b656e98` for the base comparison, each holding
+  `result.json`, `evidence_report.json`, the rendered captures, the rebuilt LOD0
+  PAC, and the editable export.
 - Dated material-audit totals moved here from `docs/ai/PROJECT_MEMORY.md`, which
   keeps durable rules rather than completion logs. The 120-PAC material
   classification audit moved from 99 PASS / 4 CONCERN / 17 FAIL to 119/1/0 after
