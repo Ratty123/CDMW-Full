@@ -12,6 +12,7 @@ from cdmw.modding.mesh_pac_builder import _choose_pac_donor_indices, build_pac
 from cdmw.modding.mesh_pam_builder import build_pam
 from cdmw.modding.mesh_parser import (
     PAC_SKIN_INFLUENCES,
+    PAC_SKIN_PALETTE_SLOTS,
     PAC_SKIN_MAX_BONE_INDEX,
     PAC_SKIN_SLOT_GROUPS,
     PAC_SKIN_WEIGHT_OFFSET,
@@ -124,7 +125,12 @@ def test_pac_skin_weight_export_round_trips_a_high_bone_index() -> None:
 
 
 def test_pac_skin_weight_export_writes_six_influences() -> None:
-    """All six lanes encode and decode; the fifth and sixth are not dropped."""
+    """All six palette lanes encode and decode; the fifth and sixth are not dropped.
+
+    Six, not eight: the writer authors the palette slots only. The record's two
+    further influences live in lanes the exact serializer protects, so nothing
+    here writes them.
+    """
 
     raw, original = _skinned_pac()
     updated = copy.deepcopy(original)
@@ -134,7 +140,7 @@ def test_pac_skin_weight_export_writes_six_influences() -> None:
     reparsed = parse_pac(build_pac(updated, raw), "target.pac")
     row = reparsed.submeshes[0]
 
-    assert len(row.bone_indices[0]) == PAC_SKIN_INFLUENCES
+    assert len(row.bone_indices[0]) == PAC_SKIN_PALETTE_SLOTS
     assert set(row.bone_indices[0]) == {10, 20, 30, 40, 50, 60}
     assert sum(row.bone_weights[0]) == pytest.approx(1.0)
     # The format stores weights descending; the reader relies on it.

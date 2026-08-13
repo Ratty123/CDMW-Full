@@ -229,9 +229,10 @@ def _validate_submesh(submesh: SubMesh, index: int, *, mesh_has_bones: bool, dat
                         )
                     )
                     break
-                # The 40-byte PAC vertex record carries six packed influences
-                # (two u32 groups of three 10-bit palette slots plus six u8
-                # weights), so the parser's own capacity is the bound here.
+                # The 40-byte PAC vertex record carries eight influences: six as
+                # 10-bit palette slots in two u32 groups, and two more indexed at
+                # bytes 12-15 with weights at bytes 34-35, live only when byte
+                # 39's gate is open. The parser's own capacity is the bound here.
                 if index_width > PAC_SKIN_INFLUENCES:
                     issues.append(
                         PacCorpusIssue(

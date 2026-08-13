@@ -194,16 +194,41 @@ def _merge_partial_pac_import(
     merged.has_bones = any(sm.bone_indices for sm in merged_submeshes)
     return merged
 
+#: Bits of the normal u32 that belong to the tangent frame, not to the normal:
+#: the tangent's y component in bits 0-9 and the bitangent handedness in bit 31.
+#: Authoring a normal must carry them across untouched.
+_PAC_NORMAL_FOREIGN_BITS = 0x800003FF
+#: Bit 30 is the sign of the reconstructed z, so it is part of the normal.
+_PAC_NORMAL_Z_SIGN_BIT = 0x40000000
+
+
 def _pack_pac_normal(normal: tuple[float, float, float], existing_packed: int = 0) -> int:
-    """Pack a float normal back into the PAC 10:10:10 layout."""
+    """Pack a float normal into the PAC lane, leaving the tangent alone.
+
+    The lane is not three packed components. The game stores only x and y, in
+    bits 10-29, reconstructs z on the unit sphere, and takes its sign from bit
+    30. Bits 0-9 hold the tangent's y component and bit 31 the bitangent
+    handedness, so both are copied from ``existing_packed``: writing the normal's
+    z into bits 0-9, as this used to, silently rewrote part of the tangent frame
+    and made the mesh light incorrectly under a normal map.
+
+    A z of exactly zero leaves the sign bit as it found it, because the sign of
+    zero is not information this function has.
+    """
 
     def _enc(value: float) -> int:
         value = max(-1.0, min(1.0, value))
         return max(0, min(1023, round((value + 1.0) * 511.5)))
 
     nx, ny, nz = normal
-    packed = _enc(nz) | (_enc(nx) << 10) | (_enc(ny) << 20)
-    return (existing_packed & 0xC0000000) | packed
+    packed = (_enc(nx) << 10) | (_enc(ny) << 20)
+    if nz < 0.0:
+        sign = _PAC_NORMAL_Z_SIGN_BIT
+    elif nz > 0.0:
+        sign = 0
+    else:
+        sign = existing_packed & _PAC_NORMAL_Z_SIGN_BIT
+    return (existing_packed & _PAC_NORMAL_FOREIGN_BITS) | packed | sign
 
 def _choose_pac_donor_indices(orig_sm: SubMesh, new_sm: SubMesh) -> list[int]:
     """Choose the closest original PAC vertex record to clone for each new vertex."""
