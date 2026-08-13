@@ -877,6 +877,10 @@ def test_production_flow_is_ordered_and_gated_by_real_lifecycle_evidence() -> No
         },
         edit_flow_evidence={"affected_only_updates": True},
         edit_flow_ok=True,
+        topology_rebuild_ok=True,
+        topology_rebuild_evidence={
+            "rebuild_report": {"serializer": "pac_lod0_topology_exact_v1", "fallback_used": False}
+        },
     )
     for step in PRODUCTION_FLOW_STEPS:
         record_flow_step(state, step)
@@ -994,6 +998,10 @@ def test_canonical_real_dotnet_runner_drives_extended_flow_without_legacy_render
         patch("tools.mesh_harness.real_dotnet.exercise_linked_texture_strokes", side_effect=flow("texture")),
         patch("tools.mesh_harness.real_dotnet.exercise_assignment_and_mesh_edits", side_effect=flow("mesh_edits")),
         patch("tools.mesh_harness.real_dotnet.exercise_coherent_export", side_effect=flow("export")),
+        patch(
+            "tools.mesh_harness.real_dotnet.exercise_exact_topology_rebuild",
+            side_effect=flow("topology_rebuild"),
+        ),
         patch("tools.mesh_harness.real_dotnet._finish_result", return_value={"ok": True, "backend": "dotnet"}),
     ):
         result = run_real_archive_mesh_editor_dotnet_edit_smoke(state.game_root, state.output_dir)
@@ -1012,4 +1020,5 @@ def test_canonical_real_dotnet_runner_drives_extended_flow_without_legacy_render
         "texture",
         "mesh_edits",
         "export",
+        "topology_rebuild",
     ]

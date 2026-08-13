@@ -33,6 +33,10 @@ PRODUCTION_FLOW_STEPS = (
     "redo",
     "export",
     "output_reparse",
+    # Last, because it deliberately leaves a topology-changed session behind for
+    # the exact PAC LOD0 writer and every earlier step wants the original
+    # connectivity.
+    "topology_rebuild",
 )
 
 
@@ -85,6 +89,13 @@ def production_flow_gates(state: SimpleNamespace) -> dict[str, bool]:
         "export_source_asset_hash_matches": bool(export.get("source_asset_hash_matches")),
         "complete_output_reparse": export.get("output_reparse_status") == "passed",
         "export_artifact_hashes_present": bool(export.get("artifact_hashes_present")),
+        "exact_topology_rebuild": bool(getattr(state, "topology_rebuild_ok", False)),
+        "exact_topology_rebuild_no_fallback": bool(
+            dict(getattr(state, "topology_rebuild_evidence", {}) or {})
+            .get("rebuild_report", {})
+            .get("fallback_used")
+            is False
+        ),
     }
 
 
@@ -780,10 +791,108 @@ def exercise_coherent_export(
     return ""
 
 
+def exercise_exact_topology_rebuild(state: SimpleNamespace, *, pump_until: Callable[..., bool]) -> str:
+    """Face Delete a real PAC part, then rebuild it exactly into its own LOD0.
+
+    This is the only step that leaves the resident session topology-changed, so
+    it runs last. It keeps at least one triangle, refuses to touch the source
+    archive, and requires the exact serializer rather than accepting whatever
+    the generic rebuild would have produced.
+    """
+    from cdmw.domain.mesh.topology import validate_topology_provenance
+    from cdmw.modding.mesh_parser import parse_pac
+
+    controller = state.controller
+    working = controller.working_mesh(clone=False)
+    part_index = next(
+        (
+            index
+            for index, submesh in enumerate(working.submeshes)
+            if len(tuple(submesh.faces or ())) >= 4 and int(getattr(submesh, "source_vertex_stride", 0) or 0) == 40
+        ),
+        -1,
+    )
+    if part_index < 0:
+        return "No proven 40-byte PAC part with enough faces to Face Delete."
+    face_count_before = len(tuple(working.submeshes[part_index].faces or ()))
+    selection = MeshEditSelection.from_maps(faces_by_submesh={part_index: (0,)})
+    deleted = controller.run_editor_action("delete", selection=selection, mode="edit")
+    if not deleted.edit_result.ok:
+        return "Resident Face Delete was rejected on the real PAC part."
+    pump_until(state, lambda: True, 0.5)
+
+    edited = controller.working_mesh(clone=True)
+    submesh = edited.submeshes[part_index]
+    provenance = getattr(submesh, "topology_provenance", None)
+    output_faces = len(tuple(submesh.faces or ()))
+    if output_faces < 1 or output_faces >= face_count_before:
+        return "Face Delete did not remove a triangle while retaining geometry."
+    if provenance is None or validate_topology_provenance(
+        provenance,
+        output_vertex_count=len(tuple(submesh.vertices or ())),
+        output_face_count=output_faces,
+    ):
+        return "Resident Face Delete produced no usable topology contract."
+
+    output_path = Path(state.output_dir) / "topology_rebuild" / "rebuilt_lod0.pac"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    report = controller.rebuild_asset(output_path)
+    topology_report = dict(getattr(report, "topology_rebuild", {}) or {})
+    if topology_report.get("serializer") != "pac_lod0_topology_exact_v1":
+        return f"Rebuild did not use the exact topology serializer: {topology_report.get('serializer')!r}."
+    if topology_report.get("fallback_used") is not False:
+        return "Exact topology rebuild reported a fallback."
+
+    rebuilt_bytes = output_path.read_bytes()
+    reparsed = parse_pac(rebuilt_bytes, str(output_path))
+    reparsed_part = reparsed.submeshes[part_index] if part_index < len(reparsed.submeshes) else None
+    if reparsed_part is None:
+        return "Rebuilt PAC lost the edited part on reparse."
+    reparse_ok = bool(
+        len(reparsed.submeshes) == len(edited.submeshes)
+        and len(tuple(reparsed_part.vertices or ())) == len(tuple(submesh.vertices or ()))
+        and len(tuple(reparsed_part.faces or ())) == output_faces
+        and tuple(tuple(face) for face in reparsed_part.faces)
+        == tuple(tuple(int(value) for value in face[:3]) for face in submesh.faces)
+    )
+    base_part = controller.base_mesh(clone=False).submeshes[part_index]
+    bounds_preserved = bool(
+        reparsed_part.source_bbox_min == base_part.source_bbox_min
+        and reparsed_part.source_bbox_extent == base_part.source_bbox_extent
+    )
+    state.topology_rebuild_evidence = {
+        "part_index": part_index,
+        "face_count_before": face_count_before,
+        "face_count_after": output_faces,
+        "vertex_count_after": len(tuple(submesh.vertices or ())),
+        "original_vertex_count": provenance.original_vertex_count,
+        "original_face_count": provenance.original_face_count,
+        "direct_vertex_count": provenance.direct_vertex_count,
+        "blended_vertex_count": provenance.derived_vertex_count,
+        "operations": [
+            dict(operation) if isinstance(operation, Mapping) else operation
+            for operation in tuple(getattr(report, "edit_operations", ()) or ())
+        ],
+        "rebuild_report": topology_report,
+        "output_path": str(output_path),
+        "output_sha256": sha256(rebuilt_bytes).hexdigest(),
+        "output_bytes": len(rebuilt_bytes),
+        "reparse_ok": reparse_ok,
+        "bounds_preserved": bounds_preserved,
+        "delete_revision": int(deleted.edit_result.revision),
+    }
+    state.topology_rebuild_ok = bool(reparse_ok and bounds_preserved)
+    if not state.topology_rebuild_ok:
+        return "Rebuilt PAC did not reparse into the authored LOD0 with the source bounds."
+    record_flow_step(state, "topology_rebuild", part_index=part_index, output_path=str(output_path))
+    return ""
+
+
 __all__ = [
     "PRODUCTION_FLOW_STEPS",
     "exercise_assignment_and_mesh_edits",
     "exercise_coherent_export",
+    "exercise_exact_topology_rebuild",
     "exercise_linked_texture_strokes",
     "production_flow_gates",
     "record_flow_step",

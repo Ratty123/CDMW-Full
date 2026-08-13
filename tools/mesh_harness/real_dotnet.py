@@ -68,6 +68,7 @@ from tools.mesh_harness.real_dotnet_geometry import refresh_editable_viewport_re
 from tools.mesh_harness.real_dotnet_flow import (
     exercise_assignment_and_mesh_edits,
     exercise_coherent_export,
+    exercise_exact_topology_rebuild,
     exercise_linked_texture_strokes,
     production_flow_gates,
     record_flow_step,
@@ -605,6 +606,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "linked_texture_updates": dict(state.texture_flow_evidence),
         "resident_mesh_edits": dict(state.edit_flow_evidence),
         "resident_export": dict(state.export_flow_evidence),
+        "exact_topology_rebuild": dict(getattr(state, "topology_rebuild_evidence", {}) or {}),
         "performance_capture": dict(getattr(state, "performance_capture_evidence", {}) or {}),
         "lifecycle_counts": dict(state.tab.standalone_dotnet_lifecycle_counts),
         "process_identity": {
@@ -758,6 +760,9 @@ def run_real_archive_mesh_editor_dotnet_edit_smoke(
         return prepared
     state = prepared
     state.tab = state.controller = state.heartbeat_timer = state.process = None
+    state.output_dir = Path(output_dir)
+    state.topology_rebuild_evidence = {}
+    state.topology_rebuild_ok = False
     state.performance_request = performance_request
     state.performance_capture_evidence = (
         {
@@ -839,6 +844,9 @@ def run_real_archive_mesh_editor_dotnet_edit_smoke(
         if message:
             return _base_error(state, message)
         message = exercise_coherent_export(state, pump_until=_pump_until)
+        if message:
+            return _base_error(state, message)
+        message = exercise_exact_topology_rebuild(state, pump_until=_pump_until)
         if message:
             return _base_error(state, message)
         if performance_request is not None and not performance_completed:
