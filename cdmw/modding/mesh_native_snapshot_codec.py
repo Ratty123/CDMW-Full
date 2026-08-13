@@ -429,11 +429,18 @@ def _topology_provenance_from_native_snapshot_item(
             )
         except TopologyProvenanceError:
             return None
+    # Face origins index the *original* faces, so the contiguous-range form is
+    # bounded by the original face count, not by the output face count. A Face
+    # Delete that removes face 0 leaves origins 1..N-1, whose end value exceeds
+    # the surviving face count and would otherwise be rejected as out of range.
     source_face_indices = _read_i32_binary_report_payload(
         item.get("source_face_indices_binary"), expected_count=face_count
     ) or list(
         _i32_range_report_values(
-            item, start_key="source_face_start", count_key="source_face_count", max_count=face_count
+            item,
+            start_key="source_face_start",
+            count_key="source_face_count",
+            max_count=original_face_count,
         )
         or ()
     )
