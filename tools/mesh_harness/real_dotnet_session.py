@@ -44,7 +44,14 @@ def _proof_screen(app: object) -> object:
         index = int(requested)
         if 0 <= index < len(screens):
             return screens[index]
-    return primary
+    # Falling back to primary here would put the window on the very display the
+    # caller asked to keep clear, and report a pass as though it had not. Qt
+    # names screens by model, not by \\.\DISPLAYn, so a plausible-looking name
+    # is the likely mistake; say what is actually available.
+    available = ", ".join(f"[{index}] {screen.name()!r}" for index, screen in enumerate(screens))
+    raise RuntimeError(
+        f"CDMW_HARNESS_SCREEN={requested!r} matches no screen. Available: {available or '(none)'}."
+    )
 
 
 def _install_timing_probes(state: SimpleNamespace) -> None:
