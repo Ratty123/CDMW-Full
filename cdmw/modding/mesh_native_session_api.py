@@ -673,6 +673,11 @@ def export_native_mesh_editor_session_to_mesh(
                 "bone_weights_output_path": _native_preview_delta_output_path("_editor_snapshot_bone_weights.bin"),
                 "source_vertex_map_output_path": _native_preview_delta_output_path("_editor_snapshot_source_vertex_map.bin"),
                 "source_vertex_offsets_output_path": _native_preview_delta_output_path("_editor_snapshot_source_vertex_offsets.bin"),
+                # Topology provenance rides back as three matched binary payloads.
+                # The native side publishes them only when the contract is valid.
+                "vertex_origin_offsets_output_path": _native_preview_delta_output_path("_editor_snapshot_vertex_origin_offsets.bin"),
+                "vertex_origin_parents_output_path": _native_preview_delta_output_path("_editor_snapshot_vertex_origin_parents.bin"),
+                "vertex_origin_weights_output_path": _native_preview_delta_output_path("_editor_snapshot_vertex_origin_weights.bin"),
             }
         )
     report = export_native_mesh_editor_session_snapshot(

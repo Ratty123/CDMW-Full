@@ -54,6 +54,13 @@ class MeshExportValidationReport:
     no_op_roundtrip_status: str = ""
     no_op_byte_identical: bool | None = None
     no_op_unexpected_differences: int = 0
+    #: Parts whose geometry is described by a validated topology contract.
+    topology_contract_parts: tuple[int, ...] = ()
+
+    @property
+    def topology_rebuild_ready(self) -> bool:
+        """True when a topology contract is present and nothing blocks it."""
+        return bool(self.topology_contract_parts) and self.ok
 
     @property
     def blockers(self) -> tuple[MeshExportValidationIssue, ...]:
@@ -201,6 +208,22 @@ def validate_mesh_export(
         no_op_roundtrip_status=str(no_op_roundtrip_status or ""),
         no_op_byte_identical=no_op_byte_identical,
         no_op_unexpected_differences=max(0, int(no_op_unexpected_differences or 0)),
+        topology_contract_parts=_topology_contract_parts(submeshes, original_submeshes),
+    )
+
+
+def _topology_contract_parts(
+    submeshes: Sequence[object],
+    original_submeshes: Sequence[object],
+) -> tuple[int, ...]:
+    """Parts whose geometry is described by a contract that actually validates."""
+    return tuple(
+        index
+        for index, submesh in enumerate(submeshes)
+        if getattr(submesh, "topology_provenance", None) is not None
+        and not _export_topology_blockers(
+            submesh, original_submeshes[index] if index < len(original_submeshes) else None
+        )
     )
 
 

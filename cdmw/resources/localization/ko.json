@@ -2302,6 +2302,7 @@
     "EditMeshSessionTitle": "EditMeshSessionTitle",
     "Editable": "수정 가능",
     "Editable Fields": "편집 가능한 필드",
+    "Editable Package Export is unavailable while a resident topology edit is present (part {value_0}). Rebuild the mesh into its original PAC, or undo the topology edit, then export again.": "토폴로지 편집이 메모리에 남아 있는 동안에는 편집 가능 패키지 내보내기를 사용할 수 없습니다(파트 {value_0}). 메시를 원본 PAC로 다시 빌드하거나 토폴로지 편집을 실행 취소한 다음 다시 내보내십시오.",
     "Editable clone workspace created.": "편집 가능한 복제 작업공간이 생성되었습니다.",
     "Editable fields: {value_0}{value_1}{value_2}": "편집 가능한 필드: {value_0}{value_1}{value_2}",
     "Editable mesh package export failed: {value_0}": "편집 가능한 메시 패키지 내보내기 실패: {value_0}",

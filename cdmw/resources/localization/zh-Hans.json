@@ -2302,6 +2302,7 @@
     "EditMeshSessionTitle": "编辑网格会话标题",
     "Editable": "可编辑",
     "Editable Fields": "可编辑字段",
+    "Editable Package Export is unavailable while a resident topology edit is present (part {value_0}). Rebuild the mesh into its original PAC, or undo the topology edit, then export again.": "内存中存在拓扑编辑时，无法导出可编辑包（部件 {value_0}）。请将网格重建回其原始 PAC 文件，或撤消该拓扑编辑，然后重新导出。",
     "Editable clone workspace created.": "创建可编辑克隆工作区。",
     "Editable fields: {value_0}{value_1}{value_2}": "可编辑字段：{value_0}{value_1}{value_2}",
     "Editable mesh package export failed: {value_0}": "可编辑网格包导出失败：{value_0}",

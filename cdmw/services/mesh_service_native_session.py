@@ -62,6 +62,7 @@ from cdmw.services.mesh_service_reports import (
     _native_editor_report_affected_indices,
     _native_editor_report_changed_vertices,
     _native_editor_report_submesh_counts,
+    _native_editor_topology_summaries,
 )
 from cdmw.services.mesh_service_selection import (
     _prune_selection_to_mesh,
@@ -527,6 +528,7 @@ def _execute_native_editor_request(
             return None
         session.native_editor_mesh_dirty = True
         session.native_editor_mesh_dirty_counts = dirty_counts
+        session.native_editor_topology_summaries = _native_editor_topology_summaries(report)
         _apply_native_editor_dirty_counts(session)
         affected = _native_editor_report_affected_indices(report, len(dirty_counts))
         changed = _native_editor_report_changed_vertices(report, dirty_counts)

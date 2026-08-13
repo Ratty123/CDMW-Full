@@ -2302,6 +2302,7 @@
     "EditMeshSessionTitle": "Edytuj tytuł sesjiMesh",
     "Editable": "Edytowalne",
     "Editable Fields": "Edytowalne pola",
+    "Editable Package Export is unavailable while a resident topology edit is present (part {value_0}). Rebuild the mesh into its original PAC, or undo the topology edit, then export again.": "Eksport pakietu edytowalnego jest niedostępny, dopóki w pamięci znajduje się zmiana topologii (część {value_0}). Odbuduj siatkę do jej oryginalnego pliku PAC albo cofnij zmianę topologii, a następnie wyeksportuj ponownie.",
     "Editable clone workspace created.": "Utworzono edytowalny obszar roboczy klonowania.",
     "Editable fields: {value_0}{value_1}{value_2}": "Pola edytowalne: {value_0}{value_1}{value_2}",
     "Editable mesh package export failed: {value_0}": "Eksport edytowalnego pakietu siatki nie powiódł się: {value_0}",

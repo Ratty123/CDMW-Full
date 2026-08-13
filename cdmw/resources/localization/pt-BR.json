@@ -2302,6 +2302,7 @@
     "EditMeshSessionTitle": "EditMeshSessionTitle",
     "Editable": "Editável",
     "Editable Fields": "Campos editáveis",
+    "Editable Package Export is unavailable while a resident topology edit is present (part {value_0}). Rebuild the mesh into its original PAC, or undo the topology edit, then export again.": "A exportação de pacote editável não está disponível enquanto houver uma edição de topologia na memória (parte {value_0}). Reconstrua a malha em seu PAC original ou desfaça a edição de topologia e exporte novamente.",
     "Editable clone workspace created.": "Espaço de trabalho de clone editável criado.",
     "Editable fields: {value_0}{value_1}{value_2}": "Campos editáveis: {value_0}{value_1}{value_2}",
     "Editable mesh package export failed: {value_0}": "Falha na exportação do pacote de malha editável: {value_0}",

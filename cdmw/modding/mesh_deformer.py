@@ -111,6 +111,10 @@ _EXTRA_SUBMESH_ATTRS = (
     "source_vertex_map_authority",
     "source_bone_palette",
     "source_skin_weight_layout",
+    # Cloned like the other provenance attributes so a service working mesh keeps
+    # its contract. It is also listed as transient, which keeps its CSR arrays out
+    # of the JSON snapshot metadata; they travel as binary descriptors instead.
+    "topology_provenance",
 )
 
 
@@ -125,6 +129,35 @@ def copy_extra_submesh_attrs(source: SubMesh, target: SubMesh) -> None:
             elif isinstance(value, set):
                 value = set(value)
             setattr(target, attr_name, value)
+    _align_topology_source_vertex_map(target)
+
+
+def _align_topology_source_vertex_map(submesh: SubMesh) -> None:
+    """A submesh carrying a topology contract exposes that contract's map.
+
+    Transplanting the contract onto a clone would otherwise leave the legacy
+    ``source_vertex_map`` describing a different submesh, or nothing at all. The
+    contract is validated against this submesh first, so a mismatched one is
+    dropped rather than allowed to relabel the geometry.
+    """
+    from cdmw.domain.mesh.topology import (
+        SubmeshTopologyProvenance,
+        topology_source_vertex_map,
+        validate_topology_provenance,
+    )
+
+    provenance = getattr(submesh, "topology_provenance", None)
+    if not isinstance(provenance, SubmeshTopologyProvenance):
+        return
+    if validate_topology_provenance(
+        provenance,
+        output_vertex_count=len(tuple(submesh.vertices or ())),
+        output_face_count=len(tuple(submesh.faces or ())),
+    ):
+        submesh.topology_provenance = None
+        return
+    submesh.source_vertex_map = list(topology_source_vertex_map(provenance))
+    submesh.source_vertex_map_authority = "topology"
 
 
 def mesh_topology_signature(mesh: ParsedMesh) -> MeshTopologySignature:
