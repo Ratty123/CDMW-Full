@@ -358,6 +358,10 @@ MeshSessionSubmesh mesh_session_submesh_from_item(const JsonValue& item) {
     if (stored_submesh.source_vertex_offsets.size() != stored_submesh.vertices.size()) {
         stored_submesh.source_vertex_offsets.clear();
     }
+    // A store re-seats geometry that may already be topology-changed, so the
+    // contract has to travel with it. Without this a clone or an export would
+    // silently drop the lineage and the next edit would compose against nothing.
+    mesh_editor_ingest_topology_provenance(stored_submesh, item);
     return stored_submesh;
 }
 
