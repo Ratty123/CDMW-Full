@@ -350,6 +350,24 @@ def _record_stroke_geometry_evidence(state: SimpleNamespace) -> None:
         not state.unexpected_changed_vertex_keys
     )
 
+def _pick_probe(event: object) -> dict[str, object]:
+    """The helper's own account of the pick that produced its reported selection.
+
+    Which segment it tested, and which pane size the projected positions it
+    tested against were built for.
+    """
+    selection = (event or {}).get("local_selection") if isinstance(event, Mapping) else None
+    probe = selection.get("pick_probe") if isinstance(selection, Mapping) else None
+    return dict(probe or {}) if isinstance(probe, Mapping) else {}
+
+
+def _indices_by_submesh(keys: object) -> dict[str, list[int]]:
+    grouped: dict[int, list[int]] = {}
+    for submesh_index, vertex_index in tuple(keys or ()):
+        grouped.setdefault(int(submesh_index), []).append(int(vertex_index))
+    return {str(submesh): sorted(indices) for submesh, indices in sorted(grouped.items())}
+
+
 def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
     renderer_texture_ok = bool(
         int(state.renderer.get("resolved_texture_references", 0) or 0) > 0
@@ -426,4 +444,4 @@ def _part_selection_evidence(state: SimpleNamespace) -> dict[str, object]:
         "mesh_selection_armed": state.viewport_mesh_selection_armed,
     }
 
-__all__ = ['_base_error', '_drive_viewport_stroke', '_has_real_archive_texture_provenance', '_part_selection_evidence', '_prepare_real_asset', '_pump_for', '_pump_until', '_record_stroke_geometry_evidence', '_result_gates', '_revision_ack_tail', '_wait_protocol_event']
+__all__ = ['_base_error', '_indices_by_submesh', '_pick_probe', '_drive_viewport_stroke', '_has_real_archive_texture_provenance', '_part_selection_evidence', '_prepare_real_asset', '_pump_for', '_pump_until', '_record_stroke_geometry_evidence', '_result_gates', '_revision_ack_tail', '_wait_protocol_event']
