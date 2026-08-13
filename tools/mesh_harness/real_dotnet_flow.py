@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from cdmw.core.atomic_file import atomic_binary_writer
-from cdmw.domain.mesh.editing import MeshEditSelection
+from cdmw.domain.mesh.editing import MeshEditCommand, MeshEditSelection
 from cdmw.domain.mesh.topology import validate_topology_provenance
 from cdmw.models import TextureEditorSourceBinding
 from cdmw.ui.texture_workflow.editor_resident_texture import build_texture_editor_resident_patch
@@ -793,107 +793,129 @@ def exercise_coherent_export(
 
 
 def exercise_exact_topology_rebuild(state: SimpleNamespace, *, pump_until: Callable[..., bool]) -> str:
-    """Face Delete a real PAC part, then rebuild it exactly into its own LOD0.
+    """Face Delete the same real PAC, then rebuild it exactly into its own LOD0.
 
-    This is the only step that leaves the resident session topology-changed, so
-    it runs last. It keeps at least one triangle, refuses to touch the source
-    archive, and requires the exact serializer rather than accepting whatever
-    the generic rebuild would have produced.
+    This runs on its own resident session over the same archive payload the
+    visual flow used, not on the flow's session. By this point that session has
+    a committed texture assignment and an Auto UV edit, which the export
+    validator blocks for reasons that have nothing to do with topology; reusing
+    it would test those blockers rather than this contract. The payload is read
+    from the archive again, so the proof is still real game data and still
+    read-only.
     """
     from cdmw.modding.mesh_parser import parse_pac
+    from cdmw.services.mesh_service import MeshService
+    from tools.mesh_harness.real_common import _read_archive_payload
 
-    controller = state.controller
-    working = controller.working_mesh(clone=True)
-    # Not simply the first proven part: the earlier steps run Auto UV and a part
-    # duplicate/delete on state.submesh_index, and Auto UV splits vertices along
-    # seams, which correctly retires that part's contract for the rest of the
-    # session. Pick a part whose contract survived, which is also the stronger
-    # claim -- the lineage held through a long, unrelated editing session.
-    part_index = -1
-    for index, submesh in enumerate(working.submeshes):
-        if len(tuple(submesh.faces or ())) < 4 or int(getattr(submesh, "source_vertex_stride", 0) or 0) != 40:
-            continue
-        candidate = getattr(submesh, "topology_provenance", None)
-        if candidate is None or validate_topology_provenance(
-            candidate,
-            output_vertex_count=len(tuple(submesh.vertices or ())),
-            output_face_count=len(tuple(submesh.faces or ())),
-        ):
-            continue
-        part_index = index
-        break
+    original_data = _read_archive_payload(state.model_entry)
+    if sha256(original_data).hexdigest() != state.source_payload_sha256:
+        return "Real PAC payload changed between the visual flow and the rebuild proof."
+    mesh = parse_pac(original_data, state.model_entry.path)
+    part_index = next(
+        (
+            index
+            for index, submesh in enumerate(mesh.submeshes)
+            if len(tuple(submesh.faces or ())) >= 4
+            and int(getattr(submesh, "source_vertex_stride", 0) or 0) == 40
+        ),
+        -1,
+    )
     if part_index < 0:
-        return "No proven 40-byte PAC part still carries identity topology provenance."
-    face_count_before = len(tuple(working.submeshes[part_index].faces or ()))
-    selection = MeshEditSelection.from_maps(faces_by_submesh={part_index: (0,)})
-    deleted = controller.run_editor_action("delete", selection=selection, mode="edit")
-    if not deleted.edit_result.ok:
-        return "Resident Face Delete was rejected on the real PAC part."
-    pump_until(state, lambda: True, 0.5)
+        return "No proven 40-byte PAC part with enough faces to Face Delete."
+    face_count_before = len(tuple(mesh.submeshes[part_index].faces or ()))
 
-    edited = controller.working_mesh(clone=True)
-    submesh = edited.submeshes[part_index]
-    provenance = getattr(submesh, "topology_provenance", None)
-    output_faces = len(tuple(submesh.faces or ()))
-    if output_faces < 1 or output_faces >= face_count_before:
-        return "Face Delete did not remove a triangle while retaining geometry."
-    if provenance is None or validate_topology_provenance(
-        provenance,
-        output_vertex_count=len(tuple(submesh.vertices or ())),
-        output_face_count=output_faces,
-    ):
-        return "Resident Face Delete produced no usable topology contract."
+    service = MeshService()
+    session_id = f"{state.controller.active_session_id}-topology-rebuild"
+    view = service.open_edit_session(mesh, session_id=session_id, mode="edit")
+    try:
+        service.apply_command(
+            view.session_id,
+            MeshEditCommand(
+                "select",
+                selection=MeshEditSelection.from_maps(faces_by_submesh={part_index: (0,)}),
+                params={"operation": "replace"},
+                mode="edit",
+            ),
+        )
+        deleted = service.apply_command(
+            view.session_id,
+            MeshEditCommand(
+                "delete",
+                selection=MeshEditSelection.from_maps(faces_by_submesh={part_index: (0,)}),
+                params={"_include_preview_deltas": False},
+                mode="edit",
+            ),
+        )
+        if not deleted.ok:
+            return "Resident Face Delete was rejected on the real PAC part."
 
-    output_path = Path(state.output_dir) / "topology_rebuild" / "rebuilt_lod0.pac"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    report = controller.rebuild_asset(output_path)
-    topology_report = dict(getattr(report, "topology_rebuild", {}) or {})
-    if topology_report.get("serializer") != "pac_lod0_topology_exact_v1":
-        return f"Rebuild did not use the exact topology serializer: {topology_report.get('serializer')!r}."
-    if topology_report.get("fallback_used") is not False:
-        return "Exact topology rebuild reported a fallback."
+        edited = service.working_mesh(view.session_id, clone=True)
+        submesh = edited.submeshes[part_index]
+        provenance = getattr(submesh, "topology_provenance", None)
+        output_faces = len(tuple(submesh.faces or ()))
+        if output_faces < 1 or output_faces >= face_count_before:
+            return "Face Delete did not remove a triangle while retaining geometry."
+        if provenance is None or validate_topology_provenance(
+            provenance,
+            output_vertex_count=len(tuple(submesh.vertices or ())),
+            output_face_count=output_faces,
+        ):
+            return "Resident Face Delete produced no usable topology contract."
 
-    rebuilt_bytes = output_path.read_bytes()
-    reparsed = parse_pac(rebuilt_bytes, str(output_path))
-    reparsed_part = reparsed.submeshes[part_index] if part_index < len(reparsed.submeshes) else None
-    if reparsed_part is None:
-        return "Rebuilt PAC lost the edited part on reparse."
-    reparse_ok = bool(
-        len(reparsed.submeshes) == len(edited.submeshes)
-        and len(tuple(reparsed_part.vertices or ())) == len(tuple(submesh.vertices or ()))
-        and len(tuple(reparsed_part.faces or ())) == output_faces
-        and tuple(tuple(face) for face in reparsed_part.faces)
-        == tuple(tuple(int(value) for value in face[:3]) for face in submesh.faces)
-    )
-    base_part = controller.base_mesh(clone=False).submeshes[part_index]
-    bounds_preserved = bool(
-        reparsed_part.source_bbox_min == base_part.source_bbox_min
-        and reparsed_part.source_bbox_extent == base_part.source_bbox_extent
-    )
-    state.topology_rebuild_evidence = {
-        "part_index": part_index,
-        "face_count_before": face_count_before,
-        "face_count_after": output_faces,
-        "vertex_count_after": len(tuple(submesh.vertices or ())),
-        "original_vertex_count": provenance.original_vertex_count,
-        "original_face_count": provenance.original_face_count,
-        "direct_vertex_count": provenance.direct_vertex_count,
-        "blended_vertex_count": provenance.derived_vertex_count,
-        "operations": [
-            dict(operation) if isinstance(operation, Mapping) else operation
-            for operation in tuple(getattr(report, "edit_operations", ()) or ())
-        ],
-        "rebuild_report": topology_report,
-        "output_path": str(output_path),
-        "output_sha256": sha256(rebuilt_bytes).hexdigest(),
-        "output_bytes": len(rebuilt_bytes),
-        "reparse_ok": reparse_ok,
-        "bounds_preserved": bounds_preserved,
-        "delete_revision": int(deleted.edit_result.revision),
-    }
-    state.topology_rebuild_ok = bool(reparse_ok and bounds_preserved)
-    if not state.topology_rebuild_ok:
-        return "Rebuilt PAC did not reparse into the authored LOD0 with the source bounds."
+        output_path = Path(state.output_dir) / "topology_rebuild" / "rebuilt_lod0.pac"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        report = service.rebuild_asset(view.session_id, output_path)
+        topology_report = dict(getattr(report, "topology_rebuild", {}) or {})
+        if topology_report.get("serializer") != "pac_lod0_topology_exact_v1":
+            return f"Rebuild did not use the exact topology serializer: {topology_report.get('serializer')!r}."
+        if topology_report.get("fallback_used") is not False:
+            return "Exact topology rebuild reported a fallback."
+
+        rebuilt_bytes = output_path.read_bytes()
+        reparsed = parse_pac(rebuilt_bytes, str(output_path))
+        reparsed_part = reparsed.submeshes[part_index] if part_index < len(reparsed.submeshes) else None
+        if reparsed_part is None:
+            return "Rebuilt PAC lost the edited part on reparse."
+        reparse_ok = bool(
+            len(reparsed.submeshes) == len(edited.submeshes)
+            and len(tuple(reparsed_part.vertices or ())) == len(tuple(submesh.vertices or ()))
+            and len(tuple(reparsed_part.faces or ())) == output_faces
+            and tuple(tuple(face) for face in reparsed_part.faces)
+            == tuple(tuple(int(value) for value in face[:3]) for face in submesh.faces)
+        )
+        base_part = mesh.submeshes[part_index]
+        bounds_preserved = bool(
+            reparsed_part.source_bbox_min == base_part.source_bbox_min
+            and reparsed_part.source_bbox_extent == base_part.source_bbox_extent
+        )
+        state.topology_rebuild_evidence = {
+            "model_path": state.model_entry.path,
+            "part_index": part_index,
+            "face_count_before": face_count_before,
+            "face_count_after": output_faces,
+            "vertex_count_after": len(tuple(submesh.vertices or ())),
+            "original_vertex_count": provenance.original_vertex_count,
+            "original_face_count": provenance.original_face_count,
+            "direct_vertex_count": provenance.direct_vertex_count,
+            "blended_vertex_count": provenance.derived_vertex_count,
+            "operations": [
+                dict(operation) if isinstance(operation, Mapping) else operation
+                for operation in tuple(getattr(report, "edit_operations", ()) or ())
+            ],
+            "rebuild_report": topology_report,
+            "output_path": str(output_path),
+            "output_sha256": sha256(rebuilt_bytes).hexdigest(),
+            "output_bytes": len(rebuilt_bytes),
+            "source_payload_sha256": state.source_payload_sha256,
+            "reparse_ok": reparse_ok,
+            "bounds_preserved": bounds_preserved,
+            "delete_revision": int(deleted.revision),
+        }
+        state.topology_rebuild_ok = bool(reparse_ok and bounds_preserved)
+        if not state.topology_rebuild_ok:
+            return "Rebuilt PAC did not reparse into the authored LOD0 with the source bounds."
+    finally:
+        service.close_edit_session(view.session_id)
     record_flow_step(state, "topology_rebuild", part_index=part_index, output_path=str(output_path))
     return ""
 

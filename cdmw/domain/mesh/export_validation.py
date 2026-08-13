@@ -16,6 +16,10 @@ from .topology import (
 )
 
 
+#: Marks an operation the resident editor recorded for itself, as opposed to one
+#: that arrived with a sidecar and is expected to be exhaustive.
+_RESIDENT_OPERATION_SOURCE = "resident_native"
+
 SUPPORTED_GAME_MESH_FORMATS = frozenset({"pac", "pam", "pamlod"})
 REBUILDABLE_PARSE_CONFIDENCE = frozenset({"exact", "inferred"})
 BLOCKED_PARSE_CONFIDENCE = frozenset({"fallback_scan", "unsupported", "failed"})
@@ -1340,7 +1344,19 @@ def _validate_edit_operations(
             expected=getattr(issue, "expected", None),
             actual=getattr(issue, "actual", None),
         )
-    for issue in validate_mesh_edit_operation_coverage(operation_tuple, mesh=mesh, original_mesh=original_mesh):
+    # Coverage exists for the sidecar round trip, where the operation list is
+    # meant to be exhaustive. A resident session's list is not: it records the
+    # admitted topology operations and nothing else, so feeding it here would
+    # start demanding operations for every unrelated channel a session had
+    # already changed, which is a behaviour change for workflows that previously
+    # carried no operations at all.
+    coverage_operations = tuple(
+        operation
+        for operation in operation_tuple
+        if str(getattr(operation, "source", "") or (operation.get("source", "") if isinstance(operation, Mapping) else ""))
+        != _RESIDENT_OPERATION_SOURCE
+    )
+    for issue in validate_mesh_edit_operation_coverage(coverage_operations, mesh=mesh, original_mesh=original_mesh):
         if issue.severity != "blocker":
             continue
         _add(
