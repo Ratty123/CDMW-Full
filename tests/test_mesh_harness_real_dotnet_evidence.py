@@ -1020,3 +1020,91 @@ def test_canonical_real_dotnet_runner_drives_extended_flow_without_legacy_render
         "export",
         "topology_rebuild",
     ]
+
+
+def _selection_view(session_id: str, vertices: dict[int, set[int]]) -> SimpleNamespace:
+    return SimpleNamespace(
+        session_id=session_id,
+        selection=SimpleNamespace(
+            is_empty=lambda: not vertices,
+            vertex_map=lambda: dict(vertices),
+        ),
+    )
+
+
+def test_resident_selection_inputs_separate_the_target_and_harness_controllers() -> None:
+    from tools.mesh_harness.real_dotnet import _resident_selection_inputs
+
+    harness_controller = SimpleNamespace(
+        session_view=lambda: _selection_view("edit", {2: {1, 2, 3}})
+    )
+    state = SimpleNamespace(
+        controller=harness_controller,
+        tab=SimpleNamespace(
+            standalone_dotnet_target_controller=None,
+            standalone_controller=harness_controller,
+        ),
+    )
+
+    report = _resident_selection_inputs(state)
+
+    # The Move stroke reads only the target controller, so an absent one has to
+    # stay visible even though the harness controller holds the selection.
+    assert report["target_controller_present"] is False
+    assert report["target_controller_is_harness_controller"] is False
+    assert report["fallback_controller_present"] is True
+    assert report["target_selection_empty"] is None
+    assert report["target_selection_vertex_count"] is None
+    assert report["harness_selection_empty"] is False
+    assert report["harness_selection_vertex_count"] == 3
+
+
+def test_resident_selection_inputs_report_a_shared_controller_holding_a_selection() -> None:
+    from tools.mesh_harness.real_dotnet import _resident_selection_inputs
+
+    controller = SimpleNamespace(
+        session_view=lambda: _selection_view("edit", {1: {4}, 2: {5, 6}})
+    )
+    state = SimpleNamespace(
+        controller=controller,
+        tab=SimpleNamespace(
+            standalone_dotnet_target_controller=controller,
+            standalone_controller=controller,
+        ),
+    )
+
+    report = _resident_selection_inputs(state)
+
+    assert report["target_controller_present"] is True
+    assert report["target_controller_is_harness_controller"] is True
+    assert report["target_session_id"] == "edit"
+    assert report["target_selection_empty"] is False
+    assert report["target_selection_vertex_count"] == 3
+    # The count alone cannot show that the host and the session disagree about
+    # *which* vertices are selected, so the map has to survive too.
+    assert report["target_selection_counts_by_submesh"] == {"1": 1, "2": 2}
+    assert report["target_selection_indices_by_submesh"] == {"1": [4], "2": [5, 6]}
+
+
+def test_resident_selection_inputs_record_a_raising_session_view() -> None:
+    from tools.mesh_harness.real_dotnet import _resident_selection_inputs
+
+    def _raise() -> object:
+        raise RuntimeError("no active session")
+
+    controller = SimpleNamespace(session_view=_raise)
+    state = SimpleNamespace(
+        controller=controller,
+        tab=SimpleNamespace(
+            standalone_dotnet_target_controller=controller,
+            standalone_controller=None,
+        ),
+    )
+
+    report = _resident_selection_inputs(state)
+
+    # tab_interaction swallows exactly this failure and falls back to a screen
+    # brush, so the reason has to survive into the evidence instead.
+    assert report["target_controller_present"] is True
+    assert report["target_selection_empty"] is None
+    assert report["target_error"] == "RuntimeError: no active session"
