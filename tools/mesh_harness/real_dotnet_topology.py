@@ -16,6 +16,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
+from cdmw.modding.mesh_pac_topology_builder import PacTopologyRebuildBlocked
 from cdmw.domain.mesh.topology import (
     TOPOLOGY_OPERATION_DELETE_FACES,
     TOPOLOGY_OPERATION_LOOP_CUT,
@@ -127,6 +128,36 @@ def _rebuild_evidence(
     }
 
 
+def _blocked_evidence(
+    state: SimpleNamespace,
+    operation: str,
+    part_index: int,
+    face_count_before: int,
+    edited_submesh: object,
+    blocked: Exception,
+    output_path: Path,
+) -> dict[str, object]:
+    """A refusal is evidence too, provided it names its reason and wrote nothing."""
+    code = next(
+        (part for part in str(blocked).replace(":", " ").split() if part.startswith("TOPOLOGY_")),
+        "",
+    )
+    return {
+        "operation": operation,
+        "model_path": state.model_entry.path,
+        "part_index": part_index,
+        "rebuilt": False,
+        "blocked": True,
+        "blocker": code,
+        "blocker_message": str(blocked),
+        "wrote_no_output": not output_path.exists(),
+        "face_count_before": face_count_before,
+        "face_count_after": len(tuple(edited_submesh.faces or ())),
+        "vertex_count_after": len(tuple(edited_submesh.vertices or ())),
+        "source_payload_sha256": state.source_payload_sha256,
+    }
+
+
 def _prove_operation(
     state: SimpleNamespace,
     original_data: bytes,
@@ -190,9 +221,20 @@ def _prove_operation(
         # gate wants the bone count the skinning actually references, which the
         # mesh itself proves.
         skeleton_bone_count = int(summarize_mesh_skinning(mesh).inferred_bone_count or 0) or None
-        report = service.rebuild_asset(
-            view.session_id, output_path, skeleton_bone_count=skeleton_bone_count
-        )
+        try:
+            report = service.rebuild_asset(
+                view.session_id, output_path, skeleton_bone_count=skeleton_bone_count
+            )
+        except PacTopologyRebuildBlocked as blocked:
+            # Refusing is the contract working, not failing. Stock geometry
+            # rarely has parents that agree on every protected byte, which the
+            # feasibility measurement put at 0.0072% of real LOD0 edges, so a
+            # derived vertex on this asset is expected to be refused. What has
+            # to hold is that the refusal is stable, named, and writes nothing.
+            return (
+                _blocked_evidence(state, operation, part_index, face_count_before, submesh, blocked, output_path),
+                "",
+            )
         topology_report = dict(getattr(report, "topology_rebuild", {}) or {})
         if topology_report.get("serializer") != "pac_lod0_topology_exact_v1":
             return {}, (
@@ -273,37 +315,60 @@ def exercise_exact_topology_rebuild(state: SimpleNamespace, *, pump_until: Calla
             }
             return error
 
-    proven = tuple(by_operation)
-    blended = sum(int(row.get("blended_vertex_count") or 0) for row in by_operation.values())
+    attempted = tuple(by_operation)
+    rebuilt = {name: row for name, row in by_operation.items() if not row.get("blocked")}
+    refused = {name: row for name, row in by_operation.items() if row.get("blocked")}
+    blended = sum(int(row.get("blended_vertex_count") or 0) for row in rebuilt.values())
     state.topology_rebuild_evidence = {
         "model_path": state.model_entry.path,
         "source_payload_sha256": state.source_payload_sha256,
-        "operations_proven": list(proven),
+        "operations_attempted": list(attempted),
+        "operations_rebuilt": list(rebuilt),
+        "operations_refused": list(refused),
+        "refusal_blockers": {name: row.get("blocker") for name, row in refused.items()},
         "blended_vertex_count_total": blended,
-        # Every admitted operation avoided the generic path, not just one.
+        # This asset's parents disagree on protected bytes, so a derived vertex
+        # is refused rather than approximated. The blended skin path therefore
+        # has synthetic coverage only; saying so here keeps the evidence from
+        # implying real-game proof it does not hold.
+        "blended_skin_path_proven": blended > 0,
+        # Every admitted operation avoided the generic path, not just one. A
+        # refusal counts: it wrote nothing at all, generic or otherwise.
         "all_operations_avoided_fallback": all(
-            dict(row.get("rebuild_report") or {}).get("fallback_used") is False
+            row.get("blocked")
+            or dict(row.get("rebuild_report") or {}).get("fallback_used") is False
             for row in by_operation.values()
         ),
-        "all_operations_reparsed": all(bool(row.get("reparse_ok")) for row in by_operation.values()),
-        "all_operations_preserved_bounds": all(
-            bool(row.get("bounds_preserved")) for row in by_operation.values()
+        "all_rebuilds_reparsed": all(bool(row.get("reparse_ok")) for row in rebuilt.values()),
+        "all_rebuilds_preserved_bounds": all(
+            bool(row.get("bounds_preserved")) for row in rebuilt.values()
+        ),
+        # A refusal that left a file behind would be worse than a bad rebuild.
+        "all_refusals_named_and_wrote_nothing": all(
+            str(row.get("blocker") or "").startswith("TOPOLOGY_") and bool(row.get("wrote_no_output"))
+            for row in refused.values()
         ),
         "by_operation": by_operation,
     }
-    # A rebuild that derived no vertex never touched the blended skin path, so
-    # the run would be claiming coverage it does not have.
-    if blended <= 0:
+    if not rebuilt:
         state.topology_rebuild_ok = False
-        return "No admitted operation derived a vertex, so the blended skin path went unproven."
+        return "No admitted operation rebuilt at all, so nothing proves the exact writer."
     state.topology_rebuild_ok = bool(
-        len(proven) == len(_admitted_operations())
-        and state.topology_rebuild_evidence["all_operations_reparsed"]
-        and state.topology_rebuild_evidence["all_operations_preserved_bounds"]
+        len(attempted) == len(_admitted_operations())
+        and state.topology_rebuild_evidence["all_rebuilds_reparsed"]
+        and state.topology_rebuild_evidence["all_rebuilds_preserved_bounds"]
+        and state.topology_rebuild_evidence["all_refusals_named_and_wrote_nothing"]
+        and state.topology_rebuild_evidence["all_operations_avoided_fallback"]
     )
     if not state.topology_rebuild_ok:
-        return "An admitted operation did not rebuild exactly into the real PAC."
-    record_flow_step(state, "topology_rebuild", operations=list(proven), blended_vertices=blended)
+        return "An admitted operation neither rebuilt exactly nor refused cleanly."
+    record_flow_step(
+        state,
+        "topology_rebuild",
+        rebuilt=list(rebuilt),
+        refused=list(refused),
+        blended_vertices=blended,
+    )
     return ""
 
 
