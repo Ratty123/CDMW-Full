@@ -529,6 +529,15 @@ std::array<double, 4> mesh_editor_screen_depth_mask_bounds(
             path_points = {{start_x, start_y}, {end_x, end_y}};
         }
     }
+    // The cursor is one of the points the mask has to cover, not an alternative
+    // to the path. A drag payload can carry coordinates that are nowhere near
+    // the brush -- a synthetic matrix-only drag, or a stroke whose pointer
+    // polyline is expressed against a different origin -- and a mask built from
+    // the path alone then excludes the brush's own footprint, which reads
+    // downstream as every vertex being occluded and the stroke moving nothing.
+    if (std::isfinite(x) && std::isfinite(y)) {
+        path_points.push_back({x, y});
+    }
     if (!path_points.empty()) {
         const double extent = std::max(radius, 1.0) + kPaddingPixels;
         left = path_points.front()[0];
@@ -545,12 +554,6 @@ std::array<double, 4> mesh_editor_screen_depth_mask_bounds(
         top -= extent;
         right += extent;
         bottom += extent;
-    } else if (std::isfinite(x) && std::isfinite(y)) {
-        const double extent = std::max(radius, 1.0) + kPaddingPixels;
-        left = x - extent;
-        top = y - extent;
-        right = x + extent;
-        bottom = y + extent;
     } else {
         const std::vector<Vec2> points = vec2_array_from_json(brush.get("points"));
         if (!points.empty()) {
