@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -54,6 +55,9 @@ from .mesh_obj_importer import (
     import_obj,
     validate_obj_sidecar_source_identity,
 )
+from cdmw.domain.mesh.topology import validate_topology_provenance
+
+from .mesh_pac_topology_builder import build_pac_topology_rebuild
 from .mesh_pac_builder import (
     _append_pac_cloned_descriptors,
     _build_pac_full_rebuild,
@@ -116,6 +120,9 @@ class MeshRebuildReport:
     edit_operations: tuple[dict[str, object], ...] = ()
     output_path: str = ""
     export_snapshot: Mapping[str, object] = field(default_factory=dict)
+    # Present only when the exact PAC LOD0 topology serializer produced the
+    # bytes. Empty for every same-count rebuild.
+    topology_rebuild: Mapping[str, object] = field(default_factory=dict)
 
     @property
     def changed_range_count(self) -> int:
@@ -147,25 +154,36 @@ def rebuild_mesh_with_report(
         original_data,
         original_mesh=original_mesh,
     )
-    rebuilt = original_data if parsed_original is not None and _mesh_matches_no_edit(parsed_original, rebuild_mesh) else _build_prepared_mesh_bytes(fmt, rebuild_mesh, original_data)
-    return MeshRebuildResult(
-        data=rebuilt,
-        report=_build_rebuild_report(
+    topology_report: dict[str, object] = {}
+    rebuilt = (
+        original_data
+        if parsed_original is not None and _mesh_matches_no_edit(parsed_original, rebuild_mesh)
+        else _build_prepared_mesh_bytes(
+            fmt,
             rebuild_mesh,
             original_data,
-            rebuilt,
-            validation_status=validation_status,
-            output_path=output_path,
             original_mesh=parsed_original,
-        ),
+            topology_report=topology_report,
+        )
     )
+    report = _build_rebuild_report(
+        rebuild_mesh,
+        original_data,
+        rebuilt,
+        validation_status=validation_status,
+        output_path=output_path,
+        original_mesh=parsed_original,
+    )
+    if topology_report:
+        report = dataclasses.replace(report, topology_rebuild=dict(topology_report))
+    return MeshRebuildResult(data=rebuilt, report=report)
 
 
 def _build_mesh_bytes(mesh: ParsedMesh, original_data: bytes) -> bytes:
     fmt, rebuild_mesh, original_mesh = _prepare_mesh_for_rebuild(mesh, original_data)
     if original_mesh is not None and _mesh_matches_no_edit(original_mesh, rebuild_mesh):
         return original_data
-    return _build_prepared_mesh_bytes(fmt, rebuild_mesh, original_data)
+    return _build_prepared_mesh_bytes(fmt, rebuild_mesh, original_data, original_mesh=original_mesh)
 
 
 def _prepare_mesh_for_rebuild(
@@ -205,7 +223,22 @@ def _prepare_mesh_for_rebuild(
         return fmt, mesh, None
 
 
-def _build_prepared_mesh_bytes(fmt: str, mesh: ParsedMesh, original_data: bytes) -> bytes:
+def _build_prepared_mesh_bytes(
+    fmt: str,
+    mesh: ParsedMesh,
+    original_data: bytes,
+    *,
+    original_mesh: ParsedMesh | None = None,
+    topology_report: dict[str, object] | None = None,
+) -> bytes:
+    # A validated topology contract routes to the exact LOD0 writer and to
+    # nothing else. Falling through to the native builder or the generic PAC
+    # rebuild would replace an exact result with a plausible one, so a blocked
+    # contract raises instead.
+    if fmt == "pac" and original_mesh is not None and _has_topology_contract(mesh):
+        return build_pac_topology_rebuild(
+            original_mesh, mesh, original_data, report=topology_report
+        )
     native_data = None
     try:
         from cdmw.core.mesh_native import build_mesh_native
@@ -236,6 +269,21 @@ def _build_prepared_mesh_bytes(fmt: str, mesh: ParsedMesh, original_data: bytes)
         raise ValueError(f"Unsupported mesh format for rebuild: {fmt}")
     _validate_pac_obj_protected_vertex_bytes(fmt, mesh, original_data, rebuilt)
     return rebuilt
+
+
+def _has_topology_contract(mesh: ParsedMesh) -> bool:
+    """True when any submesh carries a contract that describes its own geometry."""
+    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+        provenance = getattr(submesh, "topology_provenance", None)
+        if provenance is None:
+            continue
+        if not validate_topology_provenance(
+            provenance,
+            output_vertex_count=len(tuple(getattr(submesh, "vertices", ()) or ())),
+            output_face_count=len(tuple(getattr(submesh, "faces", ()) or ())),
+        ):
+            return True
+    return False
 
 
 def _validate_pac_obj_protected_vertex_bytes(

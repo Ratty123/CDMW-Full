@@ -20,6 +20,7 @@ from cdmw.domain.mesh.operations import (
     mesh_edit_operations_to_dicts,
     validate_mesh_edit_operations,
 )
+from cdmw.domain.mesh.topology import validate_topology_provenance
 from cdmw.modding.mesh_exporter import export_obj
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_obj_importer import import_obj
@@ -468,6 +469,33 @@ def _scene_material_slot_indices(
     return tuple(result)
 
 
+def _refuse_topology_changed_editable_package(mesh: ParsedMesh) -> None:
+    """An editable package cannot carry a topology contract, so it must refuse one.
+
+    The v2 sidecar describes a same-count round trip: one source index per edited
+    index, one non-negative source vertex per edited vertex. A submesh whose
+    lineage lives in a topology contract would be written out as if it had none,
+    and the mesh that came back would rebuild through the generic path with
+    donor-chosen records. Blocking here keeps the exact contract the only way
+    that geometry can return.
+    """
+    for index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ())):
+        provenance = getattr(submesh, "topology_provenance", None)
+        if provenance is None:
+            continue
+        if validate_topology_provenance(
+            provenance,
+            output_vertex_count=len(tuple(getattr(submesh, "vertices", ()) or ())),
+            output_face_count=len(tuple(getattr(submesh, "faces", ()) or ())),
+        ):
+            continue
+        raise RuntimeError(
+            "Editable Package Export is unavailable while a resident topology edit is present "
+            f"(part {index}). Rebuild the mesh into its original PAC, or undo the topology edit, "
+            "then export again."
+        )
+
+
 def build_mesh_dotnet_experiment_package(
     mesh: ParsedMesh,
     *,
@@ -484,6 +512,7 @@ def build_mesh_dotnet_experiment_package(
     preview_overlays: Mapping[str, object] | None = None,
     include_material_resources: bool = True,
 ) -> MeshDotNetExperimentPackage:
+    _refuse_topology_changed_editable_package(mesh)
     material_signature = mesh_dotnet_material_input_signature(mesh)
     root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_mesh_dotnet_experiment"
     package_dir = (

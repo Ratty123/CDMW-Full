@@ -2302,6 +2302,7 @@
     "EditMeshSessionTitle": "MeshSessionTitle'ı Düzenle",
     "Editable": "Düzenlenebilir",
     "Editable Fields": "Düzenlenebilir Alanlar",
+    "Editable Package Export is unavailable while a resident topology edit is present (part {value_0}). Rebuild the mesh into its original PAC, or undo the topology edit, then export again.": "Bellekte bir topoloji düzenlemesi varken düzenlenebilir paket dışa aktarma kullanılamaz (parça {value_0}). Ağı özgün PAC dosyasına yeniden oluşturun veya topoloji düzenlemesini geri alın, ardından yeniden dışa aktarın.",
     "Editable clone workspace created.": "Düzenlenebilir klon çalışma alanı oluşturuldu.",
     "Editable fields: {value_0}{value_1}{value_2}": "Düzenlenebilir alanlar: {value_0}{value_1}{value_2}",
     "Editable mesh package export failed: {value_0}": "Düzenlenebilir örgü paketi dışa aktarma başarısız oldu: {value_0}",

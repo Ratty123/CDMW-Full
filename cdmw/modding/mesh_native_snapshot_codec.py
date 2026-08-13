@@ -33,7 +33,17 @@ from cdmw.modding.mesh_native_core_constants import (
     _NATIVE_PREVIEW_MATERIAL_OVERRIDE_KEYS,
     _TRANSIENT_NATIVE_SUBMESH_ATTRS,
 )
+from cdmw.domain.mesh.topology import (
+    SubmeshTopologyProvenance,
+    TOPOLOGY_PROVENANCE_VERSION,
+    TopologyProvenanceError,
+    VertexOrigin,
+    canonical_vertex_origin,
+    topology_source_vertex_map,
+    validate_topology_provenance,
+)
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.modding.mesh_skinning import SOURCE_VERTEX_MAP_TOPOLOGY
 from cdmw.models import RunCancelled
 
 
@@ -186,7 +196,53 @@ def _native_submesh_snapshot_item(
     if bone_index_count is not None and bone_weight_count == bone_index_count:
         _copy_snapshot_descriptor(result, item, "bone_indices_binary", expected_count=bone_index_count, components=1, kind="i32")
         _copy_snapshot_descriptor(result, item, "bone_weights_binary", expected_count=bone_index_count, components=1, kind="f64")
+    _copy_snapshot_topology_provenance(result, item, expected_vertices=vertex_count, expected_faces=face_count)
     return result
+
+
+def _copy_snapshot_topology_provenance(
+    target: dict[str, object],
+    source: Mapping[str, object],
+    *,
+    expected_vertices: int,
+    expected_faces: int,
+) -> None:
+    """Carry the CSR contract only when all three descriptors agree.
+
+    A partial set is dropped whole. Half a contract decodes into something that
+    looks like lineage without being it, which is worse than no lineage at all.
+    """
+    if not bool(source.get("topology_rebuild_valid")):
+        return
+    offsets = _native_binary_descriptor(
+        source.get("vertex_origin_offsets_binary"),
+        expected_count=expected_vertices + 1,
+        components=1,
+        kind="i32",
+    )
+    raw_parents = source.get("vertex_origin_parents_binary")
+    parent_count = _index(raw_parents.get("count")) if isinstance(raw_parents, Mapping) else None
+    if offsets is None or parent_count is None or parent_count <= 0:
+        return
+    parents = _native_binary_descriptor(raw_parents, expected_count=parent_count, components=1, kind="i32")
+    weights = _native_binary_descriptor(
+        source.get("vertex_origin_weights_binary"), expected_count=parent_count, components=1, kind="f64"
+    )
+    if parents is None or weights is None:
+        return
+    original_vertex_count = _index(source.get("topology_original_vertex_count"))
+    original_face_count = _index(source.get("topology_original_face_count"))
+    if original_vertex_count is None or original_face_count is None:
+        return
+    if original_vertex_count <= 0 or original_face_count <= 0 or expected_faces <= 0:
+        return
+    target["vertex_origin_offsets_binary"] = offsets
+    target["vertex_origin_parents_binary"] = parents
+    target["vertex_origin_weights_binary"] = weights
+    target["topology_contract"] = str(source.get("topology_contract") or "")
+    target["topology_rebuild_valid"] = True
+    target["topology_original_vertex_count"] = original_vertex_count
+    target["topology_original_face_count"] = original_face_count
 
 def _copy_snapshot_descriptor(
     target: dict[str, object],
@@ -301,7 +357,102 @@ def _submesh_from_native_snapshot_item(item: Mapping[str, object]) -> SubMesh | 
             attr_name = str(raw_name or "").strip()
             if attr_name and attr_name not in _TRANSIENT_NATIVE_SUBMESH_ATTRS:
                 setattr(submesh, attr_name, _snapshot_metadata_value(value))
+    provenance = _topology_provenance_from_native_snapshot_item(
+        item, vertex_count=vertex_count, face_count=face_count
+    )
+    if provenance is None:
+        # A clone re-exports from a session stored without provenance, so the
+        # contract arrives through the cloned attribute instead of the binary
+        # descriptors. Either way it is validated against this submesh before it
+        # is trusted.
+        restored = getattr(submesh, "topology_provenance", None)
+        if isinstance(restored, SubmeshTopologyProvenance) and not validate_topology_provenance(
+            restored, output_vertex_count=vertex_count, output_face_count=face_count
+        ):
+            provenance = restored
+    submesh.topology_provenance = provenance
+    if provenance is not None:
+        # With a contract in hand the legacy map is its view, not a separate
+        # claim: the single original index for a direct vertex, -1 where the
+        # vertex was derived. Declaring the authority is what stops the PAC skin
+        # path reading those -1 entries as donor lineage.
+        submesh.source_vertex_map = list(topology_source_vertex_map(provenance))
+        submesh.source_vertex_map_authority = SOURCE_VERTEX_MAP_TOPOLOGY
     return submesh
+
+
+def _topology_provenance_from_native_snapshot_item(
+    item: Mapping[str, object],
+    *,
+    vertex_count: int,
+    face_count: int,
+) -> object | None:
+    """Rebuild the contract from its binary descriptors, or return nothing.
+
+    Python validates the decoded arrays itself rather than trusting the report:
+    a short, stale, or mismatched payload produces no contract, and the ordinary
+    same-count blockers then apply.
+    """
+    if not bool(item.get("topology_rebuild_valid")) or vertex_count <= 0 or face_count <= 0:
+        return None
+    if str(item.get("topology_contract") or "") != TOPOLOGY_PROVENANCE_VERSION:
+        return None
+    original_vertex_count = _index(item.get("topology_original_vertex_count"))
+    original_face_count = _index(item.get("topology_original_face_count"))
+    if not original_vertex_count or not original_face_count:
+        return None
+    offsets = _read_i32_binary_report_payload(
+        item.get("vertex_origin_offsets_binary"), expected_count=vertex_count + 1
+    )
+    if not offsets or len(offsets) != vertex_count + 1:
+        return None
+    parent_total = int(offsets[-1])
+    if offsets[0] != 0 or parent_total <= 0:
+        return None
+    parents = _read_i32_binary_report_payload(item.get("vertex_origin_parents_binary"), expected_count=parent_total)
+    weights = _read_f64_binary_report_payload(item.get("vertex_origin_weights_binary"), expected_count=parent_total)
+    if not parents or not weights or len(parents) != parent_total or len(weights) != parent_total:
+        return None
+    origins: list[VertexOrigin] = []
+    for index in range(vertex_count):
+        start = int(offsets[index])
+        end = int(offsets[index + 1])
+        if start < 0 or end <= start or end > parent_total:
+            return None
+        try:
+            origins.append(
+                canonical_vertex_origin(
+                    parents[start:end],
+                    weights[start:end],
+                    original_vertex_count=original_vertex_count,
+                )
+            )
+        except TopologyProvenanceError:
+            return None
+    source_face_indices = _read_i32_binary_report_payload(
+        item.get("source_face_indices_binary"), expected_count=face_count
+    ) or list(
+        _i32_range_report_values(
+            item, start_key="source_face_start", count_key="source_face_count", max_count=face_count
+        )
+        or ()
+    )
+    if len(source_face_indices) != face_count:
+        return None
+    if any(int(value) < 0 or int(value) >= original_face_count for value in source_face_indices):
+        return None
+    provenance = SubmeshTopologyProvenance(
+        version=TOPOLOGY_PROVENANCE_VERSION,
+        original_vertex_count=original_vertex_count,
+        original_face_count=original_face_count,
+        vertex_origins=tuple(origins),
+        face_origins=tuple(int(value) for value in source_face_indices),
+    )
+    if validate_topology_provenance(
+        provenance, output_vertex_count=vertex_count, output_face_count=face_count
+    ):
+        return None
+    return provenance
 
 def _mesh_session_item_from_native_snapshot(item: Mapping[str, object]) -> dict[str, object] | None:
     submesh_index = _index(item.get("index"))

@@ -2302,6 +2302,7 @@
     "EditMeshSessionTitle": "メッシュセッションタイトルの編集",
     "Editable": "編集可能",
     "Editable Fields": "編集可能なフィールド",
+    "Editable Package Export is unavailable while a resident topology edit is present (part {value_0}). Rebuild the mesh into its original PAC, or undo the topology edit, then export again.": "トポロジー編集がメモリ上に存在する間は、編集可能パッケージのエクスポートを利用できません（パーツ {value_0}）。メッシュを元の PAC に再構築するか、トポロジー編集を元に戻してから、もう一度エクスポートしてください。",
     "Editable clone workspace created.": "編集可能なクローン ワークスペースが作成されました。",
     "Editable fields: {value_0}{value_1}{value_2}": "編集可能フィールド: {value_0}{value_1}{value_2}",
     "Editable mesh package export failed: {value_0}": "編集可能メッシュ パッケージのエクスポートに失敗しました: {value_0}",

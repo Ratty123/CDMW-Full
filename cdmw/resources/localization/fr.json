@@ -2302,6 +2302,7 @@
     "EditMeshSessionTitle": "EditMeshSessionTitle",
     "Editable": "Modifiable",
     "Editable Fields": "Champs modifiables",
+    "Editable Package Export is unavailable while a resident topology edit is present (part {value_0}). Rebuild the mesh into its original PAC, or undo the topology edit, then export again.": "L'export de paquet modifiable est indisponible tant qu'une modification de topologie est présente en mémoire (partie {value_0}). Reconstruisez le maillage dans son PAC d'origine ou annulez la modification de topologie, puis exportez à nouveau.",
     "Editable clone workspace created.": "Espace de travail de clonage modifiable créé.",
     "Editable fields: {value_0}{value_1}{value_2}": "Champs modifiables : {value_0}{value_1}{value_2}",
     "Editable mesh package export failed: {value_0}": "Échec de l'exportation du package de maillage modifiable : {value_0}",
