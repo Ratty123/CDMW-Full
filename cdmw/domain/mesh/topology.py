@@ -408,6 +408,25 @@ def topology_provenance_is_valid(
     )
 
 
+def topology_contract_submesh_indices(mesh: object) -> tuple[int, ...]:
+    """Which of a mesh's submeshes carry a contract that describes their own geometry.
+
+    Callers that only need "does this mesh carry one at all" read the tuple as a
+    boolean. One owner for that question keeps every caller agreeing about what
+    counts: a contract that no longer matches its submesh's counts is not one.
+    """
+    return tuple(
+        index
+        for index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ()))
+        if getattr(submesh, "topology_provenance", None) is not None
+        and topology_provenance_is_valid(
+            getattr(submesh, "topology_provenance", None),
+            output_vertex_count=len(tuple(getattr(submesh, "vertices", ()) or ())),
+            output_face_count=len(tuple(getattr(submesh, "faces", ()) or ())),
+        )
+    )
+
+
 def topology_source_vertex_map(provenance: SubmeshTopologyProvenance) -> tuple[int, ...]:
     """Legacy `source_vertex_map` view: original index, or -1 where derived."""
     return tuple(origin.direct_parent for origin in provenance.vertex_origins)
@@ -621,6 +640,7 @@ __all__ = [
     "identity_topology_provenance",
     "removed_original_faces",
     "removed_original_vertices",
+    "topology_contract_submesh_indices",
     "topology_operation_for_native_action",
     "topology_operation_metadata",
     "topology_provenance_is_valid",

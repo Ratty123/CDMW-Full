@@ -55,7 +55,7 @@ from .mesh_obj_importer import (
     import_obj,
     validate_obj_sidecar_source_identity,
 )
-from cdmw.domain.mesh.topology import validate_topology_provenance
+from cdmw.domain.mesh.topology import topology_contract_submesh_indices
 
 from .mesh_pac_topology_builder import build_pac_topology_rebuild
 from .mesh_pac_builder import (
@@ -289,17 +289,7 @@ def _build_prepared_mesh_bytes(
 
 def _has_topology_contract(mesh: ParsedMesh) -> bool:
     """True when any submesh carries a contract that describes its own geometry."""
-    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
-        provenance = getattr(submesh, "topology_provenance", None)
-        if provenance is None:
-            continue
-        if not validate_topology_provenance(
-            provenance,
-            output_vertex_count=len(tuple(getattr(submesh, "vertices", ()) or ())),
-            output_face_count=len(tuple(getattr(submesh, "faces", ()) or ())),
-        ):
-            return True
-    return False
+    return bool(topology_contract_submesh_indices(mesh))
 
 
 def _validate_pac_obj_protected_vertex_bytes(
