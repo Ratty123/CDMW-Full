@@ -33,6 +33,9 @@ pytestmark = pytest.mark.skipif(
 
 def _session(service: MeshService, session_id: str, data: bytes):
     mesh = parse_pac(data, "target.pac")
+    # The app opens a session with the source bytes attached; without them the
+    # export snapshot carries no original and nothing can be rebuilt into it.
+    setattr(mesh, "_cdmw_original_data", data)
     view = service.open_edit_session(mesh, session_id=session_id, mode="edit")
     # The native session opens lazily, on the first command.
     service.apply_command(
@@ -141,6 +144,36 @@ def test_a_face_delete_that_removes_the_first_face_keeps_its_contract() -> None:
 
         rebuild = rebuild_mesh_with_report(working, data, original_mesh=original)
         assert dict(rebuild.report.topology_rebuild or {})["serializer"] == "pac_lod0_topology_exact_v1"
+    finally:
+        service.close_edit_session(view.session_id)
+
+
+def test_recorded_operations_do_not_divert_the_rebuild_back_to_the_original() -> None:
+    # The rebuild path re-applies named channels onto a deep copy of the
+    # original when edit operations are present. Topology operations map to no
+    # channel, so that reconstruction handed the writer the unedited original
+    # and still called it a rebuild: a plausible file, silently not the edit.
+    data = _pac_fixture(skinned=True)
+    original = parse_pac(data, "target.pac")
+    service = MeshService()
+    view = _session(service, "topology-rebuild-operations", data)
+    try:
+        _subdivide(service, view.session_id)
+        snapshot = service.capture_export_snapshot(view.session_id)
+        assert snapshot.edit_operations, "the subdivide should have recorded an operation"
+
+        # Exactly what the service does before rebuilding.
+        setattr(snapshot.mesh, "_cdmw_edit_operations", tuple(snapshot.edit_operations))
+        result = rebuild_mesh_with_report(
+            snapshot.mesh, snapshot.original_data, original_mesh=snapshot.base_mesh
+        )
+
+        report = dict(result.report.topology_rebuild or {})
+        assert report.get("serializer") == "pac_lod0_topology_exact_v1"
+        assert report.get("fallback_used") is False
+        reparsed = parse_pac(result.data, "target.pac")
+        assert len(reparsed.submeshes[0].faces) == len(snapshot.mesh.submeshes[0].faces)
+        assert len(reparsed.submeshes[0].faces) != len(original.submeshes[0].faces)
     finally:
         service.close_edit_session(view.session_id)
 

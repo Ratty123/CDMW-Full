@@ -217,6 +217,13 @@ def _prepare_mesh_for_rebuild(
                 "Keep or rename the sidecar beside the Blender-exported OBJ, then import it as Round-trip edit."
             )
         _validate_mesh_rebuild_operations(mesh, original_mesh=original_mesh)
+        if _has_topology_contract(mesh):
+            # Channel re-application rebuilds the original and copies the named
+            # channels back onto it, which is a same-count idea. A topology edit
+            # has no channel to re-apply: its geometry is the authored result,
+            # and reconstructing from the original would hand the writer the
+            # unedited mesh while still calling it a rebuild.
+            return fmt, mesh, original_mesh
         return fmt, _apply_operation_channels_to_original(original_mesh, mesh), original_mesh
     else:
         _validate_mesh_rebuild_operations(mesh, original_mesh=None)
