@@ -77,13 +77,39 @@ keeps core user workflows working behind stable facades.
   about 97 px left of the selection; it now lands at 621 instead of 523, and the
   renderer's own `pane_bounds_diagnostics` confirms the stroke is measured against
   a 1242 px render surface. Fixing it was necessary but not sufficient.
-- What remains is a product-semantics question rather than a bug hunt: should
-  Move deform a brush footprint at all, when `docs/ai/PROJECT_MEMORY.md` records
-  that Move applies a local part transform and that deformation preserves the
-  committed selection? Both invariants are contradicted by the trail. The
-  harness configures Move with `tool_state {tool: move, target_mode: vertex}` and
-  never clears the brush radius, strength or `selection_operation` left over from
-  arming Select, so the leftover configuration is the first thing to test.
+- **The leftover-configuration hypothesis was tested and is wrong, and the
+  contract question it raised is settled.** `cdmw/ui/mesh_editor/README.md` states
+  the intended behaviour outright: Move requires an existing selection, and for
+  the brush tools "native core restricts that brush to the resident selection when
+  present". The gates assert the documented contract, so the defect is in the
+  code, not in the gates.
+- The brush parameters are not stale state from arming Select. `PointerPayload`
+  in `MeshViewport.Input.cs` merges the editor's tool options into every stroke by
+  design, and the scoping decision happens downstream. Sending a different
+  `target_mode` cannot fix it either: the native rule at
+  `native/cdmw_mesh_core/src/owners/edit_topology_02.cpp:149` reads
+  `stroke_phase == "update" || stroke_phase == "end" || target_mode != "selection"`,
+  so the brush wins on every update and end regardless of mode, and a stroke is
+  almost entirely update and end phases.
+- The restriction the README describes is implemented, and gated:
+  `edit_topology_02.cpp:445` restricts the brush to the selection only when the
+  item carries `selection_restricts_vertices`, which defaults to false. Only
+  `cdmw/modding/mesh_native_brush.py` ever sets it, at three call sites. Two set
+  it unconditionally; the third sets `selected is not None`.
+- The failing path is the third. `cdmw/modding/mesh_edit_ops.py:871` falls back to
+  `{index: None for index, _submesh in enumerate(mesh.submeshes)}` when the
+  Python-side `MeshEditSelection` is empty, which sets
+  `selection_restricts_vertices` false for every submesh and runs the brush
+  unrestricted across the whole mesh. That matches every symptom: changes spanning
+  submeshes the selection never touched, a count that varies with whatever the
+  brush sweeps, and a selection that does not move as a unit.
+- So the remaining question is why the Python-side selection is empty while the
+  resident helper is reporting 39 vertices in submesh 2 in the same breath. The
+  helper's authority is correct and arrives before the stroke; something between
+  that `tool_state_applied` and `_native_brush_edit_payload` is dropping it. That
+  is a selection-mirroring defect in the host, and it is where the next change
+  belongs. Fixing it requires no native rebuild if the mirroring is the only
+  fault, which is worth establishing before touching `edit_topology_02.cpp`.
 - A genuine product defect surfaced on the way: the renderer's status payload
   publishes a viewport rectangle that disagrees with the pane it renders and
   picks against. Measured here it reports 1047x1195 while its own
