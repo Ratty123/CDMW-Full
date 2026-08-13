@@ -12,7 +12,9 @@ import hashlib
 import pytest
 
 from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection, validate_mesh_export
+from cdmw.domain.mesh.export_validation import TOPOLOGY_CONTRACT_CATEGORY
 from cdmw.domain.mesh.topology import (
+    TOPOLOGY_FACE_ORIGIN_INVALID,
     TOPOLOGY_PROVENANCE_VERSION,
     validate_topology_operation_history,
     validate_topology_provenance,
@@ -266,6 +268,107 @@ def test_export_readiness_admits_the_contract_and_names_no_topology_blocker() ->
         assert "source_vertex_map_missing" not in codes
         assert "source_vertex_map_invalid" not in codes
         assert not any(code.startswith("topology_") for code in codes)
+        assert report.topology_contract_submitted
+        assert report.topology_rebuild_ready
+        assert report.topology_contract_blockers == ()
+    finally:
+        service.close_edit_session(view.session_id)
+
+
+def test_a_contract_that_stops_describing_its_submesh_becomes_a_named_check_row() -> None:
+    """A broken contract has to say so, not merely stop being usable."""
+    data = _pac_fixture()
+    original = parse_pac(data, "target.pac")
+    service = MeshService()
+    view = _session(service, "topology-rebuild-checks-blocked", data)
+    try:
+        _subdivide(service, view.session_id)
+        working = service.working_mesh(view.session_id, clone=True)
+        # Drop a face without touching the contract, so the face origins no
+        # longer cover the geometry they claim to describe.
+        working.submeshes[0].faces = list(working.submeshes[0].faces)[:-1]
+
+        report = validate_mesh_export(working, original_mesh=original)
+
+        assert report.topology_contract_submitted
+        assert not report.topology_rebuild_ready
+        assert not report.ok
+        codes = {issue.code for issue in report.topology_contract_blockers}
+        assert TOPOLOGY_FACE_ORIGIN_INVALID in codes
+        assert all(
+            issue.category == TOPOLOGY_CONTRACT_CATEGORY
+            for issue in report.topology_contract_blockers
+        )
+    finally:
+        service.close_edit_session(view.session_id)
+
+
+def test_a_same_count_session_offers_no_contract_to_the_checks_panel() -> None:
+    data = _pac_fixture()
+    original = parse_pac(data, "target.pac")
+    service = MeshService()
+    view = _session(service, "topology-rebuild-checks-same-count", data)
+    try:
+        report = validate_mesh_export(
+            service.working_mesh(view.session_id, clone=True), original_mesh=original
+        )
+
+        assert not report.topology_contract_submitted
+        assert not report.topology_rebuild_ready
+        assert report.topology_contract_blockers == ()
+    finally:
+        service.close_edit_session(view.session_id)
+
+
+def test_a_resident_loop_cut_rebuilds_through_the_exact_serializer() -> None:
+    """Loop Cut is one of the three admitted operations and must round-trip too."""
+    data = _pac_fixture(skinned=True)
+    original = parse_pac(data, "target.pac")
+    original_submesh = original.submeshes[0]
+    service = MeshService()
+    view = _session(service, "topology-rebuild-loop-cut", data)
+    try:
+        # Loop Cut is an edge-mode action. (1, 2) is the fixture quad's shared
+        # diagonal, so the cut crosses both triangles and derives a midpoint.
+        cut = service.apply_command(
+            view.session_id,
+            MeshEditCommand(
+                "loop_cut",
+                selection=MeshEditSelection.from_maps(edges_by_submesh={0: ((1, 2),)}),
+                params={"_include_preview_deltas": False},
+                mode="edit",
+            ),
+        )
+        assert cut.ok, cut
+        working = service.working_mesh(view.session_id, clone=True)
+        submesh = working.submeshes[0]
+        provenance = submesh.topology_provenance
+        assert provenance is not None
+        assert provenance.version == TOPOLOGY_PROVENANCE_VERSION
+        assert not validate_topology_provenance(
+            provenance,
+            output_vertex_count=len(submesh.vertices),
+            output_face_count=len(submesh.faces),
+        )
+        assert len(submesh.faces) > len(original_submesh.faces)
+
+        result = rebuild_mesh_with_report(working, data, original_mesh=original)
+        report = dict(result.report.topology_rebuild or {})
+
+        assert report.get("serializer") == "pac_lod0_topology_exact_v1"
+        assert report.get("fallback_used") is False
+        assert report.get("lost_influence_mass") == 0.0
+        assert report.get("protected_bytes_preserved") is True
+        assert report.get("lower_lods_preserved") is True
+        assert report.get("unknown_sections_preserved") is True
+        # A cut derives new vertices, so this is the blended-skin path and not
+        # the direct-copy one Face Delete exercises.
+        assert int(report.get("blended_vertex_count") or 0) > 0
+
+        rebuilt = parse_pac(result.data, "target.pac").submeshes[0]
+        assert len(rebuilt.vertices) == len(submesh.vertices)
+        assert len(rebuilt.faces) == len(submesh.faces)
+        assert [tuple(face) for face in rebuilt.faces] == [tuple(face) for face in submesh.faces]
     finally:
         service.close_edit_session(view.session_id)
 

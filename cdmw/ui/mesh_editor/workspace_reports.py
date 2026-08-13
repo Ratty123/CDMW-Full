@@ -366,9 +366,22 @@ class WorkspaceReportMixin:
             ("LOD identity status", self._validation_status(report, code_terms=("lod_identity", "lod_count"), ok_text="preserved")),
             ("Submesh identity status", self._validation_status(report, code_terms=("submesh", "part_count", "stable_id"), ok_text="preserved")),
             ("Rebuild allowed", "yes" if report.ok else "no"),
+            # Empty for a session that never offered a contract, which drops the
+            # row below and leaves a same-count panel reading as it always did.
+            # The pair stays in this literal because the localization scanner
+            # reads the labels straight out of the tuple this loop iterates.
+            ("Exact topology rebuild", self._topology_rebuild_status(report)),
         )
         for label, value in rows:
+            if not value:
+                continue
             self.validator_tree.addTopLevelItem(QTreeWidgetItem(("Status", label, value)))
+
+    @staticmethod
+    def _topology_rebuild_status(report: MeshExportValidationReport) -> str:
+        if not report.topology_contract_submitted:
+            return ""
+        return "ready" if report.topology_rebuild_ready else "blocked"
 
     @staticmethod
     def _validation_status(

@@ -2416,6 +2416,7 @@
     "Exact linked patchable values: {value_0}.": "Tam bağlantılı yamalanabilir değerler: {value_0}.",
     "Exact name": "Tam ad",
     "Exact original source with XML syntax highlighting and line numbers.": "XML sözdizimi vurgulaması ve satır numaralarıyla tam orijinal kaynak.",
+    "Exact topology rebuild": "Tam topoloji yeniden oluşturma",
     "Example:\n  realesr-animevideov3.param\n  realesr-animevideov3.bin\n\nNested folders inside a zip are fine.\nUnsupported examples include a single .param without its .bin partner,\nrandom checkpoint formats, or the NCNN executable folder without model files.": "Örnek:\n  realesr-animevideov3.param\n  realesr-animevideov3.bin\n\nBir zip içindeki iç içe geçmiş klasörler iyidir.\nDesteklenmeyen örnekler arasında .bin ortağı olmayan tek bir .param bulunur.\nrastgele kontrol noktası formatları veya model dosyaları olmayan NCNN yürütülebilir klasörü.",
     "Example: -dn 0.2": "Örnek: -dn 0,2",
     "Examples:": "Örnekler:",

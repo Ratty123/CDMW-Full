@@ -23,6 +23,9 @@ _RESIDENT_OPERATION_SOURCE = "resident_native"
 SUPPORTED_GAME_MESH_FORMATS = frozenset({"pac", "pam", "pamlod"})
 REBUILDABLE_PARSE_CONFIDENCE = frozenset({"exact", "inferred"})
 BLOCKED_PARSE_CONFIDENCE = frozenset({"fallback_scan", "unsupported", "failed"})
+#: Category owning the topology contract's own blockers. Readiness reads this
+#: rather than matching on code text, so renaming a blocker cannot orphan a row.
+TOPOLOGY_CONTRACT_CATEGORY = "topology_contract"
 DEVELOPER_OVERRIDABLE_REBUILD_BLOCKERS = frozenset(
     {
         "unsafe_parse_confidence",
@@ -63,8 +66,26 @@ class MeshExportValidationReport:
 
     @property
     def topology_rebuild_ready(self) -> bool:
-        """True when a topology contract is present and nothing blocks it."""
-        return bool(self.topology_contract_parts) and self.ok
+        """True when a topology contract is present and nothing blocks the contract.
+
+        Deliberately not `and self.ok`: an unrelated blocker such as missing
+        skeleton metadata already speaks for itself in its own row and in
+        `Rebuild allowed`. Folding it in here would make the topology row report
+        a topology problem that does not exist.
+        """
+        return bool(self.topology_contract_parts) and not self.topology_contract_blockers
+
+    @property
+    def topology_contract_blockers(self) -> tuple[MeshExportValidationIssue, ...]:
+        """Blockers raised by the topology contract itself."""
+        return tuple(
+            issue for issue in self.blockers if issue.category == TOPOLOGY_CONTRACT_CATEGORY
+        )
+
+    @property
+    def topology_contract_submitted(self) -> bool:
+        """True when any part offered a contract, valid or not."""
+        return bool(self.topology_contract_parts or self.topology_contract_blockers)
 
     @property
     def blockers(self) -> tuple[MeshExportValidationIssue, ...]:
@@ -200,6 +221,7 @@ def validate_mesh_export(
         edit_operations if edit_operations is not None else getattr(mesh, "_cdmw_edit_operations", ()),
         requires_operations=_mesh_requires_edit_operations(mesh, requires_edit_operations),
     )
+    _validate_topology_contract(issues, submeshes, original_submeshes)
 
     return MeshExportValidationReport(
         mesh_format=mesh_format,
@@ -229,6 +251,33 @@ def _topology_contract_parts(
             submesh, original_submeshes[index] if index < len(original_submeshes) else None
         )
     )
+
+
+def _validate_topology_contract(
+    issues: list[MeshExportValidationIssue],
+    submeshes: Sequence[object],
+    original_submeshes: Sequence[object],
+) -> None:
+    """Report a submitted topology contract that does not hold, by its stable code.
+
+    Only a part that actually carries a contract is examined, so same-count
+    workflows keep their existing rows. Without this the readiness panel had no
+    way to say why an exact rebuild was unavailable: the rebuild path already
+    refused such a part, but it refused silently.
+    """
+    for index, submesh in enumerate(submeshes):
+        if getattr(submesh, "topology_provenance", None) is None:
+            continue
+        original = original_submeshes[index] if index < len(original_submeshes) else None
+        for code in _export_topology_blockers(submesh, original):
+            _add(
+                issues,
+                "blocker",
+                code,
+                f"Exact topology rebuild is unavailable for this part: {code}.",
+                TOPOLOGY_CONTRACT_CATEGORY,
+                submesh_index=index,
+            )
 
 
 def _add(

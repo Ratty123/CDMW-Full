@@ -68,11 +68,11 @@ from tools.mesh_harness.real_dotnet_geometry import refresh_editable_viewport_re
 from tools.mesh_harness.real_dotnet_flow import (
     exercise_assignment_and_mesh_edits,
     exercise_coherent_export,
-    exercise_exact_topology_rebuild,
     exercise_linked_texture_strokes,
     production_flow_gates,
     record_flow_step,
 )
+from tools.mesh_harness.real_dotnet_topology import exercise_exact_topology_rebuild
 from tools.mesh_harness.real_dotnet_input import (
     drive_viewport_selection,
     drive_viewport_stroke,

@@ -2416,6 +2416,7 @@
     "Exact linked patchable values: {value_0}.": "정확하게 연결된 패치 가능한 값: {value_0}.",
     "Exact name": "정확한 이름",
     "Exact original source with XML syntax highlighting and line numbers.": "XML 구문 강조 및 줄 번호가 있는 정확한 원본 소스.",
+    "Exact topology rebuild": "정확한 토폴로지 재구축",
     "Example:\n  realesr-animevideov3.param\n  realesr-animevideov3.bin\n\nNested folders inside a zip are fine.\nUnsupported examples include a single .param without its .bin partner,\nrandom checkpoint formats, or the NCNN executable folder without model files.": "예:\n  realesr-animevideov3.param\n  realesr-animevideov3.bin\n\nzip 안에 중첩된 폴더는 괜찮습니다.\n지원되지 않는 예에는 .bin 파트너가 없는 단일 .param이 포함됩니다.\n무작위 체크포인트 형식 또는 모델 파일이 없는 NCNN 실행 폴더.",
     "Example: -dn 0.2": "예: -dn 0.2",
     "Examples:": "예:",
