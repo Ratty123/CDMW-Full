@@ -388,6 +388,7 @@ def _drive_projected_vertex_selection(
     state.tool_state_event = _wait_protocol_event(
         state, "tool_state_applied", tool_cursor, 5.0
     )
+    state.resident_selection_inputs = _resident_selection_inputs(state)
     tool_selection = state.tool_state_event.get("local_selection", {})
     tool_selection = tool_selection if isinstance(tool_selection, Mapping) else {}
     selected_sources = tuple(
@@ -479,6 +480,58 @@ def _drive_projected_vertex_selection(
 #: Selections of a few hundred stay whole, which is the point; a full-mesh
 #: selection would otherwise bury the trail it is meant to make readable.
 _TRAIL_ARRAY_LIMIT = 512
+
+
+def _resident_selection_inputs(state: SimpleNamespace) -> dict[str, object]:
+    """Record what decides `reuse_resident_selection` for the Move stroke.
+
+    `tab_interaction` reuses the committed selection only when
+    `standalone_dotnet_target_controller` resolves to a controller whose session
+    view still holds a selection.  When it does not, Move re-picks a screen
+    brush footprint instead, so the two drag gates need to tell those apart.
+    """
+
+    report: dict[str, object] = {}
+    tab = getattr(state, "tab", None)
+    target = getattr(tab, "standalone_dotnet_target_controller", None)
+    harness = getattr(state, "controller", None)
+    report["target_controller_present"] = target is not None
+    report["target_controller_is_harness_controller"] = target is harness
+    report["fallback_controller_present"] = (
+        getattr(tab, "standalone_controller", None) is not None
+    )
+    for label, controller in (("target", target), ("harness", harness)):
+        if controller is None:
+            report[f"{label}_session_id"] = None
+            report[f"{label}_selection_empty"] = None
+            report[f"{label}_selection_vertex_count"] = None
+            report[f"{label}_selection_counts_by_submesh"] = None
+            report[f"{label}_selection_indices_by_submesh"] = None
+            continue
+        try:
+            view = controller.session_view()
+            report[f"{label}_session_id"] = str(getattr(view, "session_id", ""))
+            report[f"{label}_selection_empty"] = bool(view.selection.is_empty())
+            vertex_map = view.selection.vertex_map()
+            report[f"{label}_selection_vertex_count"] = sum(
+                len(indices) for indices in vertex_map.values()
+            )
+            report[f"{label}_selection_counts_by_submesh"] = {
+                str(submesh): len(indices)
+                for submesh, indices in sorted(vertex_map.items())
+            }
+            report[f"{label}_selection_indices_by_submesh"] = {
+                str(submesh): sorted(int(index) for index in indices)
+                for submesh, indices in sorted(vertex_map.items())
+            }
+        except (AttributeError, RuntimeError, TypeError, ValueError) as error:
+            report[f"{label}_session_id"] = None
+            report[f"{label}_selection_empty"] = None
+            report[f"{label}_selection_vertex_count"] = None
+            report[f"{label}_selection_counts_by_submesh"] = None
+            report[f"{label}_selection_indices_by_submesh"] = None
+            report[f"{label}_error"] = f"{type(error).__name__}: {error}"
+    return report
 
 
 def _trail_value(value: object, depth: int = 0) -> object:
@@ -843,6 +896,9 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
             ),
             "physical_selection_anchor": dict(
                 state.physical_selection_anchor
+            ),
+            "resident_selection_inputs": dict(
+                getattr(state, "resident_selection_inputs", {}) or {}
             ),
         },
         "selected_projected_screen_center": list(state.projected_center),
