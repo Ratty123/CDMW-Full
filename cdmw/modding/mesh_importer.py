@@ -233,9 +233,18 @@ def _build_prepared_mesh_bytes(
 ) -> bytes:
     # A validated topology contract routes to the exact LOD0 writer and to
     # nothing else. Falling through to the native builder or the generic PAC
-    # rebuild would replace an exact result with a plausible one, so a blocked
-    # contract raises instead.
-    if fmt == "pac" and original_mesh is not None and _has_topology_contract(mesh):
+    # rebuild would replace an exact result with a plausible one, so a contract
+    # that cannot be served here raises instead of being quietly ignored.
+    if _has_topology_contract(mesh):
+        if fmt != "pac":
+            raise ValueError(
+                f"Topology provenance is only rebuildable into PAC; this mesh is {fmt or 'unknown'}."
+            )
+        if original_mesh is None:
+            raise ValueError(
+                "Exact PAC LOD0 topology rebuild needs the original parsed mesh, and it is unavailable. "
+                "Refusing to fall back to the generic rebuild, which would choose donor records."
+            )
         return build_pac_topology_rebuild(
             original_mesh, mesh, original_data, report=topology_report
         )
