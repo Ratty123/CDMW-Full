@@ -93,6 +93,7 @@ $TestsByArea = @{
         "tests/test_native_mesh_topology_provenance.py",
         "tests/test_mesh_pac_topology_serializer.py",
         "tests/test_mesh_topology_rebuild_integration.py",
+        "tests/test_mesh_topology_checks_panel.py",
         "tests/test_stroke_orphan_refusal.py",
         "tests/test_mesh_edit_combo_mirror.py",
         "tests/test_mesh_edit_selection_mirror.py",

@@ -2416,6 +2416,7 @@
     "Exact linked patchable values: {value_0}.": "Valores parcheables vinculados exactos: {value_0}.",
     "Exact name": "nombre exacto",
     "Exact original source with XML syntax highlighting and line numbers.": "Fuente original exacta con resaltado de sintaxis XML y números de línea.",
+    "Exact topology rebuild": "Reconstrucción exacta de topología",
     "Example:\n  realesr-animevideov3.param\n  realesr-animevideov3.bin\n\nNested folders inside a zip are fine.\nUnsupported examples include a single .param without its .bin partner,\nrandom checkpoint formats, or the NCNN executable folder without model files.": "Ejemplo:\n  reals-animevideov3.param\n  reals-animevideov3.bin\n\nLas carpetas anidadas dentro de un zip están bien.\nLos ejemplos no admitidos incluyen un único .param sin su socio .bin,\nformatos de puntos de control aleatorios o la carpeta ejecutable NCNN sin archivos de modelo.",
     "Example: -dn 0.2": "Ejemplo: -dn 0,2",
     "Examples:": "Ejemplos:",

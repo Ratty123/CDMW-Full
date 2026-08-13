@@ -277,6 +277,14 @@ A contract that does not validate is reported with its stable blocker code and
 then treated as absent, so every same-count blocker still fires. Without a
 contract nothing changes at all.
 
+Those blocker codes reach the user through the existing Checks panel, in the
+`topology_contract` category, and the panel gains one `Exact topology rebuild`
+row reading `ready` or `blocked`. The row appears only for a session that
+actually offered a contract, so a same-count session's Checks list is unchanged.
+It answers for the contract alone: an unrelated blocker such as missing skeleton
+metadata leaves it `ready` and is reported by its own row and by
+`Rebuild allowed`, which stays the overall gate on the Rebuild button.
+
 Natively, every editable submesh opens with identity origins, each admitted edit
 composes against the untouched session before anything is written, and a
 malformed derivation from an admitted operation aborts the whole edit. Anything

@@ -878,9 +878,7 @@ def test_production_flow_is_ordered_and_gated_by_real_lifecycle_evidence() -> No
         edit_flow_evidence={"affected_only_updates": True},
         edit_flow_ok=True,
         topology_rebuild_ok=True,
-        topology_rebuild_evidence={
-            "rebuild_report": {"serializer": "pac_lod0_topology_exact_v1", "fallback_used": False}
-        },
+        topology_rebuild_evidence={"all_operations_avoided_fallback": True},
     )
     for step in PRODUCTION_FLOW_STEPS:
         record_flow_step(state, step)
