@@ -1140,3 +1140,27 @@ def test_applied_selection_push_id_reads_the_push_the_helper_answered_with() -> 
     assert _applied_selection_push_id(event) == 4
     assert _applied_selection_push_id({"event": "tool_state_applied"}) == 0
     assert _applied_selection_push_id(None) == 0
+
+
+def test_move_is_armed_only_after_the_applied_selection_push_catches_up() -> None:
+    """A single tool_state ask samples the selection push before last.
+
+    The helper answers from the push it has already applied, so the harness has
+    to re-ask until that push is the gesture's own. Asking once reported the
+    projection probe's selection while the gesture's was still in flight, which
+    is what made both drag gates compare two different gestures.
+    """
+
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "tools" / "mesh_harness" / "real_dotnet.py").read_text(encoding="utf-8")
+
+    start = source.index("def _drive_projected_vertex_selection(")
+    end = source.index("def ", source.index('"tool": "move"', start))
+    arming = source[start:end]
+
+    assert "_last_select_request_id(state)" in arming
+    assert "_applied_selection_push_id(state.tool_state_event)" in arming
+    # The ask has to sit inside a bounded retry, not run once.
+    assert "for attempt in range(" in arming
+    assert arming.count('"tool": "move"') == 1
+    assert "caught_up" in arming
