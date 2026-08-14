@@ -15,6 +15,7 @@ from cdmw.services.archive_query_service import (
     build_archive_relationship_references,
 )
 from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.ui.archive_browser.static_replacement_prompt_preflight_indexes import texture_lookup_indexes
 from cdmw.services.preview_workflow_service import (
     attach_scene_preview_textures,
     parsed_mesh_to_preview_model,
@@ -143,48 +144,6 @@ def _modify_original_clone_mode(obj_path: Path, entry: ArchiveEntry) -> bool:
     )
 
 
-def _texture_lookup_indexes(
-    request: StaticReplacementPromptPreflightRequest,
-    stop_event: threading.Event,
-) -> tuple[
-    Mapping[str, Sequence[ArchiveEntry]],
-    Mapping[str, Sequence[ArchiveEntry]],
-    str,
-    int,
-    int,
-    int,
-]:
-    if request.archive_entries_by_normalized_path and request.archive_entries_by_basename:
-        return (
-            request.archive_entries_by_normalized_path,
-            request.archive_entries_by_basename,
-            "global_indexes",
-            len(tuple(request.archive_entries_by_extension.get(".dds", ()) or ())),
-            0,
-            0,
-        )
-    raise_if_cancelled(stop_event, "Static replacement preflight stopped by user.")
-    references = build_archive_relationship_references(
-        request.entry,
-        archive_entries_by_normalized_path=request.archive_entries_by_normalized_path,
-        archive_entries_by_basename=request.archive_entries_by_basename,
-    )
-    related_basenames = _collect_same_stem_related_target_basenames(request.entry)
-    indexes = archive_texture_lookup_indexes_for_alignment(
-        target_entry=request.entry,
-        graph_references=references,
-        related_target_basenames=tuple(related_basenames),
-        extension_index=request.archive_entries_by_extension,
-    )
-    raise_if_cancelled(stop_event, "Static replacement preflight stopped by user.")
-    return (
-        indexes.path_index,
-        indexes.basename_index,
-        "local_dds_extension",
-        indexes.dds_count,
-        indexes.sidecar_count,
-        indexes.graph_reference_count,
-    )
 
 
 def _sidecar_context(
@@ -301,7 +260,7 @@ def prepare_static_replacement_prompt_preflight(
     report(0, 8, "Resolving mesh and texture indexes...")
     modify_original_clone_mode = _modify_original_clone_mode(request.obj_path, request.entry)
     path_index, basename_index, lookup_source, dds_count, sidecar_count, reference_count = (
-        _texture_lookup_indexes(request, stop)
+        texture_lookup_indexes(request, stop)
     )
 
     report(1, 8, "Reading original mesh and material sidecars...")

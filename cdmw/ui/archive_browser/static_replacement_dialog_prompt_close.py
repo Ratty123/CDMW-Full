@@ -133,3 +133,44 @@ class _EmbeddedAlignmentBuilderDialog(_MeshEditorSaveAwareDialog):
         if event.key() != Qt.Key_Escape:
             return super().keyPressEvent(event)
         event.accept()
+
+
+def wire_mesh_editor_session_close(dialog: object, mesh_editor_session_state: object) -> None:
+    """Let the dialog close the Mesh Editor session it opened.
+
+    Wired only when the caller passed a session-state dict and the dialog
+    actually offers the hook. The same prompt is used where neither holds, and a
+    missing hook there is not a fault.
+    """
+
+    if not isinstance(mesh_editor_session_state, dict) or not callable(
+        getattr(dialog, "configureMeshEditorClose", None)
+    ):
+        return
+
+    def _close_mesh_editor_session(force_without_saving: bool) -> None:
+        session = mesh_editor_session_state.get("session")
+        if session is not None and callable(getattr(session, "close", None)):
+            session.close(force_without_saving=bool(force_without_saving))
+
+    def _mesh_editor_session_closed() -> None:
+        mesh_editor_session_state.clear()
+
+    dialog.configureMeshEditorClose(_close_mesh_editor_session, _mesh_editor_session_closed)
+
+
+def raise_and_activate_prompt_window(dialog: object, record_open_step) -> None:
+    """Bring a standalone prompt window forward once it has been shown.
+
+    Only for the non-embedded path. An embedded builder is revealed by
+    activating the Mesh Editor tab instead, and raising it directly would fight
+    that.
+    """
+
+    record_open_step("raise_before")
+    dialog.raise_()
+    record_open_step("raise_after")
+    record_open_step("activate_before")
+    dialog.activateWindow()
+    record_open_step("activate_after")
+

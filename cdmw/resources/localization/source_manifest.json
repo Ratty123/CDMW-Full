@@ -6306,7 +6306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 322,
+          "line": 281,
           "sink": "report"
         }
       ]
@@ -13661,7 +13661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 261,
+          "line": 220,
           "sink": "report"
         }
       ]
@@ -19851,7 +19851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 248,
+          "line": 207,
           "sink": "report"
         }
       ]
@@ -25616,7 +25616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 373,
+          "line": 332,
           "sink": "report"
         }
       ]
@@ -47986,7 +47986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_open.py",
-          "line": 181,
+          "line": 173,
           "sink": "setWindowTitle"
         }
       ]
@@ -51701,7 +51701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 241,
+          "line": 200,
           "sink": "RuntimeError"
         }
       ]
@@ -51711,7 +51711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 245,
+          "line": 204,
           "sink": "RuntimeError"
         }
       ]
@@ -64181,7 +64181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 230,
+          "line": 189,
           "sink": "report"
         }
       ]
@@ -67351,7 +67351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 307,
+          "line": 266,
           "sink": "report"
         }
       ]
@@ -72381,7 +72381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 301,
+          "line": 260,
           "sink": "report"
         }
       ]
@@ -84936,27 +84936,27 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 166,
+          "line": 170,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 179,
+          "line": 198,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 211,
+          "line": 202,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 239,
+          "line": 218,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 243,
+          "line": 233,
           "sink": "raise_if_cancelled"
         },
         {
@@ -84966,17 +84966,12 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 274,
+          "line": 273,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 300,
-          "sink": "raise_if_cancelled"
-        },
-        {
-          "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 314,
+          "line": 289,
           "sink": "raise_if_cancelled"
         },
         {
@@ -84986,12 +84981,17 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 371,
+          "line": 355,
           "sink": "raise_if_cancelled"
         },
         {
-          "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 396,
+          "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight_indexes.py",
+          "line": 50,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight_indexes.py",
+          "line": 63,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -85021,7 +85021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 398,
+          "line": 357,
           "sink": "report"
         }
       ]
@@ -85901,7 +85901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py",
-          "line": 344,
+          "line": 303,
           "sink": "report"
         }
       ]
