@@ -72,6 +72,13 @@ internal sealed partial class ExperimentForm
             _viewport.TexturesEnabled,
             _viewport.Width,
             _viewport.Height,
+            // The status reports the D3D surface, not this control, and the two
+            // disagree while the surface is still settling. Keying only on the
+            // control served a stale viewport rectangle for the rest of the
+            // session, because nothing else in this key moves when the surface
+            // alone resizes.
+            _viewport.RenderSurfaceClientSize.Width,
+            _viewport.RenderSurfaceClientSize.Height,
             _scene.SceneGeneration,
             _materials.Generation,
             _lastAppliedEditRevision,
@@ -149,6 +156,8 @@ internal sealed partial class ExperimentForm
         bool TexturesEnabled,
         int Width,
         int Height,
+        int SurfaceWidth,
+        int SurfaceHeight,
         long SceneGeneration,
         long MaterialGeneration,
         long EditRevision,

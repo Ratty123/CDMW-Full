@@ -1364,3 +1364,29 @@ def test_a_released_resident_session_may_be_handed_to_the_next_edit_session() ->
     carry = carry.split("private void ReassertInteractionModeControls(", maxsplit=1)[0]
     assert "if (_residentSessionRebound)" in carry
     assert "_residentSessionRebound = false;" in carry
+
+
+def test_renderer_status_cache_is_keyed_on_the_surface_it_reports() -> None:
+    """The cached status reports the D3D surface, so it must key on that size.
+
+    ``RenderSurfaceStatusPayload`` publishes ``surface.ClientSize``, while the
+    surface is a child that settles after its parent. Keying the cache only on
+    the parent control left a surface-only resize with nothing to invalidate it,
+    so the status kept publishing the pre-settle rectangle: measured at
+    1047x1195 for a pane its own ``ActivePaneBounds`` and Win32 both reported as
+    1242x1195.
+    """
+
+    source = _source("ExperimentForm.MaterialProtocol.cs")
+    key_record = source.split("private readonly record struct RendererDiagnosticCacheKey(", maxsplit=1)[1]
+    key_record = key_record.split(");", maxsplit=1)[0]
+    assert "SurfaceWidth" in key_record
+    assert "SurfaceHeight" in key_record
+
+    construction = source.split("var cacheKey = new RendererDiagnosticCacheKey(", maxsplit=1)[1]
+    construction = construction.split(");", maxsplit=1)[0]
+    assert "_viewport.RenderSurfaceClientSize.Width" in construction
+    assert "_viewport.RenderSurfaceClientSize.Height" in construction
+
+    split_view = _source("MeshViewport.SplitView.cs")
+    assert "internal Size RenderSurfaceClientSize => PaneSurfaceSize();" in split_view

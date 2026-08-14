@@ -50,6 +50,19 @@ keeps core user workflows working behind stable facades.
 
 2026-08-14:
 
+- **The renderer status-payload defect recorded on 2026-08-13 is fixed.** The
+  status publishes the D3D surface's client size, but its cache was keyed on the
+  outer `MeshViewport` control. The surface is a child that settles after its
+  parent, so a surface-only resize moved nothing in the key and the first status
+  built during that window was served for the rest of the session. The key now
+  carries the surface size through `MeshViewport.RenderSurfaceClientSize`, which
+  reuses the existing `PaneSurfaceSize()` instead of adding a second notion of
+  the pane. Measured on the gate, with every other field of the reconciliation
+  identical either side of the change: `status_viewport_width` moves from
+  `1047.0` to `1242.0` and `status_disagreed_with_settled_pane` from `true` to
+  `false`. `-Area mesh` stays 65 of 65, `-Area mesh-unit` is 1,997 passed with 1
+  skipped, and `-Area smoke` passes, which also clears the localization manifest
+  that editing any helper `.cs` file invalidates.
 - **The two red drag gates are fixed and `-Area mesh` is 65 of 65.** Neither
   number they compared was wrong. The helper answers `tool_state` from the
   selection push it has already applied, and that trails the gesture by one, so
@@ -84,9 +97,10 @@ keeps core user workflows working behind stable facades.
   cheaper first read for anything about who knew what when.
 
 2026-08-13 (the **root-cause bullet immediately below is superseded** by the
-2026-08-14 entry and is wrong; everything after it stands, including the
-retraction it records, the run numbers, and the renderer status-payload defect,
-which the fix above does not touch):
+2026-08-14 entry and is wrong; everything after it stands as a record of the
+time, including the retraction it records and the run numbers. The renderer
+status-payload defect it reports is real and has since been fixed, see the
+2026-08-14 entry):
 
 - **The two red drag gates fail because Move runs as a sculpt brush, not as a
   transform of the committed selection.** The ordered protocol trail settles it:
