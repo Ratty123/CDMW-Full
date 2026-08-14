@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from cdmw.ui.archive_browser.static_replacement_dialog_prompt_close import wire_mesh_editor_session_close
+from cdmw.ui.archive_browser.static_replacement_dialog_prompt_close import (
+    raise_and_activate_prompt_window,
+    wire_mesh_editor_session_close,
+)
 from cdmw.ui.archive_browser.static_replacement_dialog_prompt_deps import (
     install_static_replacement_prompt_dependencies,
 )

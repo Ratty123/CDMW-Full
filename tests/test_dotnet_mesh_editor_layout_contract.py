@@ -16,6 +16,11 @@ def _source(name: str) -> str:
             "ExperimentForm.Controls.cs",
             "ExperimentForm.AppearanceControls.cs",
         ),
+        # Layout suspend and resume are a second partial of the same class.
+        "ExperimentForm.EditMeshLayouts.cs": (
+            "ExperimentForm.EditMeshLayouts.cs",
+            "ExperimentForm.EditMeshLayouts.Suspend.cs",
+        ),
     }.get(name, (name,))
     return "\n".join((DOTNET_ROOT / owner).read_text(encoding="utf-8") for owner in owners)
 

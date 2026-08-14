@@ -65,6 +65,14 @@ ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP_HELPERS = (
 ARCHIVE_STATIC_REPLACEMENT_PROMPT_PREFLIGHT = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_prompt_preflight.py"
 )
+# The preflight's texture lookup and the prompt's close lifecycle are separate
+# owners now. The guards below read one composed source, so both belong in it.
+ARCHIVE_STATIC_REPLACEMENT_PROMPT_PREFLIGHT_INDEXES = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_prompt_preflight_indexes.py"
+)
+ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_CLOSE = (
+    ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_close.py"
+)
 ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_STATE_CALLBACKS = (
     ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_prompt_state_callbacks.py"
 )
@@ -533,6 +541,8 @@ def _main_window_source() -> str:
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP_HELPERS),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_PROMPT_PREFLIGHT),
+            _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_PROMPT_PREFLIGHT_INDEXES),
+            _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_CLOSE),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_STATE_CALLBACKS),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_TRANSFORM),
             _legacy_nested_source(ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_DEPS),
