@@ -1020,7 +1020,11 @@ def test_codex_mesh_checks_use_real_game_pac_and_keep_unit_runs_non_visual() -> 
     pytest_config = (ROOT / "pytest.ini").read_text(encoding="utf-8")
     assert 'visual: opens a window' in pytest_config
     assert 'real_game: reads locally installed game assets' in pytest_config
-    assert '-m "not visual and not real_game"' in pytest_config
+    assert 'timing: asserts wall-clock responsiveness' in pytest_config
+    # Three opt-in markers, all excluded by default for the same reason: they
+    # need something the default run cannot promise. A window, the installed
+    # game, or a scheduler the caller controls.
+    assert '-m "not visual and not real_game and not timing"' in pytest_config
 
 
 def test_real_dotnet_harness_has_dedicated_resident_side_by_side_zoom_proof() -> None:

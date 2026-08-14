@@ -5,6 +5,8 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QObject, QTimer
@@ -221,6 +223,7 @@ def test_attachment_context_resolver_honors_pre_cancel() -> None:
     assert not called
 
 
+@pytest.mark.timing
 def test_attachment_controller_dispatches_slow_io_under_50_ms() -> None:
     app = _app()
     owner = _UtilityOwner()
@@ -256,6 +259,7 @@ def test_attachment_controller_dispatches_slow_io_under_50_ms() -> None:
     app.processEvents()
 
 
+@pytest.mark.timing
 def test_attachment_controller_close_cancels_and_rejects_stale_result() -> None:
     app = _app()
     owner = _UtilityOwner()
@@ -296,6 +300,7 @@ def test_attachment_controller_close_cancels_and_rejects_stale_result() -> None:
     app.processEvents()
 
 
+@pytest.mark.timing
 def test_attachment_placement_preflight_is_latest_wins_and_cancel_drains() -> None:
     app = _app()
     owner = _PlacementOwner()
@@ -338,6 +343,7 @@ def test_attachment_placement_preflight_is_latest_wins_and_cancel_drains() -> No
     assert cancelled_results == []
 
 
+@pytest.mark.timing
 def test_attachment_loose_preflight_keeps_slow_discovery_and_large_candidate_scan_responsive(
     tmp_path: Path,
     monkeypatch: object,

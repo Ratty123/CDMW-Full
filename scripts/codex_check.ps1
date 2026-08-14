@@ -38,6 +38,7 @@ $TestsByArea = @{
         "tests/test_packaged_bundled_helper_reporting.py"
     )
     responsiveness = @(
+        "tests/test_attachment_async_io.py",
         "tests/test_ui_responsiveness_source_guards.py",
         "tests/test_mesh_edit_responsiveness_source_guards.py",
         "tests/test_texture_workflow_ui_source_guards.py",
@@ -231,7 +232,16 @@ if ($MissingTests.Count -gt 0) {
 }
 
 Write-Host "Running $Area checks with $Python"
-& $Python -m pytest @PytestTempArgs @ConfiguredTests
+# The wall-clock responsiveness tests are excluded by default, because a shared
+# runner can deschedule the process for seconds and fail them for the machine
+# being busy rather than for the code blocking the UI. This area is where they
+# are meant to run, on a machine whose scheduler the caller controls, so it opts
+# them back in.
+$AreaMarkerArgs = @()
+if ($Area -eq "responsiveness") {
+    $AreaMarkerArgs = @("-m", "not visual and not real_game")
+}
+& $Python -m pytest @PytestTempArgs @AreaMarkerArgs @ConfiguredTests
 $PytestExitCode = $LASTEXITCODE
 if ($PytestExitCode -ne 0) {
     exit $PytestExitCode
