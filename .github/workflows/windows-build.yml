@@ -4,7 +4,14 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
   pull_request:
+  # Pushes to main run one interpreter leg, so this is what keeps the other one
+  # honest. Work lands on main directly here rather than through pull requests,
+  # and without a scheduled run the older interpreter would never be exercised.
+  schedule:
+    - cron: "0 3 * * *"
   workflow_dispatch:
     inputs:
       build_mode:
@@ -25,6 +32,14 @@ on:
 permissions:
   contents: read
   actions: read
+
+# Pushing a run of commits used to start a full pipeline per commit and finish
+# every one of them. Only the newest is worth the runner. A tag is exempt
+# because its pipeline produces the release artifact, and nothing should cancel
+# that halfway.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 env:
   PIP_VERSION: "25.3"
@@ -74,7 +89,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.14"]
+        # A push to main runs the interpreter the package is built with, and
+        # everything else runs both: pull requests, tags, the nightly schedule,
+        # and a manual dispatch. The second leg is a compatibility check rather
+        # than a different suite, so it does not have to gate every commit.
+        python-version: >-
+          ${{ (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
+              && fromJSON('["3.14"]')
+              || fromJSON('["3.11", "3.14"]') }}
 
     steps:
       - name: Check out repository
@@ -151,6 +173,11 @@ jobs:
   package:
     name: Package after QA
     needs: qa
+    # Building both PyInstaller modes is release work, not per-commit work, and
+    # it was the longest job in the pipeline while running on every push and
+    # every pull request. Tags and manual dispatch are when a package is
+    # actually wanted.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
     timeout-minutes: 180
     env:
