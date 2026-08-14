@@ -39,7 +39,7 @@ def _native_mesh_core_source() -> str:
 
 def _read(relative: str) -> str:
     if relative == "cdmw/services/mesh_service.py":
-        return "\n".join(_read(path) for path in (relative + ".facade", "cdmw/services/mesh_service_native_session.py", "cdmw/services/mesh_service_native_clone.py", "cdmw/services/mesh_service_selection.py"))
+        return "\n".join(_read(path) for path in (relative + ".facade", "cdmw/services/mesh_service_native_session.py", "cdmw/services/mesh_service_native_fallback_policy.py", "cdmw/services/mesh_service_native_clone.py", "cdmw/services/mesh_service_selection.py"))
     if relative == "cdmw/ui/preview/dotnet_host.py":
         return "\n".join(_read(path) for path in (relative + ".facade", "cdmw/ui/preview/dotnet_host_protocol.py"))
     if relative == "tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs":
@@ -7699,8 +7699,13 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("invalidate_native_mesh_session_submeshes(session.working_mesh, operations_by_submesh.keys())", transfer_body)
         self.assertIn("def _allow_python_skin_weight_fallback(", facade_source)
         skin_fallback_start = facade_source.index("def _allow_python_skin_weight_fallback(")
+        # Bound the function by the next top-level def rather than by a named
+        # neighbour. The fallback policy and the delta helpers are separate
+        # owners now, so which one follows the other in the composed source is
+        # an ordering detail this guard should not depend on.
+        skin_fallback_end = facade_source.find("\ndef ", skin_fallback_start + 1)
         skin_fallback_body = facade_source[
-            skin_fallback_start: facade_source.index("def _delta_positions_by_vertex(", skin_fallback_start)
+            skin_fallback_start: skin_fallback_end if skin_fallback_end != -1 else len(facade_source)
         ]
         self.assertNotIn("_PYTHON_MESH_SELECTION_FALLBACK_FACE_LIMIT", skin_fallback_body)
         self.assertNotIn("selected_vertex_count <= _PYTHON_MESH_SELECTION_FALLBACK_VERTEX_LIMIT", skin_fallback_body)

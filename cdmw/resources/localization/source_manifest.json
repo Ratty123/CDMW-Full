@@ -21945,8 +21945,8 @@
       "key": "Could not update embedded .NET viewport display mode.",
       "origins": [
         {
-          "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 1008,
+          "path": "cdmw/ui/mesh_editor/tab_textured_view.py",
+          "line": 194,
           "sink": "emit"
         }
       ]
@@ -47986,7 +47986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_open.py",
-          "line": 173,
+          "line": 176,
           "sink": "setWindowTitle"
         }
       ]
@@ -54525,8 +54525,8 @@
           "sink": "_set_dotnet_status"
         },
         {
-          "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 903,
+          "path": "cdmw/ui/mesh_editor/tab_textured_view.py",
+          "line": 89,
           "sink": "emit"
         }
       ]
@@ -85290,8 +85290,8 @@
       "key": "Still preparing Mesh Editor textures for the resident viewport...",
       "origins": [
         {
-          "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 941,
+          "path": "cdmw/ui/mesh_editor/tab_textured_view.py",
+          "line": 127,
           "sink": "emit"
         }
       ]
@@ -109226,7 +109226,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_session.py",
-          "line": 883,
+          "line": 887,
           "sink": "RuntimeError"
         }
       ]
@@ -109626,7 +109626,7 @@
       "origins": [
         {
           "path": "cdmw/services/mesh_service_native_session.py",
-          "line": 860,
+          "line": 864,
           "sink": "RuntimeError"
         }
       ]
@@ -195045,8 +195045,8 @@
       "key": "{value_0} textures did not reach the resident viewport in time; the untextured scene remains active.",
       "origins": [
         {
-          "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 954,
+          "path": "cdmw/ui/mesh_editor/tab_textured_view.py",
+          "line": 140,
           "sink": "emit"
         }
       ]
