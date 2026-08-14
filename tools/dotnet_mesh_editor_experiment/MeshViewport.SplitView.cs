@@ -155,6 +155,19 @@ internal sealed partial class MeshViewport
             surface is not null);
     }
 
+    /// <summary>
+    /// The size the renderer status reports its viewport as.
+    /// </summary>
+    /// <remarks>
+    /// The D3D surface is a child of this control and settles to its final size
+    /// after the parent does, so the two disagree for a while and only this one
+    /// describes what was rendered and picked against. Anything caching a status
+    /// payload has to key on this rather than on <see cref="Control.Width"/>, or
+    /// a surface-only resize leaves the cached size in place with nothing to
+    /// invalidate it.
+    /// </remarks>
+    internal Size RenderSurfaceClientSize => PaneSurfaceSize();
+
     // Which size a screen payload was actually measured against, and which one
     // it would have used had the other been chosen. A screen selection that
     // resolves against a different width than the pointer coordinates come from
