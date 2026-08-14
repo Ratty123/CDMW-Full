@@ -526,13 +526,16 @@ def _adopt_settled_projection(
     )
     state.projection_drag = updated
 
-    # Aim input at the same pane the matrix was built for. The renderer's status
-    # payload disagrees with it here, publishing 1047x1195 for a pane that its
-    # own ActivePaneBounds and Windows both report as 1242x1195, and the status
-    # is the outlier of the three. Projection and input have to come from one
-    # rectangle or the press lands somewhere the projection never described, so
-    # both take the bounds the renderer itself paired with the matrix. The
-    # disagreement is recorded rather than smoothed over.
+    # Aim input at the same pane the matrix was built for. The status read here
+    # is the one sampled before the probe, and the pane settles on the first
+    # pointer input, so it can describe the pane as it was rather than as it is.
+    # Projection and input have to come from one rectangle or the press lands
+    # somewhere the projection never described, so both take the bounds the
+    # renderer itself paired with the matrix, and the difference is recorded
+    # rather than smoothed over. It no longer means the renderer is wrong: the
+    # status used to be cached against the outer control while reporting the
+    # child surface, which held it at the pre-settle size for the rest of the
+    # session, and that is fixed.
     status_width = float(state.viewport.get("width", 0) or 0)
     status_height = float(state.viewport.get("height", 0) or 0)
     reconciliation["status_disagreed_with_settled_pane"] = (
