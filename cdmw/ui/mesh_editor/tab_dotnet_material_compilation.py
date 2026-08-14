@@ -273,7 +273,7 @@ class MeshEditorDotNetMaterialCompilationMixin:
             self.standalone_dotnet_material_error_by_role[applied_role] = str(message)
         self.standalone_dotnet_lifecycle_counts["material_compile_failed_count"] += 1
         self.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
-        from cdmw.core.texture_native import (
+        from cdmw.services.texture_workflow_service import (
             directxtex_texture_failure_reports,
             find_directxtex_texture_binary,
         )
