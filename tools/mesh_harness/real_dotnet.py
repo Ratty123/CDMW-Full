@@ -268,6 +268,46 @@ def _prepare_selection_projection(
     return initial_faces, initial_vertex_indices, matrix
 
 
+def _arm_move_and_read_applied_selection(state: SimpleNamespace) -> None:
+    """Arm Move and read the selection the helper has actually applied.
+
+    The helper answers `tool_state` from the selection push it has already
+    applied, and that trails the gesture by one. Measured in the trail: the
+    answer following the push for request 8 still reported request 4, the
+    projection probe's 39 vertices, so a single ask samples the selection before
+    last. Re-ask until the applied push has caught up with the gesture's own
+    newest request, and record whether it did.
+    """
+
+    expected_push = _last_select_request_id(state)
+    arming: dict[str, object] = {"expected_push_request_id": expected_push, "attempts": 0}
+    state.tool_state_sent = bool(state.tool_state_sent and state.selection_tool_state_sent)
+    state.tool_state_event = {}
+    for attempt in range(1, 5):
+        if not state.tool_state_sent:
+            break
+        tool_cursor = len(state.tab.standalone_dotnet_protocol_events)
+        state.tool_state_sent = bool(
+            state.tab._send_dotnet_protocol_message(
+                {"event": "tool_state", "tool": "move", "target_mode": "vertex"}
+            )
+        )
+        if not state.tool_state_sent:
+            break
+        state.tool_state_event = _wait_protocol_event(
+            state, "tool_state_applied", tool_cursor, 5.0
+        )
+        arming["attempts"] = attempt
+        arming["applied_push_request_id"] = _applied_selection_push_id(state.tool_state_event)
+        if _applied_selection_push_id(state.tool_state_event) >= expected_push:
+            break
+        _pump_for(state, 0.1)
+    arming["caught_up"] = bool(
+        int(arming.get("applied_push_request_id", 0) or 0) >= expected_push
+    )
+    state.selection_publication_settled = arming
+
+
 def _drive_projected_vertex_selection(
     state: SimpleNamespace,
     initial_faces: tuple[int, ...],
@@ -334,39 +374,7 @@ def _drive_projected_vertex_selection(
         if projected_anchor_center is not None
         else {"ok": False, "reason": "projection_missing"}
     )
-    # The helper answers tool_state from the selection push it has already
-    # applied, and that trails the gesture by one. Measured in the trail: the
-    # answer following the push for request 8 still reported request 4, the
-    # projection probe's 39 vertices, so a single ask samples the selection
-    # before last. Re-ask until the applied push has caught up with the
-    # gesture's own newest request.
-    expected_push = _last_select_request_id(state)
-    arming: dict[str, object] = {"expected_push_request_id": expected_push, "attempts": 0}
-    state.tool_state_sent = bool(state.tool_state_sent and state.selection_tool_state_sent)
-    state.tool_state_event = {}
-    for attempt in range(1, 5):
-        if not state.tool_state_sent:
-            break
-        tool_cursor = len(state.tab.standalone_dotnet_protocol_events)
-        state.tool_state_sent = bool(
-            state.tab._send_dotnet_protocol_message(
-                {"event": "tool_state", "tool": "move", "target_mode": "vertex"}
-            )
-        )
-        if not state.tool_state_sent:
-            break
-        state.tool_state_event = _wait_protocol_event(
-            state, "tool_state_applied", tool_cursor, 5.0
-        )
-        arming["attempts"] = attempt
-        arming["applied_push_request_id"] = _applied_selection_push_id(state.tool_state_event)
-        if _applied_selection_push_id(state.tool_state_event) >= expected_push:
-            break
-        _pump_for(state, 0.1)
-    arming["caught_up"] = bool(
-        int(arming.get("applied_push_request_id", 0) or 0) >= expected_push
-    )
-    state.selection_publication_settled = arming
+    _arm_move_and_read_applied_selection(state)
     state.resident_selection_inputs = _resident_selection_inputs(state)
     tool_selection = state.tool_state_event.get("local_selection", {})
     tool_selection = tool_selection if isinstance(tool_selection, Mapping) else {}
