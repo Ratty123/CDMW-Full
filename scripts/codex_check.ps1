@@ -2,7 +2,12 @@ param(
     [ValidateSet("smoke", "stability", "responsiveness", "archive", "texture", "mesh", "mesh-unit", "full")]
     [string]$Area = "smoke",
     [string]$GameRoot = "",
-    [string]$PytestBaseTemp = ""
+    [string]$PytestBaseTemp = "",
+    # Split the full suite across sequential shards. Each shard is an ordinary
+    # pytest run over a subset, so nothing about how a test executes changes;
+    # only the wall clock moves. Defaults run the whole suite as before.
+    [int]$Shard = 1,
+    [int]$ShardCount = 1
 )
 
 $ErrorActionPreference = "Stop"
@@ -195,6 +200,15 @@ if ($PytestBaseTemp) {
 }
 
 if ($Area -eq "full") {
+    if ($ShardCount -gt 1) {
+        $ShardFiles = @(& $Python (Join-Path $PSScriptRoot "shard_tests.py") --shard $Shard --of $ShardCount)
+        if ($LASTEXITCODE -ne 0 -or $ShardFiles.Count -eq 0) {
+            throw "Could not resolve shard $Shard of $ShardCount."
+        }
+        Write-Host "Running full pytest shard $Shard of $ShardCount ($($ShardFiles.Count) files) with $Python"
+        & $Python -m pytest @PytestTempArgs @ShardFiles
+        exit $LASTEXITCODE
+    }
     Write-Host "Running non-visual full pytest suite with $Python"
     & $Python -m pytest @PytestTempArgs
     exit $LASTEXITCODE
