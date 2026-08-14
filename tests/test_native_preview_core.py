@@ -362,12 +362,18 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("readyReadStandardOutput", controller_text)
 
     def test_d3d11_preview_uses_screen_space_highlight_bounds(self) -> None:
-        overlay_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
+        overlay_text = "".join(
+            Path(f"tools/dotnet_mesh_editor_experiment/{name}").read_text(encoding="utf-8")
+            for name in ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlaySelection.cs")
+        )
         self.assertIn("DrawSelectedSourcesOverlay", overlay_text)
         self.assertIn("OverlayColor(_overlaySettings.Colors.Selection", overlay_text)
 
     def test_d3d11_grid_uses_reference_batches_in_reference_view(self) -> None:
-        overlay_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
+        overlay_text = "".join(
+            Path(f"tools/dotnet_mesh_editor_experiment/{name}").read_text(encoding="utf-8")
+            for name in ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlaySelection.cs")
+        )
         panes_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.Panes.cs").read_text(encoding="utf-8")
         self.assertIn("_referenceOverlayVertices", overlay_text)
         self.assertIn("reference", panes_text.casefold())
@@ -1317,7 +1323,10 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("net_materials.json", material_text)
 
     def test_d3d11_mesh_edit_mode_draws_blender_style_topology_overlay(self) -> None:
-        overlay_text = Path("tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
+        overlay_text = "".join(
+            Path(f"tools/dotnet_mesh_editor_experiment/{name}").read_text(encoding="utf-8")
+            for name in ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlaySelection.cs")
+        )
         self.assertIn("WireOverlay", overlay_text)
         self.assertIn("PrimitiveTopology.LineList", overlay_text)
 

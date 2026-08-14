@@ -6,7 +6,15 @@ DOTNET = ROOT / "tools" / "dotnet_mesh_editor_experiment"
 
 
 def _source(name: str) -> str:
-    return (DOTNET / name).read_text(encoding="utf-8")
+    # The overlay renderer is split across partials of one class; a guard
+    # naming the file means the class, not that one file.
+    owners = {
+        "D3D11MaterialViewport.Overlay.cs": (
+            "D3D11MaterialViewport.Overlay.cs",
+            "D3D11MaterialViewport.OverlaySelection.cs",
+        ),
+    }.get(name, (name,))
+    return "".join((DOTNET / owner).read_text(encoding="utf-8") for owner in owners)
 
 
 def test_sustained_frame_pacing_cli_and_evidence_contract_are_versioned() -> None:
