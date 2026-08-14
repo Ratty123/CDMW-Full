@@ -31,6 +31,9 @@ _AUDIT_TEXTURE_FACT_CHANNEL_STATS_MAX_PIXELS = 64 * 1024 * 1024
 _ZIP_NESTED_AUDIT_ARCHIVE_MAX_BYTES = 128 * 1024 * 1024
 _FBX_BINARY_HEADER = b"Kaydara FBX Binary"
 _FBX_BINARY_PRINTABLE = re.compile(rb"[A-Za-z0-9_ ./\\:\-+()\[\]{}@#$%&=~'\",]{4,}")
+#: `ao` standing alone as a token, rather than as two letters inside a
+#: longer word or a directory name.
+_AO_TOKEN = re.compile(r"(?:^|[^a-z0-9])ao(?:[^a-z0-9]|$)")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1437,7 +1440,10 @@ def _guess_texture_slot(path: Path) -> str:
         return "emissive"
     if any(token in stem for token in ("opacity", "alpha", "transparent")):
         return "opacity"
-    if any(token in stem for token in ("ao", "occlusion", "ambientocclusion")):
+    # The stem has had its separators stripped, so `ao` cannot be matched as a
+    # token here; anchor it to the end the way `base` above is. `chaostex`
+    # otherwise reads as ambient occlusion.
+    if stem.endswith("ao") or any(token in stem for token in ("occlusion", "ambientocclusion")):
         return "ao"
     if any(token in stem for token in ("height", "displacement", "bump")):
         return "height"
@@ -1910,7 +1916,11 @@ def _guess_fbx_texture_slot(texture: Mapping[str, object], property_name: str) -
         return "emissive"
     if "opacity" in combined or "alpha" in combined or "transparent" in combined:
         return "opacity"
-    if "ao" in combined or "occlusion" in combined:
+    # `ao` is two letters and `combined` carries the whole resolved path, so a
+    # bare substring test claims every texture under a directory that merely
+    # contains those letters: `Chaos`, or a temporary directory whose random
+    # name happens to include them. Require it to stand alone as a token.
+    if _AO_TOKEN.search(combined) or "occlusion" in combined:
         return "ao"
     if "height" in combined or "displacement" in combined:
         return "height"

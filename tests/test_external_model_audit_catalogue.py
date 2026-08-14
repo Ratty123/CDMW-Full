@@ -1584,3 +1584,28 @@ Connections:  {
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_ao_is_a_token_not_two_letters_anywhere_in_the_path() -> None:
+    """A directory that merely contains the letters `ao` is not occlusion.
+
+    `_guess_fbx_texture_slot` matches against the whole resolved path, so a bare
+    substring test claimed every texture under a folder like `Chaos`. It showed
+    up as a rare failure in the binary FBX test, whose fixture sits in a
+    temporary directory whose random name occasionally contains those letters,
+    which is why it reproduced roughly once in two hundred runs.
+    """
+
+    from cdmw.core.external_model_audit import _guess_fbx_texture_slot, _guess_texture_slot
+
+    for directory in ("tmpq8ao1zw", "chaos", "kaomoji"):
+        texture = {"name": "wire_base.png", "path": f"C:/models/{directory}/wire_base.png"}
+        assert _guess_fbx_texture_slot(texture, "") == "base", directory
+
+    # The stem has its separators stripped before matching, so `ao` is anchored
+    # to the end there rather than tokenised.
+    assert _guess_texture_slot(Path("chaostex.png")) == ""
+    assert _guess_texture_slot(Path("wall_ao.png")) == "ao"
+    assert _guess_texture_slot(Path("wall_occlusion.png")) == "ao"
+    assert _guess_fbx_texture_slot({"name": "wall_ao.png", "path": "/x/wall_ao.png"}, "") == "ao"
+    assert _guess_fbx_texture_slot({"name": "w.png", "path": "/x/ao/w.png"}, "") == "ao"
