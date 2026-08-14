@@ -178,9 +178,24 @@ def test_release_spec_collects_all_app_submodules_for_lazy_facades() -> None:
 
 
 def test_windows_workflow_gates_packaging_on_both_headless_python_releases() -> None:
+    """A package must never ship on QA that skipped an interpreter.
+
+    A push to main runs only the interpreter the package is built with, because
+    the second leg is a compatibility check rather than a different suite. That
+    stays safe only while packaging cannot happen on a push: the package job is
+    restricted to tags and manual dispatch, and on those events the matrix is
+    the full list again. Assert that pair rather than a literal matrix line, or
+    the trim reads as a hole in release gating.
+    """
+
     source = WORKFLOW.read_text(encoding="utf-8")
 
-    assert 'python-version: ["3.11", "3.14"]' in source
+    assert "fromJSON('[\"3.11\", \"3.14\"]')" in source
+    assert (
+        "if: github.event_name == 'workflow_dispatch' "
+        "|| startsWith(github.ref, 'refs/tags/')"
+    ) in source
+    assert "(github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))" in source
     assert "needs: qa" in source
     assert "constraints-release.txt" in source
     assert "scripts\\verify_release_dependencies.py" in source
