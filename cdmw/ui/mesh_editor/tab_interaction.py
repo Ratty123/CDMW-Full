@@ -371,94 +371,24 @@ class MeshEditorInteractionMixin:
         message = f".NET/Vortice mesh edit stroke failed: {failure.message}"
         self.standalone_status_label.setText(message)
         self.status_message_requested.emit(message, True)
-    def _standalone_native_mesh_edit_stroke_command(self, payload: Mapping[object, object], phase: str) -> _tab.MeshEditCommand | None:
-        normalized_phase = str(phase or "").strip().lower()
-        if normalized_phase not in {"begin", "update", "end", "cancel"}:
-            return None
-        stroke_id = str(payload.get("stroke_id") or "").strip()
-        if not stroke_id:
-            return None
-        tool = str(payload.get("tool") or "").strip().lower()
-        raw_groups_for_reuse = payload.get("groups")
-        try:
-            has_groups_for_reuse = bool(tuple(raw_groups_for_reuse or ())) and not isinstance(raw_groups_for_reuse, (Mapping, str, bytes))  # type: ignore[arg-type]
-        except TypeError:
-            has_groups_for_reuse = False
-        resident_selection_active = False
-        if tool in {"move", "vertex", "grab", "smooth", "inflate", "pinch"}:
-            # A resident .NET stroke must keep the Python-authoritative
-            # selection instead of replacing it with the helper's broad
-            # screen/candidate set.  Legacy native-host strokes still own and
-            # forward their binary selection descriptor on begin.
-            controller = getattr(self, "standalone_dotnet_target_controller", None)
-            try:
-                resident_selection_active = controller is not None and not controller.session_view().selection.is_empty()
-            except (AttributeError, RuntimeError, TypeError, ValueError):
-                resident_selection_active = False
-        reuse_resident_selection = (
-            (
-                normalized_phase == "begin" and resident_selection_active
-                or normalized_phase == "update"
-            )
-            and (
-                tool in {"move", "vertex", "grab"}
-                or (
-                    tool in {"smooth", "inflate", "pinch"}
-                    and isinstance(payload.get("screen_brush"), Mapping)
-                    and not has_groups_for_reuse
-                )
-            )
-            and bool(stroke_id)
-            and (
-                normalized_phase == "begin"
-                or stroke_id == self.standalone_native_mesh_edit_stroke_id
-            )
-        )
-        params: dict[str, object] = {
-            "stroke_phase": normalized_phase,
-            "stroke_id": stroke_id,
-        }
-        raw_scope = payload.get("scope_source_indices")
-        scope_source_indices: list[int] = []
-        if not isinstance(raw_scope, (Mapping, str, bytes)):
-            try:
-                scope_source_indices = sorted(
-                    {
-                        self._standalone_native_payload_int(value, -1)
-                        for value in tuple(raw_scope or ())  # type: ignore[arg-type]
-                    }
-                )
-            except TypeError:
-                scope_source_indices = []
-            scope_source_indices = [index for index in scope_source_indices if index >= 0]
-        if tool in {"move", "vertex"}:
-            raw_screen_drag = payload.get("screen_drag")
-            if not isinstance(raw_screen_drag, Mapping):
-                if normalized_phase in {"end", "cancel"}:
-                    return _tab.MeshEditCommand("transform", params=params, mode="edit", label="Move")
-                return None
-            params["screen_drag"] = MeshEditorInteractionMixin._native_screen_payload(raw_screen_drag)
-            if not reuse_resident_selection:
-                raw_screen_brush = payload.get("screen_brush")
-                if isinstance(raw_screen_brush, Mapping):
-                    screen_payload: dict[str, object] = {
-                        "screen_brush": MeshEditorInteractionMixin._native_scoped_screen_payload(
-                            raw_screen_brush,
-                            scope_source_indices,
-                        )
-                    }
-                    if "target_mode" in payload:
-                        screen_payload["target_mode"] = str(payload.get("target_mode") or "vertex")
-                    if "selection_depth_mode" in payload:
-                        screen_payload["selection_depth_mode"] = str(payload.get("selection_depth_mode") or "visible")
-                    if "falloff" in payload:
-                        screen_payload["falloff"] = str(payload.get("falloff") or "smooth")
-                    params["_native_screen_selection_payload"] = screen_payload
-                else:
-                    native_selection = self._standalone_native_payload_selection(payload)
-                    if native_selection:
-                        params["_native_selection_payload"] = native_selection
-            return _tab.MeshEditCommand("transform", params=params, mode="edit", label="Move")
+    def _standalone_native_sculpt_stroke_command(
+        self,
+        payload: Mapping[str, object],
+        params: dict[str, object],
+        tool: str,
+        normalized_phase: str,
+        stroke_id: str,
+        reuse_resident_selection: bool,
+        has_groups_for_reuse: bool,
+        scope_source_indices: list[int],
+    ) -> object | None:
+        """Build the command for the four brush sculpt tools.
+
+        Move and vertex drag are a transform of an existing selection and are
+        handled by the caller. These four paint a footprint instead, so they
+        carry the brush geometry: centre, radius, path, and falloff.
+        """
+
         if tool not in {"grab", "smooth", "inflate", "pinch"}:
             return None
         params["tool"] = tool
@@ -548,6 +478,110 @@ class MeshEditorInteractionMixin:
             if native_selection:
                 params["_native_selection_payload"] = native_selection
         return _tab.MeshEditCommand("brush", params=params, mode="sculpt", label=tool.title())
+
+    def _standalone_native_mesh_edit_stroke_command(self, payload: Mapping[object, object], phase: str) -> _tab.MeshEditCommand | None:
+        normalized_phase = str(phase or "").strip().lower()
+        if normalized_phase not in {"begin", "update", "end", "cancel"}:
+            return None
+        stroke_id = str(payload.get("stroke_id") or "").strip()
+        if not stroke_id:
+            return None
+        tool = str(payload.get("tool") or "").strip().lower()
+        raw_groups_for_reuse = payload.get("groups")
+        try:
+            has_groups_for_reuse = bool(tuple(raw_groups_for_reuse or ())) and not isinstance(raw_groups_for_reuse, (Mapping, str, bytes))  # type: ignore[arg-type]
+        except TypeError:
+            has_groups_for_reuse = False
+        resident_selection_active = False
+        if tool in {"move", "vertex", "grab", "smooth", "inflate", "pinch"}:
+            # A resident .NET stroke must keep the Python-authoritative
+            # selection instead of replacing it with the helper's broad
+            # screen/candidate set.  Legacy native-host strokes still own and
+            # forward their binary selection descriptor on begin.
+            controller = getattr(self, "standalone_dotnet_target_controller", None)
+            try:
+                resident_selection_active = controller is not None and not controller.session_view().selection.is_empty()
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                resident_selection_active = False
+        reuse_resident_selection = (
+            (
+                normalized_phase == "begin" and resident_selection_active
+                or normalized_phase == "update"
+            )
+            and (
+                tool in {"move", "vertex", "grab"}
+                or (
+                    tool in {"smooth", "inflate", "pinch"}
+                    and isinstance(payload.get("screen_brush"), Mapping)
+                    and not has_groups_for_reuse
+                )
+            )
+            and bool(stroke_id)
+            and (
+                normalized_phase == "begin"
+                or stroke_id == self.standalone_native_mesh_edit_stroke_id
+            )
+        )
+        params: dict[str, object] = {
+            "stroke_phase": normalized_phase,
+            "stroke_id": stroke_id,
+        }
+        raw_scope = payload.get("scope_source_indices")
+        scope_source_indices: list[int] = []
+        if not isinstance(raw_scope, (Mapping, str, bytes)):
+            try:
+                scope_source_indices = sorted(
+                    {
+                        self._standalone_native_payload_int(value, -1)
+                        for value in tuple(raw_scope or ())  # type: ignore[arg-type]
+                    }
+                )
+            except TypeError:
+                scope_source_indices = []
+            scope_source_indices = [index for index in scope_source_indices if index >= 0]
+        if tool in {"move", "vertex"}:
+            raw_screen_drag = payload.get("screen_drag")
+            if not isinstance(raw_screen_drag, Mapping):
+                if normalized_phase in {"end", "cancel"}:
+                    return _tab.MeshEditCommand("transform", params=params, mode="edit", label="Move")
+                return None
+            params["screen_drag"] = MeshEditorInteractionMixin._native_screen_payload(raw_screen_drag)
+            if not reuse_resident_selection:
+                raw_screen_brush = payload.get("screen_brush")
+                if isinstance(raw_screen_brush, Mapping):
+                    screen_payload: dict[str, object] = {
+                        "screen_brush": MeshEditorInteractionMixin._native_scoped_screen_payload(
+                            raw_screen_brush,
+                            scope_source_indices,
+                        )
+                    }
+                    if "target_mode" in payload:
+                        screen_payload["target_mode"] = str(payload.get("target_mode") or "vertex")
+                    if "selection_depth_mode" in payload:
+                        screen_payload["selection_depth_mode"] = str(payload.get("selection_depth_mode") or "visible")
+                    if "falloff" in payload:
+                        screen_payload["falloff"] = str(payload.get("falloff") or "smooth")
+                    params["_native_screen_selection_payload"] = screen_payload
+                else:
+                    native_selection = self._standalone_native_payload_selection(payload)
+                    if native_selection:
+                        params["_native_selection_payload"] = native_selection
+            return _tab.MeshEditCommand("transform", params=params, mode="edit", label="Move")
+        # Resolved on the class rather than on `self`. This builder is called
+        # unbound with a stand-in that provides only the payload helpers it
+        # expects to be used, so an attribute lookup on the instance would
+        # turn a split of this function into a failure in those callers.
+        return MeshEditorInteractionMixin._standalone_native_sculpt_stroke_command(
+            self,
+            payload,
+            params,
+            tool,
+            normalized_phase,
+            stroke_id,
+            reuse_resident_selection,
+            has_groups_for_reuse,
+            scope_source_indices,
+        )
     @staticmethod
     def _native_screen_payload(payload: Mapping[object, object]) -> dict[object, object]:
         return {key: value for key, value in payload.items() if str(key) not in _LEGACY_SCREEN_CAMERA_FIELDS}

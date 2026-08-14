@@ -535,6 +535,8 @@ class MeshHarnessNativeScenarioTests(unittest.TestCase):
             Path(path).read_text(encoding="utf-8")
             for path in (
                 "cdmw/ui/mesh_editor/tab_shell.py",
+                # The shell is a chain of owners; part-event wiring lives here.
+                "cdmw/ui/mesh_editor/tab_shell_native_state.py",
                 "cdmw/ui/mesh_editor/tab_interaction.py",
             )
         )

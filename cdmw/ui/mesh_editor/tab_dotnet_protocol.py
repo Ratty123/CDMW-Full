@@ -327,6 +327,16 @@ class MeshEditorDotNetProtocolMixin(
                 source_event="renderer_status",
                 emit_warning=False,
             )
+        return self._handle_dotnet_request_event(payload, event)
+
+    def _handle_dotnet_request_event(self, payload: Mapping[str, object], event: str) -> bool:
+        """Dispatch the helper's requests, as opposed to its acknowledgements.
+
+        The clauses above this one report that something the host asked for has
+        landed. These are the helper asking the host to do something, which is
+        the half that can refuse, fail, or answer with a correlated result.
+        """
+
         if event == "select_request":
             return self._handle_dotnet_select_request(payload)
         if event == "selection_request":

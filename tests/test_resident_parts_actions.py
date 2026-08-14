@@ -222,8 +222,12 @@ def test_embedded_part_visibility_uses_existing_checked_part_authority() -> None
 
 
 def test_dotnet_part_commands_route_through_embedded_builder_owner() -> None:
-    source = (Path(__file__).resolve().parents[1] / "cdmw/ui/mesh_editor/tab_dotnet_commands.py").read_text(
-        encoding="utf-8"
+    # The command owner is a chain; the named-command handlers are their own
+    # owner now, so a guard naming the commands module means both.
+    _root = Path(__file__).resolve().parents[1]
+    source = "".join(
+        (_root / "cdmw" / "ui" / "mesh_editor" / name).read_text(encoding="utf-8")
+        for name in ("tab_dotnet_commands.py", "tab_dotnet_named_commands.py")
     )
 
     assert 'target_mode in {"part", "source"}' in source

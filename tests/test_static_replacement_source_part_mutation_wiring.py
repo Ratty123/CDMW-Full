@@ -15,7 +15,12 @@ PROMPT_SETUP = (
 
 
 def test_alignment_selection_highlight_is_bounded() -> None:
-    vortice_source = (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
+    # The overlay renderer is partials of one class; the selection overlays
+    # are their own file now.
+    vortice_source = "".join(
+        (ROOT / "tools" / "dotnet_mesh_editor_experiment" / name).read_text(encoding="utf-8")
+        for name in ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlaySelection.cs")
+    )
 
     assert "private void DrawSelectedSourcesOverlay()" in vortice_source
     assert "OverlayColor(_overlaySettings.Colors.Selection, _overlayShowXRay ? 64 : 42)" in vortice_source
