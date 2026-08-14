@@ -1025,6 +1025,17 @@ Objects:  {
 
         row = report["models"][0]
         inventory = row["material_inventory"][0]
+        # Keyed by slot alone this would silently keep whichever duplicate came
+        # last, so a run that emitted both the binary slot and a loose companion
+        # for the same slot would fail on the source with no sign of why. Pin
+        # the shape first: one slot per kind, and the binary ref is the one that
+        # survived the merge.
+        slot_kinds = [slot["slot_kind"] for slot in inventory["texture_slots"]]
+        self.assertEqual(
+            sorted(slot_kinds),
+            sorted(set(slot_kinds)),
+            f"one slot per kind expected, got {[(s['slot_kind'], s['source']) for s in inventory['texture_slots']]}",
+        )
         slots = {slot["slot_kind"]: slot for slot in inventory["texture_slots"]}
         classes = {item["material_class"] for item in inventory["material_classes"]}
         self.assertEqual("browsable_material_inferred", row["audit_status"])

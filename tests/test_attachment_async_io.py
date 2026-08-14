@@ -36,7 +36,22 @@ def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
 
 
-def _wait_for(app: QApplication, predicate: object, timeout: float = 5.0) -> bool:
+#: How long to let already-started background work finish.
+#: This is not one of the budgets these tests exist to prove. Those are the
+#: sub-50 ms returns from the start calls and the heartbeat counts, and they
+#: are asserted separately. This is only the wait for work that is often
+#: slowed on purpose, over a hundred thousand simulated candidates in one
+#: case, to finish afterwards. A shared CI runner can take far longer at that
+#: than a developer machine, so a tight value here fails the responsive test
+#: for being on a busy machine rather than for being unresponsive.
+_ASYNC_COMPLETION_TIMEOUT = 60.0
+
+
+def _wait_for(
+    app: QApplication,
+    predicate: object,
+    timeout: float = _ASYNC_COMPLETION_TIMEOUT,
+) -> bool:
     deadline = time.perf_counter() + timeout
     while time.perf_counter() < deadline:
         app.processEvents()
@@ -303,7 +318,7 @@ def test_attachment_placement_preflight_is_latest_wins_and_cancel_drains() -> No
         on_prepared=latest_results.append,
     )
     assert (time.perf_counter() - before) * 1000.0 < 50.0
-    assert _wait_for(app, lambda: bool(latest_results), timeout=3.0)
+    assert _wait_for(app, lambda: bool(latest_results))
     assert first_results == []
     assert latest_results[0].target_entry.path == latest.path
     assert latest_results[0].request_id == 2
@@ -389,7 +404,7 @@ def test_attachment_loose_preflight_keeps_slow_discovery_and_large_candidate_sca
         on_error=lambda message: (_ for _ in ()).throw(AssertionError(message)),
     )
     assert (time.perf_counter() - before) * 1000.0 < 50.0
-    assert _wait_for(app, lambda: bool(completed), timeout=5.0)
+    assert _wait_for(app, lambda: bool(completed))
     timer.stop()
     assert worker_threads and all(thread_id != main_thread for thread_id in worker_threads)
     assert len(heartbeat) >= 5
