@@ -21,6 +21,5 @@ a paged worker query, and package builds prepare only the matched session/entry
 IDs before handing local prepared files to the existing build worker. Legacy and
 shadow display modes retain the list-backed compatibility path.
 
-Related docs: `docs/project-map.md`.
-Related tests: supporting feature tab and replacement workflow tests from
-`docs/test-matrix.md`.
+Related tests: supporting feature tab and replacement workflow tests
+under `tests/`.

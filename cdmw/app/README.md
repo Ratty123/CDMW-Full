@@ -13,7 +13,5 @@ External splash launch is nonblocking. `cdmw/core/startup_splash_protocol.py`
 owns atomic command/artifact handling; app startup owns host monitoring,
 background reaping, and bounded terminate/kill escalation.
 
-Related docs: `docs/runbooks/startup-flow.md`, `docs/release-confidence-plan.md`.
 Related tests: `tests/test_shell_app_startup.py`,
-`tests/test_startup_splash_lifecycle.py`, `tests/test_runtime_dependency_smoke.py`, and startup entries in
-`docs/test-matrix.md`.
+`tests/test_startup_splash_lifecycle.py`, `tests/test_runtime_dependency_smoke.py`, and startup entries under `tests/`.

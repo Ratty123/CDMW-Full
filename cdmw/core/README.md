@@ -23,6 +23,4 @@ the remaining format decoders.
 leases. Builders publish complete units before returning; readers hold a lease
 while consuming paths, and pruning skips active or just-returned units.
 
-Related docs: `docs/architecture.md`, `docs/project-map.md`.
-Related tests: focused feature tests and architecture guards in
-`docs/test-matrix.md`.
+Related tests: focused feature tests and architecture guards under `tests/`.

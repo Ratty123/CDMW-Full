@@ -20,5 +20,4 @@ Keep binary parsing, archive IO, extraction, patching, and preview construction
 outside this package. Those belong in `cdmw/core/`, `cdmw/services/`, and
 `cdmw/workers/`.
 
-Related docs: `docs/features/archive-safety-model.md`.
-Related tests: archive and architecture entries in `docs/test-matrix.md`.
+Related tests: archive and architecture entries under `tests/`.

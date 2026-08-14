@@ -10,6 +10,4 @@ feature package. Do not put business rules, archive mutation policy, or
 long-running work directly in UI modules; route those through services, domain
 rules, and workers.
 
-Related docs: `docs/architecture.md`, `docs/project-map.md`.
-Related tests: UI source guards and feature-specific entries in
-`docs/test-matrix.md`.
+Related tests: UI source guards and feature-specific entries under `tests/`.

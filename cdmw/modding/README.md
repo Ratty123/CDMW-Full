@@ -52,6 +52,4 @@ vanilla body as unweighted and capped authored bones at index 3.
 `tests/test_pac_skin_layout_regression.py` pins this against real bodies and
 skips when they are absent.
 
-Related docs: `docs/architecture.md`, `docs/project-map.md`.
-Related tests: mesh, static replacement, material, and package entries in
-`docs/test-matrix.md`.
+Related tests: mesh, static replacement, material, and package entries under `tests/`.

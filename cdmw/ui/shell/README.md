@@ -18,6 +18,5 @@ work belongs in `cdmw/workers/`. `MainWindow` has only `QMainWindow` as a base;
 shell/archive/texture/mesh behavior is supplied by owned controllers and the
 compatibility provider registry.
 
-Related docs: `docs/runbooks/startup-flow.md`, `docs/architecture.md`.
 Related tests: `tests/test_shell_*.py`, architecture guards, and shell entries
-in `docs/test-matrix.md`.
+under `tests/`.
