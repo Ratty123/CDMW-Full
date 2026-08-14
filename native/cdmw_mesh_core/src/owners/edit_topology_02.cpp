@@ -403,6 +403,140 @@ std::vector<Vec3> smooth_brush_vertices(
     return relaxed;
 }
 
+// Which tool moved the vertex, given the weights the brush already resolved.
+// Kept apart from the stroke bookkeeping around it because this is the only
+// part that decides geometry, and it reads as a table of four tools rather than
+// as one more branch in a long function.
+static std::vector<Vec3> brush_applied_positions(
+    const JsonValue& item,
+    const std::vector<Vec3>& original,
+    const std::vector<std::array<int, 3>>& faces,
+    const std::map<int, std::pair<double, bool>>& weighted,
+    const std::string& tool,
+    const Vec3& center,
+    const Vec3& drag_delta,
+    double amount,
+    double strength,
+    int iterations,
+    bool invert
+) {
+    std::vector<Vec3> next = original;
+    if (tool == "smooth") {
+        next = smooth_brush_vertices(original, faces, weighted, iterations, strength);
+    } else {
+        std::vector<Vec3> normals = vertices_from_binary_or_json(item, "normals_binary", "normals");
+        if (tool == "inflate" && normals.size() != original.size()) {
+            normals = compute_smooth_normals(original, faces);
+        }
+        for (const auto& item_weight : weighted) {
+            const int index = item_weight.first;
+            if (index < 0 || static_cast<std::size_t>(index) >= original.size()) {
+                continue;
+            }
+            const double weight = item_weight.second.first;
+            const bool mirrored = item_weight.second.second;
+            const Vec3 vertex = original[static_cast<std::size_t>(index)];
+            const Vec3 applied_delta = mirrored ? Vec3{-drag_delta[0], drag_delta[1], drag_delta[2]} : drag_delta;
+            if (tool == "grab") {
+                next[static_cast<std::size_t>(index)] = add_vec3(vertex, scale_vec3(applied_delta, weight * strength));
+            } else if (tool == "inflate") {
+                const Vec3 fallback = normalized_vec3(sub_vec3(vertex, center), {0.0, 1.0, 0.0});
+                const Vec3 normal = normalized_vec3(normals[static_cast<std::size_t>(index)], fallback);
+                const double signed_amount = invert ? -amount : amount;
+                next[static_cast<std::size_t>(index)] = add_vec3(vertex, scale_vec3(normal, signed_amount * weight));
+            } else if (tool == "pinch") {
+                const Vec3 local_center = mirrored ? Vec3{-center[0], center[1], center[2]} : center;
+                const Vec3 direction = normalized_vec3(sub_vec3(local_center, vertex), {0.0, 0.0, 0.0});
+                const double signed_amount = invert ? -std::abs(amount) : std::abs(amount);
+                next[static_cast<std::size_t>(index)] = add_vec3(vertex, scale_vec3(direction, signed_amount * weight));
+            } else {
+                next[static_cast<std::size_t>(index)] = add_vec3(vertex, scale_vec3(applied_delta, weight * strength));
+            }
+        }
+    }
+    return next;
+}
+
+// Which vertices the brush touches and how strongly, before any tool runs.
+// A resident Grab pins its weights and centre on the begin phase and reuses
+// them for the rest of the stroke, so a far drag keeps deforming the footprint
+// it started on rather than re-picking one under the moving cursor. `center` is
+// in and out for that reason.
+static std::map<int, double> brush_direct_weights(
+    const JsonValue& item,
+    const JsonValue& edit,
+    const std::vector<Vec3>& vertices,
+    const std::string& tool,
+    const std::string& falloff,
+    const std::string& stroke_phase,
+    int submesh_index,
+    bool has_center,
+    double radius,
+    const std::set<int>* allowed,
+    const MeshEditorScreenBrushDepthMask* shared_depth_mask,
+    MeshEditorSession* editor_session,
+    Vec3& center
+) {
+    std::map<int, double> direct_weights;
+    const bool fixed_grab = tool == "grab"
+        && editor_session != nullptr
+        && editor_session->active_stroke.active
+        && (stroke_phase == "update" || stroke_phase == "end")
+        && editor_session->active_stroke.grab_weights.find(submesh_index)
+            != editor_session->active_stroke.grab_weights.end();
+    if (fixed_grab) {
+        direct_weights = editor_session->active_stroke.grab_weights[submesh_index];
+        const auto center_found = editor_session->active_stroke.grab_centers.find(submesh_index);
+        if (center_found != editor_session->active_stroke.grab_centers.end()) {
+            center = center_found->second;
+        }
+    } else if (tool == "smooth" || tool == "inflate" || tool == "pinch") {
+        direct_weights = screen_brush_swept_exposures_native(
+            item,
+            vertices,
+            allowed,
+            falloff,
+            edit,
+            shared_depth_mask
+        );
+        if (direct_weights.empty()) {
+            direct_weights = affected_vertex_weights_native(
+                item,
+                vertices,
+                center,
+                radius,
+                falloff,
+                allowed,
+                edit,
+                shared_depth_mask
+            );
+        }
+        if (!has_center && !direct_weights.empty()) {
+            center = brush_weighted_center(vertices, direct_weights, center);
+        }
+    } else {
+        direct_weights = affected_vertex_weights_native(
+            item,
+            vertices,
+            center,
+            radius,
+            falloff,
+            allowed,
+            edit,
+            shared_depth_mask
+        );
+        if (!has_center && !direct_weights.empty()) center = brush_weighted_center(vertices, direct_weights, center);
+        if (tool == "grab"
+            && editor_session != nullptr
+            && editor_session->active_stroke.active
+            && stroke_phase == "begin") {
+            editor_session->active_stroke.grab_weights[submesh_index] = direct_weights;
+            editor_session->active_stroke.grab_centers[submesh_index] = center;
+        }
+    }
+    return direct_weights;
+}
+
 SubmeshMeshEditResult run_brush_edit_for_submesh(
     const JsonValue& item,
     const JsonValue& edit,
@@ -447,63 +581,9 @@ SubmeshMeshEditResult run_brush_edit_for_submesh(
     const std::string stroke_phase = lower_ascii(string_or(edit.get("stroke_phase"), ""));
     MeshEditorSession* editor_session = mutable_mesh_editor_session_for_item(item);
     const int submesh_index = result.index;
-    std::map<int, double> direct_weights;
-    const bool fixed_grab = tool == "grab"
-        && editor_session != nullptr
-        && editor_session->active_stroke.active
-        && (stroke_phase == "update" || stroke_phase == "end")
-        && editor_session->active_stroke.grab_weights.find(submesh_index)
-            != editor_session->active_stroke.grab_weights.end();
-    if (fixed_grab) {
-        direct_weights = editor_session->active_stroke.grab_weights[submesh_index];
-        const auto center_found = editor_session->active_stroke.grab_centers.find(submesh_index);
-        if (center_found != editor_session->active_stroke.grab_centers.end()) {
-            center = center_found->second;
-        }
-    } else if (tool == "smooth" || tool == "inflate" || tool == "pinch") {
-        direct_weights = screen_brush_swept_exposures_native(
-            item,
-            result.vertices,
-            allowed,
-            falloff,
-            edit,
-            shared_depth_mask
-        );
-        if (direct_weights.empty()) {
-            direct_weights = affected_vertex_weights_native(
-                item,
-                result.vertices,
-                center,
-                radius,
-                falloff,
-                allowed,
-                edit,
-                shared_depth_mask
-            );
-        }
-        if (!has_center && !direct_weights.empty()) {
-            center = brush_weighted_center(result.vertices, direct_weights, center);
-        }
-    } else {
-        direct_weights = affected_vertex_weights_native(
-            item,
-            result.vertices,
-            center,
-            radius,
-            falloff,
-            allowed,
-            edit,
-            shared_depth_mask
-        );
-        if (!has_center && !direct_weights.empty()) center = brush_weighted_center(result.vertices, direct_weights, center);
-        if (tool == "grab"
-            && editor_session != nullptr
-            && editor_session->active_stroke.active
-            && stroke_phase == "begin") {
-            editor_session->active_stroke.grab_weights[submesh_index] = direct_weights;
-            editor_session->active_stroke.grab_centers[submesh_index] = center;
-        }
-    }
+    std::map<int, double> direct_weights = brush_direct_weights(
+        item, edit, result.vertices, tool, falloff, stroke_phase, submesh_index,
+        has_center, radius, allowed, shared_depth_mask, editor_session, center);
     const double screen_radius = mesh_editor_screen_radius_units_at_center(screen_radius_payload, center, result.index);
     if (screen_radius_projection_payload) {
         if (screen_radius <= 0.0) {
@@ -545,40 +625,9 @@ SubmeshMeshEditResult run_brush_edit_for_submesh(
     }
 
     const std::vector<Vec3> original = result.vertices;
-    std::vector<Vec3> next = original;
-    if (tool == "smooth") {
-        next = smooth_brush_vertices(original, faces, weighted, iterations, strength);
-    } else {
-        std::vector<Vec3> normals = vertices_from_binary_or_json(item, "normals_binary", "normals");
-        if (tool == "inflate" && normals.size() != original.size()) {
-            normals = compute_smooth_normals(original, faces);
-        }
-        for (const auto& item_weight : weighted) {
-            const int index = item_weight.first;
-            if (index < 0 || static_cast<std::size_t>(index) >= original.size()) {
-                continue;
-            }
-            const double weight = item_weight.second.first;
-            const bool mirrored = item_weight.second.second;
-            const Vec3 vertex = original[static_cast<std::size_t>(index)];
-            const Vec3 applied_delta = mirrored ? Vec3{-drag_delta[0], drag_delta[1], drag_delta[2]} : drag_delta;
-            if (tool == "grab") {
-                next[static_cast<std::size_t>(index)] = add_vec3(vertex, scale_vec3(applied_delta, weight * strength));
-            } else if (tool == "inflate") {
-                const Vec3 fallback = normalized_vec3(sub_vec3(vertex, center), {0.0, 1.0, 0.0});
-                const Vec3 normal = normalized_vec3(normals[static_cast<std::size_t>(index)], fallback);
-                const double signed_amount = invert ? -amount : amount;
-                next[static_cast<std::size_t>(index)] = add_vec3(vertex, scale_vec3(normal, signed_amount * weight));
-            } else if (tool == "pinch") {
-                const Vec3 local_center = mirrored ? Vec3{-center[0], center[1], center[2]} : center;
-                const Vec3 direction = normalized_vec3(sub_vec3(local_center, vertex), {0.0, 0.0, 0.0});
-                const double signed_amount = invert ? -std::abs(amount) : std::abs(amount);
-                next[static_cast<std::size_t>(index)] = add_vec3(vertex, scale_vec3(direction, signed_amount * weight));
-            } else {
-                next[static_cast<std::size_t>(index)] = add_vec3(vertex, scale_vec3(applied_delta, weight * strength));
-            }
-        }
-    }
+    const std::vector<Vec3> next_positions = brush_applied_positions(
+        item, original, faces, weighted, tool, center, drag_delta, amount, strength, iterations, invert);
+    std::vector<Vec3> next = next_positions;
 
     for (const auto& item_weight : weighted) {
         const int index = item_weight.first;

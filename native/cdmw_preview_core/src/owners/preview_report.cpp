@@ -81,6 +81,95 @@ static void append_native_phase_timing_report(std::ostringstream& out, const Nat
         << "\"native_package_write_ms\":" << package.package_write_ms << ",";
 }
 
+// A same-stem item prefab can name further model components. Merging them is
+// the only part of package generation that reaches back into the archive for
+// more geometry, and it carries its own reporting rows and notes, so it reads
+// as its own step rather than as a branch of the .pac case.
+static void merge_prefab_component_meshes(
+    const EntryJob& job,
+    const PamtIndex& index,
+    NativePackage& package,
+    NativeMeshParseResult& parsed) {
+    int component_models_added = 0;
+    int component_batches_added = 0;
+    int component_models_available = 0;
+    const std::vector<ArchiveEntryRef> prefab_components = prefab_model_component_refs_for_job(job, index, 8);
+    for (const ArchiveEntryRef& component : prefab_components) {
+        if (lower_copy(component.path) == lower_copy(job.path)) continue;
+        ++component_models_available;
+        add_asset_family_row(package, NativeAssetFamilyRow{
+            "Prefab / Components",
+            "Model Component",
+            component.basename.empty() ? basename_from_path(component.path) : component.basename,
+            component.path,
+            "Resolved",
+            "Prefab",
+            "authoritative",
+            "optional",
+            "Available prefab model component; geometry and materials load only when enabled in Archive Browser Parts.",
+            "model",
+            "Prefab model component",
+            "",
+            "",
+            "",
+            package_label_for_ref(component),
+            component.extension,
+            "",
+            "",
+            "",
+            ""
+        });
+        if (!prefab_component_enabled_for_job(component, job)) continue;
+        try {
+            const std::vector<char> component_data = read_archive_ref_decoded_bytes(component);
+            NativeMeshParseResult component_parse;
+            if (component.extension == ".pac") {
+                component_parse.meshes = parse_pac_submeshes(component_data);
+                component_parse.parser = "native_pac_par_sections";
+            } else if (component.extension == ".pam") {
+                component_parse = parse_pam_submeshes(component_data);
+            } else if (component.extension == ".pamlod") {
+                component_parse = parse_pamlod_submeshes(component_data);
+            } else if (component.extension == ".pat") {
+                component_parse = parse_pat_submeshes(component_data);
+            }
+            if (component_parse.meshes.empty()) continue;
+            const int component_index = component_models_added + 1;
+            const int global_submesh_offset = static_cast<int>(parsed.meshes.size());
+            for (size_t mesh_index = 0; mesh_index < component_parse.meshes.size(); ++mesh_index) {
+                NativeSubmesh& mesh = component_parse.meshes[mesh_index];
+                mesh.source_model_path = component.path;
+                mesh.source_component_label = component.basename.empty() ? basename_from_path(component.path) : component.basename;
+                mesh.source_component_index = component_index;
+                mesh.source_prefab_component = true;
+                if (mesh.source_local_submesh_index < 0) mesh.source_local_submesh_index = mesh.source_submesh_index;
+                mesh.source_submesh_index = global_submesh_offset + static_cast<int>(mesh_index);
+            }
+            component_batches_added += static_cast<int>(component_parse.meshes.size());
+            parsed.meshes.insert(
+                parsed.meshes.end(),
+                std::make_move_iterator(component_parse.meshes.begin()),
+                std::make_move_iterator(component_parse.meshes.end()));
+            ++component_models_added;
+        } catch (const std::exception& exc) {
+            package.notes.push_back("native prefab composite component skipped:" + component.path + ":" + exc.what());
+        }
+    }
+    if (component_models_added > 0) {
+        parsed.parser += "+prefab_composite";
+        package.notes.push_back(
+            "native prefab composite: added " + std::to_string(component_models_added) +
+            " referenced model component(s), " + std::to_string(component_batches_added) +
+            " batch(es), from same-stem item prefab"
+        );
+    } else if (component_models_available > 0) {
+        package.notes.push_back(
+            "native prefab composite: " + std::to_string(component_models_available) +
+            " referenced model component(s) available; none loaded until enabled in Archive Browser Parts"
+        );
+    }
+}
+
 static NativePackage try_generate_native_package(const EntryJob& job, const std::vector<char>& data) {
     NativePackage package;
     NativeMeshParseResult parsed;
@@ -112,84 +201,7 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
             if (mesh.source_local_submesh_index < 0) mesh.source_local_submesh_index = mesh.source_submesh_index;
             mesh.source_submesh_index = static_cast<int>(mesh_index);
         }
-        int component_models_added = 0;
-        int component_batches_added = 0;
-        int component_models_available = 0;
-        const std::vector<ArchiveEntryRef> prefab_components = prefab_model_component_refs_for_job(job, *index, 8);
-        for (const ArchiveEntryRef& component : prefab_components) {
-            if (lower_copy(component.path) == lower_copy(job.path)) continue;
-            ++component_models_available;
-            add_asset_family_row(package, NativeAssetFamilyRow{
-                "Prefab / Components",
-                "Model Component",
-                component.basename.empty() ? basename_from_path(component.path) : component.basename,
-                component.path,
-                "Resolved",
-                "Prefab",
-                "authoritative",
-                "optional",
-                "Available prefab model component; geometry and materials load only when enabled in Archive Browser Parts.",
-                "model",
-                "Prefab model component",
-                "",
-                "",
-                "",
-                package_label_for_ref(component),
-                component.extension,
-                "",
-                "",
-                "",
-                ""
-            });
-            if (!prefab_component_enabled_for_job(component, job)) continue;
-            try {
-                const std::vector<char> component_data = read_archive_ref_decoded_bytes(component);
-                NativeMeshParseResult component_parse;
-                if (component.extension == ".pac") {
-                    component_parse.meshes = parse_pac_submeshes(component_data);
-                    component_parse.parser = "native_pac_par_sections";
-                } else if (component.extension == ".pam") {
-                    component_parse = parse_pam_submeshes(component_data);
-                } else if (component.extension == ".pamlod") {
-                    component_parse = parse_pamlod_submeshes(component_data);
-                } else if (component.extension == ".pat") {
-                    component_parse = parse_pat_submeshes(component_data);
-                }
-                if (component_parse.meshes.empty()) continue;
-                const int component_index = component_models_added + 1;
-                const int global_submesh_offset = static_cast<int>(parsed.meshes.size());
-                for (size_t mesh_index = 0; mesh_index < component_parse.meshes.size(); ++mesh_index) {
-                    NativeSubmesh& mesh = component_parse.meshes[mesh_index];
-                    mesh.source_model_path = component.path;
-                    mesh.source_component_label = component.basename.empty() ? basename_from_path(component.path) : component.basename;
-                    mesh.source_component_index = component_index;
-                    mesh.source_prefab_component = true;
-                    if (mesh.source_local_submesh_index < 0) mesh.source_local_submesh_index = mesh.source_submesh_index;
-                    mesh.source_submesh_index = global_submesh_offset + static_cast<int>(mesh_index);
-                }
-                component_batches_added += static_cast<int>(component_parse.meshes.size());
-                parsed.meshes.insert(
-                    parsed.meshes.end(),
-                    std::make_move_iterator(component_parse.meshes.begin()),
-                    std::make_move_iterator(component_parse.meshes.end()));
-                ++component_models_added;
-            } catch (const std::exception& exc) {
-                package.notes.push_back("native prefab composite component skipped:" + component.path + ":" + exc.what());
-            }
-        }
-        if (component_models_added > 0) {
-            parsed.parser += "+prefab_composite";
-            package.notes.push_back(
-                "native prefab composite: added " + std::to_string(component_models_added) +
-                " referenced model component(s), " + std::to_string(component_batches_added) +
-                " batch(es), from same-stem item prefab"
-            );
-        } else if (component_models_available > 0) {
-            package.notes.push_back(
-                "native prefab composite: " + std::to_string(component_models_available) +
-                " referenced model component(s) available; none loaded until enabled in Archive Browser Parts"
-            );
-        }
+        merge_prefab_component_meshes(job, *index, package, parsed);
     } else if (job.extension == ".pam") {
         parsed = parse_pam_submeshes(data);
     } else if (job.extension == ".pamlod") {
@@ -270,6 +282,27 @@ static void append_preview_dependency_report(std::ostringstream& out) {
     out << "],";
 }
 
+// The per-job cache figures are all differences against the counters as they
+// stood when the job started, so they are captured together rather than as five
+// separate locals that have to be kept in step by hand.
+struct PreviewCacheCounters {
+    std::uint64_t decoded_hits;
+    std::uint64_t decoded_misses;
+    std::uint64_t decoded_evictions;
+    std::uint64_t sidecar_hits;
+    std::uint64_t sidecar_misses;
+};
+
+static PreviewCacheCounters current_preview_cache_counters() {
+    return PreviewCacheCounters{
+        decoded_entry_cache_hits(),
+        decoded_entry_cache_misses(),
+        decoded_entry_cache_evictions(),
+        sidecar_parse_cache_hits(),
+        sidecar_parse_cache_misses(),
+    };
+}
+
 std::string preview_report_for_job(const fs::path& job_path) {
     const auto started = std::chrono::steady_clock::now();
     reset_preview_dependency_report();
@@ -281,11 +314,7 @@ std::string preview_report_for_job(const fs::path& job_path) {
     const int compression_type = static_cast<int>(job.flags & 0x0F);
     bool raw_read_ok = false;
     NativePackage package;
-    const std::uint64_t cache_hits_before = decoded_entry_cache_hits();
-    const std::uint64_t cache_misses_before = decoded_entry_cache_misses();
-    const std::uint64_t cache_evictions_before = decoded_entry_cache_evictions();
-    const std::uint64_t sidecar_cache_hits_before = sidecar_parse_cache_hits();
-    const std::uint64_t sidecar_cache_misses_before = sidecar_parse_cache_misses();
+    const PreviewCacheCounters counters_before = current_preview_cache_counters();
     try {
         fs::create_directories(job.output_root);
         fs::create_directories(job.cache_root);
@@ -379,13 +408,13 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"decoded_cache_hits\":" << decoded_entry_cache_hits() << ","
         << "\"decoded_cache_misses\":" << decoded_entry_cache_misses() << ","
         << "\"decoded_cache_evictions\":" << decoded_entry_cache_evictions() << ","
-        << "\"decoded_cache_job_hits\":" << (decoded_entry_cache_hits() - cache_hits_before) << ","
-        << "\"decoded_cache_job_misses\":" << (decoded_entry_cache_misses() - cache_misses_before) << ","
-        << "\"decoded_cache_job_evictions\":" << (decoded_entry_cache_evictions() - cache_evictions_before) << ","
+        << "\"decoded_cache_job_hits\":" << (decoded_entry_cache_hits() - counters_before.decoded_hits) << ","
+        << "\"decoded_cache_job_misses\":" << (decoded_entry_cache_misses() - counters_before.decoded_misses) << ","
+        << "\"decoded_cache_job_evictions\":" << (decoded_entry_cache_evictions() - counters_before.decoded_evictions) << ","
         << "\"sidecar_parse_cache_hits\":" << sidecar_parse_cache_hits() << ","
         << "\"sidecar_parse_cache_misses\":" << sidecar_parse_cache_misses() << ","
-        << "\"sidecar_parse_cache_job_hits\":" << (sidecar_parse_cache_hits() - sidecar_cache_hits_before) << ","
-        << "\"sidecar_parse_cache_job_misses\":" << (sidecar_parse_cache_misses() - sidecar_cache_misses_before) << ","
+        << "\"sidecar_parse_cache_job_hits\":" << (sidecar_parse_cache_hits() - counters_before.sidecar_hits) << ","
+        << "\"sidecar_parse_cache_job_misses\":" << (sidecar_parse_cache_misses() - counters_before.sidecar_misses) << ","
         << "\"process_working_set_bytes\":" << (memory.ok ? memory.working_set_bytes : 0ull) << ","
         << "\"process_private_bytes\":" << (memory.ok ? memory.private_bytes : 0ull) << ","
         << "\"service_job_count\":" << g_service_job_count << ","
