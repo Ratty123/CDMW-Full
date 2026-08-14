@@ -39,7 +39,12 @@ def test_the_helper_discards_a_selection_mode_that_is_not_a_drag_shape() -> None
 
 
 def test_the_mesh_editor_tab_publishes_only_its_normalized_drag_shape() -> None:
-    source = (ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_shell.py").read_text(encoding="utf-8")
+    # The shell is a chain of owners; the Edit Mesh state push lives in the
+    # native-state one. A guard naming the shell means the chain.
+    source = "".join(
+        (ROOT / "cdmw" / "ui" / "mesh_editor" / name).read_text(encoding="utf-8")
+        for name in ("tab_shell.py", "tab_shell_native_state.py", "tab_shell_package_state.py")
+    )
     call = source.split("def _sync_standalone_native_mesh_edit_state", maxsplit=1)[-1]
     call = call.split("def _standalone_preview_mesh_snapshot", maxsplit=1)[0]
     assert "target_mode=target," in call, "the element mode still has to reach the helper"

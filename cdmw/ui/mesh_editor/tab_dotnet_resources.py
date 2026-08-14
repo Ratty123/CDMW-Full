@@ -24,6 +24,8 @@ from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
 )
 from cdmw.ui.mesh_editor import tab_dotnet_material_commit as _material_commit
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
+from cdmw.ui.mesh_editor.tab_dotnet_capture import MeshEditorDotNetCaptureMixin
+from cdmw.ui.mesh_editor.tab_dotnet_provenance import MeshEditorDotNetProvenanceMixin
 from cdmw.ui.mesh_editor.tab_dotnet_material_compilation import (
     MeshEditorDotNetMaterialCompilationMixin,
 )
@@ -31,8 +33,8 @@ from cdmw.ui.mesh_editor.tab_dotnet_payloads import MeshEditorDotNetPayloadMixin
 
 
 class MeshEditorDotNetResourceProtocolMixin(
-    MeshEditorDotNetMaterialCompilationMixin,
-    MeshEditorDotNetPayloadMixin,
+    MeshEditorDotNetCaptureMixin,
+    MeshEditorDotNetProvenanceMixin,
 ):
     @staticmethod
     def _dotnet_material_role_key(role: object) -> str:
@@ -104,6 +106,107 @@ class MeshEditorDotNetResourceProtocolMixin(
                 return roles
         return (self._dotnet_material_role_key(fallback_role),)
 
+    def _handle_dotnet_material_state_applied(
+        self,
+        payload: Mapping[str, object],
+        *,
+        generation: int,
+        role: str,
+        roles: object,
+    ) -> bool:
+        """Settle everything an accepted material state unblocks.
+
+        This is the only branch that can turn Textured on, so it is also where
+        the pending textured view, the paired upgrade, and the queued reference
+        resources are released. The generation and roles are resolved by the
+        caller, which needs them for the failure branch too.
+        """
+
+        if not _material_commit.commit_acknowledged_material_resources(self, payload):
+            return False
+        renderer = payload.get("renderer")
+        if isinstance(renderer, Mapping):
+            self.standalone_dotnet_status_payload["renderer"] = dict(renderer)
+        texture_resources_ready = payload.get("texture_resources_ready") is True
+        if "texture_resources_ready" not in payload:
+            try:
+                decoded_or_reused = int(payload.get("decoded_resources", 0) or 0) + int(
+                    payload.get("reused_resources", 0) or 0
+                )
+            except (TypeError, ValueError):
+                decoded_or_reused = 0
+            renderer = payload.get("renderer")
+            geometry_resources = (
+                renderer.get("geometry_resources")
+                if isinstance(renderer, Mapping)
+                else None
+            )
+            try:
+                live_texture_srvs = int(
+                    geometry_resources.get("live_texture_srvs", 0) or 0
+                ) if isinstance(geometry_resources, Mapping) else 0
+            except (TypeError, ValueError):
+                live_texture_srvs = 0
+            texture_resources_ready = decoded_or_reused > 0 and live_texture_srvs > 0
+        self.standalone_dotnet_applied_material_generation = generation
+        for applied_role in roles:
+            self.standalone_dotnet_applied_material_generation_by_role[applied_role] = generation
+            self.standalone_dotnet_texture_resources_ready_by_role[
+                applied_role
+            ] = texture_resources_ready
+        self.standalone_dotnet_material_signature = str(
+            payload.get("material_signature", self.standalone_dotnet_material_signature) or ""
+        )
+        for applied_role in roles:
+            self.standalone_dotnet_material_signature_by_role[
+                applied_role
+            ] = self.standalone_dotnet_material_signature
+        input_signature = self.standalone_dotnet_material_input_signature_by_generation.get(
+            generation,
+            "",
+        )
+        if input_signature:
+            for applied_role in roles:
+                self.standalone_dotnet_material_input_signature_by_role[
+                    applied_role
+                ] = input_signature
+        for applied_role in roles:
+            self.standalone_dotnet_material_error_by_role.pop(applied_role, None)
+        self.standalone_dotnet_lifecycle_counts["material_state_applied_count"] += 1
+        if (
+            (
+                bool(getattr(self, "standalone_dotnet_pending_textured_view", False))
+                or bool(
+                    getattr(
+                        self,
+                        "standalone_dotnet_deferred_textured_view_mode",
+                        "",
+                    )
+                )
+            )
+            and not texture_resources_ready
+        ):
+            message = (
+                "No resolved textures are available for this Mesh Editor preview; "
+                "the untextured scene remains active."
+            )
+            for applied_role in roles:
+                self.standalone_dotnet_material_error_by_role[applied_role] = message
+            self._set_dotnet_status(message, error=True)
+            self._finish_pending_textured_view(
+                success=False,
+                reason=f"{role}_texture_resources_not_ready",
+            )
+            QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
+            return True
+        self._set_dotnet_status(
+            f"Mesh materials updated in the resident .NET session (generation {generation})."
+        )
+        self._finish_pending_textured_view(success=True)
+        self._restore_deferred_textured_view()
+        QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
+        return True
+
     def _handle_dotnet_material_protocol_event(
         self,
         payload: Mapping[str, object],
@@ -156,90 +259,9 @@ class MeshEditorDotNetResourceProtocolMixin(
                     generation,
                 )
         if event == "material_state_applied":
-            if not _material_commit.commit_acknowledged_material_resources(self, payload):
-                return False
-            renderer = payload.get("renderer")
-            if isinstance(renderer, Mapping):
-                self.standalone_dotnet_status_payload["renderer"] = dict(renderer)
-            texture_resources_ready = payload.get("texture_resources_ready") is True
-            if "texture_resources_ready" not in payload:
-                try:
-                    decoded_or_reused = int(payload.get("decoded_resources", 0) or 0) + int(
-                        payload.get("reused_resources", 0) or 0
-                    )
-                except (TypeError, ValueError):
-                    decoded_or_reused = 0
-                renderer = payload.get("renderer")
-                geometry_resources = (
-                    renderer.get("geometry_resources")
-                    if isinstance(renderer, Mapping)
-                    else None
-                )
-                try:
-                    live_texture_srvs = int(
-                        geometry_resources.get("live_texture_srvs", 0) or 0
-                    ) if isinstance(geometry_resources, Mapping) else 0
-                except (TypeError, ValueError):
-                    live_texture_srvs = 0
-                texture_resources_ready = decoded_or_reused > 0 and live_texture_srvs > 0
-            self.standalone_dotnet_applied_material_generation = generation
-            for applied_role in roles:
-                self.standalone_dotnet_applied_material_generation_by_role[applied_role] = generation
-                self.standalone_dotnet_texture_resources_ready_by_role[
-                    applied_role
-                ] = texture_resources_ready
-            self.standalone_dotnet_material_signature = str(
-                payload.get("material_signature", self.standalone_dotnet_material_signature) or ""
+            return self._handle_dotnet_material_state_applied(
+                payload, generation=generation, role=role, roles=roles
             )
-            for applied_role in roles:
-                self.standalone_dotnet_material_signature_by_role[
-                    applied_role
-                ] = self.standalone_dotnet_material_signature
-            input_signature = self.standalone_dotnet_material_input_signature_by_generation.get(
-                generation,
-                "",
-            )
-            if input_signature:
-                for applied_role in roles:
-                    self.standalone_dotnet_material_input_signature_by_role[
-                        applied_role
-                    ] = input_signature
-            for applied_role in roles:
-                self.standalone_dotnet_material_error_by_role.pop(applied_role, None)
-            self.standalone_dotnet_lifecycle_counts["material_state_applied_count"] += 1
-            if (
-                (
-                    bool(getattr(self, "standalone_dotnet_pending_textured_view", False))
-                    or bool(
-                        getattr(
-                            self,
-                            "standalone_dotnet_deferred_textured_view_mode",
-                            "",
-                        )
-                    )
-                )
-                and not texture_resources_ready
-            ):
-                message = (
-                    "No resolved textures are available for this Mesh Editor preview; "
-                    "the untextured scene remains active."
-                )
-                for applied_role in roles:
-                    self.standalone_dotnet_material_error_by_role[applied_role] = message
-                self._set_dotnet_status(message, error=True)
-                self._finish_pending_textured_view(
-                    success=False,
-                    reason=f"{role}_texture_resources_not_ready",
-                )
-                QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
-                return True
-            self._set_dotnet_status(
-                f"Mesh materials updated in the resident .NET session (generation {generation})."
-            )
-            self._finish_pending_textured_view(success=True)
-            self._restore_deferred_textured_view()
-            QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
-            return True
         if event == "material_state_failed":
             self.standalone_dotnet_pending_paired_material_upgrade = None
             _material_commit.finish_sent_material_resources(self, committed=False)
@@ -562,49 +584,6 @@ class MeshEditorDotNetResourceProtocolMixin(
 
     def _send_dotnet_protocol_message(self, payload: Mapping[str, object]) -> bool:
         return send_recorded_mesh_protocol_message(self._active_shared_dotnet_controller(), payload)
-
-    def _observe_dotnet_capabilities(self, payload: Mapping[str, object]) -> None:
-        raw = payload.get("capabilities", ())
-        if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes)):
-            self.standalone_dotnet_capabilities.update(str(item) for item in raw)
-        if self._dotnet_resident_material_updates_supported():
-            QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
-
-    def _verify_dotnet_helper_provenance(self, payload: Mapping[str, object]) -> bool:
-        executable = Path(str(self.standalone_dotnet_last_program or "")).expanduser()
-        manifest_path = executable.parent / "cdmw-mesh-dotnet-editor.manifest.json"
-        blockers = _tab.mesh_dotnet_helper_provenance_blockers(
-            executable,
-            payload,
-            require_manifest=bool(getattr(sys, "frozen", False) or manifest_path.is_file()),
-            required_capabilities=(
-                "correlated_selection_strokes_v1",
-                "geometry_layers_v1",
-            ),
-        )
-        if blockers:
-            text = "Mesh .NET helper provenance blocked: " + "; ".join(blockers)
-            self.standalone_dotnet_provenance_verified = False
-            self._record_mesh_dotnet_event(
-                "mesh_dotnet_helper_provenance_blocked",
-                executable=str(executable),
-                blockers=blockers,
-            )
-            self._set_dotnet_status(text, error=True)
-            self._stop_standalone_dotnet_editor_process(embedded_state="failed")
-            if self.standalone_dotnet_target_embedded:
-                self._notify_embedded_dotnet_launch_failed(
-                    "mesh_dotnet_helper_provenance_blocked",
-                    diagnostics=text,
-                )
-            return False
-        self.standalone_dotnet_provenance_verified = True
-        self._record_mesh_dotnet_event(
-            "mesh_dotnet_helper_provenance_verified",
-            executable=str(executable),
-            manifest_path=str(manifest_path) if manifest_path.is_file() else "development",
-        )
-        return True
 
     def _send_dotnet_material_state(
         self,
@@ -977,111 +956,6 @@ class MeshEditorDotNetResourceProtocolMixin(
         self.standalone_dotnet_pending_reference_material_model = None
         if preview_model is not None:
             self.apply_resident_reference_material_resources(preview_model)
-
-    def request_resident_dotnet_icon_capture(self, on_captured: object) -> bool:
-        package = self.standalone_dotnet_experiment_package
-        controller = self._dotnet_target_controller()
-        if (
-            package is None
-            or controller is None
-            or not callable(on_captured)
-            or not self.standalone_dotnet_target_embedded
-            or not self._standalone_dotnet_editor_process_running()
-        ):
-            if callable(on_captured):
-                on_captured(None)
-            return False
-        try:
-            view = controller.session_view()
-        except (AttributeError, RuntimeError, TypeError, ValueError):
-            on_captured(None)
-            return False
-        self.standalone_dotnet_capture_request_id += 1
-        request_id = self.standalone_dotnet_capture_request_id
-        output_path = package.output_dir / f"icon_capture_{request_id}.png"
-        timer = QTimer(self)
-        timer.setSingleShot(True)
-        timer.timeout.connect(lambda target=request_id: self._handle_dotnet_capture_timeout(target))
-        self.standalone_dotnet_capture_callbacks[request_id] = (on_captured, output_path, timer)
-        payload = {
-            "event": "capture_request",
-            "session_id": view.session_id,
-            "request_id": request_id,
-            "base_revision": view.revision,
-            "process_generation": self.standalone_dotnet_process_generation,
-            "protocol_version": 2,
-            "output_path": output_path.relative_to(package.output_dir).as_posix(),
-            "width": 1024,
-            "height": 1024,
-        }
-        if not self._send_dotnet_protocol_message(payload):
-            self._finish_dotnet_capture(request_id, None)
-            return False
-        timer.start(10_000)
-        return True
-
-    def _handle_dotnet_capture_result(self, payload: Mapping[str, object]) -> bool:
-        try:
-            request_id = int(payload.get("request_id", 0) or 0)
-        except (TypeError, ValueError, OverflowError):
-            return False
-        pending = self.standalone_dotnet_capture_callbacks.get(request_id)
-        if pending is None:
-            return False
-        _callback, expected_path, _timer = pending
-        reported_path = Path(str(payload.get("output_path", "") or "")).expanduser()
-        try:
-            path_matches = reported_path.resolve() == Path(expected_path).resolve()
-        except OSError:
-            path_matches = False
-        status = str(payload.get("status", "") or "").strip().lower()
-        pixmap = QPixmap(str(expected_path)) if status == "captured" and path_matches else QPixmap()
-        if pixmap.isNull():
-            self._set_dotnet_status(
-                str(
-                    payload.get("message", "Deterministic .NET icon capture failed.")
-                    or "Deterministic .NET icon capture failed."
-                ),
-                error=True,
-            )
-            self._finish_dotnet_capture(request_id, None)
-            return False
-        self._record_mesh_dotnet_event(
-            "mesh_dotnet_icon_capture",
-            request_id=request_id,
-            output_path=str(expected_path),
-            sha256=str(payload.get("sha256", "") or ""),
-            visible_view_mutated=bool(payload.get("visible_view_mutated", True)),
-        )
-        self._finish_dotnet_capture(request_id, pixmap)
-        return True
-
-    def _handle_dotnet_capture_timeout(self, request_id: int) -> None:
-        if int(request_id) not in self.standalone_dotnet_capture_callbacks:
-            return
-        self._set_dotnet_status("Deterministic .NET icon capture timed out.", error=True)
-        self._finish_dotnet_capture(int(request_id), None)
-
-    def _finish_dotnet_capture(self, request_id: int, pixmap: object) -> None:
-        pending = self.standalone_dotnet_capture_callbacks.pop(int(request_id), None)
-        if pending is None:
-            return
-        callback, output_path, timer = pending
-        try:
-            timer.stop()
-            timer.deleteLater()
-        except RuntimeError:
-            pass
-        if pixmap is None:
-            try:
-                Path(output_path).unlink(missing_ok=True)
-            except OSError:
-                pass
-        callback(pixmap)
-
-    def _cancel_pending_dotnet_captures(self) -> None:
-        for request_id in tuple(self.standalone_dotnet_capture_callbacks):
-            self._finish_dotnet_capture(request_id, None)
 
     def apply_resident_material_resources(
         self,
