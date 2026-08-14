@@ -22,8 +22,7 @@ is smaller and safer to hand to someone who is not modding.
 |---|---|
 | **Download** | [Releases](https://github.com/Ratty123/CDMW-Full/releases) |
 | **Changelog** | [CHANGELOG.md](CHANGELOG.md) |
-| **Architecture** | [docs/architecture.md](docs/architecture.md) |
-| **Format status** | [docs/features/format-decode-progress.md](docs/features/format-decode-progress.md) |
+| **Format status** | `schemas/archive_content_capabilities.v1.json` |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
 
 > `0.11.0-alpha.5` is the current source version and has not been published as a
@@ -212,8 +211,8 @@ does not have. Nothing can be decoded there until that is solved.
 > [`schemas/archive_content_capabilities.v1.json`](schemas/archive_content_capabilities.v1.json)
 > by `tools/report_format_decode_progress.py`, so the status a modder reads and
 > the status the Archive Browser reports cannot disagree. The full per-format
-> breakdown, including the evidence behind each rejected hypothesis, is in
-> [docs/features/format-decode-progress.md](docs/features/format-decode-progress.md).
+> breakdown, including the evidence behind each rejected hypothesis, is
+> generated from that manifest and kept outside this repository.
 
 ---
 
@@ -335,7 +334,7 @@ flowchart LR
 Bazel builds the shipped executable end to end: all five native projects,
 both self-contained .NET publishes, and the PyInstaller package. It is additive,
 so the PowerShell release path is untouched and still owns the release gates. Bazel is installed repo-locally in `.tools/bazel/`; there is no
-system-wide install. See [docs/bazel-migration.md](docs/bazel-migration.md).
+system-wide install.
 
 ---
 
@@ -430,7 +429,7 @@ That produces `.tools\build-ui\cdmw-build.exe`, a WinForms front end covering
 both build paths: `bazel build //:CrimsonDesertModWorkbench` for a fast build,
 and `build.bat onefile release` for the gated release. It finds the workspace by
 walking up for `MODULE.bazel` and sets `BAZEL_VC` itself. See
-[docs/bazel-migration.md](docs/bazel-migration.md).
+the Bazel migration notes.
 
 ---
 
@@ -451,7 +450,6 @@ tools/                   .NET 10 helper sources, audit and research scripts
 tools/dotnet_*           D3D11 host, archive worker, build UI -- all source
 schemas/                 versioned capability and package schemas
 tests/                   behaviour, protocol contract, and source-guard tests
-docs/                    guides, runbooks, and reverse-engineering notes
 ```
 
 Note the two similarly named directories. **`tools/`** is source and is in the
@@ -460,10 +458,9 @@ locally built binaries: bazelisk, the published build UI, RenderDoc, vgmstream,
 the Havok CLIs. Nothing in it is tracked, and nothing in the release build needs
 it.
 
-Further reading: [Architecture](docs/architecture.md) ·
-[Docs index](docs/README.md) · [Startup flow](docs/runbooks/startup-flow.md) ·
-[Worker lifecycle](docs/runbooks/worker-lifecycle.md) ·
-[Archive safety model](docs/features/archive-safety-model.md)
+The guides, runbooks and reverse-engineering notes are working documents and
+are kept outside this repository, so the paths they were once linked from are
+deliberately absent here.
 
 ---
 

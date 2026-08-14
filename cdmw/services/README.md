@@ -55,9 +55,6 @@ Generated/source maps stay intermediates; DDS output remains on the existing
 CDMW/DirectXTex paths. Exact helper versions are opt-in discovery probes so
 normal startup does not run external tools.
 
-Related docs: `docs/architecture.md`, `docs/features/archive-safety-model.md`,
-`docs/runbooks/worker-lifecycle.md`,
-`docs/features/asset-authoring-integrations.md`.
 Related tests: `tests/test_services.py`, `tests/test_archive_service_boundaries.py`,
 `tests/test_research_service_boundary.py`, `tests/test_diagnostics_service.py`,
-and service entries in `docs/test-matrix.md`.
+and service entries under `tests/`.

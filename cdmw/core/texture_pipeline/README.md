@@ -10,5 +10,5 @@ rules belong in `cdmw/domain/textures/`; UI panels belong in
 `cdmw/ui/texture_workflow/`; background execution belongs in services and
 workers.
 
-Related docs: `docs/architecture.md`, `cdmw/ui/texture_workflow/README.md`.
-Related tests: texture entries in `docs/test-matrix.md`.
+Related docs: `cdmw/ui/texture_workflow/README.md`.
+Related tests: texture entries under `tests/`.

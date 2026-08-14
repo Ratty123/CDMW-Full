@@ -67,6 +67,5 @@ Inspect a real body headlessly with `python -m tools.dump_body_region_map`, whic
 prints the per-region report, applies the falloff, and can write a
 region-coloured OBJ. Pass `--falloff 0` for hard edges.
 
-Related docs: `docs/architecture.md`, `docs/project-map.md`.
 Related tests: `tests/test_mesh_body_regions.py`, plus mesh and static
-replacement entries in `docs/test-matrix.md`.
+replacement entries under `tests/`.

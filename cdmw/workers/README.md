@@ -17,6 +17,4 @@ Mesh Editor topology workers execute Delete/Subdivide/Refine through service
 bridges off the UI thread; the normal edit math path is native-first through
 `native/cdmw_mesh_core`.
 
-Related docs: `docs/runbooks/worker-lifecycle.md`, `docs/architecture.md`.
-Related tests: `tests/test_workers.py` and worker entries in
-`docs/test-matrix.md`.
+Related tests: `tests/test_workers.py` and worker entries under `tests/`.

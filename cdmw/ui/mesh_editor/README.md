@@ -471,8 +471,8 @@ skeleton by matching bone names; `MeshEditorTab` carries that source skeleton
 through standalone sessions and the Skeleton panel `Transfer W` action. Direct
 local PAC/PAM/PAMLOD file sessions also load and attach a sibling or
 supplemental `.pab` skeleton when one is available.
-See `docs/features/mesh-editor-skeleton-discovery.md` for current read-only PAC/PAB/PABC
-relationship evidence and confidence rules.
+The read-only PAC/PAB/PABC relationship evidence and confidence rules behind
+that discovery are recorded outside this repository.
 `MeshEditorController.texture_edit_target()` exposes the selected material
 texture target. `MeshEditorTab.open_texture_source_requested` hands local or
 archive-cache-materialized DDS files to the existing Texture Editor bridge; the
