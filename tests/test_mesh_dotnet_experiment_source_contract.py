@@ -22,7 +22,15 @@ def _dotnet_source_context() -> dict[str, object]:
         "source": source,
         "gpu_source": (dotnet_root / "WpfGpuMeshViewport.cs").read_text(encoding="utf-8"),
         "d3d_source": d3d_source,
-        "d3d_overlay_source": (dotnet_root / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8"),
+        # The overlay renderer is partials of one class: the frame and wire
+        # overlays, and the selection overlays split out beside them.
+        "d3d_overlay_source": "".join(
+            (dotnet_root / name).read_text(encoding="utf-8")
+            for name in (
+                "D3D11MaterialViewport.Overlay.cs",
+                "D3D11MaterialViewport.OverlaySelection.cs",
+            )
+        ),
         "hlsl_source": (dotnet_root / "D3D11MaterialShaders.hlsl").read_text(encoding="utf-8"),
         "camera_source": (dotnet_root / "NetViewportCamera.cs").read_text(encoding="utf-8"),
         "build_script": (root / "build_pyside6_app.ps1").read_text(encoding="utf-8"),

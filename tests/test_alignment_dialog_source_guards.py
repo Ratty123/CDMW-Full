@@ -2539,7 +2539,10 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("alignment_d3d11_status_timer.stop()", finish_body)
 
     def test_model_preview_draws_selected_part_outline_overlay(self) -> None:
-        dotnet_source = (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
+        dotnet_source = "".join(
+            (ROOT / "tools" / "dotnet_mesh_editor_experiment" / name).read_text(encoding="utf-8")
+            for name in ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlaySelection.cs")
+        )
         host_source = "\n".join((ROOT / "cdmw" / "ui" / "preview" / name).read_text(encoding="utf-8") for name in ("dotnet_host.py", "dotnet_host_protocol.py"))
         self.assertIn("_overlaySelectedSources", dotnet_source)
         self.assertIn("DrawOverlayPrimitive", dotnet_source)

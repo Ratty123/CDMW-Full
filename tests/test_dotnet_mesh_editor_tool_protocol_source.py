@@ -9,7 +9,7 @@ def _source(name: str) -> str:
     patterns = {
         "Program.cs": ("Program.cs", "ExperimentForm.ToolPanels.cs"),
         "D3D11MaterialViewport.cs": ("D3D11MaterialViewport*.cs",),
-        "D3D11MaterialViewport.Overlay.cs": ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlayInteraction.cs"),
+        "D3D11MaterialViewport.Overlay.cs": ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlayInteraction.cs", "D3D11MaterialViewport.OverlaySelection.cs"),
         "MeshViewport.SelectionPicking.cs": ("MeshViewport.SelectionPicking.cs", "MeshViewport.SelectionPaint.cs"),
     }.get(name, (name,))
     return "\n".join(path.read_text(encoding="utf-8") for path in sorted({path for pattern in patterns for path in DOTNET_EDITOR.glob(pattern)}))
