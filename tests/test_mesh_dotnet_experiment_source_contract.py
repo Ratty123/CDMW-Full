@@ -54,8 +54,15 @@ def test_dotnet_experiment_renderer_source_contract() -> None:
     assert "PrimitiveTopology.TriangleList" in d3d_overlay_source
     assert "ResourceUsage.Dynamic" in d3d_overlay_source
     assert "CpuAccessFlags.Write" in d3d_overlay_source
-    assert "MapMode.WriteDiscard" in d3d_overlay_source
-    assert "MapMode.WriteNoOverwrite" not in d3d_overlay_source
+    # A growing selection appends to the retained overlay buffer instead of
+    # rewriting it, so WriteNoOverwrite is correct here and used on purpose.
+    # What has to hold is the pairing: a full rewrite discards, and an append
+    # promises not to touch what the GPU may still be reading. Inverting the two
+    # is the real fault, and it is silent. WriteNoOverwrite on a rewrite leaves
+    # the stale tail behind, and WriteDiscard on an append throws away the
+    # retained prefix, so the offset has to be paired the same way.
+    assert "rewrite ? MapMode.WriteDiscard : MapMode.WriteNoOverwrite" in d3d_overlay_source
+    assert "var firstVertex = rewrite ? 0 : previousCount;" in d3d_overlay_source
     assert "using var vertexBuffer = _device.CreateBuffer" not in d3d_overlay_source
     assert "Graphics" not in d3d_overlay_source
     assert "VSOverlay" in hlsl_source
