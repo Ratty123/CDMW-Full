@@ -59,17 +59,51 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
+      # The helpers only change when native/ or the build script does, which is
+      # rare, while the build itself is minutes of every push. The key covers
+      # every input the build reads and the runner image that carries the
+      # compiler, because a stale binary restored here would be handed to the
+      # whole suite and quietly change what it proves.
+      - name: Restore built native helpers
+        id: native_helpers_cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            native/*/build/Release
+            native/cd_hkx/target/release/cd-hkx.exe
+          key: native-helpers-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('native/**', 'build_native_windows.ps1') }}
+
       # The script builds the four C++ helpers, then requires `dotnet` for the
       # Mesh Editor renderer and throws without it, and finally builds cd-hkx if
       # cargo is on PATH. Runners ship Rust, so that one comes along for free.
       - name: Set up .NET 10
+        if: steps.native_helpers_cache.outputs.cache-hit != 'true'
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
 
       - name: Build native helpers
+        if: steps.native_helpers_cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: .\build_native_windows.ps1 -Configuration Release
+
+      # A restored cache has to satisfy the same requirement a fresh build does.
+      # Failing here names the cache as the cause; letting it through would fail
+      # later in QA as a missing helper, which reads like a product fault.
+      - name: Confirm the restored helpers are complete
+        if: steps.native_helpers_cache.outputs.cache-hit == 'true'
+        shell: pwsh
+        run: |
+          $expected = @(
+            "native/cd_texture_dx/build/Release/cd-texture-dx.exe",
+            "native/cdmw_mesh_core/build/Release/cdmw-mesh-core.exe",
+            "native/cdmw_preview_core/build/Release/cdmw-preview-core.exe"
+          )
+          $missing = @($expected | Where-Object { -not (Test-Path -LiteralPath $_) })
+          if ($missing.Count -gt 0) {
+            throw "Restored native helper cache is incomplete: $($missing -join ', ')"
+          }
+          $expected | ForEach-Object { "ok $_" }
 
       - name: Upload native helpers
         uses: actions/upload-artifact@v6
