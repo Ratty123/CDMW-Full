@@ -83,8 +83,10 @@ keeps core user workflows working behind stable facades.
   trail carries both directions plus its own `host_decision` entries and is the
   cheaper first read for anything about who knew what when.
 
-2026-08-13 (**superseded by the entry above**; the root cause below is wrong and
-the retraction it records still stands):
+2026-08-13 (the **root-cause bullet immediately below is superseded** by the
+2026-08-14 entry and is wrong; everything after it stands, including the
+retraction it records, the run numbers, and the renderer status-payload defect,
+which the fix above does not touch):
 
 - **The two red drag gates fail because Move runs as a sculpt brush, not as a
   transform of the committed selection.** The ordered protocol trail settles it:
