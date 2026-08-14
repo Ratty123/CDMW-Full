@@ -602,9 +602,13 @@ def test_move_is_armed_only_after_the_applied_selection_push_catches_up() -> Non
     root = Path(__file__).resolve().parents[1]
     source = (root / "tools" / "mesh_harness" / "real_dotnet.py").read_text(encoding="utf-8")
 
-    start = source.index("def _drive_projected_vertex_selection(")
-    end = source.index("def ", source.index('"tool": "move"', start))
-    arming = source[start:end]
+    # The arming is its own function now. Bound it by the next top-level def so
+    # this guard follows the behaviour rather than a location.
+    start = source.index("def _arm_move_and_read_applied_selection(")
+    end = source.find("\ndef ", start + 1)
+    arming = source[start: end if end != -1 else len(source)]
+    # And the driver must still call it, or the retry would sit there unused.
+    assert "_arm_move_and_read_applied_selection(state)" in source
 
     assert "_last_select_request_id(state)" in arming
     assert "_applied_selection_push_id(state.tool_state_event)" in arming

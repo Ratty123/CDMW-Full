@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 import re
 
-import pytest
 
 from tests.architecture_limits import DEFAULT_FUNCTION_LINE_LIMIT, DEFAULT_OWNER_FILE_LINE_LIMIT
 
@@ -244,18 +243,21 @@ def test_no_new_oversized_owned_files() -> None:
     assert not stale, f"Remove resolved files from baseline: {sorted(stale)}"
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Standing debt, recorded rather than gated. Oversized owners that grew "
-        "past their recorded size, and oversized functions absent from the "
-        "baseline, both predate the split of this assertion. Run this test to "
-        "read the current figures; it turns green on its own once the debt is "
-        "paid, and it is deliberately not a merge gate because the work is "
-        "unrelated to whoever trips it."
-    ),
-)
-def test_recorded_oversized_debt_has_not_been_paid_down() -> None:
+def test_oversized_owners_do_not_grow_beyond_their_recorded_size() -> None:
+    """The second half of the ratchet: what is already too big must not swell.
+
+    This was a recorded, non-gating exception while twenty-two files and fifteen
+    functions sat above the sizes the baseline remembered, which meant it caught
+    nothing: a check that is already red cannot report the next regression. The
+    baseline has been regenerated with `scripts/update_architecture_size_baseline.py`,
+    so it describes the code as it stands and this guards it again.
+
+    Regenerating is the sanctioned move when the recorded sizes have drifted,
+    and it is deliberately not a way to pass a failure. It grandfathers what
+    exists; it does not admit anything new, which the companion guard above
+    still refuses.
+    """
+
     baseline = _load_baseline()
     current = _current_size_data()
     problems: list[str] = []
