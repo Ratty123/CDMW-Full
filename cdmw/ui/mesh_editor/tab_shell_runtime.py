@@ -152,6 +152,7 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_material_ready_flush_token = (0, 0)
         self.standalone_dotnet_pending_clone_material_model: object | None = None
         self.standalone_dotnet_pending_reference_material_model: object | None = None
+        self.standalone_dotnet_pending_imported_material_publish: bool = False
         self.standalone_dotnet_pending_paired_material_model: object | None = None
         self.standalone_dotnet_pending_paired_material_upgrade: object | None = None
         self.standalone_dotnet_material_update_thread: _tab.QThread | None = None
