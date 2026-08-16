@@ -80,27 +80,36 @@ def test_full_import_default_uses_automatic_material_authority() -> None:
     assert options.accent_glow_strength == 0.0
 
 
-def test_full_import_entry_point_is_not_user_exposed() -> None:
-    source = "\n".join(
-        (
-            _source("cdmw", "ui", "archive_browser", "preview_layout.py"),
-            _source("cdmw", "ui", "archive_browser", "action_controls.py"),
-            _source("cdmw", "ui", "archive_browser", "actions.py"),
-            _source("cdmw", "ui", "archive_browser", "import_actions.py"),
-            _source("cdmw", "ui", "archive_browser", "mesh_launch_flow.py"),
-            _source("cdmw", "ui", "shell", "signal_wiring.py"),
-        )
+def test_full_import_entry_point_is_user_exposed_from_archive_browser() -> None:
+    """The one-click swap is reachable: Import menu button, context menu, and wiring.
+
+    The preset was retained as a backend-only path for a while, which left the
+    Builder's buried complete-swap checkbox as the only way to a real swap.
+    """
+    layout_source = _source("cdmw", "ui", "archive_browser", "preview_layout.py")
+    controls_source = _source("cdmw", "ui", "archive_browser", "action_controls.py")
+    actions_source = _source("cdmw", "ui", "archive_browser", "actions.py")
+    import_actions_source = _source("cdmw", "ui", "archive_browser", "import_actions.py")
+    wiring_source = _source("cdmw", "ui", "shell", "signal_wiring.py")
+    patch_flow_source = _source("cdmw", "ui", "archive_browser", "mesh_patch_flow.py")
+
+    assert 'self.archive_model_full_import_button = QPushButton("Full Import Model Replacement...")' in layout_source
+    assert '("Full Import Model Replacement", self.archive_model_full_import_button)' in layout_source
+    assert "self.archive_model_full_import_button," in controls_source
+    assert '"Full Import Model Replacement..."' in actions_source
+    assert "self._start_archive_full_import_model_replacement(current_entry)" in actions_source
+    assert "def _full_import_current_archive_model_replacement" in import_actions_source
+    assert (
+        "self.archive_model_full_import_button.clicked.connect(self._full_import_current_archive_model_replacement)"
+        in wiring_source
     )
-    main_window_source = _source("cdmw", "ui", "main_window.py")
-
-    assert "archive_model_full_import_button" not in source
-    assert "_full_import_current_archive_model_replacement" not in source
-    assert "_start_full_import_model_replacement" not in source
-    assert '"Full Import Model Replacement..."' not in source
-    assert "Full Import Model Replacement" not in main_window_source
+    assert "def _start_archive_full_import_model_replacement" in patch_flow_source
+    assert "full_import_model_replacement=True," in patch_flow_source
+    assert "full_import_model_replacement_external_file_filter()" in patch_flow_source
+    assert "placement_review_title=FULL_IMPORT_MODEL_REPLACEMENT_TITLE" in patch_flow_source
 
 
-def test_full_import_backend_preset_is_retained_but_not_launched_from_app_ui() -> None:
+def test_full_import_backend_preset_is_applied_by_the_builder() -> None:
     source = "\n".join(
         (
             _source("cdmw", "ui", "archive_browser", "mesh_import_export.py"),
@@ -119,9 +128,6 @@ def test_full_import_backend_preset_is_retained_but_not_launched_from_app_ui() -
     assert "control_tabs.setTabVisible(control_tabs.indexOf(textures_tab), False)" in source
     assert "for advanced_tab in (parts_tab,):" not in source
     assert 'advanced_setup_section.setVisible(True)' not in source
-    assert "def _start_full_import_model_replacement" not in _source(
-        "cdmw", "ui", "archive_browser", "mesh_launch_flow.py"
-    )
 
 
 def test_full_import_keeps_material_authority_and_parts_live() -> None:

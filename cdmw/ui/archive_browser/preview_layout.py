@@ -49,6 +49,21 @@ class ArchivePreviewLayoutMixin:
         self.archive_isolated_renderer_button.setEnabled(False)
         self.archive_isolated_renderer_button.setVisible(False)
 
+    def _build_archive_mesh_import_buttons(self) -> None:
+        """Create the two mesh-import entry points: align-and-build, and outright replacement."""
+
+        self.archive_model_import_patch_button = QPushButton("Import Mesh...")
+        self.archive_model_import_patch_button.setToolTip(
+            "Rebuild the selected archive mesh from OBJ, DAE, glTF, or GLB, then choose whether to patch the game archives or write a mod-ready loose file."
+        )
+        self.archive_model_import_patch_button.setEnabled(False)
+        self.archive_model_full_import_button = QPushButton("Full Import Model Replacement...")
+        self.archive_model_full_import_button.setToolTip(
+            "Replace the selected game item outright with an external OBJ, DAE, glTF, GLB, or model ZIP: "
+            "the imported model owns the mesh, its textures, and the material sidecar, and the Builder opens ready to build."
+        )
+        self.archive_model_full_import_button.setEnabled(False)
+
     def _build_archive_preview_panel(self) -> None:
         archive_preview_group = FlatSectionPanel("Preview")
         archive_preview_min, _archive_preview_pref, _archive_preview_max = responsive_sidebar_bounds(self, role="wide")
@@ -228,11 +243,7 @@ class ArchivePreviewLayoutMixin:
             "Apply one local DDS onto the current archive mesh preview as a temporary import preview without patching the game files."
         )
         self.archive_model_import_dds_preview_button.setEnabled(False)
-        self.archive_model_import_patch_button = QPushButton("Import Mesh...")
-        self.archive_model_import_patch_button.setToolTip(
-            "Rebuild the selected archive mesh from OBJ, DAE, glTF, or GLB, then choose whether to patch the game archives or write a mod-ready loose file."
-        )
-        self.archive_model_import_patch_button.setEnabled(False)
+        self._build_archive_mesh_import_buttons()
         self.archive_model_modify_original_button = QPushButton("Modify Original...")
         self.archive_model_modify_original_button.setToolTip(
             "Create a temporary editable clone from the selected archive mesh, then import the edited OBJ clone through Mesh Replacement Geometry."
@@ -403,6 +414,7 @@ class ArchivePreviewLayoutMixin:
                 ("Import Loose Mod Folder", self.archive_import_loose_mod_button),
                 ("Preview Mesh Import", self.archive_model_import_preview_button),
                 ("Import Mesh", self.archive_model_import_patch_button),
+                ("Full Import Model Replacement", self.archive_model_full_import_button),
                 ("Preview DDS on Mesh", self.archive_model_import_dds_preview_button),
                 ("Import HKX JSON", self.archive_hkx_import_json_button),
                 ("Import HKX XML", self.archive_hkx_import_xml_button),
@@ -550,6 +562,7 @@ class ArchivePreviewLayoutMixin:
             self.archive_model_import_preview_button,
             self.archive_model_import_dds_preview_button,
             self.archive_model_import_patch_button,
+            self.archive_model_full_import_button,
             self.archive_model_modify_original_button,
             self.archive_model_swap_in_game_button,
             self.archive_appearance_composite_button,

@@ -27,6 +27,11 @@ def _setup_options_transform_step_013(_state):
         _state.external_material_reset_checkbox.setChecked(True)
         _state.inject_base_color_checkbox.setChecked(True)
         _state.complete_external_swap_checkbox.setChecked(True)
+    elif _state.default_complete_source_swap:
+        # An external model replaces the item outright; the toggle handler forces
+        # the dependent sidecar options and routes the parts the same way the
+        # In-Game Mesh Swap preference above does.
+        _state.complete_external_swap_checkbox.setChecked(True)
 
 def _setup_options_transform_step_014(_state):
 
@@ -160,6 +165,17 @@ def _setup_options_transform_step_016(_state):
     _state.transform_section = _state.CollapsibleSection(_state.alignment_transform_control_text['section_title'], expanded=True)
     _state.transform_section.body_layout.addWidget(_state.transform_group)
     _state.setup_layout.addWidget(_state.transform_section)
+    # The switch that turns an import into a real swap sits at the top level of
+    # the Setup tab, beside Transform. It used to live three collapsed sections
+    # down, under Advanced > Material Authority > Unsafe Expert Controls.
+    _state.materials_setup_group = _state.QGroupBox('Materials')
+    _state.materials_setup_group.setObjectName('MeshAlignmentMaterialsSetupGroup')
+    _state.materials_setup_layout = _state.QVBoxLayout(_state.materials_setup_group)
+    _state.materials_setup_layout.setContentsMargins(5, 3, 5, 3)
+    _state.materials_setup_layout.setSpacing(2)
+    _state.materials_setup_layout.addWidget(_state.complete_external_swap_checkbox)
+    _state.setup_layout.addWidget(_state.materials_setup_group)
+    _state.materials_setup_group.setVisible(not _state.modify_original_clone_mode)
     _state.setup_layout.addWidget(_state.item_icon_section)
     if _state.advanced_setup_section is not None:
         _state.setup_layout.addWidget(_state.advanced_setup_section)

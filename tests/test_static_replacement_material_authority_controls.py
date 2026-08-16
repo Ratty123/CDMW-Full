@@ -14,6 +14,7 @@ from cdmw.ui.archive_browser.static_replacement_material_authority_controls impo
     material_authority_basic_controls_hint,
     material_authority_basic_controls_profile_enabled,
     material_authority_clamped_int,
+    material_authority_complete_swap_default,
     material_authority_complete_swap_forced_child_states,
     material_authority_complete_swap_next_transition_generation,
     material_authority_complete_swap_profile_name,
@@ -65,6 +66,25 @@ class WidgetProbe:
 
     def setChecked(self, checked: bool) -> None:
         self.checked = bool(checked)
+
+
+def test_material_authority_complete_swap_defaults_on_for_external_models_only() -> None:
+    external = ("sword.obj", "sword.dae", "scene.gltf", "sword.glb", r"E:\x\.cdmw_extracted\wolf\scene.gltf")
+    for source in external:
+        assert material_authority_complete_swap_default(
+            source, modify_original_clone_mode=False, preferred_complete_source_swap=False
+        ), source
+    for source in ("_in_game_mesh_sources/character/x.pac", "clone.pam", "lod.pamlod", ""):
+        assert not material_authority_complete_swap_default(
+            source, modify_original_clone_mode=False, preferred_complete_source_swap=False
+        ), source
+    # The In-Game Mesh Swap flow decides for itself; Modify Original never routes.
+    assert material_authority_complete_swap_default(
+        "x.pac", modify_original_clone_mode=False, preferred_complete_source_swap=True
+    )
+    assert not material_authority_complete_swap_default(
+        "sword.obj", modify_original_clone_mode=True, preferred_complete_source_swap=True
+    )
 
 
 def test_material_authority_basic_controls_profile_gate() -> None:
@@ -342,8 +362,9 @@ def test_material_authority_control_tooltips_preserve_control_guidance() -> None
     assert tooltips["reset_adjustments"] == (
         "Reset Material Authority adjustment sliders to the recommended live-preview defaults."
     )
-    assert "Expert loose-export override" in tooltips["unsafe_preflight"]
-    assert "This is ignored for direct archive patch" in tooltips["unsafe_preflight"]
+    assert tooltips["unsafe_preflight"].startswith("Expert override.")
+    assert "or patch the game archives anyway" in tooltips["unsafe_preflight"]
+    assert "ignored for direct archive patch" not in tooltips["unsafe_preflight"]
 
 
 def test_material_authority_setup_tooltips_preserve_sidecar_guidance() -> None:

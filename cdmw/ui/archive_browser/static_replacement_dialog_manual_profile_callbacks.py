@@ -172,10 +172,8 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
                     'enabled': False,
                     'tooltip': f'{base_tooltip}\n\n{reason}'.strip(),
                 }
-        unsafe_acknowledged = bool(
-            unsafe_material_preflight_checkbox is not None
-            and unsafe_material_preflight_checkbox.isChecked()
-        )
+        # Expert routing rides the complete swap; the unsafe-export acknowledgement only pre-answers a question Build Mod asks anyway.
+        expert_available = bool(modify_original_clone_mode) or _material_editor_active(_complete_external_swap_enabled)
         expert_overrides: list[str] = []
         for key in MATERIAL_AUTHORITY_EXPERT_KEYS:
             if key in current_values and current_values.get(key) != manual_profile_default_values.get(key):
@@ -189,7 +187,7 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
             for index in range(control.count()):
                 item = item_getter(index) if callable(item_getter) else None
                 if item is not None and str(control.itemData(index) or '').strip().lower() in spec.expert_values:
-                    item.setEnabled(unsafe_acknowledged)
+                    item.setEnabled(expert_available)
             if str(control.currentData() or '').strip().lower() in spec.expert_values:
                 expert_overrides.append(key)
                 control_states[key] = {
@@ -205,14 +203,14 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
             for widget in widgets:
                 if hasattr(widget, "setEnabled"):
                     widget.setEnabled(
-                        unsafe_acknowledged if expert_control and not modify_original_clone_mode else bool(state.get("enabled", True))
+                        expert_available if expert_control and not modify_original_clone_mode else bool(state.get("enabled", True))
                     )
                 if hasattr(widget, "setToolTip"):
                     tooltip = str(state.get("tooltip", ""))
                     if expert_control and not modify_original_clone_mode:
                         tooltip = (
                             f"{manual_profile_control_tooltips.get(key, '')}\n\n"
-                            "Unsafe Expert: requires unsafe export acknowledgement and has no normal WYSIWYG badge."
+                            "Unsafe Expert: enabled by the complete source-owned swap. It has no normal WYSIWYG badge, and Build Mod asks before exporting an unconfirmed state."
                         ).strip()
                     widget.setToolTip(tooltip)
         if manual_profile_expert_warning is not None:
@@ -221,10 +219,10 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
                 manual_profile_expert_warning.setText(
                     f"Expert overrides active: {names}. Normal WYSIWYG synchronization is unavailable."
                 )
+            elif expert_available:
+                manual_profile_expert_warning.setText("Expert overrides are available; they carry no normal WYSIWYG badge.")
             else:
-                manual_profile_expert_warning.setText(
-                    "Expert overrides are inactive until unsafe export is acknowledged."
-                )
+                manual_profile_expert_warning.setText("Expert overrides need Complete source-owned mesh/material swap.")
             manual_profile_expert_warning.setProperty('expert_overrides_active', bool(expert_overrides))
 
     def _set_manual_profile_dirty(dirty: bool) -> None:

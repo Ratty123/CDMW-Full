@@ -55,6 +55,31 @@ MATERIAL_AUTHORITY_RESET_VALUES = {
     "accent_glow": 0,
 }
 
+MATERIAL_AUTHORITY_GAME_MESH_SOURCE_SUFFIXES = frozenset({".pac", ".pam", ".pamlod"})
+
+
+def material_authority_complete_swap_default(
+    source_path: object,
+    *,
+    modify_original_clone_mode: bool,
+    preferred_complete_source_swap: bool,
+) -> bool:
+    """Whether the Builder opens with the complete source-owned swap armed.
+
+    An external model (OBJ, DAE, glTF, GLB, or a ZIP of one) is imported to
+    replace the item outright, so it opens on the source-owned route rather than
+    the legacy overwrite route that keeps the target's shader layers. A game mesh
+    used as the source keeps whatever its swap flow chose, and Modify Original
+    never routes materials this way.
+    """
+    if modify_original_clone_mode:
+        return False
+    if preferred_complete_source_swap:
+        return True
+    suffix = Path(str(source_path or "")).suffix.casefold()
+    return bool(suffix) and suffix not in MATERIAL_AUTHORITY_GAME_MESH_SOURCE_SUFFIXES
+
+
 MATERIAL_AUTHORITY_VISIBLE_COMPLETE_SWAP_PROFILE_NAMES = (
     "material_authority_detail_mask",
     "material_authority_manual",
@@ -629,8 +654,8 @@ def material_authority_control_tooltips() -> dict[str, str]:
             "Reset Material Authority adjustment sliders to the recommended live-preview defaults."
         ),
         "unsafe_preflight": (
-            "Expert loose-export override. If material preflight finds non-authoritative bindings, "
-            "write the loose mod anyway. This is ignored for direct archive patch and may produce "
+            "Expert override. If material preflight finds non-authoritative bindings, "
+            "write the loose mod or patch the game archives anyway. This may produce "
             "original tint/gloss/layers, grey parts, or missing textures in-game."
         ),
     }
@@ -866,6 +891,7 @@ __all__ = [
     "material_authority_basic_controls_hint",
     "material_authority_basic_controls_profile_enabled",
     "material_authority_clamped_int",
+    "material_authority_complete_swap_default",
     "material_authority_complete_swap_forced_child_states",
     "material_authority_complete_swap_next_transition_generation",
     "material_authority_complete_swap_profile_name",
