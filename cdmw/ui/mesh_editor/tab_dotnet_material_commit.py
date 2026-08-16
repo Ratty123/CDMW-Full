@@ -9,6 +9,13 @@ def remember_sent_material_parameters(tab: object, payload: Mapping[str, object]
     setattr(tab, "standalone_dotnet_sent_material_parameter_payload", dict(payload) if payload else None)
 
 
+def _row_carries_attribute(row: object, attr: str) -> bool:
+    # Rows are either the parser's ``SubMesh`` (a plain dataclass that takes any
+    # attribute) or a slotted ``ModelPreviewMesh`` from a preview model, which has
+    # every ``preview_*_texture_path`` slot but no parser-level ``texture``.
+    return hasattr(row, "__dict__") or hasattr(row, attr)
+
+
 def material_resource_snapshot(
     tab: object,
     mesh_snapshot: object,
@@ -48,7 +55,8 @@ def material_resource_snapshot(
         for index in indices:
             if 0 <= index < len(submeshes):
                 for attr in attrs.get(channel, (f"preview_{channel}_texture_path",)):
-                    setattr(submeshes[index], attr, path)
+                    if _row_carries_attribute(submeshes[index], attr):
+                        setattr(submeshes[index], attr, path)
     return SimpleNamespace(submeshes=submeshes)
 
 

@@ -112,7 +112,7 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     material_sync_status = str(getattr(dialog, "_material_authority_sync_status", "inactive") or "inactive")
     material_sync_state = getattr(dialog, "_material_authority_resolved_state", None)
     if material_sync_status != "inactive" and not bool(getattr(material_sync_state, "build_allowed", False)):
-        import_button.setEnabled(False)
+        # Build Mod stays clickable and asks on the click; the tooltip only says why the state is not exact yet.
         import_button.setToolTip(
             str(getattr(dialog, "_material_authority_sync_reason", "") or "Material Authority exact preview is pending.")
         )

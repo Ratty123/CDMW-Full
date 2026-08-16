@@ -66,6 +66,7 @@ def _setup_options_transform_step_001(_state):
     _state._material_authority_adjustment_labels_helper = _state.context.get('_material_authority_adjustment_labels_helper')
     _state._material_authority_adjustment_tooltips_helper = _state.context.get('_material_authority_adjustment_tooltips_helper')
     _state._material_authority_clamped_int_helper = _state.context.get('_material_authority_clamped_int_helper')
+    _state._material_authority_complete_swap_default_helper = _state.context.get('_material_authority_complete_swap_default_helper')
     _state._material_authority_complete_swap_tooltip_helper = _state.context.get('_material_authority_complete_swap_tooltip_helper')
     _state._material_authority_control_tooltips_helper = _state.context.get('_material_authority_control_tooltips_helper')
     _state._material_authority_edge_relief_source_helper = _state.context.get('_material_authority_edge_relief_source_helper')
@@ -130,6 +131,14 @@ def _setup_options_transform_step_002(_state):
     _state.static_dialog_preview = _state.context.get('static_dialog_preview')
     _state.texture_uv_global_transform_state = _state.context.get('texture_uv_global_transform_state') or {}
     _state.full_import_model_replacement = bool(_state.context.get('full_import_model_replacement'))
+    _state.default_complete_source_swap = bool(
+        callable(_state._material_authority_complete_swap_default_helper)
+        and _state._material_authority_complete_swap_default_helper(
+            _state.context.get('obj_path'),
+            modify_original_clone_mode=_state.modify_original_clone_mode,
+            preferred_complete_source_swap=bool(_state.preferred_complete_source_swap),
+        )
+    )
     _state.alignment_setup_options_control_text = _state._alignment_setup_options_control_text_helper()
     _state.options_group = _state.QGroupBox(_state.alignment_setup_options_control_text['group_title'])
     _state.options_layout = _state.QVBoxLayout(_state.options_group)
@@ -438,7 +447,7 @@ def _setup_options_transform_step_006(_state):
     _state.manual_profile_expert_layout.setContentsMargins(6, 4, 6, 4)
     _state.manual_profile_expert_layout.setHorizontalSpacing(6)
     _state.manual_profile_expert_layout.setVerticalSpacing(3)
-    _state.manual_profile_expert_warning = _state.QLabel('Expert overrides are inactive until unsafe export is acknowledged.')
+    _state.manual_profile_expert_warning = _state.QLabel('Expert overrides need Complete source-owned mesh/material swap.')
     _state.manual_profile_expert_warning.setObjectName('WarningLabel')
     _state.manual_profile_expert_warning.setWordWrap(True)
     _state.manual_profile_expert_layout.addWidget(_state.manual_profile_expert_warning, 0, 0, 1, 4)
@@ -673,7 +682,6 @@ def _setup_options_transform_step_010(_state):
         _state.inject_base_color_checkbox,
         _state.source_color_faithful_checkbox,
         _state.external_material_reset_checkbox,
-        _state.complete_external_swap_checkbox,
         _state.unsafe_material_preflight_checkbox,
     )
     for _state.unsafe_widget in _state.unsafe_material_widgets:

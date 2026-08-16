@@ -6,6 +6,10 @@ from __future__ import annotations
 class ShellSignalWiringMixin:
     """Connect shell-owned actions and widget signals."""
 
+    def _connect_archive_mesh_import_signals(self) -> None:
+        self.archive_model_import_patch_button.clicked.connect(self._patch_current_archive_mesh_from_obj)
+        self.archive_model_full_import_button.clicked.connect(self._full_import_current_archive_model_replacement)
+
     def _connect_shell_signals(self) -> None:
         self.export_profile_action.triggered.connect(self.export_profile)
         self.import_profile_action.triggered.connect(self.import_profile)
@@ -112,7 +116,7 @@ class ShellSignalWiringMixin:
         )
         self.archive_model_import_preview_button.clicked.connect(self._preview_current_archive_mesh_import)
         self.archive_model_import_dds_preview_button.clicked.connect(self._preview_current_archive_mesh_dds_import)
-        self.archive_model_import_patch_button.clicked.connect(self._patch_current_archive_mesh_from_obj)
+        self._connect_archive_mesh_import_signals()
         self.archive_model_modify_original_button.clicked.connect(self._modify_current_archive_original_mesh)
         self.archive_model_swap_in_game_button.clicked.connect(self._swap_current_archive_mesh_with_in_game)
         self.archive_appearance_composite_button.clicked.connect(self._open_current_archive_appearance_composite_preview)

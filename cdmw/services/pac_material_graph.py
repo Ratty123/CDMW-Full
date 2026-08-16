@@ -59,6 +59,71 @@ def _input_transport_path(item: object) -> str:
     ).replace("\\", "/").strip()
 
 
+def _same_texture_file(reference: str, resolved: str) -> bool:
+    """Match an archive reference against a resolved local path for the same DDS.
+
+    The resolver stores the extracted file under a content-hash prefix, so
+    `character/texture/cd_phm_02_acc_0037.dds` resolves to
+    `.../7710cfffdf62adf9_cd_phm_02_acc_0037.dds`; either the paths are equal
+    or the resolved basename ends in `_<archive basename>`.
+    """
+    if not reference or not resolved:
+        return False
+    if reference == resolved:
+        return True
+    reference_name = PurePosixPath(reference).name
+    resolved_name = PurePosixPath(resolved).name
+    return bool(reference_name) and (
+        reference_name == resolved_name or resolved_name.endswith("_" + reference_name)
+    )
+
+
+def _is_own_mesh_reference(
+    row: Mapping[str, object],
+    resolved_channels: Mapping[str, str] | None,
+) -> bool:
+    """A mesh-declared texture reference bound to one of this submesh's own channels.
+
+    The native archive core resolves `embedded_mesh_reference` bindings by
+    material-name stem and attributes each to the slot whose material name
+    matched. Two slots that reference the same DDS therefore share one row that
+    names only one of them as owner; on the other submesh that file is still its
+    own resolved channel, not a leak from a neighbour, and must not count as a
+    cross-owner binding. Anything a material XML declares keeps the strict rule.
+    """
+    if str(row.get("parameter_name", "") or "").strip() != "embedded_mesh_reference":
+        return False
+    references = (
+        _normalized_path(row.get("source_reference")),
+        _normalized_path(row.get("transport_reference")),
+    )
+    resolved_paths = {
+        _normalized_path(path)
+        for path in dict(resolved_channels or {}).values()
+        if str(path or "").strip()
+    }
+    return any(
+        _same_texture_file(reference, resolved)
+        for reference in references
+        for resolved in resolved_paths
+    )
+
+
+def _binding_is_cross_owner(
+    row: Mapping[str, object],
+    source_owner_slot_index: int,
+    resolved_channels: Mapping[str, str] | None,
+) -> bool:
+    """A binding another wrapper owns that leaked into this submesh's graph."""
+    owner_slot_index = _safe_int(row.get("owner_slot_index", -1))
+    return (
+        source_owner_slot_index >= 0
+        and owner_slot_index >= 0
+        and owner_slot_index != source_owner_slot_index
+        and not _is_own_mesh_reference(row, resolved_channels)
+    )
+
+
 def _parameter_key(parameter: object) -> tuple[object, ...]:
     return (
         str(_value(parameter, "parameter_kind") or "").strip().casefold(),
@@ -493,9 +558,7 @@ def build_pac_material_graph_v1(
             "source_reference": str(row.get("source_reference", "") or ""),
         }
         for row in binding_rows
-        if source_owner_slot_index >= 0
-        and _safe_int(row.get("owner_slot_index", -1)) >= 0
-        and _safe_int(row.get("owner_slot_index", -1)) != source_owner_slot_index
+        if _binding_is_cross_owner(row, source_owner_slot_index, resolved_channels)
     ]
     resolved_base_paths = {
         _normalized_path(path)

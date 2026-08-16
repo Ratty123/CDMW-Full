@@ -407,6 +407,81 @@ def test_resident_compiler_blocks_cross_owner_bindings(tmp_path: Path) -> None:
         compile_mesh_dotnet_material_update(_request(mesh, tmp_path / "cache"))
 
 
+def test_shared_mesh_reference_that_is_the_submeshs_own_base_is_not_cross_owner(tmp_path: Path) -> None:
+    """A mesh-declared reference attributed to a neighbouring slot is not a leak.
+
+    On `cd_phm_01_sword_0039.pac`, `CD_PHM_01_Acc_0038` (slot 3) and
+    `CD_PHM_02_Acc_0037` (slot 4) both reference `cd_phm_02_acc_0037.dds`, and
+    the native archive core keys embedded references by material-name stem, so
+    slot 3 received the row with `owner_slot_index 4`. That file is slot 3's own
+    resolved base; counting it as cross-owner refused the whole Original pane
+    compile and rolled Solid (Textured) back on every pick.
+    """
+    base = _image(tmp_path / "7710cfffdf62adf9_cd_phm_02_acc_0037.png", (90, 80, 70, 255))
+    submesh = SubMesh(
+        name="CD_PHM_01_Acc_0038",
+        material="CD_PHM_01_Acc_0038",
+        texture=str(base),
+        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+        uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+        faces=[],
+    )
+    submesh.submesh_index = 3
+    submesh.material_slot_index = 3
+    submesh.preview_texture_path = str(base)
+    submesh.preview_texture_dds_path = str(base)
+    shared_reference = PreviewMaterialTextureInput(
+        slot_kind="base",
+        parameter_name="embedded_mesh_reference",
+        source_texture_path="character/texture/cd_phm_02_acc_0037.dds",
+        source_dds_path=str(base),
+        preview_texture_path=str(base),
+        semantic_type="base",
+        material_name="CD_PHM_02_Acc_0037",
+        sidecar_kind="embedded_mesh",
+        parameter_declared_by="mesh",
+        owner_slot_index=4,
+        binding_authority="authoritative",
+        binding_disposition="promoted",
+        source_kind="embedded_mesh",
+    )
+    submesh.preview_material_texture_inputs = (shared_reference,)
+    mesh = ParsedMesh(path="character/model/weapon/cd_phm_01_sword_0039.pac", format="pac", submeshes=[submesh])
+
+    graph = build_pac_material_graph_v1(submesh, {"base": str(base)})
+    assert graph["binding_conservation"]["cross_owner_bindings"] == []
+    assert graph["binding_conservation"]["conserved"] is True
+
+    # A material-XML binding from another owner keeps the strict rule.
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            parameter_name="_overlayColorTexture",
+            source_texture_path="character/texture/cd_phm_02_acc_0037.dds",
+            source_dds_path=str(base),
+            preview_texture_path=str(base),
+            semantic_type="base",
+            shader_family="MultiTextured",
+            sidecar_kind="pac_xml",
+            owner_slot_index=4,
+            owner_wrapper_item_id="100",
+            binding_authority="authoritative",
+            binding_disposition="promoted",
+            source_kind="crimson_overlay_color",
+        ),
+    )
+    strict = build_pac_material_graph_v1(submesh, {"base": str(base)})
+    assert [row["owner_slot_index"] for row in strict["binding_conservation"]["cross_owner_bindings"]] == [4]
+
+    submesh.preview_material_texture_inputs = (shared_reference,)
+    manifest = compile_mesh_dotnet_material_manifest(
+        mesh,
+        package_dir=tmp_path / "shared-reference",
+        material_signature=mesh_dotnet_material_input_signature(mesh),
+    )
+    assert mesh_dotnet_material_compiler._material_compile_blockers(manifest) == []
+
+
 def test_resident_compiler_blocks_unreadable_synthesis_inputs() -> None:
     blockers = mesh_dotnet_material_compiler._material_compile_blockers(
         {

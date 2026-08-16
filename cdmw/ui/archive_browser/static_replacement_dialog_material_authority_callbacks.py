@@ -567,7 +567,7 @@ def create_material_authority_adjustment_callbacks(context: dict[str, object]) -
                 current is not None and current.build_allowed
             )
             try:
-                build_button.setEnabled(base_allowed and build_ready)
+                build_button.setEnabled(base_allowed)  # an unconfirmed exact preview is asked about on the click, not greyed out
                 build_button.setToolTip("" if build_ready else text)
             except RuntimeError:
                 pass

@@ -300,6 +300,21 @@ class ArchiveBrowserActionMixin:
             return self.archive_filtered_entries[value]
         return None
 
+    def _add_archive_mesh_import_context_actions(
+        self,
+        menu: QMenu,
+        menu_icons: dict[str, QIcon],
+        entry: ArchiveEntry,
+    ) -> None:
+        import_patch_action = menu.addAction(menu_icons["mesh"], "Import Mesh...")
+        import_patch_action.triggered.connect(
+            lambda _checked=False, current_entry=entry: self._start_archive_mesh_patch(current_entry)
+        )
+        full_import_action = menu.addAction(menu_icons["mesh"], "Full Import Model Replacement...")
+        full_import_action.triggered.connect(
+            lambda _checked=False, current_entry=entry: self._start_archive_full_import_model_replacement(current_entry)
+        )
+
     def _add_archive_material_context_action(
         self,
         menu: QMenu,
@@ -500,10 +515,7 @@ class ArchiveBrowserActionMixin:
             modify_original_action.triggered.connect(
                 lambda _checked=False, current_entry=entry: self._mesh_editor_modify_original_requested(current_entry)
             )
-            import_patch_action = menu.addAction(menu_icons["mesh"], "Import Mesh...")
-            import_patch_action.triggered.connect(
-                lambda _checked=False, current_entry=entry: self._start_archive_mesh_patch(current_entry)
-            )
+            self._add_archive_mesh_import_context_actions(menu, menu_icons, entry)
             pending_swap_target = self.pending_in_game_mesh_swap_target
             if pending_swap_target is not None and not self._same_archive_entry(entry, pending_swap_target):
                 swap_label = "Use This as Swap Source..."

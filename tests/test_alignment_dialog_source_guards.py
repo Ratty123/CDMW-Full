@@ -4765,7 +4765,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('inactive[key] = "No effect: Color slot is disabled."', manual_profile_source)
         self.assertIn("manual_material_profile_control_effect_states", manual_profile_source)
         self.assertIn(
-            'unsafe_acknowledged if expert_control and not modify_original_clone_mode else bool(state.get("enabled", True))',
+            'expert_available if expert_control and not modify_original_clone_mode else bool(state.get("enabled", True))',
             source,
         )
         self.assertIn("manual_material_profile_dirty_state", manual_profile_source)

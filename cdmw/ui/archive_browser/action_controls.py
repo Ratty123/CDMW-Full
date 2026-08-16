@@ -11,6 +11,21 @@ from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 class ArchiveBrowserActionControlsMixin:
     """Synchronize Archive Browser action buttons with the current selection."""
 
+    def _update_archive_mesh_import_action_controls(self, enabled: bool, disabled_reason: str) -> None:
+        """The two mesh-import entry points share one enablement rule."""
+        self._set_action_button_state(
+            self.archive_model_import_patch_button,
+            enabled,
+            "Rebuild the selected archive mesh from OBJ, DAE, glTF, or GLB, then patch or export a loose package.",
+            disabled_reason,
+        )
+        self._set_action_button_state(
+            self.archive_model_full_import_button,
+            enabled,
+            "Replace the selected game item outright with an external model that owns the mesh, textures, and material sidecar.",
+            disabled_reason,
+        )
+
     def _update_archive_model_action_controls(self, preview_model: Optional[object]) -> None:
         current_entry = self._current_archive_entry()
         mesh_entry = self._current_archive_mesh_entry()
@@ -170,12 +185,7 @@ class ArchiveBrowserActionControlsMixin:
             "Apply one local DDS onto the current archive mesh preview without patching or exporting.",
             mesh_reason,
         )
-        self._set_action_button_state(
-            self.archive_model_import_patch_button,
-            controls_enabled and can_mesh_actions,
-            "Rebuild the selected archive mesh from OBJ, DAE, glTF, or GLB, then patch or export a loose package.",
-            mesh_reason,
-        )
+        self._update_archive_mesh_import_action_controls(controls_enabled and can_mesh_actions, mesh_reason)
         self._set_action_button_state(
             self.archive_model_modify_original_button,
             controls_enabled and can_mesh_actions,

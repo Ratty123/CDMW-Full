@@ -196,14 +196,26 @@ def _accept_build_step_009(_state):
             complete_swap_enabled
             and bool(getattr(_state.dialog, '_mesh_editor_embedded_dotnet_active', False))
             and not material_state_ready
+            and show_messages
         ):
             reason = str(
                 getattr(_state.dialog, '_material_authority_sync_reason', '')
                 or 'The latest Material Authority revision is not acknowledged by the active .NET preview.'
             )
-            if show_messages:
-                _state.QMessageBox.warning(_state.dialog, 'Build Mod', f'Build is blocked: {reason}')
-            return None
+            # The state can sit unconfirmed for reasons the Builder cannot resolve
+            # from its own controls (a resolver that failed, a resident compile the
+            # original PAC refuses). Whether that is worth waiting for is the
+            # user's call; without it the export takes the material profile route.
+            buttons = _state.QMessageBox.StandardButton
+            answer = _state.QMessageBox.question(
+                _state.dialog,
+                'Build Mod',
+                f'The resident preview has not confirmed the exact Material Authority result:\n{reason}\n\nBuild anyway? The mod will be exported from the current material profile rather than the confirmed preview state, so its textures may not match the viewport exactly.',
+                buttons.Yes | buttons.No,
+                buttons.No,
+            )
+            if answer != buttons.Yes:
+                return None
         if complete_swap_enabled and _state.original_mesh_for_mapping is not None and (_state.replacement_mesh_for_mapping is not None):
             parsed_mappings = _state._complete_external_swap_mappings()
             explicit_mapping_validation = True

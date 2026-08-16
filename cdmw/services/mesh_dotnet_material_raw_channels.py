@@ -2,11 +2,14 @@
 
 A normal, height, or packed material input whose `.dds` is packaged verbatim is
 normally deferred because `_generated_channels` discards the combiner's own
-output for that channel. The exception is a selected macro normal needed for
-authored layer composition: it is decoded for synthesis, but decode failure
-falls back to the packaged DDS without publishing a detail-only replacement.
-Keeping that policy and its diagnostic relabelling together stops a deliberate
-skip from reading as a hard material-compile failure.
+output for that channel. There are two exceptions. A selected macro normal
+needed for authored layer composition is decoded for synthesis, but decode
+failure falls back to the packaged DDS without publishing a detail-only
+replacement. An input the combiner reads as a selector mask (albedo, layered
+normal, or material-layer) is decoded even when it is also the raw channel,
+because the mask has to be readable for the layer to compose at all. Keeping
+that policy and its diagnostic relabelling together stops a deliberate skip
+from reading as a hard material-compile failure.
 """
 
 from __future__ import annotations
@@ -90,6 +93,32 @@ class _CallbackStopEvent:
         return bool(self._cancelled is not None and self._cancelled())
 
 
+def _synthesis_mask_input_ids(
+    material_inputs: tuple[PreviewMaterialTextureInput, ...],
+) -> tuple[set[int], set[int]]:
+    """Return (albedo mask ids, every selector mask id) among `material_inputs`.
+
+    Albedo and layered-normal synthesis read the masks `_mask_inputs_for_albedo`
+    picks; material-layer synthesis reads the one `_material_layer_mask_for_input`
+    picks per material input. Each is opened through `preview_texture_path`, so a
+    mask left as its raw `.dds` reads as `... mask unreadable:` and blocks the
+    compile. On a texture-layer weapon PAC the grime selector is also the raw
+    material channel, which is exactly the input the deferral would have skipped.
+    """
+    from cdmw.rendering.material_combiner_rules import (
+        _mask_inputs_for_albedo,
+        _material_layer_mask_for_input,
+    )
+
+    albedo_mask_ids = {id(item) for item in _mask_inputs_for_albedo(material_inputs).values()}
+    mask_ids = set(albedo_mask_ids)
+    for item in material_inputs:
+        mask_item, _channel, _label = _material_layer_mask_for_input(item, material_inputs)
+        if mask_item is not None:
+            mask_ids.add(id(mask_item))
+    return albedo_mask_ids, mask_ids
+
+
 def _synthesis_preview_profile(
     item: object,
     *,
@@ -127,10 +156,7 @@ def _decode_synthesis_input_previews(
         directxtex_preview_result_key,
         ensure_directxtex_dds_preview_pngs,
     )
-    from cdmw.rendering.material_combiner_rules import (
-        _mask_inputs_for_albedo,
-        _texture_label,
-    )
+    from cdmw.rendering.material_combiner_rules import _texture_label
     from cdmw.rendering.material_combiner_support_maps import _is_layer_normal_input
 
     jobs: list[dict[str, object]] = []
@@ -140,6 +166,7 @@ def _decode_synthesis_input_previews(
         "dds_candidate_count": 0,
         "decode_job_count": 0,
         "native_channel_deferred_count": 0,
+        "raw_channel_mask_decoded_count": 0,
         "missing_dds_input_count": 0,
         "missing_dds_input_sample": [],
         "preview_deferred_by_environment": bool(
@@ -152,9 +179,7 @@ def _decode_synthesis_input_previews(
     material_inputs = tuple(
         item for item in inputs if isinstance(item, PreviewMaterialTextureInput)
     )
-    albedo_mask_ids = {
-        id(item) for item in _mask_inputs_for_albedo(material_inputs).values()
-    }
+    albedo_mask_ids, mask_input_ids = _synthesis_mask_input_ids(material_inputs)
     layered_normal_synthesis = any(
         _is_layer_normal_input(item)
         and (
@@ -216,7 +241,11 @@ def _decode_synthesis_input_previews(
             diagnostics["dds_candidate_count"]
         ) + 1
         native_channel = _native_support_map_channel(item, raw_channels)
-        if native_channel and not (
+        if native_channel and id(item) in mask_input_ids:
+            diagnostics["raw_channel_mask_decoded_count"] = int(
+                diagnostics["raw_channel_mask_decoded_count"]
+            ) + 1
+        elif native_channel and not (
             native_channel == "normal" and layered_normal_synthesis
         ):
             diagnostics["native_channel_deferred_count"] = int(
@@ -337,4 +366,5 @@ __all__ = [
     "_local_synthesis_dds_path",
     "_native_support_map_channel",
     "_relabel_deferred_raw_channel_notes",
+    "_synthesis_mask_input_ids",
 ]

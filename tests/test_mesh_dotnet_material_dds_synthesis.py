@@ -211,6 +211,7 @@ def test_unreadable_neutral_metal_graph_fails_closed_without_index_error(
         "dds_candidate_count": 1,
         "decode_job_count": 1,
         "native_channel_deferred_count": 0,
+        "raw_channel_mask_decoded_count": 0,
         "missing_dds_input_count": 0,
         "missing_dds_input_sample": [],
         "preview_deferred_by_environment": False,
@@ -607,6 +608,93 @@ def test_layered_normal_decode_failure_keeps_the_native_selected_dds(
     assert binding["resolved_channels"]["normal"] == str(selected_dds)
     assert any("normal not decoded, raw channel packaged" in note for note in notes)
     assert not any("normal layers synthesized" in note for note in notes)
+
+
+def test_selector_mask_that_is_also_the_raw_material_channel_is_decoded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A layer selector mask is decoded even when its DDS is the raw material channel.
+
+    On `cd_phm_01_sword_0039.pac` the grime selector `_colorBlendingMaskTexture`
+    is the same `_m.dds` the resident viewport packages verbatim as the material
+    channel. The deferral skipped its decode, both layer compositors then probed
+    the raw `.dds`, and `normal mask unreadable:` plus `material layer mask
+    unreadable:grime:r` blocked the whole compile, so Solid (Textured) fell back
+    to Faces (No Textures) on the Original pane every time it was picked.
+    """
+    from cdmw.core.texture_native import directxtex_preview_result_key
+
+    mask_dds = tmp_path / "cd_texturelayer_0036_m.dds"
+    mask_dds.write_bytes(b"DDS selector mask placeholder")
+    grime_dds = tmp_path / "cd_texturelayer_0036_grime_sp.dds"
+    grime_dds.write_bytes(b"DDS grime material placeholder")
+    mask_png = _image(tmp_path / "cd_texturelayer_0036_m.png", (255, 0, 0, 255))
+    grime_png = _image(tmp_path / "cd_texturelayer_0036_grime_sp.png", (40, 200, 90, 255))
+    decoded_paths: list[str] = []
+
+    def decode(jobs, *, include_job_keys, stop_event):
+        decoded_paths.extend(str(job["dds_path"]) for job in jobs)
+        outputs = {str(mask_dds.resolve()): mask_png, str(grime_dds.resolve()): grime_png}
+        return {
+            directxtex_preview_result_key(
+                Path(job["dds_path"]),
+                max_dimension=job["max_dimension"],
+                slot_kind=job["slot_kind"],
+                srgb=job["srgb"],
+                normal_space=job["normal_space"],
+            ): outputs[str(job["dds_path"])]
+            for job in jobs
+        }
+
+    monkeypatch.setattr(
+        "cdmw.core.texture_native.ensure_directxtex_dds_preview_pngs",
+        decode,
+    )
+    submesh = _submesh()
+    # The raw material channel the viewport packages verbatim is the mask itself.
+    submesh.preview_material_texture_dds_path = str(mask_dds)
+    submesh.preview_material_texture_path = str(mask_dds)
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_grimeMaterialTexture",
+            source_dds_path=str(grime_dds),
+            preview_texture_path=str(grime_dds),
+            semantic_type="material",
+            semantic_subtype="specular",
+            shader_family="SkinnedMeshStandard_Ver2",
+            layer_role="grime",
+            layer_channel="r",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_colorBlendingMaskTexture",
+            source_dds_path=str(mask_dds),
+            preview_texture_path=str(mask_dds),
+            semantic_type="material",
+            semantic_subtype="mask",
+            shader_family="SkinnedMeshStandard_Ver2",
+            layer_role="color",
+            binding_disposition="layer_only",
+            source_kind="crimson_color_blending_mask",
+            visualized=True,
+        ),
+    )
+
+    payload = _write_manifest(tmp_path / "package", submesh)
+    binding = payload["submeshes"][0]
+    synthesis = binding["material_synthesis"]
+    notes = tuple(str(note) for note in synthesis["notes"])
+
+    assert str(mask_dds.resolve()) in decoded_paths
+    assert synthesis["decode_diagnostics"]["raw_channel_mask_decoded_count"] == 1
+    assert synthesis["decode_diagnostics"]["native_channel_deferred_count"] == 0
+    assert not [note for note in notes if "unreadable:" in note.casefold()]
+    assert "material layer mask applied:grime:r" in notes
+    assert binding["raw_resolved_channels"]["material"] == str(mask_dds)
+    assert _material_compile_blockers(payload) == []
 
 
 def test_raw_support_map_skip_requires_the_same_dds_path(tmp_path: Path) -> None:
