@@ -44,6 +44,53 @@ PENDING_TEXTURED_VIEW_MAX_EXTENSIONS = 9
 
 
 class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
+    def apply_resident_imported_material_resources(self) -> bool:
+        """Publish the Imported pane's own materials to the resident helper.
+
+        The launch package deliberately carries no textures
+        (`"reason": "textures_on_demand"`), so every pane's materials reach the
+        helper only through a later publish. The Original pane has its lazy
+        resolver for that, and an exact clone borrows the resolved originals. An
+        external import had neither: its textures were bound to the working mesh
+        at preflight and then never sent, so Solid (Textured) waited on an
+        `editable_imported` acknowledgement that no code path was going to
+        produce, and timed out every time.
+
+        Mirrors `apply_resident_reference_material_resources`: while the helper
+        is still launching, or another compile is in flight, the publish is
+        remembered and flushed after the current acknowledgement rather than
+        pre-empting a compile that is already running.
+        """
+        if not self._dotnet_resident_material_updates_supported():
+            if self.standalone_dotnet_target_embedded and (
+                self.standalone_dotnet_embedded_state == "launching"
+                or self._standalone_dotnet_package_worker_active()
+                or self._standalone_dotnet_editor_process_running()
+            ):
+                self.standalone_dotnet_pending_imported_material_publish = True
+                return True
+            return False
+        if (
+            self.standalone_dotnet_material_generation
+            > self.standalone_dotnet_completed_material_generation
+        ):
+            self.standalone_dotnet_pending_imported_material_publish = True
+            return True
+        self.standalone_dotnet_pending_imported_material_publish = False
+        return bool(self._send_dotnet_material_state(reason="late_imported_resources"))
+
+    def _flush_pending_imported_material_publish(self) -> bool:
+        """Send a remembered Imported publish; True while its compile is in flight."""
+        if not bool(
+            getattr(self, "standalone_dotnet_pending_imported_material_publish", False)
+        ):
+            return False
+        return bool(
+            self.apply_resident_imported_material_resources()
+            and self.standalone_dotnet_material_generation
+            > self.standalone_dotnet_completed_material_generation
+        )
+
     def _request_reference_textures_for_textured_view(self, request_textures: object) -> None:
         """Kick the Original pane's lazy texture resolve without waiting on it.
 

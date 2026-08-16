@@ -497,6 +497,9 @@ class MeshEditorTabShellMixin(MeshEditorTabShellPackageStateMixin):
                     self.standalone_dotnet_texture_resources_ready_by_role
                 ),
                 "errors_by_role": dict(self.standalone_dotnet_material_error_by_role),
+                "pending_imported_material_publish": bool(
+                    self.standalone_dotnet_pending_imported_material_publish
+                ),
                 "pending_textured_view": bool(
                     self.standalone_dotnet_pending_textured_view
                 ),
@@ -588,6 +591,11 @@ class MeshEditorTabShellMixin(MeshEditorTabShellPackageStateMixin):
             builder,
             "_mesh_editor_embedded_apply_reference_material_resources",
             self.apply_resident_reference_material_resources,
+        )
+        setattr(
+            builder,
+            "_mesh_editor_embedded_apply_imported_material_resources",
+            self.apply_resident_imported_material_resources,
         )
         setattr(builder, "_mesh_editor_embedded_capture_icon", self.request_resident_dotnet_icon_capture)
         setattr(builder, "_mesh_editor_embedded_resident_material_resources_supported", self._dotnet_resident_material_updates_supported)

@@ -952,10 +952,11 @@ class MeshEditorDotNetResourceProtocolMixin(
         if clone_model is not None and self.apply_resident_clone_material_resources(clone_model):
             if self.standalone_dotnet_material_generation > self.standalone_dotnet_completed_material_generation:
                 return
-        preview_model = self.standalone_dotnet_pending_reference_material_model
-        self.standalone_dotnet_pending_reference_material_model = None
-        if preview_model is not None:
-            self.apply_resident_reference_material_resources(preview_model)
+        if not self._flush_pending_imported_material_publish():  # else the Original pane republishes once the Imported compile lands
+            preview_model = self.standalone_dotnet_pending_reference_material_model
+            self.standalone_dotnet_pending_reference_material_model = None
+            if preview_model is not None:
+                self.apply_resident_reference_material_resources(preview_model)
 
     def apply_resident_material_resources(
         self,

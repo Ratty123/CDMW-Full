@@ -208,6 +208,71 @@ def test_modify_original_late_bindings_publish_both_resident_material_roles() ->
     assert resident_updates == ["clone_and_reference"]
 
 
+def test_external_import_late_bindings_publish_the_imported_pane_before_the_reference() -> None:
+    """An imported model's own textures have to reach the resident helper too.
+
+    The launch package deliberately carries no textures, so every pane is
+    textured by a later publish. Only the Original pane had one on this path;
+    the Imported pane's textures sat on the working mesh and were never sent,
+    and Solid (Textured) waited on an `editable_imported` acknowledgement that
+    could not come. Imported is published first: the tab defers the Original
+    publish behind it instead of letting the later one pre-empt the compile.
+    """
+    preview_model = SimpleNamespace(
+        meshes=[_mesh(preview_texture_path="C:/cache/original.dds")]
+    )
+    replacement_mesh = SimpleNamespace(
+        submeshes=[SimpleNamespace(preview_texture_path="C:/imports/wolf.png")]
+    )
+    resident_updates: list[str] = []
+    failures: list[str] = []
+
+    dialog = SimpleNamespace(
+        _mesh_editor_embedded_apply_imported_material_resources=(
+            lambda: (resident_updates.append("imported"), True)[1]
+        ),
+        _mesh_editor_embedded_apply_reference_material_resources=(
+            lambda _model: (resident_updates.append("reference"), True)[1]
+        ),
+        _mesh_editor_embedded_texture_request_failed=failures.append,
+    )
+
+    apply_resolved_original_materials_to_resident_editor(
+        dialog=dialog,
+        replacement_mesh_base=SimpleNamespace(submeshes=[SimpleNamespace()]),
+        replacement_mesh=replacement_mesh,
+        preview_model=preview_model,
+        modify_original_clone_mode=False,
+        publish_resident_updates=True,
+    )
+
+    assert resident_updates == ["imported", "reference"]
+    assert failures == []
+    # The imported model keeps its own textures; the originals are not copied
+    # over them the way an exact clone's are.
+    assert replacement_mesh.submeshes[0].preview_texture_path == "C:/imports/wolf.png"
+
+
+def test_external_import_reports_an_imported_publish_that_could_not_be_queued() -> None:
+    failures: list[str] = []
+    dialog = SimpleNamespace(
+        _mesh_editor_embedded_apply_imported_material_resources=lambda: False,
+        _mesh_editor_embedded_apply_reference_material_resources=lambda _model: True,
+        _mesh_editor_embedded_texture_request_failed=failures.append,
+    )
+
+    apply_resolved_original_materials_to_resident_editor(
+        dialog=dialog,
+        replacement_mesh_base=SimpleNamespace(submeshes=[SimpleNamespace()]),
+        replacement_mesh=SimpleNamespace(submeshes=[SimpleNamespace()]),
+        preview_model=SimpleNamespace(meshes=[_mesh()]),
+        modify_original_clone_mode=False,
+        publish_resident_updates=True,
+    )
+
+    assert failures == ["Imported materials could not be queued for the resident helper."]
+
+
 def test_apply_original_material_preview_uses_direct_source_preview_map() -> None:
     original_model = SimpleNamespace(
         meshes=[_mesh(material_name="Source 0"), _mesh(material_name="Source 1")]
