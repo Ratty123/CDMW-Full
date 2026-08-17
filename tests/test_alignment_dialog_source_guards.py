@@ -1684,7 +1684,6 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("patch_box = QMessageBox(patch_box_parent)", source)
         self.assertIn('complete_external_swap: bool = False', _static_replacer_source())
         self.assertIn("operation, operation_flags = builder_operation_flags(", accept_source)
-        self.assertIn("**operation_flags.as_option_fields()", accept_source)
         self.assertIn('require_source_owned_colors = bool(getattr(static_replacement_options, "complete_external_swap", False))', source)
         mesh_patch_start = source.index("def _start_archive_mesh_patch")
         commit_start = source.index("def _commit_task(", mesh_patch_start)
@@ -1858,16 +1857,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         source = _main_window_source() + "\n" + _archive_mesh_import_sources()
         accept_source = static_replacement_callback_concern_source(ROOT, "accept_build")
         self.assertIn("complete_swap_enabled = bool(_state._complete_external_swap_enabled()) and (not _state.modify_original_clone_mode)", accept_source)
-        # Each toggle reaches the build through the classified operation rather
-        # than through its own expression beside the others. What the derivation
-        # produces is pinned in tests/test_mesh_builder_operation.py against the
-        # expressions it replaced; this guard only pins that the accept path
-        # still routes every toggle through it.
-        self.assertIn("rebuild_sidecar=bool(_state.rebuild_sidecar_checkbox.isChecked())", accept_source)
-        self.assertIn("source_color_faithful=bool(_state.source_color_faithful_checkbox.isChecked())", accept_source)
-        self.assertIn("external_material_reset=bool(_state.external_material_reset_checkbox.isChecked())", accept_source)
-        self.assertIn("inject_base_color=bool(_state.inject_base_color_checkbox.isChecked())", accept_source)
-        self.assertIn("prune_unmapped_original_dds=bool(_state.prune_unmapped_original_dds_checkbox.isChecked())", accept_source)
+        # Each toggle reaches the build through the classified operation; the derivation is pinned in tests/test_mesh_builder_operation.py.
+        for control in ("rebuild_sidecar", "source_color_faithful", "external_material_reset", "inject_base_color", "prune_unmapped_original_dds"):
+            self.assertIn(f"{control}=bool(_state.{control}_checkbox.isChecked())", accept_source)
         self.assertIn("complete_swap_enabled=bool(complete_swap_enabled)", accept_source)
         self.assertIn("**operation_flags.as_option_fields()", accept_source)
         self.assertIn("require_source_owned_colors=require_source_owned_colors", source)
