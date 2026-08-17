@@ -270,12 +270,15 @@ class MeshEditorShellBridgeMixin:
         text = str(getattr(action, "text", "") or key or "tool").strip()
         command = str(getattr(action, "command", "") or "").strip()
         mode = str(getattr(action, "mode", "") or "").strip()
-        selection_mode = str(getattr(action, "selection_mode", "") or "").strip()
+        # The descriptor declares an element kind, never a drag gesture. Passing
+        # it as the gesture is what reset a reader's Lasso to Brush the moment
+        # they picked an edge tool.
+        element_type = str(getattr(action, "element_type", "") or "").strip()
         routed = self._mesh_editor_route_active_builder_action(action)
         if routed is not False and hasattr(self, "mesh_editor_tab"):
             self.mesh_editor_tab.set_active_tool_state(
                 mode=mode if command == "set_mode" else "",
-                active_selection_mode=selection_mode,
+                active_element_type=element_type,
                 active_tool_key=key if command in {"brush", "select"} or key == "transform_move" else "",
             )
         if routed is True:

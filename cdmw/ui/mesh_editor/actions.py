@@ -29,9 +29,19 @@ class MeshEditorAction:
     shortcut: str = ""
     tooltip: str = ""
     mode: str = ""
-    selection_mode: str = ""
+    #: Which element kind the action operates on: vertex, edge, face, or part.
+    #: Deliberately not the drag gesture. The two shared the name
+    #: `selection_mode` and met in one controller field, where an action that
+    #: declared `edge` was normalised onto `brush` and reset a reader's Lasso.
+    element_type: str = ""
     params: tuple[tuple[str, object], ...] = field(default_factory=tuple)
     requires_selection: bool = False
+
+    @property
+    def selection_mode(self) -> str:
+        """The element type, under the name a Qt button property still uses."""
+
+        return self.element_type
 
 
 _SHORTCUTS = {
@@ -151,7 +161,7 @@ def _with_palette_metadata(action: MeshEditorAction) -> MeshEditorAction:
         shortcut=action.shortcut or _SHORTCUTS.get(action.key, ""),
         tooltip=action.tooltip or _TOOLTIPS.get(action.key, action.text),
         mode=action.mode,
-        selection_mode=action.selection_mode,
+        element_type=action.element_type,
         params=action.params,
         requires_selection=action.requires_selection,
     )
@@ -205,11 +215,11 @@ MESH_EDITOR_ACTIONS = tuple(_with_palette_metadata(action) for action in (
     MeshEditorAction("mirror", "Mirror", "mirror", "topology", mode="edit", requires_selection=True),
     MeshEditorAction("extrude", "Extrude", "extrude", "topology", mode="edit", requires_selection=True),
     MeshEditorAction("inset", "Inset", "inset", "topology", mode="edit", requires_selection=True),
-    MeshEditorAction("loop_cut", "Loop Cut", "loop_cut", "topology", mode="edit", selection_mode="edge", requires_selection=True),
-    MeshEditorAction("edge_split", "Edge Split", "edge_split", "topology", mode="edit", selection_mode="edge", requires_selection=True),
+    MeshEditorAction("loop_cut", "Loop Cut", "loop_cut", "topology", mode="edit", element_type="edge", requires_selection=True),
+    MeshEditorAction("edge_split", "Edge Split", "edge_split", "topology", mode="edit", element_type="edge", requires_selection=True),
     MeshEditorAction("merge", "Merge", "merge", "topology", mode="edit", requires_selection=True),
     MeshEditorAction("weld", "Weld", "weld", "topology", mode="edit", requires_selection=True),
-    MeshEditorAction("bridge", "Bridge", "bridge", "topology", mode="edit", selection_mode="edge", requires_selection=True),
+    MeshEditorAction("bridge", "Bridge", "bridge", "topology", mode="edit", element_type="edge", requires_selection=True),
     MeshEditorAction("fill", "Fill", "fill", "topology", mode="edit", requires_selection=True),
     MeshEditorAction("remove_doubles", "Remove Doubles", "remove_doubles", "cleanup", mode="edit"),
     MeshEditorAction("delete_loose_vertices", "Delete Loose", "delete_loose_vertices", "cleanup", mode="edit"),
@@ -275,6 +285,31 @@ def normalize_mesh_selection_shape(value: object, *, default: str = "brush") -> 
     }
     normalized = aliases.get(normalized, normalized)
     return normalized if normalized in {"brush", "rectangle", "lasso"} else default
+
+
+def normalize_mesh_element_type(value: object, *, default: str = "vertex") -> str:
+    """Which element kind a value names, never a drag gesture.
+
+    The counterpart to `normalize_mesh_selection_shape`, and the reason the two
+    are separate functions: that one folds `edge` onto `brush`, which is correct
+    for a gesture field and destroys an element type. A gesture arriving here
+    falls back rather than being reinterpreted, for the same reason.
+    """
+
+    normalized = str(value or "").strip().lower().replace(" ", "_")
+    aliases = {
+        "select_vertex": "vertex",
+        "select_edge": "edge",
+        "select_face": "face",
+        "select_part": "part",
+        "select_parts": "part",
+        "vertices": "vertex",
+        "edges": "edge",
+        "faces": "face",
+        "parts": "part",
+    }
+    normalized = aliases.get(normalized, normalized)
+    return normalized if normalized in {"vertex", "edge", "face", "part"} else default
 
 
 def validate_mesh_editor_actions() -> None:

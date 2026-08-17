@@ -302,7 +302,10 @@ def _sync_mesh_editor_tab_action_state(_state, _callbacks,
         selected_face_count: int,
         selected_edge_count: int = 0,
     ) -> None:
-    active_selection_mode = str(_state.mesh_editor_action_bar_selection_mode.get("value") or "vertex")
+    # This rail field holds an element kind, not a drag gesture. It used to
+    # arrive as `active_selection_mode`, where `vertex` normalised onto
+    # `brush` and overwrote whatever shape the reader had chosen.
+    active_element_type = str(_state.mesh_editor_action_bar_selection_mode.get("value") or "vertex")
     mode = "edit" if editing_active else "object"
     selection_empty = (int(selected_count or 0) + int(selected_face_count or 0) + int(selected_edge_count or 0)) <= 0
     active_tool_key = _callbacks._mesh_editor_active_tool_action_key()
@@ -311,7 +314,7 @@ def _sync_mesh_editor_tab_action_state(_state, _callbacks,
     if callable(update_action_state):
         update_action_state(
             mode=mode,
-            active_selection_mode=active_selection_mode,
+            active_element_type=active_element_type,
             active_tool_key=active_tool_key,
             selection_empty=selection_empty,
             undo_count=len(_state.mesh_edit_undo_stack),
@@ -327,7 +330,7 @@ def _sync_mesh_editor_tab_action_state(_state, _callbacks,
             has_target=bool(_state.mesh_edit_supported),
             selection_empty=selection_empty,
             mode=mode,
-            active_selection_mode=active_selection_mode,
+            active_element_type=active_element_type,
             active_tool_key=active_tool_key,
             undo_count=len(_state.mesh_edit_undo_stack),
             redo_count=len(_state.mesh_edit_redo_stack),

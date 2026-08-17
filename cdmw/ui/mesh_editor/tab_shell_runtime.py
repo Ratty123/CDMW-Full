@@ -23,6 +23,7 @@ class MeshEditorTabShellRuntimeMixin:
         self.current_archive_selection: Optional[_tab.ArchiveEntry] = None
         self.current_edit_mode = "object"
         self.current_selection_mode = "brush"
+        self.current_element_type = "vertex"
         self.current_tool_action_key = ""
         self.current_selection_empty = True
         self.current_undo_count = 0

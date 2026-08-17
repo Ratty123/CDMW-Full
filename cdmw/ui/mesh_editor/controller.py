@@ -110,7 +110,11 @@ class MeshEditorController:
         self.mesh_service = mesh_service or MeshService()
         self.active_session_id = ""
         self.active_action_key = ""
+        # Two fields because they are two things. The gesture is how the reader
+        # is dragging; the element type is what a tool operates on. One field
+        # held both, and an action declaring "edge" was normalised onto "brush".
         self.active_selection_mode = "brush"
+        self.active_element_type = "vertex"
 
     def open_mesh(self, mesh: ParsedMesh, *, session_id: str | None = None, mode: str = "object") -> MeshEditSessionView:
         view = self.mesh_service.open_edit_session(mesh, session_id=session_id, mode=mode)
@@ -474,8 +478,8 @@ class MeshEditorController:
     ) -> MeshEditResult:
         descriptor = _action_descriptor(action)
         self.active_action_key = descriptor.key
-        if descriptor.selection_mode:
-            self.active_selection_mode = descriptor.selection_mode
+        if descriptor.element_type:
+            self.active_element_type = descriptor.element_type
         if descriptor.command == "undo":
             return self.undo()
         if descriptor.command == "redo":
