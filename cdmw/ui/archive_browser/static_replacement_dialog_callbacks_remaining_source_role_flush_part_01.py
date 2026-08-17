@@ -5,6 +5,9 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_material_bridge import (
     resident_material_parameter_group,
     send_resident_material_parameters,
 )
+from cdmw.ui.archive_browser.static_replacement_shared_context import (
+    shared_context_container,
+)
 from cdmw.ui.archive_browser.static_replacement_source_part_adjustment_state import (
     source_part_glow_emissive_update_states_for_sources,
 )
@@ -35,7 +38,7 @@ def _remaining_source_role_flush_step_001(_state):
     _state.source_part_adjustments = _state.context.get('source_part_adjustments')
     _state.source_role_overrides = _state.context.get('source_role_overrides')
     _state.self = _state.context.get('self')
-    _state.texture_files_for_mapping = _state.context.get('texture_files_for_mapping') or []
+    _state.texture_files_for_mapping = shared_context_container(_state.context, 'texture_files_for_mapping', list)
     _state.update_state = _state.context.get('update_state')
     _state.update_states = _state.context.get('update_states')
     _state.prompt_shell_context = _state.context.get('prompt_shell_context')

@@ -232,14 +232,27 @@ def test_obj_roundtrip_rejects_rebuilt_pac_that_changes_protected_vertex_bytes()
         build_mesh(imported, raw)
 
 
-def test_static_replacement_blocks_far_skin_transfer() -> None:
+def test_static_replacement_warns_on_far_skin_transfer_and_still_builds() -> None:
+    """A far transfer is reported, not refused.
+
+    This pinned the refusal until the owner hit it on a real weapon swap: an
+    imported blade never sits on the target handle's surface, so every such
+    build was blocked by a quality warning dressed as an error. The build now
+    completes with the nearest-surface weights and says, in its summary, that
+    the rig was matched from a distance.
+    """
     if find_native_mesh_core_binary() is None:
         pytest.skip("cdmw_mesh_core is not built")
     raw, original = _skinned_pac()
     replacement = _replacement([(10.25, 10.25, 0.0), (10.5, 10.25, 0.0), (10.25, 10.5, 0.0)])
 
-    with pytest.raises(ValueError, match=r"p95 .* exceeds 5% bounds limit"):
-        build_static_mesh_replacement(raw, original, replacement, _static_options())
+    rebuilt, report = build_static_mesh_replacement(raw, original, replacement, _static_options())
+
+    assert report.ok
+    assert rebuilt
+    joined = "\n".join(report.alignment_summary)
+    assert "matched from far off the source surface" in joined
+    assert "more than 5% of the source bounds" in joined
 
 
 def test_static_replacement_blocks_proven_skin_layout_without_donor_rows() -> None:

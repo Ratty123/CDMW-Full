@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from cdmw.ui.archive_browser.static_replacement_shared_context import (
+    shared_context_container,
+)
+
 def _remaining_source_material_plan_refresh_step_001(_state):
     _state.state = _state._StaticReplacementDialogState(_state.context)
     _state.TEXTURE_PLAN_STATUS_READY = _state.context.get('TEXTURE_PLAN_STATUS_READY')
@@ -74,7 +78,7 @@ def _remaining_source_material_plan_refresh_step_001(_state):
     _state.source_preview_path = _state.context.get('source_preview_path')
     _state.source_texture_evidence = _state.context.get('source_texture_evidence')
     _state.target_name_for_plan = _state.context.get('target_name_for_plan')
-    _state.texture_files_for_mapping = _state.context.get('texture_files_for_mapping') or []
+    _state.texture_files_for_mapping = shared_context_container(_state.context, 'texture_files_for_mapping', list)
     _state.texture_material_plan_loaded = _state.context.get('texture_material_plan_loaded')
     _state.texture_set = _state.context.get('texture_set')
     _state.texture_transform_group = _state.context.get('texture_transform_group')

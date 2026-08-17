@@ -168,11 +168,6 @@ def ensure_final_target_skin_weights(
     distance_p95 = float(metric.get("distance_p95") or 0.0)
     distance_limit = float(metric.get("distance_limit") or 0.0)
     if transfer_result is None:
-        if bool(transfer_metrics.get("distance_warning")):
-            raise ValueError(
-                f"Skin-weight transfer for target {target_index} ({label}) is too far from the source surface: "
-                f"p95 {distance_p95:.6g} exceeds 5% bounds limit {distance_limit:.6g}."
-            )
         reason = str(transfer_metrics.get("error") or "native mesh core returned no transfer result")
         raise RuntimeError(f"Skin-weight transfer failed for target {target_index} ({label}): {reason}.")
     if not has_valid_target_skin_weights(merged):
@@ -182,6 +177,16 @@ def ensure_final_target_skin_weights(
             f"Skin weights target {target_index} ({label}): transferred {len(merged.vertices):,} vertices; "
             f"surface-distance p95 {distance_p95:.6g} (limit {distance_limit:.6g})."
         )
+        if bool(transfer_metrics.get("distance_warning")):
+            # Said, not enforced. An imported weapon rarely sits on the target
+            # handle's surface, and the nearest-surface weights are still the
+            # right weights for it; what the reader needs is to know the rig
+            # was matched from a distance, not to be refused the build.
+            summary.append(
+                f"Warning: skin weights for target {target_index} ({label}) were matched from far off the "
+                f"source surface (p95 {distance_p95:.6g}, more than 5% of the source bounds, limit "
+                f"{distance_limit:.6g}); check the rig deforms as intended."
+            )
 
 
 def pack_pac_skin_weights(

@@ -190,6 +190,11 @@ $TestsByArea = @{
         # Part Setup's combo selecting and highlighting a part the lazily
         # populated source tree has not reached yet.
         "tests/test_part_setup_combo_selects_and_highlights.py",
+        # The presentation snapshot every refresh republishes carrying the
+        # selection: its factory bound each shared highlight set with
+        # `or set()`, got a private empty copy, and cleared the highlight
+        # a pick had just sent.
+        "tests/test_presentation_snapshot_reads_live_selection.py",
         # Where the Builder's Setup controls live after the owner's restructure:
         # options under Options, Material Authority flat inside Advanced, and
         # Parts & Routing folded into Part Setup with its tab hidden.
