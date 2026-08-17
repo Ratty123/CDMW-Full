@@ -638,6 +638,50 @@ def geometry_mapping_summary_html(
     )
 
 
+#: The plan's own command names, so the review says what the user chose rather
+#: than an internal enum value.
+_OPERATION_DISPLAY_NAMES = {
+    "view": "View",
+    "modify_original": "Modify Original Mesh",
+    "replace_geometry": "Replace Geometry Only",
+    "replace_geometry_and_materials": "Replace Geometry and Material Bindings",
+    "replace_full_asset": "Replace Full Mesh and Textures",
+    "replace_materials_and_textures": "Replace Materials and Textures Only",
+}
+
+_RESOURCE_DISPLAY_NAMES = {
+    "geometry": "geometry",
+    "material_bindings": "material bindings",
+    "textures": "textures",
+}
+
+
+def _resource_list_text(resources: Sequence[str]) -> str:
+    named = [_RESOURCE_DISPLAY_NAMES.get(str(name), str(name)) for name in resources]
+    return ", ".join(named) if named else "nothing"
+
+
+def operation_summary_lines(operation: object) -> tuple[str, ...]:
+    """What this operation replaces and what the target keeps, for a reader.
+
+    Answered from the operation itself rather than from the checkboxes that
+    produced it. Reading the toggles to describe the outcome is how a summary
+    ends up agreeing with the controls and disagreeing with the build.
+    """
+
+    kind = getattr(getattr(operation, "kind", None), "value", "")
+    if not kind:
+        return ()
+    return (
+        f"Operation: {_OPERATION_DISPLAY_NAMES.get(kind, kind)}",
+        f"Geometry: {getattr(getattr(operation, 'geometry', None), 'value', '?')}",
+        f"Material bindings: {getattr(getattr(operation, 'material', None), 'value', '?')}",
+        f"Textures: {getattr(getattr(operation, 'texture', None), 'value', '?')}",
+        f"Target keeps: {_resource_list_text(operation.retained_resources())}",
+        f"Build replaces: {_resource_list_text(operation.replaced_resources())}",
+    )
+
+
 def output_impact_review_presentation(
     removed_targets: Sequence[str],
     used_source_count: int,
@@ -647,6 +691,7 @@ def output_impact_review_presentation(
     *,
     sidecar_enabled: bool = False,
     prune_unmapped_enabled: bool = False,
+    operation: object | None = None,
 ) -> dict[str, str]:
     removed_target_names = tuple(str(target) for target in removed_targets)
     removed_target_count = len(removed_target_names)
@@ -679,6 +724,13 @@ def output_impact_review_presentation(
             else "\nNo original targets are removed."
         )
     )
+    summary_lines = operation_summary_lines(operation)
+    if summary_lines:
+        tooltip = "\n".join(summary_lines) + "\n\n" + tooltip
+    replaced_text = (
+        _resource_list_text(operation.replaced_resources()) if summary_lines else ""
+    )
+    replaced_segment = f" | replaces {escape(replaced_text)}" if summary_lines else ""
     html = (
         "<div style='font-size:0.8em; line-height:1.08; padding:2px 5px; border-left:3px solid #f2cc60; background:#211b12;'>"
         "<span style='color:#f2cc60; font-weight:700;'>Output</span>"
@@ -687,7 +739,8 @@ def output_impact_review_presentation(
         f" | disabled {int(disabled_mapped_source_count):,}"
         f" | preview-only {int(preview_only_source_count):,}"
         f" | DDS {int(generated_dds_count):,}"
-        f" | sidecar {escape(sidecar_status)}</span>"
+        f" | sidecar {escape(sidecar_status)}"
+        f"{replaced_segment}</span>"
         "</div>"
     )
     return {"html": html, "tooltip": tooltip}
@@ -760,6 +813,7 @@ __all__ = [
     "mapping_table_target_row_state",
     "mesh_replacement_too_large_message",
     "mesh_replacement_too_large_title",
+    "operation_summary_lines",
     "output_impact_review_presentation",
     "removed_target_dds_tooltip",
     "source_assignment_state_tooltip",
