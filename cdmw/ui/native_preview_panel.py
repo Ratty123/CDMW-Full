@@ -76,6 +76,8 @@ class NativePreviewPanel(QWidget):
     alignment_drag_finished = Signal(float, float, float)
     alignment_rotation_changed = Signal(float, float, float)
     alignment_rotation_finished = Signal(float, float, float)
+    alignment_scale_changed = Signal(float, float, float)
+    alignment_scale_finished = Signal(float, float, float)
     mesh_edit_stroke_started = Signal(object)
     mesh_edit_stroke_previewed = Signal(object)
     mesh_edit_stroke_finished = Signal(object)

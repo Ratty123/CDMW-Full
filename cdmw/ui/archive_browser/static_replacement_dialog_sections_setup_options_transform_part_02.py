@@ -228,6 +228,8 @@ def _setup_options_transform_step_016(_state):
     _state._apply_alignment_d3d11_rotation_total = _state.alignment_transform_drag_callbacks._apply_alignment_d3d11_rotation_total
     _state._finish_alignment_d3d11_translation = _state.alignment_transform_drag_callbacks._finish_alignment_d3d11_translation
     _state._finish_alignment_d3d11_rotation = _state.alignment_transform_drag_callbacks._finish_alignment_d3d11_rotation
+    _state._apply_alignment_d3d11_scale_total = _state.alignment_transform_drag_callbacks._apply_alignment_d3d11_scale_total
+    _state._finish_alignment_d3d11_scale = _state.alignment_transform_drag_callbacks._finish_alignment_d3d11_scale
     _state._commit_alignment_preview_translation = _state.alignment_transform_drag_callbacks._commit_alignment_preview_translation
     _state._commit_alignment_preview_rotation = _state.alignment_transform_drag_callbacks._commit_alignment_preview_rotation
     def _mesh_editor_apply_dotnet_placement_state(payload: object, phase: str = 'end') -> bool:
@@ -268,7 +270,10 @@ def _setup_options_transform_step_016(_state):
         # drag from its own provisional placement, so intermediate samples only
         # need the controls; the terminal sample publishes the frame that makes
         # the placement authoritative again.
-        if str(phase or 'end').strip().lower() == 'update':
+        # `begin` is the renderer's exact start sample and is as non-terminal
+        # as an update: publishing a frame for it would tear the drag on its
+        # first sample the way publishing every update did.
+        if str(phase or 'end').strip().lower() in {'update', 'begin'}:
             return True
         _state._queue_global_transform_preview_update()
         return True
@@ -292,6 +297,10 @@ def _setup_options_transform_step_016(_state):
         _state.preview_widget.mesh_edit_stroke_finished.connect(lambda payload: _state._mesh_edit_finish_stroke(payload))
         _state.preview_widget.mesh_edit_stroke_cancelled.connect(lambda payload: _state._mesh_edit_cancel_stroke(payload))
         _state.preview_widget.mesh_edit_selection_changed.connect(lambda payload: _state._mesh_edit_selection_changed(payload))
+
+def _setup_options_transform_step_016a(_state):
+    # The resident host's authoring and drag signals. Its own step so the
+    # transform-section builder stays under the per-function bound.
     _state.alignment_d3d11_preview_host.mesh_edit_stroke_started.connect(lambda payload: _state._mesh_edit_begin_stroke(payload))
     _state.alignment_d3d11_preview_host.mesh_edit_stroke_previewed.connect(lambda payload: _state._mesh_edit_apply_preview_payload(payload))
     _state.alignment_d3d11_preview_host.mesh_edit_stroke_finished.connect(lambda payload: _state._mesh_edit_finish_stroke(payload))
@@ -303,6 +312,8 @@ def _setup_options_transform_step_016(_state):
     _state.alignment_d3d11_preview_host.alignment_drag_finished.connect(_state._finish_alignment_d3d11_translation)
     _state.alignment_d3d11_preview_host.alignment_rotation_changed.connect(_state._apply_alignment_d3d11_rotation_total)
     _state.alignment_d3d11_preview_host.alignment_rotation_finished.connect(_state._finish_alignment_d3d11_rotation)
+    _state.alignment_d3d11_preview_host.alignment_scale_changed.connect(_state._apply_alignment_d3d11_scale_total)
+    _state.alignment_d3d11_preview_host.alignment_scale_finished.connect(_state._finish_alignment_d3d11_scale)
     _state.alignment_d3d11_preview_host.source_part_selected.connect(_state._d3d11_source_part_selected)
     _state.preview_controls_ready['ready'] = True
 
@@ -326,6 +337,7 @@ STEPS = (
     _setup_options_transform_step_014,
     _setup_options_transform_step_015,
     _setup_options_transform_step_016,
+    _setup_options_transform_step_016a,
     _setup_options_transform_step_017,
     _setup_options_transform_step_018,
     _setup_options_transform_step_019,

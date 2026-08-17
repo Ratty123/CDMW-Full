@@ -4196,7 +4196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_transform_drag_part_01.py",
-          "line": 176,
+          "line": 179,
           "sink": "set_status_message"
         }
       ]
@@ -4236,7 +4236,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_transform_drag_part_01.py",
-          "line": 162,
+          "line": 165,
           "sink": "set_status_message"
         }
       ]
@@ -72996,7 +72996,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 233,
+          "line": 235,
           "sink": "QPushButton"
         }
       ]
@@ -73006,7 +73006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 214,
+          "line": 216,
           "sink": "QPushButton"
         }
       ]
@@ -77626,7 +77626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host.py",
-          "line": 208,
+          "line": 210,
           "sink": "QLabel"
         },
         {
@@ -99401,7 +99401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/native_preview_panel.py",
-          "line": 556,
+          "line": 558,
           "sink": "python-return:_physics_overlay_target_info"
         }
       ]
@@ -99416,7 +99416,7 @@
         },
         {
           "path": "cdmw/ui/native_preview_panel.py",
-          "line": 556,
+          "line": 558,
           "sink": "python-return:_physics_overlay_target_info"
         }
       ]
@@ -100446,7 +100446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/native_preview_panel.py",
-          "line": 570,
+          "line": 572,
           "sink": "python-return:_physics_overlay_target_info"
         }
       ]
@@ -100466,7 +100466,7 @@
         },
         {
           "path": "cdmw/ui/native_preview_panel.py",
-          "line": 570,
+          "line": 572,
           "sink": "python-return:_physics_overlay_target_info"
         }
       ]
@@ -101901,7 +101901,7 @@
         },
         {
           "path": "cdmw/ui/native_preview_panel.py",
-          "line": 545,
+          "line": 547,
           "sink": "python-return:_physics_overlay_target_info"
         }
       ]
@@ -102211,7 +102211,7 @@
         },
         {
           "path": "cdmw/ui/native_preview_panel.py",
-          "line": 545,
+          "line": 547,
           "sink": "python-return:_physics_overlay_target_info"
         }
       ]
@@ -111556,7 +111556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_host_protocol.py",
-          "line": 299,
+          "line": 310,
           "sink": "emit"
         },
         {
@@ -114876,7 +114876,7 @@
         },
         {
           "path": "cdmw/ui/native_preview_panel.py",
-          "line": 534,
+          "line": 536,
           "sink": "python-return:_physics_overlay_target_info"
         }
       ]
@@ -188801,7 +188801,7 @@
         },
         {
           "path": "cdmw/ui/native_preview_panel.py",
-          "line": 534,
+          "line": 536,
           "sink": "python-return:_physics_overlay_target_info"
         }
       ]

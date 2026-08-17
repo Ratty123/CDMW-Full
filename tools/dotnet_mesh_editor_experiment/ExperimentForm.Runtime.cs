@@ -61,8 +61,12 @@ internal sealed partial class ExperimentForm
         var phase = payload.TryGetValue("placement_phase", out var rawPhase)
             ? Convert.ToString(rawPhase) ?? "update"
             : "update";
-        if (string.Equals(phase, "end", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(phase, "end", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(phase, "begin", StringComparison.OrdinalIgnoreCase))
         {
+            // Terminal samples are written at once. "begin" carries the exact start
+            // placement the host subtracts drag deltas from; coalescing it behind
+            // the next update would replace the one value that must be exact.
             _pendingPlacementTransformPayload = null;
             WriteProtocolEvent(eventName, payload);
             _lastPlacementTransformProtocolTimestamp = Stopwatch.GetTimestamp();

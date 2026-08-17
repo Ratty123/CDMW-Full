@@ -110,6 +110,9 @@ def _transform_drag_step_001(_state):
 def _transform_drag_step_002(_state):
     _state.part_rotate_y_spin = _state.context.get('part_rotate_y_spin')
     _state.part_rotate_z_spin = _state.context.get('part_rotate_z_spin')
+    _state.part_scale_x_spin = _state.context.get('part_scale_x_spin')
+    _state.part_scale_y_spin = _state.context.get('part_scale_y_spin')
+    _state.part_scale_z_spin = _state.context.get('part_scale_z_spin')
     _state.preview_mode_combo = _state.context.get('preview_mode_combo')
     _state.prompt_shell_context = _state.context.get('prompt_shell_context')
     _state.replacement_mesh_base_for_mapping = _state.context.get('replacement_mesh_base_for_mapping')
