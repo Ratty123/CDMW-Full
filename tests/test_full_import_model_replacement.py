@@ -96,9 +96,13 @@ def test_full_import_entry_point_is_user_exposed_from_archive_browser() -> None:
     assert 'self.archive_model_full_import_button = QPushButton("Full Import Model Replacement...")' in layout_source
     assert '("Full Import Model Replacement", self.archive_model_full_import_button)' in layout_source
     assert "self.archive_model_full_import_button," in controls_source
-    assert '"Full Import Model Replacement..."' in actions_source
-    assert "self._start_archive_full_import_model_replacement(current_entry)" in actions_source
     assert "def _full_import_current_archive_model_replacement" in import_actions_source
+    # Deliberately not in the context menu. Owner's decision, 2026-08-17: the
+    # right-click menu offers one mesh import, and which operation it turns out
+    # to be is chosen in the Builder with the model in front of the reader.
+    # The Import panel keeps the direct entry point.
+    assert '"Full Import Model Replacement..."' not in actions_source
+    assert actions_source.count('"Import Mesh..."') == 1
     assert (
         "self.archive_model_full_import_button.clicked.connect(self._full_import_current_archive_model_replacement)"
         in wiring_source

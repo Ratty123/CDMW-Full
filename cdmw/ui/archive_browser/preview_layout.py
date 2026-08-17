@@ -63,12 +63,6 @@ class ArchivePreviewLayoutMixin:
             "the imported model owns the mesh, its textures, and the material sidecar, and the Builder opens ready to build."
         )
         self.archive_model_full_import_button.setEnabled(False)
-        self.archive_model_materials_only_button = QPushButton("Replace Materials and Textures Only...")
-        self.archive_model_materials_only_button.setToolTip(
-            "Take an external model's materials and texture files for the selected game item and keep its own mesh: "
-            "the material sidecar and the DDS files are written, and the geometry is left exactly as it ships."
-        )
-        self.archive_model_materials_only_button.setEnabled(False)
 
     def _build_archive_preview_panel(self) -> None:
         archive_preview_group = FlatSectionPanel("Preview")
@@ -421,7 +415,6 @@ class ArchivePreviewLayoutMixin:
                 ("Preview Mesh Import", self.archive_model_import_preview_button),
                 ("Import Mesh", self.archive_model_import_patch_button),
                 ("Full Import Model Replacement", self.archive_model_full_import_button),
-                ("Replace Materials and Textures Only", self.archive_model_materials_only_button),
                 ("Preview DDS on Mesh", self.archive_model_import_dds_preview_button),
                 ("Import HKX JSON", self.archive_hkx_import_json_button),
                 ("Import HKX XML", self.archive_hkx_import_xml_button),
