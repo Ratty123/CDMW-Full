@@ -14,9 +14,20 @@ NATIVE_EDITOR_SESSION_COMMANDS = frozenset(MESH_EDIT_ACTIONS) - _NON_NATIVE_EDIT
 LEGACY_PART_SELECTION_ACTION_KEYS = frozenset(
     {"select_vertex", "select_edge", "select_face"}
 )
-_USER_HIDDEN_ACTION_KEYS = LEGACY_PART_SELECTION_ACTION_KEYS | frozenset(
+#: Topology actions with no exact-writer route, kept off the rail rather than
+#: shown greyed out. That was asked as a product question and answered: eleven
+#: permanently disabled buttons cost the reader more attention than they return,
+#: since none of them becomes available by anything the reader can do. The
+#: reasons still exist and are still tested -- `action_authoring_capability`
+#: answers for every key here -- so a future decision to surface them needs new
+#: strings and a rail change, not new analysis.
+_UNAUTHORABLE_TOPOLOGY_ACTION_KEYS = frozenset(
     {"loop_cut", "edge_split", "bridge", "extrude", "inset", "merge", "weld", "fill", "copy", "paste", "layer_delete"}
 )
+#: The legacy per-element select actions are hidden for an unrelated reason: the
+#: single Select tool replaced them, so they are superseded rather than blocked
+#: and carry no authoring limit.
+_USER_HIDDEN_ACTION_KEYS = LEGACY_PART_SELECTION_ACTION_KEYS | _UNAUTHORABLE_TOPOLOGY_ACTION_KEYS
 
 
 @dataclass(frozen=True, slots=True)

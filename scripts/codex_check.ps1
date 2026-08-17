@@ -161,6 +161,9 @@ $TestsByArea = @{
         # Element kind and drag gesture, which shared one field and one name
         # until an edge tool started resetting the reader's Lasso to Brush.
         "tests/test_mesh_edit_selection_vocabulary.py",
+        # Why each action is off the rail, and that the two reasons stay apart:
+        # eleven blocked by the writer, three superseded by the Select tool.
+        "tests/test_mesh_editor_hidden_action_contract.py",
         "tests/test_mesh_editor_edit_session_boundary.py",
         "tests/test_mesh_editor_error_codes.py",
         "tests/test_mesh_operation_spec.py",
