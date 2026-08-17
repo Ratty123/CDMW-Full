@@ -906,32 +906,32 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 242,
+          "line": 252,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 242,
+          "line": 252,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 250,
+          "line": 260,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 250,
+          "line": 260,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 267,
+          "line": 277,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 267,
+          "line": 277,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -7496,12 +7496,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 355,
+          "line": 365,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 409,
+          "line": 420,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -7536,7 +7536,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 330,
+          "line": 340,
           "sink": "QProgressDialog"
         },
         {
@@ -14991,7 +14991,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 330,
+          "line": 340,
           "sink": "QProgressDialog"
         },
         {
@@ -21226,12 +21226,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 755,
+          "line": 707,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 805,
+          "line": 757,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -21361,7 +21361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_material_compilation.py",
-          "line": 303,
+          "line": 423,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -21891,7 +21891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_material_compilation.py",
-          "line": 201,
+          "line": 299,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -21901,7 +21901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 731,
+          "line": 683,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -21911,7 +21911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 682,
+          "line": 634,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -21936,7 +21936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_textured_view.py",
-          "line": 241,
+          "line": 329,
           "sink": "emit"
         }
       ]
@@ -22131,7 +22131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 142,
+          "line": 151,
           "sink": "setToolTip"
         }
       ]
@@ -25026,7 +25026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 617,
+          "line": 646,
           "sink": "setToolTip"
         }
       ]
@@ -25036,7 +25036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 615,
+          "line": 644,
           "sink": "setToolTip"
         }
       ]
@@ -26956,7 +26956,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 379,
+          "line": 388,
           "sink": "addTab"
         }
       ]
@@ -27706,7 +27706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 227,
+          "line": 237,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -33096,12 +33096,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 362,
+          "line": 381,
           "sink": "_fail_embedded_dotnet_edit_mode_finish"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 363,
+          "line": 382,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -38486,7 +38486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 143,
+          "line": 152,
           "sink": "setToolTip"
         }
       ]
@@ -38556,7 +38556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 138,
+          "line": 147,
           "sink": "QPushButton"
         }
       ]
@@ -38596,7 +38596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 136,
+          "line": 145,
           "sink": "QPushButton"
         }
       ]
@@ -38855,8 +38855,8 @@
       "key": "Imported",
       "origins": [
         {
-          "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 89,
+          "path": "cdmw/ui/mesh_editor/tab_dotnet_material_roles.py",
+          "line": 30,
           "sink": "python-return:_dotnet_material_role_label"
         }
       ]
@@ -39171,7 +39171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 140,
+          "line": 149,
           "sink": "QPushButton"
         }
       ]
@@ -43551,7 +43551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 109,
+          "line": 113,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -43561,7 +43561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 844,
+          "line": 847,
           "sink": "emit"
         }
       ]
@@ -46286,7 +46286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 406,
+          "line": 453,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46306,17 +46306,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 242,
+          "line": 252,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 250,
+          "line": 260,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 267,
+          "line": 277,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46326,7 +46326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 244,
+          "line": 254,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46371,7 +46371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 541,
+          "line": 493,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46401,7 +46401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 229,
+          "line": 239,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46411,17 +46411,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 242,
+          "line": 252,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 250,
+          "line": 260,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 267,
+          "line": 277,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46431,7 +46431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 261,
+          "line": 271,
           "sink": "emit"
         }
       ]
@@ -46441,17 +46441,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 242,
+          "line": 252,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 250,
+          "line": 260,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 267,
+          "line": 277,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46516,12 +46516,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 295,
+          "line": 305,
           "sink": "_set_embedded_dotnet_preview_loading"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 298,
+          "line": 308,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46746,7 +46746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 522,
+          "line": 474,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46851,7 +46851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 217,
+          "line": 153,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46871,12 +46871,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 472,
+          "line": 519,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 486,
+          "line": 533,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -46886,7 +46886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 422,
+          "line": 469,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -47001,12 +47001,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 472,
+          "line": 519,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 486,
+          "line": 533,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -47046,7 +47046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 549,
+          "line": 559,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -47096,7 +47096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 32,
+          "line": 36,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -47166,7 +47166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 331,
+          "line": 341,
           "sink": "setWindowTitle"
         },
         {
@@ -47186,7 +47186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 41,
+          "line": 45,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -47196,7 +47196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 92,
+          "line": 96,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -47206,7 +47206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 806,
+          "line": 849,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -47511,7 +47511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 428,
+          "line": 437,
           "sink": "emit"
         }
       ]
@@ -47521,7 +47521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 419,
+          "line": 428,
           "sink": "emit"
         }
       ]
@@ -47531,7 +47531,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 53,
+          "line": 57,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -47581,7 +47581,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 872,
+          "line": 915,
           "sink": "RuntimeError"
         }
       ]
@@ -47836,7 +47836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 492,
+          "line": 444,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -47886,7 +47886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 380,
+          "line": 389,
           "sink": "emit"
         }
       ]
@@ -47896,7 +47896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 351,
+          "line": 303,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -48511,7 +48511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 202,
+          "line": 138,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -48661,7 +48661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 296,
+          "line": 305,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -49481,7 +49481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 114,
+          "line": 123,
           "sink": "QLabel"
         },
         {
@@ -50131,7 +50131,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 134,
+          "line": 143,
           "sink": "QPushButton"
         }
       ]
@@ -54541,12 +54541,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 195,
+          "line": 131,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_textured_view.py",
-          "line": 136,
+          "line": 202,
           "sink": "emit"
         }
       ]
@@ -54976,7 +54976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 824,
+          "line": 827,
           "sink": "emit"
         }
       ]
@@ -58605,8 +58605,8 @@
           "sink": "setText"
         },
         {
-          "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 89,
+          "path": "cdmw/ui/mesh_editor/tab_dotnet_material_roles.py",
+          "line": 30,
           "sink": "python-return:_dotnet_material_role_label"
         },
         {
@@ -65431,7 +65431,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 524,
+          "line": 530,
           "sink": "_set_embedded_dotnet_preview_loading"
         }
       ]
@@ -71941,7 +71941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 641,
+          "line": 652,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -71991,7 +71991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 231,
+          "line": 236,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -72026,7 +72026,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 378,
+          "line": 421,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -72096,17 +72096,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 262,
+          "line": 267,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 272,
+          "line": 277,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 595,
+          "line": 605,
           "sink": "_fail_embedded_dotnet_edit_mode_finish"
         }
       ]
@@ -72126,7 +72126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_protocol.py",
-          "line": 589,
+          "line": 599,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -72371,7 +72371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_session_runtime.py",
-          "line": 411,
+          "line": 420,
           "sink": "emit"
         }
       ]
@@ -74216,7 +74216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 144,
+          "line": 153,
           "sink": "setToolTip"
         }
       ]
@@ -78051,7 +78051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 127,
+          "line": 136,
           "sink": "QLabel"
         }
       ]
@@ -80986,7 +80986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 117,
+          "line": 126,
           "sink": "QPushButton"
         }
       ]
@@ -85361,7 +85361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_textured_view.py",
-          "line": 174,
+          "line": 240,
           "sink": "emit"
         }
       ]
@@ -87136,7 +87136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 111,
+          "line": 120,
           "sink": "QLabel"
         }
       ]
@@ -89692,6 +89692,16 @@
       ]
     },
     {
+      "key": "The resident editor was lost while finishing; Edit Mesh could not be committed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
+          "line": 403,
+          "sink": "_fail_embedded_dotnet_edit_mode_finish"
+        }
+      ]
+    },
+    {
       "key": "The resident preview has not confirmed the exact Material Authority result:\n{value_0}\n\nBuild anyway? The mod will be exported from the current material profile rather than the confirmed preview state, so its textures may not match the viewport exactly.",
       "origins": [
         {
@@ -90176,7 +90186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 310,
+          "line": 262,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -93616,7 +93626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_shell.py",
-          "line": 145,
+          "line": 154,
           "sink": "setToolTip"
         }
       ]
@@ -95406,7 +95416,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 219,
+          "line": 224,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -95421,7 +95431,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 318,
+          "line": 328,
           "sink": "emit"
         }
       ]
@@ -95436,7 +95446,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 368,
+          "line": 378,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -95546,17 +95556,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 165,
+          "line": 170,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 188,
+          "line": 193,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 294,
+          "line": 306,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -95596,7 +95606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 160,
+          "line": 165,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -100581,12 +100591,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 188,
+          "line": 193,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 219,
+          "line": 224,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -100596,7 +100606,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 368,
+          "line": 378,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -100771,7 +100781,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 465,
+          "line": 512,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -103576,22 +103586,22 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 262,
+          "line": 267,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 272,
+          "line": 277,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 327,
+          "line": 346,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 378,
+          "line": 421,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -103631,7 +103641,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 482,
+          "line": 529,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -111666,7 +111676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_process.py",
-          "line": 124,
+          "line": 128,
           "sink": "python-return:_dotnet_process_diagnostics"
         }
       ]
@@ -114156,7 +114166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 394,
+          "line": 441,
           "sink": "_send_dotnet_command_result"
         }
       ]
@@ -190696,7 +190706,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_lifecycle.py",
-          "line": 231,
+          "line": 236,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -194776,7 +194786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_resources.py",
-          "line": 295,
+          "line": 247,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -195156,7 +195166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_textured_view.py",
-          "line": 187,
+          "line": 275,
           "sink": "emit"
         }
       ]

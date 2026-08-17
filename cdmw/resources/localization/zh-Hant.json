@@ -7434,6 +7434,7 @@
     "The raw sockets and clips named by the selected chart.": "由所選圖表命名的原始套接字和剪輯。",
     "The raw value is synchronized with the selected type-specific controls. Colors accept #RRGGBB; decimal and 0x-prefixed integers are accepted where shown.": "原始值與所選類型特定控制項同步。顏色接受#RRGGBB；顯示的地方接受小數和以 0x 為前綴的整數。",
     "The reading that fits is that .papr is a rig export left in the archives that no runtime code loads.": "適當的解讀是 .papr 是存檔中留下的裝備匯出，沒有執行時間程式碼載入。",
+    "The resident editor was lost while finishing; Edit Mesh could not be committed.": "完成過程中駐留編輯器遺失；網格編輯無法提交。",
     "The resident preview has not confirmed the exact Material Authority result:\n{value_0}\n\nBuild anyway? The mod will be exported from the current material profile rather than the confirmed preview state, so its textures may not match the viewport exactly.": "常駐預覽尚未確認精確的 Material Authority 結果：\n{value_0}\n\n仍要建置嗎？模組將從目前的材質設定檔匯出，而不是從已確認的預覽狀態匯出，因此其紋理可能與視窗不完全一致。",
     "The resident preview is being prepared in a background worker.": "正在後台準備常駐預覽",
     "The selected DDS does not currently have a concrete role to accept yet.": "所選 DDS 目前尚無具體角色可供接受。",

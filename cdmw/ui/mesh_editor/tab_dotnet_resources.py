@@ -18,6 +18,8 @@ from cdmw.services.mesh_dotnet_material_compiler import (
     MeshDotNetMaterialCompileRequest,
     snapshot_mesh_dotnet_material_inputs,
 )
+from cdmw.services.mesh_editor_error_codes import MeshEditorErrorCode, error_payload
+from cdmw.services.mesh_material_publication import MaterialPublicationStatus
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     normalize_mesh_preview_display_mode,
     untextured_fallback_display_mode,
@@ -29,83 +31,17 @@ from cdmw.ui.mesh_editor.tab_dotnet_provenance import MeshEditorDotNetProvenance
 from cdmw.ui.mesh_editor.tab_dotnet_material_compilation import (
     MeshEditorDotNetMaterialCompilationMixin,
 )
+from cdmw.ui.mesh_editor.tab_dotnet_material_roles import (
+    MeshEditorDotNetMaterialRoleMixin,
+)
 from cdmw.ui.mesh_editor.tab_dotnet_payloads import MeshEditorDotNetPayloadMixin
 
 
 class MeshEditorDotNetResourceProtocolMixin(
     MeshEditorDotNetCaptureMixin,
     MeshEditorDotNetProvenanceMixin,
+    MeshEditorDotNetMaterialRoleMixin,
 ):
-    @staticmethod
-    def _dotnet_material_role_key(role: object) -> str:
-        normalized = str(role or "replacement").strip().lower().replace("-", "_")
-        if normalized in {"original", "reference", "original_reference"}:
-            return "original_reference"
-        return "editable_imported"
-
-    def _dotnet_required_material_roles(self) -> tuple[str, ...]:
-        package = getattr(self, "standalone_dotnet_experiment_package", None)
-        try:
-            has_reference = int(getattr(package, "reference_submesh_count", 0) or 0) > 0
-        except (TypeError, ValueError):
-            has_reference = False
-        return (
-            ("editable_imported", "original_reference")
-            if has_reference
-            else ("editable_imported",)
-        )
-
-    def _dotnet_material_roles_ready(self) -> bool:
-        applied = self.standalone_dotnet_applied_material_generation_by_role
-        desired = self.standalone_dotnet_material_generation_by_role
-        completed = self.standalone_dotnet_completed_material_generation_by_role
-        resources_ready = self.standalone_dotnet_texture_resources_ready_by_role
-        return all(
-            int(applied.get(role, 0) or 0) > 0
-            and int(applied.get(role, 0) or 0) >= int(desired.get(role, 0) or 0)
-            and int(completed.get(role, 0) or 0) >= int(desired.get(role, 0) or 0)
-            and bool(resources_ready.get(role, False))
-            for role in self._dotnet_required_material_roles()
-        )
-
-    def _dotnet_missing_material_roles(self) -> tuple[str, ...]:
-        if self._dotnet_material_roles_ready():
-            return ()
-        applied = self.standalone_dotnet_applied_material_generation_by_role
-        desired = self.standalone_dotnet_material_generation_by_role
-        completed = self.standalone_dotnet_completed_material_generation_by_role
-        resources_ready = self.standalone_dotnet_texture_resources_ready_by_role
-        return tuple(
-            role
-            for role in self._dotnet_required_material_roles()
-            if int(applied.get(role, 0) or 0) <= 0
-            or int(applied.get(role, 0) or 0) < int(desired.get(role, 0) or 0)
-            or int(completed.get(role, 0) or 0) < int(desired.get(role, 0) or 0)
-            or not bool(resources_ready.get(role, False))
-        )
-
-    @staticmethod
-    def _dotnet_material_role_label(role: str) -> str:
-        return "Original" if role == "original_reference" else "Imported"
-
-    def _dotnet_material_roles_for_generation(
-        self,
-        generation: int,
-        fallback_role: object = "replacement",
-    ) -> tuple[str, ...]:
-        stored = self.standalone_dotnet_material_role_by_generation.get(generation)
-        if isinstance(stored, str):
-            return (stored,)
-        if isinstance(stored, Sequence):
-            roles = tuple(
-                self._dotnet_material_role_key(role)
-                for role in stored
-                if str(role or "").strip()
-            )
-            if roles:
-                return roles
-        return (self._dotnet_material_role_key(fallback_role),)
-
     def _handle_dotnet_material_state_applied(
         self,
         payload: Mapping[str, object],
@@ -248,6 +184,18 @@ class MeshEditorDotNetResourceProtocolMixin(
                 payload.get("role", "replacement"),
             )
             role = roles[0]
+            self._record_dotnet_material_publication(
+                self.standalone_dotnet_material_publications.acknowledge(
+                    generation,
+                    status=(
+                        MaterialPublicationStatus.SUCCEEDED
+                        if event == "material_state_applied"
+                        else MaterialPublicationStatus.FAILED
+                    ),
+                    reason=str(payload.get("reason", event) or event),
+                    detail=str(payload.get("message", "") or ""),
+                )
+            )
             for applied_role in roles:
                 self.standalone_dotnet_completed_material_generation_by_role[applied_role] = max(
                     int(
@@ -282,6 +230,10 @@ class MeshEditorDotNetResourceProtocolMixin(
                 process_generation=int(self.standalone_dotnet_process_generation),
                 failure_reason=failure_reason,
                 failure_message=message,
+                **error_payload(
+                    MeshEditorErrorCode.MAT_ROLE_UPDATE_REJECTED,
+                    message,
+                ),
             )
             for applied_role in roles:
                 self.standalone_dotnet_material_error_by_role[applied_role] = message
@@ -330,7 +282,7 @@ class MeshEditorDotNetResourceProtocolMixin(
         requested_mode = str(
             getattr(self, "standalone_dotnet_deferred_textured_view_mode", "") or ""
         )
-        if not requested_mode or not self._dotnet_material_roles_ready() or bool(
+        if not requested_mode or not self._dotnet_active_material_role_ready() or bool(
             getattr(self, "standalone_dotnet_pending_textured_view", False)
         ):
             return False
@@ -356,7 +308,7 @@ class MeshEditorDotNetResourceProtocolMixin(
     def _finish_pending_textured_view(self, *, success: bool, reason: str = "") -> None:
         if not bool(getattr(self, "standalone_dotnet_pending_textured_view", False)):
             return
-        if success and not self._dotnet_material_roles_ready():
+        if success and not self._dotnet_active_material_role_ready():
             self._arm_pending_textured_view_watchdog()
             return
         self.standalone_dotnet_pending_textured_view = False

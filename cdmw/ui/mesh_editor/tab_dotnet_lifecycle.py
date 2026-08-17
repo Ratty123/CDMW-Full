@@ -6,8 +6,13 @@ from typing import Mapping
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
+from cdmw.services.mesh_edit_session_state import MeshEditSessionState
+from cdmw.services.mesh_editor_error_codes import MeshEditorErrorCode, error_payload
 from cdmw.ui.shell.settings_bridge import read_bool_setting
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
+from cdmw.ui.mesh_editor.tab_dotnet_session_events import (
+    MeshEditorDotNetSessionEventMixin,
+)
 
 
 def _host_widget_hwnd(host_widget: object | None) -> int:
@@ -25,7 +30,7 @@ def _host_widget_hwnd(host_widget: object | None) -> int:
         return 0
 
 
-class MeshEditorDotNetLifecycleMixin:
+class MeshEditorDotNetLifecycleMixin(MeshEditorDotNetSessionEventMixin):
     def _dotnet_embedded_parent_hwnd(self) -> int:
         if not self.standalone_dotnet_target_embedded:
             if str(_tab.QApplication.platformName() or "").strip().lower() == "offscreen":
@@ -290,6 +295,13 @@ class MeshEditorDotNetLifecycleMixin:
         self.standalone_dotnet_finish_scene_pending["request_payload"] = dict(
             request_payload or {}
         )
+        # Past every gate and the transition is armed, so the session is now
+        # finishing and stops accepting commands. A refusal below returns it to
+        # EDIT_ACTIVE rather than leaving it in an unknown state.
+        self._edit_session_transition(
+            MeshEditSessionState.FINISHING_EDIT,
+            reason="finish_edit_mesh_requested",
+        )
         self.standalone_dotnet_finish_scene_timer.start(5_000)
         self._set_dotnet_status(
             "Waiting for Mesh .NET editor to finish queued edits before saving..."
@@ -324,6 +336,13 @@ class MeshEditorDotNetLifecycleMixin:
         self.standalone_dotnet_finish_scene_pending = None
         self.standalone_dotnet_finish_scene_timer.stop()
         request_payload = pending.get("request_payload")
+        # The finish did not happen, so the session is open again and takes
+        # commands. Leaving it in FINISHING_EDIT would silently disable Edit
+        # Mesh for the rest of the session.
+        self._edit_session_transition(
+            MeshEditSessionState.EDIT_ACTIVE,
+            reason="finish_edit_mesh_failed",
+        )
         self._send_dotnet_command_result(
             "save_request",
             ok=False,
@@ -366,6 +385,24 @@ class MeshEditorDotNetLifecycleMixin:
         pending = self.standalone_dotnet_finish_scene_pending
         if pending is None:
             return False
+        # A session in recovery cannot commit. The renderer that held the
+        # working state died partway through, so nothing here can vouch for what
+        # would be serialized, and reporting success over it is exactly the
+        # failure mode where a built mod contains geometry nobody chose.
+        machine = getattr(self, "standalone_dotnet_edit_session", None)
+        if machine is not None and machine.state is MeshEditSessionState.EDIT_RECOVERY_REQUIRED:
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_edit_mode_finish_blocked",
+                reason="edit_session_recovery_required",
+                process_generation=self.standalone_dotnet_process_generation,
+                **error_payload(
+                    MeshEditorErrorCode.EDIT_SESSION_RECOVERY_REQUIRED,
+                    "the resident session was lost while Edit Mesh was finishing",
+                ),
+            )
+            return self._fail_embedded_dotnet_edit_mode_finish(
+                "The resident editor was lost while finishing; Edit Mesh could not be committed."
+            )
         self.standalone_dotnet_finish_scene_pending = None
         self.standalone_dotnet_finish_scene_timer.stop()
         request_payload = pending.get("request_payload")
@@ -375,6 +412,12 @@ class MeshEditorDotNetLifecycleMixin:
             # two sides disagreeing about the mode and the button dead. Report
             # the failure and leave the helper in the placement mode already
             # published above, which is the state the builder is now in.
+            #
+            # The session goes to recovery rather than back to EDIT_ACTIVE: the
+            # working state was not committed and the builder is no longer in
+            # edit mode, so neither "open" nor "committed" describes it, and
+            # only recovery refuses a later finish over it.
+            self._require_edit_session_recovery(reason="finalize_embedded_import_failed")
             self._send_dotnet_command_result(
                 "save_request",
                 ok=False,
@@ -390,6 +433,10 @@ class MeshEditorDotNetLifecycleMixin:
                 revision = int(controller.session_view().revision)
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 revision = None
+        self._edit_session_transition(
+            MeshEditSessionState.EDIT_COMMITTED,
+            reason="finish_edit_mesh_committed",
+        )
         self._refresh_embedded_workspace_from_builder()
         self._send_dotnet_command_result(
             "save_request",

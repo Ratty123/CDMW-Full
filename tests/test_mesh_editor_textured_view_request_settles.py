@@ -693,7 +693,7 @@ def test_the_real_builder_resolver_reports_and_republishes() -> None:
 
 
 def test_a_settled_material_state_still_resolves_the_original_pane_textures() -> None:
-    """Solid (Textured) has to texture both panes, not just the Imported one.
+    """Solid (Textured) has to texture both panes, without one holding the other.
 
     The Imported pane's materials were published earlier in the session, so a
     material state for that role has been applied before the reader picks a
@@ -702,6 +702,12 @@ def test_a_settled_material_state_still_resolves_the_original_pane_textures() ->
     deliberately not at open. The fast path returned as soon as the editable
     materials were settled and never asked for them, which is exactly "Solid
     (Textured) loads for the Imported preview but not the Original".
+
+    The active pane is the one that settles the request, so the Imported mesh
+    goes textured immediately rather than waiting behind a pane that may take a
+    full character's archive read to compile. The reference resolve is still
+    kicked off, and the Original pane textures itself when its own correlated
+    update lands.
     """
     requests: list[str] = []
 
@@ -721,11 +727,18 @@ def test_a_settled_material_state_still_resolves_the_original_pane_textures() ->
 
     assert tab._handle_embedded_viewport_display_mode("textured")
 
-    # Imported readiness cannot settle the Original pane. The renderer stays on
-    # its honest fallback until the independently correlated reference update.
-    assert _display_modes(process)[-1] == "untextured_faces"
+    # The active pane is ready, so it textures now.
+    assert _display_modes(process)[-1] == "textured"
+    assert tab.standalone_dotnet_pending_textured_view is False
+    # ...and the Original pane's lazy resolve was still asked for, which is the
+    # part that used to be skipped entirely on this fast path.
     assert requests == ["resolve"]
-    assert tab.standalone_dotnet_pending_textured_view is True
+    # The Original pane is not textured yet and says so on its own.
+    assert tab._dotnet_missing_material_roles() == ("original_reference",)
+    assert (
+        tab._dotnet_material_role_blocking_reason("original_reference")
+        == "Original pane materials have not been published yet."
+    )
 
     tab.standalone_dotnet_material_generation = 2
     tab.standalone_dotnet_material_generation_by_role["original_reference"] = 2
@@ -743,7 +756,8 @@ def test_a_settled_material_state_still_resolves_the_original_pane_textures() ->
         + "\n"
     )
 
-    assert tab.standalone_dotnet_pending_textured_view is False
+    assert tab._dotnet_material_roles_ready()
+    assert tab._dotnet_material_role_blocking_reason("original_reference") == ""
     assert _display_modes(process)[-1] == "textured"
 
     tab.deleteLater()
@@ -782,7 +796,16 @@ def _acknowledge_material_update(tab: MeshEditorTab, update: dict[str, object]) 
     )
 
 
-def test_an_external_import_publishes_its_own_materials_and_then_the_reference() -> None:
+def _bind_own_textures_to_working_mesh(builder) -> None:
+    """Give the editable mesh the textures an external import binds at preflight."""
+
+    for index, submesh in enumerate(
+        tuple(getattr(builder.controller.working_mesh(clone=False), "submeshes", ()) or ())
+    ):
+        submesh.preview_texture_path = f"C:/imports/wolf_{index}.png"
+
+
+def test_an_external_import_publishes_its_own_materials_at_its_commit_boundary() -> None:
     """Solid (Textured) on an imported model has to send the imported textures.
 
     The launch package deliberately carries no textures, so each pane is
@@ -793,10 +816,11 @@ def test_an_external_import_publishes_its_own_materials_and_then_the_reference()
     textured request ended in `acknowledgement_timeout` -- the wolf sword over
     `cd_phm_01_sword_0039.pac` could not leave Faces (No Textures).
 
-    The resolver now publishes Imported first. The Original publish that
-    follows finds a compile in flight, is deferred, and is flushed after the
-    Imported acknowledgement, so the later publish never pre-empts the earlier
-    compile and both roles end up resident.
+    The import now publishes from its own commit boundary, when the working
+    model joins the resident session, rather than from the Original resolver.
+    The Original publish that follows finds a compile in flight, is deferred,
+    and is flushed after the Imported acknowledgement, so the later publish
+    never pre-empts the earlier compile and both roles end up resident.
     """
     resolver_holder: dict[str, object] = {}
     app, tab, builder, process = _mounted_tab(
@@ -808,6 +832,7 @@ def test_an_external_import_publishes_its_own_materials_and_then_the_reference()
         scene_material_slot_indices=(),
     )
     controller = builder.controller
+    _bind_own_textures_to_working_mesh(builder)
     reference_model = SimpleNamespace(
         meshes=[SimpleNamespace(material_name="original", preview_texture_path="")]
     )
@@ -818,7 +843,8 @@ def test_an_external_import_publishes_its_own_materials_and_then_the_reference()
 
     def resolve() -> str:
         # Exactly what the builder's resolver does when the originals are
-        # already resolved: republish through the mounted tab's hooks.
+        # already resolved: republish through the mounted tab's hooks. It owns
+        # the reference role only.
         apply_resolved_original_materials_to_resident_editor(
             dialog=builder,
             replacement_mesh_base=controller.base_mesh(clone=False),
@@ -832,6 +858,10 @@ def test_an_external_import_publishes_its_own_materials_and_then_the_reference()
     resolver_holder["resolve"] = resolve
     combo = tab.embedded_workspace.viewport_display_combo
 
+    # The working model joins the resident session. This is the commit boundary
+    # that owns publishing an imported model's own materials.
+    assert tab.commit_imported_working_model_materials(reason="resident_ready")
+
     assert tab._handle_embedded_viewport_display_mode("textured")
     assert tab.standalone_dotnet_pending_textured_view is True
     assert _display_modes(process)[-1] == "untextured_faces"
@@ -839,7 +869,7 @@ def test_an_external_import_publishes_its_own_materials_and_then_the_reference()
     updates = _wait_for_material_updates(app, tab, process, 1)
     assert len(updates) == 1, updates
     imported_update = updates[0]
-    assert imported_update["reason"] == "late_imported_resources"
+    assert imported_update["reason"] == "resident_ready"
     assert tab._dotnet_material_roles_for_generation(imported_update["generation"]) == (
         "editable_imported",
     )
@@ -848,10 +878,14 @@ def test_an_external_import_publishes_its_own_materials_and_then_the_reference()
     assert tab.standalone_dotnet_pending_textured_view is True
 
     _acknowledge_material_update(tab, imported_update)
-    # Imported alone cannot settle a two-pane scene; the Original publish that
-    # was waiting goes out on the flush that follows the acknowledgement.
-    assert tab.standalone_dotnet_pending_textured_view is True
-    assert combo.currentData() == "untextured_faces"
+    # The Imported pane is the active one, so it textures on its own
+    # acknowledgement instead of waiting behind the Original pane.
+    assert tab.standalone_dotnet_pending_textured_view is False
+    assert _display_modes(process)[-1] == "textured"
+    assert combo.currentData() == "textured"
+    # The Original publish that was waiting still goes out on the flush that
+    # follows the acknowledgement, so both panes end up resident.
+    assert tab._dotnet_missing_material_roles() == ("original_reference",)
     updates = _wait_for_material_updates(app, tab, process, 2)
     assert len(updates) == 2, updates
     reference_update = updates[1]

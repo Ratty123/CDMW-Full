@@ -7434,6 +7434,7 @@
     "The raw sockets and clips named by the selected chart.": "選択したチャートによって名前が付けられた生のソケットとクリップ。",
     "The raw value is synchronized with the selected type-specific controls. Colors accept #RRGGBB; decimal and 0x-prefixed integers are accepted where shown.": "生の値は、選択したタイプ固有のコントロールと同期されます。色は #RRGGBB を受け入れます。示されている場合は、10 進数および 0x 接頭辞付きの整数が受け入れられます。",
     "The reading that fits is that .papr is a rig export left in the archives that no runtime code loads.": "適切な解釈は、.papr はランタイム コードが読み込まれないアーカイブに残されたリグ エクスポートであるということです。",
+    "The resident editor was lost while finishing; Edit Mesh could not be committed.": "終了処理中に常駐エディターが失われたため、メッシュ編集を確定できませんでした。",
     "The resident preview has not confirmed the exact Material Authority result:\n{value_0}\n\nBuild anyway? The mod will be exported from the current material profile rather than the confirmed preview state, so its textures may not match the viewport exactly.": "常駐プレビューは正確な Material Authority の結果を確認していません:\n{value_0}\n\nそれでもビルドしますか? Mod は確認済みのプレビュー状態ではなく現在のマテリアル プロファイルからエクスポートされるため、テクスチャがビューポートと正確に一致しない場合があります。",
     "The resident preview is being prepared in a background worker.": "常駐プレビューはバックグラウンドで準備されています。",
     "The selected DDS does not currently have a concrete role to accept yet.": "選択された DDS には現在、受け入れる具体的なロールがまだありません。",

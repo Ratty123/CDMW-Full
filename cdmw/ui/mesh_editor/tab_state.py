@@ -801,7 +801,10 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
                 "_mesh_editor_embedded_request_material_resources",
                 None,
             )
-            if self._dotnet_material_roles_ready():
+            # The active pane decides. Waiting for a secondary pane that the
+            # display message is going to reach anyway only kept the reader on
+            # the fallback while the mesh in front of them was already textured.
+            if self._dotnet_active_material_role_ready():
                 sent = self._send_requested_viewport_display_mode(
                     normalized,
                     use_presentation_state=use_presentation_state,

@@ -178,6 +178,15 @@ class MeshEditorSessionMixin:
     def close_standalone_session(self) -> None:
         self.standalone_animation_timer.stop()
         self.standalone_animation_last_tick = 0.0
+        # The next mesh opens its own Edit Mesh session. Carrying this one's
+        # state across would let a stale FINISHING_EDIT or recovery state gate a
+        # session it has nothing to do with.
+        #
+        # getattr: this mixin is composed into hosts that do not run the tab's
+        # runtime initialiser.
+        machine = getattr(self, "standalone_dotnet_edit_session", None)
+        if machine is not None:
+            machine.reset_to_idle(reason="standalone_session_closed")
         controller = self.standalone_controller
         self.standalone_controller = None
         self.standalone_native_selection_stroke_id = ""

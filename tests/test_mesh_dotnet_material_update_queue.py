@@ -91,8 +91,21 @@ def test_material_compiler_keeps_one_active_and_only_latest_pending_generation()
             assert tab._send_dotnet_material_state(reason="second")
             assert tab._send_dotnet_material_state(reason="latest")
             assert tab.standalone_dotnet_material_generation == 3
-            assert tab.standalone_dotnet_material_update_pending is not None
-            assert tab.standalone_dotnet_material_update_pending[0].generation == 3
+            queued = tab.standalone_dotnet_material_publications.queued
+            assert [publication.publish_id for publication in queued] == [3]
+            assert queued[0].reason == "latest"
+            # Both displaced publications are on the record rather than simply
+            # gone: the running one was cancelled, and the waiting one was the
+            # same work so it folded into the newest request.
+            history = tab.standalone_dotnet_material_publications.snapshot()["history"]
+            assert any(
+                entry["publish_id"] == 1 and entry["status"] == "canceled"
+                for entry in history
+            )
+            assert any(
+                entry["publish_id"] == 3 and "coalesced with publish 2" in entry["detail"]
+                for entry in history
+            )
             assert _wait_for(app, lambda: len(_material_updates(process)) == 1)
 
         updates = _material_updates(process)
@@ -134,7 +147,7 @@ def test_editor_close_cancels_active_and_pending_material_compilation() -> None:
         assert worker is not None
         tab._stop_standalone_dotnet_editor_process()
         assert worker.stop_event.is_set()
-        assert tab.standalone_dotnet_material_update_pending is None
+        assert not tab.standalone_dotnet_material_publications.has_work()
         assert _wait_for(app, lambda: not tab._dotnet_material_compile_active())
 
     assert _material_updates(process) == []

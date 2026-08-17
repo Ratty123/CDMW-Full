@@ -365,6 +365,43 @@ def copy_dotnet_preview_material_bindings(mesh: object, preview_model: object) -
     return len(copied)
 
 
+_DOTNET_OWN_MATERIAL_PATH_ATTRS = (
+    "preview_texture_path",
+    "preview_texture_dds_path",
+    "preview_normal_texture_path",
+    "preview_normal_texture_dds_path",
+    "preview_material_texture_path",
+    "preview_material_texture_dds_path",
+    "preview_height_texture_path",
+    "preview_height_texture_dds_path",
+    "preview_emissive_texture_path",
+    "preview_emissive_texture_dds_path",
+)
+
+
+def count_dotnet_own_material_bindings(mesh: object) -> int:
+    """How many submeshes already carry a texture of their own.
+
+    This is the question "can this model's materials be published yet?" asked of
+    the model rather than of whichever resolver happens to run. An external
+    import has its own textures bound at preflight and answers yes immediately;
+    an exact clone answers no until the Original resolver has copied the
+    resolved bindings across, which is exactly when publishing it would compile
+    an empty material set and report the pane ready with nothing on it.
+    """
+
+    counted = 0
+    for source in _dotnet_material_sources(mesh):
+        for attr in _DOTNET_OWN_MATERIAL_PATH_ATTRS:
+            if str(getattr(source, attr, "") or "").strip():
+                counted += 1
+                break
+        else:
+            if tuple(getattr(source, "preview_material_texture_inputs", ()) or ()):
+                counted += 1
+    return counted
+
+
 _DOTNET_SYNTHESIS_INPUT_SEMANTICS = {
     "detail_mask",
     "glossiness",

@@ -5,6 +5,8 @@ from typing import Optional
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QPushButton, QTabWidget, QWidget
 
+from cdmw.services.mesh_edit_session_state import MeshEditSessionMachine
+from cdmw.services.mesh_material_publication import MaterialPublicationCoordinator
 from cdmw.ui.mesh_editor.dotnet_update_queue import DotNetRevisionUpdateQueue
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
@@ -48,6 +50,11 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_action_progress: _tab.QProgressDialog | None = None
         self.standalone_action_request_id = 0
         self.standalone_action_finished_request_id = 0  # see _handle_standalone_action_progress
+        # Which Edit Mesh session the in-flight command belongs to. The request
+        # id alone only says "newest command"; it cannot tell that the session
+        # the command was issued against has since been finished, cancelled, or
+        # lost to a renderer restart.
+        self.standalone_action_edit_session_generation = -1
         self.standalone_action_text = ""
         self.standalone_action_controller: _tab.MeshEditorController | None = None
         self.standalone_action_dotnet_command = ""
@@ -115,6 +122,9 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_embedded_exit_finalized = False
         self.standalone_dotnet_exit_pending = False
         self.standalone_dotnet_deactivate_acknowledged = False
+        # Where the Edit Mesh session is, as one explicit state rather than a
+        # reading of worker timing, pending dictionaries, and status text.
+        self.standalone_dotnet_edit_session = MeshEditSessionMachine()
         # A Finish Edit Mesh refused for "busy" retries itself when the worker
         # drains, instead of requiring the reader to click the button again.
         self.standalone_dotnet_finish_retry_pending = False
@@ -157,7 +167,10 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_pending_paired_material_upgrade: object | None = None
         self.standalone_dotnet_material_update_thread: _tab.QThread | None = None
         self.standalone_dotnet_material_update_worker: _tab.MeshDotNetMaterialUpdateWorker | None = None
-        self.standalone_dotnet_material_update_pending: tuple[object, tuple[dict[str, object], ...]] | None = None
+        # Which publication is compiling, which are waiting, and which were
+        # displaced. This replaced a single latest-wins pending slot that could
+        # only remember one waiting request and dropped the rest silently.
+        self.standalone_dotnet_material_publications = MaterialPublicationCoordinator()
         self.standalone_dotnet_material_update_active_resources: tuple[dict[str, object], ...] = ()
         self.standalone_dotnet_material_update_cancelled = False
         self.standalone_dotnet_capture_request_id = 0

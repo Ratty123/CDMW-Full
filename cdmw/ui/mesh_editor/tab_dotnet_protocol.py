@@ -489,6 +489,12 @@ class MeshEditorDotNetProtocolMixin(
             )
             self._sync_embedded_builder_presentation_state()
             self._set_embedded_dotnet_preview_loading(False, "Preview ready.")
+            # The working model is committed to the resident session here, so
+            # this is where an imported model publishes its own materials. The
+            # launch package deliberately carries none, and before this the only
+            # route ran inside the Original resolver -- so an import whose
+            # Original pane never resolved stayed grey forever.
+            self.commit_imported_working_model_materials(reason="resident_ready")
             return True
         if event == "protocol_ready":
             self._observe_dotnet_capabilities(payload)
@@ -522,6 +528,10 @@ class MeshEditorDotNetProtocolMixin(
                 )
                 self._sync_embedded_builder_presentation_state()
             self._set_embedded_dotnet_preview_loading(False, "Preview ready.")
+            # A resumed session commits the same working model, and the helper
+            # it is resuming into may be a different process that holds none of
+            # its materials.
+            self.commit_imported_working_model_materials(reason="resident_activated")
             return True
         if event == "deactivated":
             if self.standalone_dotnet_target_embedded:
@@ -608,6 +618,7 @@ class MeshEditorDotNetProtocolMixin(
             request_id=int(payload.get("request_id", 0) or 0),
             scene_generation=self.standalone_dotnet_scene_acknowledged_generation,
         )
+        self._observe_edit_session_from_scene_frame()
         if finish_matches:
             self._complete_embedded_dotnet_edit_mode_finish()
         if not self._sync_embedded_builder_presentation_state():

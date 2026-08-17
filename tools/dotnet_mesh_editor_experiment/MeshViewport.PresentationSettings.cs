@@ -29,9 +29,11 @@ internal sealed partial class MeshViewport
         // named mode is what made Solid (Textured) draw flat, because the
         // Builder publishes mode "textured" beside use_textures_by_default false
         // on every republish -- one after every accepted scene frame.
-        var texturesEnabled = PayloadNamesDisplayMode(display)
+        var namesDisplayMode = PayloadNamesDisplayMode(display);
+        var texturesEnabled = namesDisplayMode
             ? TexturesEnabled
             : JsonBool(quality, "use_textures_by_default", TexturesEnabled);
+        _textureSamplingOwner = namesDisplayMode ? "display_mode" : "quality_default";
         var hasDotNetViewMode = quality.TryGetProperty("dotnet_view_mode", out _);
         var hasLegacyViewMode = quality.TryGetProperty("d3d11_view_mode", out _);
         var requestedViewMode = hasDotNetViewMode
@@ -135,6 +137,27 @@ internal sealed partial class MeshViewport
         display.TryGetProperty("mode", out var value)
         && value.ValueKind == JsonValueKind.String
         && !string.IsNullOrWhiteSpace(value.GetString());
+
+    private string _textureSamplingOwner = "unset";
+
+    /// <summary>
+    /// Which of the two writers last decided <see cref="TexturesEnabled"/>:
+    /// <c>display_mode</c>, <c>quality_default</c>, or <c>unset</c>.
+    /// </summary>
+    /// <remarks>
+    /// Texture sampling has two writers on purpose. A payload that names a
+    /// display mode is answered by that mode; one that does not is answered by
+    /// <c>use_textures_by_default</c>, which is how the shared preview host
+    /// turns textures on and off — it leaves its stored mode on "textured"
+    /// permanently and toggles only the flag. Removing the second writer would
+    /// take that control away from the Archive Browser preview entirely.
+    ///
+    /// What the two writers cost is diagnosability: a viewport drawing flat
+    /// under a mode named "textured" looks identical whether the mode resolved
+    /// that way or a mode-less republish overrode it. Reporting the owner beside
+    /// the value makes those two the different faults they are.
+    /// </remarks>
+    internal string TextureSamplingOwner => _textureSamplingOwner;
 
     private bool _overlayColorsPinnedByReader;
 

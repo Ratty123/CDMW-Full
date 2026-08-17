@@ -182,15 +182,12 @@ def apply_resolved_original_materials_to_resident_editor(
     if not publish_resident_updates:
         return
     notify_failure = getattr(dialog, "_mesh_editor_embedded_texture_request_failed", None)
-    # An external import is not a clone, so nothing above fed the Imported
-    # pane. Its own textures were bound to the working mesh at preflight but the
-    # launch package deliberately carries none, and until this publish no path
-    # ever sent them: Solid (Textured) waited on an `editable_imported`
-    # acknowledgement that never came. Imported goes first; the tab defers the
-    # Original publish behind it and flushes it after the acknowledgement.
-    apply_imported = getattr(dialog, "_mesh_editor_embedded_apply_imported_material_resources", None)
-    if callable(apply_imported) and not apply_imported() and callable(notify_failure):
-        notify_failure("Imported materials could not be queued for the resident helper.")
+    # Only the Original/reference pane is resolved here. An external import
+    # publishes its own materials from its own commit boundary -- resident
+    # activation -- rather than as a side effect of this resolver. Driving it
+    # from here meant the Imported pane could only become textured if a
+    # different pane resolved first, so a single-pane workflow skipped it and an
+    # Original resolver error took a valid Imported pane down with it.
     apply_reference = getattr(dialog, "_mesh_editor_embedded_apply_reference_material_resources", None)
     published = bool(callable(apply_reference) and apply_reference(preview_model))
     if not published and callable(notify_failure):

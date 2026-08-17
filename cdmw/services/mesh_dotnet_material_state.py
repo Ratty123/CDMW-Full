@@ -39,6 +39,7 @@ from cdmw.services.mesh_dotnet_material_bindings import (
     _safe_int,
     apply_dotnet_native_material_batch_binding,
     copy_dotnet_preview_material_bindings,
+    count_dotnet_own_material_bindings,
     defer_dotnet_preview_material_synthesis,
     set_dotnet_preview_texture_flip_vertical,
 )
@@ -79,6 +80,7 @@ from cdmw.services.mesh_dotnet_material_semantics import (
 __all__ = [
     "apply_dotnet_native_material_batch_binding",
     "copy_dotnet_preview_material_bindings",
+    "count_dotnet_own_material_bindings",
     "defer_dotnet_preview_material_synthesis",
     "mesh_dotnet_material_input_signature",
     "mesh_dotnet_material_state_payload",

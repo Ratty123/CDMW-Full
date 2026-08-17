@@ -56,6 +56,9 @@ internal sealed partial class MeshViewport
             ["show_wire"] = ShowWire,
             ["show_vertices"] = ShowVertices,
             ["textures_enabled"] = TexturesEnabled,
+            // Which owner decided the line above. A viewport drawing flat under
+            // a textured mode is a different fault depending on this.
+            ["texture_sampling_owner"] = TextureSamplingOwner,
             ["texture_resources_ready"] = HasTexturedMaterialResources,
             ["material_parity_contract"] = "source_semantics_v2_native_dds_mips_srgb_linear_ggx_alpha_state_diagnostics",
             ["material_contract_gap"] = new[]
@@ -126,6 +129,7 @@ internal sealed partial class MeshViewport
             ["show_wire"] = ShowWire,
             ["show_vertices"] = ShowVertices,
             ["textures_enabled"] = TexturesEnabled,
+            ["texture_sampling_owner"] = TextureSamplingOwner,
             ["texture_resources_ready"] = HasTexturedMaterialResources,
             ["material_parameter_state_count"] = _materials.ParameterStateCount,
             ["resolved_texture_references"] = _materials.ResolvedTextureReferenceCount,
