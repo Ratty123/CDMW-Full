@@ -34,6 +34,7 @@ from cdmw.core.prefab_binary import (
     PrefabDocument,
     decode_prefab_binary,
     pointer_sites,
+    walk_is_determined,
 )
 
 _POINTEE_SCAN = 8192
@@ -382,6 +383,66 @@ def rewrite_prefab_paths(
         relocated_pointers=len(sites),
         proof_lines=tuple(proof),
     )
+
+
+def rewrite_prefab_paths_any_length(
+    data: bytes,
+    replacements: Mapping[str, str],
+) -> PrefabRewriteResult:
+    """Retarget resource paths, choosing the rewriter the prefab can bear.
+
+    A prefab whose walk completes and is determined takes the full rewriter, so the
+    new path may be any length. One the walk cannot finish, or cannot finish
+    unambiguously, still accepts a replacement of exactly the same byte length
+    through the same-length path, which relocates nothing. A different-length
+    replacement on such a prefab is refused with a message that says which of the
+    two conditions failed, rather than being padded or truncated to fit.
+
+    This is what a cloned model family needs: the two Wolf's Fang prefabs decode
+    completely, so a longer or shorter stem is fine there, and a prefab that does
+    not decode still gets a same-length stem when the caller can supply one.
+    """
+    payload = bytes(data or b"")
+    document = decode_prefab_binary(payload)
+    if document.walk_complete and walk_is_determined(payload):
+        return rewrite_prefab_paths(payload, replacements)
+
+    same_length: list[PrefabPathEdit] = []
+    strings = {
+        item.offset: item.text
+        for item in recover_pointee_strings(payload, document.blob_offset, document.blob_length)
+    }
+    strings.update({item.offset: item.text for item in document.all_strings()})
+    wanted = {
+        str(old or "").replace("\\", "/").strip(): str(new or "").replace("\\", "/").strip()
+        for old, new in dict(replacements or {}).items()
+        if str(old or "").strip() and str(new or "").strip()
+    }
+    for offset in sorted(strings):
+        text = strings[offset]
+        current = text.replace("\\", "/").strip()
+        replacement = wanted.get(current) or wanted.get(current.lstrip("/"))
+        if not replacement or replacement == current:
+            continue
+        if len(replacement.encode("utf-8")) != len(text.encode("utf-8")):
+            reason = (
+                "its walk does not complete" if not document.walk_complete else "its walk is not determined"
+            )
+            raise PrefabEditError(
+                f"{text!r} -> {replacement!r} changes the byte length, and this prefab only takes "
+                f"same-length replacements because {reason}"
+                + (f" ({document.walk_note})" if document.walk_note else "")
+            )
+        same_length.append(PrefabPathEdit(offset=offset, old_text=text, new_text=replacement))
+    if not same_length:
+        return PrefabRewriteResult(
+            data=payload,
+            edits=(),
+            byte_delta=0,
+            relocated_pointers=0,
+            proof_lines=("No matching resource paths; payload returned unchanged.",),
+        )
+    return rewrite_prefab_paths_same_length(payload, same_length)
 
 
 def _verify_rewrite(

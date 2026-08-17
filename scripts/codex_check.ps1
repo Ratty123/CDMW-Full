@@ -73,6 +73,10 @@ $TestsByArea = @{
         "tests/test_pappt_format.py",
         "tests/test_stringinfo_table.py",
         "tests/test_iteminfo_row.py",
+        # New Item Studio, phase 2: store rows, model families, and new icons.
+        "tests/test_storeinfo_table.py",
+        "tests/test_item_model_family.py",
+        "tests/test_item_icon_addition.py",
         # New Item Studio domain: the spec, its validation and identity allocation.
         "tests/test_new_item_spec.py"
     )

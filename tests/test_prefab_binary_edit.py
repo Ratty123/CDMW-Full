@@ -18,7 +18,9 @@ from cdmw.core.prefab_binary_edit import (
     PrefabEditError,
     plan_prefab_path_edits,
     rewrite_prefab_paths,
+    rewrite_prefab_paths_any_length,
 )
+from cdmw.core.prefab_recovery import recover_pointee_strings
 
 
 def _text(value: str) -> bytes:
@@ -184,6 +186,48 @@ def test_incomplete_decode_refuses_to_edit() -> None:
     assert not broken.walk_complete
     with pytest.raises(PrefabEditError, match="did not decode completely"):
         rewrite_prefab_paths(bytes(payload), {PATH: "new/path.pac"})
+
+
+def _build_with_a_short_walk() -> bytes:
+    """The fixture with eight junk bytes after the heap, so the walk ends short.
+
+    The pointer's identity survives, so the path is still recoverable; only the
+    structural walk fails to close.
+    """
+    payload = bytearray(_build())
+    document = decode_prefab_binary(bytes(payload))
+    data_header = document.blob_offset - 28
+    size = struct.unpack_from("<I", payload, data_header + 4)[0]
+    struct.pack_into("<I", payload, data_header + 4, size + 8)
+    struct.pack_into("<I", payload, data_header + 24, document.blob_length + 8)
+    payload += b"\x00" * 8
+    return bytes(payload)
+
+
+def test_any_length_takes_the_full_rewriter_when_the_walk_is_determined() -> None:
+    longer = "character/model/1_pc/weapon/a_considerably_longer_sword_name.pac"
+    result = rewrite_prefab_paths_any_length(_build(), {PATH: longer})
+    assert result.byte_delta == len(longer) - len(PATH)
+    assert result.relocated_pointers == 1
+    document = decode_prefab_binary(result.data)
+    assert document.walk_complete, document.walk_note
+    assert [item.text for item in document.resource_strings()] == [longer]
+
+
+def test_any_length_falls_back_to_same_length_on_a_short_walk() -> None:
+    payload = _build_with_a_short_walk()
+    document = decode_prefab_binary(payload)
+    assert not document.walk_complete
+    same = "character/model/1_pc/weapon/blade.pac"
+    result = rewrite_prefab_paths_any_length(payload, {PATH: same})
+    assert result.byte_delta == 0
+    assert len(result.data) == len(payload)
+    recovered = recover_pointee_strings(result.data, document.blob_offset, document.blob_length)
+    assert [item.text for item in recovered] == [same]
+    with pytest.raises(PrefabEditError, match="walk does not complete"):
+        rewrite_prefab_paths_any_length(payload, {PATH: "character/model/1_pc/weapon/longer_blade.pac"})
+    untouched = rewrite_prefab_paths_any_length(payload, {"nowhere.pac": "x.pac"})
+    assert untouched.data == payload and untouched.edits == ()
 
 
 def test_legacy_resize_refuses_rather_than_losing_a_pointer() -> None:
