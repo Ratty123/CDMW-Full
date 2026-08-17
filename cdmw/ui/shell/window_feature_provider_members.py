@@ -59,7 +59,7 @@ PROVIDER_SOURCE_HASHES = {
     'cdmw/ui/archive_browser/mesh_import_export.py': '1e8c93ed13f5ccbbda48d00d226e5f403f5f5ed8278417193d64b9e6b9853e46',
     'cdmw/ui/archive_browser/mesh_launch_flow.py': '65eccb6a134c9580952ab88e3428c9b15ac9c9b2627b3494684b03ee7fffd766',
     'cdmw/ui/archive_browser/mesh_modify_original.py': '6cef0220af6d3def90b73940d09d974c834fd7d93b4ab8124a03482f3d570162',
-    'cdmw/ui/archive_browser/mesh_patch_flow.py': 'ee3c9e64f4d73263507df3265639f43eccb0139efec9b98bcf4f14997d73ba65',
+    'cdmw/ui/archive_browser/mesh_patch_flow.py': '1c3ee011e7e2cbc05b290e6892ff42b4a6f147c44ded787c199b48ccd2ec1daa',
     'cdmw/ui/archive_browser/mesh_setup_helpers.py': '1502225f06f2e5f13d2e130e0109388eba36e9b8f3f29a5fc5d92ed95046f444',
     'cdmw/ui/archive_browser/mesh_swap_scope_dialog.py': '926ee27ac1c18b921bbbf2621697ec727e7692787fd3bfc888f3ac512cd11ce7',
     'cdmw/ui/archive_browser/mesh_swap_support.py': '60601b0903ba8792ea0f8f3d3255497661fe16ab921a8a984fdf2d6697d7492e',

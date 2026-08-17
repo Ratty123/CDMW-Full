@@ -225,6 +225,12 @@ class ArchiveMeshPatchFlowMixin:
             if build_entry.extension == ".pam":
                 paired_entry = dependencies.entry_for_path(str(PurePosixPath(build_entry.path).with_suffix(".pamlod")))
             require_source_owned_colors = bool(getattr(static_replacement_options, "complete_external_swap", False))
+            # Whether the package owns every texture is a property of the
+            # operation, not of one flag. Options that carry no operation keep
+            # the previous behaviour, which is that only visible colour blocks.
+            require_complete_texture_payload = bool(
+                getattr(getattr(static_replacement_options, "operation_spec", None), "writes_texture_files", False)
+            )
 
             def _preview_task(
                 log: Callable[[str], None],
@@ -359,6 +365,7 @@ class ArchiveMeshPatchFlowMixin:
                             original_dds_resolver=_archive_dds_preview_source_for_path,
                             original_dds_basename_resolver=_archive_dds_preview_sources_for_basename,
                             require_source_owned_colors=require_source_owned_colors,
+                            require_complete_texture_payload=require_complete_texture_payload,
                             strict_source_owned_material_contract=_complete_swap_requires_true_source_authority(static_replacement_options),
                             allow_inherited_layer_color_bindings=_complete_swap_allows_inherited_layer_color_bindings(static_replacement_options),
                             material_authority_contract=_complete_swap_authority_contract(static_replacement_options),
@@ -506,6 +513,7 @@ class ArchiveMeshPatchFlowMixin:
                             original_dds_basename_resolver=_archive_dds_preview_sources_for_basename,
                             package_root=loose_result.package_root,
                             require_source_owned_colors=require_source_owned_colors,
+                            require_complete_texture_payload=require_complete_texture_payload,
                             strict_source_owned_material_contract=_complete_swap_requires_true_source_authority(static_replacement_options),
                             allow_inherited_layer_color_bindings=_complete_swap_allows_inherited_layer_color_bindings(static_replacement_options),
                             material_authority_contract=_complete_swap_authority_contract(static_replacement_options),

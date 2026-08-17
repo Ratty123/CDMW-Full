@@ -159,6 +159,7 @@ $TestsByArea = @{
         # expressions it replaced produced; the second is the fail-closed path.
         "tests/test_mesh_builder_operation.py",
         "tests/test_static_mesh_build_operation_guard.py",
+        "tests/test_full_replacement_texture_payload.py",
         "tests/test_mesh_authoring_capability.py",
         "tests/test_fbx_support_contract.py",
         "tests/test_mesh_editor_mixin_composition.py",
