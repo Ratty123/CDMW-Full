@@ -57,6 +57,7 @@ class ArchiveMeshDirectPatchMixin:
         *,
         paired_entry: Optional[ArchiveEntry] = None,
         supplemental_specs: Sequence[MeshImportSupplementalFileSpec] = (),
+        include_geometry: bool = True,
         ) -> Tuple[List[ArchivePatchRequest], List[str]]:
         request_by_normalized_path: Dict[str, ArchivePatchRequest] = {}
         warnings: List[str] = []
@@ -74,9 +75,14 @@ class ArchiveMeshDirectPatchMixin:
                 payload_data=payload_data,
             )
 
-        _add_request(primary_entry, preview_result.rebuilt_data, primary_entry.path)
-        if paired_entry is not None and preview_result.paired_lod_data is not None:
-            _add_request(paired_entry, preview_result.paired_lod_data, paired_entry.path)
+        # An operation that writes no geometry does not write the mesh entry at
+        # all. Patching a rebuilt payload that happens to match would leave the
+        # guarantee resting on the writer reproducing the original byte for
+        # byte; not writing it is the guarantee.
+        if include_geometry:
+            _add_request(primary_entry, preview_result.rebuilt_data, primary_entry.path)
+            if paired_entry is not None and preview_result.paired_lod_data is not None:
+                _add_request(paired_entry, preview_result.paired_lod_data, paired_entry.path)
 
         for spec in supplemental_specs:
             if not isinstance(spec, MeshImportSupplementalFileSpec):

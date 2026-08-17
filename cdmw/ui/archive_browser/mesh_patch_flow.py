@@ -24,6 +24,10 @@ from cdmw.services.mesh_workflow_service import (
     FULL_IMPORT_MODEL_REPLACEMENT_SETUP_TITLE,
     FULL_IMPORT_MODEL_REPLACEMENT_TITLE,
     full_import_model_replacement_external_file_filter,
+    MATERIALS_AND_TEXTURES_PLACEMENT_NOTE,
+    MATERIALS_AND_TEXTURES_SETUP_TITLE,
+    MATERIALS_AND_TEXTURES_TITLE,
+    materials_and_textures_external_file_filter,
 )
 from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.domain.textures.policy import check_final_preview_material_authority as _check_final_preview_material_authority, complete_swap_allows_inherited_layer_color_bindings as _complete_swap_allows_inherited_layer_color_bindings, complete_swap_authority_contract as _complete_swap_authority_contract, complete_swap_requires_true_source_authority as _complete_swap_requires_true_source_authority, material_authority_check_blockers as _material_authority_check_blockers, material_authority_check_review_lines as _material_authority_check_review_lines
@@ -47,6 +51,39 @@ from cdmw.ui.archive_browser.workflow_dependencies import (
     ArchiveWorkflowDependenciesUnavailable,
     archive_workflow_dependency_context,
 )
+
+
+def _loose_mesh_patch_requests(
+    build_entry: ArchiveEntry,
+    paired_entry: Optional[ArchiveEntry],
+    preview_result: MeshImportPreviewResult,
+    *,
+    writes_geometry: bool,
+    on_log: Callable[[str], None],
+) -> list[ArchivePatchRequest]:
+    """The mesh entries a loose package writes, which may be none of them.
+
+    An operation that writes no geometry emits no mesh request at all. Writing a
+    rebuilt payload that happens to match would leave "geometry hash unchanged"
+    resting on the writer reproducing the original byte for byte; not writing it
+    is the guarantee.
+    """
+
+    if not writes_geometry:
+        on_log("Materials and textures only: the target's mesh is not rewritten.")
+        return []
+    request_by_normalized_path: Dict[str, ArchivePatchRequest] = {
+        build_entry.path.replace("\\", "/").strip().casefold(): ArchivePatchRequest(
+            entry=build_entry,
+            payload_data=preview_result.rebuilt_data,
+        )
+    }
+    if paired_entry is not None and preview_result.paired_lod_data is not None:
+        request_by_normalized_path[paired_entry.path.replace("\\", "/").strip().casefold()] = ArchivePatchRequest(
+            entry=paired_entry,
+            payload_data=preview_result.paired_lod_data,
+        )
+    return list(request_by_normalized_path.values())
 
 
 def _mesh_patch_dependencies(
@@ -93,6 +130,40 @@ class ArchiveMeshPatchFlowMixin:
             placement_review_title=FULL_IMPORT_MODEL_REPLACEMENT_TITLE,
             placement_context_note=FULL_IMPORT_MODEL_REPLACEMENT_PLACEMENT_NOTE,
             full_import_model_replacement=True,
+        )
+
+    def _start_archive_materials_and_textures_replacement(self, entry: ArchiveEntry) -> None:
+        """Take an external model's materials and textures, keep the item's mesh.
+
+        Same pipeline and same setup preflight as Full Import Model Replacement;
+        the preset differs only in that its operation writes no geometry, so the
+        commit boundary omits the mesh entry and the target's geometry hash
+        cannot move.
+        """
+        dependencies, entry = _mesh_patch_dependencies(self, entry)
+        if dependencies is None or entry is None:
+            return
+        scene_path, _selected = QFileDialog.getOpenFileName(
+            self,
+            MATERIALS_AND_TEXTURES_SETUP_TITLE,
+            str(self.settings_file_path.parent),
+            materials_and_textures_external_file_filter(),
+        )
+        if not scene_path:
+            return
+        self._prepare_archive_mesh_import_setup_async(
+            entry,
+            Path(scene_path),
+            title=MATERIALS_AND_TEXTURES_SETUP_TITLE,
+            on_complete=lambda setup: (
+                self._start_archive_mesh_patch(entry, preset_setup=setup)
+                if isinstance(setup, MeshImportSetupSelection)
+                else None
+            ),
+            force_static_replacement=True,
+            placement_review_title=MATERIALS_AND_TEXTURES_TITLE,
+            placement_context_note=MATERIALS_AND_TEXTURES_PLACEMENT_NOTE,
+            materials_and_textures_only=True,
         )
 
     def _start_archive_mesh_patch(
@@ -228,9 +299,12 @@ class ArchiveMeshPatchFlowMixin:
             # Whether the package owns every texture is a property of the
             # operation, not of one flag. Options that carry no operation keep
             # the previous behaviour, which is that only visible colour blocks.
-            require_complete_texture_payload = bool(
-                getattr(getattr(static_replacement_options, "operation_spec", None), "writes_texture_files", False)
-            )
+            # Whether the package owns every texture, and whether the mesh is
+            # rewritten at all, are the operation's to say. Options carrying no
+            # operation keep the behaviour every path had before it existed.
+            build_operation = getattr(static_replacement_options, "operation_spec", None)
+            require_complete_texture_payload = bool(getattr(build_operation, "writes_texture_files", False))
+            writes_geometry = bool(getattr(build_operation, "writes_geometry", True))
 
             def _preview_task(
                 log: Callable[[str], None],
@@ -326,22 +400,17 @@ class ArchiveMeshPatchFlowMixin:
                             preview_result,
                             paired_entry=paired_entry,
                             supplemental_specs=direct_patch_supplemental_specs,
+                            include_geometry=writes_geometry,
                         )
                         for warning in request_warnings:
                             log(warning)
                     else:
-                        request_by_normalized_path: Dict[str, ArchivePatchRequest] = {
-                            build_entry.path.replace("\\", "/").strip().casefold(): ArchivePatchRequest(
-                                entry=build_entry,
-                                payload_data=preview_result.rebuilt_data,
-                            )
-                        }
-                        if paired_entry is not None and preview_result.paired_lod_data is not None:
-                            request_by_normalized_path[paired_entry.path.replace("\\", "/").strip().casefold()] = ArchivePatchRequest(
-                                entry=paired_entry,
-                                payload_data=preview_result.paired_lod_data,
-                            )
-                        requests = list(request_by_normalized_path.values())
+                        # The sidecar and the DDS files travel as supplemental
+                        # specs, so a package with no mesh entry is still whole.
+                        requests = _loose_mesh_patch_requests(
+                            build_entry, paired_entry, preview_result,
+                            writes_geometry=writes_geometry, on_log=log,
+                        )
 
                     if destination == "patch":
                         preflight_failed_prefix = "Final package texture preflight failed before direct archive patch: "

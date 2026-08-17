@@ -314,6 +314,10 @@ class ArchiveBrowserActionMixin:
         full_import_action.triggered.connect(
             lambda _checked=False, current_entry=entry: self._start_archive_full_import_model_replacement(current_entry)
         )
+        materials_only_action = menu.addAction(menu_icons["mesh"], "Replace Materials and Textures Only...")
+        materials_only_action.triggered.connect(
+            lambda _checked=False, current_entry=entry: self._start_archive_materials_and_textures_replacement(current_entry)
+        )
 
     def _add_archive_material_context_action(
         self,
