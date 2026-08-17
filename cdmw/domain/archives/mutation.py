@@ -51,6 +51,25 @@ class ArchiveAddRequest:
 
 
 @dataclass(slots=True)
+class MetaFileWrite:
+    """A whole-file rewrite of one of the game's loose index files beside the archives
+    (`meta/0.pathc`, the texture registry), backed up and restored with the same
+    mutation as the archive entries it belongs with.
+
+    `path` is relative to the package root the mutation targets, POSIX-style.
+    """
+
+    path: str
+    payload_data: bytes
+
+    def __post_init__(self) -> None:
+        self.path = str(self.path or "").replace("\\", "/").strip("/")
+        if not self.path or ".." in self.path.split("/"):
+            raise ValueError("A meta file write needs a relative path inside the package root.")
+        self.payload_data = bytes(self.payload_data)
+
+
+@dataclass(slots=True)
 class ArchivePatchResult:
     backup_dir: Path
     changed_entries: Dict[str, ArchiveEntry]
@@ -58,6 +77,8 @@ class ArchivePatchResult:
     warnings: List[str]
     #: Virtual paths that did not exist before this mutation (a subset of `changed_paths`).
     added_paths: List[str] = field(default_factory=list)
+    #: Loose meta files rewritten (relative to the package root).
+    meta_paths: List[str] = field(default_factory=list)
 
 
-__all__ = ["ArchiveAddRequest", "ArchivePatchRequest", "ArchivePatchResult"]
+__all__ = ["ArchiveAddRequest", "ArchivePatchRequest", "ArchivePatchResult", "MetaFileWrite"]

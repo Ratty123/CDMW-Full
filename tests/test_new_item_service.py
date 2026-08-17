@@ -34,6 +34,7 @@ from cdmw.core.storeinfo_table import parse_store_table  # noqa: E402
 from cdmw.core.stringinfo_table import build_stringinfo_row, parse_stringinfo, stringinfo_index, stringinfo_key  # noqa: E402
 from cdmw.core.structured_binary_editor import parse_pabgh_table  # noqa: E402
 from cdmw.domain.archives.mutation import ArchiveAddRequest  # noqa: E402
+from cdmw.domain.new_item.allocation import localization_keys  # noqa: E402
 from cdmw.domain.new_item.spec import (  # noqa: E402
     BuyPriceEdit,
     IconSource,
@@ -141,12 +142,12 @@ def synthetic_files() -> dict[str, bytes]:
     at = parsed.stat_block_offset - 3
     template = template[:at] + struct.pack("<III", 2, MC_ROW_0, MC_ROW_1) + template[at:]
     other = build_row(
-        key=OTHER, string_key="Cigar_OneHandSword", name_key="4300529202400181", desc_key="4300529202400182",
+        key=OTHER, string_key="Cigar_OneHandSword", name_key="1030869460451440", desc_key="1030869460451441",
         stems=("cd_phm_01_sword_0016_r", "cd_phm_01_sword_0016_l"),
     )
     money = [
         (key, build_row(key=key, string_key=name, equip="", stems=(), levels=[], prices=(), socket_items=(), adds=()))
-        for key, name in ((COPPER, "Money_Copper"), (11, "Money_Silver"), (15, "Camp_Weapon_Token"), (1002791, "Socket_Gem"))
+        for key, name in ((COPPER, "Money_Copper"), (11, "Money_Silver"), (15, "Camp_Weapon_Token"), (1002791, "Socket_Gem"), (1002793, "Socket_Gem_III"), (1002812, "Socket_Swift_III"))
     ]
     iteminfo = _table4([(TEMPLATE, template), (OTHER, other)] + money)
     texts = [f"{STEM}_r", f"{STEM}_l", "cd_phm_01_sword_0168_r_in_index01", "cd_phm_01_sword_0016_r", "cd_phm_01_sword_0016_l", ICON_STRING, "rootlevel"]
@@ -173,12 +174,12 @@ def synthetic_files() -> dict[str, bytes]:
     statusinfo = _table4([(DDD, _named_row(DDD, "DDD")), (1000003, _named_row(1000003, "DPV")), (1000007, _named_row(1000007, "CriticalRate"))])
     equiptypes = _table4([(equip_type_key("OneHandSword"), _named_row(equip_type_key("OneHandSword"), "OneHandSword"))])
     eng = encode_paloc([
+        LocalizationEntry(7, "1030869460451440", "Cigar"), LocalizationEntry(9, "other_key", "Other."),
         LocalizationEntry(7, NAME_KEY, "Wolf's Fang"), LocalizationEntry(8, DESC_KEY, "Ziane's own sword."),
-        LocalizationEntry(7, "4300529202400181", "Cigar"), LocalizationEntry(9, "other_key", "Other."),
     ])
     ger = encode_paloc([
+        LocalizationEntry(7, "1030869460451440", "Zigarre"),
         LocalizationEntry(7, NAME_KEY, "Wolfszahn"), LocalizationEntry(8, DESC_KEY, "Zianes eigenes Schwert."),
-        LocalizationEntry(7, "4300529202400181", "Zigarre"),
     ])
     sheath_pac = f"character/model/{MODEL_FOLDER}/cd_phm_01_sword_0168_in.pac"
     other_pac = f"character/model/{MODEL_FOLDER}/cd_phm_01_sword_0016.pac"
@@ -292,7 +293,7 @@ class _PackageCase(unittest.TestCase):
 class SnapshotTests(_PackageCase):
     def test_snapshot_and_context_describe_the_template(self) -> None:
         snap = self.snapshot
-        self.assertEqual(sorted(snap.rows), [COPPER, 11, 15, OTHER, TEMPLATE, 1002791])
+        self.assertEqual(sorted(snap.rows), [COPPER, 11, 15, OTHER, TEMPLATE, 1002791, 1002793, 1002812])
         self.assertEqual(snap.keys_by_name["Ziane_OneHandSword"], TEMPLATE)
         self.assertEqual(snap.languages, ("eng", "ger"))
         self.assertEqual([s.name for s in snap.stores], ["Store_Camp_Equipment", "Store_Pai_BlackMarket"])
@@ -331,7 +332,7 @@ class PlanTests(_PackageCase):
         ), self.snapshot)
         self.assertEqual(plan.additions, ())
         self.assertEqual(plan.spec.item_key, 1990000)
-        self.assertEqual((plan.spec.name_key, plan.spec.desc_key), ("4300529219900001", "4300529219900002"))
+        self.assertEqual((plan.spec.name_key, plan.spec.desc_key), ("8546984919040112", "8546984919040113"))
         self.assertIsNone(plan.spec.stem)
         touched = {request.entry.path.replace("\\", "/") for request in plan.patches}
         self.assertEqual(touched, {
@@ -340,10 +341,10 @@ class PlanTests(_PackageCase):
         }, "no StringInfo, no pappt, no files: the template model and icon are kept")
         files = dict(plan.loose_files)
         rows = parse_pabgh_table(files[f"{BIN}/iteminfo.pabgh"], payload=files[f"{BIN}/iteminfo.pabgb"]).row_spans(len(files[f"{BIN}/iteminfo.pabgb"]))
-        self.assertEqual(len(rows), 7)
+        self.assertEqual(len(rows), len(self.snapshot.rows) + 1)
         raw = files[f"{BIN}/iteminfo.pabgb"][rows[-1][1]:rows[-1][2]]
         item = parse_iteminfo_row(raw, item_keys=set(self.snapshot.rows) | {1990000})
-        self.assertEqual((item.key, item.string_key, item.name_key, item.desc_key), (1990000, "Ziane_Clone_OneHandSword", "4300529219900001", "4300529219900002"))
+        self.assertEqual((item.key, item.string_key, item.name_key, item.desc_key), (1990000, "Ziane_Clone_OneHandSword", "8546984919040112", "8546984919040113"))
         self.assertEqual(item.max_stack_count, 3)
         self.assertEqual(item.stat(0, DDD).value, 20000)
         self.assertEqual(item.stat(0, 1000007).value, 500)
@@ -361,10 +362,10 @@ class PlanTests(_PackageCase):
         self.assertEqual([g.members for g in groups], [(OTHER, TEMPLATE, 1990000, 13800), (TEMPLATE, 1990000), (OTHER,)])
         eng = parse_paloc(files[f"{LOC}/localizationstring_eng.paloc"]).index()
         ger = parse_paloc(files[f"{LOC}/localizationstring_ger.paloc"]).index()
-        self.assertEqual((eng["4300529219900001"].text, eng["4300529219900001"].category), ("Wolf's Fang (Clone)", 7))
-        self.assertEqual(eng["4300529219900002"].text, "A cloned sword.")
-        self.assertEqual(ger["4300529219900001"].text, "Wolfszahn (Klon)")
-        self.assertEqual(ger["4300529219900002"].text, "A cloned sword.", "no German description: English fallback")
+        self.assertEqual((eng["8546984919040112"].text, eng["8546984919040112"].category), ("Wolf's Fang (Clone)", 7))
+        self.assertEqual(eng["8546984919040113"].text, "A cloned sword.")
+        self.assertEqual(ger["8546984919040112"].text, "Wolfszahn (Klon)")
+        self.assertEqual(ger["8546984919040113"].text, "A cloned sword.", "no German description: English fallback")
         self.assertTrue(any("unproven" in w for w in plan.warnings), plan.warnings)
         self.assertEqual(plan.manifest["item_groups"], ["ItemGroup_Equip_Weapon_OneHandSword", "ItemGroup_Equip"])
         self.assertEqual(plan.manifest["store"]["old_item"], "Cigar_OneHandSword")
@@ -448,6 +449,26 @@ class PlanTests(_PackageCase):
         self.assertTrue(any("enhancement row" in w for w in plan.warnings))
         self.assertTrue(any("MultiChangeInfo" in line for line in plan.summary_lines))
 
+    def test_socket_items_replace_the_templates_perks(self) -> None:
+        context = build_context(self.snapshot, TEMPLATE)
+        self.assertEqual(context.template.socket_items, (1002791,))
+        self.assertEqual(context.socket_item_keys, frozenset({1002791}))
+        plan = self.service.plan(self._spec(socket_items=(1002793, 1002812, 1002791, 1002793)), self.snapshot)
+        files = dict(plan.loose_files)
+        spans = parse_pabgh_table(files[f"{BIN}/iteminfo.pabgh"], payload=files[f"{BIN}/iteminfo.pabgb"]).row_spans(len(files[f"{BIN}/iteminfo.pabgb"]))
+        clone = parse_iteminfo_row(files[f"{BIN}/iteminfo.pabgb"][spans[-1][1]:spans[-1][2]], item_keys=set(self.snapshot.rows) | {1990000})
+        self.assertEqual(clone.socket_items, (1002793, 1002812, 1002791, 1002793))
+        self.assertEqual([(s.status_key, s.value) for s in clone.enchant_levels[0].stats], [(s.status_key, s.value) for s in self.snapshot.row(TEMPLATE).enchant_levels[0].stats], "the ladder is untouched")
+        self.assertEqual(plan.manifest["socket_items"], [1002793, 1002812, 1002791, 1002793])
+        self.assertTrue(any("socket items: 4" in line for line in plan.summary_lines), plan.summary_lines)
+        self.assertFalse(any("socket" in w for w in plan.warnings), "four is the shipped maximum")
+        same = self.service.plan(self._spec(socket_items=(1002791,)), self.snapshot)
+        self.assertNotIn("socket_items", same.manifest, "the template's own list changes nothing")
+        five = self.service.plan(self._spec(socket_items=(1002791,) * 5), self.snapshot)
+        self.assertTrue(any("5 socket items" in w for w in five.warnings), five.warnings)
+        with self.assertRaises(NewItemPlanError):
+            self.service.plan(self._spec(socket_items=(424242,)), self.snapshot)
+
     def test_refusals(self) -> None:
         with self.assertRaises(NewItemPlanError) as caught:
             self.service.plan(self._spec(internal_name="Ziane_OneHandSword"), self.snapshot)
@@ -528,6 +549,85 @@ class WriteTests(_PackageCase):
         self.assertEqual(plan.spec.item_key, 1990000)
 
 
+class TextureRegistryTests(_PackageCase):
+    """New `.dds` files are registered in `meta/0.pathc`, written and backed up with the install."""
+
+    NEW_ICON = "ui/texture/icon/itemicon_prefab_cd_phm_01_sword_9109.dds"
+
+    def setUp(self) -> None:
+        super().setUp()
+        from cdmw.core.pathc_format import PathcEntry, PathcTable, encode_pathc, pathc_checksum
+
+        icon_header = _fake_dds()[:128] + bytes(20)
+        small_header = _fake_dds(4, 4)[:128] + bytes(20)
+        rows = sorted((
+            PathcEntry(pathc_checksum(ICON), 0, 255, 255, struct.pack("<4I", 65536, 65536, 0, 0)),
+            PathcEntry(pathc_checksum("ui/texture/icon/itemicon_prefab_cd_phm_01_sword_0016.dds"), 0, 255, 255, struct.pack("<4I", 65536, 65536, 0, 0)),
+            PathcEntry(pathc_checksum(f"character/texture/1_pc/{STEM}_d.dds"), 1, 255, 255, struct.pack("<4I", 16, 0, 0, 0)),
+        ), key=lambda row: row.checksum)
+        self.pathc_path = self.root / "meta" / "0.pathc"
+        self.pathc_before = encode_pathc(PathcTable(0, 148, (icon_header, small_header), tuple(rows), (), b""))
+        self.pathc_path.write_bytes(self.pathc_before)
+        self.snapshot = self.service.build_snapshot(self.entries, read_entry=_read)
+
+    def _plan(self):
+        spec = NewItemSpec(
+            template_key=TEMPLATE, internal_name="Ziane_Clone_OneHandSword", display_names={"eng": "Wolf's Fang (Clone)"},
+            model_source=ModelSource.IMPORTED, icon=IconSource.GENERATED,
+        )
+        model = ModelFiles(pac_data=b"PAC imported mesh", side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4) + bytes(16)})
+        allocated = self.service.allocate(spec, self.snapshot)
+        icon = NewItemIcon(
+            icon_string="ItemIcon_Prefab_cd_phm_01_sword_9109", icon_hash=stringinfo_key("ItemIcon_Prefab_cd_phm_01_sword_9109"),
+            target_path=self.NEW_ICON, payload_data=_fake_dds() + bytes(65536),
+            add_request=ArchiveAddRequest.from_template(self.snapshot.entry(ICON), self.NEW_ICON, _fake_dds() + bytes(65536)), build=None,
+        )
+        return self.service.plan(allocated, self.snapshot, model=model, icon=icon)
+
+    def test_plan_registers_every_new_dds(self) -> None:
+        from cdmw.core.pathc_format import parse_pathc
+
+        self.assertIsNotNone(self.snapshot.pathc)
+        plan = self._plan()
+        self.assertEqual([m.path for m in plan.meta_files], ["meta/0.pathc"])
+        table = parse_pathc(plan.meta_files[0].payload_data)
+        self.assertEqual(len(table.entries), 5)
+        icon = table.find(self.NEW_ICON)
+        texture = table.find("character/texture/1_pc/cd_phm_01_sword_9109_d.dds")
+        self.assertEqual((icon.header_index, icon.block_infos), (0, struct.pack("<4I", 65536, 65536, 0, 0)), "like the template's icon")
+        self.assertEqual((texture.header_index, texture.block_infos), (1, struct.pack("<4I", 16, 0, 0, 0)), "under the header its own DDS header equals")
+        self.assertEqual(sorted(plan.manifest["texture_registry"]), sorted([self.NEW_ICON, "character/texture/1_pc/cd_phm_01_sword_9109_d.dds"]))
+        self.assertIn("meta/0.pathc", plan.touched_paths)
+        self.assertNotIn("meta/0.pathc", plan.loose_files, "a loose mod leaves the registry to the manager")
+        self.assertTrue(any("texture registry" in line for line in plan.summary_lines))
+        # a texture of a shape the registry has never seen is refused, not guessed
+        odd = ModelFiles(pac_data=b"PAC", side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(8, 8)})
+        with self.assertRaisesRegex(NewItemPlanError, "no shipped texture header"):
+            self.service.plan(self.service.allocate(NewItemSpec(template_key=TEMPLATE, internal_name="Ziane_Odd_OneHandSword", display_names={"eng": "X"}, model_source=ModelSource.IMPORTED), self.snapshot), self.snapshot, model=odd)
+
+    def test_without_a_registry_the_plan_only_warns(self) -> None:
+        self.pathc_path.unlink()
+        snapshot = self.service.build_snapshot(self.entries, read_entry=_read)
+        self.assertIsNone(snapshot.pathc)
+        spec = self.service.allocate(NewItemSpec(template_key=TEMPLATE, internal_name="Ziane_Clone_OneHandSword", display_names={"eng": "X"}, model_source=ModelSource.IMPORTED), snapshot)
+        plan = self.service.plan(spec, snapshot, model=ModelFiles(pac_data=b"PAC", side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4)}))
+        self.assertEqual(plan.meta_files, ())
+        self.assertTrue(any("meta/0.pathc" in w for w in plan.warnings), plan.warnings)
+
+    def test_install_writes_the_registry_under_the_backup(self) -> None:
+        plan = self._plan()
+        mutations = ArchiveMutationService()
+        with patch("cdmw.services.new_item_service.game_is_running", lambda: False):
+            result = self.service.install(plan, mutation_service=mutations, confirmed=True)
+        self.assertEqual(result.meta_paths, ["meta/0.pathc"])
+        self.assertEqual(self.pathc_path.read_bytes(), plan.meta_files[0].payload_data)
+        manifest = json.loads((result.backup_dir / "backup_manifest.json").read_text(encoding="utf-8"))
+        originals = {Path(item["original_path"]).resolve() for item in manifest["files"]}
+        self.assertIn(self.pathc_path.resolve(), originals)
+        mutations.restore_backup(result.backup_dir, confirmed=True)
+        self.assertEqual(self.pathc_path.read_bytes(), self.pathc_before, "restoring the backup restores the registry too")
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -569,6 +669,22 @@ class VanillaNewItemTests(unittest.TestCase):
         self.assertEqual(plan.additions, ())
         self.assertEqual(len([p for p in plan.patches if p.entry.path.endswith(".paloc")]), 14)
         self.assertNotIn(plan.spec.item_key, snapshot.rows)
+        # the localisation keys are the ones the game computes, and every shipped row agrees
+        self.assertEqual((plan.spec.name_key, plan.spec.desc_key), localization_keys(plan.spec.item_key))
+        shipped = [row for row in snapshot.rows.values() if row.key < 1_990_000 and row.name_key]
+        self.assertGreater(len(shipped), 6000)
+        self.assertEqual([row.key for row in shipped if row.name_key != localization_keys(row.key)[0]], [], "a shipped name key that is not (key << 32) | 0x70")
+        self.assertEqual([row.key for row in shipped if row.desc_key and row.desc_key != localization_keys(row.key)[1]], [], "a shipped description key that is not (key << 32) | 0x71")
+        # and the new records sit in the table's numeric order (between their numeric neighbours), not at the end
+        eng = parse_paloc(dict(plan.loose_files)[f"{LOC}/localizationstring_eng.paloc"]).entries
+        at = [index for index, entry in enumerate(eng) if entry.key == plan.spec.name_key]
+        self.assertEqual(len(at), 1)
+        before = [int(e.key) for e in eng[:at[0]] if e.key.isdigit()]
+        after = [int(e.key) for e in eng[at[0] + 2:] if e.key.isdigit()]
+        self.assertEqual(eng[at[0] + 1].key, plan.spec.desc_key)
+        self.assertLess(before[-1], int(plan.spec.name_key))
+        self.assertGreater(after[0], int(plan.spec.desc_key))
+        self.assertLess(at[0], len(eng) - 2, "the records were appended rather than slotted in")
         imported = service.plan(
             NewItemSpec(template_key=ziane, internal_name="Ziane_GateCloneB_OneHandSword", display_names={"eng": "B"}, model_source=ModelSource.IMPORTED),
             snapshot,

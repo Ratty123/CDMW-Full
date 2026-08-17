@@ -314,6 +314,31 @@ class RebuildTests(unittest.TestCase):
         with self.assertRaisesRegex(ItemInfoRowError, "no entry"):
             price_list_without(row.price_list, 99)
 
+    def test_socket_items_can_be_replaced_added_and_removed(self) -> None:
+        raw = build_row()
+        row = parse_iteminfo_row(raw)
+        self.assertEqual(row.socket_items, (1002791,))
+        four = parse_iteminfo_row(rebuild_stat_block(row, socket_items=(1002787, 1002793, 1002812, 1002910)))
+        self.assertEqual(four.socket_items, (1002787, 1002793, 1002812, 1002910))
+        def shape(item):
+            return (
+                [[(s.status_key, s.value) for s in level.stats] for level in item.enchant_levels],
+                [[(p.item_key, p.price) for p in level.buy_prices] for level in item.enchant_levels],
+                [(p.item_key, p.price) for p in item.price_list], item.add_socket_materials, item.item_type, item.memo,
+            )
+        self.assertEqual(shape(four), shape(row), "everything else in the block and the row survives")
+        self.assertEqual(len(four.raw), len(raw) + 12)
+        none = parse_iteminfo_row(rebuild_stat_block(row, socket_items=()))
+        self.assertEqual(none.socket_items, ())
+        self.assertEqual(none.enchant_count, row.enchant_count)
+        self.assertEqual(rebuild_stat_block(row, socket_items=row.socket_items), raw, "the template's own list is a no-op")
+        eight = parse_iteminfo_row(rebuild_stat_block(row, socket_items=tuple(1002785 + i for i in range(8))))
+        self.assertEqual(len(eight.socket_items), 8, "the reader's limit")
+        with self.assertRaisesRegex(ItemInfoRowError, "more than 8"):
+            rebuild_stat_block(row, socket_items=tuple(1002785 + i for i in range(9)))
+        with self.assertRaisesRegex(ItemInfoRowError, "positive u32"):
+            rebuild_stat_block(row, socket_items=(0,))
+
     def test_rebuild_refusals(self) -> None:
         row = parse_iteminfo_row(build_row())
         with self.assertRaisesRegex(ItemInfoRowError, "0..n-1"):

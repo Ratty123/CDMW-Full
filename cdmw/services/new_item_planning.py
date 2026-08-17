@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem
+from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, encode_pathc, register_dds, register_texture
 from cdmw.core.item_model_family import ItemModelFamily
 from cdmw.core.itemgroupinfo_table import add_group_members, apply_item_group_row, groups_containing
 from cdmw.core.multichangeinfo_table import allocate_multichange_keys, clone_transition_rows, find_multichange_keys, transition_rows_for
@@ -42,7 +43,7 @@ from cdmw.core.prefab_binary_edit import rewrite_prefab_paths_any_length
 from cdmw.core.storeinfo_table import apply_store_row, insert_stock_entry, swap_stock_item
 from cdmw.core.stringinfo_table import append_stringinfo_strings, stringinfo_key
 from cdmw.core.structured_binary_editor import append_table_rows
-from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
+from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest, MetaFileWrite
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.rules import ValidationIssue
 from cdmw.domain.new_item.spec import EnhancementRows, IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind
@@ -72,10 +73,13 @@ class NewItemPlan:
     warnings: Tuple[str, ...]
     manifest: Mapping[str, object]
     issues: Tuple[ValidationIssue, ...] = ()
+    #: Loose index files beside the archives to rewrite on install (`meta/0.pathc` with
+    #: the new textures registered). Not part of a loose mod: the managers build it.
+    meta_files: Tuple[MetaFileWrite, ...] = ()
 
     @property
     def touched_paths(self) -> Tuple[str, ...]:
-        return tuple(request.entry.path for request in self.patches) + self.new_paths
+        return tuple(request.entry.path for request in self.patches) + self.new_paths + tuple(m.path for m in self.meta_files)
 
 
 @dataclass(slots=True)
@@ -97,6 +101,7 @@ class _Planner:
     stop_event: Optional[threading.Event]
     patches: List[ArchivePatchRequest] = field(default_factory=list)
     additions: List[ArchiveAddRequest] = field(default_factory=list)
+    meta_files: List[MetaFileWrite] = field(default_factory=list)
     summary: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     manifest: Dict[str, object] = field(default_factory=dict)
@@ -238,10 +243,13 @@ class _Planner:
         if spec.max_stack_count is not None and int(spec.max_stack_count) != row.max_stack_count:
             row_bytes = set_max_stack_count(row, int(spec.max_stack_count))
             row = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(spec.item_key)})
-        if not (spec.stat_edits or spec.buy_price_edits or spec.price_edits):
+        sockets = None if spec.socket_items is None else tuple(int(item) for item in spec.socket_items)
+        if sockets is not None and sockets == tuple(row.socket_items):
+            sockets = None
+        if not (spec.stat_edits or spec.buy_price_edits or spec.price_edits) and sockets is None:
             return row_bytes
         if row.stat_block_offset is None:
-            raise NewItemPlanError(f"{self.template.string_key} has no decoded stat block; stats and prices cannot be edited")
+            raise NewItemPlanError(f"{self.template.string_key} has no decoded stat block; stats, prices and socket items cannot be edited")
         levels: List[EnchantLevel] = list(row.enchant_levels)
         for edit in spec.stat_edits:
             levels = _grow_levels(levels, edit.level, what=f"stat {edit.status_key}")
@@ -252,15 +260,21 @@ class _Planner:
         prices = row.price_list
         for edit in spec.price_edits:
             prices = price_list_with(prices, int(edit.item_key), int(edit.price))
-        rebuilt = rebuild_stat_block(row, levels=levels, price_list=prices)
+        rebuilt = rebuild_stat_block(row, levels=levels, price_list=prices, socket_items=sockets)
         again = parse_iteminfo_row(rebuilt, item_keys=set(self.snapshot.rows) | {int(spec.item_key)})
-        if again.stat_block_offset is None or again.enchant_count != len(levels):
+        if again.stat_block_offset is None or again.enchant_count != len(levels) or (sockets is not None and again.socket_items != sockets):
             raise NewItemPlanError("the rebuilt stat block did not parse back the way it was written")
         if len(levels) > len(row.enchant_levels):
             self.warnings.append(
                 f"The row carries {len(levels) - len(row.enchant_levels)} enchant level(s) the template lacks; "
                 "a rebuilt ladder is unproven in game."
             )
+        if sockets is not None:
+            names = [self.snapshot.rows[item].string_key if item in self.snapshot.rows else str(item) for item in sockets]
+            self.summary.append(f"socket items: {len(sockets)} ({', '.join(names)}) instead of the template's {len(row.socket_items)}")
+            self.manifest["socket_items"] = list(sockets)
+            if len(sockets) > 4:
+                self.warnings.append(f"The row carries {len(sockets)} socket items; no shipped item carries more than 4, so that many is unproven in game.")
         self.summary.append(
             f"stats: {len(spec.stat_edits)} stat, {len(spec.buy_price_edits)} buy-price and {len(spec.price_edits)} price edit(s)"
         )
@@ -422,6 +436,39 @@ class _Planner:
         self.add(template_entry, self.icon.target_path, self.icon.payload_data, f"icon: {self.icon.target_path}")
         self.manifest["icon"] = {"string": self.icon.icon_string, "hash": f"0x{self.icon.icon_hash:08X}", "path": self.icon.target_path}
 
+    def plan_texture_registry(self) -> None:
+        """Register every new `.dds` in `meta/0.pathc`: the game looks textures up there first.
+
+        The icon is registered like the template's icon (same header, checked against
+        the new file's own header); an imported model's textures under the shipped
+        header their DDS header equals. Without a registry in the snapshot the plan
+        still builds, with a warning, since a loose mod leaves this to the manager.
+        """
+
+        new_dds = [request for request in self.additions if request.path.lower().endswith(".dds")]
+        self.manifest["texture_registry"] = []
+        if not new_dds:
+            return
+        table = self.snapshot.pathc
+        if table is None:
+            self.warnings.append("No texture registry (meta/0.pathc) was found beside the archives; the new textures will not draw when installed directly until it is rebuilt.")
+            return
+        icon_files = self.family.files_for("icon")
+        template_icon = icon_files[0].path if icon_files and icon_files[0].exists else ""
+        registered = []
+        for request in new_dds:
+            try:
+                if self.icon is not None and request.path == self.icon.target_path and template_icon:
+                    table = register_texture(table, request.path, like=template_icon, dds_header=request.payload_data)
+                else:
+                    table = register_dds(table, request.path, request.payload_data)
+            except PathcError as exc:
+                raise NewItemPlanError(f"texture registry: {exc}") from exc
+            registered.append(request.path)
+        self.meta_files.append(MetaFileWrite(PATHC_RELATIVE_PATH, encode_pathc(table)))
+        self.summary.append(f"texture registry: {len(registered)} new texture(s) registered in {PATHC_RELATIVE_PATH}")
+        self.manifest["texture_registry"] = registered
+
 
 def planned_icon_string(spec: NewItemSpec, snapshot: NewItemSnapshot) -> str:
     """The `ItemIcon_Prefab_*` string a generated icon for `spec` is named by."""
@@ -475,7 +522,7 @@ def build_plan(
             (planner.plan_strings, "strings"), (planner.plan_part_prefabs, "part prefabs"), (planner.plan_enhancements, "enhancement rows"),
             (planner.plan_item_row, "item row"),
             (planner.plan_item_groups, "item groups"), (planner.plan_store, "store"), (planner.plan_names, "names"),
-            (planner.plan_model_files, "model files"), (planner.plan_icon, "icon"),
+            (planner.plan_model_files, "model files"), (planner.plan_icon, "icon"), (planner.plan_texture_registry, "texture registry"),
         ):
             planner.check()
             planner.log(f"Planning {label}...")
@@ -495,6 +542,7 @@ def build_plan(
         warnings=tuple(planner.warnings),
         manifest=dict(planner.manifest),
         issues=tuple(issues),
+        meta_files=tuple(planner.meta_files),
     )
 
 

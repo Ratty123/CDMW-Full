@@ -5,7 +5,9 @@ clones touch and the spike's own output. The gate plans Clone A (template model)
 Clone B (cloned model family) with the spike's keys and names and asserts identical
 ItemInfo rows, StringInfo rows, part-prefab records, store rows, group memberships,
 localisation records, re-pathed prefabs and file hashes. Anything that drifts here
-has drifted from something the game accepted.
+has drifted from something the game accepted. (The spike's localisation keys were
+not the derived form the game looks up, so its names were blank; they are passed
+explicitly here so the replay stays exact, and the allocator no longer makes them.)
 """
 
 from __future__ import annotations

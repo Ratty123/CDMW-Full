@@ -33,7 +33,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence
 
 from cdmw.core import archive_patching as _patching
 from cdmw.core.archive_format import VfsPathResolver, calculate_pa_checksum
-from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest, ArchivePatchResult
+from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest, ArchivePatchResult, MetaFileWrite
 
 
 def _normalize(value: str) -> str:
@@ -469,22 +469,29 @@ def apply_archive_mutations(
     patches: Sequence[ArchivePatchRequest] = (),
     additions: Sequence[ArchiveAddRequest] = (),
     *,
+    meta_files: Sequence[MetaFileWrite] = (),
     on_log: Optional[Callable[[str], None]] = None,
 ) -> ArchivePatchResult:
     """Replace and/or add archive entries in one backed-up, checksum-chained write.
 
     Replacements keep the proven in-place record rewrite. A package group that
     receives additions is rebuilt through :class:`PamtDocument` instead, and its
-    replacements ride along in that rebuild so one backup covers both.
+    replacements ride along in that rebuild so one backup covers both. `meta_files`
+    are loose index files beside the archives (`meta/0.pathc`), rewritten whole under
+    the same backup once the archive chain verifies.
     """
 
     patches = tuple(patches or ())
     additions = tuple(additions or ())
+    meta_files = tuple(meta_files or ())
     if not patches and not additions:
         raise ValueError("No archive modifications were provided.")
     for request in additions:
         if not isinstance(request, ArchiveAddRequest):
             raise TypeError("Archive additions must be ArchiveAddRequest values.")
+    for request in meta_files:
+        if not isinstance(request, MetaFileWrite):
+            raise TypeError("Archive meta file writes must be MetaFileWrite values.")
 
     package_roots = {_patching._package_root_from_entry(request.entry).resolve() for request in patches}
     package_roots.update(Path(request.pamt_path).resolve().parent.parent for request in additions)
@@ -494,6 +501,14 @@ def apply_archive_mutations(
     papgt_path = package_root / "meta" / "0.papgt"
     if not papgt_path.is_file():
         raise FileNotFoundError(f"Could not find PAPGT root index at {papgt_path}.")
+    meta_writes = {}
+    for request in meta_files:
+        target = (package_root / request.path).resolve()
+        if package_root not in target.parents:
+            raise ValueError(f"Meta file {request.path!r} is outside the package root.")
+        if not target.is_file():
+            raise FileNotFoundError(f"Meta file {request.path!r} does not exist under {package_root}; only shipped index files are rewritten.")
+        meta_writes[request.path] = (target, request.payload_data)
 
     grouped_patches: Dict[Path, List[ArchivePatchRequest]] = {}
     for request in patches:
@@ -535,6 +550,7 @@ def apply_archive_mutations(
         added_paths=[request.path for request in additions],
         apply_group=apply_group,
         on_log=on_log,
+        meta_writes=meta_writes,
     )
 
 

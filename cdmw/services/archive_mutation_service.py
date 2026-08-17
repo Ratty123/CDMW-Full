@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest, ArchivePatchResult
+from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest, ArchivePatchResult, MetaFileWrite
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.archives.safety import ArchiveMutationSafety, require_explicit_archive_mutation
 from cdmw.models import RunCancelled
@@ -31,12 +31,14 @@ class ArchiveMutationPlan:
     confirmed: bool = False
     #: Brand-new entries the plan adds; they share the patch's backup and checksum chain.
     additions: tuple[ArchiveAddRequest, ...] = ()
+    #: Loose index files beside the archives (`meta/0.pathc`) rewritten whole under the same backup.
+    meta_files: tuple[MetaFileWrite, ...] = ()
 
     @property
     def target_paths(self) -> tuple[str, ...]:
         return tuple(request.entry.path for request in self.requests) + tuple(
             request.path for request in self.additions
-        )
+        ) + tuple(request.path for request in self.meta_files)
 
 
 @dataclass(slots=True)
@@ -52,17 +54,21 @@ class ArchiveMutationService:
         command: ArchivePatchRequest | Iterable[ArchivePatchRequest],
         *,
         additions: ArchiveAddRequest | Iterable[ArchiveAddRequest] = (),
+        meta_files: MetaFileWrite | Iterable[MetaFileWrite] = (),
         confirmed: bool = False,
         description: str = "",
     ) -> ArchiveMutationPlan:
         requests = (command,) if isinstance(command, ArchivePatchRequest) else tuple(command)
         added = (additions,) if isinstance(additions, ArchiveAddRequest) else tuple(additions)
+        metas = (meta_files,) if isinstance(meta_files, MetaFileWrite) else tuple(meta_files)
         if not requests and not added:
             raise ValueError("No archive modifications were provided.")
         if any(not isinstance(request, ArchivePatchRequest) for request in requests):
             raise TypeError("Archive mutation plans accept ArchivePatchRequest values only.")
         if any(not isinstance(request, ArchiveAddRequest) for request in added):
             raise TypeError("Archive mutation plan additions accept ArchiveAddRequest values only.")
+        if any(not isinstance(request, MetaFileWrite) for request in metas):
+            raise TypeError("Archive mutation plan meta files accept MetaFileWrite values only.")
         if description:
             detail = str(description).strip()
         elif requests and added:
@@ -76,6 +82,7 @@ class ArchiveMutationService:
             safety=require_explicit_archive_mutation(detail),
             confirmed=bool(confirmed),
             additions=added,
+            meta_files=metas,
         )
 
     def validate_patch(
@@ -109,6 +116,7 @@ class ArchiveMutationService:
         for pamt_path, add_plan in add_plans.items():
             targets.add(pamt_path)
             targets.add((pamt_path.parent / f"{add_plan.target_paz_index}.paz").resolve())
+        targets.update((papgt_path.parent.parent / request.path).resolve() for request in plan.meta_files)
         # Backup publication is intentionally non-interruptible once copying starts.
         return _archive_patching()._create_backup(
             sorted(targets),
@@ -142,8 +150,8 @@ class ArchiveMutationService:
                 on_log(text)
 
         try:
-            if plan.additions:
-                result = _archive_entry_addition().apply_archive_mutations(plan.requests, plan.additions, on_log=guarded_log)
+            if plan.additions or plan.meta_files:
+                result = _archive_entry_addition().apply_archive_mutations(plan.requests, plan.additions, meta_files=plan.meta_files, on_log=guarded_log)
             else:
                 result = _archive_patching().patch_archive_entries(plan.requests, on_log=guarded_log)
             raise_if_cancelled(stop_event, "Archive patch cancelled; restoring the backup.")

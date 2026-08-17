@@ -116,6 +116,9 @@ class NewItemSpec:
     item_groups: ItemGroupsChoice = ItemGroupsChoice.TEMPLATE
     explicit_item_groups: Tuple[int, ...] = ()
     enhancement: EnhancementRows = EnhancementRows.TEMPLATE
+    #: The Abyss Gear items embedded by default (the tooltip's perk lines), as item keys;
+    #: None keeps the template's. The shipped rows carry up to four.
+    socket_items: Optional[Tuple[int, ...]] = None
 
     @property
     def needs_new_model_files(self) -> bool:

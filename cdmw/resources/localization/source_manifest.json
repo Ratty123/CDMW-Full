@@ -87,6 +87,26 @@
       ]
     },
     {
+      "key": "    + {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 104,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
+      "key": "    ~ {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 104,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "   [degenerate: pitch is at 90, euler cannot round-trip here]",
       "origins": [
         {
@@ -121,7 +141,17 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 370,
+          "line": 723,
+          "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "   ·  dual-wield donor",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 723,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -131,8 +161,58 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 370,
+          "line": 723,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "  (none)",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 104,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 104,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 104,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 648,
+          "sink": "setText"
+        },
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 648,
+          "sink": "setText"
+        },
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 649,
+          "sink": "setDetailedText"
+        },
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 649,
+          "sink": "setDetailedText"
         }
       ]
     },
@@ -141,18 +221,8 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 667,
+          "line": 689,
           "sink": "python-return:_follow_child_socket"
-        }
-      ]
-    },
-    {
-      "key": "  (turned it the right way up)",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_editing.py",
-          "line": 733,
-          "sink": "python-return:_ensure_blade_hangs_down"
         }
       ]
     },
@@ -217,12 +287,42 @@
       ]
     },
     {
+      "key": "  - {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "  A sheath normally shares the weapon's body socket so the two move together.",
       "origins": [
         {
           "path": "tools/placement_studio/inspector.py",
           "line": 170,
           "sink": "python-return:describe_part"
+        }
+      ]
+    },
+    {
+      "key": "  ERROR  {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 144,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
+      "key": "  No linked row — this item carries nothing.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 631,
+          "sink": "QLabel"
         }
       ]
     },
@@ -748,6 +848,31 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_mesh_diagnostics_callbacks.py",
           "line": 317,
           "sink": "setPlainText"
+        },
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 104,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 104,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -766,38 +891,8 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 778,
+          "line": 806,
           "sink": "python-return:_warn_if_angle_is_wrong"
-        }
-      ]
-    },
-    {
-      "key": "  —  it is still upside down; aim it by hand with Rotate or Tilt",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_editing.py",
-          "line": 732,
-          "sink": "python-return:_ensure_blade_hangs_down"
-        }
-      ]
-    },
-    {
-      "key": "  —  it is upside down and the correction could not be applied",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_editing.py",
-          "line": 728,
-          "sink": "python-return:_ensure_blade_hangs_down"
-        }
-      ]
-    },
-    {
-      "key": "  —  it is upside down and there is no angle on the item to correct",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_editing.py",
-          "line": 721,
-          "sink": "python-return:_ensure_blade_hangs_down"
         }
       ]
     },
@@ -806,7 +901,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 666,
+          "line": 688,
           "sink": "python-return:_follow_child_socket"
         }
       ]
@@ -816,8 +911,18 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 656,
+          "line": 678,
           "sink": "python-return:_follow_child_socket"
+        }
+      ]
+    },
+    {
+      "key": "  —  {value_0} Use {value_1} or Turn it the right way up.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 740,
+          "sink": "python-return:_orientation_diagnostic"
         }
       ]
     },
@@ -1221,12 +1326,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 132,
+          "line": 135,
           "sink": "QLabel"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1030,
+          "line": 1074,
           "sink": "setText"
         }
       ]
@@ -1272,26 +1377,11 @@
       ]
     },
     {
-      "key": "(not carried anywhere)",
-      "origins": [
-        {
-          "path": "tools/placement_studio/move_weapon.py",
-          "line": 154,
-          "sink": "QLabel"
-        },
-        {
-          "path": "tools/placement_studio/move_weapon.py",
-          "line": 285,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "(nothing has been changed yet)",
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 610,
+          "line": 680,
           "sink": "addItem"
         }
       ]
@@ -1323,6 +1413,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_rows.py",
           "line": 80,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "(unresolved)",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 884,
+          "sink": "setText"
         }
       ]
     },
@@ -1436,7 +1536,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 821,
+          "line": 849,
           "sink": "python-return:_borrow_child_socket"
         }
       ]
@@ -2017,6 +2117,16 @@
       ]
     },
     {
+      "key": "1. Equipment",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 180,
+          "sink": "addTab"
+        }
+      ]
+    },
+    {
       "key": "1. Set Selected Driver Parts",
       "origins": [
         {
@@ -2077,21 +2187,6 @@
       ]
     },
     {
-      "key": "1h",
-      "origins": [
-        {
-          "path": "tools/placement_studio/carry.py",
-          "line": 305,
-          "sink": "python-return:weapon_handedness"
-        },
-        {
-          "path": "tools/placement_studio/carry.py",
-          "line": 312,
-          "sink": "python-return:weapon_handedness"
-        }
-      ]
-    },
-    {
       "key": "1x",
       "origins": [
         {
@@ -2118,6 +2213,16 @@
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.MorphRefit.cs",
           "line": 234,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
+        }
+      ]
+    },
+    {
+      "key": "2. Placement and linked parts",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 181,
+          "sink": "addTab"
         }
       ]
     },
@@ -2172,21 +2277,6 @@
       ]
     },
     {
-      "key": "2h",
-      "origins": [
-        {
-          "path": "tools/placement_studio/carry.py",
-          "line": 307,
-          "sink": "python-return:weapon_handedness"
-        },
-        {
-          "path": "tools/placement_studio/carry.py",
-          "line": 314,
-          "sink": "python-return:weapon_handedness"
-        }
-      ]
-    },
-    {
       "key": "2x",
       "origins": [
         {
@@ -2198,6 +2288,16 @@
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
           "line": 189,
           "sink": "_add_combo_choice"
+        }
+      ]
+    },
+    {
+      "key": "3. Animations",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 182,
+          "sink": "addTab"
         }
       ]
     },
@@ -2303,6 +2403,16 @@
           "path": "cdmw/ui/safe_upscale_wizard.py",
           "line": 191,
           "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
+      "key": "4. Review",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 183,
+          "sink": "addTab"
         }
       ]
     },
@@ -3463,6 +3573,16 @@
           "path": "tools/placement_studio/inspector.py",
           "line": 117,
           "sink": "python-return:describe_socket"
+        }
+      ]
+    },
+    {
+      "key": "A clip authored for the other playable character. It plays — the rigs share most of their bones — but the proportions differ, so a borrowed draw may reach near the hilt rather than onto it.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 390,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -4662,6 +4782,16 @@
       "manual": true
     },
     {
+      "key": "Add a half turn about Y to the selected child socket.\n\nOffered rather than applied: the check that spots an inverted item measures the placed geometry, and mesh origins differ enough between assets that it is evidence and not a verdict. A socket that aims more than one row is refused.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 229,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Add a layer mask before switching the editor into mask paint mode.",
       "origins": [],
       "manual": true
@@ -5501,7 +5631,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 213,
+          "line": 216,
           "sink": "setToolTip"
         }
       ]
@@ -5992,6 +6122,16 @@
       ]
     },
     {
+      "key": "Allow leaving a required linked part behind (advanced, high risk)",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 276,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Allow socket names of a different length",
       "origins": [
         {
@@ -6128,16 +6268,6 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_review.py",
           "line": 66,
           "sink": "setHeaderLabels"
-        }
-      ]
-    },
-    {
-      "key": "Also change the animations",
-      "origins": [
-        {
-          "path": "tools/placement_studio/move_weapon.py",
-          "line": 171,
-          "sink": "QGroupBox"
         }
       ]
     },
@@ -6357,6 +6487,16 @@
       ]
     },
     {
+      "key": "An earlier operation in this session already changed this. It is not the game's default.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 953,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Analysis",
       "origins": [],
       "manual": true
@@ -6481,7 +6621,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 167,
+          "line": 170,
           "sink": "QLabel"
         }
       ]
@@ -6592,6 +6732,76 @@
       ]
     },
     {
+      "key": "Animation donor families",
+      "origins": [
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 139,
+          "sink": "python-return:package_scope_html"
+        },
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 174,
+          "sink": "python-return:package_scope_html"
+        }
+      ]
+    },
+    {
+      "key": "Animation donors:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
+      "key": "Animation files ({value_0})",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 648,
+          "sink": "setText"
+        },
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 649,
+          "sink": "setDetailedText"
+        }
+      ]
+    },
+    {
+      "key": "Animation target families",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 104,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 139,
+          "sink": "python-return:package_scope_html"
+        },
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 174,
+          "sink": "python-return:package_scope_html"
+        }
+      ]
+    },
+    {
+      "key": "Animation targets:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Animation/motion bytes are copied only when both source and target motion paths are resolved.",
       "origins": [
         {
@@ -6606,7 +6816,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 745,
+          "line": 841,
           "sink": "setWindowTitle"
         }
       ]
@@ -6616,7 +6826,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 747,
+          "line": 843,
           "sink": "setText"
         }
       ]
@@ -8471,7 +8681,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 174,
+          "line": 182,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -8481,7 +8691,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 173,
+          "line": 181,
           "sink": "PermissionError"
         }
       ]
@@ -9026,7 +9236,17 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 65,
+          "line": 69,
+          "sink": "TypeError"
+        }
+      ]
+    },
+    {
+      "key": "Archive mutation plan meta files accept MetaFileWrite values only.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_mutation_service.py",
+          "line": 71,
           "sink": "TypeError"
         }
       ]
@@ -9036,7 +9256,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 63,
+          "line": 67,
           "sink": "TypeError"
         }
       ]
@@ -9056,7 +9276,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 181,
+          "line": 189,
           "sink": "TypeError"
         }
       ]
@@ -9126,7 +9346,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 92,
+          "line": 99,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -9136,7 +9356,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 137,
+          "line": 145,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -9146,7 +9366,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 88,
+          "line": 95,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -9156,7 +9376,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 127,
+          "line": 135,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -9166,12 +9386,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 140,
+          "line": 148,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 149,
+          "line": 157,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -9191,7 +9411,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 188,
+          "line": 196,
           "sink": "PermissionError"
         }
       ]
@@ -9201,7 +9421,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 202,
+          "line": 210,
           "sink": "ValueError"
         }
       ]
@@ -11443,6 +11663,11 @@
           "path": "tools/dotnet_mesh_editor_experiment/MorphAuthorWizard.cs",
           "line": 217,
           "sink": "csharp:.Text="
+        },
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 187,
+          "sink": "addButton"
         }
       ]
     },
@@ -11996,7 +12221,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 747,
+          "line": 843,
           "sink": "setText"
         }
       ]
@@ -12011,7 +12236,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 747,
+          "line": 843,
           "sink": "setText"
         }
       ]
@@ -12428,6 +12653,16 @@
           "path": "tools/placement_studio/window.py",
           "line": 337,
           "sink": "setTabToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Borrowed-character clips: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -13406,7 +13641,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1070,
+          "line": 1210,
           "sink": "getExistingDirectory"
         }
       ]
@@ -14056,7 +14291,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1103,
+          "line": 1289,
           "sink": "showMessage"
         }
       ]
@@ -15342,6 +15577,16 @@
       ]
     },
     {
+      "key": "Cancelled while reading the animations — nothing was changed",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 425,
+          "sink": "showMessage"
+        }
+      ]
+    },
+    {
       "key": "Cancelled {value_0} export for {value_1}.",
       "origins": [
         {
@@ -15451,7 +15696,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 302,
+          "line": 950,
           "sink": "EditError"
         }
       ]
@@ -15473,6 +15718,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 1958,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Cannot preview it: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 622,
+          "sink": "showMessage"
         }
       ]
     },
@@ -15571,7 +15826,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 747,
+          "line": 843,
           "sink": "setText"
         }
       ]
@@ -15581,7 +15836,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 747,
+          "line": 843,
           "sink": "setText"
         }
       ]
@@ -15601,7 +15856,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 811,
+          "line": 907,
           "sink": "showMessage"
         }
       ]
@@ -18731,7 +18986,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 98,
+          "line": 101,
           "sink": "setItemData"
         }
       ]
@@ -18741,7 +18996,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 98,
+          "line": 101,
           "sink": "setItemData"
         }
       ]
@@ -18761,7 +19016,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 402,
+          "line": 424,
           "sink": "showMessage"
         }
       ]
@@ -19053,6 +19308,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_prompt_close.py",
           "line": 120,
           "sink": "question"
+        }
+      ]
+    },
+    {
+      "key": "Close without changing anything.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 498,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -20307,6 +20572,26 @@
       ]
     },
     {
+      "key": "Confirm before continuing",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 144,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 139,
+          "sink": "python-return:package_scope_html"
+        },
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 174,
+          "sink": "python-return:package_scope_html"
+        }
+      ]
+    },
+    {
       "key": "Confirm clearing PNG / DDS output folders before Start",
       "origins": [
         {
@@ -20323,6 +20608,16 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 1002,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Confirm the package scope",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1263,
+          "sink": "setWindowTitle"
         }
       ]
     },
@@ -20780,6 +21075,16 @@
       "key": "Context:",
       "origins": [],
       "manual": true
+    },
+    {
+      "key": "Contexts (leave alone to use the preset's own set)",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 373,
+          "sink": "QGroupBox"
+        }
+      ]
     },
     {
       "key": "Contiguous fill only",
@@ -21726,7 +22031,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 515,
+          "line": 537,
           "sink": "warning"
         }
       ]
@@ -21776,7 +22081,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 210,
+          "line": 218,
           "sink": "FileNotFoundError"
         }
       ]
@@ -21912,16 +22217,6 @@
         {
           "path": "tools/placement_studio/window_clips.py",
           "line": 359,
-          "sink": "showMessage"
-        }
-      ]
-    },
-    {
-      "key": "Could not move it: {value_0}",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_carry.py",
-          "line": 684,
           "sink": "showMessage"
         }
       ]
@@ -22526,7 +22821,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 524,
+          "line": 546,
           "sink": "showMessage"
         }
       ]
@@ -22536,7 +22831,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 332,
+          "line": 354,
           "sink": "showMessage"
         }
       ]
@@ -22546,7 +22841,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 314,
+          "line": 336,
           "sink": "showMessage"
         }
       ]
@@ -24892,12 +25187,47 @@
       ]
     },
     {
+      "key": "Descriptor files",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 648,
+          "sink": "setText"
+        },
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 649,
+          "sink": "setDetailedText"
+        }
+      ]
+    },
+    {
       "key": "Descriptor names that can help label matching HKX body/shape records.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_catalog_part_01.py",
           "line": 424,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Descriptor rows changed",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 104,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
+      "key": "Descriptor rows changed: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -25003,6 +25333,26 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_catalog_part_01.py",
           "line": 142,
           "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "Destination zone:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 305,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Destination: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -25937,6 +26287,36 @@
       ]
     },
     {
+      "key": "Discard selected",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 688,
+          "sink": "addButton"
+        }
+      ]
+    },
+    {
+      "key": "Discard this operation",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 497,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Discarded {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 729,
+          "sink": "_after"
+        }
+      ]
+    },
+    {
       "key": "Discovered texture file(s): {value_0}",
       "origins": [
         {
@@ -26581,7 +26961,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 98,
+          "line": 101,
           "sink": "setItemData"
         }
       ]
@@ -26591,7 +26971,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 98,
+          "line": 101,
           "sink": "setItemData"
         }
       ]
@@ -26601,7 +26981,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 98,
+          "line": 101,
           "sink": "setItemData"
         }
       ]
@@ -26611,7 +26991,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 98,
+          "line": 101,
           "sink": "setItemData"
         }
       ]
@@ -26667,16 +27047,6 @@
       ]
     },
     {
-      "key": "Draws and put-aways only",
-      "origins": [
-        {
-          "path": "tools/placement_studio/move_weapon.py",
-          "line": 188,
-          "sink": "QRadioButton"
-        }
-      ]
-    },
-    {
       "key": "Draws decoded HKX collision bodies over the model when a related Crimson Desert HKX file is resolved. The overlay is static inspection geometry and does not run Havok cloth or ragdoll simulation.",
       "origins": [
         {
@@ -26691,7 +27061,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 747,
+          "line": 843,
           "sink": "setText"
         }
       ]
@@ -26762,6 +27132,16 @@
       ]
     },
     {
+      "key": "Drop every free-form edit, keeping the accepted operations. The next move then starts from vanilla plus what was actually decided.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 695,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Drop the clip and return the rig to its rest pose",
       "origins": [
         {
@@ -26778,6 +27158,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_d3d11_presentation_state.py",
           "line": 459,
           "sink": "AlignmentD3D11StatusPresentation"
+        }
+      ]
+    },
+    {
+      "key": "Dropped {value_0} free-form edit(s); {value_1} operation(s) kept",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 733,
+          "sink": "_after"
         }
       ]
     },
@@ -27996,7 +28386,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 135,
+          "line": 138,
           "sink": "QLabel"
         }
       ]
@@ -28657,6 +29047,16 @@
       ]
     },
     {
+      "key": "Equipment: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Erase",
       "origins": [
         {
@@ -28752,6 +29152,16 @@
       ]
     },
     {
+      "key": "Every change in this session was made outside an operation. Move an item with Swap animations… so the change can be scoped, reviewed and packaged on its own.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1126,
+          "sink": "warning"
+        }
+      ]
+    },
+    {
       "key": "Every field this prefab declares, read from the file itself. Fields that point at another file are the ones worth repointing.",
       "origins": [
         {
@@ -28766,8 +29176,18 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 224,
+          "line": 419,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Every pending operation  (advanced)",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1140,
+          "sink": "QRadioButton"
         }
       ]
     },
@@ -28778,6 +29198,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 45,
           "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
+      "key": "Everything below, in one package. Read the list first: earlier experiments are in it.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1146,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -28808,16 +29238,6 @@
           "path": "tools/placement_studio/glossary.py",
           "line": 59,
           "sink": "Term"
-        }
-      ]
-    },
-    {
-      "key": "Everything — also standing, walking, running, turning and sitting",
-      "origins": [
-        {
-          "path": "tools/placement_studio/move_weapon.py",
-          "line": 190,
-          "sink": "QRadioButton"
         }
       ]
     },
@@ -29117,6 +29537,26 @@
       ]
     },
     {
+      "key": "Excluded earlier operations: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
+      "key": "Excluded free-form edits (not part of any operation): {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Executables",
       "origins": [
         {
@@ -29173,6 +29613,16 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 1909,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Existing shared sockets modified: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -30411,7 +30861,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1108,
+          "line": 1332,
           "sink": "getExistingDirectory"
         }
       ]
@@ -30681,7 +31131,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1112,
+          "line": 1336,
           "sink": "information"
         }
       ]
@@ -31256,7 +31706,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 227,
+          "line": 243,
           "sink": "QPushButton"
         }
       ]
@@ -32193,6 +32643,11 @@
           "path": "cdmw/ui/mesh_editor/workspace_panel_builder.py",
           "line": 277,
           "sink": "_tree"
+        },
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 324,
+          "sink": "setHorizontalHeaderLabels"
         }
       ]
     },
@@ -32447,6 +32902,16 @@
       ]
     },
     {
+      "key": "Files by extension",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 104,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Files found past the stop",
       "origins": [
         {
@@ -32473,6 +32938,26 @@
           "path": "cdmw/ui/shell/workspace_controller.py",
           "line": 259,
           "sink": "getItem"
+        }
+      ]
+    },
+    {
+      "key": "Files that would change",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 992,
+          "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "Files this operation would write",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 646,
+          "sink": "setWindowTitle"
         }
       ]
     },
@@ -34481,7 +34966,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 156,
+          "line": 159,
           "sink": "setToolTip"
         }
       ]
@@ -35616,7 +36101,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 64,
+          "line": 66,
           "sink": "python-return:socket_name_problem"
         }
       ]
@@ -35627,16 +36112,6 @@
         {
           "path": "tools/placement_studio/window_carry.py",
           "line": 154,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "Give this weapon the other grip's animations — the two-handed set for a one-handed weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.",
-      "origins": [
-        {
-          "path": "tools/placement_studio/move_weapon.py",
-          "line": 174,
           "sink": "setToolTip"
         }
       ]
@@ -36797,16 +37272,6 @@
       ]
     },
     {
-      "key": "Hangs on now:",
-      "origins": [
-        {
-          "path": "tools/placement_studio/move_weapon.py",
-          "line": 167,
-          "sink": "addRow"
-        }
-      ]
-    },
-    {
       "key": "Hangs on:",
       "origins": [
         {
@@ -37607,16 +38072,6 @@
       ]
     },
     {
-      "key": "How a weapon is carried changes the whole way the character holds themselves, not only how they draw it.\n\nThis covers every animation in the weapon's family, so it includes incidental ones — eating, sitting, climbing — where the stowed weapon is still visible. Leaving those out would have the weapon snap back to its old pose during them.",
-      "origins": [
-        {
-          "path": "tools/placement_studio/move_weapon.py",
-          "line": 194,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
       "key": "How disabled mode, direct NCNN, and chaiNNer behave.",
       "origins": [
         {
@@ -37631,7 +38086,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 122,
+          "line": 125,
           "sink": "setToolTip"
         }
       ]
@@ -37641,7 +38096,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 112,
+          "line": 115,
           "sink": "setToolTip"
         }
       ]
@@ -37737,6 +38192,16 @@
       ]
     },
     {
+      "key": "How much of the animation set follows",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 355,
+          "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
       "key": "How the spine lags and follows when the character turns",
       "origins": [
         {
@@ -37817,12 +38282,32 @@
       ]
     },
     {
+      "key": "I have looked at the orientation and it is correct",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 339,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "I need to understand what a texture family is",
       "origins": [
         {
           "path": "cdmw/ui/shell/help_dialogs.py",
           "line": 245,
           "sink": "setHtml"
+        }
+      ]
+    },
+    {
+      "key": "I understand full-body replacement changes the off-hand, shield arm and stance",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 367,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -39977,6 +40462,16 @@
       ]
     },
     {
+      "key": "Include mounted clips",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 388,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Include parent",
       "origins": [
         {
@@ -40053,6 +40548,16 @@
           "path": "cdmw/ui/archive_browser/attachment_plan.py",
           "line": 519,
           "sink": "add_row"
+        }
+      ]
+    },
+    {
+      "key": "Include the other character's clips",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 389,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -41691,7 +42196,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 166,
+          "line": 258,
           "sink": "addRow"
         }
       ]
@@ -43077,6 +43582,16 @@
       ]
     },
     {
+      "key": "Left and right are from the character's perspective, not the camera's.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 317,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Legacy CFT profile",
       "origins": [
         {
@@ -43563,6 +44078,26 @@
           "path": "cdmw/ui/archive_browser/static_replacement_texture_table_items.py",
           "line": 58,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Linked parts",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 268,
+          "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
+      "key": "Linked parts: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -44876,7 +45411,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 97,
+          "line": 100,
           "sink": "addItem"
         }
       ]
@@ -50056,7 +50591,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1074,
+          "line": 1214,
           "sink": "getText"
         }
       ]
@@ -50181,7 +50716,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 139,
+          "line": 142,
           "sink": "QLabel"
         }
       ]
@@ -51287,6 +51822,16 @@
       ]
     },
     {
+      "key": "Mounted clips: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Move",
       "origins": [
         {
@@ -51326,7 +51871,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 97,
+          "line": 100,
           "sink": "addItem"
         }
       ]
@@ -51366,7 +51911,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 132,
+          "line": 153,
           "sink": "setWindowTitle"
         }
       ]
@@ -51382,21 +51927,11 @@
       ]
     },
     {
-      "key": "Move it",
-      "origins": [
-        {
-          "path": "tools/placement_studio/move_weapon.py",
-          "line": 256,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "Move it to:",
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 168,
+          "line": 303,
           "sink": "addRow"
         }
       ]
@@ -51436,7 +51971,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 145,
+          "line": 148,
           "sink": "setToolTip"
         }
       ]
@@ -51482,12 +52017,52 @@
       ]
     },
     {
+      "key": "Move weapon",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_operation.py",
+          "line": 167,
+          "sink": "python-return:action_label"
+        }
+      ]
+    },
+    {
+      "key": "Move weapon and case",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_operation.py",
+          "line": 167,
+          "sink": "python-return:action_label"
+        }
+      ]
+    },
+    {
+      "key": "Move {value_0}, replace {value_1} animations",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_operation.py",
+          "line": 165,
+          "sink": "python-return:action_label"
+        }
+      ]
+    },
+    {
       "key": "Move, rotate or rescale...",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 490,
           "sink": "QAction"
+        }
+      ]
+    },
+    {
+      "key": "Moved",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 485,
+          "sink": "setWindowTitle"
         }
       ]
     },
@@ -51916,7 +52491,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 69,
+          "line": 71,
           "sink": "python-return:socket_name_problem"
         }
       ]
@@ -52736,8 +53311,28 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 97,
+          "line": 100,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "New child sockets:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 311,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "New child sockets: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -52756,7 +53351,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 114,
+          "line": 119,
           "sink": "raise_if_cancelled"
         },
         {
@@ -52771,22 +53366,22 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 203,
+          "line": 214,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 217,
+          "line": 228,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 226,
+          "line": 237,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 245,
+          "line": 256,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -52796,17 +53391,17 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 204,
+          "line": 207,
           "sink": "QPushButton"
         }
       ]
     },
     {
-      "key": "Newest first. Select a step and undo back to it.",
+      "key": "Newest first. Each row is one accepted operation — one undo, and one entry to include in or leave out of a package.",
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 632,
+          "line": 756,
           "sink": "QLabel"
         }
       ]
@@ -52838,6 +53433,11 @@
           "path": "tools/dotnet_mesh_editor_experiment/MorphAuthorWizard.cs",
           "line": 214,
           "sink": "csharp:.Text="
+        },
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 188,
+          "sink": "addButton"
         }
       ]
     },
@@ -53212,16 +53812,6 @@
       ]
     },
     {
-      "key": "No animations were swapped",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_carry.py",
-          "line": 452,
-          "sink": "showMessage"
-        }
-      ]
-    },
-    {
       "key": "No appearance XML selected. Using selected file evidence only.\nSource: {value_0}",
       "origins": [
         {
@@ -53326,7 +53916,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 61,
+          "line": 65,
           "sink": "ValueError"
         }
       ]
@@ -53446,7 +54036,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 381,
+          "line": 403,
           "sink": "showMessage"
         }
       ]
@@ -53487,6 +54077,21 @@
         {
           "path": "cdmw/ui/archive_browser/remote_finder_dialog.py",
           "line": 534,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "No changes",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_operation.py",
+          "line": 162,
+          "sink": "python-return:action_label"
+        },
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 906,
           "sink": "setText"
         }
       ]
@@ -53721,7 +54326,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 451,
+          "line": 473,
           "sink": "python-return:_retarget_length_target"
         }
       ]
@@ -53741,7 +54346,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 598,
+          "line": 620,
           "sink": "showMessage"
         }
       ]
@@ -53791,7 +54396,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 829,
+          "line": 925,
           "sink": "showMessage"
         }
       ]
@@ -53801,7 +54406,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 268,
+          "line": 282,
           "sink": "showMessage"
         }
       ]
@@ -54051,12 +54656,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 269,
+          "line": 291,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 892,
+          "line": 920,
           "sink": "showMessage"
         }
       ]
@@ -55631,7 +56236,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 464,
+          "line": 486,
           "sink": "showMessage"
         }
       ]
@@ -55661,22 +56266,22 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 392,
+          "line": 1053,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 400,
+          "line": 1062,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 407,
+          "line": 1069,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 425,
+          "line": 1088,
           "sink": "EditError"
         }
       ]
@@ -56062,6 +56667,16 @@
       ]
     },
     {
+      "key": "No {value_0}: nothing to compare the files against.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 126,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "No. CDMW bundles",
       "origins": [
         {
@@ -56361,12 +56976,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 314,
+          "line": 962,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 366,
+          "line": 1015,
           "sink": "EditError"
         }
       ]
@@ -56376,7 +56991,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 285,
+          "line": 933,
           "sink": "EditError"
         }
       ]
@@ -56386,7 +57001,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 501,
+          "line": 1170,
           "sink": "EditError"
         }
       ]
@@ -56396,7 +57011,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 485,
+          "line": 1153,
           "sink": "EditError"
         }
       ]
@@ -56408,6 +57023,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 45,
           "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
+      "key": "Not parsed (carried whole)",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 104,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -56722,6 +57347,16 @@
       ]
     },
     {
+      "key": "Nothing to package",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1126,
+          "sink": "warning"
+        }
+      ]
+    },
+    {
       "key": "Nothing to translate: no lines are in view.",
       "origins": [
         {
@@ -56738,6 +57373,26 @@
           "path": "tools/placement_studio/glossary.py",
           "line": 127,
           "sink": "Term"
+        }
+      ]
+    },
+    {
+      "key": "Nothing was changed: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 448,
+          "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "Nothing was written. These changes fall outside what the selected operation(s) declared:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1249,
+          "sink": "setText"
         }
       ]
     },
@@ -56766,7 +57421,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 144,
+          "line": 147,
           "sink": "QLabel"
         }
       ]
@@ -57262,6 +57917,16 @@
       ]
     },
     {
+      "key": "Off unless asked for: these clips move the whole body, or put the character on another rig entirely.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 378,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Off: the preset still chooses which texture types enter the PNG/upscale path, but automatic DDS safety recommendations are disabled.",
       "origins": [
         {
@@ -57488,6 +58153,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 376,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Only this operation will be packaged. Earlier operations stay in Recent actions until you select them.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 487,
+          "sink": "setText"
         }
       ]
     },
@@ -59237,12 +59912,72 @@
       ]
     },
     {
+      "key": "Operation {value_0} is already closed",
+      "origins": [
+        {
+          "path": "tools/placement_studio/editing.py",
+          "line": 667,
+          "sink": "EditError"
+        }
+      ]
+    },
+    {
+      "key": "Operation {value_0} is still open; commit or roll it back before starting another",
+      "origins": [
+        {
+          "path": "tools/placement_studio/editing.py",
+          "line": 654,
+          "sink": "EditError"
+        }
+      ]
+    },
+    {
+      "key": "Operation {value_0} is still open; commit or roll it back first",
+      "origins": [
+        {
+          "path": "tools/placement_studio/editing.py",
+          "line": 755,
+          "sink": "EditError"
+        }
+      ]
+    },
+    {
       "key": "Operation: {value_0}\n\n{value_1}\n\nRetry v2, or explicitly use the legacy archive scanner for this app session only. CDMW will not change your saved settings.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
           "line": 96,
           "sink": "setInformativeText"
+        }
+      ]
+    },
+    {
+      "key": "Operations",
+      "origins": [
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 116,
+          "sink": "python-return:operation_scope_html"
+        }
+      ]
+    },
+    {
+      "key": "Operations in this session, oldest first:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1161,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Operations: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -59533,6 +60268,41 @@
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 293,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Orientation from:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 308,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
+      "key": "Orientation sources",
+      "origins": [
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 139,
+          "sink": "python-return:package_scope_html"
+        },
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 174,
+          "sink": "python-return:package_scope_html"
+        }
+      ]
+    },
+    {
+      "key": "Orientation sources:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -60742,6 +61512,61 @@
       ]
     },
     {
+      "key": "Package blocked",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 144,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 139,
+          "sink": "python-return:package_scope_html"
+        },
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 174,
+          "sink": "python-return:package_scope_html"
+        },
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1246,
+          "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Package blocked — see the errors",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1258,
+          "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "Package cancelled — nothing was written",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1270,
+          "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "Package every pending operation?",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1184,
+          "sink": "question"
+        }
+      ]
+    },
+    {
       "key": "Package filter, e.g. 0000/0.pamt or 0012",
       "origins": [
         {
@@ -60766,7 +61591,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1074,
+          "line": 1214,
           "sink": "getText"
         }
       ]
@@ -60827,6 +61652,26 @@
       "manual": true
     },
     {
+      "key": "Package scope",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
+        },
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 139,
+          "sink": "python-return:package_scope_html"
+        },
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 174,
+          "sink": "python-return:package_scope_html"
+        }
+      ]
+    },
+    {
       "key": "Package service is not configured.",
       "origins": [
         {
@@ -60873,6 +61718,11 @@
           "path": "cdmw/workers/archive_preview_workers.py",
           "line": 359,
           "sink": "ArchivePreviewResult"
+        },
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 104,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -60911,8 +61761,8 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1098,
-          "sink": "information"
+          "line": 1284,
+          "sink": "setWindowTitle"
         }
       ]
     },
@@ -60931,7 +61781,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 230,
+          "line": 246,
           "sink": "QPushButton"
         }
       ]
@@ -60941,7 +61791,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1095,
+          "line": 1239,
           "sink": "warning"
         }
       ]
@@ -62487,6 +63337,16 @@
       ]
     },
     {
+      "key": "Pending before this operation",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 324,
+          "sink": "setHorizontalHeaderLabels"
+        }
+      ]
+    },
+    {
       "key": "Pending changes",
       "origins": [
         {
@@ -62506,7 +63366,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1004,
+          "line": 1040,
           "sink": "setTabText"
         }
       ]
@@ -62916,7 +63776,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 383,
+          "line": 405,
           "sink": "showMessage"
         }
       ]
@@ -63131,7 +63991,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1074,
+          "line": 1214,
           "sink": "getText"
         }
       ]
@@ -63701,7 +64561,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 481,
+          "line": 528,
           "sink": "log"
         }
       ]
@@ -63781,7 +64641,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 242,
+          "line": 435,
           "sink": "setToolTip"
         }
       ]
@@ -63791,7 +64651,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 413,
+          "line": 769,
           "sink": "setToolTip"
         }
       ]
@@ -63801,7 +64661,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 230,
+          "line": 448,
           "sink": "QCheckBox"
         }
       ]
@@ -63811,7 +64671,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 71,
+          "line": 105,
           "sink": "setToolTip"
         }
       ]
@@ -64006,7 +64866,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 232,
+          "line": 450,
           "sink": "setToolTip"
         }
       ]
@@ -66287,6 +67147,16 @@
       ]
     },
     {
+      "key": "Preview placement",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 471,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Preview ready for {value_0}.",
       "origins": [
         {
@@ -66458,6 +67328,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_texture_table_items.py",
           "line": 58,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Preview selected animation",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 480,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -66898,6 +67778,16 @@
           "path": "cdmw/ui/archive_browser/source_picker_dialog.py",
           "line": 280,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Previewing {value_0} — not recorded",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 625,
+          "sink": "showMessage"
         }
       ]
     },
@@ -67472,6 +68362,16 @@
       ]
     },
     {
+      "key": "Proposed",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 324,
+          "sink": "setHorizontalHeaderLabels"
+        }
+      ]
+    },
+    {
       "key": "Provider",
       "origins": [
         {
@@ -67537,6 +68437,16 @@
         {
           "path": "tools/placement_studio/window_constraints.py",
           "line": 233,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Put every control on these pages back to its starting value.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 493,
           "sink": "setToolTip"
         }
       ]
@@ -68311,7 +69221,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 204,
+          "line": 215,
           "sink": "log"
         }
       ]
@@ -68321,7 +69231,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 227,
+          "line": 238,
           "sink": "log"
         }
       ]
@@ -68331,7 +69241,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 218,
+          "line": 229,
           "sink": "log"
         }
       ]
@@ -68341,7 +69251,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 444,
+          "line": 413,
           "sink": "showMessage"
         }
       ]
@@ -68526,7 +69436,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 246,
+          "line": 257,
           "sink": "log"
         }
       ]
@@ -68557,11 +69467,21 @@
       ]
     },
     {
+      "key": "Reading the texture registry (meta/0.pathc)...",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 277,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "Reading {value_0} animation(s)...",
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 410,
+          "line": 379,
           "sink": "showMessage"
         }
       ]
@@ -69546,7 +70466,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 604,
+          "line": 668,
           "sink": "setWindowTitle"
         }
       ]
@@ -70487,6 +71407,16 @@
       ]
     },
     {
+      "key": "Redid {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 721,
+          "sink": "_after"
+        }
+      ]
+    },
+    {
       "key": "Redo",
       "origins": [
         {
@@ -70516,7 +71446,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 224,
+          "line": 240,
           "sink": "QPushButton"
         }
       ]
@@ -70528,6 +71458,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_source_part_action_state.py",
           "line": 32,
           "sink": "python-return:source_part_context_menu_text"
+        }
+      ]
+    },
+    {
+      "key": "Redo operation",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 686,
+          "sink": "addButton"
         }
       ]
     },
@@ -71246,7 +72186,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 435,
+          "line": 1099,
           "sink": "EditError"
         }
       ]
@@ -71256,7 +72196,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 347,
+          "line": 995,
           "sink": "EditError"
         }
       ]
@@ -71668,6 +72608,16 @@
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 229,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Remove the selected operation wherever it sits in the history. The others are replayed without it, so nothing of it is left behind.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 689,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -72147,6 +73097,16 @@
       ]
     },
     {
+      "key": "Replace {value_0} animations",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_operation.py",
+          "line": 168,
+          "sink": "python-return:action_label"
+        }
+      ]
+    },
+    {
       "key": "Replacement Preview",
       "origins": [
         {
@@ -72483,6 +73443,26 @@
           "path": "cdmw/ui/archive_browser/mesh_setup_helpers.py",
           "line": 338,
           "sink": "_section_label"
+        }
+      ]
+    },
+    {
+      "key": "Required for a consistent stow: it moves with the primary item unless you take the advanced exception below.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 639,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Required when the aim is borrowed from another item or authored by hand. The geometry check can warn that an item looks inverted; it will never rotate it for you, because mesh origins and attachment transforms differ by asset.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 342,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -72902,6 +73882,36 @@
       ]
     },
     {
+      "key": "Reset all pending changes",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 700,
+          "sink": "addButton"
+        }
+      ]
+    },
+    {
+      "key": "Reset all pending changes?",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 736,
+          "sink": "question"
+        }
+      ]
+    },
+    {
+      "key": "Reset every pending change",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 746,
+          "sink": "_after"
+        }
+      ]
+    },
+    {
       "key": "Reset keeps the inversion checkboxes as-is so you do not lose your preferred camera controls.",
       "origins": [
         {
@@ -72923,6 +73933,16 @@
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.MorphRefit.cs",
           "line": 340,
           "sink": "csharp:csharp-wrapper:CreateMorphCompactCard[1]"
+        }
+      ]
+    },
+    {
+      "key": "Reset this operation",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 492,
+          "sink": "QPushButton"
         }
       ]
     },
@@ -73328,6 +74348,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_02.py",
           "line": 83,
           "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Resolved as:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 261,
+          "sink": "addRow"
         }
       ]
     },
@@ -74206,7 +75236,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 196,
+          "line": 199,
           "sink": "QPushButton"
         }
       ]
@@ -74333,6 +75363,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_review.py",
           "line": 52,
           "sink": "setWindowTitle"
+        },
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 189,
+          "sink": "addButton"
+        },
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 903,
+          "sink": "setText"
         }
       ]
     },
@@ -74841,7 +75881,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 97,
+          "line": 100,
           "sink": "addItem"
         }
       ]
@@ -75046,7 +76086,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 571,
+          "line": 593,
           "sink": "python-return:_route_hint"
         }
       ]
@@ -75076,7 +76116,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 619,
+          "line": 641,
           "sink": "showMessage"
         }
       ]
@@ -75123,6 +76163,16 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 493,
           "sink": "_add_performance_row"
+        }
+      ]
+    },
+    {
+      "key": "Rows that belong to this item — its sheath, scabbard, quiver or holster. A required row moves with the weapon; leaving one behind separates the two.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 269,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -75706,7 +76756,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 368,
+          "line": 1017,
           "sink": "EditError"
         }
       ]
@@ -76913,6 +77963,16 @@
           "path": "cdmw/ui/archive_browser/remote_window_bridge.py",
           "line": 355,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Scope mismatches",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 126,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -78301,7 +79361,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 537,
+          "line": 559,
           "sink": "showMessage"
         }
       ]
@@ -78736,7 +79796,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 594,
+          "line": 616,
           "sink": "showMessage"
         }
       ]
@@ -78746,7 +79806,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 545,
+          "line": 567,
           "sink": "showMessage"
         }
       ]
@@ -79176,7 +80236,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 872,
+          "line": 900,
           "sink": "showMessage"
         }
       ]
@@ -79216,7 +80276,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 250,
+          "line": 443,
           "sink": "QPushButton"
         }
       ]
@@ -79532,6 +80592,16 @@
       ]
     },
     {
+      "key": "Select an item first.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 323,
+          "sink": "python-return:_resolve_unit"
+        }
+      ]
+    },
+    {
       "key": "Select an item icon DDS in Archive Browser first.",
       "origins": [
         {
@@ -79557,6 +80627,16 @@
       ]
     },
     {
+      "key": "Select an item to resolve this move.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 979,
+          "sink": "setPlainText"
+        }
+      ]
+    },
+    {
       "key": "Select an item to see resolved placement-source candidates.",
       "origins": [
         {
@@ -79568,6 +80648,16 @@
           "path": "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py",
           "line": 1164,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Select an operation to discard",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 726,
+          "sink": "showMessage"
         }
       ]
     },
@@ -79796,7 +80886,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 250,
+          "line": 443,
           "sink": "QPushButton"
         }
       ]
@@ -80048,6 +81138,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 45,
           "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
+      "key": "Select the item's own child socket — that is what holds its angle.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 758,
+          "sink": "showMessage"
         }
       ]
     },
@@ -80422,6 +81522,16 @@
       ]
     },
     {
+      "key": "Selected operations",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1139,
+          "sink": "QRadioButton"
+        }
+      ]
+    },
+    {
       "key": "Selected packages will be rewritten for their chosen manager profile.",
       "origins": [
         {
@@ -80571,7 +81681,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 852,
+          "line": 880,
           "sink": "showMessage"
         }
       ]
@@ -81006,7 +82116,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 97,
+          "line": 100,
           "sink": "addItem"
         }
       ]
@@ -81637,6 +82747,16 @@
       ]
     },
     {
+      "key": "Shared sockets:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 314,
+          "sink": "addRow"
+        }
+      ]
+    },
+    {
       "key": "Sharpen",
       "origins": [
         {
@@ -82192,6 +83312,16 @@
       ]
     },
     {
+      "key": "Show exact files",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 485,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Show guides",
       "origins": [
         {
@@ -82497,6 +83627,16 @@
         {
           "path": "cdmw/ui/texture_workflow/compare_panel.py",
           "line": 152,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Show the proposed placement on the character.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 472,
           "sink": "setToolTip"
         }
       ]
@@ -83976,7 +85116,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 263,
+          "line": 282,
           "sink": "log"
         }
       ]
@@ -84272,6 +85412,16 @@
       ]
     },
     {
+      "key": "Socket definitions",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 104,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Socket descriptor contains named socket transforms.",
       "origins": [
         {
@@ -84298,6 +85448,31 @@
           "path": "cdmw/ui/archive_browser/asset_family_dialog.py",
           "line": 426,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Socket files",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 648,
+          "sink": "setText"
+        },
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 649,
+          "sink": "setDetailedText"
+        }
+      ]
+    },
+    {
+      "key": "Socket files changed: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
         }
       ]
     },
@@ -84366,7 +85541,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 490,
+          "line": 1158,
           "sink": "EditError"
         }
       ]
@@ -84376,7 +85551,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 372,
+          "line": 1021,
           "sink": "EditError"
         }
       ]
@@ -84386,7 +85561,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 503,
+          "line": 1172,
           "sink": "EditError"
         }
       ]
@@ -85597,6 +86772,16 @@
       ]
     },
     {
+      "key": "Start clean operation",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 694,
+          "sink": "addButton"
+        }
+      ]
+    },
+    {
       "key": "Start with a safer preset.",
       "origins": [
         {
@@ -86441,7 +87626,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 137,
+          "line": 140,
           "sink": "QLabel"
         }
       ]
@@ -86516,7 +87701,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 494,
+          "line": 509,
           "sink": "showMessage"
         }
       ]
@@ -87637,6 +88822,16 @@
         {
           "path": "tools/placement_studio/window_constraints.py",
           "line": 229,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Take back the newest operation whole, in one step.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 684,
           "sink": "setToolTip"
         }
       ]
@@ -90106,7 +91301,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 747,
+          "line": 843,
           "sink": "setText"
         }
       ]
@@ -90168,6 +91363,16 @@
           "path": "cdmw/ui/texture_workflow/editor_tool_state.py",
           "line": 504,
           "sink": "python-return:texture_editor_empty_active_layer_filter_status"
+        }
+      ]
+    },
+    {
+      "key": "The aim comes from this item's own child socket for that destination, so there is nothing to review.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 940,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -90592,11 +91797,11 @@
       ]
     },
     {
-      "key": "The equipment row to move — a sword is a CD_MainWeapon row.",
+      "key": "The equipment row to move — a sword is a CD_MainWeapon or CD_TwoHandWeapon row.\n\nChanging this re-resolves the whole item: its case, its handedness, which animation families are its own, and which files may be written.",
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 152,
+          "line": 250,
           "sink": "setToolTip"
         }
       ]
@@ -90616,7 +91821,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 168,
+          "line": 171,
           "sink": "setToolTip"
         }
       ]
@@ -90717,6 +91922,16 @@
       ]
     },
     {
+      "key": "The latest operation only  (recommended)",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1138,
+          "sink": "QRadioButton"
+        }
+      ]
+    },
+    {
       "key": "The legacy renderer is not used as a fallback.",
       "origins": [
         {
@@ -90782,16 +91997,6 @@
       ]
     },
     {
-      "key": "The minimum that makes a moved weapon look right.",
-      "origins": [
-        {
-          "path": "tools/placement_studio/move_weapon.py",
-          "line": 193,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
       "key": "The mod replaces the",
       "origins": [
         {
@@ -90822,6 +92027,26 @@
       ]
     },
     {
+      "key": "The move was not applied",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 449,
+          "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "The operation you just accepted, replayed onto vanilla on its own.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1143,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "The optional model audit could not confidently classify this file. Geometry can still be routed manually; use the part list, DDS contract, and live preview diagnostics as the source of truth.",
       "origins": [
         {
@@ -90836,7 +92061,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 747,
+          "line": 843,
           "sink": "setText"
         }
       ]
@@ -91272,6 +92497,16 @@
       ]
     },
     {
+      "key": "The texture registry did not decode; new icons will not be registered: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 281,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "The tooltip identifies direct names and inferred navigation evidence without spending a second table column on confidence.",
       "origins": [
         {
@@ -91297,6 +92532,16 @@
         {
           "path": "tools/placement_studio/window_rig_behaviour.py",
           "line": 163,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "The weapon and its case may separate, snap between positions, or draw and stow inconsistently. Every exception is recorded in the operation manifest.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 279,
           "sink": "setToolTip"
         }
       ]
@@ -91632,16 +92877,6 @@
       ]
     },
     {
-      "key": "This is a {value_0}-handed weapon, so it will borrow the {value_1} animations.",
-      "origins": [
-        {
-          "path": "tools/placement_studio/move_weapon.py",
-          "line": 185,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
       "key": "This is an internal clone of the selected archive mesh. Geometry can resize or move existing parts; only a temporary session clone was written, and output is written through loose-mod save.{value_0}",
       "origins": [
         {
@@ -91672,12 +92907,32 @@
       ]
     },
     {
+      "key": "This is the first operation in this session.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 235,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "This is the only object in its list. No shipped prefab has an empty list, so removing it would produce a file unlike anything the game loads.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
           "line": 79,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "This item cannot be moved yet",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 568,
+          "sink": "warning"
         }
       ]
     },
@@ -91728,6 +92983,16 @@
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 441,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "This package will contain:\n\n{value_0}\n\nEarlier experiments are included. Continue?",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1184,
+          "sink": "question"
         }
       ]
     },
@@ -91932,6 +93197,16 @@
       ]
     },
     {
+      "key": "This session contains {value_0} earlier operation(s). They are not part of this move and will not be packaged unless you select them.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 227,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "This shape has a recovered skeleton/body placement.",
       "origins": [
         {
@@ -92012,6 +93287,16 @@
       ]
     },
     {
+      "key": "This throws away {value_0} operation(s) and {value_1} free-form edit(s). The game files are untouched either way — only this session's pending changes are lost.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 736,
+          "sink": "question"
+        }
+      ]
+    },
+    {
       "key": "This topology command requires a viewport mesh selection or an explicit PARTS selection.",
       "origins": [
         {
@@ -92038,6 +93323,16 @@
           "path": "cdmw/ui/shell/workspace_controller.py",
           "line": 136,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Throw away everything in this session, operations included.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 701,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -92086,7 +93381,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 97,
+          "line": 100,
           "sink": "addItem"
         }
       ]
@@ -92937,12 +94232,32 @@
       ]
     },
     {
+      "key": "Turn it the right way up",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 228,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Turn off extended thinking (Claude 4.6 and later: cheaper, and translation rarely needs it)",
       "origins": [
         {
           "path": "tools/translation_studio/ai_panel.py",
           "line": 150,
           "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "Turned {value_0} a half turn about Y",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 778,
+          "sink": "showMessage"
         }
       ]
     },
@@ -93502,12 +94817,12 @@
       ]
     },
     {
-      "key": "Undid {value_0} step(s)",
+      "key": "Undid {value_0}",
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 626,
-          "sink": "showMessage"
+          "line": 717,
+          "sink": "_after"
         }
       ]
     },
@@ -93541,7 +94856,7 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 221,
+          "line": 237,
           "sink": "QPushButton"
         }
       ]
@@ -93567,32 +94882,22 @@
       ]
     },
     {
-      "key": "Undo back to here",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_carry.py",
-          "line": 612,
-          "sink": "addButton"
-        }
-      ]
-    },
-    {
       "key": "Undo every change made to the selected attach point, back to how the game ships it. Other points are left alone.",
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 197,
+          "line": 200,
           "sink": "setToolTip"
         }
       ]
     },
     {
-      "key": "Undo every step above the one selected, newest first.",
+      "key": "Undo operation",
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 613,
-          "sink": "setToolTip"
+          "line": 683,
+          "sink": "addButton"
         }
       ]
     },
@@ -94872,6 +96177,16 @@
       "manual": true
     },
     {
+      "key": "Use Swap animations… to move it there: {value_0}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 258,
+          "sink": "showMessage"
+        }
+      ]
+    },
+    {
       "key": "Use Target Component",
       "origins": [
         {
@@ -95141,7 +96456,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 66,
+          "line": 68,
           "sink": "python-return:socket_name_problem"
         }
       ]
@@ -95366,7 +96681,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 320,
+          "line": 342,
           "sink": "question"
         }
       ]
@@ -96023,6 +97338,26 @@
           "path": "cdmw/ui/new_item/panels_stats.py",
           "line": 36,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Vanilla",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 324,
+          "sink": "setHorizontalHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Vanilla is what the game ships. Pending is what this session has already changed, including earlier operations. Proposed is what this operation would make it.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 333,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -97232,6 +98567,16 @@
       ]
     },
     {
+      "key": "Warnings accepted:",
+      "origins": [
+        {
+          "path": "tools/placement_studio/preflight.py",
+          "line": 114,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "Warnings are shown for technical textures because the editor is not the safest place to rebuild those blindly.",
       "origins": [
         {
@@ -97276,12 +98621,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 67,
+          "line": 101,
           "sink": "QPushButton"
         },
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 410,
+          "line": 766,
           "sink": "QPushButton"
         }
       ]
@@ -97291,7 +98636,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 241,
+          "line": 434,
           "sink": "QPushButton"
         }
       ]
@@ -97771,7 +99116,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 101,
+          "line": 104,
           "sink": "setToolTip"
         }
       ]
@@ -97958,6 +99303,16 @@
           "path": "tools/placement_studio/what_is_this.py",
           "line": 136,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "What to package",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1135,
+          "sink": "setWindowTitle"
         }
       ]
     },
@@ -98152,16 +99507,6 @@
       ]
     },
     {
-      "key": "Where it should hang instead.",
-      "origins": [
-        {
-          "path": "tools/placement_studio/move_weapon.py",
-          "line": 163,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
       "key": "Where should the packages go?",
       "origins": [
         {
@@ -98188,6 +99533,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
           "line": 426,
           "sink": "_manual_combo"
+        }
+      ]
+    },
+    {
+      "key": "Where the item should hang when stowed.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 299,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -99191,7 +100546,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 231,
+          "line": 247,
           "sink": "setToolTip"
         }
       ]
@@ -99276,8 +100631,18 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 228,
+          "line": 244,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Write the package",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1268,
+          "sink": "setText"
         }
       ]
     },
@@ -99846,7 +101211,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 1112,
+          "line": 1336,
           "sink": "information"
         }
       ]
@@ -100646,7 +102011,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 297,
+          "line": 945,
           "sink": "EditError"
         }
       ]
@@ -102761,7 +104126,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 86,
+          "line": 105,
           "sink": "python-return:roles"
         }
       ]
@@ -103756,7 +105121,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 114,
+          "line": 162,
           "sink": "python-return:describe"
         }
       ]
@@ -107436,7 +108801,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 86,
+          "line": 105,
           "sink": "python-return:roles"
         }
       ]
@@ -107511,7 +108876,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 422,
+          "line": 436,
           "sink": "add"
         }
       ]
@@ -109816,7 +111181,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 833,
+          "line": 929,
           "sink": "setText"
         }
       ]
@@ -109826,7 +111191,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 849,
+          "line": 945,
           "sink": "setText"
         }
       ]
@@ -109836,7 +111201,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 843,
+          "line": 939,
           "sink": "setText"
         }
       ]
@@ -110486,12 +111851,12 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 97,
+          "line": 100,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 121,
+          "line": 124,
           "sink": "addItem"
         }
       ]
@@ -110501,7 +111866,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 107,
+          "line": 155,
           "sink": "python-return:describe"
         }
       ]
@@ -111257,6 +112622,16 @@
       ]
     },
     {
+      "key": "never packaged; use Start clean operation to drop them",
+      "origins": [
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 116,
+          "sink": "python-return:operation_scope_html"
+        }
+      ]
+    },
+    {
       "key": "new item studio clone template iteminfo stringinfo store shop item group model family icon loose mod install",
       "origins": [
         {
@@ -111291,7 +112666,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 487,
+          "line": 969,
           "sink": "setText"
         }
       ]
@@ -111383,6 +112758,26 @@
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
           "line": 329,
           "sink": "_add_combo_choice"
+        }
+      ]
+    },
+    {
+      "key": "none of this operation's sockets are shared",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 934,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "none — an existing one is reused",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 928,
+          "sink": "setText"
         }
       ]
     },
@@ -111636,12 +113031,12 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 97,
+          "line": 100,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 121,
+          "line": 124,
           "sink": "addItem"
         }
       ]
@@ -112731,12 +114126,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 97,
+          "line": 100,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 121,
+          "line": 124,
           "sink": "addItem"
         }
       ]
@@ -112763,6 +114158,16 @@
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 250,
           "sink": "MeshEditorAction"
+        }
+      ]
+    },
+    {
+      "key": "placement only — no animation will be changed",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 971,
+          "sink": "setText"
         }
       ]
     },
@@ -114266,7 +115671,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 112,
+          "line": 160,
           "sink": "python-return:describe"
         }
       ]
@@ -114311,7 +115716,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 119,
+          "line": 167,
           "sink": "python-return:describe"
         }
       ]
@@ -114321,7 +115726,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 277,
+          "line": 925,
           "sink": "EditError"
         }
       ]
@@ -114846,7 +116251,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 121,
+          "line": 169,
           "sink": "python-return:describe"
         }
       ]
@@ -115461,12 +116866,12 @@
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 97,
+          "line": 100,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 121,
+          "line": 124,
           "sink": "addItem"
         }
       ]
@@ -115476,7 +116881,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 110,
+          "line": 158,
           "sink": "python-return:describe"
         }
       ]
@@ -115516,12 +116921,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 97,
+          "line": 100,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 121,
+          "line": 124,
           "sink": "addItem"
         }
       ]
@@ -115531,7 +116936,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 116,
+          "line": 164,
           "sink": "python-return:describe"
         }
       ]
@@ -191121,7 +192526,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 86,
+          "line": 105,
           "sink": "python-return:roles"
         }
       ]
@@ -191591,7 +192996,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 390,
+          "line": 404,
           "sink": "add"
         }
       ]
@@ -191731,12 +193136,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 97,
+          "line": 100,
           "sink": "addItem"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 121,
+          "line": 124,
           "sink": "addItem"
         }
       ]
@@ -192441,7 +193846,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 86,
+          "line": 105,
           "sink": "python-return:roles"
         }
       ]
@@ -194041,8 +195446,28 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 422,
+          "line": 778,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}   —   primary item",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 626,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}   —   {value_1}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 634,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -194051,7 +195476,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 407,
+          "line": 763,
           "sink": "setText"
         }
       ]
@@ -194132,6 +195557,26 @@
       ]
     },
     {
+      "key": "{value_0}  [{value_1}]",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 73,
+          "sink": "python-return:socket_choice_label"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}  [{value_1}]  {value_2}  — {value_3}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/model.py",
+          "line": 335,
+          "sink": "python-return:describe"
+        }
+      ]
+    },
+    {
       "key": "{value_0}  |  Exact: {value_1}  |  {value_2}",
       "origins": [
         {
@@ -194146,7 +195591,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 370,
+          "line": 723,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -194166,8 +195611,18 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 261,
+          "line": 275,
           "sink": "showMessage"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}  —  {value_1}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/editing.py",
+          "line": 351,
+          "sink": "python-return:describe"
         }
       ]
     },
@@ -194176,7 +195631,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 370,
+          "line": 723,
           "sink": "QTreeWidgetItem"
         }
       ]
@@ -194445,6 +195900,11 @@
           "sink": "python-return:rig_label"
         },
         {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 934,
+          "sink": "setText"
+        },
+        {
           "path": "tools/translation_studio/tab.py",
           "line": 409,
           "sink": "addItem"
@@ -194456,7 +195916,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 564,
+          "line": 586,
           "sink": "showMessage"
         }
       ]
@@ -194822,6 +196282,16 @@
       ]
     },
     {
+      "key": "{value_0} :: {value_1}: {value_2} and {value_3} disagree ({value_4})",
+      "origins": [
+        {
+          "path": "tools/placement_studio/editing.py",
+          "line": 374,
+          "sink": "python-return:describe"
+        }
+      ]
+    },
+    {
       "key": "{value_0} Already Contains Files",
       "origins": [
         {
@@ -195037,6 +196507,16 @@
       ]
     },
     {
+      "key": "{value_0} [{value_1}] -> {value_2} aimed by {value_3}{value_4}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/move_operation.py",
+          "line": 91,
+          "sink": "python-return:describe"
+        }
+      ]
+    },
+    {
       "key": "{value_0} action chart(s) loaded",
       "origins": [
         {
@@ -195082,6 +196562,16 @@
       ]
     },
     {
+      "key": "{value_0} aims {value_1} rows ({value_2}), so turning it here would move all of them. Move the item with Swap animations… instead, which makes it a socket of its own.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 764,
+          "sink": "showMessage"
+        }
+      ]
+    },
+    {
       "key": "{value_0} already contains files or folders.",
       "origins": [
         {
@@ -195101,12 +196591,12 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 555,
+          "line": 577,
           "sink": "showMessage"
         },
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 605,
+          "line": 627,
           "sink": "showMessage"
         }
       ]
@@ -195146,7 +196636,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 512,
+          "line": 527,
           "sink": "showMessage"
         }
       ]
@@ -195156,17 +196646,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_carry.py",
-          "line": 519,
-          "sink": "showMessage"
-        }
-      ]
-    },
-    {
-      "key": "{value_0} animation file(s) replaced{value_1} — see Pending changes, or press Play to watch the new one",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_carry.py",
-          "line": 469,
+          "line": 534,
           "sink": "showMessage"
         }
       ]
@@ -195556,7 +197036,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/ops.py",
-          "line": 563,
+          "line": 582,
           "sink": "python-return:summary"
         }
       ]
@@ -195662,22 +197142,32 @@
       ]
     },
     {
+      "key": "{value_0} free-form edit(s) outside any operation — never packaged",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 675,
+          "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} free-form edit(s) were made outside any operation. They are never packaged.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_editing.py",
+          "line": 1165,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "{value_0} has multiple related HKX/HKT files. Choose which one to open on the Placement view.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/hkx_document_actions.py",
           "line": 169,
           "sink": "QLabel"
-        }
-      ]
-    },
-    {
-      "key": "{value_0} has no descriptor entry to re-route, so it cannot be moved.",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_carry.py",
-          "line": 673,
-          "sink": "showMessage"
         }
       ]
     },
@@ -195836,7 +197326,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 378,
+          "line": 1027,
           "sink": "EditError"
         }
       ]
@@ -195876,7 +197366,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 320,
+          "line": 342,
           "sink": "question"
         }
       ]
@@ -196017,6 +197507,16 @@
       ]
     },
     {
+      "key": "{value_0} matches the files.",
+      "origins": [
+        {
+          "path": "tools/placement_studio/inspect_package.py",
+          "line": 126,
+          "sink": "python-return:render"
+        }
+      ]
+    },
+    {
       "key": "{value_0} matching existing icon target(s).",
       "origins": [
         {
@@ -196116,37 +197616,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 354,
-          "sink": "showMessage"
-        }
-      ]
-    },
-    {
-      "key": "{value_0} now hangs on {value_1} (was {value_2}){value_3}",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_carry.py",
-          "line": 691,
-          "sink": "showMessage"
-        }
-      ]
-    },
-    {
-      "key": "{value_0} now hangs on {value_1}. Animations left alone.",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_carry.py",
-          "line": 586,
-          "sink": "showMessage"
-        }
-      ]
-    },
-    {
-      "key": "{value_0} now stows on {value_1} (was {value_2}){value_3}",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_carry.py",
-          "line": 247,
+          "line": 376,
           "sink": "showMessage"
         }
       ]
@@ -196156,7 +197626,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/move_weapon.py",
-          "line": 487,
+          "line": 965,
           "sink": "setText"
         }
       ]
@@ -196303,6 +197773,16 @@
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
           "line": 283,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} on {value_1} using {value_2} ({value_3}); linked: {value_4}",
+      "origins": [
+        {
+          "path": "tools/placement_studio/model.py",
+          "line": 389,
+          "sink": "python-return:describe"
         }
       ]
     },
@@ -196641,7 +198121,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/model.py",
-          "line": 321,
+          "line": 455,
           "sink": "python-return:describe"
         }
       ]
@@ -196901,7 +198381,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/packaging.py",
-          "line": 105,
+          "line": 120,
           "sink": "python-return:describe"
         }
       ]
@@ -197537,16 +199017,6 @@
       ]
     },
     {
-      "key": "{value_0}.  {value_1}",
-      "origins": [
-        {
-          "path": "tools/placement_studio/window_carry.py",
-          "line": 608,
-          "sink": "addItem"
-        }
-      ]
-    },
-    {
       "key": "{value_0}. Editing is off for this one: the file does not settle how its collections are sized, and two different readings of it are equally valid. The values below are one of them, so an edit could land on the wrong field without anything looking wrong.",
       "origins": [
         {
@@ -197706,12 +199176,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 381,
+          "line": 395,
           "sink": "add"
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 390,
+          "line": 404,
           "sink": "add"
         },
         {
@@ -197976,7 +199446,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 381,
+          "line": 395,
           "sink": "add"
         },
         {
@@ -198181,13 +199651,18 @@
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 304,
+          "line": 952,
           "sink": "EditError"
         },
         {
           "path": "tools/placement_studio/editing.py",
-          "line": 319,
+          "line": 967,
           "sink": "EditError"
+        },
+        {
+          "path": "tools/placement_studio/move_weapon.py",
+          "line": 926,
+          "sink": "setText"
         },
         {
           "path": "tools/placement_studio/tab.py",
@@ -198281,7 +199756,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/session.py",
-          "line": 437,
+          "line": 663,
           "sink": "python-return:summary"
         }
       ]
@@ -198747,6 +200222,16 @@
       ]
     },
     {
+      "key": "{value_0}{value_1}.{value_2}  —  one action in Recent actions",
+      "origins": [
+        {
+          "path": "tools/placement_studio/window_carry.py",
+          "line": 464,
+          "sink": "showMessage"
+        }
+      ]
+    },
+    {
       "key": "{value_0}{value_1}: {value_2}",
       "origins": [
         {
@@ -198816,8 +200301,18 @@
       "origins": [
         {
           "path": "tools/placement_studio/window_editing.py",
-          "line": 111,
+          "line": 114,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "{value_2} free-form edit(s) outside any operation",
+      "origins": [
+        {
+          "path": "tools/placement_studio/report_style.py",
+          "line": 116,
+          "sink": "python-return:operation_scope_html"
         }
       ]
     },
@@ -198826,7 +200321,7 @@
       "origins": [
         {
           "path": "tools/placement_studio/report_style.py",
-          "line": 114,
+          "line": 208,
           "sink": "python-return:inspector_html"
         }
       ]

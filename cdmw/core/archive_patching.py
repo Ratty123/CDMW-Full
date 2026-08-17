@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -8,7 +9,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Callable, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence
+from typing import Callable, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
 
 try:
     import lz4.block as lz4_block
@@ -537,18 +538,22 @@ def _run_archive_mutation(
     added_paths: Sequence[str],
     apply_group: Callable[[Path], int],
     on_log: Optional[Callable[[str], None]] = None,
+    meta_writes: Optional[Mapping[str, Tuple[Path, bytes]]] = None,
 ) -> ArchivePatchResult:
     """Back up, apply one package group at a time, rechain the PAPGT, verify, or restore.
 
     `apply_group` writes one group's PAMT and returns its new crc. Everything
     around it (backup set, PAPGT slot, chain verification, restore on failure,
     entry refresh) is shared by in-place patching and by the rebuild that adds
-    entries, so it lives here once.
+    entries, so it lives here once. `meta_writes` (relative path -> (file, bytes))
+    are whole loose files beside the archives (`meta/0.pathc`) written after the
+    chain verifies, inside the same backup, so a failure anywhere restores them too.
     """
 
     total = len(changed_paths)
+    metas = dict(meta_writes or {})
     _safe_log(on_log, f"Creating archive patch backup for {total} entrie(s)...")
-    backup_dir = _create_backup(sorted(set(backup_targets)), description=description, on_log=on_log)
+    backup_dir = _create_backup(sorted(set(backup_targets) | {target for target, _payload in metas.values()}), description=description, on_log=on_log)
     _safe_log(on_log, f"Backup created: {backup_dir}")
     warnings: List[str] = []
     touched_pamt_paths: List[Path] = []
@@ -566,6 +571,9 @@ def _run_archive_mutation(
 
         _safe_log(on_log, "Verifying archive checksum chain...")
         _verify_crc_chain(papgt_path, touched_pamt_paths)
+        for relative, (meta_path, payload) in metas.items():
+            _safe_log(on_log, f"Writing {relative} ({_format_progress_size(len(payload))})...")
+            _write_bytes_preserve_timestamps(meta_path, bytes(payload))
     except Exception:
         _safe_log(on_log, f"Patch failed. Restoring files from backup: {backup_dir}")
         _restore_backup(backup_dir, on_log=on_log)
@@ -580,6 +588,7 @@ def _run_archive_mutation(
         changed_paths=list(changed_paths),
         warnings=warnings,
         added_paths=list(added_paths),
+        meta_paths=list(metas),
     )
 
 
