@@ -3007,6 +3007,7 @@
     "Geometry": "ジオメトリ",
     "GetRect": "GetRect",
     "Ghost": "幽霊",
+    "Give the item enhancement rows of its own (unproven in game; otherwise it enhances through the template's rows)": "アイテムに独自の強化行を与える（ゲーム内では未検証。指定しない場合はテンプレートの行で強化されます）",
     "Give the socket a name": "ソケットに名前を付けます",
     "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.": "この武器にもう一方のグリップのアニメーション (片手武器の両手セット、またはその逆) を与えます。\n\n選択したアニメーションは古いアニメーションの代わりに書き込まれるため、ゲームは同じファイルを要求し続け、新しいモーションを取得します。\n\n何かが変更される前に、そのファイルが触れるすべてのファイルが表示されます。",
     "Give this weapon the other grip's animations — the two-handed set for a one-handed weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.": "この武器にもう一方のグリップのアニメーション (片手武器の両手セット、またはその逆) を与えます。\n\n選択したアニメーションは古いアニメーションの代わりに書き込まれるため、ゲームは同じファイルを要求し続け、新しいモーションを取得します。",

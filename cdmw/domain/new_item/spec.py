@@ -41,6 +41,15 @@ class ItemGroupsChoice(str, Enum):
     EXPLICIT = "explicit"
 
 
+class EnhancementRows(str, Enum):
+    """Which `multichangeinfo` transition rows the item enhances through."""
+
+    #: Share the template's rows (they name the template; the in-game-verified spike's form).
+    TEMPLATE = "template"
+    #: Clone the template's own transition rows under new keys that name the new item (unproven in game).
+    OWN = "own"
+
+
 class PlacementKind(str, Enum):
     NONE = "none"
     #: Replace one existing stock entry of a store with the new item.
@@ -81,7 +90,8 @@ class Placement:
     store_name: str = ""
     #: For SWAP: the internal name of the stock entry's current item.
     old_item_name: str = ""
-    #: For INSERT: the stock price in the store's money item.
+    #: Not written: a StoreInfo entry carries no price of its own (the shop prices the
+    #: item from its buy-price list). Kept so an older spec still loads; the rules warn.
     price: Optional[int] = None
 
 
@@ -105,6 +115,7 @@ class NewItemSpec:
     placement: Placement = field(default_factory=Placement)
     item_groups: ItemGroupsChoice = ItemGroupsChoice.TEMPLATE
     explicit_item_groups: Tuple[int, ...] = ()
+    enhancement: EnhancementRows = EnhancementRows.TEMPLATE
 
     @property
     def needs_new_model_files(self) -> bool:
@@ -135,6 +146,7 @@ class NewItemSpec:
 
 __all__ = [
     "BuyPriceEdit",
+    "EnhancementRows",
     "IconSource",
     "ItemGroupsChoice",
     "ModelSource",

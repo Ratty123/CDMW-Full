@@ -85,7 +85,9 @@ $TestsByArea = @{
         "tests/test_itemgroupinfo_table.py",
         "tests/test_new_item_service.py",
         # New Item Studio, phase 5: the plan reproduces the in-game-verified spike byte for byte.
-        "tests/test_new_item_golden.py"
+        "tests/test_new_item_golden.py",
+        # New Item Studio, phase 6: enhancement transition rows.
+        "tests/test_multichangeinfo_table.py"
     )
     texture = @(
         "tests/test_texture_backend_retirement.py",

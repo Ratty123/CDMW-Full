@@ -4671,7 +4671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 65,
+          "line": 66,
           "sink": "QPushButton"
         }
       ]
@@ -11451,7 +11451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 68,
+          "line": 69,
           "sink": "QPushButton"
         }
       ]
@@ -11906,7 +11906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 75,
+          "line": 76,
           "sink": "QLabel"
         }
       ]
@@ -17411,7 +17411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 165,
+          "line": 167,
           "sink": "ValueError"
         }
       ]
@@ -35602,6 +35602,16 @@
       ]
     },
     {
+      "key": "Give the item enhancement rows of its own (unproven in game; otherwise it enhances through the template's rows)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 88,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Give the socket a name",
       "origins": [
         {
@@ -43151,7 +43161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 107,
+          "line": 111,
           "sink": "setVerticalHeaderLabels"
         }
       ]
@@ -46801,7 +46811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 81,
+          "line": 82,
           "sink": "QLabel"
         }
       ]
@@ -51161,7 +51171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 77,
+          "line": 78,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -51571,7 +51581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 55,
+          "line": 56,
           "sink": "setToolTip"
         }
       ]
@@ -52746,7 +52756,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 112,
+          "line": 114,
           "sink": "raise_if_cancelled"
         },
         {
@@ -52761,22 +52771,22 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 199,
+          "line": 203,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 213,
+          "line": 217,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 222,
+          "line": 226,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 236,
+          "line": 245,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -63691,7 +63701,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 453,
+          "line": 481,
           "sink": "log"
         }
       ]
@@ -66941,7 +66951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 77,
+          "line": 78,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -68301,7 +68311,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 200,
+          "line": 204,
           "sink": "log"
         }
       ]
@@ -68311,7 +68321,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 223,
+          "line": 227,
           "sink": "log"
         }
       ]
@@ -68321,7 +68331,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 214,
+          "line": 218,
           "sink": "log"
         }
       ]
@@ -68516,7 +68526,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 237,
+          "line": 246,
           "sink": "log"
         }
       ]
@@ -76341,7 +76351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 54,
+          "line": 55,
           "sink": "QPushButton"
         }
       ]
@@ -81131,7 +81141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 62,
+          "line": 63,
           "sink": "QPushButton"
         }
       ]
@@ -83966,7 +83976,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 254,
+          "line": 263,
           "sink": "log"
         }
       ]
@@ -88441,7 +88451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 118,
+          "line": 122,
           "sink": "setToolTip"
         }
       ]
@@ -91256,7 +91266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 116,
+          "line": 120,
           "sink": "setToolTip"
         }
       ]
@@ -96011,7 +96021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 35,
+          "line": 36,
           "sink": "QLabel"
         }
       ]
@@ -107501,7 +107511,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 395,
+          "line": 422,
           "sink": "add"
         }
       ]
@@ -191581,7 +191591,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 363,
+          "line": 390,
           "sink": "add"
         }
       ]
@@ -193451,7 +193461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 52,
+          "line": 53,
           "sink": "setPrefix"
         }
       ]
@@ -197696,12 +197706,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 354,
+          "line": 381,
           "sink": "add"
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 363,
+          "line": 390,
           "sink": "add"
         },
         {
@@ -197966,7 +197976,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 354,
+          "line": 381,
           "sink": "add"
         },
         {

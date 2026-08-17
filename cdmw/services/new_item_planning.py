@@ -23,6 +23,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem
 from cdmw.core.item_model_family import ItemModelFamily
 from cdmw.core.itemgroupinfo_table import add_group_members, apply_item_group_row, groups_containing
+from cdmw.core.multichangeinfo_table import allocate_multichange_keys, clone_transition_rows, find_multichange_keys, transition_rows_for
 from cdmw.core.iteminfo_row import (
     EnchantLevel,
     ItemInfoRow,
@@ -44,7 +45,7 @@ from cdmw.core.structured_binary_editor import append_table_rows
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.rules import ValidationIssue
-from cdmw.domain.new_item.spec import IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind
+from cdmw.domain.new_item.spec import EnhancementRows, IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind
 from cdmw.models import ArchiveEntry
 from cdmw.services.new_item_snapshot import NewItemSnapshot, NewItemSnapshotError
 
@@ -101,6 +102,7 @@ class _Planner:
     manifest: Dict[str, object] = field(default_factory=dict)
     icon_string: str = ""
     icon_hash: int = 0
+    enhancement_map: Dict[int, int] = field(default_factory=dict)
 
     # ------------------------------------------------------------------ helpers
 
@@ -176,6 +178,30 @@ class _Planner:
         self.manifest["pappt_records"] = dict(mapping)
         self.patch(self.snapshot.pappt_entry, encode_pappt(table), f"partprefabtable.pappt: {len(records)} record(s) cloned")
 
+    def plan_enhancements(self) -> None:
+        """Clone the template's own transition rows for the new item, when the spec asks for it."""
+
+        self.manifest["enhancement_rows"] = None
+        if self.spec.enhancement is not EnhancementRows.OWN:
+            return
+        pair = self.snapshot.multichange
+        if pair is None:
+            raise NewItemPlanError("the archives have no multichangeinfo table, so the item cannot get enhancement rows of its own")
+        listed = find_multichange_keys(self.template, self.snapshot.multichange_rows)
+        own = transition_rows_for(self.snapshot.multichange_rows, listed, self.template.key)
+        if not own:
+            self.warnings.append(f"{self.template.string_key} has no enhancement rows of its own to clone; the item shares whatever its template lists.")
+            return
+        keys = allocate_multichange_keys(self.snapshot.multichange_rows, len(own))
+        payload, header, mapping = clone_transition_rows(
+            pair.payload, pair.header, own, new_item_key=int(self.spec.item_key), new_item_name=self.spec.internal_name, new_keys=keys,
+        )
+        self.enhancement_map = dict(mapping)
+        self.manifest["enhancement_rows"] = {str(old): new for old, new in mapping.items()}
+        self.warnings.append(f"The item has {len(own)} enhancement row(s) of its own; cloned rows are unproven in game.")
+        self.patch(pair.payload_entry, payload, f"MultiChangeInfo: {len(own)} transition row(s) cloned")
+        self.patch(pair.header_entry, header, "MultiChangeInfo directory")
+
     def plan_item_row(self) -> bytes:
         template = self.template
         hashes: Dict[int, int] = {}
@@ -183,6 +209,7 @@ class _Planner:
             hashes.update({stringinfo_key(old): stringinfo_key(new) for old, new in self.owned_stem_map().items()})
         if self.spec.icon is IconSource.GENERATED and self.family.icon_hash:
             hashes[self.family.icon_hash] = self.icon_hash
+        hashes.update(self.enhancement_map)
         row_bytes = clone_iteminfo_row(
             template,
             key=int(self.spec.item_key),
@@ -445,7 +472,8 @@ def build_plan(
     })
     try:
         for step, label in (
-            (planner.plan_strings, "strings"), (planner.plan_part_prefabs, "part prefabs"), (planner.plan_item_row, "item row"),
+            (planner.plan_strings, "strings"), (planner.plan_part_prefabs, "part prefabs"), (planner.plan_enhancements, "enhancement rows"),
+            (planner.plan_item_row, "item row"),
             (planner.plan_item_groups, "item groups"), (planner.plan_store, "store"), (planner.plan_names, "names"),
             (planner.plan_model_files, "model files"), (planner.plan_icon, "icon"),
         ):

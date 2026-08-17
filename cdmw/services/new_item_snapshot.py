@@ -21,6 +21,7 @@ from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.item_model_family import ItemModelFamily, ItemModelFamilyError, discover_item_model_family
 from cdmw.core.itemgroupinfo_table import ItemGroupRow, groups_containing, parse_item_group_table
 from cdmw.core.iteminfo_row import ItemInfoRow, ItemInfoRowError, parse_iteminfo_row, parse_status_names
+from cdmw.core.multichangeinfo_table import MultiChangeRow, parse_multichange_table
 from cdmw.core.paloc_format import LocalizationTable, language_of_paloc_path, parse_paloc
 from cdmw.core.pappt_format import PartPrefabTable, parse_pappt
 from cdmw.core.storeinfo_table import StoreInfoError, StoreRow, parse_store_table
@@ -69,6 +70,9 @@ class NewItemSnapshot:
     item_groups: Tuple[ItemGroupRow, ...]
     status_names: Mapping[int, str]
     equip_type_names: Mapping[int, str]
+    #: The enhancement transition table; None when the archives have no multichangeinfo pair.
+    multichange: Optional[TablePair]
+    multichange_rows: Mapping[int, MultiChangeRow]
     #: language code -> the .paloc entry; only English is parsed up front.
     paloc_entries: Mapping[str, ArchiveEntry]
     english: LocalizationTable
@@ -232,6 +236,11 @@ def build_snapshot(
     status_names = parse_status_names(statusinfo.payload, statusinfo.header)
     equiptypeinfo = _table_pair(by_path, read, "equiptypeinfo")
     equip_type_names = _parse_names_by_key(equiptypeinfo)
+    multichange: Optional[TablePair] = None
+    multichange_rows: Dict[int, MultiChangeRow] = {}
+    if f"{TABLE_DIR}/multichangeinfo.pabgb" in by_path and f"{TABLE_DIR}/multichangeinfo.pabgh" in by_path:
+        multichange = _table_pair(by_path, read, "multichangeinfo")
+        multichange_rows = {row.key: row for row in parse_multichange_table(multichange.payload, multichange.header)}
 
     raise_if_cancelled(stop_event, "New item snapshot cancelled.")
     log("Reading the English localisation table...")
@@ -268,6 +277,8 @@ def build_snapshot(
         item_groups=item_groups,
         status_names=status_names,
         equip_type_names=equip_type_names,
+        multichange=multichange,
+        multichange_rows=multichange_rows,
         paloc_entries=paloc_entries,
         english=english,
         model_stems=model_stems,

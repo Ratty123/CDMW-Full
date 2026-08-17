@@ -3007,6 +3007,7 @@
     "Geometry": "Geometry",
     "GetRect": "GetRect",
     "Ghost": "Ghost",
+    "Give the item enhancement rows of its own (unproven in game; otherwise it enhances through the template's rows)": "Give the item enhancement rows of its own (unproven in game; otherwise it enhances through the template's rows)",
     "Give the socket a name": "Give the socket a name",
     "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.": "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.",
     "Give this weapon the other grip's animations — the two-handed set for a one-handed weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.": "Give this weapon the other grip's animations — the two-handed set for a one-handed weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.",

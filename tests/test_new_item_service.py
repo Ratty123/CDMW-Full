@@ -67,6 +67,14 @@ ICON_STRING = "ItemIcon_Prefab_CD_PHM_01_Sword_0109"
 BIN = "gamedata/binary__/client/bin"
 LOC = "gamedata/stringtable/binary__"
 NAME_KEY, DESC_KEY = "4300529278648432", "4300529278648433"
+MC_ROW_0, MC_ROW_1 = 1013129, 1013130
+
+
+def _multichange_row(key: int, name: str, item: int) -> bytes:
+    """`u32 key, u32 len, name, NUL, 24 bytes, u32 item, tail`: the shape the enhancement rows share."""
+
+    raw = name.encode("ascii")
+    return struct.pack("<II", key, len(raw)) + raw + b"\x00" + bytes(24) + struct.pack("<I", item) + bytes(40) + b"\x01"
 
 
 def _table4(rows: list[tuple[int, bytes]]) -> tuple[bytes, bytes]:
@@ -127,6 +135,11 @@ def synthetic_files() -> dict[str, bytes]:
         key=TEMPLATE, string_key="Ziane_OneHandSword", name_key=NAME_KEY, desc_key=DESC_KEY,
         stems=(f"{STEM}_r", "cd_phm_01_sword_0168_r_in_index01", f"{STEM}_l", ICON_STRING),
     )
+    # the template's `_multiChangeInfoList`: a u32 count and its two enhancement rows, spliced in
+    # right before the three flag bytes that precede the stat block
+    parsed = parse_iteminfo_row(template)
+    at = parsed.stat_block_offset - 3
+    template = template[:at] + struct.pack("<III", 2, MC_ROW_0, MC_ROW_1) + template[at:]
     other = build_row(
         key=OTHER, string_key="Cigar_OneHandSword", name_key="4300529202400181", desc_key="4300529202400182",
         stems=("cd_phm_01_sword_0016_r", "cd_phm_01_sword_0016_l"),
@@ -152,6 +165,11 @@ def synthetic_files() -> dict[str, bytes]:
         _group_row(17011, "ItemGroup_Equip", (TEMPLATE,)),
         _group_row(17012, "ItemGroup_Junk", (OTHER,)),
     ])
+    multichange = _table4([
+        (MC_ROW_0, _multichange_row(MC_ROW_0, "Ziane_OneHandSword_0", TEMPLATE)),
+        (MC_ROW_1, _multichange_row(MC_ROW_1, "Ziane_OneHandSword_1", TEMPLATE)),
+        (1013200, _multichange_row(1013200, "Cigar_OneHandSword_0", OTHER)),
+    ])
     statusinfo = _table4([(DDD, _named_row(DDD, "DDD")), (1000003, _named_row(1000003, "DPV")), (1000007, _named_row(1000007, "CriticalRate"))])
     equiptypes = _table4([(equip_type_key("OneHandSword"), _named_row(equip_type_key("OneHandSword"), "OneHandSword"))])
     eng = encode_paloc([
@@ -170,6 +188,7 @@ def synthetic_files() -> dict[str, bytes]:
         f"{BIN}/storeinfo.pabgb": stores[0], f"{BIN}/storeinfo.pabgh": stores[1],
         f"{BIN}/itemgroupinfo.pabgb": groups[0], f"{BIN}/itemgroupinfo.pabgh": groups[1],
         f"{BIN}/statusinfo.pabgb": statusinfo[0], f"{BIN}/statusinfo.pabgh": statusinfo[1],
+        f"{BIN}/multichangeinfo.pabgb": multichange[0], f"{BIN}/multichangeinfo.pabgh": multichange[1],
         f"{BIN}/equiptypeinfo.pabgb": equiptypes[0], f"{BIN}/equiptypeinfo.pabgh": equiptypes[1],
         f"{LOC}/localizationstring_eng.paloc": eng, f"{LOC}/localizationstring_ger.paloc": ger,
         "character/bin__/partprefabtable.pappt": pappt,
@@ -405,6 +424,29 @@ class PlanTests(_PackageCase):
         self.assertEqual(plan.new_paths, tuple(added))
         self.assertEqual(plan.manifest["pappt_records"], {f"{STEM}_r": f"{new_stem}_r", f"{STEM}_l": f"{new_stem}_l"})
         self.assertEqual(plan.manifest["icon"]["path"], "ui/texture/icon/itemicon_prefab_cd_phm_01_sword_9109.dds")
+
+    def test_own_enhancement_rows_are_cloned_and_repointed(self) -> None:
+        from cdmw.core.multichangeinfo_table import find_multichange_keys, parse_multichange_table
+        from cdmw.domain.new_item.spec import EnhancementRows
+
+        shared = self.service.plan(self._spec(), self.snapshot)
+        self.assertNotIn(f"{BIN}/multichangeinfo.pabgb", shared.loose_files)
+        template_keys = find_multichange_keys(self.snapshot.row(TEMPLATE), self.snapshot.multichange_rows)
+        self.assertEqual(template_keys, (MC_ROW_0, MC_ROW_1))
+        plan = self.service.plan(self._spec(enhancement=EnhancementRows.OWN), self.snapshot)
+        files = dict(plan.loose_files)
+        rows = {r.key: r for r in parse_multichange_table(files[f"{BIN}/multichangeinfo.pabgb"], files[f"{BIN}/multichangeinfo.pabgh"])}
+        self.assertEqual(len(rows), 5)
+        new_keys = tuple(plan.manifest["enhancement_rows"].values())
+        self.assertEqual(new_keys, (1990000, 1990001))
+        self.assertEqual([rows[k].name for k in new_keys], ["Ziane_Clone_OneHandSword_0", "Ziane_Clone_OneHandSword_1"])
+        self.assertEqual([rows[k].item_key for k in new_keys], [1990000, 1990000])
+        self.assertEqual(rows[new_keys[0]].raw[rows[new_keys[0]].name_end:], rows[MC_ROW_0].raw[rows[MC_ROW_0].name_end:].replace(struct.pack("<I", TEMPLATE), struct.pack("<I", 1990000), 1))
+        spans = parse_pabgh_table(files[f"{BIN}/iteminfo.pabgh"], payload=files[f"{BIN}/iteminfo.pabgb"]).row_spans(len(files[f"{BIN}/iteminfo.pabgb"]))
+        clone = parse_iteminfo_row(files[f"{BIN}/iteminfo.pabgb"][spans[-1][1]:spans[-1][2]], item_keys=set(self.snapshot.rows) | {1990000})
+        self.assertEqual(find_multichange_keys(clone, rows), new_keys, "the clone's list points at its own rows")
+        self.assertTrue(any("enhancement row" in w for w in plan.warnings))
+        self.assertTrue(any("MultiChangeInfo" in line for line in plan.summary_lines))
 
     def test_refusals(self) -> None:
         with self.assertRaises(NewItemPlanError) as caught:
