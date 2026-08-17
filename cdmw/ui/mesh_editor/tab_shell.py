@@ -22,6 +22,9 @@ from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
 from cdmw.ui.mesh_editor import tab_dotnet_material_commit as _material_commit
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
+from cdmw.ui.mesh_editor.tab_dotnet_session_events import (
+    MeshEditorDotNetSessionEventMixin,
+)
 from cdmw.ui.mesh_editor.tab_shell_package_state import MeshEditorTabShellPackageStateMixin
 from cdmw.ui.mesh_editor.tab_support import (
     STANDALONE_NATIVE_TOOL_STATE as _STANDALONE_NATIVE_TOOL_STATE,
@@ -58,7 +61,13 @@ def _mark_wired_to(target: object, mark: str, owner: object) -> None:
         pass
 
 
-class MeshEditorTabShellMixin(MeshEditorTabShellPackageStateMixin):
+class MeshEditorTabShellMixin(
+    MeshEditorTabShellPackageStateMixin,
+    # `_sync_shared_dotnet_process_identity` records publication transitions when
+    # a restarted renderer retires them, so this mixin owns that dependency
+    # rather than borrowing it from whatever else the tab happens to compose.
+    MeshEditorDotNetSessionEventMixin,
+):
 
     def _initialize_texture_region_queue(self) -> None:
         self.standalone_texture_region_queue = ResidentTextureRegionUpdateQueue(
@@ -268,7 +277,7 @@ class MeshEditorTabShellMixin(MeshEditorTabShellPackageStateMixin):
             self.standalone_dotnet_sent_material_resource_payload is not None
             or self.standalone_dotnet_sent_material_parameter_payload is not None
             or self._dotnet_material_compile_active()
-            or self.standalone_dotnet_material_update_pending is not None
+            or self.standalone_dotnet_material_publications.has_compile_work()
         ) and time.monotonic() < deadline:
             time.sleep(min(0.005, max(0.0, deadline - time.monotonic())))
         return bool(
@@ -276,7 +285,7 @@ class MeshEditorTabShellMixin(MeshEditorTabShellPackageStateMixin):
             and self.standalone_dotnet_sent_material_resource_payload is None
             and self.standalone_dotnet_sent_material_parameter_payload is None
             and not self._dotnet_material_compile_active()
-            and self.standalone_dotnet_material_update_pending is None
+            and not self.standalone_dotnet_material_publications.has_compile_work()
         )
     def _handle_texture_region_queue_applied(self, payload: Mapping[str, object]) -> None:
         self.standalone_dotnet_lifecycle_counts["texture_region_applied_count"] = (
@@ -500,6 +509,23 @@ class MeshEditorTabShellMixin(MeshEditorTabShellPackageStateMixin):
                 "pending_imported_material_publish": bool(
                     self.standalone_dotnet_pending_imported_material_publish
                 ),
+                # Which publication is compiling, which are waiting, which are
+                # waiting on the renderer, and how each of the finished ones
+                # ended. A timeout used to name only the role; this names the
+                # publish id and the stage it stopped at.
+                "publications": self.standalone_dotnet_material_publications.snapshot(),
+                # Per-pane readiness, so a grey viewport can be traced to the
+                # pane that is actually blocked rather than to "materials".
+                "active_role": self._dotnet_active_material_role(),
+                "required_roles": self._dotnet_required_material_roles(),
+                "status_by_role": {
+                    role: self._dotnet_material_role_status(role)
+                    for role in ("editable_imported", "original_reference")
+                },
+                "blocking_reason_by_role": {
+                    role: self._dotnet_material_role_blocking_reason(role)
+                    for role in self._dotnet_required_material_roles()
+                },
                 "pending_textured_view": bool(
                     self.standalone_dotnet_pending_textured_view
                 ),
@@ -510,6 +536,9 @@ class MeshEditorTabShellMixin(MeshEditorTabShellPackageStateMixin):
                     self.standalone_dotnet_deferred_textured_view_mode or ""
                 ),
             },
+            # Where the Edit Mesh session is, as one explicit state. A session
+            # that cannot commit says so here rather than only by refusing.
+            "edit_session": self.standalone_dotnet_edit_session.snapshot(),
             "renderer": renderer_status,
             "host_status": status,
         }
@@ -729,6 +758,20 @@ class MeshEditorTabShellMixin(MeshEditorTabShellPackageStateMixin):
             )
         if generation <= previous or process is None:
             return
+        # A restarted renderer can never acknowledge work that was published to
+        # the process that died. Retiring it here is what stops a late reply
+        # from the old process marking a pane ready in the new one.
+        #
+        # getattr: this mixin is composed into hosts that do not run the tab's
+        # runtime initialiser, so the coordinator is not guaranteed to exist. A
+        # host without one has no publications to retire either.
+        publications = getattr(self, "standalone_dotnet_material_publications", None)
+        if publications is not None:
+            for result in publications.invalidate_generations(
+                process_generation=generation,
+                reason="renderer_process_restarted",
+            ):
+                self._record_dotnet_material_publication(result)
         starts = int(self.standalone_dotnet_lifecycle_counts.get("renderer_process_start_count", 0) or 0)
         self.standalone_dotnet_lifecycle_counts["renderer_process_start_count"] = starts + 1
         if starts > 0:

@@ -16,6 +16,9 @@ from typing import Mapping, Optional
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
+from cdmw.services.mesh_dotnet_material_state import count_dotnet_own_material_bindings
+from cdmw.services.mesh_editor_error_codes import MeshEditorErrorCode, error_payload
+from cdmw.services.mesh_material_publication import MaterialRole
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     MESH_PREVIEW_TEXTURED_DISPLAY_MODES,
     normalize_mesh_preview_display_mode,
@@ -44,7 +47,70 @@ PENDING_TEXTURED_VIEW_MAX_EXTENSIONS = 9
 
 
 class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
-    def apply_resident_imported_material_resources(self) -> bool:
+    def _imported_working_model_owns_materials(self) -> bool:
+        """Whether the editable working model carries textures of its own.
+
+        This is what decides that the Imported pane has something to publish,
+        and it is a property of the working model rather than of whichever
+        resolver happens to run. An external import binds its own textures at
+        preflight and answers yes; an exact clone answers no until the Original
+        resolver has copied resolved bindings onto it, which is the case where
+        publishing early would compile an empty material set and report the pane
+        ready with nothing on it.
+        """
+
+        controller = self._dotnet_target_controller()
+        if controller is None:
+            return False
+        try:
+            return count_dotnet_own_material_bindings(controller.working_mesh(clone=False)) > 0
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            return False
+
+    def commit_imported_working_model_materials(
+        self,
+        *,
+        reason: str = "imported_working_model_committed",
+    ) -> bool:
+        """Publish the editable model's own materials when it joins the session.
+
+        Importing an editable model owns publishing that model's material
+        resources. This used to be driven from the non-clone branch of the
+        Original material resolver, which meant the Imported pane could only
+        become textured as a side effect of resolving a different pane: a
+        single-pane workflow skipped it entirely, and an Original resolver
+        error took a perfectly valid Imported pane down with it.
+
+        Called at resident activation, when the working mesh is committed to the
+        session and the helper can accept material state. It declines quietly
+        when the model has no materials of its own, when the role has already
+        been published for this generation, or when the helper cannot take
+        resident material updates.
+        """
+
+        if not self._imported_working_model_owns_materials():
+            return False
+        role = MaterialRole.EDITABLE_IMPORTED.value
+        if self.standalone_dotnet_material_publications.has_pending_role(role):
+            return True
+        if int(
+            self.standalone_dotnet_applied_material_generation_by_role.get(role, 0) or 0
+        ) > 0 and bool(
+            self.standalone_dotnet_texture_resources_ready_by_role.get(role, False)
+        ):
+            return True
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_imported_materials_committed",
+            reason=str(reason or ""),
+            process_generation=int(self.standalone_dotnet_process_generation),
+        )
+        return self.apply_resident_imported_material_resources(reason=reason)
+
+    def apply_resident_imported_material_resources(
+        self,
+        *,
+        reason: str = "late_imported_resources",
+    ) -> bool:
         """Publish the Imported pane's own materials to the resident helper.
 
         The launch package deliberately carries no textures
@@ -77,7 +143,7 @@ class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
             self.standalone_dotnet_pending_imported_material_publish = True
             return True
         self.standalone_dotnet_pending_imported_material_publish = False
-        return bool(self._send_dotnet_material_state(reason="late_imported_resources"))
+        return bool(self._send_dotnet_material_state(reason=str(reason or "late_imported_resources")))
 
     def _flush_pending_imported_material_publish(self) -> bool:
         """Send a remembered Imported publish; True while its compile is in flight."""
@@ -140,7 +206,7 @@ class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
             return
         if (
             normalized == "already_loaded"
-            and self._dotnet_material_roles_ready()
+            and self._dotnet_active_material_role_ready()
         ):
             # The resolved materials were already resident, so the republish
             # deduplicated and there is no acknowledgement left to wait for.
@@ -181,6 +247,28 @@ class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
             reason="acknowledgement_timeout",
         )
         missing = self._dotnet_missing_material_roles()
+        # The stage each blocked pane stopped at goes to the event stream rather
+        # than into the status line: "Imported textures did not arrive" is the
+        # same sentence whether nothing was ever published, a compile failed, or
+        # the renderer never answered, and those need different actions. The
+        # status string itself is unchanged so it stays the catalogued one in
+        # all fourteen languages.
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_textured_view_timeout_reasons",
+            missing_material_roles=missing,
+            blocking_reason_by_role={
+                role: self._dotnet_material_role_blocking_reason(role)
+                for role in missing
+            },
+            active_material_role=self._dotnet_active_material_role(),
+            publications=self.standalone_dotnet_material_publications.snapshot(),
+            **error_payload(
+                MeshEditorErrorCode.MAT_ROLE_ACK_TIMEOUT,
+                "; ".join(
+                    self._dotnet_material_role_blocking_reason(role) for role in missing
+                ),
+            ),
+        )
         missing_text = ", ".join(
             self._dotnet_material_role_label(role) for role in missing
         )

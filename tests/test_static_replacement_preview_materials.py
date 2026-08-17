@@ -208,15 +208,14 @@ def test_modify_original_late_bindings_publish_both_resident_material_roles() ->
     assert resident_updates == ["clone_and_reference"]
 
 
-def test_external_import_late_bindings_publish_the_imported_pane_before_the_reference() -> None:
-    """An imported model's own textures have to reach the resident helper too.
+def test_the_original_resolver_does_not_publish_the_imported_pane() -> None:
+    """Resolving the Original pane must not be what textures the Imported one.
 
-    The launch package deliberately carries no textures, so every pane is
-    textured by a later publish. Only the Original pane had one on this path;
-    the Imported pane's textures sat on the working mesh and were never sent,
-    and Solid (Textured) waited on an `editable_imported` acknowledgement that
-    could not come. Imported is published first: the tab defers the Original
-    publish behind it instead of letting the later one pre-empt the compile.
+    Publishing the import from here made the Imported pane depend on a resolver
+    for a different pane: a single-pane workflow skipped it, and an Original
+    resolver error took a valid Imported pane down with it. The import now
+    publishes from its own commit boundary, so this resolver touches only the
+    reference role.
     """
     preview_model = SimpleNamespace(
         meshes=[_mesh(preview_texture_path="C:/cache/original.dds")]
@@ -246,18 +245,17 @@ def test_external_import_late_bindings_publish_the_imported_pane_before_the_refe
         publish_resident_updates=True,
     )
 
-    assert resident_updates == ["imported", "reference"]
+    assert resident_updates == ["reference"]
     assert failures == []
     # The imported model keeps its own textures; the originals are not copied
     # over them the way an exact clone's are.
     assert replacement_mesh.submeshes[0].preview_texture_path == "C:/imports/wolf.png"
 
 
-def test_external_import_reports_an_imported_publish_that_could_not_be_queued() -> None:
+def test_a_reference_publish_that_could_not_be_queued_is_reported() -> None:
     failures: list[str] = []
     dialog = SimpleNamespace(
-        _mesh_editor_embedded_apply_imported_material_resources=lambda: False,
-        _mesh_editor_embedded_apply_reference_material_resources=lambda _model: True,
+        _mesh_editor_embedded_apply_reference_material_resources=lambda _model: False,
         _mesh_editor_embedded_texture_request_failed=failures.append,
     )
 
@@ -270,7 +268,7 @@ def test_external_import_reports_an_imported_publish_that_could_not_be_queued() 
         publish_resident_updates=True,
     )
 
-    assert failures == ["Imported materials could not be queued for the resident helper."]
+    assert failures == ["Resolved reference materials could not be queued for the resident helper."]
 
 
 def test_apply_original_material_preview_uses_direct_source_preview_map() -> None:

@@ -9,11 +9,15 @@ from PySide6.QtWidgets import QProgressDialog
 
 
 
+from cdmw.services.mesh_editor_error_codes import MeshEditorErrorCode, error_payload
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
+from cdmw.ui.mesh_editor.tab_dotnet_session_events import (
+    MeshEditorDotNetSessionEventMixin,
+)
 from cdmw.ui.mesh_editor.tab_support import _mesh_edit_result_with_metric
 
 
-class MeshEditorDotNetProcessMixin:
+class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
     def _launch_standalone_dotnet_editor_package(self, package: _tab.MeshDotNetExperimentPackage) -> bool:
         executable = self._dotnet_editor_executable_path()
         if executable is None or not executable.is_file():
@@ -130,6 +134,12 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_dotnet_ready_timer.stop()
         self.standalone_dotnet_deactivate_timer.stop()
         self.standalone_dotnet_finish_scene_timer.stop()
+        # The renderer that held the working state is going away. If the session
+        # still holds edits, it enters recovery rather than being quietly
+        # forgotten along with the pending finish below -- the difference is
+        # whether a later finish can report success over a state nobody can
+        # vouch for.
+        self._require_edit_session_recovery(reason="resident_editor_process_stopped")
         self.standalone_dotnet_finish_scene_pending = None
         controller = self._active_shared_dotnet_controller()
         if self.standalone_dotnet_target_embedded:
@@ -402,6 +412,7 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_action_worker = worker
         self.standalone_action_text = str(command.label or normalized_name)
         self.standalone_action_controller = controller
+        self.standalone_action_edit_session_generation = self._edit_session_generation()
         self.standalone_action_dotnet_command = normalized_name
         self.standalone_action_dotnet_request_payload = (
             dict(request_payload) if request_payload is not None else None
@@ -410,6 +421,36 @@ class MeshEditorDotNetProcessMixin:
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         thread.start(QThread.LowPriority)
         return True
+    def _dotnet_action_belongs_to_current_edit_session(self, request_id: int) -> bool:
+        """Whether a returning command result still belongs to the live session.
+
+        The request id says the result is from the newest command. It cannot say
+        that the session the command was issued against still exists: a Finish,
+        a Cancel, or a renderer restart in between leaves a result that is
+        newest and yet applies to a working state that has moved on.
+        """
+
+        if int(request_id) != int(self.standalone_action_request_id):
+            return False
+        recorded = int(getattr(self, "standalone_action_edit_session_generation", -1))
+        if recorded < 0:
+            return True
+        current = self._edit_session_generation()
+        if current < 0 or current == recorded:
+            return True
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_edit_command_stale_session",
+            request_id=int(request_id),
+            command=str(self.standalone_action_dotnet_command or ""),
+            recorded_session_generation=recorded,
+            current_session_generation=current,
+            **error_payload(
+                MeshEditorErrorCode.EDIT_REQUEST_STALE,
+                "the Edit Mesh session moved on while this command was running",
+            ),
+        )
+        return False
+
     def _handle_dotnet_action_progress(self, request_id: int, _percent: int, message: str) -> None:
         if int(request_id) == int(self.standalone_action_request_id):
             self._set_dotnet_status(str(message or "Applying Mesh Editor action..."))
@@ -428,7 +469,13 @@ class MeshEditorDotNetProcessMixin:
             progress.setValue(max(0, min(100, int(percent or 0))))
         self.standalone_status_label.setText(str(message or "Applying Mesh Editor action..."))
     def _handle_standalone_action_completed(self, request_id: int, result: object) -> None:
-        if int(request_id) != int(self.standalone_action_request_id):
+        if not self._dotnet_action_belongs_to_current_edit_session(request_id):
+            # The result is dropped, but anything waiting on the action draining
+            # is not: a pending exit still has to complete, or Finish Edit Mesh
+            # waits forever on a command whose result was discarded.
+            if int(request_id) == int(self.standalone_action_request_id):
+                self.standalone_action_finished_request_id = int(request_id)
+                self._complete_pending_dotnet_exit()
             return
         self.standalone_action_finished_request_id = int(request_id)
         controller = self.standalone_action_controller or self.standalone_controller

@@ -142,6 +142,20 @@ $TestsByArea = @{
         "tests/test_mesh_editor_presentation_republish.py",
         "tests/test_mesh_editor_preview_mode_survives_publish.py",
         "tests/test_mesh_editor_textured_view_request_settles.py",
+        # Material publication ordering, the boundary an imported model's own
+        # materials are published from, and the Edit Mesh session states. The
+        # first two are the Solid (Textured) reproducers; the third is what
+        # refuses a finish over a working state whose renderer died.
+        "tests/test_mesh_material_publication_coordinator.py",
+        "tests/test_mesh_editor_imported_material_publication.py",
+        "tests/test_mesh_editor_runtime_diagnostics.py",
+        "tests/test_mesh_edit_session_state.py",
+        "tests/test_mesh_editor_edit_session_boundary.py",
+        "tests/test_mesh_editor_error_codes.py",
+        "tests/test_mesh_operation_spec.py",
+        "tests/test_mesh_authoring_capability.py",
+        "tests/test_fbx_support_contract.py",
+        "tests/test_mesh_editor_mixin_composition.py",
         "tests/test_dotnet_solid_textured_view_survives_publish.py",
         "tests/test_dotnet_edit_mesh_entry_layout.py",
         "tests/test_select_drag_shape_survives_tool_state.py",

@@ -91,6 +91,9 @@ internal sealed partial class MeshViewport
             context.XRay = ShowXRay;
         }
         TexturesEnabled = state.Textures;
+        // The narrow viewport_display_update channel is the other place a named
+        // mode decides sampling. See TextureSamplingOwner.
+        _textureSamplingOwner = "display_mode";
         error = string.Empty;
         return true;
     }
