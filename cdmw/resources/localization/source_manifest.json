@@ -5401,7 +5401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 232,
+          "line": 242,
           "sink": "MeshEditorAction"
         }
       ]
@@ -5411,7 +5411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 233,
+          "line": 243,
           "sink": "MeshEditorAction"
         }
       ]
@@ -8346,7 +8346,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 144,
+          "line": 174,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -8356,7 +8356,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 143,
+          "line": 173,
           "sink": "PermissionError"
         }
       ]
@@ -8897,11 +8897,21 @@
       ]
     },
     {
+      "key": "Archive mutation plan additions accept ArchiveAddRequest values only.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_mutation_service.py",
+          "line": 65,
+          "sink": "TypeError"
+        }
+      ]
+    },
+    {
       "key": "Archive mutation plans accept ArchivePatchRequest values only.",
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 51,
+          "line": 63,
           "sink": "TypeError"
         }
       ]
@@ -8921,7 +8931,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 151,
+          "line": 181,
           "sink": "TypeError"
         }
       ]
@@ -8991,7 +9001,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 69,
+          "line": 92,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -9001,7 +9011,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 110,
+          "line": 137,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -9011,7 +9021,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 66,
+          "line": 88,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -9021,7 +9031,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 100,
+          "line": 127,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -9031,12 +9041,12 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 113,
+          "line": 140,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 119,
+          "line": 149,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -9056,7 +9066,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 158,
+          "line": 188,
           "sink": "PermissionError"
         }
       ]
@@ -9066,7 +9076,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 170,
+          "line": 202,
           "sink": "ValueError"
         }
       ]
@@ -10156,7 +10166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 241,
+          "line": 251,
           "sink": "MeshEditorAction"
         }
       ]
@@ -10796,7 +10806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 237,
+          "line": 247,
           "sink": "MeshEditorAction"
         },
         {
@@ -12321,7 +12331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 235,
+          "line": 245,
           "sink": "MeshEditorAction"
         }
       ]
@@ -12331,7 +12341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 212,
+          "line": 222,
           "sink": "MeshEditorAction"
         }
       ]
@@ -19356,7 +19366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 216,
+          "line": 226,
           "sink": "MeshEditorAction"
         }
       ]
@@ -20861,7 +20871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 202,
+          "line": 212,
           "sink": "MeshEditorAction"
         },
         {
@@ -20951,7 +20961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 242,
+          "line": 252,
           "sink": "MeshEditorAction"
         }
       ]
@@ -20961,7 +20971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 225,
+          "line": 235,
           "sink": "MeshEditorAction"
         }
       ]
@@ -21321,7 +21331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 718,
+          "line": 728,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -21443,6 +21453,16 @@
           "path": "cdmw/ui/shell/language_controller.py",
           "line": 130,
           "sink": "warning"
+        }
+      ]
+    },
+    {
+      "key": "Could not find PAPGT root index at {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_mutation_service.py",
+          "line": 210,
+          "sink": "FileNotFoundError"
         }
       ]
     },
@@ -23101,7 +23121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 236,
+          "line": 246,
           "sink": "MeshEditorAction"
         }
       ]
@@ -24016,7 +24036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 174,
+          "line": 184,
           "sink": "MeshEditorAction"
         },
         {
@@ -24091,7 +24111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 204,
+          "line": 214,
           "sink": "MeshEditorAction"
         }
       ]
@@ -24156,7 +24176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 215,
+          "line": 225,
           "sink": "MeshEditorAction"
         }
       ]
@@ -25616,7 +25636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 175,
+          "line": 185,
           "sink": "MeshEditorAction"
         }
       ]
@@ -26446,7 +26466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 201,
+          "line": 211,
           "sink": "MeshEditorAction"
         },
         {
@@ -26746,7 +26766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 209,
+          "line": 219,
           "sink": "MeshEditorAction"
         }
       ]
@@ -26776,7 +26796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 162,
+          "line": 172,
           "sink": "MeshEditorAction"
         },
         {
@@ -27726,7 +27746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 785,
+          "line": 795,
           "sink": "emit"
         }
       ]
@@ -27736,7 +27756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 778,
+          "line": 788,
           "sink": "emit"
         }
       ]
@@ -31391,7 +31411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 206,
+          "line": 216,
           "sink": "MeshEditorAction"
         }
       ]
@@ -32116,7 +32136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 213,
+          "line": 223,
           "sink": "MeshEditorAction"
         },
         {
@@ -32136,7 +32156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 218,
+          "line": 228,
           "sink": "MeshEditorAction"
         }
       ]
@@ -33466,7 +33486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 217,
+          "line": 227,
           "sink": "MeshEditorAction"
         }
       ]
@@ -33621,7 +33641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 221,
+          "line": 231,
           "sink": "MeshEditorAction"
         },
         {
@@ -33641,7 +33661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 227,
+          "line": 237,
           "sink": "MeshEditorAction"
         }
       ]
@@ -33656,7 +33676,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 228,
+          "line": 238,
           "sink": "MeshEditorAction"
         },
         {
@@ -35011,7 +35031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 220,
+          "line": 230,
           "sink": "MeshEditorAction"
         }
       ]
@@ -35416,7 +35436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 170,
+          "line": 180,
           "sink": "MeshEditorAction"
         },
         {
@@ -39856,7 +39876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 172,
+          "line": 182,
           "sink": "MeshEditorAction"
         },
         {
@@ -40071,7 +40091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 207,
+          "line": 217,
           "sink": "MeshEditorAction"
         }
       ]
@@ -43561,7 +43581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 847,
+          "line": 857,
           "sink": "emit"
         }
       ]
@@ -44246,7 +44266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 208,
+          "line": 218,
           "sink": "MeshEditorAction"
         }
       ]
@@ -46246,7 +46266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 210,
+          "line": 220,
           "sink": "MeshEditorAction"
         }
       ]
@@ -46341,17 +46361,17 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_payloads.py",
-          "line": 420,
+          "line": 425,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_payloads.py",
-          "line": 526,
+          "line": 531,
           "sink": "_set_dotnet_status"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_payloads.py",
-          "line": 574,
+          "line": 579,
           "sink": "_set_dotnet_status"
         }
       ]
@@ -47401,7 +47421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 284,
+          "line": 287,
           "sink": "set_status_message"
         }
       ]
@@ -47411,7 +47431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 283,
+          "line": 318,
           "sink": "ValueError"
         }
       ]
@@ -47461,7 +47481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 282,
+          "line": 285,
           "sink": "set_status_message"
         }
       ]
@@ -47471,7 +47491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 293,
+          "line": 328,
           "sink": "ValueError"
         }
       ]
@@ -47481,7 +47501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 296,
+          "line": 331,
           "sink": "ValueError"
         }
       ]
@@ -47566,7 +47586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/controller.py",
-          "line": 814,
+          "line": 818,
           "sink": "RuntimeError"
         }
       ]
@@ -47676,7 +47696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 64,
+          "line": 68,
           "sink": "emit"
         }
       ]
@@ -47906,7 +47926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 286,
+          "line": 289,
           "sink": "set_status_message"
         }
       ]
@@ -48116,7 +48136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 396,
+          "line": 406,
           "sink": "setText"
         }
       ]
@@ -49031,7 +49051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 205,
+          "line": 215,
           "sink": "MeshEditorAction"
         },
         {
@@ -49486,7 +49506,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 259,
+          "line": 269,
           "sink": "setText"
         }
       ]
@@ -49496,7 +49516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 259,
+          "line": 269,
           "sink": "setText"
         }
       ]
@@ -50536,7 +50556,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 167,
+          "line": 177,
           "sink": "MeshEditorAction"
         },
         {
@@ -51396,7 +51416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 401,
+          "line": 411,
           "sink": "setText"
         }
       ]
@@ -52321,7 +52341,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 383,
+          "line": 393,
           "sink": "setText"
         },
         {
@@ -52466,7 +52486,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_mutation_service.py",
-          "line": 49,
+          "line": 61,
           "sink": "ValueError"
         }
       ]
@@ -53771,7 +53791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 264,
+          "line": 274,
           "sink": "setText"
         }
       ]
@@ -54976,7 +54996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 827,
+          "line": 837,
           "sink": "emit"
         }
       ]
@@ -55411,7 +55431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 231,
+          "line": 241,
           "sink": "MeshEditorAction"
         }
       ]
@@ -56001,7 +56021,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 161,
+          "line": 171,
           "sink": "MeshEditorAction"
         },
         {
@@ -59611,7 +59631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 238,
+          "line": 248,
           "sink": "MeshEditorAction"
         }
       ]
@@ -60581,7 +60601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 203,
+          "line": 213,
           "sink": "MeshEditorAction"
         },
         {
@@ -61976,7 +61996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 173,
+          "line": 183,
           "sink": "MeshEditorAction"
         },
         {
@@ -62541,7 +62561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 234,
+          "line": 244,
           "sink": "MeshEditorAction"
         }
       ]
@@ -67846,7 +67866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 264,
+          "line": 274,
           "sink": "setText"
         }
       ]
@@ -68466,7 +68486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 219,
+          "line": 229,
           "sink": "MeshEditorAction"
         },
         {
@@ -69456,7 +69476,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 244,
+          "line": 254,
           "sink": "MeshEditorAction"
         },
         {
@@ -69721,7 +69741,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 185,
+          "line": 195,
           "sink": "MeshEditorAction"
         },
         {
@@ -70611,7 +70631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 214,
+          "line": 224,
           "sink": "MeshEditorAction"
         }
       ]
@@ -73776,7 +73796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 168,
+          "line": 178,
           "sink": "MeshEditorAction"
         },
         {
@@ -73836,7 +73856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 229,
+          "line": 239,
           "sink": "MeshEditorAction"
         }
       ]
@@ -74236,7 +74256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 162,
+          "line": 172,
           "sink": "emit"
         }
       ]
@@ -75201,7 +75221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 169,
+          "line": 179,
           "sink": "MeshEditorAction"
         },
         {
@@ -75896,7 +75916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 163,
+          "line": 173,
           "sink": "MeshEditorAction"
         },
         {
@@ -76391,7 +76411,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 166,
+          "line": 176,
           "sink": "MeshEditorAction"
         },
         {
@@ -78041,7 +78061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/shell_bridge.py",
-          "line": 291,
+          "line": 294,
           "sink": "set_status_message"
         }
       ]
@@ -79951,7 +79971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 200,
+          "line": 210,
           "sink": "MeshEditorAction"
         }
       ]
@@ -80581,7 +80601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 222,
+          "line": 232,
           "sink": "MeshEditorAction"
         }
       ]
@@ -82746,7 +82766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 171,
+          "line": 181,
           "sink": "MeshEditorAction"
         },
         {
@@ -82821,7 +82841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 239,
+          "line": 249,
           "sink": "MeshEditorAction"
         },
         {
@@ -82836,7 +82856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 240,
+          "line": 250,
           "sink": "MeshEditorAction"
         },
         {
@@ -83326,7 +83346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 223,
+          "line": 233,
           "sink": "MeshEditorAction"
         }
       ]
@@ -84211,7 +84231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 199,
+          "line": 209,
           "sink": "MeshEditorAction"
         },
         {
@@ -85876,7 +85896,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 176,
+          "line": 186,
           "sink": "MeshEditorAction"
         },
         {
@@ -87146,7 +87166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 258,
+          "line": 268,
           "sink": "setText"
         }
       ]
@@ -90176,7 +90196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 793,
+          "line": 803,
           "sink": "emit"
         }
       ]
@@ -91266,7 +91286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 226,
+          "line": 236,
           "sink": "MeshEditorAction"
         }
       ]
@@ -91961,7 +91981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 230,
+          "line": 240,
           "sink": "MeshEditorAction"
         }
       ]
@@ -92216,7 +92236,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 243,
+          "line": 253,
           "sink": "MeshEditorAction"
         },
         {
@@ -92436,7 +92456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/controller.py",
-          "line": 826,
+          "line": 830,
           "sink": "ValueError"
         }
       ]
@@ -92616,7 +92636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 287,
+          "line": 322,
           "sink": "ValueError"
         }
       ]
@@ -92626,7 +92646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 290,
+          "line": 325,
           "sink": "ValueError"
         }
       ]
@@ -94426,12 +94446,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 167,
+          "line": 177,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 168,
+          "line": 178,
           "sink": "emit"
         }
       ]
@@ -96316,7 +96336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 224,
+          "line": 234,
           "sink": "MeshEditorAction"
         }
       ]
@@ -96361,7 +96381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 211,
+          "line": 221,
           "sink": "MeshEditorAction"
         }
       ]
@@ -99176,7 +99196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/controller.py",
-          "line": 697,
+          "line": 701,
           "sink": "RuntimeError"
         }
       ]
@@ -99186,7 +99206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/controller.py",
-          "line": 651,
+          "line": 655,
           "sink": "RuntimeError"
         }
       ]
@@ -99866,7 +99886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 236,
+          "line": 246,
           "sink": "MeshEditorAction"
         },
         {
@@ -100476,7 +100496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 235,
+          "line": 245,
           "sink": "MeshEditorAction"
         }
       ]
@@ -100496,12 +100516,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 212,
+          "line": 222,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 212,
+          "line": 222,
           "sink": "MeshEditorAction"
         }
       ]
@@ -100521,22 +100541,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 170,
+          "line": 180,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 171,
+          "line": 181,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 172,
+          "line": 182,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 173,
+          "line": 183,
           "sink": "MeshEditorAction"
         }
       ]
@@ -101436,27 +101456,27 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 214,
+          "line": 224,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 215,
+          "line": 225,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 216,
+          "line": 226,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 217,
+          "line": 227,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 218,
+          "line": 228,
           "sink": "MeshEditorAction"
         }
       ]
@@ -102296,12 +102316,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 202,
+          "line": 212,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 202,
+          "line": 212,
           "sink": "MeshEditorAction"
         }
       ]
@@ -102386,7 +102406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 236,
+          "line": 246,
           "sink": "MeshEditorAction"
         }
       ]
@@ -102551,12 +102571,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 174,
+          "line": 184,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 174,
+          "line": 184,
           "sink": "MeshEditorAction"
         },
         {
@@ -102851,12 +102871,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 175,
+          "line": 185,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 175,
+          "line": 185,
           "sink": "MeshEditorAction"
         }
       ]
@@ -102961,12 +102981,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 201,
+          "line": 211,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 201,
+          "line": 211,
           "sink": "MeshEditorAction"
         },
         {
@@ -103021,17 +103041,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 208,
+          "line": 218,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 209,
+          "line": 219,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 212,
+          "line": 222,
           "sink": "MeshEditorAction"
         }
       ]
@@ -103046,22 +103066,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 162,
+          "line": 172,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 174,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 175,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 176,
+          "line": 184,
           "sink": "MeshEditorAction"
         },
         {
@@ -103071,52 +103081,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 199,
+          "line": 186,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 200,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 201,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 202,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 203,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 204,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 205,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 206,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 207,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 208,
+          "line": 195,
           "sink": "MeshEditorAction"
         },
         {
@@ -103287,6 +103257,56 @@
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 242,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 243,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 244,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 245,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 246,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 247,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 248,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 249,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 250,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 251,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 252,
           "sink": "MeshEditorAction"
         }
       ]
@@ -103631,12 +103651,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_payloads.py",
-          "line": 420,
+          "line": 425,
           "sink": "_send_dotnet_command_result"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_dotnet_payloads.py",
-          "line": 527,
+          "line": 532,
           "sink": "_send_dotnet_command_result"
         },
         {
@@ -104636,12 +104656,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 206,
+          "line": 216,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 206,
+          "line": 216,
           "sink": "MeshEditorAction"
         }
       ]
@@ -105056,12 +105076,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 213,
+          "line": 223,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 213,
+          "line": 223,
           "sink": "MeshEditorAction"
         },
         {
@@ -105616,7 +105636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 170,
+          "line": 180,
           "sink": "MeshEditorAction"
         },
         {
@@ -106001,12 +106021,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 243,
+          "line": 253,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 244,
+          "line": 254,
           "sink": "MeshEditorAction"
         }
       ]
@@ -106406,7 +106426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 172,
+          "line": 182,
           "sink": "MeshEditorAction"
         },
         {
@@ -106476,12 +106496,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 207,
+          "line": 217,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 207,
+          "line": 217,
           "sink": "MeshEditorAction"
         }
       ]
@@ -106966,7 +106986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/controller.py",
-          "line": 710,
+          "line": 714,
           "sink": "RuntimeError"
         }
       ]
@@ -107691,12 +107711,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 241,
+          "line": 251,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 242,
+          "line": 252,
           "sink": "MeshEditorAction"
         }
       ]
@@ -108401,12 +108421,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 210,
+          "line": 220,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 210,
+          "line": 220,
           "sink": "MeshEditorAction"
         }
       ]
@@ -108726,12 +108746,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 232,
+          "line": 242,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 233,
+          "line": 243,
           "sink": "MeshEditorAction"
         }
       ]
@@ -108771,12 +108791,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 205,
+          "line": 215,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 205,
+          "line": 215,
           "sink": "MeshEditorAction"
         }
       ]
@@ -108856,17 +108876,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 161,
+          "line": 171,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 162,
+          "line": 172,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 163,
+          "line": 173,
           "sink": "MeshEditorAction"
         }
       ]
@@ -109696,7 +109716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/controller.py",
-          "line": 573,
+          "line": 577,
           "sink": "RuntimeError"
         }
       ]
@@ -109726,7 +109746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/controller.py",
-          "line": 595,
+          "line": 599,
           "sink": "RuntimeError"
         }
       ]
@@ -109736,7 +109756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/controller.py",
-          "line": 656,
+          "line": 660,
           "sink": "RuntimeError"
         }
       ]
@@ -109746,7 +109766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/controller.py",
-          "line": 641,
+          "line": 645,
           "sink": "RuntimeError"
         }
       ]
@@ -109756,7 +109776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/controller.py",
-          "line": 671,
+          "line": 675,
           "sink": "RuntimeError"
         }
       ]
@@ -109966,7 +109986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 231,
+          "line": 241,
           "sink": "MeshEditorAction"
         }
       ]
@@ -109976,37 +109996,37 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 219,
+          "line": 229,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 220,
+          "line": 230,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 221,
+          "line": 231,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 222,
+          "line": 232,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 223,
+          "line": 233,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 224,
+          "line": 234,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 225,
+          "line": 235,
           "sink": "MeshEditorAction"
         }
       ]
@@ -110101,7 +110121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 161,
+          "line": 171,
           "sink": "MeshEditorAction"
         }
       ]
@@ -110676,7 +110696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 238,
+          "line": 248,
           "sink": "MeshEditorAction"
         }
       ]
@@ -110811,12 +110831,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 203,
+          "line": 213,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 203,
+          "line": 213,
           "sink": "MeshEditorAction"
         }
       ]
@@ -111251,7 +111271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 173,
+          "line": 183,
           "sink": "MeshEditorAction"
         },
         {
@@ -111266,7 +111286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 229,
+          "line": 239,
           "sink": "MeshEditorAction"
         }
       ]
@@ -111306,7 +111326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 234,
+          "line": 244,
           "sink": "MeshEditorAction"
         }
       ]
@@ -111321,7 +111341,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 234,
+          "line": 244,
           "sink": "MeshEditorAction"
         }
       ]
@@ -111731,17 +111751,17 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 234,
+          "line": 244,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 235,
+          "line": 245,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 236,
+          "line": 246,
           "sink": "MeshEditorAction"
         }
       ]
@@ -112636,12 +112656,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 244,
+          "line": 254,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 244,
+          "line": 254,
           "sink": "MeshEditorAction"
         }
       ]
@@ -113956,12 +113976,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 168,
+          "line": 178,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 229,
+          "line": 239,
           "sink": "MeshEditorAction"
         },
         {
@@ -114176,7 +114196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 169,
+          "line": 179,
           "sink": "MeshEditorAction"
         }
       ]
@@ -114246,47 +114266,47 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 163,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 170,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 170,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 171,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 171,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 172,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 172,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 173,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 173,
+          "line": 180,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 180,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 181,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 181,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 182,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 182,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 183,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 183,
           "sink": "MeshEditorAction"
         }
       ]
@@ -114316,7 +114336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 166,
+          "line": 176,
           "sink": "MeshEditorAction"
         },
         {
@@ -114656,7 +114676,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 166,
+          "line": 176,
           "sink": "MeshEditorAction"
         },
         {
@@ -114746,12 +114766,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 200,
+          "line": 210,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 200,
+          "line": 210,
           "sink": "MeshEditorAction"
         }
       ]
@@ -189016,7 +189036,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 171,
+          "line": 181,
           "sink": "MeshEditorAction"
         },
         {
@@ -189426,12 +189446,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 199,
+          "line": 209,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 199,
+          "line": 209,
           "sink": "MeshEditorAction"
         },
         {
@@ -189771,12 +189791,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 176,
+          "line": 186,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 176,
+          "line": 186,
           "sink": "MeshEditorAction"
         }
       ]
@@ -190381,22 +190401,22 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 170,
+          "line": 180,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 171,
+          "line": 181,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 172,
+          "line": 182,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 173,
+          "line": 183,
           "sink": "MeshEditorAction"
         }
       ]
@@ -190406,17 +190426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 174,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 175,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 176,
+          "line": 184,
           "sink": "MeshEditorAction"
         },
         {
@@ -190426,52 +190436,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 199,
+          "line": 186,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 200,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 201,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 202,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 203,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 204,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 205,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 206,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 207,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 208,
+          "line": 195,
           "sink": "MeshEditorAction"
         },
         {
@@ -190497,6 +190467,56 @@
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 213,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 214,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 215,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 216,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 217,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 218,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 219,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 220,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 221,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 222,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 223,
           "sink": "MeshEditorAction"
         }
       ]
@@ -190526,32 +190546,32 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 167,
+          "line": 177,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 167,
+          "line": 177,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 168,
+          "line": 178,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 168,
+          "line": 178,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 169,
+          "line": 179,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 169,
+          "line": 179,
           "sink": "MeshEditorAction"
         }
       ]
@@ -190746,12 +190766,12 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 243,
+          "line": 253,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 243,
+          "line": 253,
           "sink": "MeshEditorAction"
         }
       ]
@@ -191031,56 +191051,6 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 226,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 227,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 228,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 229,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 230,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 231,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 232,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 233,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 234,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 235,
-          "sink": "MeshEditorAction"
-        },
-        {
-          "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 236,
           "sink": "MeshEditorAction"
         },
@@ -191102,6 +191072,56 @@
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
           "line": 240,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 241,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 242,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 243,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 244,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 245,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 246,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 247,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 248,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 249,
+          "sink": "MeshEditorAction"
+        },
+        {
+          "path": "cdmw/ui/mesh_editor/actions.py",
+          "line": 250,
           "sink": "MeshEditorAction"
         }
       ]
@@ -191681,12 +191701,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 211,
+          "line": 221,
           "sink": "MeshEditorAction"
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 211,
+          "line": 221,
           "sink": "MeshEditorAction"
         }
       ]
@@ -191986,7 +192006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 234,
+          "line": 244,
           "sink": "MeshEditorAction"
         }
       ]
@@ -192111,7 +192131,7 @@
         },
         {
           "path": "cdmw/ui/mesh_editor/actions.py",
-          "line": 236,
+          "line": 246,
           "sink": "MeshEditorAction"
         }
       ]
@@ -192421,7 +192441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/action_bar.py",
-          "line": 215,
+          "line": 216,
           "sink": "python-return:_action_tooltip"
         },
         {
@@ -193516,12 +193536,12 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 246,
+          "line": 256,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/mesh_editor/tab_state.py",
-          "line": 247,
+          "line": 257,
           "sink": "emit"
         }
       ]
@@ -194266,7 +194286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/mesh_editor/controller.py",
-          "line": 521,
+          "line": 525,
           "sink": "RuntimeError"
         },
         {

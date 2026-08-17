@@ -144,9 +144,61 @@ class ArchiveMutationServiceTests(unittest.TestCase):
 
         restore.assert_not_called()
 
+    def test_plan_with_additions_routes_through_apply_archive_mutations(self) -> None:
+        from cdmw.core.archive_extraction import read_archive_entry_data
+        from cdmw.core.archive_format import parse_archive_pamt
+        from cdmw.services.archive_mutation_service import ArchiveAddRequest
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            entry = _write_test_archive(root, "character/model/existing.pac")
+            service = ArchiveMutationService()
+            addition = ArchiveAddRequest.from_template(entry, "character/model/brand_new.pac", b"brand-new payload")
+            plan = service.prepare_patch((), additions=addition, confirmed=True)
+            self.assertEqual(plan.target_paths, ("character/model/brand_new.pac",))
+            self.assertEqual(plan.safety.description, "Add 1 archive entrie(s)")
+
+            with patch.object(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", root / "backups"):
+                service.validate_patch(plan)
+                backup_dir = service.create_backup(plan)
+                result = service.apply_patch(plan)
+
+            self.assertTrue((backup_dir / "backup_manifest.json").is_file())
+            self.assertEqual(result.added_paths, ["character/model/brand_new.pac"])
+            entries = {e.path.lower(): e for e in parse_archive_pamt(entry.pamt_path)}
+            self.assertEqual(read_archive_entry_data(entries["character/model/brand_new.pac"])[0], b"brand-new payload")
+            self.assertEqual(read_archive_entry_data(entries["character/model/existing.pac"])[0], b"old-payload")
+
+    def test_additions_of_the_wrong_type_or_an_empty_plan_are_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            entry = _write_test_archive(Path(temp_dir))
+            service = ArchiveMutationService()
+            with self.assertRaisesRegex(ValueError, "No archive modifications"):
+                service.prepare_patch(())
+            with self.assertRaisesRegex(TypeError, "ArchiveAddRequest"):
+                service.prepare_patch((ArchivePatchRequest(entry, b"x"),), additions=("character/model/x.pac",))  # type: ignore[arg-type]
+
+    def test_addition_preflight_refuses_a_path_that_already_exists_before_backup(self) -> None:
+        from cdmw.services.archive_mutation_service import ArchiveAddRequest
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            entry = _write_test_archive(root, "character/model/existing.pac")
+            plan = ArchiveMutationService().prepare_patch(
+                (),
+                additions=ArchiveAddRequest.from_template(entry, "character/model/existing.pac", b"dup"),
+                confirmed=True,
+            )
+            with patch.object(archive_patching, "_create_backup") as create_backup:
+                with self.assertRaisesRegex(ValueError, "already exists"):
+                    ArchiveMutationService().apply_patch(plan)
+            create_backup.assert_not_called()
+
     def test_destructive_ui_modules_have_no_direct_low_level_patch_calls(self) -> None:
         forbidden = {
             "patch_archive_entries",
+            "apply_archive_mutations",
+            "add_archive_entries",
             "restore_archive_patch_backup",
             "list_archive_patch_backups",
         }

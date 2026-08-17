@@ -28,6 +28,14 @@ ARCHIVE_PATCH_BACKUP_ROOT = Path(tempfile.gettempdir()) / APP_NAME / "archive_pa
 # re-implemented here.
 _VfsPathResolver = VfsPathResolver
 
+#: Every shipped PAMT stores its per-PAZ record as (paz index, checksum of the
+#: PAZ bytes, PAZ size). Measured on the installed build: 0020/0.pamt holds
+#: (0, 0x09B7964E, 7427056) for a 7,427,056-byte 0.paz whose pa-checksum is
+#: 0x09B7964E, and 0009/0.pamt runs 0, 1, 2 ... in the first field.
+_PAZ_RECORD_INDEX_OFFSET = 0
+_PAZ_RECORD_CHECKSUM_OFFSET = 4
+_PAZ_RECORD_SIZE_OFFSET = 8
+
 
 @dataclass(slots=True)
 class _MutablePazRecord:
@@ -35,6 +43,8 @@ class _MutablePazRecord:
     entry_offset: int
     checksum: int
     size: int
+    #: The index the record itself states; equals `index` in every shipped table.
+    stored_index: int = 0
 
 
 @dataclass(slots=True)
@@ -75,12 +85,13 @@ def _parse_mutable_pamt(pamt_path: Path) -> _MutablePamt:
     paz_records: Dict[int, _MutablePazRecord] = {}
     for paz_index in range(paz_count):
         record_offset = off + (paz_index * 12)
-        checksum, size, _reserved = struct.unpack_from("<III", data, record_offset)
+        stored_index, checksum, size = struct.unpack_from("<III", data, record_offset)
         paz_records[paz_index] = _MutablePazRecord(
             index=paz_index,
             entry_offset=record_offset,
             checksum=checksum,
             size=size,
+            stored_index=stored_index,
         )
     off += paz_count * 12
 
@@ -282,9 +293,19 @@ def _copy_file_with_progress(
     shutil.copystat(source, target)
 
 
+def _write_paz_record(raw: bytearray, record_offset: int, *, checksum: int, size: int) -> None:
+    """Rewrite a PAZ record's checksum and size, leaving its index field alone."""
+
+    struct.pack_into("<I", raw, record_offset + _PAZ_RECORD_CHECKSUM_OFFSET, int(checksum) & 0xFFFFFFFF)
+    struct.pack_into("<I", raw, record_offset + _PAZ_RECORD_SIZE_OFFSET, int(size) & 0xFFFFFFFF)
+
+
 def _write_paz_payload(entry: ArchiveEntry, payload: bytes) -> int:
+    return _append_paz_payload(entry.paz_file, payload)
+
+
+def _append_paz_payload(paz_path: Path, payload: bytes) -> int:
     padded_payload = _pad_to_16(payload)
-    paz_path = entry.paz_file
 
     # Always append a new payload instead of overwriting or clearing the old slot.
     # This keeps the previous archive bytes intact until the updated PAMT has been
@@ -506,98 +527,41 @@ def _refresh_changed_entries(pamt_paths: Iterable[Path], changed_paths: Iterable
     return refreshed
 
 
-def patch_archive_entries(
-    requests: Sequence[ArchivePatchRequest],
+def _run_archive_mutation(
     *,
+    papgt_path: Path,
+    ordered_pamts: Sequence[Path],
+    backup_targets: Iterable[Path],
+    description: str,
+    changed_paths: Sequence[str],
+    added_paths: Sequence[str],
+    apply_group: Callable[[Path], int],
     on_log: Optional[Callable[[str], None]] = None,
 ) -> ArchivePatchResult:
-    if not requests:
-        raise ValueError("No archive modifications were provided.")
+    """Back up, apply one package group at a time, rechain the PAPGT, verify, or restore.
 
-    package_roots = {_package_root_from_entry(request.entry).resolve() for request in requests}
-    if len(package_roots) != 1:
-        raise ValueError("Archive patching currently requires all modified entries to come from the same package root.")
-    package_root = next(iter(package_roots))
-    papgt_path = _resolve_papgt_path(requests[0].entry)
+    `apply_group` writes one group's PAMT and returns its new crc. Everything
+    around it (backup set, PAPGT slot, chain verification, restore on failure,
+    entry refresh) is shared by in-place patching and by the rebuild that adds
+    entries, so it lives here once.
+    """
 
-    grouped_requests: Dict[Path, List[ArchivePatchRequest]] = {}
-    for request in requests:
-        grouped_requests.setdefault(request.entry.pamt_path.resolve(), []).append(request)
-
-    mutable_by_pamt = _preflight_archive_patch_requests(
-        papgt_path=papgt_path,
-        grouped_requests=grouped_requests,
-    )
-
-    backup_targets: List[Path] = [papgt_path]
-    for pamt_path, group_requests in grouped_requests.items():
-        backup_targets.append(pamt_path)
-        backup_targets.extend({request.entry.paz_file.resolve() for request in group_requests})
-    _safe_log(on_log, f"Creating archive patch backup for {len(requests)} entrie(s)...")
-    backup_dir = _create_backup(
-        sorted(set(backup_targets)),
-        description=f"Patch {len(requests)} archive entrie(s)",
-        on_log=on_log,
-    )
+    total = len(changed_paths)
+    _safe_log(on_log, f"Creating archive patch backup for {total} entrie(s)...")
+    backup_dir = _create_backup(sorted(set(backup_targets)), description=description, on_log=on_log)
     _safe_log(on_log, f"Backup created: {backup_dir}")
     warnings: List[str] = []
     touched_pamt_paths: List[Path] = []
-    changed_paths = [request.entry.path for request in requests]
 
     try:
         papgt_raw = bytearray(papgt_path.read_bytes())
-
-        for pamt_path, group_requests in grouped_requests.items():
-            mutable = mutable_by_pamt[pamt_path]
-            touched_paz_indices: set[int] = set()
-            group_name = pamt_path.parent.name
-            _safe_log(on_log, f"Updating {group_name}/{pamt_path.name} ({len(group_requests)} entrie(s))...")
-
-            for request in group_requests:
-                normalized_path = _normalize_virtual_path(request.entry.path)
-                mutable_record = mutable.file_records.get(normalized_path)
-                if mutable_record is None:
-                    raise ValueError(f"Could not locate {request.entry.path} inside {pamt_path.name}.")
-
-                _safe_log(on_log, f"Preparing payload for {request.entry.path}...")
-                processed_payload = _compress_archive_payload(request.payload_data, request.entry.compression_type)
-                if request.entry.encrypted:
-                    processed_payload = _crypt_archive_payload(processed_payload, request.entry.basename)
-
-                _safe_log(
-                    on_log,
-                    f"Writing {request.entry.basename} to {request.entry.paz_file.name} at a safe append-only offset...",
-                )
-                new_offset = _write_paz_payload(request.entry, processed_payload)
-                struct.pack_into("<I", mutable.raw, mutable_record.record_offset + 4, new_offset)
-                struct.pack_into("<I", mutable.raw, mutable_record.record_offset + 8, len(processed_payload))
-                struct.pack_into("<I", mutable.raw, mutable_record.record_offset + 12, len(request.payload_data))
-                touched_paz_indices.add(int(mutable_record.paz_index))
-
-            for paz_index in sorted(touched_paz_indices):
-                paz_record = mutable.paz_records.get(paz_index)
-                if paz_record is None:
-                    raise ValueError(f"PAMT {pamt_path.name} is missing PAZ table entry {paz_index}.")
-                paz_path = pamt_path.parent / f"{paz_index}.paz"
-                if not paz_path.is_file():
-                    raise FileNotFoundError(f"Could not find archive payload file {paz_path}.")
-                _safe_log(on_log, f"Recalculating checksum for {paz_path.name}...")
-                paz_data = paz_path.read_bytes()
-                struct.pack_into("<I", mutable.raw, paz_record.entry_offset, _calculate_pa_checksum(paz_data))
-                struct.pack_into("<I", mutable.raw, paz_record.entry_offset + 4, len(paz_data))
-
-            _safe_log(on_log, f"Writing updated {pamt_path.name}...")
-            pamt_crc = _calculate_pa_checksum(bytes(mutable.raw[12:]))
-            struct.pack_into("<I", mutable.raw, 0, pamt_crc)
-            _write_bytes_preserve_timestamps(pamt_path, bytes(mutable.raw))
+        for pamt_path in ordered_pamts:
+            pamt_crc = apply_group(pamt_path)
             touched_pamt_paths.append(pamt_path)
-
-            crc_offset = _papgt_crc_offset(papgt_path, group_name)
-            struct.pack_into("<I", papgt_raw, crc_offset, pamt_crc)
+            struct.pack_into("<I", papgt_raw, _papgt_crc_offset(papgt_path, pamt_path.parent.name), pamt_crc)
 
         _safe_log(on_log, f"Writing updated {papgt_path.name}...")
-        papgt_crc = _calculate_pa_checksum(bytes(papgt_raw[12:]))
-        struct.pack_into("<I", papgt_raw, 4, papgt_crc)
+        struct.pack_into("<I", papgt_raw, 4, _calculate_pa_checksum(bytes(papgt_raw[12:])))
         _write_bytes_preserve_timestamps(papgt_path, bytes(papgt_raw))
 
         _safe_log(on_log, "Verifying archive checksum chain...")
@@ -613,8 +577,105 @@ def patch_archive_entries(
     return ArchivePatchResult(
         backup_dir=backup_dir,
         changed_entries=refreshed_entries,
-        changed_paths=changed_paths,
+        changed_paths=list(changed_paths),
         warnings=warnings,
+        added_paths=list(added_paths),
+    )
+
+
+def _apply_in_place_patches(
+    pamt_path: Path,
+    mutable: _MutablePamt,
+    group_requests: Sequence[ArchivePatchRequest],
+    *,
+    on_log: Optional[Callable[[str], None]],
+) -> int:
+    """Rewrite existing file records in place; returns the new PAMT crc."""
+
+    touched_paz_indices: set[int] = set()
+    group_name = pamt_path.parent.name
+    _safe_log(on_log, f"Updating {group_name}/{pamt_path.name} ({len(group_requests)} entrie(s))...")
+
+    for request in group_requests:
+        normalized_path = _normalize_virtual_path(request.entry.path)
+        mutable_record = mutable.file_records.get(normalized_path)
+        if mutable_record is None:
+            raise ValueError(f"Could not locate {request.entry.path} inside {pamt_path.name}.")
+
+        _safe_log(on_log, f"Preparing payload for {request.entry.path}...")
+        processed_payload = _compress_archive_payload(request.payload_data, request.entry.compression_type)
+        if request.entry.encrypted:
+            processed_payload = _crypt_archive_payload(processed_payload, request.entry.basename)
+
+        _safe_log(
+            on_log,
+            f"Writing {request.entry.basename} to {request.entry.paz_file.name} at a safe append-only offset...",
+        )
+        new_offset = _write_paz_payload(request.entry, processed_payload)
+        struct.pack_into("<I", mutable.raw, mutable_record.record_offset + 4, new_offset)
+        struct.pack_into("<I", mutable.raw, mutable_record.record_offset + 8, len(processed_payload))
+        struct.pack_into("<I", mutable.raw, mutable_record.record_offset + 12, len(request.payload_data))
+        touched_paz_indices.add(int(mutable_record.paz_index))
+
+    for paz_index in sorted(touched_paz_indices):
+        paz_record = mutable.paz_records.get(paz_index)
+        if paz_record is None:
+            raise ValueError(f"PAMT {pamt_path.name} is missing PAZ table entry {paz_index}.")
+        paz_path = pamt_path.parent / f"{paz_index}.paz"
+        if not paz_path.is_file():
+            raise FileNotFoundError(f"Could not find archive payload file {paz_path}.")
+        _safe_log(on_log, f"Recalculating checksum for {paz_path.name}...")
+        paz_data = paz_path.read_bytes()
+        _write_paz_record(mutable.raw, paz_record.entry_offset, checksum=_calculate_pa_checksum(paz_data), size=len(paz_data))
+
+    _safe_log(on_log, f"Writing updated {pamt_path.name}...")
+    pamt_crc = _calculate_pa_checksum(bytes(mutable.raw[12:]))
+    struct.pack_into("<I", mutable.raw, 0, pamt_crc)
+    _write_bytes_preserve_timestamps(pamt_path, bytes(mutable.raw))
+    return pamt_crc
+
+
+def patch_archive_entries(
+    requests: Sequence[ArchivePatchRequest],
+    *,
+    on_log: Optional[Callable[[str], None]] = None,
+) -> ArchivePatchResult:
+    """Replace existing entries in place. To add entries as well, see
+    :func:`cdmw.core.archive_entry_addition.apply_archive_mutations`."""
+
+    if not requests:
+        raise ValueError("No archive modifications were provided.")
+
+    package_roots = {_package_root_from_entry(request.entry).resolve() for request in requests}
+    if len(package_roots) != 1:
+        raise ValueError("Archive patching currently requires all modified entries to come from the same package root.")
+    papgt_path = _resolve_papgt_path(requests[0].entry)
+
+    grouped_requests: Dict[Path, List[ArchivePatchRequest]] = {}
+    for request in requests:
+        grouped_requests.setdefault(request.entry.pamt_path.resolve(), []).append(request)
+
+    mutable_by_pamt = _preflight_archive_patch_requests(
+        papgt_path=papgt_path,
+        grouped_requests=grouped_requests,
+    )
+
+    backup_targets: List[Path] = [papgt_path]
+    for pamt_path, group_requests in grouped_requests.items():
+        backup_targets.append(pamt_path)
+        backup_targets.extend({request.entry.paz_file.resolve() for request in group_requests})
+
+    return _run_archive_mutation(
+        papgt_path=papgt_path,
+        ordered_pamts=list(grouped_requests),
+        backup_targets=backup_targets,
+        description=f"Patch {len(requests)} archive entrie(s)",
+        changed_paths=[request.entry.path for request in requests],
+        added_paths=(),
+        apply_group=lambda pamt_path: _apply_in_place_patches(
+            pamt_path, mutable_by_pamt[pamt_path], grouped_requests[pamt_path], on_log=on_log
+        ),
+        on_log=on_log,
     )
 
 
