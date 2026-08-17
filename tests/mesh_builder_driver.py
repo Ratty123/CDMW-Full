@@ -107,8 +107,12 @@ class MeshBuilderDriver:
         dialog_title: str = "Mesh Builder driver",
         placement_context_note: str = "",
         settings: object | None = None,
+        full_import_model_replacement: bool = False,
+        materials_and_textures_only: bool = False,
     ) -> None:
         self.modify_original_clone_mode = bool(modify_original_clone_mode)
+        self.full_import_model_replacement = bool(full_import_model_replacement)
+        self.materials_and_textures_only = bool(materials_and_textures_only)
         self._temp = tempfile.TemporaryDirectory(prefix="cdmw-mesh-builder-driver-")
         self.root = Path(self._temp.name)
         # Each driver gets its own settings file unless a caller passes one in,
@@ -152,6 +156,8 @@ class MeshBuilderDriver:
                 self.root / f"{dialog_title}.obj",
                 dialog_title=dialog_title,
                 placement_context_note=placement_context_note,
+                full_import_model_replacement=self.full_import_model_replacement,
+                materials_and_textures_only=self.materials_and_textures_only,
                 _prepared_prompt_preflight=synthetic_builder_preflight(
                     modify_original_clone_mode=self.modify_original_clone_mode,
                 ),
@@ -315,6 +321,8 @@ def open_mesh_builder(
     dialog_title: str = "Mesh Builder driver",
     placement_context_note: str = "",
     settings: object | None = None,
+    full_import_model_replacement: bool = False,
+    materials_and_textures_only: bool = False,
 ) -> Iterator[MeshBuilderDriver]:
     """Construct the Builder offscreen, yield it, then assert clean teardown.
 
@@ -326,6 +334,8 @@ def open_mesh_builder(
         dialog_title=dialog_title,
         placement_context_note=placement_context_note,
         settings=settings,
+        full_import_model_replacement=full_import_model_replacement,
+        materials_and_textures_only=materials_and_textures_only,
     )
     try:
         yield driver

@@ -27,6 +27,20 @@ from cdmw.ui.archive_browser.static_replacement_dialog_prompt_transform import (
 install_static_replacement_prompt_dependencies(globals())
 
 
+#: What the Builder calls to continue into a build: the options it accepted,
+#: the parent widget, a log sink, a status sink, and the destination.
+ContinueBuildCallback = Callable[
+    [
+        StaticMeshReplacementOptions,
+        Optional[QWidget],
+        Callable[[str], None],
+        Callable[[str, bool], None],
+        str,
+    ],
+    bool,
+]
+
+
 def prompt_archive_static_replacement_options(
     self,
     entry: ArchiveEntry,
@@ -45,19 +59,9 @@ def prompt_archive_static_replacement_options(
     defer_original_texture_preview: bool = False,
     runtime_export_target_entry: Optional[ArchiveEntry] = None,
     full_import_model_replacement: bool = False,
+    materials_and_textures_only: bool = False,
     embedded_host: Optional[QWidget] = None,
-    continue_build_callback: Optional[
-        Callable[
-            [
-                StaticMeshReplacementOptions,
-                Optional[QWidget],
-                Callable[[str], None],
-                Callable[[str, bool], None],
-                str,
-            ],
-            bool,
-        ]
-    ] = None,
+    continue_build_callback: Optional[ContinueBuildCallback] = None,
     on_accept: Optional[Callable[[StaticMeshReplacementOptions], None]] = None,
     on_cancel: Optional[Callable[[], None]] = None,
     _prepared_prompt_preflight: StaticReplacementPromptPreflightResult | None = None,
@@ -93,6 +97,7 @@ def prompt_archive_static_replacement_options(
                 defer_original_texture_preview=defer_original_texture_preview,
                 runtime_export_target_entry=runtime_export_target_entry,
                 full_import_model_replacement=full_import_model_replacement,
+                materials_and_textures_only=materials_and_textures_only,
                 embedded_host=embedded_host,
                 continue_build_callback=continue_build_callback,
                 on_accept=on_accept,
