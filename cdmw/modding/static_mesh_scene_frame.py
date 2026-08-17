@@ -318,18 +318,6 @@ def build_static_transform_frame(
             dst_center[index] - src_center[index] * fit_scale_xyz[index]
             for index in range(3)
         )  # type: ignore[assignment]
-    if include_grid_floor and str(transform.alignment_mode or "").strip().lower() == "grid_flat":
-        minimum_y: float | None = None
-        for submesh in alignment_sources:
-            if _is_marker_submesh(submesh):
-                continue
-            for vertex in tuple(getattr(submesh, "vertices", ()) or ()):
-                y = _apply_transform(vertex, transform, fit_scale_xyz, fit_offset, alignment)[1]
-                if math.isfinite(y):
-                    minimum_y = y if minimum_y is None else min(minimum_y, y)
-        if minimum_y is not None and abs(minimum_y) > 1.0e-8:
-            fit_offset = (fit_offset[0], fit_offset[1] - minimum_y, fit_offset[2])
-
     automatic_transform = replace(
         transform,
         rotate_xyz_degrees=(0.0, 0.0, 0.0),
@@ -338,6 +326,25 @@ def build_static_transform_frame(
         offset_xyz=(0.0, 0.0, 0.0),
         manual_adjustment=(0.0, 0.0, 0.0),
     )
+    if include_grid_floor and str(transform.alignment_mode or "").strip().lower() == "grid_flat":
+        # The floor is a property of the automatic placement, so it is measured
+        # from the automatic transform. Measuring it from the full transform
+        # made the manual offset part of what was being floored: drag the mesh
+        # up by 0.11 and the lowest vertex rose by 0.11, so the fit offset
+        # dropped by 0.11 to put it back on the grid, and the mesh landed
+        # exactly where it started with the offset spins reading 0.11. That
+        # was the gizmo "snapping back" -- it was being re-floored.
+        minimum_y: float | None = None
+        for submesh in alignment_sources:
+            if _is_marker_submesh(submesh):
+                continue
+            for vertex in tuple(getattr(submesh, "vertices", ()) or ()):
+                y = _apply_transform(vertex, automatic_transform, fit_scale_xyz, fit_offset, alignment)[1]
+                if math.isfinite(y):
+                    minimum_y = y if minimum_y is None else min(minimum_y, y)
+        if minimum_y is not None and abs(minimum_y) > 1.0e-8:
+            fit_offset = (fit_offset[0], fit_offset[1] - minimum_y, fit_offset[2])
+
     alignment_basis = StaticAlignmentBasis(
         source_anchor=_vec3(alignment["source_anchor"]),  # type: ignore[arg-type]
         target_anchor=_vec3(alignment["target_anchor"]),  # type: ignore[arg-type]
@@ -488,7 +495,16 @@ def build_authoritative_static_scene_frame(
         if selection_pivot_source is not None
         else None
     )
-    ground_origin = (editable_bounds.center[0], editable_bounds.minimum[1], editable_bounds.center[2])
+    # The ground is where the automatic placement rests the mesh, not where
+    # the mesh currently is. Taking it from the editable bounds meant the grid
+    # rose with a manual lift, so a drag upward looked like no drag at all
+    # against the one reference the reader has for height.
+    automatic_bounds = _mesh_world_bounds(
+        replacement_mesh,
+        transform_frame.alignment.model_matrix,
+        cancelled=cancelled,
+    )
+    ground_origin = (editable_bounds.center[0], automatic_bounds.minimum[1], editable_bounds.center[2])
     identity = str(source_identity or static_scene_source_identity(replacement_mesh, original_mesh))
     return StaticMeshSceneFrame(
         format="cdmw_resident_scene_frame_v2",

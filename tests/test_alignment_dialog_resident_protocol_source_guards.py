@@ -19,8 +19,10 @@ class AlignmentDialogResidentProtocolSourceGuardTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn("phase: str = 'end'", placement_handler)
-        self.assertIn("str(phase or 'end').strip().lower() == 'update'", placement_handler)
-        deferred = placement_handler.index("str(phase or 'end').strip().lower() == 'update'")
+        # `begin` joined `update` as a non-terminal sample once the renderer
+        # started emitting the exact drag start; neither publishes a frame.
+        self.assertIn("str(phase or 'end').strip().lower() in {'update', 'begin'}", placement_handler)
+        deferred = placement_handler.index("str(phase or 'end').strip().lower() in {'update', 'begin'}")
         published = placement_handler.index("_queue_global_transform_preview_update()")
         self.assertLess(deferred, published)
         self.assertIn('payload.get("placement_phase", "end")', protocol_source)

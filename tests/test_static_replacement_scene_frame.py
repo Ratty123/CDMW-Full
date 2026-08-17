@@ -186,8 +186,45 @@ def test_grid_flat_floor_correction_and_model_matrix_share_transform_frame() -> 
     scene_frame = build_authoritative_static_scene_frame(original, replacement, transform)
 
     assert scene_frame.editable.model_matrix == pytest.approx(transform_frame.effective_model_matrix)
-    assert scene_frame.editable.world_bounds.minimum[1] == pytest.approx(0.0, abs=1.0e-7)
+    # The floor is where the *automatic* placement puts the lowest vertex; the
+    # manual Y offset then lifts the mesh off it. This used to assert 0.0 with a
+    # +3.0 offset in play, which pinned the manual offset being floored away.
+    assert scene_frame.editable.world_bounds.minimum[1] == pytest.approx(3.0, abs=1.0e-6)
     assert scene_frame.grid_origin[1] == pytest.approx(0.0, abs=1.0e-7)
+
+
+def test_a_manual_y_offset_lifts_the_mesh_instead_of_being_floored_away() -> None:
+    """The gizmo "snap back". A drag up by 0.11 raised the lowest vertex by 0.11,
+    the grid-flat floor lowered the fit offset by 0.11 to put it back on the
+    grid, and the mesh landed exactly where it started while the offset spins
+    read 0.11. Measured from the user's own protocol log: the editable model
+    matrix's translation row was identical across two drags while the
+    automatic matrix moved by exactly minus the manual delta."""
+    original = _mesh("original.pac", [(-3.0, 0.0, -1.0), (3.0, 2.0, 1.0)])
+    replacement = _mesh("replacement.obj", [(-1.0, 11.0, -0.25), (1.0, 12.0, 0.25), (0.0, 15.0, 0.0)])
+
+    def frame(offset_y: float):
+        return build_static_transform_frame(
+            original,
+            replacement,
+            StaticReplacementTransform(
+                alignment_mode="grid_flat",
+                scale_to_original_length=False,
+                offset_xyz=(0.0, offset_y, 0.0),
+            ),
+        )
+
+    resting = frame(0.0)
+    lifted = frame(0.11)
+    lifted_more = frame(0.204)
+
+    # The automatic (floor) placement does not move with the manual offset...
+    assert lifted.alignment.model_matrix == pytest.approx(resting.alignment.model_matrix)
+    assert lifted_more.alignment.model_matrix == pytest.approx(resting.alignment.model_matrix)
+    # ...and the effective placement moves by exactly it.
+    resting_y = resting.effective_model_matrix[13]
+    assert lifted.effective_model_matrix[13] - resting_y == pytest.approx(0.11, abs=1.0e-9)
+    assert lifted_more.effective_model_matrix[13] - resting_y == pytest.approx(0.204, abs=1.0e-9)
 
 
 def test_comparison_offsets_remain_presentation_only() -> None:
