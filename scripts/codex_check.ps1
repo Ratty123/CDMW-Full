@@ -184,6 +184,10 @@ $TestsByArea = @{
         # Part Setup's combo selecting and highlighting a part the lazily
         # populated source tree has not reached yet.
         "tests/test_part_setup_combo_selects_and_highlights.py",
+        # Where the Builder's Setup controls live after the owner's restructure:
+        # options under Options, Material Authority flat inside Advanced, and
+        # Parts & Routing folded into Part Setup with its tab hidden.
+        "tests/test_builder_setup_tab_layout.py",
         # Replace Materials and Textures Only, whose whole guarantee is that the
         # commit boundary emits no mesh entry at all.
         "tests/test_materials_and_textures_replacement.py",

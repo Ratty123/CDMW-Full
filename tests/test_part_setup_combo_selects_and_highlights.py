@@ -106,3 +106,57 @@ def test_picking_the_placeholder_clears_the_selection(two_part_preflight) -> Non
         combo.setCurrentIndex(combo.findData(0))
         builder.pump()
         assert builder.control("selected_source_part")["index"] == 0
+
+
+def test_part_setup_glow_reaches_the_adjustment_with_colour_and_strength(two_part_preflight) -> None:
+    """Part Setup owns glow now, so its controls have to produce a real glow.
+
+    Material Authority's accent-glow and glow-override rows were removed from
+    the form; the Part Setup controls mirror into those (hidden) widgets and
+    take their write path. This proves the mirroring still lands both the colour
+    and the strength on the part adjustment, and that the resident bridge sends
+    both -- a glow that changes only the colour is what the owner asked not to
+    have.
+    """
+    from cdmw.ui.archive_browser.static_replacement_dotnet_material_bridge import (
+        resident_material_parameter_groups_for_model,
+    )
+
+    with open_mesh_builder(dialog_title="Part Setup glow") as builder:
+        combo = builder.control("part_source_combo")
+        combo.setCurrentIndex(combo.findData(1))
+        builder.pump()
+        assert builder.control("selected_source_part")["index"] == 1
+
+        # Turn the selected part into a glow part, then give it a colour and
+        # a strength through Part Setup's own controls. The checkbox is not on
+        # the construction context, so it is found by its object name.
+        from PySide6.QtWidgets import QCheckBox
+
+        emissive_checkbox = builder.dialog.findChild(QCheckBox, "MeshAlignmentPartEmissiveCheckBox")
+        assert emissive_checkbox is not None
+        emissive_checkbox.setChecked(True)
+        builder.pump()
+        builder.control("_commit_selected_part_emissive")(rgb=(255, 0, 0), strength=3.5)
+        builder.pump()
+
+        adjustments = builder.control("source_part_adjustments")
+        adjustment = adjustments.get(1)
+        assert adjustment is not None, "the glow edit created no adjustment for the part"
+        assert tuple(adjustment.emissive_color_rgb) == (255, 0, 0)
+        assert abs(float(adjustment.emissive_strength) - 3.5) < 1e-6
+        assert str(adjustment.material_role).lower() in {"glow", "emissive"}
+
+        # What the resident renderer would be sent for that part. The fixture's
+        # preview model carries no meshes (the driver never renders), so build
+        # the one the app would from the same parsed mesh.
+        from cdmw.core.archive_mesh_import_scene_preview import parsed_mesh_to_preview_model
+
+        preview_model = parsed_mesh_to_preview_model(two_part_preflight)
+        groups = resident_material_parameter_groups_for_model(
+            {}, preview_model, profile=None, part_adjustments=adjustments
+        )
+        gem = next(group for group in groups if 1 in group["source_submesh_indices"])
+        assert gem["emissive_color"] == [1.0, 0.0, 0.0]
+        assert abs(float(gem["emissive_intensity"]) - 3.5) < 1e-6
+        assert gem["material_role"] in {"glow", "emissive"}

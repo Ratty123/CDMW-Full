@@ -328,12 +328,30 @@ def _preview_model_step_013(_state):
     _state.parts_outliner_layout = _state.QVBoxLayout(_state.parts_outliner_panel)
     _state.parts_outliner_layout.setContentsMargins(0, 0, 0, 0)
     _state.parts_outliner_layout.setSpacing(3)
-    _state.parts_outliner_layout.addWidget(_state.mapping_group, 0)
     _state.advanced_part_tools_section = _state.CollapsibleSection('Part Setup', expanded=False)
+    # Part Setup owns everything per-part now. The inspector (pick a part,
+    # its target, role, transform, colours) comes first; the routing overview
+    # that used to be the whole Parts & Routing tab -- the source, original
+    # and mapping trees with their bulk actions -- follows it, so one section
+    # answers both "which part" and "where does it go". Nothing was
+    # removed: every tree and button the callbacks resolve is still here.
     _state.advanced_part_tools_section.body_layout.addWidget(_state.part_inspector)
     if _state.setup_layout is not None:
+        _state.advanced_part_tools_section.body_layout.addWidget(_state.mapping_group)
         _state.setup_layout.addWidget(_state.advanced_part_tools_section)
+        # The mapping table used to build lazily when the Parts tab was
+        # shown. That tab is hidden now, so opening Part Setup is what a
+        # reader does to see the routing overview. The trigger lives in the
+        # outliner callbacks, created before this section exists, so the
+        # section is published on the dialog for them to find.
+        _dialog = _state.context.get('dialog')
+        if _dialog is not None:
+            setattr(_dialog, '_mesh_editor_part_setup_section', _state.advanced_part_tools_section)
+        _ensure_mapping = getattr(_dialog, '_mesh_editor_ensure_mapping_table_building', None)
+        if callable(_ensure_mapping):
+            _state.advanced_part_tools_section.toggled.connect(lambda expanded: _ensure_mapping() if expanded else None)
     else:
+        _state.parts_outliner_layout.addWidget(_state.mapping_group, 0)
         _state.parts_outliner_layout.addWidget(_state.advanced_part_tools_section, 0)
     _state.parts_outliner_layout.addStretch(1)
     _state.parts_layout.addWidget(_state.parts_outliner_panel, 1)
