@@ -382,6 +382,63 @@ def append_table_rows(
     return bytes(new_payload), new_header
 
 
+def replace_table_row(
+    payload: bytes,
+    header: bytes,
+    key: bytes | int,
+    new_row: bytes,
+) -> Tuple[bytes, bytes]:
+    """Replace one row's bytes in a `.pabgb` payload, keeping every other row where
+    it was except for the shift, and rewrite the `.pabgh` offsets that follow it.
+
+    The row is found by its directory key (`bytes` of the table's key width, or an
+    int for the 1/2/4-byte flavors). `new_row` must begin with the same key, as
+    every shipped row does; a size change is fine, since the directory addresses
+    rows by offset and later offsets are shifted by the delta. The count and every
+    key stay as they were, so this is the write path for edits that change a row's
+    length (a rebuilt stat block, an added store entry) without touching the
+    table's identity.
+    """
+
+    payload_bytes = bytes(payload or b"")
+    header_bytes = bytes(header or b"")
+    table = parse_pabgh_table(header_bytes, payload=payload_bytes)
+    key_width = int(table.key_width)
+    count_width = int(table.header_size)
+    directory_row_size = key_width + 4
+    if len(header_bytes) != count_width + len(table.rows) * directory_row_size:
+        raise ValueError(
+            f"PABGH header is {len(header_bytes):,} bytes, not the {count_width + len(table.rows) * directory_row_size:,} "
+            f"its {len(table.rows):,} directory row(s) imply."
+        )
+    key_bytes = int(key).to_bytes(key_width, "little") if isinstance(key, int) else bytes(key)
+    if len(key_bytes) != key_width:
+        raise ValueError(f"Key is {len(key_bytes)} byte(s); this table's keys are {key_width}.")
+    row_bytes = bytes(new_row)
+    if len(row_bytes) < key_width or row_bytes[:key_width] != key_bytes:
+        raise ValueError("The replacement row must begin with the row's own key.")
+    matches = [row for row in table.rows if bytes(row.key) == key_bytes]
+    if len(matches) != 1:
+        raise ValueError(f"Key {key_bytes.hex()} matches {len(matches)} directory row(s); expected exactly one.")
+    target = matches[0]
+    spans = table.row_spans(len(payload_bytes))
+    span = next(((start, end) for row, start, end in spans if row.index == target.index), None)
+    if span is None:
+        raise ValueError(f"Directory row {target.index} points outside the payload.")
+    start, end = span
+    delta = len(row_bytes) - (end - start)
+    new_payload = payload_bytes[:start] + row_bytes + payload_bytes[end:]
+    new_header = bytearray(header_bytes)
+    for row in table.rows:
+        if row.offset > start:
+            offset_at = count_width + row.index * directory_row_size + key_width
+            struct.pack_into("<I", new_header, offset_at, row.offset + delta)
+    check = parse_pabgh_table(bytes(new_header), payload=new_payload)
+    if len(check.rows) != len(table.rows) or check.key_width != key_width:
+        raise ValueError("The table does not parse back the way it was rewritten.")
+    return new_payload, bytes(new_header)
+
+
 def rebuild_pabgh_table(data: bytes, rows: Sequence[PabghRow], *, row_size: int) -> bytes:
     if row_size not in {5, 8}:
         raise ValueError("PABGH row size must be 5 or 8 bytes.")

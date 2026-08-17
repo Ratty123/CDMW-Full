@@ -17,7 +17,7 @@ from cdmw.core.stringinfo_table import (
     stringinfo_index,
     stringinfo_key,
 )
-from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table
+from cdmw.core.structured_binary_editor import append_table_rows, parse_pabgh_table, replace_table_row
 
 
 def _table(texts: list[str]) -> tuple[bytes, bytes]:
@@ -144,6 +144,58 @@ class TableAppendTests(unittest.TestCase):
             append_table_rows(one_payload, one_header, [struct.pack("<BI", 255, 4) + b"row!"])
 
 
+class TableReplaceTests(unittest.TestCase):
+    """replace_table_row: one row's bytes change, later offsets shift, keys and count stay."""
+
+    def test_replacing_a_row_with_a_longer_and_a_shorter_one(self) -> None:
+        payload, header = _table(["a", "bb", "ccc"])
+        table = parse_pabgh_table(header, payload=payload)
+        key_b = stringinfo_key("bb")
+        # a longer row for "bb": rewrite the text to a longer one that keeps the key bytes
+        longer = struct.pack("<I5sI", key_b, b"\0" * 5, 6) + b"bbbbbb"
+        new_payload, new_header = replace_table_row(payload, header, key_b, longer)
+        rebuilt = parse_pabgh_table(new_header, payload=new_payload)
+        self.assertEqual([r.row_id for r in rebuilt.rows], [r.row_id for r in table.rows])
+        self.assertEqual(len(new_payload), len(payload) + 4)
+        spans = {r.row_id: (s, e) for r, s, e in rebuilt.row_spans(len(new_payload))}
+        self.assertEqual(new_payload[spans[key_b][0]:spans[key_b][1]], longer)
+        # the row before is untouched, the row after moved by +4 and kept its bytes
+        old_spans = {r.row_id: (s, e) for r, s, e in table.row_spans(len(payload))}
+        key_a, key_c = stringinfo_key("a"), stringinfo_key("ccc")
+        self.assertEqual(spans[key_a], old_spans[key_a])
+        self.assertEqual(spans[key_c][0], old_spans[key_c][0] + 4)
+        self.assertEqual(new_payload[spans[key_c][0]:spans[key_c][1]], payload[old_spans[key_c][0]:old_spans[key_c][1]])
+        # and back to a shorter row
+        shorter = build_stringinfo_row("bb")
+        back_payload, back_header = replace_table_row(new_payload, new_header, key_b, shorter)
+        self.assertEqual((back_payload, back_header), (payload, header))
+
+    def test_int_and_bytes_keys_and_two_byte_key_tables(self) -> None:
+        def row(key: int, name: bytes) -> bytes:
+            return struct.pack("<HI", key, len(name)) + name
+
+        rows = [row(10, b"alpha"), row(11, b"beta"), row(12, b"gamma")]
+        payload = b"".join(rows)
+        offsets = [0, len(rows[0]), len(rows[0]) + len(rows[1])]
+        header = struct.pack("<H", 3) + b"".join(struct.pack("<HI", k, o) for k, o in zip((10, 11, 12), offsets))
+        new_payload, new_header = replace_table_row(payload, header, 11, row(11, b"beta-and-more"))
+        table = parse_pabgh_table(new_header, payload=new_payload)
+        self.assertEqual([r.row_id for r in table.rows], [10, 11, 12])
+        self.assertEqual(table.rows[2].offset, offsets[2] + len(b"-and-more"))
+        same_payload, same_header = replace_table_row(new_payload, new_header, (11).to_bytes(2, "little"), row(11, b"beta"))
+        self.assertEqual((same_payload, same_header), (payload, header))
+
+    def test_refusals(self) -> None:
+        payload, header = _table(["a", "bb"])
+        key_a = stringinfo_key("a")
+        with self.assertRaisesRegex(ValueError, "begin with the row's own key"):
+            replace_table_row(payload, header, key_a, build_stringinfo_row("zz"))
+        with self.assertRaisesRegex(ValueError, "matches 0"):
+            replace_table_row(payload, header, 424242, struct.pack("<I", 424242) + b"x")
+        with self.assertRaisesRegex(ValueError, "keys are 4"):
+            replace_table_row(payload, header, b"", b"")
+
+
 @pytest.mark.real_game
 class VanillaStringInfoTests(unittest.TestCase):
     def test_every_shipped_row_is_keyed_by_its_own_hash(self) -> None:
@@ -164,6 +216,10 @@ class VanillaStringInfoTests(unittest.TestCase):
         rows = parse_stringinfo(payload, header, name="stringinfo")
         self.assertGreater(len(rows), 30_000)
         self.assertEqual(stringinfo_index(rows)[0xA12E1FCD], "cd_phm_01_sword_0109_r")
+        # replacing a shipped row with its own bytes is a no-op on both files
+        table = parse_pabgh_table(header, payload=payload)
+        row, start, end = table.row_spans(len(payload))[len(table.rows) // 2]
+        self.assertEqual(replace_table_row(payload, header, row.key, payload[start:end]), (payload, header))
 
 
 if __name__ == "__main__":
