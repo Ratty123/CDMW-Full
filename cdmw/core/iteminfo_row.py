@@ -67,16 +67,20 @@ class ItemInfoRowError(ValueError):
 class StatValue:
     status_key: int
     value: int
-    #: Byte offset of the i32 value inside the row.
-    offset: int
+    #: Byte offset of the i32 value inside the row (-1 on a value built for a rebuild).
+    offset: int = -1
+    #: The u32 after the value; 0 on every shipped weapon and armour, -1 on a few test items. Carried, not interpreted.
+    extra: int = 0
 
 
 @dataclass(frozen=True, slots=True)
 class PriceEntry:
     item_key: int
     price: int
-    #: Byte offset of the u32 price inside the row.
-    offset: int
+    #: Byte offset of the u32 price inside the row (-1 on an entry built for a rebuild).
+    offset: int = -1
+    #: The two u32 between the price and the repeated item key; zero on every shipped entry. Carried, not interpreted.
+    reserved: Tuple[int, int] = (0, 0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,12 +90,20 @@ class EnchantLevel:
     stats: Tuple[StatValue, ...]
     #: `_buyPriceList`: what the level costs to reach, per money item.
     buy_prices: Tuple[PriceEntry, ...]
-    offset: int
-    end: int
+    offset: int = -1
+    end: int = -1
     #: `_statList_DataDefinedStaticLevel` entries by StatusInfo key; their 21 remaining bytes are carried, not decoded.
     level_stat_keys: Tuple[int, ...] = ()
     #: `_equipBuffs` keys.
     equip_buffs: Tuple[int, ...] = ()
+    #: The six bytes after the level number (two empty lists on every shipped row).
+    header_bytes: bytes = b"\x00" * 6
+    #: The 25-byte `_statList_DataDefinedStaticLevel` records, verbatim.
+    level_stat_entries: Tuple[bytes, ...] = ()
+    #: The u32 beside each `_equipBuffs` key.
+    equip_buff_extras: Tuple[int, ...] = ()
+    #: The trailing u32 (0 on every shipped level).
+    tail: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +135,8 @@ class ItemInfoRow:
     enchant_count: Optional[int]
     price_list: Tuple[PriceEntry, ...]
     stat_block_end: Optional[int]
+    #: The two bytes after the 0x11 marker (`01 03` on Wolf's Fang); carried, not interpreted.
+    stat_block_flags: Tuple[int, int] = (0, 0)
 
     @property
     def max_stack_count_offset(self) -> int:
@@ -194,10 +208,10 @@ def _read_price_list(raw: bytes, offset: int) -> Optional[Tuple[Tuple[PriceEntry
     for _ in range(count):
         if cursor + 20 > len(raw):
             return None
-        item, price, _a, _c, item_again = struct.unpack_from("<5I", raw, cursor)
+        item, price, reserved_a, reserved_c, item_again = struct.unpack_from("<5I", raw, cursor)
         if item != item_again:
             return None
-        entries.append(PriceEntry(item_key=item, price=price, offset=cursor + 4))
+        entries.append(PriceEntry(item_key=item, price=price, offset=cursor + 4, reserved=(reserved_a, reserved_c)))
         cursor += 20
     return tuple(entries), cursor
 
@@ -216,10 +230,11 @@ def _read_enchant_level(raw: bytes, offset: int, level: int) -> Optional[Enchant
     cursor += 4
     if stat_count > 16 or cursor + 12 * stat_count > limit:
         return None
+    header_bytes = bytes(raw[offset + 4 : offset + 10])
     stats = []
     for _ in range(stat_count):
-        key, value, _extra = struct.unpack_from("<Iii", raw, cursor)
-        stats.append(StatValue(status_key=key, value=value, offset=cursor + 4))
+        key, value, extra = struct.unpack_from("<Iii", raw, cursor)
+        stats.append(StatValue(status_key=key, value=value, offset=cursor + 4, extra=extra))
         cursor += 12
     if cursor + 4 > limit:
         return None
@@ -228,8 +243,10 @@ def _read_enchant_level(raw: bytes, offset: int, level: int) -> Optional[Enchant
     if level_stat_count > 16 or cursor + 25 * level_stat_count > limit:
         return None
     level_stats = []
+    level_stat_entries = []
     for _ in range(level_stat_count):
         level_stats.append(_u32(raw, cursor))
+        level_stat_entries.append(bytes(raw[cursor : cursor + 25]))
         cursor += 25
     prices = _read_price_list(raw, cursor)
     if prices is None:
@@ -242,13 +259,16 @@ def _read_enchant_level(raw: bytes, offset: int, level: int) -> Optional[Enchant
     if buff_count > 16 or cursor + 8 * buff_count > limit:
         return None
     buffs = tuple(_u32(raw, cursor + 8 * i) for i in range(buff_count))
+    buff_extras = tuple(_u32(raw, cursor + 8 * i + 4) for i in range(buff_count))
     cursor += 8 * buff_count
     if cursor + 4 > limit or _u32(raw, cursor) != 0:
         return None
+    tail = _u32(raw, cursor)
     cursor += 4
     return EnchantLevel(
         level=level, stats=tuple(stats), buy_prices=buy_prices, offset=offset, end=cursor,
-        level_stat_keys=tuple(level_stats), equip_buffs=buffs,
+        level_stat_keys=tuple(level_stats), equip_buffs=buffs, header_bytes=header_bytes,
+        level_stat_entries=tuple(level_stat_entries), equip_buff_extras=buff_extras, tail=tail,
     )
 
 
@@ -426,6 +446,7 @@ def parse_iteminfo_row(raw: bytes, *, item_keys: Optional[Iterable[int]] = None)
         desc_key=desc_key, desc_offset=desc_offset, item_type=item_type, item_type_offset=item_type_offset, memo=memo,
         socket_items=block["socket_items"], add_socket_materials=block["adds"], stat_block_offset=block["offset"],
         enchant_levels=block["levels"], enchant_count=block["count"], price_list=block["prices"], stat_block_end=block["end"],
+        stat_block_flags=tuple(block["flags"]),
     )
 
 
@@ -548,6 +569,167 @@ def clone_iteminfo_row(
         tail = bytearray(bytes(tail).replace(needle, struct.pack("<I", int(new_hash) & 0xFFFFFFFF)))
     out += tail
     return bytes(out)
+
+
+# --------------------------------------------------------------------------- stat block rebuild
+#
+# The editors above rewrite values in place. Changing the *shape* of the ladder
+# (a stat the template lacks, one more enhancement level, a price in another
+# money item) means re-serialising the whole stat block, which is only safe if
+# the encoder reproduces every shipped block byte for byte from its own parse.
+# That round trip is what test_iteminfo_row's real_game gate proves before any
+# rebuilt block is trusted; the encoder below carries every byte the parser saw.
+
+
+def _encode_price_entry(entry: PriceEntry) -> bytes:
+    return struct.pack("<5I", entry.item_key, entry.price, entry.reserved[0], entry.reserved[1], entry.item_key)
+
+
+def encode_enchant_level(level: EnchantLevel) -> bytes:
+    """One `EnchantData` record in the proven grammar."""
+
+    if len(level.header_bytes) != 6:
+        raise ItemInfoRowError("an enchant level carries six header bytes")
+    if len(level.level_stat_keys) != len(level.level_stat_entries) or any(len(entry) != 25 for entry in level.level_stat_entries):
+        raise ItemInfoRowError("static-level entries are 25 bytes each, one per key")
+    if len(level.equip_buffs) != len(level.equip_buff_extras):
+        raise ItemInfoRowError("every equip buff key carries one extra u32")
+    out = bytearray(struct.pack("<I", level.level)) + level.header_bytes
+    out += struct.pack("<I", len(level.stats))
+    for stat in level.stats:
+        out += struct.pack("<Iii", stat.status_key, stat.value, stat.extra)
+    out += struct.pack("<I", len(level.level_stat_entries)) + b"".join(level.level_stat_entries)
+    out += struct.pack("<I", len(level.buy_prices)) + b"".join(_encode_price_entry(entry) for entry in level.buy_prices)
+    out += struct.pack("<I", len(level.equip_buffs))
+    for key, extra in zip(level.equip_buffs, level.equip_buff_extras):
+        out += struct.pack("<II", key, extra)
+    out += struct.pack("<I", level.tail)
+    return bytes(out)
+
+
+def encode_stat_block(
+    row: ItemInfoRow,
+    *,
+    levels: Optional[Sequence[EnchantLevel]] = None,
+    price_list: Optional[Sequence[PriceEntry]] = None,
+) -> bytes:
+    """The stat block bytes for `row`, with its ladder and/or price list replaced.
+
+    With neither argument the result equals `row.raw[stat_block_offset:stat_block_end]`
+    on every shipped row (the corpus gate). Levels must be numbered 0..n-1 in order.
+    """
+
+    if row.stat_block_offset is None:
+        raise ItemInfoRowError(f"{row.string_key} has no decoded stat block to rebuild")
+    ladder = tuple(row.enchant_levels if levels is None else levels)
+    prices = tuple(row.price_list if price_list is None else price_list)
+    if [entry.level for entry in ladder] != list(range(len(ladder))):
+        raise ItemInfoRowError("enchant levels must run 0..n-1 without gaps")
+    if len(ladder) > _MAX_LADDER_LEVELS:
+        raise ItemInfoRowError(f"more than {_MAX_LADDER_LEVELS} enchant levels")
+    out = bytearray(struct.pack("<I", len(row.socket_items)))
+    for item in row.socket_items:
+        out += struct.pack("<I", item)
+    out += struct.pack("<I", len(row.add_socket_materials))
+    for item, count, extra in row.add_socket_materials:
+        out += struct.pack("<III", item, count, extra)
+    out += bytes([_STAT_BLOCK_MARKER, row.stat_block_flags[0], row.stat_block_flags[1]])
+    out += struct.pack("<I", len(ladder)) + b"".join(encode_enchant_level(level) for level in ladder)
+    out += struct.pack("<I", len(prices)) + b"".join(_encode_price_entry(entry) for entry in prices)
+    return bytes(out)
+
+
+def rebuild_stat_block(
+    row: ItemInfoRow,
+    *,
+    levels: Optional[Sequence[EnchantLevel]] = None,
+    price_list: Optional[Sequence[PriceEntry]] = None,
+) -> bytes:
+    """The row with its stat block re-serialised from `levels` / `price_list`; every other byte stays."""
+
+    block = encode_stat_block(row, levels=levels, price_list=price_list)
+    return row.raw[: row.stat_block_offset] + block + row.raw[row.stat_block_end :]
+
+
+def level_with_stat(level: EnchantLevel, status_key: int, value: int, *, extra: int = 0) -> EnchantLevel:
+    """The level with `status_key` set to `value`, added at the end if it was not there."""
+
+    if not -0x80000000 <= int(value) <= 0x7FFFFFFF:
+        raise ItemInfoRowError("stat values are i32")
+    stats = list(level.stats)
+    for index, stat in enumerate(stats):
+        if stat.status_key == status_key:
+            stats[index] = replace(stat, value=int(value))
+            return replace(level, stats=tuple(stats))
+    stats.append(StatValue(status_key=int(status_key), value=int(value), extra=int(extra)))
+    return replace(level, stats=tuple(stats))
+
+
+def level_without_stat(level: EnchantLevel, status_key: int) -> EnchantLevel:
+    stats = tuple(stat for stat in level.stats if stat.status_key != status_key)
+    if len(stats) == len(level.stats):
+        raise ItemInfoRowError(f"level {level.level} has no stat {status_key}")
+    return replace(level, stats=stats)
+
+
+def level_with_buy_price(level: EnchantLevel, item_key: int, price: int) -> EnchantLevel:
+    """The level with its price in `item_key` set (added at the end if missing)."""
+
+    if not 0 <= int(price) <= 0xFFFFFFFF:
+        raise ItemInfoRowError("prices are u32")
+    entries = list(level.buy_prices)
+    for index, entry in enumerate(entries):
+        if entry.item_key == item_key:
+            entries[index] = replace(entry, price=int(price))
+            return replace(level, buy_prices=tuple(entries))
+    entries.append(PriceEntry(item_key=int(item_key), price=int(price)))
+    return replace(level, buy_prices=tuple(entries))
+
+
+def level_without_buy_price(level: EnchantLevel, item_key: int) -> EnchantLevel:
+    entries = tuple(entry for entry in level.buy_prices if entry.item_key != item_key)
+    if len(entries) == len(level.buy_prices):
+        raise ItemInfoRowError(f"level {level.level} has no buy price in item {item_key}")
+    return replace(level, buy_prices=entries)
+
+
+def next_level_like(last: EnchantLevel) -> EnchantLevel:
+    """A new top level copied from `last`: same stats, prices, buffs and static-level entries, level + 1.
+
+    Adding a level this way writes only shapes the game has already been shown for
+    this item; the caller then changes numbers with :func:`level_with_stat` and
+    :func:`level_with_buy_price`.
+    """
+
+    return replace(
+        last,
+        level=last.level + 1,
+        offset=-1,
+        end=-1,
+        stats=tuple(replace(stat, offset=-1) for stat in last.stats),
+        buy_prices=tuple(replace(entry, offset=-1) for entry in last.buy_prices),
+    )
+
+
+def price_list_with(entries: Sequence[PriceEntry], item_key: int, price: int) -> Tuple[PriceEntry, ...]:
+    """A price list with `item_key` set to `price` (added at the end if missing)."""
+
+    if not 0 <= int(price) <= 0xFFFFFFFF:
+        raise ItemInfoRowError("prices are u32")
+    out = list(entries)
+    for index, entry in enumerate(out):
+        if entry.item_key == item_key:
+            out[index] = replace(entry, price=int(price))
+            return tuple(out)
+    out.append(PriceEntry(item_key=int(item_key), price=int(price)))
+    return tuple(out)
+
+
+def price_list_without(entries: Sequence[PriceEntry], item_key: int) -> Tuple[PriceEntry, ...]:
+    out = tuple(entry for entry in entries if entry.item_key != item_key)
+    if len(out) == len(tuple(entries)):
+        raise ItemInfoRowError(f"the price list has no entry in item {item_key}")
+    return out
 
 
 # --------------------------------------------------------------------------- StatusInfo names

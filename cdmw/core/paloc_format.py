@@ -166,6 +166,69 @@ def replace_text(
     return LocalizationTable(entries=tuple(entries)), missing
 
 
+def add_localization_entries(
+    table: LocalizationTable, entries: Iterable[LocalizationEntry]
+) -> LocalizationTable:
+    """Return the table with new records appended at the end.
+
+    A key that already exists, or that repeats inside the batch, is refused rather than
+    shadowed: the engine keeps the later duplicate, which would silently rename a
+    shipped line. Appending is what the 2026-08-17 spike did in every language table,
+    and the game read the new records back.
+    """
+
+    additions = tuple(entries)
+    existing = {entry.key for entry in table.entries}
+    seen: set[str] = set()
+    for entry in additions:
+        if not entry.key:
+            raise PalocFormatError("a localization key cannot be empty")
+        if entry.key in existing:
+            raise PalocFormatError(f"localization key {entry.key!r} already exists in the table")
+        if entry.key in seen:
+            raise PalocFormatError(f"localization key {entry.key!r} is repeated in the additions")
+        seen.add(entry.key)
+    return LocalizationTable(entries=table.entries + additions)
+
+
+def entries_like(
+    table: LocalizationTable, template_key: str, texts: Mapping[str, str]
+) -> tuple[LocalizationEntry, ...]:
+    """New records for `texts` (new key -> text) shaped like the template's own record.
+
+    The category and reserved word are copied from the template so a new item's name sits
+    in the same category as the name it was cloned from; the file itself does not say what
+    the categories mean, so copying is the only defensible choice.
+    """
+
+    template = table.index().get(template_key)
+    if template is None:
+        raise PalocFormatError(f"template key {template_key!r} is not in the table")
+    return tuple(
+        LocalizationEntry(category=template.category, key=key, text=text, reserved=template.reserved)
+        for key, text in texts.items()
+    )
+
+
+def language_of_paloc_path(path: str) -> str:
+    """`.../localizationstring_por-br.paloc` -> `por-br`; empty when the name has no suffix."""
+
+    stem = path.replace("\\", "/").rsplit("/", 1)[-1]
+    if not stem.lower().endswith(".paloc"):
+        return ""
+    stem = stem[: -len(".paloc")]
+    return stem.rsplit("_", 1)[1] if "_" in stem else ""
+
+
+def text_for_language(texts: Mapping[str, str], language: str, *, fallback: str = "eng") -> str:
+    """The text for `language`, else the fallback language's; empty when neither is present."""
+
+    value = texts.get(language)
+    if value is not None and str(value).strip():
+        return str(value)
+    return str(texts.get(fallback, "") or "")
+
+
 def describe_categories(table: LocalizationTable) -> Mapping[int, str]:
     """category -> the key prefix that dominates it, read off the table itself.
 

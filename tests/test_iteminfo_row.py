@@ -9,12 +9,25 @@ from cdmw.core.archive_format import hashlittle
 from cdmw.core.iteminfo_row import (
     DESC_TAG,
     NAME_TAG,
+    EnchantLevel,
     ItemInfoRowError,
+    PriceEntry,
+    StatValue,
     clone_iteminfo_row,
     describe_row,
+    encode_enchant_level,
+    encode_stat_block,
     equip_type_key,
+    level_with_buy_price,
+    level_with_stat,
+    level_without_buy_price,
+    level_without_stat,
+    next_level_like,
     parse_iteminfo_row,
     parse_status_names,
+    price_list_with,
+    price_list_without,
+    rebuild_stat_block,
     scale_stats,
     set_buy_price,
     set_max_stack_count,
@@ -244,6 +257,85 @@ class CloneTests(unittest.TestCase):
             clone_iteminfo_row(parse_iteminfo_row(raw), key=5, string_key="x", name_key="1", desc_key="2")
 
 
+class RebuildTests(unittest.TestCase):
+    """The stat block re-serialised from its parse, and shape edits through it."""
+
+    def test_encode_reproduces_the_parsed_block(self) -> None:
+        raw = build_row()
+        row = parse_iteminfo_row(raw)
+        self.assertEqual(encode_stat_block(row), raw[row.stat_block_offset:row.stat_block_end])
+        self.assertEqual(rebuild_stat_block(row), raw)
+        # extras, static-level entries and buffs survive the round trip too
+        rich = _level(0, [(DPV, 2000)], [(COPPER, 4100)], level_stat_keys=(1000007,), buffs=(1000009,))
+        raw2 = build_row(levels=[([(DPV, 2000)], [(COPPER, 1)])]).replace(_level(0, [(DPV, 2000)], [(COPPER, 1)]), rich)
+        row2 = parse_iteminfo_row(raw2)
+        self.assertEqual(encode_enchant_level(row2.enchant_levels[0]), rich)
+        self.assertEqual(rebuild_stat_block(row2), raw2)
+
+    def test_adding_a_level_a_stat_and_a_price(self) -> None:
+        raw = build_row()
+        row = parse_iteminfo_row(raw)
+        levels = list(row.enchant_levels)
+        levels[0] = level_with_stat(levels[0], 1000007, 500)          # a stat the template lacks
+        levels[1] = level_with_stat(levels[1], DDD, 99000)            # an existing one, changed
+        levels.append(level_with_buy_price(next_level_like(levels[-1]), 11, 777))
+        prices = price_list_with(row.price_list, 11, 250)
+        prices = price_list_with(prices, COPPER, 1)
+        rebuilt = rebuild_stat_block(row, levels=levels, price_list=prices)
+        # nothing outside the block moved
+        self.assertEqual(rebuilt[: row.stat_block_offset], raw[: row.stat_block_offset])
+        self.assertEqual(rebuilt[len(rebuilt) - (len(raw) - row.stat_block_end):], raw[row.stat_block_end:])
+        again = parse_iteminfo_row(rebuilt)
+        self.assertEqual([lvl.level for lvl in again.enchant_levels], [0, 1, 2])
+        self.assertEqual([(s.status_key, s.value) for s in again.enchant_levels[0].stats], [(DDD, 12000), (1000007, 500)])
+        self.assertEqual(again.stat(1, DDD).value, 99000)
+        self.assertEqual(again.stat(2, DDD).value, 99000, "the new level copies the last one")
+        self.assertEqual([(p.item_key, p.price) for p in again.enchant_levels[2].buy_prices], [(COPPER, 384), (CAMP_WEAPON, 19), (11, 777)])
+        self.assertEqual([(p.item_key, p.price) for p in again.price_list], [(COPPER, 1), (CAMP_WEAPON, 17), (11, 250)])
+        self.assertEqual(again.enchant_count, 3)
+        # every rebuilt value is editable in place afterwards
+        self.assertEqual(parse_iteminfo_row(set_stat_value(again, 2, DDD, 5)).stat(2, DDD).value, 5)
+
+    def test_removing_stats_prices_and_levels(self) -> None:
+        raw = build_row()
+        row = parse_iteminfo_row(raw)
+        levels = [level_without_stat(row.enchant_levels[0], DDD), level_without_buy_price(row.enchant_levels[1], CAMP_WEAPON)]
+        prices = price_list_without(row.price_list, CAMP_WEAPON)
+        again = parse_iteminfo_row(rebuild_stat_block(row, levels=levels, price_list=prices))
+        self.assertEqual(again.enchant_levels[0].stats, ())
+        self.assertEqual([p.item_key for p in again.enchant_levels[1].buy_prices], [COPPER])
+        self.assertEqual([p.item_key for p in again.price_list], [COPPER])
+        shorter = parse_iteminfo_row(rebuild_stat_block(row, levels=row.enchant_levels[:1]))
+        self.assertEqual(shorter.enchant_count, 1)
+        with self.assertRaisesRegex(ItemInfoRowError, "no stat"):
+            level_without_stat(row.enchant_levels[0], DPV)
+        with self.assertRaisesRegex(ItemInfoRowError, "no buy price"):
+            level_without_buy_price(row.enchant_levels[0], 99)
+        with self.assertRaisesRegex(ItemInfoRowError, "no entry"):
+            price_list_without(row.price_list, 99)
+
+    def test_rebuild_refusals(self) -> None:
+        row = parse_iteminfo_row(build_row())
+        with self.assertRaisesRegex(ItemInfoRowError, "0..n-1"):
+            rebuild_stat_block(row, levels=[row.enchant_levels[1]])
+        with self.assertRaisesRegex(ItemInfoRowError, "i32"):
+            level_with_stat(row.enchant_levels[0], DDD, 2**40)
+        with self.assertRaisesRegex(ItemInfoRowError, "u32"):
+            level_with_buy_price(row.enchant_levels[0], COPPER, -1)
+        with self.assertRaisesRegex(ItemInfoRowError, "u32"):
+            price_list_with(row.price_list, COPPER, 2**32)
+        with self.assertRaisesRegex(ItemInfoRowError, "six header bytes"):
+            encode_enchant_level(EnchantLevel(level=0, stats=(), buy_prices=(), header_bytes=b"\x00"))
+        with self.assertRaisesRegex(ItemInfoRowError, "25 bytes"):
+            encode_enchant_level(EnchantLevel(level=0, stats=(), buy_prices=(), level_stat_keys=(1,), level_stat_entries=(b"\x00",)))
+        no_block = parse_iteminfo_row(build_row().replace(bytes([0x11, 0x03, 0x01]), bytes([0x12, 0x03, 0x01])))
+        with self.assertRaisesRegex(ItemInfoRowError, "no decoded stat block"):
+            rebuild_stat_block(no_block)
+        # a level built by hand still encodes
+        fresh = EnchantLevel(level=0, stats=(StatValue(DDD, 1),), buy_prices=(PriceEntry(COPPER, 2),))
+        self.assertEqual(len(encode_enchant_level(fresh)), 4 + 6 + 4 + 12 + 4 + 4 + 20 + 4 + 4)
+
+
 class HelperTests(unittest.TestCase):
     def test_status_names_and_equip_type_key(self) -> None:
         rows = [(1000000, b"Hp"), (1000002, b"DDD"), (1000003, b"DPV")]
@@ -315,6 +407,34 @@ class VanillaItemInfoTests(unittest.TestCase):
         self.assertGreater(weapon_ladders, 200)
         for name, types in types_by_equip.items():
             self.assertEqual(len(types), 1, f"{name} has more than one item type: {sorted(types)}")
+
+    def test_every_shipped_stat_block_re_encodes_byte_for_byte(self) -> None:
+        from tools.placement_studio import corpus
+        from cdmw.core.archive_extraction import read_archive_entry_data
+        from cdmw.core.structured_binary_editor import parse_pabgh_table
+
+        if not corpus.game_root().is_dir():
+            self.skipTest("needs the installed game")
+        found = {}
+        for _package, entry in corpus._iter_archive_entries(corpus.game_root()):
+            path = corpus.normalize_game_path(entry.path)
+            if path in ("gamedata/binary__/client/bin/iteminfo.pabgb", "gamedata/binary__/client/bin/iteminfo.pabgh"):
+                found[path.rsplit(".", 1)[-1]] = read_archive_entry_data(entry)[0]
+        if len(found) != 2:
+            self.skipTest("iteminfo not found in the archives")
+        table = parse_pabgh_table(found["pabgh"], payload=found["pabgb"])
+        payload = found["pabgb"]
+        spans = table.row_spans(len(payload))
+        keys = {row.row_id for row, _s, _e in spans}
+        checked = 0
+        for row, start, end in spans:
+            item = parse_iteminfo_row(payload[start:end], item_keys=keys)
+            if item.stat_block_offset is None:
+                continue
+            self.assertEqual(encode_stat_block(item), item.raw[item.stat_block_offset:item.stat_block_end], item.string_key)
+            self.assertEqual(rebuild_stat_block(item), item.raw, item.string_key)
+            checked += 1
+        self.assertGreater(checked, 6000)
 
 
 if __name__ == "__main__":

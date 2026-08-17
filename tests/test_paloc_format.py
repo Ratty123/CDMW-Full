@@ -17,11 +17,15 @@ from cdmw.core.paloc_format import (  # noqa: E402
     LocalizationEntry,
     LocalizationTable,
     PalocFormatError,
+    add_localization_entries,
     describe_categories,
     encode_paloc,
+    entries_like,
+    language_of_paloc_path,
     parse_paloc,
     rebuild_is_exact,
     replace_text,
+    text_for_language,
 )
 
 
@@ -88,6 +92,48 @@ class EditTests(unittest.TestCase):
         described = describe_categories(table)
         self.assertEqual(described[38], "questdialog")
         self.assertEqual(described[9], "(numeric)")
+
+
+class AddTests(unittest.TestCase):
+    """New records for a new item, appended after the shipped ones."""
+
+    def test_new_records_land_at_the_end_shaped_like_the_template(self) -> None:
+        table = _table((7, "43005292000010991", "Wolf's Fang"), (8, "43005292000010992", "A sword."))
+        added = add_localization_entries(
+            table,
+            entries_like(table, "43005292000010991", {"43005292019900011": "Clone A"})
+            + entries_like(table, "43005292000010992", {"43005292019900012": "A clone."}),
+        )
+        self.assertEqual(len(added), 4)
+        self.assertEqual(added.entries[:2], table.entries)
+        self.assertEqual(added.entries[2], LocalizationEntry(7, "43005292019900011", "Clone A"))
+        self.assertEqual(added.entries[3], LocalizationEntry(8, "43005292019900012", "A clone."))
+        self.assertEqual(parse_paloc(encode_paloc(added)), added)
+        # nothing shipped moved
+        self.assertTrue(encode_paloc(added).startswith(encode_paloc(table)[:-4]))
+
+    def test_duplicate_and_empty_keys_are_refused(self) -> None:
+        table = _table((7, "a", "A"))
+        with self.assertRaisesRegex(PalocFormatError, "already exists"):
+            add_localization_entries(table, [LocalizationEntry(7, "a", "again")])
+        with self.assertRaisesRegex(PalocFormatError, "repeated"):
+            add_localization_entries(table, [LocalizationEntry(7, "b", "1"), LocalizationEntry(7, "b", "2")])
+        with self.assertRaisesRegex(PalocFormatError, "empty"):
+            add_localization_entries(table, [LocalizationEntry(7, "", "x")])
+        with self.assertRaisesRegex(PalocFormatError, "template key"):
+            entries_like(table, "missing", {"c": "C"})
+        self.assertEqual(add_localization_entries(table, []), table)
+
+    def test_language_helpers(self) -> None:
+        self.assertEqual(language_of_paloc_path("gamedata/stringtable/binary__/localizationstring_por-br.paloc"), "por-br")
+        self.assertEqual(language_of_paloc_path("localizationstring_eng.PALOC"), "eng")
+        self.assertEqual(language_of_paloc_path("gamedata/x/other.pabgb"), "")
+        self.assertEqual(language_of_paloc_path("nounderscore.paloc"), "")
+        texts = {"eng": "Wolf's Fang", "ger": "Wolfszahn", "fre": "  "}
+        self.assertEqual(text_for_language(texts, "ger"), "Wolfszahn")
+        self.assertEqual(text_for_language(texts, "fre"), "Wolf's Fang", "blank falls back")
+        self.assertEqual(text_for_language(texts, "jpn"), "Wolf's Fang")
+        self.assertEqual(text_for_language({}, "jpn"), "")
 
 
 class RejectionTests(unittest.TestCase):
