@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from cdmw.services.item_icon_service import ItemIconService
     from cdmw.services.mesh_service import MeshService
     from cdmw.services.model_library_service import ModelLibraryService
+    from cdmw.services.new_item_service import NewItemService
     from cdmw.services.package_service import PackageService
     from cdmw.services.research_service import ResearchService
     from cdmw.services.texture_workflow_service import TextureWorkflowService
@@ -36,6 +37,7 @@ class ServiceContainer:
         "filesystem": ("cdmw.services.filesystem_service", "FilesystemService"),
         "item_icons": ("cdmw.services.item_icon_service", "ItemIconService"),
         "model_library": ("cdmw.services.model_library_service", "ModelLibraryService"),
+        "new_items": ("cdmw.services.new_item_service", "NewItemService"),
     }
 
     settings: Any | None = None
@@ -51,6 +53,7 @@ class ServiceContainer:
     filesystem: FilesystemService | None = None
     item_icons: ItemIconService | None = None
     model_library: ModelLibraryService | None = None
+    new_items: NewItemService | None = None
     archive_catalogue: ArchiveCatalogueService | None = None
     _lazy_defaults: bool = field(default=False, repr=False)
     _lazy_lock: threading.RLock = field(default_factory=threading.RLock, repr=False)

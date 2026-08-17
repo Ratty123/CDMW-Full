@@ -178,6 +178,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._cancel_button.clicked.connect(self._cancel_search)
         self._exact_button.clicked.connect(lambda: self._scope_selected(include_related=False))
         self._related_button.clicked.connect(lambda: self._scope_selected(include_related=True))
+        self._clone_button.clicked.connect(self._clone_selected_as_new_item)
         close_button.clicked.connect(self.reject)
         restored_query = self._read_setting("ui/item_finder_search_text")
         if restored_query:
@@ -266,9 +267,14 @@ class RemoteArchiveFinderDialog(QDialog):
         self._related_button.setToolTip(
             "Show direct links plus indexed companions such as textures, material sidecars, HKX, meshinfo, and rig data."
         )
+        self._clone_button = QPushButton("Clone as new item...")
+        self._clone_button.setToolTip(
+            "Open New Item Studio with this item as the template: a brand-new item with its own name, stats, model and shop slot."
+        )
         detail_actions = QHBoxLayout()
         detail_actions.addWidget(self._exact_button)
         detail_actions.addWidget(self._related_button)
+        detail_actions.addWidget(self._clone_button)
         detail_actions.addStretch(1)
         detail_layout.addLayout(detail_actions)
         splitter.addWidget(detail_panel)
@@ -868,6 +874,15 @@ class RemoteArchiveFinderDialog(QDialog):
         has_selection = bool(self._selected_item_ids())
         self._exact_button.setEnabled(not busy and has_selection)
         self._related_button.setEnabled(not busy and has_selection)
+        self._clone_button.setEnabled(has_selection and callable(getattr(self._window, "open_new_item_studio", None)))
+
+    def _clone_selected_as_new_item(self) -> None:
+        item_ids = self._selected_item_ids()
+        opener = getattr(self._window, "open_new_item_studio", None)
+        if not item_ids or not callable(opener):
+            return
+        opener(int(item_ids[0]))
+        self.accept()
 
     def closeEvent(self, event: object) -> None:
         self._save_settings()

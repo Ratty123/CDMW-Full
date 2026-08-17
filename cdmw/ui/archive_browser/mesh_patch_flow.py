@@ -166,6 +166,38 @@ class ArchiveMeshPatchFlowMixin:
             materials_and_textures_only=True,
         )
 
+    def _preview_diverted_or_invalid(
+        self,
+        entry: ArchiveEntry,
+        result: object,
+        finish: Callable[[str, bool], None],
+    ) -> bool:
+        """True when the preview result is not one, or was handed to the New Item Studio.
+
+        The studio arms `_new_item_model_sink` through `start_new_item_model_import`;
+        it is matched on the entry's path and consumed once, so an unrelated later
+        import is never captured. The preview is still shown so the reader sees what
+        was handed over, and the Builder is told nothing was written over the template.
+        """
+
+        if not isinstance(result, MeshImportPreviewResult):
+            finish("Mesh import preview finished with an unexpected result payload.", False)
+            return True
+        armed = getattr(self, "_new_item_model_sink", None)
+        if not armed:
+            return False
+        wanted, on_result = armed
+        if str(entry.path or "").replace("\\", "/").casefold() != wanted:
+            return False
+        self._new_item_model_sink = None
+        self._show_archive_import_preview(entry, result, patched=False)
+        on_result(entry, result)
+        activate = getattr(self, "_activate_tool_key", None)
+        if callable(activate):
+            activate("new_item_studio")
+        finish("Model handed to New Item Studio; nothing was written over the template.", True)
+        return True
+
     def _start_archive_mesh_patch(
         self,
         entry: ArchiveEntry,
@@ -837,8 +869,7 @@ class ArchiveMeshPatchFlowMixin:
                 )
 
             def _handle_preview_complete(result: object) -> None:
-                if not isinstance(result, MeshImportPreviewResult):
-                    _finish_builder_status("Mesh import preview finished with an unexpected result payload.", False)
+                if self._preview_diverted_or_invalid(build_entry, result, _finish_builder_status):
                     return
                 if static_replacement_options is None:
                     self._show_archive_import_preview(build_entry, result, patched=False)

@@ -345,6 +345,47 @@ class ShellToolTabsMixin:
         tab.setObjectName("translation_studio")
         return tab
 
+    def _create_new_item_studio_tab(self) -> QWidget:
+        """Clone an equipment item into a brand-new one, then export or install it.
+
+        Lazy like the rest: opening it reads the item, string, store, group and language
+        tables once (seconds), which must not run at startup. It takes the window so it
+        can read the scanned archive list, reach the mutation service for an install, and
+        hand a model import to Import Mesh.
+        """
+
+        from cdmw.ui.new_item import NewItemStudioTab
+
+        tab = NewItemStudioTab(window=self, service=self.app_context.services.new_items)
+        tab.setObjectName("new_item_studio")
+        tab.status_message_requested.connect(
+            lambda message, is_error: self.set_status_message(message, error=is_error)
+        )
+        return tab
+
+    def open_new_item_studio(self, template_key: int | None = None) -> None:
+        """Show the New Item Studio, pointed at `template_key` when one is given."""
+
+        container = getattr(self, "new_item_studio_tab", None)
+        if container is None:
+            return
+        self._activate_tool_widget(container)
+        widget = container.ensure_widget() if isinstance(container, LazyToolTab) else container
+        if template_key is not None and hasattr(widget, "prefill_template"):
+            widget.prefill_template(int(template_key))
+
+    def start_new_item_model_import(self, entry: object, on_result: Callable[[object, object], None]) -> None:
+        """Run Import Mesh over `entry` and hand the Builder's result to `on_result`.
+
+        The mesh patch flow consumes the sink once, for that entry, instead of writing
+        the result over the template; the studio then re-paths it to the new family.
+        """
+
+        self._new_item_model_sink = (str(getattr(entry, "path", "") or "").replace("\\", "/").casefold(), on_result)
+        starter = getattr(self, "_start_archive_mesh_patch", None)
+        if callable(starter):
+            starter(entry)
+
     def _build_shell_tool_tabs(self, pump_startup_splash: Callable[[str], None]) -> None:
         from cdmw.ui.settings_tab import SettingsTab
 
@@ -386,6 +427,9 @@ class ShellToolTabsMixin:
         )
         self.item_icons_tab = self._add_lazy_shell_tool(
             self.assets_tabs, "Icon Creator", "item_icons", self._create_item_icons_tab
+        )
+        self.new_item_studio_tab = self._add_lazy_shell_tool(
+            self.assets_tabs, "New Item Studio", "new_item_studio", self._create_new_item_studio_tab
         )
         self.replace_assistant_tab = self._add_lazy_shell_tool(
             self.texture_tabs,
@@ -451,6 +495,7 @@ class ShellToolTabsMixin:
         self._register_detachable_tool("research", self.research_tab, "Texture Research")
         self._register_detachable_tool("text_search", self.text_search_tab, "Text Search")
         self._register_detachable_tool("item_icons", self.item_icons_tab, "Icon Creator")
+        self._register_detachable_tool("new_item_studio", self.new_item_studio_tab, "New Item Studio")
         self._register_detachable_tool("mod_package_retrofit", self.mod_package_retrofit_tab, "Retrofit/Repackage")
         self._register_detachable_tool("placement_studio", self.placement_studio_tab, "Placement & Animation Studio")
         self._register_detachable_tool("settings", self.settings_tab, "Settings")

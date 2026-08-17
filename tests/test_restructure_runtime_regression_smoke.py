@@ -88,7 +88,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
         self.assertEqual(2, self.window.main_tabs.indexOf(self.window.placement_studio_tab))
         self.assertEqual(-1, self.window.assets_tabs.indexOf(self.window.mesh_editor_tab))
         self.assertEqual(
-            ["Archive Browser", "Model Library", "Icon Creator"],
+            ["Archive Browser", "Model Library", "Icon Creator", "New Item Studio"],
             [
                 self.window.assets_tabs.tabText(index)
                 for index in range(self.window.assets_tabs.count())
@@ -133,6 +133,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             "text_search",
             "mod_package_retrofit",
             "placement_studio",
+            "new_item_studio",
             "settings",
         }
         self.assertTrue(expected_tools.issubset(self.window._tool_widgets_by_key))
