@@ -9,6 +9,8 @@ build produces.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from cdmw.domain.mesh.builder_operation import (
@@ -17,6 +19,8 @@ from cdmw.domain.mesh.builder_operation import (
     builder_operation_flags,
     classify_builder_operation,
     derive_builder_operation_flags,
+    operation_flag_disagreements,
+    option_operation_disagreements,
 )
 from cdmw.domain.mesh.operation_spec import (
     MaterialAuthority as M,
@@ -199,3 +203,103 @@ def test_option_field_names_match_the_options_dataclass() -> None:
 
     fields = set(StaticMeshReplacementOptions.__dataclass_fields__)
     assert set(BuilderOperationFlags().as_option_fields()) <= fields
+
+
+def test_flags_derived_from_an_operation_never_disagree_with_it() -> None:
+    # The accept path builds both from one call, so this is the invariant that
+    # says the check cannot fire on any route that exists today.
+    for clone in (False, True):
+        for swap in (False, True):
+            for tuning in (False, True):
+                for controls in (BuilderMaterialControls(), ALL_CONTROLS_ON):
+                    spec, flags = builder_operation_flags(
+                        modify_original_clone_mode=clone,
+                        complete_swap_enabled=swap,
+                        controls=controls,
+                        modify_original_tuning_enabled=tuning,
+                    )
+                    assert operation_flag_disagreements(spec, flags) == ()
+
+
+def test_the_full_import_preset_agrees_with_the_operation_it_names() -> None:
+    from cdmw.modding.full_import_model_replacement import (
+        apply_full_import_model_replacement_preset,
+    )
+
+    assert option_operation_disagreements(apply_full_import_model_replacement_preset()) == ()
+
+
+def test_a_full_replacement_reduced_to_geometry_only_is_a_disagreement() -> None:
+    spec = classify_builder_operation(complete_swap_enabled=True)
+    _spec, honest = builder_operation_flags(complete_swap_enabled=True)
+    reduced = replace(honest, complete_external_swap=False, rebuild_material_sidecar=False)
+
+    problems = operation_flag_disagreements(spec, reduced)
+
+    assert any("complete_external_swap" in problem for problem in problems)
+    assert any("material sidecar" in problem for problem in problems)
+
+
+def test_a_full_replacement_missing_one_tuning_bit_is_a_disagreement() -> None:
+    spec, honest = builder_operation_flags(complete_swap_enabled=True)
+    dropped = replace(honest, enable_missing_base_color_parameters=False)
+
+    problems = operation_flag_disagreements(spec, dropped)
+
+    assert len(problems) == 1
+    assert "enable_missing_base_color_parameters" in problems[0]
+
+
+def test_a_clone_that_neutralizes_the_targets_layers_is_a_disagreement() -> None:
+    spec = classify_builder_operation(modify_original_clone_mode=True)
+    leaked = BuilderOperationFlags(neutralize_inherited_material_layers=True)
+
+    problems = operation_flag_disagreements(spec, leaked)
+
+    assert any("neutralize_inherited_material_layers" in problem for problem in problems)
+
+
+def test_geometry_only_leaves_its_four_tuning_bits_to_the_user() -> None:
+    # The operation does not decide these, so no value of them contradicts it.
+    # The sidecar flag is not among them: the operation does decide that one.
+    spec = classify_builder_operation(controls=BuilderMaterialControls(inject_base_color=True))
+    assert spec.writes_material_sidecar is False
+    for flags in (
+        BuilderOperationFlags(),
+        BuilderOperationFlags(neutralize_inherited_material_layers=True),
+        BuilderOperationFlags(enable_missing_base_color_parameters=True),
+        BuilderOperationFlags(
+            complete_external_material_reset=True,
+            prune_unmapped_original_texture_parameters=True,
+        ),
+    ):
+        assert operation_flag_disagreements(spec, flags) == ()
+
+
+def test_geometry_only_still_decides_whether_a_sidecar_is_written() -> None:
+    spec = classify_builder_operation()
+    problems = operation_flag_disagreements(
+        spec, BuilderOperationFlags(rebuild_material_sidecar=True)
+    )
+    assert any("material sidecar" in problem for problem in problems)
+
+
+def test_options_without_an_operation_are_not_checked() -> None:
+    from cdmw.modding.static_mesh_types import StaticMeshReplacementOptions
+
+    # Every preview construction and every direct construction in a test lands
+    # here; guessing an operation for them would invent the intent this checks.
+    assert option_operation_disagreements(StaticMeshReplacementOptions()) == ()
+    assert option_operation_disagreements(object()) == ()
+
+
+def test_options_carrying_an_operation_are_checked_against_their_flags() -> None:
+    from cdmw.modding.static_mesh_types import StaticMeshReplacementOptions
+
+    options = StaticMeshReplacementOptions(
+        operation_spec=classify_builder_operation(complete_swap_enabled=True),
+    )
+
+    problems = option_operation_disagreements(options)
+
+    assert problems, "a full replacement with every flag off must not pass"

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import copy
 
+from cdmw.domain.mesh.builder_operation import option_operation_disagreements
+
 from .logging import get_logger
 from .mesh_parser import ParsedMesh, inspect_mesh_binary_layout
 from .static_mesh_analysis import (
@@ -48,6 +50,16 @@ def build_static_mesh_replacement(
     normalized_options.submesh_mappings = mappings
 
     report = analyze_static_replacement(original_mesh, replacement_mesh, normalized_options)
+    # Fail closed if the flags no longer describe the operation they were
+    # derived from. Options that nobody classified carry no operation and are
+    # not checked; where one is carried, a full replacement quietly reduced to
+    # geometry-only, or an imported material authority quietly switched back to
+    # the target's, is refused here rather than written.
+    for disagreement in option_operation_disagreements(normalized_options):
+        report.errors.append(
+            "The build options no longer describe the operation they were built for, "
+            f"so no output was written: {disagreement}."
+        )
     layout = inspect_mesh_binary_layout(original_data, original_mesh.path)
     report.warnings.extend(layout.warnings)
 
