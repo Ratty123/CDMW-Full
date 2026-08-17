@@ -21,6 +21,7 @@ from cdmw.core.archive_mesh_types import (
     MeshImportPreviewResult,
     MeshImportSupplementalFileSpec,
 )
+from cdmw.core.final_package_binding_contract import binding_row_preflight_messages
 from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
 from cdmw.core.upscale_profiles import parse_texture_sidecar_bindings
 
@@ -281,6 +282,7 @@ def build_final_package_preview(
     original_dds_basename_resolver: Optional[Callable[[str], Sequence[Path]]] = None,
     package_root: Optional[Path] = None,
     require_source_owned_colors: bool = False,
+    require_complete_texture_payload: bool = False,
     strict_source_owned_material_contract: bool = False,
     allow_inherited_layer_color_bindings: bool = False,
     material_authority_contract: str = "",
@@ -811,114 +813,21 @@ def build_final_package_preview(
     preflight_errors: List[str] = []
     if source_owned_binding_contract_enabled:
         preflight_errors.extend(_material_export_safety_blockers_for_specs(preview_result, source_materials_for_report, tuple(sidecars.values()), package_written=package_root is not None))
-    for row in binding_rows:
-        row_material_key = _material_key(getattr(row, "material_name", ""))
-        row_is_planned_placeholder = bool(row_material_key and row_material_key in planned_placeholder_material_keys)
-        row_is_planned_source_owned = bool(row_material_key and row_material_key in planned_source_owned_material_keys)
-        basename = PurePosixPath(str(row.texture_path or "").replace("\\", "/")).name.lower()
-        stem = PurePosixPath(basename).stem.lower()
-        parameter_key = re.sub(r"[^a-z0-9]+", "", str(row.parameter_name or "").lower())
-        if row.binding_source == FINAL_PREVIEW_BINDING_BASENAME_DIAGNOSTIC:
-            preflight_errors.append(
-                f"Exact texture path mismatch: {row.sidecar_path} -> {row.texture_path}. A same-basename DDS exists, but the packaged path does not match."
-            )
-        if (
-            not row_is_planned_placeholder
-            and row.role in {"Base / Color", "Emissive"}
-            and row.status in {FINAL_PREVIEW_MISSING_DDS, FINAL_PREVIEW_DECODE_FAILED}
-        ):
-            message = (
-                f"Visible color texture is not package-resolved: "
-                f"{row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
-            )
-            if (
-                require_source_owned_colors
-                and row_is_planned_source_owned
-                and any(token in parameter_key for token in SOURCE_OWNED_FORBIDDEN_ORIGINAL_PARAMETER_TOKENS)
-                and not strict_source_owned_material_contract
-            ):
-                warnings.append(message)
-            else:
-                preflight_errors.append(message)
-        if (
-            not row_is_planned_placeholder
-            and row.role == "Base / Color"
-            and stem.endswith(("_mg", "_sp", "_n", "_normal", "_disp", "_height"))
-        ):
-            preflight_errors.append(
-                f"Support map is bound as visible base color: {row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
-            )
-        if (
-            not row_is_planned_placeholder
-            and
-            any(token in parameter_key for token in ("basecolor", "overlaycolor", "diffuse", "albedo", "colortexture"))
-            and stem.endswith(("_mg", "_sp", "_n", "_normal", "_disp", "_height"))
-        ):
-            preflight_errors.append(
-                f"Support map path is assigned to a visible color parameter: {row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
-            )
-        if (
-            source_owned_binding_contract_enabled
-            and row.role in {"Base / Color", "Emissive"}
-            and row.status == FINAL_PREVIEW_READY
-            and row.binding_source != FINAL_PREVIEW_BINDING_GENERATED
-            and row_is_planned_source_owned
-            and not row_is_planned_placeholder
-            and not (
-                allow_inherited_layer_color_bindings
-                and _binding_row_is_preserved_layer_color(row)
-            )
-        ):
-            message = (
-                f"Complete source-owned swap still inherits visible color from the game archive: "
-                f"{row.material_name} -> {row.texture_path}."
-            )
-            if true_source_authority_contract:
-                preflight_errors.append(message)
-            else:
-                warnings.append(message)
-        if (
-            source_owned_binding_contract_enabled
-            and row_is_planned_source_owned
-            and not row_is_planned_placeholder
-            and row.role in {"Base / Color", "Emissive", "Normal", "Height", "Material / Mask", "Detail Mask"}
-            and row.binding_source == FINAL_PREVIEW_BINDING_ORIGINAL
-        ):
-            message = (
-                f"Complete source-owned slot still inherits original {row.role} binding: "
-                f"{row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
-            )
-            if (
-                allow_inherited_layer_color_bindings
-                and _binding_row_is_preserved_layer_color(row)
-                and not strict_source_owned_material_contract
-            ):
-                warnings.append(message)
-            elif runtime_xml_preserve_contract:
-                warnings.append(message)
-            elif relief_support_allowed and _binding_row_is_relief_support_only(row):
-                warnings.append(message)
-            elif strict_source_owned_material_contract:
-                preflight_errors.append(message)
-            else:
-                warnings.append(message)
-        if (
-            source_owned_binding_contract_enabled
-            and row_is_planned_source_owned
-            and not row_is_planned_placeholder
-            and row.binding_source != FINAL_PREVIEW_BINDING_GENERATED
-            and any(token in parameter_key for token in SOURCE_OWNED_FORBIDDEN_ORIGINAL_PARAMETER_TOKENS)
-        ):
-            message = (
-                f"Complete source-owned wrapper still has non-generated original/support material parameter: "
-                f"{row.material_name} {row.parameter_name or row.role} -> {row.texture_path}."
-            )
-            if relief_support_allowed and _binding_row_is_relief_support_only(row):
-                warnings.append(message)
-            elif strict_source_owned_material_contract:
-                preflight_errors.append(message)
-            else:
-                warnings.append(message)
+    row_errors, row_warnings = binding_row_preflight_messages(
+        binding_rows,
+        planned_placeholder_material_keys=planned_placeholder_material_keys,
+        planned_source_owned_material_keys=planned_source_owned_material_keys,
+        require_source_owned_colors=require_source_owned_colors,
+        require_complete_texture_payload=require_complete_texture_payload,
+        strict_source_owned_material_contract=strict_source_owned_material_contract,
+        allow_inherited_layer_color_bindings=allow_inherited_layer_color_bindings,
+        source_owned_binding_contract_enabled=source_owned_binding_contract_enabled,
+        relief_support_allowed=relief_support_allowed,
+        true_source_authority_contract=true_source_authority_contract,
+        runtime_xml_preserve_contract=runtime_xml_preserve_contract,
+    )
+    preflight_errors.extend(row_errors)
+    warnings.extend(row_warnings)
     source_materials_by_key = _source_material_rows_by_key(source_materials_for_report)
     if source_owned_binding_contract_enabled and planned_source_owned_material_keys:
         for material_key in sorted(planned_source_owned_material_keys):

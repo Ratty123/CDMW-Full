@@ -13536,7 +13536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 499,
+          "line": 506,
           "sink": "log"
         }
       ]
@@ -14926,7 +14926,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 628,
+          "line": 636,
           "sink": "QPushButton"
         },
         {
@@ -19676,7 +19676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 598,
+          "line": 606,
           "sink": "QLabel"
         }
       ]
@@ -29111,7 +29111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 631,
+          "line": 639,
           "sink": "QPushButton"
         }
       ]
@@ -32731,7 +32731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 593,
+          "line": 601,
           "sink": "setWindowTitle"
         }
       ]
@@ -32796,7 +32796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 557,
+          "line": 565,
           "sink": "log"
         }
       ]
@@ -32816,7 +32816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 431,
+          "line": 438,
           "sink": "log"
         }
       ]
@@ -32826,7 +32826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 436,
+          "line": 443,
           "sink": "log"
         }
       ]
@@ -32836,7 +32836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 523,
+          "line": 531,
           "sink": "log"
         }
       ]
@@ -34721,7 +34721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 681,
+          "line": 689,
           "sink": "setWindowTitle"
         }
       ]
@@ -44266,7 +44266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 718,
+          "line": 726,
           "sink": "setWindowTitle"
         }
       ]
@@ -44376,7 +44376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 285,
+          "line": 291,
           "sink": "ValueError"
         }
       ]
@@ -44436,7 +44436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 719,
+          "line": 727,
           "sink": "setText"
         }
       ]
@@ -45581,7 +45581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 553,
+          "line": 561,
           "sink": "log"
         }
       ]
@@ -45591,7 +45591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 403,
+          "line": 410,
           "sink": "log"
         }
       ]
@@ -45601,7 +45601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 555,
+          "line": 563,
           "sink": "log"
         }
       ]
@@ -45611,7 +45611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 416,
+          "line": 423,
           "sink": "log"
         }
       ]
@@ -48046,7 +48046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 802,
+          "line": 810,
           "sink": "_finish_builder_status"
         }
       ]
@@ -48056,7 +48056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 657,
+          "line": 665,
           "sink": "_finish_builder_status"
         }
       ]
@@ -48181,7 +48181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 774,
+          "line": 782,
           "sink": "_finish_builder_status"
         }
       ]
@@ -48191,7 +48191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 583,
+          "line": 591,
           "sink": "_finish_builder_status"
         }
       ]
@@ -48201,7 +48201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 567,
+          "line": 575,
           "sink": "_finish_builder_status"
         }
       ]
@@ -48231,7 +48231,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 764,
+          "line": 772,
           "sink": "_finish_builder_status"
         }
       ]
@@ -48481,7 +48481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 698,
+          "line": 706,
           "sink": "_finish_builder_status"
         }
       ]
@@ -48591,7 +48591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 653,
+          "line": 661,
           "sink": "_finish_builder_status"
         }
       ]
@@ -48621,7 +48621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 754,
+          "line": 762,
           "sink": "_finish_builder_status"
         }
       ]
@@ -48631,7 +48631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 275,
+          "line": 281,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -52496,7 +52496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 450,
+          "line": 457,
           "sink": "ValueError"
         }
       ]
@@ -55961,7 +55961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 642,
+          "line": 650,
           "sink": "QPushButton"
         },
         {
@@ -60691,7 +60691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 631,
+          "line": 639,
           "sink": "QPushButton"
         }
       ]
@@ -61071,7 +61071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 684,
+          "line": 692,
           "sink": "setDetailedText"
         }
       ]
@@ -61116,7 +61116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 682,
+          "line": 690,
           "sink": "setText"
         }
       ]
@@ -61126,7 +61126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 692,
+          "line": 700,
           "sink": "_finish_builder_status"
         }
       ]
@@ -61156,7 +61156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 650,
+          "line": 658,
           "sink": "_set_builder_status"
         }
       ]
@@ -61166,7 +61166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 804,
+          "line": 812,
           "sink": "_set_builder_status"
         }
       ]
@@ -61176,7 +61176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 746,
+          "line": 754,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -61186,7 +61186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 451,
+          "line": 458,
           "sink": "log"
         }
       ]
@@ -68286,7 +68286,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 809,
+          "line": 817,
           "sink": "_run_utility_task"
         }
       ]
@@ -68311,7 +68311,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 242,
+          "line": 248,
           "sink": "log"
         }
       ]
@@ -70661,7 +70661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 533,
+          "line": 541,
           "sink": "log"
         }
       ]
@@ -70671,7 +70671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 494,
+          "line": 501,
           "sink": "log"
         }
       ]
@@ -70681,7 +70681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 484,
+          "line": 491,
           "sink": "log"
         }
       ]
@@ -74296,7 +74296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 345,
+          "line": 351,
           "sink": "log"
         }
       ]
@@ -74306,7 +74306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 351,
+          "line": 357,
           "sink": "log"
         }
       ]
@@ -94711,7 +94711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 736,
+          "line": 744,
           "sink": "addButton"
         }
       ]
@@ -95721,7 +95721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 496,
+          "line": 503,
           "sink": "log"
         }
       ]
@@ -95731,7 +95731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 486,
+          "line": 493,
           "sink": "log"
         }
       ]
@@ -98026,7 +98026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 650,
+          "line": 658,
           "sink": "_set_builder_status"
         }
       ]
@@ -98036,7 +98036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 806,
+          "line": 814,
           "sink": "_set_builder_status"
         }
       ]
@@ -98086,7 +98086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 746,
+          "line": 754,
           "sink": "_run_utility_task_when_idle"
         }
       ]
@@ -98106,7 +98106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 463,
+          "line": 470,
           "sink": "log"
         }
       ]
@@ -98241,7 +98241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 548,
+          "line": 556,
           "sink": "log"
         }
       ]
@@ -98251,7 +98251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 543,
+          "line": 551,
           "sink": "log"
         }
       ]
@@ -98331,7 +98331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 726,
+          "line": 734,
           "sink": "setDetailedText"
         }
       ]
@@ -98341,7 +98341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 741,
+          "line": 749,
           "sink": "_finish_builder_status"
         }
       ]
@@ -98401,7 +98401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 530,
+          "line": 538,
           "sink": "log"
         }
       ]
@@ -192286,7 +192286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 399,
+          "line": 406,
           "sink": "log"
         }
       ]
@@ -192296,7 +192296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 424,
+          "line": 431,
           "sink": "log"
         }
       ]
@@ -192306,7 +192306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 376,
+          "line": 383,
           "sink": "log"
         }
       ]
@@ -192316,7 +192316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 401,
+          "line": 408,
           "sink": "log"
         }
       ]
@@ -192326,7 +192326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 427,
+          "line": 434,
           "sink": "log"
         }
       ]
@@ -192336,7 +192336,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 378,
+          "line": 385,
           "sink": "log"
         }
       ]
