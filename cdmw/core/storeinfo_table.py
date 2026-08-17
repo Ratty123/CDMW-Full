@@ -90,8 +90,26 @@ class StockEntry:
     def option_item_key(self) -> Optional[int]:
         return struct.unpack_from("<I", self.option_block, 0)[0] if self.option_block else None
 
+    @property
+    def requirement_item_key(self) -> Optional[int]:
+        """The item whose knowledge unlocks this line, or None when it is sold freely.
+
+        The optional 13-byte block is `u32 item key, u8 1, u64`: the key of a collection
+        prop (bottles, trophies, ceramics) whose knowledge the buyer must hold; a shop
+        shows the line as "Knowledge" until then. 1,856 of the 6,379 shipped stock entries
+        carry one (Kiehrius' sword in the Camp shop wants the Gilded Slim Bottle);
+        Arrow, Bullet and Wolf's Fang's own lines carry none. Seen in game 2026-08-18.
+        """
+
+        return self.option_item_key
+
     def with_item(self, item_key: int) -> "StockEntry":
         return replace(self, item_key=_u32(item_key, "item key"), offset=-1, end=-1)
+
+    def without_requirement(self) -> "StockEntry":
+        """The entry sold freely: no unlock-knowledge block."""
+
+        return replace(self, option_block=None, offset=-1, end=-1)
 
     def with_indices(self, stock_index: int, order_index: Optional[int] = None) -> "StockEntry":
         return replace(
@@ -340,13 +358,15 @@ def _renumbered(row: StoreRow, entries: Sequence[StockEntry]) -> StoreRow:
     return replace(updated, raw=encode_store_row(updated))
 
 
-def swap_stock_item(row: StoreRow, old_item_key: int, new_item_key: int, *, all_entries: bool = False) -> StoreRow:
+def swap_stock_item(row: StoreRow, old_item_key: int, new_item_key: int, *, all_entries: bool = False, keep_requirement: bool = True) -> StoreRow:
     """Point the entry stocking `old_item_key` at `new_item_key`, in place.
 
     Both copies of the key move together and nothing else in the row changes, which is
     what the spike did and the game accepted. A store that lists the old item more than
     once is refused unless `all_entries` is set, so a caller cannot retarget an entry it
-    has not looked at.
+    has not looked at. With `keep_requirement` false the line's unlock-knowledge block
+    is dropped too, so the new item is sold freely; the row shrinks by 13 bytes and the
+    caller writes it back with `replace_table_row`.
     """
 
     matches = row.entries_for(old_item_key)
@@ -356,7 +376,10 @@ def swap_stock_item(row: StoreRow, old_item_key: int, new_item_key: int, *, all_
         raise StoreInfoError(
             f"store {row.name!r} lists item {int(old_item_key)} {len(matches)} times; pass all_entries=True to retarget every one"
         )
-    entries = tuple(entry.with_item(new_item_key) if entry.item_key == int(old_item_key) else entry for entry in row.entries)
+    def retarget(entry: StockEntry) -> StockEntry:
+        moved = entry.with_item(new_item_key)
+        return moved if keep_requirement else moved.without_requirement()
+    entries = tuple(retarget(entry) if entry.item_key == int(old_item_key) else entry for entry in row.entries)
     updated = replace(row, entries=entries)
     return replace(updated, raw=encode_store_row(updated))
 
@@ -367,6 +390,7 @@ def insert_stock_entry(
     *,
     template: Optional[StockEntry] = None,
     position: Optional[int] = None,
+    keep_requirement: bool = True,
 ) -> StoreRow:
     """Add a stock entry for `item_key`, shaped like `template`.
 
@@ -394,6 +418,8 @@ def insert_stock_entry(
         raise StoreInfoError(f"position {position} is outside 0..{len(row.entries)}")
     next_order = max((entry.order_index for entry in row.entries), default=-1) + 1
     fresh = replace(source, store_key=row.key, item_key=_u32(item_key, "item key"), order_index=next_order, offset=-1, end=-1)
+    if not keep_requirement:
+        fresh = fresh.without_requirement()
     entries = list(row.entries)
     entries.insert(int(position), fresh)
     return _renumbered(row, entries)

@@ -119,7 +119,9 @@ class NewItemStudioController(QObject):
     def store_names(self) -> Tuple[str, ...]:
         return tuple(sorted(store.name for store in self.snapshot.stores)) if self.snapshot else ()
 
-    def store_stock(self, store_name: str) -> Tuple[Tuple[int, str], ...]:
+    def store_stock(self, store_name: str) -> Tuple[Tuple[int, str, str], ...]:
+        """(item key, internal name, unlock requirement item name or "") per buyable line."""
+
         if self.snapshot is None:
             return ()
         try:
@@ -131,8 +133,18 @@ class NewItemStudioController(QObject):
             if not entry.is_buyable:
                 continue
             row = self.snapshot.rows.get(entry.item_key)
-            names.append((entry.item_key, row.string_key if row is not None else str(entry.item_key)))
+            requirement = ""
+            if entry.requirement_item_key is not None:
+                unlock = self.snapshot.rows.get(entry.requirement_item_key)
+                requirement = unlock.string_key if unlock is not None else str(entry.requirement_item_key)
+            names.append((entry.item_key, row.string_key if row is not None else str(entry.item_key), requirement))
         return tuple(names)
+
+    def line_requirement(self, store_name: str, old_item_name: str) -> str:
+        for _key, name, requirement in self.store_stock(store_name):
+            if name == old_item_name:
+                return requirement
+        return ""
 
     def item_groups(self, text: str = "", *, limit: int = 200) -> Tuple[Tuple[int, str], ...]:
         if self.snapshot is None:

@@ -88,7 +88,9 @@ class GoldenReplayTests(unittest.TestCase):
             name_key=item["name_key"],
             desc_key=item["desc_key"],
             model_source=model,
-            placement=Placement(PlacementKind.SWAP, store, victim),
+            # the spike swapped the item in place and kept the line's unlock requirement (a collection's knowledge);
+            # the studio drops it by default now, so the replay says so explicitly
+            placement=Placement(PlacementKind.SWAP, store, victim, keep_requirement=True),
         )
 
     def _plan(self, key: int, store: str, victim: str) -> NewItemPlan:

@@ -93,6 +93,10 @@ class Placement:
     #: Not written: a StoreInfo entry carries no price of its own (the shop prices the
     #: item from its buy-price list). Kept so an older spec still loads; the rules warn.
     price: Optional[int] = None
+    #: A shop line may demand the knowledge of a collection prop before it sells (the
+    #: shop shows "Knowledge" until then). False, the default, sells the new item freely
+    #: by dropping that block from the line it takes; True keeps the line's own.
+    keep_requirement: bool = False
 
 
 @dataclass(frozen=True, slots=True)

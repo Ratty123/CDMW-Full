@@ -129,6 +129,13 @@ class TabTests(unittest.TestCase):
         placement.old_item.setCurrentIndex(0)
         self.assertEqual(tab.controller.draft.placement_kind, PlacementKind.SWAP)
         self.assertEqual(tab.controller.draft.old_item_name, "Cigar_OneHandSword")
+        self.assertIn("unlocked by", placement.old_item.itemText(0))
+        self.assertIn("sell freely", placement.requirement_note.text())
+        self.assertFalse(tab.controller.draft.keep_requirement)
+        placement.keep_requirement.setChecked(True)
+        self.assertTrue(tab.controller.draft.keep_requirement)
+        self.assertIn("Kept", placement.requirement_note.text())
+        placement.keep_requirement.setChecked(False)
         self.assertIn("2 group(s)", placement.template_groups.text())
         # perks: the template's, then two chosen ones; and an effect from the shipped stems
         perks = tab.perks_panel

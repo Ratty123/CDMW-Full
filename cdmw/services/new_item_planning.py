@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem
+from cdmw.core.item_icon_registry import ICON_REGISTRY_PATH, IconRegistryError, add_icon_texture
 from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, encode_pathc, register_dds, register_texture
 from cdmw.core.prefab_binary_edit import PrefabEditError
 from cdmw.core.prefab_component_graft import encode_transform, graft_prefab_component
@@ -38,6 +39,7 @@ from cdmw.core.iteminfo_row import (
     price_list_with,
     rebuild_stat_block,
     set_max_stack_count,
+    socket_slots_for,
 )
 from cdmw.core.paloc_format import add_localization_entries, encode_paloc, entries_like, text_for_language
 from cdmw.core.pappt_format import encode_pappt, insert_part_prefabs
@@ -265,10 +267,17 @@ class _Planner:
         prices = row.price_list
         for edit in spec.price_edits:
             prices = price_list_with(prices, int(edit.item_key), int(edit.price))
-        rebuilt = rebuild_stat_block(row, levels=levels, price_list=prices, socket_items=sockets)
+        slots = None
+        if sockets is not None and len(sockets) > len(row.add_socket_materials):
+            # a row uses at most as many socket items as it has slots (`_addSocketMaterialList`)
+            slots = socket_slots_for(row, len(sockets))
+        rebuilt = rebuild_stat_block(row, levels=levels, price_list=prices, socket_items=sockets, add_socket_materials=slots)
         again = parse_iteminfo_row(rebuilt, item_keys=set(self.snapshot.rows) | {int(spec.item_key)})
         if again.stat_block_offset is None or again.enchant_count != len(levels) or (sockets is not None and again.socket_items != sockets):
             raise NewItemPlanError("the rebuilt stat block did not parse back the way it was written")
+        if slots is not None:
+            self.summary.append(f"socket slots: grown from {len(row.add_socket_materials)} to {len(slots)} so every socket item has a slot")
+            self.manifest["socket_slots"] = [list(item) for item in slots]
         if len(levels) > len(row.enchant_levels):
             self.warnings.append(
                 f"The row carries {len(levels) - len(row.enchant_levels)} enchant level(s) the template lacks; "
@@ -316,17 +325,26 @@ class _Planner:
             old_key = self.snapshot.keys_by_name.get(placement.old_item_name)
             if old_key is None:
                 raise NewItemPlanError(f"there is no item named {placement.old_item_name}")
-            updated = swap_stock_item(store, old_key, int(self.spec.item_key))
+            updated = swap_stock_item(store, old_key, int(self.spec.item_key), keep_requirement=placement.keep_requirement)
             what = f"StoreInfo: {store.name} sells {self.spec.internal_name} instead of {placement.old_item_name}"
+            required = next((e.requirement_item_key for e in store.entries_for(old_key) if e.requirement_item_key is not None), None)
         else:
-            updated = insert_stock_entry(store, int(self.spec.item_key))
+            updated = insert_stock_entry(store, int(self.spec.item_key), keep_requirement=placement.keep_requirement)
             what = f"StoreInfo: {store.name} gains a stock entry for {self.spec.internal_name}"
             self.warnings.append("A whole new stock entry is unproven in game; swapping an existing entry is the proven form.")
+            required = store.buyable_entries[-1].requirement_item_key if store.buyable_entries else None
+        if required is not None:
+            unlock = self.snapshot.rows.get(required)
+            unlock_name = unlock.string_key if unlock is not None else str(required)
+            if placement.keep_requirement:
+                self.warnings.append(f"The shop line keeps its unlock requirement: the buyer needs the knowledge of {unlock_name} before it sells (the shop shows \"Knowledge\" until then).")
+            else:
+                what += f" (its unlock requirement, the knowledge of {unlock_name}, dropped so it sells freely)"
         if placement.price is not None:
             self.warnings.append("StoreInfo entries carry no price of their own; the shop prices the item from its buy-price list, so the placement price was not written. Use a buy-price edit.")
         pair = self.snapshot.storeinfo
         payload, header = apply_store_row(pair.payload, pair.header, updated)
-        self.manifest["store"] = {"name": store.name, "kind": placement.kind.value, "old_item": placement.old_item_name or None}
+        self.manifest["store"] = {"name": store.name, "kind": placement.kind.value, "old_item": placement.old_item_name or None, "requirement_kept": bool(placement.keep_requirement)}
         self.patch(pair.payload_entry, payload, what)
         self.patch(pair.header_entry, header, "StoreInfo directory")
 
@@ -468,7 +486,18 @@ class _Planner:
         if template_entry is None:
             raise NewItemPlanError(f"{self.template.string_key} has no icon file to shape the new one after")
         self.add(template_entry, self.icon.target_path, self.icon.payload_data, f"icon: {self.icon.target_path}")
-        self.manifest["icon"] = {"string": self.icon.icon_string, "hash": f"0x{self.icon.icon_hash:08X}", "path": self.icon.target_path}
+        self.manifest["icon"] = {"string": self.icon.icon_string, "hash": f"0x{self.icon.icon_hash:08X}", "path": self.icon.target_path, "registered": False}
+        # the UI finds an icon by name through ui/xml/texture/cd_item_icon.xml; without a line there the file draws as the bag
+        if not self.snapshot.has_entry(ICON_REGISTRY_PATH):
+            self.warnings.append(f"No icon registry ({ICON_REGISTRY_PATH}) in the archives; the generated icon will not draw until it is registered there.")
+            return
+        template_icon = self.family.icon_string or ""
+        try:
+            registry = add_icon_texture(self.snapshot.payload(ICON_REGISTRY_PATH), self.icon.icon_string, like=template_icon)
+        except IconRegistryError as exc:
+            raise NewItemPlanError(f"icon registry: {exc}") from exc
+        self.patch(self.snapshot.entry(ICON_REGISTRY_PATH), registry, f"icon registry: {self.icon.icon_string} declared in {ICON_REGISTRY_PATH.rsplit('/', 1)[-1]}")
+        self.manifest["icon"]["registered"] = True
 
     def plan_texture_registry(self) -> None:
         """Register every new `.dds` in `meta/0.pathc`: the game looks textures up there first.

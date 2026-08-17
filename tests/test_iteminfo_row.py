@@ -28,6 +28,7 @@ from cdmw.core.iteminfo_row import (
     price_list_with,
     price_list_without,
     rebuild_stat_block,
+    socket_slots_for,
     scale_stats,
     set_buy_price,
     set_max_stack_count,
@@ -338,6 +339,14 @@ class RebuildTests(unittest.TestCase):
             rebuild_stat_block(row, socket_items=tuple(1002785 + i for i in range(9)))
         with self.assertRaisesRegex(ItemInfoRowError, "positive u32"):
             rebuild_stat_block(row, socket_items=(0,))
+        # socket slots (`_addSocketMaterialList`) grow with the shipped price progression
+        self.assertEqual(socket_slots_for(row, 1), ((COPPER, 500, 0),), "already enough")
+        self.assertEqual(socket_slots_for(row, 4), ((COPPER, 500, 0), (COPPER, 1000, 0), (COPPER, 2000, 0), (COPPER, 3000, 0)))
+        grown = parse_iteminfo_row(rebuild_stat_block(row, socket_items=(1002787, 1002793, 1002812, 1002910), add_socket_materials=socket_slots_for(row, 4)))
+        self.assertEqual((len(grown.socket_items), grown.add_socket_materials), (4, ((COPPER, 500, 0), (COPPER, 1000, 0), (COPPER, 2000, 0), (COPPER, 3000, 0))))
+        self.assertEqual(shape(grown)[0], shape(row)[0], "the ladder is untouched")
+        bare = parse_iteminfo_row(rebuild_stat_block(row, add_socket_materials=()))
+        self.assertEqual(socket_slots_for(bare, 2), ((1, 500, 0), (1, 1000, 0)))
 
     def test_rebuild_refusals(self) -> None:
         row = parse_iteminfo_row(build_row())
