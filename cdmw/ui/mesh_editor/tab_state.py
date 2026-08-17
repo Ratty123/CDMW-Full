@@ -12,7 +12,11 @@ from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     normalize_mesh_preview_display_mode,
     untextured_fallback_display_mode,
 )
-from cdmw.ui.mesh_editor.actions import NATIVE_EDITOR_SESSION_COMMANDS, normalize_mesh_selection_shape
+from cdmw.ui.mesh_editor.actions import (
+    NATIVE_EDITOR_SESSION_COMMANDS,
+    normalize_mesh_element_type,
+    normalize_mesh_selection_shape,
+)
 
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
@@ -67,6 +71,7 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
         *,
         mode: str = "",
         active_selection_mode: str = "",
+        active_element_type: str = "",
         active_tool_key: str | None = None,
         selection_empty: bool | None = None,
         undo_count: int | None = None,
@@ -77,6 +82,8 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
             self.current_edit_mode = str(mode)
         if active_selection_mode:
             self.current_selection_mode = normalize_mesh_selection_shape(active_selection_mode)
+        if active_element_type:
+            self.current_element_type = normalize_mesh_element_type(active_element_type)
         if active_tool_key is not None:
             self.current_tool_action_key = str(active_tool_key)
         if selection_empty is not None:
@@ -93,6 +100,7 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
         view: _tab.MeshEditSessionView | None,
         *,
         active_selection_mode: str = "",
+        active_element_type: str = "",
     ) -> None:
         summary = getattr(self.standalone_workspace, "update_session_summary", None)
         if callable(summary):
@@ -129,14 +137,16 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
         self.update_editor_action_state(
             mode=str(view.mode or "object"),
             active_selection_mode=str(active_selection_mode or self.current_selection_mode or "brush"),
+            active_element_type=str(active_element_type or self.current_element_type or "vertex"),
             selection_empty=bool(view.selection.is_empty()),
             undo_count=int(view.undo_count or 0),
             redo_count=int(view.redo_count or 0),
         )
-    def set_active_tool_state(self, *, mode: str = "", active_selection_mode: str = "", active_tool_key: str | None = None) -> None:
+    def set_active_tool_state(self, *, mode: str = "", active_selection_mode: str = "", active_element_type: str = "", active_tool_key: str | None = None) -> None:
         self.update_editor_action_state(
             mode=mode,
             active_selection_mode=active_selection_mode,
+            active_element_type=active_element_type,
             active_tool_key=active_tool_key,
         )
     def _refresh_standalone_export_validation(self, view: _tab.MeshEditSessionView | None) -> None:

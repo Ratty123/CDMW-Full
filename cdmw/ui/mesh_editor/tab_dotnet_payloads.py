@@ -38,7 +38,12 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             "process_generation": self.standalone_dotnet_process_generation,
             "mode": view.mode,
             "revision": view.revision,
+            # Two keys because they are two things. `selection_mode` is the drag
+            # gesture the helper whitelists as brush/lasso/rectangle; an element
+            # kind arriving here was silently ignored by it and reset the
+            # reader's shape on the way back.
             "selection_mode": str(getattr(controller, "active_selection_mode", "") or self.current_selection_mode or "brush"),
+            "element_type": str(getattr(controller, "active_element_type", "") or self.current_element_type or "vertex"),
             "submesh_count": view.submesh_count,
             "vertex_count": view.vertex_count,
             "face_count": view.face_count,

@@ -116,6 +116,7 @@ class MeshEditorActionBar(QFrame):
         selection_empty: bool = True,
         mode: str = "",
         active_selection_mode: str = "",
+        active_element_type: str = "",
         active_tool_key: str = "",
         undo_count: int = 0,
         redo_count: int = 0,

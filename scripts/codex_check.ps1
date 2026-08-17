@@ -150,6 +150,9 @@ $TestsByArea = @{
         "tests/test_mesh_editor_imported_material_publication.py",
         "tests/test_mesh_editor_runtime_diagnostics.py",
         "tests/test_mesh_edit_session_state.py",
+        # Element kind and drag gesture, which shared one field and one name
+        # until an edge tool started resetting the reader's Lasso to Brush.
+        "tests/test_mesh_edit_selection_vocabulary.py",
         "tests/test_mesh_editor_edit_session_boundary.py",
         "tests/test_mesh_editor_error_codes.py",
         "tests/test_mesh_operation_spec.py",
