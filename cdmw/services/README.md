@@ -55,6 +55,13 @@ Generated/source maps stay intermediates; DDS output remains on the existing
 CDMW/DirectXTex paths. Exact helper versions are opt-in discovery probes so
 normal startup does not run external tools.
 
+`new_item_service.py`, `new_item_snapshot.py` and `new_item_planning.py` are the
+New Item Studio's boundary: a read-only snapshot of the tables a brand-new item
+touches, the plan that composes the core format owners into patches and
+additions, a loose-mod export, and an install that goes through
+`ArchiveMutationService` and refuses while the game runs. Nothing there writes
+on its own.
+
 Related tests: `tests/test_services.py`, `tests/test_archive_service_boundaries.py`,
 `tests/test_research_service_boundary.py`, `tests/test_diagnostics_service.py`,
 and service entries under `tests/`.

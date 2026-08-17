@@ -51942,6 +51942,56 @@
       ]
     },
     {
+      "key": "New item export cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_service.py",
+          "line": 213,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "New item plan cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_planning.py",
+          "line": 112,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_service.py",
+          "line": 169,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "New item snapshot cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 199,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 213,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 222,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 236,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
       "key": "New point…",
       "origins": [
         {
@@ -62767,6 +62817,16 @@
       ]
     },
     {
+      "key": "Planning {value_0}...",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_planning.py",
+          "line": 453,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "Play",
       "origins": [
         {
@@ -67332,6 +67392,36 @@
       ]
     },
     {
+      "key": "Reading ItemInfo...",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 200,
+          "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Reading StoreInfo, ItemGroupInfo, StatusInfo and EquipTypeInfo...",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 223,
+          "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Reading StringInfo and the part-prefab table...",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 214,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "Reading animations… {value_0}/{value_1}",
       "origins": [
         {
@@ -67513,6 +67603,16 @@
           "path": "cdmw/ui/archive_browser/binary_sidecar_actions.py",
           "line": 274,
           "sink": "_run_utility_task"
+        }
+      ]
+    },
+    {
+      "key": "Reading the English localisation table...",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 237,
+          "sink": "log"
         }
       ]
     },
@@ -82887,6 +82987,16 @@
       ]
     },
     {
+      "key": "Snapshot ready: {value_0} items, {value_1} stores, {value_2} item groups, {value_3} languages.",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 254,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "Socket",
       "origins": [
         {
@@ -92492,6 +92602,16 @@
       ]
     },
     {
+      "key": "Unknown loose-mod manager profile {value_0}; one of {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_service.py",
+          "line": 208,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Unknown procedural morph definition: {value_0}",
       "origins": [
         {
@@ -98087,6 +98207,16 @@
       ]
     },
     {
+      "key": "Writing {value_0} as a {value_1} loose mod under {value_2}...",
+      "origins": [
+        {
+          "path": "cdmw/workers/new_item_workers.py",
+          "line": 74,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "Writing {value_0} changed HKX field(s) into a mod-ready loose package...",
       "origins": [
         {
@@ -98458,6 +98588,16 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 1112,
           "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Wrote {value_0} file(s), {value_1} of them new.",
+      "origins": [
+        {
+          "path": "cdmw/workers/new_item_workers.py",
+          "line": 78,
+          "sink": "log"
         }
       ]
     },
@@ -106063,6 +106203,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 765,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "icon: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_planning.py",
+          "line": 395,
+          "sink": "add"
         }
       ]
     },
@@ -190107,6 +190257,16 @@
       ]
     },
     {
+      "key": "texture: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_planning.py",
+          "line": 363,
+          "sink": "add"
+        }
+      ]
+    },
+    {
       "key": "textured",
       "origins": [
         {
@@ -196175,6 +196335,16 @@
       "key": "{value_0}/{value_1}",
       "origins": [
         {
+          "path": "cdmw/services/new_item_planning.py",
+          "line": 354,
+          "sink": "add"
+        },
+        {
+          "path": "cdmw/services/new_item_planning.py",
+          "line": 363,
+          "sink": "add"
+        },
+        {
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_helpers.py",
           "line": 625,
           "sink": "add"
@@ -196434,6 +196604,11 @@
     {
       "key": "{value_0}: {value_1}",
       "origins": [
+        {
+          "path": "cdmw/services/new_item_planning.py",
+          "line": 354,
+          "sink": "add"
+        },
         {
           "path": "cdmw/ui/archive_browser/extraction.py",
           "line": 416,

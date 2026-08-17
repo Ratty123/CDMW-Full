@@ -78,7 +78,10 @@ $TestsByArea = @{
         "tests/test_item_model_family.py",
         "tests/test_item_icon_addition.py",
         # New Item Studio domain: the spec, its validation and identity allocation.
-        "tests/test_new_item_spec.py"
+        "tests/test_new_item_spec.py",
+        # New Item Studio, phase 3: item groups, and the service that plans, exports and installs.
+        "tests/test_itemgroupinfo_table.py",
+        "tests/test_new_item_service.py"
     )
     texture = @(
         "tests/test_texture_backend_retirement.py",
