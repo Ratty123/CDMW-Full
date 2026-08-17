@@ -240,6 +240,42 @@ def source_emissive_strength(source: object | None) -> float | None:
     return max(values) if values else 1.0 if has_emissive else None
 
 
+def source_emissive_color(source: object | None) -> tuple[float, ...]:
+    """Read an imported emissive colour without depending on scene model types.
+
+    The counterpart to `source_emissive_strength`. That one was consulted when
+    the intensity was resolved; nothing consulted the colour, so a material that
+    declared `_emissiveColor` -- a glTF `emissiveFactor`, say -- had its
+    intensity honoured and its colour dropped, and the renderer fell back to
+    white. Reads the same parameter lists, in the same order.
+    """
+    if source is None:
+        return ()
+    parameters = list(getattr(source, "preview_material_parameters", ()) or ())
+    for texture_input in tuple(getattr(source, "preview_material_texture_inputs", ()) or ()):
+        parameters.extend(tuple(getattr(texture_input, "material_parameters", ()) or ()))
+    for parameter in parameters:
+        if str(getattr(parameter, "parameter_name", "") or "").strip().lower() != "_emissivecolor":
+            continue
+        color = _normalized_color(getattr(parameter, "color_value", ()))
+        if color:
+            return color
+        color = _hex_color(getattr(parameter, "value", ""))
+        if color:
+            return color
+    return ()
+
+
+def _hex_color(value: object) -> tuple[float, ...]:
+    text = str(value or "").strip().lstrip("#")
+    if len(text) < 6:
+        return ()
+    try:
+        return tuple(int(text[index : index + 2], 16) / 255.0 for index in (0, 2, 4))
+    except ValueError:
+        return ()
+
+
 def effective_emissive_intensity(
     profile: object | None,
     *,
@@ -367,7 +403,16 @@ def evaluate_material_parameters(
                 part_adjustment=part_adjustment,
             )
         )
-    raw_emissive_color = emissive_color or getattr(part_adjustment, "emissive_color_rgb", ()) or getattr(profile, "accent_glow_color_rgb", ())
+    # A part-level pick outranks the imported colour, which outranks the
+    # profile's accent glow: the profile setting is a global default, and an
+    # imported model that declares its own emissive colour is more specific
+    # than that. Before this the imported colour was never consulted at all.
+    raw_emissive_color = (
+        emissive_color
+        or getattr(part_adjustment, "emissive_color_rgb", ())
+        or source_emissive_color(source_slot)
+        or getattr(profile, "accent_glow_color_rgb", ())
+    )
     color_uses_bytes = bool(raw_emissive_color) and all(isinstance(value, int) for value in tuple(raw_emissive_color)[:3])
     colourise_color, colourise_strength = _resolved_colourise(source_slot, part_adjustment)
 
@@ -495,5 +540,6 @@ __all__ = [
     "profile_roughness_inverted",
     "profile_source_emissive_enabled",
     "profile_source_emissive_parameter_intensity",
+    "source_emissive_color",
     "source_emissive_strength",
 ]

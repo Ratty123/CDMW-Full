@@ -122,6 +122,15 @@ def _preview_meshes_from_submeshes(submeshes: Sequence[SubMesh]) -> List[ModelPr
                 for item in preview_material_texture_inputs
             ):
                 preview_mesh.preview_sidecar_shader_family = "SkinnedMeshEmissive_Ver2"
+        # The scalar and colour parameters a material declares without any
+        # texture: a glTF baseColorFactor, emissiveFactor, roughnessFactor. A
+        # gem authored as "green base, red emissive, no maps" carried its glow
+        # here and nowhere else, and dropping it meant every reader of the
+        # preview mesh -- the Material Authority bridge included -- decided the
+        # part had no emissive and cleared the one the renderer had been sent.
+        preview_material_parameters = tuple(getattr(submesh, "preview_material_parameters", ()) or ())
+        if preview_material_parameters:
+            preview_mesh.preview_material_parameters = preview_material_parameters
         preview_meshes.append(preview_mesh)
     return preview_meshes
 

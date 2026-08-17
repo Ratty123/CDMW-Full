@@ -485,6 +485,24 @@ def _selected_part_control_step_017(_state):
     def _selected_part_source_changed(_index: int=-1) -> None:
         if _state.part_inspector_loading['active']:
             return
+        # Part Setup's combo picks from the whole model, but the source tree it
+        # used to delegate to is populated lazily in chunks and lives on a tab
+        # the reader may never open. Testing membership in `source_items_by_index`
+        # therefore said "no such part" for any row the tree had not reached yet,
+        # and the pick fell through to the clear-selection branch: nothing
+        # highlighted, no controls loaded. The viewport pick path already solved
+        # this by materialising the row on demand, so the combo takes that path.
+        try:
+            picked_index = int(_state.part_source_combo.currentData())
+        except (TypeError, ValueError):
+            picked_index = -1
+        # Read from the context at call time rather than at construction: the
+        # source-tree callbacks are created after this factory runs, so an
+        # early binding would capture None and fall through to the old path.
+        select_from_viewport = _state.context.get('_select_source_part_from_viewport')
+        if picked_index >= 0 and callable(select_from_viewport):
+            if select_from_viewport(picked_index):
+                return
         selection_state = _state._source_part_source_combo_selection_state_helper(_state.part_source_combo.currentData(), available_source_indices=_state.source_items_by_index.keys())
         if selection_state.select_existing_source:
             source_item = _state.source_items_by_index.get(selection_state.source_index)
