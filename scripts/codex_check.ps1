@@ -170,6 +170,9 @@ $TestsByArea = @{
         # The import's account of a slot against the package's, which agreed
         # only by reading the same pipeline until this compared them.
         "tests/test_material_manifest_agreement.py",
+        # Every link of the import setup chain accepts every workflow preset.
+        # Two shipped crashes were a keyword one link took and the next refused.
+        "tests/test_mesh_import_setup_flag_chain.py",
         # Replace Materials and Textures Only, whose whole guarantee is that the
         # commit boundary emits no mesh entry at all.
         "tests/test_materials_and_textures_replacement.py",

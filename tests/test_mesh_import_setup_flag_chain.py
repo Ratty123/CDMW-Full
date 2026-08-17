@@ -28,6 +28,9 @@ from cdmw.ui.archive_browser.mesh_import_preflight_controller import (
 from cdmw.ui.archive_browser.static_replacement_dialog import (
     ArchiveStaticReplacementDialogMixin,
 )
+from cdmw.ui.archive_browser.static_replacement_dialog_prompt import (
+    prompt_archive_static_replacement_options,
+)
 
 
 #: The workflow presets the setup chain carries. A new one belongs here the
@@ -39,6 +42,9 @@ _LINKS = {
     "dispatch_mesh_import_setup_preflight": dispatch_mesh_import_setup_preflight,
     "_prompt_archive_mesh_import_setup": ArchiveMeshImportExportMixin._prompt_archive_mesh_import_setup,
     "_prompt_archive_static_replacement_options": ArchiveStaticReplacementDialogMixin._prompt_archive_static_replacement_options,
+    # The mixin above only forwards. The second crash was here: it accepted
+    # the keyword and the function it delegates to did not.
+    "prompt_archive_static_replacement_options": prompt_archive_static_replacement_options,
 }
 
 
@@ -74,3 +80,4 @@ def test_the_flags_default_to_off() -> None:
 
     for flag in PRESET_FLAGS:
         assert getattr(selection, flag) is False
+

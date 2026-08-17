@@ -200,3 +200,28 @@ def test_output_impact_review_reports_edited_geometry_once_the_mesh_is_edited() 
         refresh()
         assert "Geometry: working_edited" in label.toolTip()
         assert "Build replaces: geometry" in label.toolTip()
+
+
+@pytest.mark.parametrize(
+    "preset",
+    [
+        {},
+        {"full_import_model_replacement": True},
+        {"materials_and_textures_only": True},
+    ],
+    ids=["plain", "full_import", "materials_only"],
+)
+def test_the_builder_opens_under_every_workflow_preset(preset: dict) -> None:
+    """Construct the real Builder for each preset, not just check signatures.
+
+    Two shipped crashes were a keyword one link accepted and the next refused,
+    and a signature test only sees the link it names. This drives the tail the
+    way the app does -- the prompt, the shell context, and the workflow mode --
+    so a preset that cannot open the Builder says so here rather than in a
+    crash log. `tests/test_mesh_import_setup_flag_chain.py` covers the head of
+    the same chain, which cannot run headless because the prompt is modal.
+    """
+    with open_mesh_builder(dialog_title="Preset construction", **preset) as builder:
+        assert builder.dialog is not None
+        for flag in ("full_import_model_replacement", "materials_and_textures_only"):
+            assert bool(builder.context.get(flag)) is bool(preset.get(flag, False)), flag
