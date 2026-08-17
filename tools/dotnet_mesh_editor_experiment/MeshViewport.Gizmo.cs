@@ -80,6 +80,10 @@ internal sealed partial class MeshViewport
         _scene.SetActiveGizmoHandle(handle);
         _scene.SetHoveredGizmoHandle(handle);
         _placementDragActive = true;
+        // The host's drag consumers take deltas, and only the renderer knows the
+        // exact placement a drag started from. Emitting it here lets the host
+        // subtract rather than guess from the first coalesced update.
+        EmitPlacementTransformRequest("begin", handle);
         ApplySceneState();
         return true;
     }

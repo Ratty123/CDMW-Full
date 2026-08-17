@@ -118,6 +118,8 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
     alignment_drag_finished = Signal(float, float, float)
     alignment_rotation_changed = Signal(float, float, float)
     alignment_rotation_finished = Signal(float, float, float)
+    alignment_scale_changed = Signal(float, float, float)
+    alignment_scale_finished = Signal(float, float, float)
     source_part_hovered = Signal(int)
     source_part_selected = Signal(int)
     source_part_context_requested = Signal(int, int, int)

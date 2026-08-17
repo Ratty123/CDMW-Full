@@ -146,6 +146,45 @@ class DotNetPreviewHostProtocolMixin:
         if show_status_panel:
             self._status_panel.raise_()
 
+    #: Placement at the start of the active gizmo drag, per tool. The renderer
+    #: reports absolute placement; every consumer of these signals adds a delta
+    #: to its own base, so the host subtracts the start rather than passing an
+    #: absolute where a delta is expected -- which put a part at base+absolute
+    #: on every drag after the first.
+    _placement_drag_start: dict[str, tuple[float, float, float]] | None = None
+
+    def _handle_placement_transform_request(self, payload: Mapping[str, object]) -> None:
+        placement = payload.get("placement")
+        placement = placement if isinstance(placement, Mapping) else {}
+        phase = str(payload.get("placement_phase", "update") or "update").lower()
+        tool = str(payload.get("gizmo_tool", "move") or "move").strip().lower()
+        key, changed, finished = {
+            "rotate": ("rotation_degrees", self.alignment_rotation_changed, self.alignment_rotation_finished),
+            "scale": ("scale", self.alignment_scale_changed, self.alignment_scale_finished),
+        }.get(tool, ("translation", self.alignment_drag_changed, self.alignment_drag_finished))
+        neutral = (1.0, 1.0, 1.0) if tool == "scale" else (0.0, 0.0, 0.0)
+        current = _triple(tuple(placement.get(key, ()) or ()), neutral)
+        starts = self._placement_drag_start
+        if starts is None:
+            starts = self._placement_drag_start = {}
+        if phase == "begin":
+            starts[tool] = current
+            self.alignment_drag_started.emit()
+            return
+        start = starts.get(tool)
+        if start is None:
+            # An older helper that sends no begin: the first sample is the best
+            # available start. It may already carry one pointer step, so this
+            # is a fallback and not the contract.
+            start = starts[tool] = current
+            self.alignment_drag_started.emit()
+        delta = tuple(float(current[index]) - float(start[index]) for index in range(3))
+        if phase == "end":
+            starts.pop(tool, None)
+            finished.emit(*delta)
+        else:
+            changed.emit(*delta)
+
     def _handle_protocol_event(self, payload: object) -> None:
         if not isinstance(payload, Mapping):
             return
@@ -179,35 +218,7 @@ class DotNetPreviewHostProtocolMixin:
         if event in {"embedded_window_revealed", "reembed_ack"}:
             self._remember_embedded_child_window(payload)
         if event == "placement_transform_request":
-            # The renderer nests the transform under `placement`; reading
-            # `translation` at the top level always found nothing and fell back
-            # to (0, 0, 0). The viewport moved because it transforms its own
-            # scene locally, and the host then applied zero on release, which is
-            # why a dragged part snapped back the moment the mouse came up.
-            placement = payload.get("placement")
-            placement = placement if isinstance(placement, Mapping) else {}
-            phase = str(payload.get("placement_phase", "update") or "update").lower()
-            tool = str(payload.get("gizmo_tool", "move") or "move").strip().lower()
-            if tool == "rotate":
-                values = _triple(tuple(placement.get("rotation_degrees", ()) or ()), (0.0, 0.0, 0.0))
-                changed = self.alignment_rotation_changed
-                finished = self.alignment_rotation_finished
-            elif tool == "scale":
-                # No scale signal exists on this host and no Builder handler
-                # consumes one. Emitting a translation for a scale drag would
-                # apply the wrong axis, so this is left unwired rather than
-                # wired wrongly.
-                return
-            else:
-                values = _triple(tuple(placement.get("translation", ()) or ()), (0.0, 0.0, 0.0))
-                changed = self.alignment_drag_changed
-                finished = self.alignment_drag_finished
-            if phase == "begin":
-                self.alignment_drag_started.emit()
-            elif phase == "end":
-                finished.emit(*values)
-            else:
-                changed.emit(*values)
+            self._handle_placement_transform_request(payload)
         elif event == "stroke_begin":
             self.mesh_edit_stroke_started.emit(dict(payload))
         elif event == "stroke_update":
