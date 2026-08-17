@@ -66,6 +66,9 @@ class MeshEditorDotNetPresentationMixin:
                 stamped_camera = dict(camera)
                 stamped_camera["command_generation"] = generation
                 self.standalone_dotnet_presentation_desired["camera"] = stamped_camera
+            # A camera is a command, so it rides exactly the next publish and no
+            # later one. See the note in _publish_dotnet_presentation_state.
+            self.standalone_dotnet_presentation_camera_pending = True
         if not self._standalone_dotnet_editor_process_running():
             return False
         if self.standalone_dotnet_presentation_pending is not None:
@@ -101,6 +104,25 @@ class MeshEditorDotNetPresentationMixin:
         # not run the tab's runtime initialiser, and an attribute that only
         # exists on some of them would fail at the callsite rather than here.
         effective_state = deepcopy(self.standalone_dotnet_presentation_desired)
+        # The camera is a one-shot command and must not be replayed. Everything
+        # else here is desired state the helper can safely re-apply, but
+        # re-applying a camera moves the viewport: a block carrying
+        # `fit_to_view` refits the zoom and zeroes the pan, and this snapshot is
+        # republished for reasons that have nothing to do with the camera -- a
+        # gizmo or grid toggle, a part highlight, a display mode, an accepted
+        # scene frame. Leaving it in meant any of those put the camera back
+        # where it started.
+        #
+        # It comes out of the comparable state unconditionally and is added back
+        # to the payload only on the publish that follows its own command. The
+        # retained snapshot keeps it: `_send_dotnet_presentation_state` decides
+        # whether a camera is a new command by comparing it against the retained
+        # one, so dropping it there would make the next identical camera look
+        # new and republish it on every accepted frame.
+        camera_pending = bool(
+            getattr(self, "standalone_dotnet_presentation_camera_pending", False)
+        )
+        camera_state = effective_state.pop("camera", None)
         if bool(getattr(self, "standalone_dotnet_pending_textured_view", False)):
             requested_mode = str(
                 getattr(self, "standalone_dotnet_pending_textured_view_mode", "textured")
@@ -110,7 +132,7 @@ class MeshEditorDotNetPresentationMixin:
             if isinstance(display, dict):
                 display["mode"] = untextured_fallback_display_mode(requested_mode)
         published = getattr(self, "standalone_dotnet_presentation_published_content", None)
-        if published is not None and published == effective_state:
+        if published is not None and published == effective_state and not camera_pending:
             return True
         try:
             view = mesh_controller.session_view()
@@ -118,6 +140,8 @@ class MeshEditorDotNetPresentationMixin:
             return False
         self.standalone_dotnet_presentation_generation += 1
         payload = dict(effective_state)
+        if camera_pending and camera_state is not None:
+            payload["camera"] = camera_state
         payload["presentation_generation"] = self.standalone_dotnet_presentation_generation
         # The controller also publishes overlay/tool/legacy host state.  Its
         # correlated request sequence is therefore the only collision-free ID
@@ -137,7 +161,13 @@ class MeshEditorDotNetPresentationMixin:
         if request_id <= 0:
             return False
         self.standalone_dotnet_presentation_request_id = request_id
+        # Never holds a camera, so the dedupe above compares like with like and
+        # an unchanged snapshot stays one publish rather than one per frame.
         self.standalone_dotnet_presentation_published_content = effective_state
+        # The command has gone out. The camera stays in the retained snapshot as
+        # the value future cameras are compared against, but it will not ride
+        # another publish until something asks for a different one.
+        self.standalone_dotnet_presentation_camera_pending = False
         self.standalone_dotnet_presentation_pending = {
             "session_id": str(view.session_id),
             "request_id": request_id,

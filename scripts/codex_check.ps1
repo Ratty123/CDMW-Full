@@ -156,6 +156,7 @@ $TestsByArea = @{
         "tests/test_mesh_authoring_capability.py",
         "tests/test_fbx_support_contract.py",
         "tests/test_mesh_editor_mixin_composition.py",
+        "tests/test_mesh_editor_camera_is_not_reset.py",
         "tests/test_dotnet_solid_textured_view_survives_publish.py",
         "tests/test_dotnet_edit_mesh_entry_layout.py",
         "tests/test_select_drag_shape_survives_tool_state.py",
