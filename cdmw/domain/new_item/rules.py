@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import FrozenSet, Iterable, Mapping, Optional, Tuple
 
 from cdmw.domain.new_item.spec import (
+    EnhancementRows,
     IconSource,
     ItemGroupsChoice,
     ModelSource,
@@ -195,8 +196,10 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
             issues.append(_issue("placement.store_missing", "placement", "Choose a store."))
         if placement.kind is PlacementKind.SWAP and not str(placement.old_item_name or "").strip():
             issues.append(_issue("placement.old_item_missing", "placement", "Choose which stock entry the new item replaces."))
-        if placement.kind is PlacementKind.INSERT and (placement.price is None or not 0 <= int(placement.price) <= _U32_MAX):
-            issues.append(_issue("placement.price", "placement", "Adding to a store needs a non-negative price."))
+        if placement.price is not None and not 0 <= int(placement.price) <= _U32_MAX:
+            issues.append(_issue("placement.price", "placement", "A placement price is a non-negative 32-bit integer."))
+        if placement.kind is PlacementKind.INSERT and placement.price is not None:
+            issues.append(_issue("placement.price_ignored", "placement", "StoreInfo entries carry no price of their own; the shop prices the item from its buy-price list, so this price is not written.", "warning"))
 
     if spec.item_groups is ItemGroupsChoice.EXPLICIT and not spec.explicit_item_groups:
         issues.append(_issue("item_groups.empty", "item_groups", "Explicit item groups were chosen but none were listed."))
@@ -295,6 +298,10 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
         unknown = [key for key in spec.explicit_item_groups if key not in context.item_group_keys]
         if unknown:
             issues.append(_issue("item_groups.unknown", "item_groups", f"Unknown item group key(s): {', '.join(str(k) for k in unknown)}."))
+    if spec.enhancement is EnhancementRows.OWN:
+        issues.append(_issue("enhancement.own_unproven", "enhancement", "Cloned enhancement rows are unproven in game; sharing the template's rows is the verified form.", "warning"))
+    else:
+        issues.append(_issue("enhancement.shared", "enhancement", "The item enhances through the template's own transition rows, which name the template.", "info"))
     if spec.icon is IconSource.GENERATED and spec.model_source is ModelSource.TEMPLATE:
         issues.append(_issue("icon.generated_for_template_model", "icon", "A generated icon on the template's model will look like the template's icon; that is allowed, but check it is what you want.", "info"))
 

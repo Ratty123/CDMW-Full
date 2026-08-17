@@ -12,6 +12,7 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.domain.new_item.spec import (
     BuyPriceEdit,
+    EnhancementRows,
     IconSource,
     ItemGroupsChoice,
     ModelSource,
@@ -106,6 +107,7 @@ class NewItemDraft:
     explicit_item_groups: Tuple[int, ...] = ()
     manager: str = "CDUMM"
     export_root: str = ""
+    own_enhancement_rows: bool = False
 
     def reset_for_template(self, template_key: Optional[int]) -> None:
         self.template_key = template_key
@@ -190,6 +192,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         placement=placement,
         item_groups=draft.item_groups,
         explicit_item_groups=tuple(draft.explicit_item_groups),
+        enhancement=EnhancementRows.OWN if draft.own_enhancement_rows else EnhancementRows.TEMPLATE,
     )
 
 

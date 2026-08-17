@@ -6,6 +6,7 @@ from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDoubleSpinBox,
     QGroupBox,
     QHBoxLayout,
@@ -84,6 +85,9 @@ class StatsPanel(QGroupBox):
         self.max_stack.valueChanged.connect(self._stack_changed)
         prices.addWidget(self.max_stack)
         layout.addLayout(prices)
+        self.own_rows = QCheckBox("Give the item enhancement rows of its own (unproven in game; otherwise it enhances through the template's rows)")
+        self.own_rows.toggled.connect(self._own_rows_changed)
+        layout.addWidget(self.own_rows)
         controller.template_changed.connect(self.rebuild)
 
     # ------------------------------------------------------------------ building
@@ -161,6 +165,10 @@ class StatsPanel(QGroupBox):
             return
         key = self._grid.price_items[index][0]
         self._controller.draft.price_values[key] = value
+        self._controller.plan = None
+
+    def _own_rows_changed(self, checked: bool) -> None:
+        self._controller.draft.own_enhancement_rows = bool(checked)
         self._controller.plan = None
 
     def _stack_changed(self, value: int) -> None:

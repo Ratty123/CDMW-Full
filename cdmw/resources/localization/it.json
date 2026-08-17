@@ -3007,6 +3007,7 @@
     "Geometry": "Geometria",
     "GetRect": "OttieniRect",
     "Ghost": "Ghost",
+    "Give the item enhancement rows of its own (unproven in game; otherwise it enhances through the template's rows)": "Dare all'oggetto righe di potenziamento proprie (non provato in gioco; altrimenti si potenzia tramite le righe del modello)",
     "Give the socket a name": "Dai un nome al socket",
     "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.": "Dai a quest'arma le animazioni dell'altra impugnatura: il set a due mani per un'arma a una mano o il contrario.\n\nL'animazione scelta viene scritta al posto di quella vecchia, quindi il gioco continua a richiedere lo stesso file e ottiene la nuova animazione.\n\nTi viene mostrato ogni file che toccherebbe prima che venga modificato qualcosa.",
     "Give this weapon the other grip's animations — the two-handed set for a one-handed weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.": "Dai a quest'arma le animazioni dell'altra impugnatura: il set a due mani per un'arma a una mano o il contrario.\n\nL'animazione scelta viene scritta al posto di quella vecchia, quindi il gioco continua a richiedere lo stesso file e ottiene il nuovo movimento.",

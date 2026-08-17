@@ -3007,6 +3007,7 @@
     "Geometry": "기하학",
     "GetRect": "GetRect",
     "Ghost": "유령",
+    "Give the item enhancement rows of its own (unproven in game; otherwise it enhances through the template's rows)": "아이템에 고유한 강화 행 부여(게임 내 미검증. 지정하지 않으면 템플릿의 행으로 강화됩니다)",
     "Give the socket a name": "소켓에 이름을 지정하세요.",
     "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.": "이 무기에 다른 그립의 애니메이션(한손 무기에 대한 양손 세트 또는 그 반대)을 지정합니다.\n\n선택한 애니메이션이 이전 애니메이션 대신 작성되므로 게임은 계속해서 동일한 파일을 요청하고 새 모션을 얻습니다.\n\n변경되기 전에 접촉할 모든 파일이 표시됩니다.",
     "Give this weapon the other grip's animations — the two-handed set for a one-handed weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.": "이 무기에 다른 그립의 애니메이션을 제공합니다(한손 무기에 양손 세트 또는 그 반대).\n\n선택한 애니메이션이 이전 애니메이션 대신 작성되므로 게임은 계속 동일한 파일을 요구하고 새로운 모션을 얻습니다.",

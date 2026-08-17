@@ -3007,6 +3007,7 @@
     "Geometry": "Geometri",
     "GetRect": "GetRect",
     "Ghost": "Hayalet",
+    "Give the item enhancement rows of its own (unproven in game; otherwise it enhances through the template's rows)": "Öğeye kendi geliştirme satırlarını ver (oyunda kanıtlanmamış; aksi hâlde şablonun satırlarıyla geliştirilir)",
     "Give the socket a name": "Sokete bir ad verin",
     "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.": "Bu silaha diğer kabzanın animasyonlarını verin (tek elli silah için iki el seti veya tam tersi).\n\nSeçilen animasyon eskisinin yerine yazılır, böylece oyun aynı dosyayı istemeye devam eder ve yeni hareketi alır.\n\nHerhangi bir değişiklik yapılmadan önce dokunacağı her dosya size gösterilir.",
     "Give this weapon the other grip's animations — the two-handed set for a one-handed weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.": "Bu silaha diğer kabzanın animasyonlarını verin (tek elli silah için iki elli seti veya tam tersi).\n\nSeçilen animasyon eskisinin yerine yazıldığından oyun aynı dosyayı istemeye devam eder ve yeni hareketi alır.",

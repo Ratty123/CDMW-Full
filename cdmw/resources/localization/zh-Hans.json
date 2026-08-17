@@ -3007,6 +3007,7 @@
     "Geometry": "几何",
     "GetRect": "获取矩形",
     "Ghost": "幽灵",
+    "Give the item enhancement rows of its own (unproven in game; otherwise it enhances through the template's rows)": "为物品提供自己的强化行（游戏内未验证；否则通过模板的强化行进行强化）",
     "Give the socket a name": "给套接字命名",
     "Give this weapon the other grip's animations — the two-hand set for a one-hand weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.\n\nYou are shown every file it would touch before anything is changed.": "为该武器提供另一个握把的动画 - 为单手武器设置双手动画，或者相反。\n\n所选动画是在旧动画的位置写入的，因此游戏会不断请求相同的文件并获取新的动作。\n\n在任何内容发生更改之前，您都会看到它会触及的每个文件。",
     "Give this weapon the other grip's animations — the two-handed set for a one-handed weapon, or the reverse.\n\nThe chosen animation is written in place of the old one, so the game keeps asking for the same file and gets the new motion.": "为该武器赋予另一个握把的动画 - 为单手武器设置双手动画，或者相反。\n\n所选动画是在旧动画的位置编写的，因此游戏会不断请求相同的文件并获取新的动作。",
