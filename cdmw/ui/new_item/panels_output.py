@@ -29,6 +29,7 @@ CHECKLIST = (
     "It equips, draws and sheathes; the imported model, if any, renders.",
     "The icon shows (a generated icon at a new path is the first thing to check).",
     "Its stats match the grid; an added level is the least-proven part.",
+    "The tooltip lists the perks you chose; a weapon effect, if any, shows on the drawn blade.",
 )
 
 
@@ -37,7 +38,7 @@ class OutputPanel(QGroupBox):
     install_requested = Signal()
 
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
-        super().__init__("6. Output", parent)
+        super().__init__("7. Output", parent)
         self._controller = controller
         layout = QVBoxLayout(self)
 

@@ -1,4 +1,4 @@
-"""New Item Studio: the tab that composes the six panels around one controller.
+"""New Item Studio: the tab that composes the seven panels around one controller.
 
 The tab is thin on purpose. It reads the archive list off the shell window, hands it
 to the controller for the one-time snapshot, mounts the panels once that snapshot is
@@ -28,13 +28,14 @@ from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.panels_identity import IdentityPanel
 from cdmw.ui.new_item.panels_model import ModelPanel
 from cdmw.ui.new_item.panels_output import OutputPanel
+from cdmw.ui.new_item.panels_perks import PerksPanel
 from cdmw.ui.new_item.panels_placement import PlacementPanel
 from cdmw.ui.new_item.panels_stats import StatsPanel
 from cdmw.ui.new_item.panels_template import TemplatePanel
 
 
 class NewItemStudioTab(QWidget):
-    """Clone an equipment item into a brand-new one: identity, model, icon, stats, shop, output."""
+    """Clone an equipment item into a brand-new one: identity, model, icon, stats, perks, shop, output."""
 
     status_message_requested = Signal(str, bool)
 
@@ -126,6 +127,7 @@ class NewItemStudioTab(QWidget):
         self.identity_panel = IdentityPanel(controller)
         self.model_panel = ModelPanel(controller)
         self.stats_panel = StatsPanel(controller)
+        self.perks_panel = PerksPanel(controller)
         self.placement_panel = PlacementPanel(controller)
         self.output_panel = OutputPanel(controller)
         self.model_panel.import_requested.connect(self._start_model_import)
@@ -137,7 +139,7 @@ class NewItemStudioTab(QWidget):
         body_layout = QVBoxLayout(body)
         body_layout.setContentsMargins(12, 12, 12, 12)
         body_layout.setSpacing(10)
-        for panel in (self.template_panel, self.identity_panel, self.model_panel, self.stats_panel, self.placement_panel, self.output_panel):
+        for panel in (self.template_panel, self.identity_panel, self.model_panel, self.stats_panel, self.perks_panel, self.placement_panel, self.output_panel):
             body_layout.addWidget(panel)
         body_layout.addStretch(1)
         scroll = QScrollArea()

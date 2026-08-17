@@ -12,7 +12,7 @@ from cdmw.constants import APP_TITLE, APP_VERSION
 NEW_ITEM_STUDIO_SECTION = {
     "id": "new_item_studio",
     "title": "Neuer-Gegenstand-Studio",
-    "summary": "Einen Ausrüstungsgegenstand zu einem neuen klonen: Name, Werte, Modell, Symbol, Laden.",
+    "summary": "Einen Ausrüstungsgegenstand zu einem neuen klonen: Name, Werte, Modell, Symbol, Vorteile, Effekt, Laden.",
     "keywords": "neuer gegenstand klonen vorlage iteminfo stringinfo laden gruppe modell symbol loose mod installieren",
     "html": """
     <p><b>Neuer-Gegenstand-Studio</b> (Assets) erstellt aus einer Vorlage einen neuen Gegenstand, statt einen vorhandenen zu ersetzen. Die Vorlage legt die Klasse fest (Ausrüstungstyp, Gegenstandstyp, Sockel, Animationen, Scheide und Wertestruktur); alles andere gehört dir.</p>
@@ -21,6 +21,7 @@ NEW_ITEM_STUDIO_SECTION = {
       <li><b>Vorlage</b> aus dem Suchfeld oder über <b>Gegenstandssuche &gt; Als neuen Gegenstand klonen...</b>. <b>Identität</b>: interner Name, Namen und Beschreibungen je Sprache (Englisch ist Pflicht, die anderen fallen darauf zurück), ein Schlüssel aus dem reservierten Bereich und ein Modellstamm, beide automatisch vergeben, sofern du sie nicht setzt.</li>
       <li><b>Modell und Symbol</b>: das Modell der Vorlage behalten oder <b>Über den Builder importieren...</b>, was Mesh importieren über dem Vorlagen-Mesh ausführt und das Ergebnis hierher übergibt, statt es über die Vorlage zu schreiben; es wird auf die eigene Familie des neuen Gegenstands umgeleitet. Symbol der Vorlage behalten oder aus einem Bild oder Ordner erzeugen, angepasst an das DDS-Format des Vorlagensymbols.</li>
       <li><b>Werte und Preise</b>: ein Raster über die Verzauberungsleiter der Vorlage; Zellen bearbeiten, skalieren, fest setzen, eine Stufe hinzufügen (Kopie der darunter), Grundpreise und Stapelgröße ändern. Ein Wert oder eine Stufe, die die Vorlage nicht hat, geht durch den Neuaufbau des Werteblocks, der im Spiel unerprobt ist.</li>
+      <li><b>Vorteile und Effekt</b>: die Vorteile sind die Abyss-Gear-Sockelgegenstände, die der Gegenstand von Haus aus trägt (die Zeilen "Insight I", "Malicebane I" im Tooltip); die der Vorlage behalten oder bis zu acht aus dem ganzen Edelsteinkatalog wählen (kein ausgelieferter Gegenstand trägt mehr als vier). Ein Waffeneffekt ist eine der ausgelieferten Effektbinärdateien, als EffectComponent in die eigenen Prefabs des Gegenstands eingepflanzt, so wie der geworfene Blitzspeer seine Aura trägt; im Spiel unerprobt.</li>
       <li><b>Laden und Gruppen</b>: einen Ladeneintrag ersetzen (die Form, die das Spiel angenommen hat) oder einen Eintrag hinzufügen (unerprobt); den Gruppen der Vorlage oder einer eigenen Liste beitreten.</li>
       <li><b>Ausgabe</b>: <b>Plan erstellen</b> setzt jede Tabellenänderung und Datei zusammen, ohne zu schreiben; <b>Loose Mod schreiben</b> legt sie für CDUMM, DMM oder JMM ab, neue Dateien deklariert; <b>In die Spielarchive installieren...</b> geht denselben bestätigten, gesicherten, wiederherstellbaren Weg wie jeder andere Patch und wird verweigert, solange das Spiel läuft.</li>
     </ul>

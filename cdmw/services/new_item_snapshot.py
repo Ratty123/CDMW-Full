@@ -36,6 +36,13 @@ from cdmw.models import ArchiveEntry
 TABLE_DIR = "gamedata/binary__/client/bin"
 PALOC_DIR = "gamedata/stringtable/binary__"
 PAPPT_PATH = "character/bin__/partprefabtable.pappt"
+#: Where the shipped effect binaries live; a weapon effect names one by stem.
+EFFECT_DIR = "effect/binary__/releasebin/"
+#: The shipped prefab whose EffectComponent is the donor for a weapon effect: the thrown
+#: lightning spear, the one weapon prefab that carries one.
+EFFECT_DONOR_PREFAB = "character/bin__/prefab/1_pc/01_phm/weapon/10_thrownweapon/cd_phm_10_thrownspear_0001.prefab"
+#: The effect the donor names, replaced by the item's own.
+EFFECT_DONOR_PATH = "pafx_kliff_titan_lightning_spear_loop_001a.level.effect"
 MODEL_ROOT = "character/model/"
 
 ReadEntry = Callable[[ArchiveEntry], bytes]
@@ -82,6 +89,9 @@ class NewItemSnapshot:
     #: The texture registry beside the archives (`meta/0.pathc`), or None when the
     #: package root has none; a new icon needs a row in it to draw.
     pathc: Optional[PathcTable] = None
+    #: Stems of the shipped effect binaries (`effect/binary__/releasebin/<stem>.pae`),
+    #: what a weapon effect may name.
+    effect_stems: FrozenSet[str] = frozenset()
     _families: Dict[int, ItemModelFamily] = field(default_factory=dict, repr=False)
     _payloads: Dict[str, bytes] = field(default_factory=dict, repr=False)
 
@@ -99,6 +109,16 @@ class NewItemSnapshot:
         """Item keys some shipped row embeds as a socket item (the Abyss Gear "perks")."""
 
         return frozenset(item for row in self.rows.values() for item in row.socket_items)
+
+    @property
+    def perk_item_keys(self) -> FrozenSet[int]:
+        """The embedded socket items plus every row of the same item type(s): the whole
+        gem catalogue (190 Abyss Gear items of type 2501 in the shipped table), not only
+        the ones some item happens to carry."""
+
+        embedded = self.socket_item_keys
+        types = {self.rows[key].item_type for key in embedded if key in self.rows and self.rows[key].item_type is not None}
+        return embedded | frozenset(key for key, row in self.rows.items() if row.item_type in types)
 
     def has_entry(self, path: str) -> bool:
         return str(path or "").replace("\\", "/").strip("/").lower() in self.entries
@@ -271,6 +291,11 @@ def build_snapshot(
         for path in by_path
         if path.startswith(MODEL_ROOT) and path.endswith(".pac")
     )
+    effect_stems = frozenset(
+        path[len(EFFECT_DIR):-4]
+        for path in by_path
+        if path.startswith(EFFECT_DIR) and path.endswith(".pae") and "/" not in path[len(EFFECT_DIR):]
+    )
     pathc: Optional[PathcTable] = None
     pathc_path = Path(iteminfo.payload_entry.pamt_path).parent.parent / PATHC_RELATIVE_PATH
     if pathc_path.is_file():
@@ -302,6 +327,7 @@ def build_snapshot(
         english=english,
         model_stems=model_stems,
         pathc=pathc,
+        effect_stems=effect_stems,
     )
 
 
@@ -368,12 +394,16 @@ def build_context(snapshot: NewItemSnapshot, template_key: int) -> NewItemContex
         status_keys=frozenset(snapshot.status_names),
         item_group_keys=frozenset(group.key for group in snapshot.item_groups),
         socket_item_keys=snapshot.socket_item_keys,
+        effect_stems=snapshot.effect_stems,
         store_insert_supported=True,
         stat_shape_edits_supported=True,
     )
 
 
 __all__ = [
+    "EFFECT_DIR",
+    "EFFECT_DONOR_PATH",
+    "EFFECT_DONOR_PREFAB",
     "PALOC_DIR",
     "PAPPT_PATH",
     "TABLE_DIR",

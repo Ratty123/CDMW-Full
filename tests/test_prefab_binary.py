@@ -249,27 +249,34 @@ def test_a_mask_too_wide_for_every_type_is_refused() -> None:
         _component_for(cursor, type_index=-1, mask=0xFFFF, components=(small,), highest=16)
 
 
-def test_marker_one_refuses_to_read_the_mask_as_a_type_index() -> None:
-    """With marker 1 the byte at owner-3 is the mask's own high byte.
+def test_the_element_mask_is_as_wide_as_its_header_says() -> None:
+    """The header's leading u16 is the mask's byte width; the type index follows it.
 
-    Reading it would be reading the mask twice. It was never accepted
-    downstream -- the member count check rejected it on all 376 marker-1 groups
-    in the corpus -- but that was luck, not design.
+    A one-byte mask leaves the next byte to be the type index, not a mask high
+    byte: over the 359 width-1 groups in the shipped character prefabs it equals
+    the type declaration order would infer in 332, and names a smaller, more
+    plausible component in the other 27. A three-byte mask carries member bits
+    16..23, which is how an ``EffectComponent`` selects ``_effectTarget``.
     """
     from cdmw.core.prefab_binary import _BlobCursor, _find_element_header
 
-    blob = bytearray()
-    blob += struct.pack("<H", 1)  # marker 1
-    blob += struct.pack("<H", 0x0207)  # mask; high byte 0x02 looks like an index
-    blob += bytes((0x00, 0x00))  # tail is marker + 1 == 2 bytes
-    owner_at = len(blob)
-    blob += b"\x00" * 8
-    blob += struct.pack("<I", 1000 + owner_at + 8 + 4)
-    blob += b"\x00" * 16
+    def header(width: int, mask_bytes: bytes, type_index: int) -> bytes:
+        blob = bytearray()
+        blob += struct.pack("<H", width)
+        blob += mask_bytes
+        blob += bytes((type_index, 0, 0))
+        owner_at = len(blob)
+        blob += b"\x00" * 8
+        blob += struct.pack("<I", 1000 + owner_at + 8 + 4)
+        blob += b"\x00" * 16
+        return bytes(blob)
 
-    mask, type_index = _find_element_header(_BlobCursor(bytes(blob), 1000))
-    assert mask == 0x0207
-    assert type_index == -1, "marker 1 states no type; it must not fall back to the mask"
+    mask, type_index = _find_element_header(_BlobCursor(header(1, bytes((0x07,)), 2), 1000))
+    assert (mask, type_index) == (0x07, 2)
+    mask, type_index = _find_element_header(_BlobCursor(header(2, bytes((0x38, 0x08)), 1), 1000))
+    assert (mask, type_index) == (0x0838, 1)
+    mask, type_index = _find_element_header(_BlobCursor(header(3, bytes((0x06, 0x01, 0x04)), 4), 1000))
+    assert (mask, type_index) == (0x040106, 4), "member 18 (bit 2 of the third byte) is selected"
 
 
 def test_objects_record_whether_their_type_was_stated() -> None:

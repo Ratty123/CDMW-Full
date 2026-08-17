@@ -13,8 +13,8 @@ from cdmw.domain.textures.plan import describe_processing_path_kind
 NEW_ITEM_STUDIO_SECTION = {
     "id": "new_item_studio",
     "title": "New Item Studio",
-    "summary": "Clone an equipment item into a brand-new one: name, stats, model, icon, shop.",
-    "keywords": "new item studio clone template iteminfo stringinfo store shop item group model family icon loose mod install",
+    "summary": "Clone an equipment item into a brand-new one: name, stats, model, icon, perks, effect, shop.",
+    "keywords": "new item studio clone template iteminfo stringinfo store shop item group model family icon perks socket gem effect loose mod install",
     "html": """
     <p><b>New Item Studio</b> (Assets) makes a brand-new item from a template instead of replacing a shipped one. The template fixes the class (equip type, item type, sockets, animations, sheath and stat shape); everything else is yours.</p>
     <ul>
@@ -22,6 +22,7 @@ NEW_ITEM_STUDIO_SECTION = {
       <li><b>Template</b> from the search box, or from <b>Item Finder &gt; Clone as new item...</b>. <b>Identity</b>: internal name, per-language names and descriptions (English required, others fall back to it), an item key from the reserved range and a model stem, both allocated for you unless you set them.</li>
       <li><b>Model and icon</b>: keep the template's model, or <b>Import through the Builder...</b>, which runs Import Mesh over the template's mesh and hands the result here instead of writing it over the template; it is re-pathed to the new item's own family. Keep the template's icon or generate one from an image or a folder, fitted to the template icon's DDS format.</li>
       <li><b>Stats and prices</b>: a grid over the template's enchant ladder; edit cells, scale, set flat, add a level (a copy of the one below), edit base prices and the stack count. A stat or level the template lacks goes through the stat-block rebuild, which is unproven in game.</li>
+      <li><b>Perks and effect</b>: the perks are the Abyss Gear socket items the item carries by default (the tooltip's "Insight I", "Malicebane I" lines); keep the template's or pick up to eight from the whole gem catalogue (no shipped item carries more than four). A weapon effect is one of the shipped effect binaries, grafted into the item's own prefabs as an EffectComponent the way the thrown lightning spear carries its aura; unproven in game.</li>
       <li><b>Shop and item groups</b>: replace one entry of a shop (the form the game accepted) or add an entry (unproven); join the template's item groups or a list of your own.</li>
       <li><b>Output</b>: <b>Build plan</b> composes every table change and file without writing; <b>Write loose mod</b> lays it out for CDUMM, DMM or JMM with the new files declared; <b>Install into the game archives...</b> goes through the same confirmed, backed-up, restorable path as every other patch and is refused while the game runs.</li>
     </ul>

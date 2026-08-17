@@ -20,7 +20,8 @@ records.
 
     blob    := u16 tag(=2), u48 rootPresenceMask, group*, trailer(5..6)
     group   := elementHeader nameRecord componentMembers
-    header  := u16 marker, u16 componentMask, (marker+1) bytes tail
+    header  := u16 maskWidth, mask (maskWidth bytes, little-endian),
+               u8 componentTypeIndex, u16 0
     pointer := u64 owner, u32 selfOffset, pointee(N), u32 N
     pointee := u32 0, [u32 len, string]
     name    := pointer -> (u16 0, u16 count, [u16 0, u32 len, name])
@@ -748,12 +749,17 @@ def _read_member(
 def _find_element_header(cursor: _BlobCursor) -> tuple[int, int]:
     """Locate the element header and return ``(mask, componentTypeIndex)``.
 
-    The header is ``u16 marker, u16 componentMask, (marker + 1) tail bytes``
-    followed by the name record's pointer; the marker encodes its own tail
-    width, so both component families share one rule.
+    The header is ``u16 width, mask (width bytes, little-endian), u8 typeIndex,
+    u16 0`` followed by the name record's pointer. The leading u16 is the mask's
+    own byte width: one byte for a component with up to eight members, two for
+    up to sixteen, three for up to twenty-four. It was long read as a "marker"
+    with a fixed u16 mask and an opaque tail, which is the same bytes for widths
+    one and two but loses the third mask byte for width three: an
+    ``EffectComponent`` (22 members) with ``_effectTarget`` (member 18) selected
+    then walked 33 bytes short. Reading the mask at its stated width completes
+    14 more of the 15,557 shipped character prefabs and loses none (2026-08-17).
 
-    The tail's third-from-last byte is the component's index into the type
-    table -- it matched the resolved component in 6,940 of 6,940 sampled
+    The type index matched the resolved component in 6,940 of 6,940 sampled
     groups. Reading it beats inferring the type from the mask, which cannot
     distinguish two components whose member counts both accommodate it.
     """
@@ -762,28 +768,22 @@ def _find_element_header(cursor: _BlobCursor) -> tuple[int, int]:
         probe = base + skip
         if probe + 24 > len(cursor.blob):
             break
-        marker = struct.unpack_from("<H", cursor.blob, probe)[0]
-        # Markers 1, 2 and 3 all occur; wider values add no coverage and only
-        # widen the chance of a false match.
-        if marker not in (1, 2, 3):
+        width = struct.unpack_from("<H", cursor.blob, probe)[0]
+        # Widths 1, 2 and 3 occur; 4 would be a component with more than 24
+        # members. Wider values add no coverage and only widen the chance of a
+        # false match.
+        if width not in (1, 2, 3, 4):
             continue
-        tail = marker + 1
-        owner_at = probe + 4 + tail
+        owner_at = probe + 2 + width + 3
         if owner_at + 12 > len(cursor.blob):
             continue
         if struct.unpack_from("<I", cursor.blob, owner_at + 8)[0] != cursor.base + owner_at + 12:
             continue
         cursor.pos = probe
         cursor.u16()
-        mask = cursor.u16()
-        cursor.take(tail)
-        # Only markers 2 and 3 leave room for a type index. With marker 1 the
-        # byte at owner-3 is the mask's own high byte -- confirmed on all 376
-        # marker-1 groups in the corpus -- so reading it would be reading the
-        # mask twice. It has never been accepted downstream, because the member
-        # count check rejects it; refusing it here means that is by design
-        # rather than by luck.
-        type_index = -1 if marker == 1 else (cursor.blob[cursor.pos - 3] if cursor.pos >= 3 else -1)
+        mask = int.from_bytes(cursor.take(width), "little")
+        type_index = cursor.take(1)[0]
+        cursor.take(2)
         return mask, type_index
     raise PrefabBinaryError(f"no element header near 0x{base:x}")
 
@@ -820,8 +820,8 @@ def _component_for(
 ) -> tuple[PrefabType, bool]:
     """Resolve a group's component type, and say whether the file stated it.
 
-    Markers 2 and 3 state the type's index at ``owner-3``; marker 1 has no room
-    for it, since that byte is the mask's own high byte. For those, fall back to
+    The element header states the type's index after the mask. When that index
+    is out of range or names a type too small for the mask, fall back to
     declaration order: nested types appear in the schema in the order they are
     first referenced, which held for 301 of 304 completed walks.
 
