@@ -427,13 +427,13 @@ def _mesh_edit_display_mode_slot():
     return remembered, remember
 
 
-def _bind_embedded_mesh_editor_preview(_state):
-    if _state.dialog is None:
-        return
+def _embedded_presentation_state_slot(_state, mesh_edit_display_mode):
+    """The embedded viewport's replayable presentation snapshot.
 
-    mesh_edit_display_mode, _mesh_editor_remember_mesh_edit_display_mode = (
-        _mesh_edit_display_mode_slot()
-    )
+    Module level rather than a closure inside the binder so the binder stays
+    within the factory's per-function bound; it reads only `_state` and the
+    display-mode slot, both passed in.
+    """
 
     def _mesh_editor_embedded_presentation_state():
         # No camera. This snapshot is republished for reasons that have nothing
@@ -490,6 +490,20 @@ def _bind_embedded_mesh_editor_preview(_state):
             uv_state=_state.texture_uv_global_transform_state,
             side_by_side_split_ratio=split_ratio,
         )
+
+    return _mesh_editor_embedded_presentation_state
+
+
+def _bind_embedded_mesh_editor_preview(_state):
+    if _state.dialog is None:
+        return
+
+    mesh_edit_display_mode, _mesh_editor_remember_mesh_edit_display_mode = (
+        _mesh_edit_display_mode_slot()
+    )
+    _mesh_editor_embedded_presentation_state = _embedded_presentation_state_slot(
+        _state, mesh_edit_display_mode
+    )
 
     def _mesh_editor_embedded_split_ratio_changed(ratio):
         return _remember_side_by_side_split_ratio(_state, ratio)

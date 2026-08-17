@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from cdmw.domain.mesh.builder_operation import (
+    classify_builder_operation,
+    derive_builder_operation_flags,
+)
+
 def _remaining_static_preview_refresh_step_001(_state):
     _state.state = _state._StaticReplacementDialogState(_state.context)
     _state.List = _state.context.get('List')
@@ -467,7 +472,13 @@ def _remaining_static_preview_refresh_step_019(_state):
                         placement_snapshot = _state._current_static_placement_snapshot(current_mappings, include_preview_only_independent_parts=True)
                         independent_preview_parts = list(placement_snapshot.get('independent_output_parts', []) or [])
                         geometry_started = _state.time.perf_counter()
-                        preview_mesh = _state.build_static_replacement_preview_mesh(_state.original_mesh_for_mapping, preview_replacement_mesh, _state._static_options_from_placement_snapshot(placement_snapshot, complete_external_swap=False if _state.modify_original_clone_mode else _state._complete_external_swap_enabled_value(), complete_external_material_reset=modify_original_tuning_enabled if _state.modify_original_clone_mode else _state._complete_external_swap_enabled_value(), complete_swap_material_profile=_state._complete_swap_material_profile_token_value(), global_gloss_reduction=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('global_gloss_reduction_spin', 'value', 0.0)), edge_relief_strength=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('edge_relief_spin', 'value', 0.0)), edge_relief_source='hybrid' if _state.modify_original_clone_mode else str(_state._preview_control_value('edge_relief_source_combo', 'currentData', 'hybrid') or 'hybrid'), accent_glow_strength=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('accent_glow_spin', 'value', 0.0)), auto_brightness_balance=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('auto_brightness_spin', 'value', 0.0)), dark_detail_lift=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('source_brightness_spin', 'value', 0.0)), tone_contrast=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('tone_contrast_spin', 'value', 0.0))), max_source_faces_per_submesh=_state._alignment_preview_source_face_limit())
+                        # The same classification the accept path uses, so the
+                        # preview and the export agree on which operation this
+                        # is. The preview still passes only these two flags; the
+                        # other four remain at their defaults here, which is a
+                        # real divergence from the build and is tracked as such.
+                        preview_operation_flags = derive_builder_operation_flags(classify_builder_operation(modify_original_clone_mode=bool(_state.modify_original_clone_mode), complete_swap_enabled=bool(_state._complete_external_swap_enabled_value()), modify_original_tuning_enabled=bool(modify_original_tuning_enabled)))
+                        preview_mesh = _state.build_static_replacement_preview_mesh(_state.original_mesh_for_mapping, preview_replacement_mesh, _state._static_options_from_placement_snapshot(placement_snapshot, complete_external_swap=bool(preview_operation_flags.complete_external_swap), complete_external_material_reset=bool(preview_operation_flags.complete_external_material_reset), complete_swap_material_profile=_state._complete_swap_material_profile_token_value(), global_gloss_reduction=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('global_gloss_reduction_spin', 'value', 0.0)), edge_relief_strength=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('edge_relief_spin', 'value', 0.0)), edge_relief_source='hybrid' if _state.modify_original_clone_mode else str(_state._preview_control_value('edge_relief_source_combo', 'currentData', 'hybrid') or 'hybrid'), accent_glow_strength=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('accent_glow_spin', 'value', 0.0)), auto_brightness_balance=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('auto_brightness_spin', 'value', 0.0)), dark_detail_lift=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('source_brightness_spin', 'value', 0.0)), tone_contrast=0.0 if _state.modify_original_clone_mode else float(_state._preview_control_value('tone_contrast_spin', 'value', 0.0))), max_source_faces_per_submesh=_state._alignment_preview_source_face_limit())
                         geometry_elapsed_ms += (_state.time.perf_counter() - geometry_started) * 1000.0
                         _state.source_overlay_preview_index_map.clear()
                         _state.preview_submesh_index_map.clear()

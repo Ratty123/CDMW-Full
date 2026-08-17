@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import math
 
+from cdmw.domain.mesh.operation_spec import MeshOperationSpec
+
 from .mesh_parser import ParsedMesh
 
 @dataclass
@@ -230,6 +232,11 @@ class StaticMeshReplacementOptions:
     material_authority_revision: int = 0
     material_authority_resolved_bindings: list[dict[str, object]] = field(default_factory=list)
     material_authority_residual_parameter_groups: list[dict[str, object]] = field(default_factory=list)
+    #: The named operation the flags above were derived from, carried so a
+    #: preview and the export it produced can be compared as operations rather
+    #: than by re-reading six booleans. `None` means an options object nobody
+    #: classified -- a direct construction in a test, or a path not yet wired.
+    operation_spec: MeshOperationSpec | None = None
 
 
 @dataclass
