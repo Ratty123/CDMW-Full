@@ -12,6 +12,7 @@ ARCHIVE_MODDING_EXPORTS_0: dict[str, tuple[str, str]] = {
     'ArchiveEntry': ('cdmw.models', 'ArchiveEntry'),
     'ArchiveLooseExportResult': ('cdmw.core.archive_mesh_types', 'ArchiveLooseExportResult'),
     'ArchiveModelTextureReference': ('cdmw.models', 'ArchiveModelTextureReference'),
+    'ArchiveAddRequest': ('cdmw.core.archive_entry_addition', 'ArchiveAddRequest'),
     'ArchivePatchRequest': ('cdmw.core.archive_patching', 'ArchivePatchRequest'),
     'ArchivePatchResult': ('cdmw.core.archive_patching', 'ArchivePatchResult'),
     'HkxCollisionGeometryHint': ('cdmw.core.archive_hkx', 'HkxCollisionGeometryHint'),

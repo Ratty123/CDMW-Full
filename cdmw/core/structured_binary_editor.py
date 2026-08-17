@@ -327,6 +327,61 @@ def parse_pabgh_table(data: bytes, *, payload: bytes | None = None) -> PabghTabl
     )
 
 
+def append_table_rows(
+    payload: bytes,
+    header: bytes,
+    rows: Sequence[bytes],
+) -> Tuple[bytes, bytes]:
+    """Append whole rows to a `.pabgb` payload and register them in its `.pabgh`.
+
+    A row's bytes must begin with its own primary key, exactly as every shipped
+    row does (that inline repeat is what lets :func:`parse_pabgh_table` resolve
+    the key width in the first place). Rows go at the end of the payload, their
+    directory entries at the end of the header, and the header's count grows.
+    The directory is not sorted by key in the shipped tables, so appending is
+    the shape the game already reads.
+
+    Returns the new (payload, header) pair. Refuses a key the table already has,
+    a key repeated in `rows`, a row shorter than its key, and a count that no
+    longer fits the header's count width. This is the whole of what adding an
+    item, a string, or any other table row needs at the container level; the
+    row's own field layout is the caller's business.
+    """
+
+    payload_bytes = bytes(payload or b"")
+    header_bytes = bytes(header or b"")
+    table = parse_pabgh_table(header_bytes, payload=payload_bytes)
+    key_width = int(table.key_width)
+    count_width = int(table.header_size)
+    directory_row_size = key_width + 4
+    if len(header_bytes) != count_width + len(table.rows) * directory_row_size:
+        raise ValueError(
+            f"PABGH header is {len(header_bytes):,} bytes, not the {count_width + len(table.rows) * directory_row_size:,} "
+            f"its {len(table.rows):,} directory row(s) imply."
+        )
+    known_keys = {bytes(row.key) for row in table.rows}
+    new_payload = bytearray(payload_bytes)
+    new_directory = bytearray()
+    for index, row in enumerate(rows):
+        row_bytes = bytes(row)
+        if len(row_bytes) < key_width:
+            raise ValueError(f"Row {index} is {len(row_bytes)} byte(s), shorter than the {key_width}-byte key.")
+        key = row_bytes[:key_width]
+        if key in known_keys:
+            raise ValueError(f"Row {index} repeats key {key.hex()} which the table already holds.")
+        known_keys.add(key)
+        new_directory += key + struct.pack("<I", len(new_payload))
+        new_payload += row_bytes
+    total = len(table.rows) + len(rows)
+    if total >= 1 << (8 * count_width):
+        raise ValueError(f"{total:,} rows do not fit the header's {count_width}-byte count.")
+    new_header = total.to_bytes(count_width, "little") + header_bytes[count_width:] + bytes(new_directory)
+    check = parse_pabgh_table(new_header, payload=bytes(new_payload))
+    if len(check.rows) != total or check.key_width != key_width:
+        raise ValueError("The extended table does not parse back the way it was written.")
+    return bytes(new_payload), new_header
+
+
 def rebuild_pabgh_table(data: bytes, rows: Sequence[PabghRow], *, row_size: int) -> bytes:
     if row_size not in {5, 8}:
         raise ValueError("PABGH row size must be 5 or 8 bytes.")

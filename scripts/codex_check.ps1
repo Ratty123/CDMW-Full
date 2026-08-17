@@ -64,7 +64,14 @@ $TestsByArea = @{
         "tests/test_archive_progress_bar_writes_on_change.py",
         # Unregistered until 2026-08-08, which is how its progress-bar and
         # selection-context needles sat stale across four commits.
-        "tests/test_archive_browser_asset_understanding_ui_source_guards.py"
+        "tests/test_archive_browser_asset_understanding_ui_source_guards.py",
+        # Archive writers: in-place patching, brand-new PAMT entries, and the
+        # table/part-prefab owners the New Item flow appends through.
+        "tests/test_archive_patch_preflight.py",
+        "tests/test_archive_mutation_service.py",
+        "tests/test_archive_entry_addition.py",
+        "tests/test_pappt_format.py",
+        "tests/test_stringinfo_table.py"
     )
     texture = @(
         "tests/test_texture_backend_retirement.py",

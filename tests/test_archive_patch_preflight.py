@@ -49,11 +49,12 @@ def _write_test_archive(
     pamt_path = package_root / "0.pamt"
     pamt_raw = bytearray()
     pamt_raw.extend(struct.pack("<III", 0, paz_index + 1, 0))
+    # A PAZ record is (index, checksum, size), the way every shipped PAMT stores it.
     for index in range(paz_index + 1):
         if index == paz_index:
-            pamt_raw.extend(struct.pack("<III", _calculate_pa_checksum(payload), len(payload), 0))
+            pamt_raw.extend(struct.pack("<III", index, _calculate_pa_checksum(payload), len(payload)))
         else:
-            pamt_raw.extend(struct.pack("<III", 0, 0, 0))
+            pamt_raw.extend(struct.pack("<III", index, 0, 0))
     pamt_raw.extend(struct.pack("<I", len(directory_block)))
     pamt_raw.extend(directory_block)
     pamt_raw.extend(struct.pack("<I", len(file_name_block)))
