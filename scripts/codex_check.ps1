@@ -164,6 +164,9 @@ $TestsByArea = @{
         # Why each action is off the rail, and that the two reasons stay apart:
         # eleven blocked by the writer, three superseded by the Select tool.
         "tests/test_mesh_editor_hidden_action_contract.py",
+        # What an import resolved per material slot, and the build log that now
+        # reads that manifest rather than retelling the same rows.
+        "tests/test_imported_material_manifest.py",
         "tests/test_mesh_editor_edit_session_boundary.py",
         "tests/test_mesh_editor_error_codes.py",
         "tests/test_mesh_operation_spec.py",
