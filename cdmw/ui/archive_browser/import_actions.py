@@ -89,14 +89,6 @@ class ArchiveImportActionsMixin:
         self._open_mesh_editor_for_entry(current_entry, mode="external_import", activate=True)
         self._start_archive_full_import_model_replacement(current_entry)
 
-    def _replace_current_archive_materials_and_textures(self) -> None:
-        current_entry = self._current_archive_mesh_entry()
-        if current_entry is None:
-            self.set_status_message("Select a supported archive mesh before replacing its materials and textures.", error=True)
-            return
-        self._open_mesh_editor_for_entry(current_entry, mode="external_import", activate=True)
-        self._start_archive_materials_and_textures_replacement(current_entry)
-
     def _swap_current_archive_mesh_with_in_game(self) -> None:
         current_entry = self._current_archive_mesh_entry()
         if current_entry is None:

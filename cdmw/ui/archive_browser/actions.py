@@ -306,17 +306,15 @@ class ArchiveBrowserActionMixin:
         menu_icons: dict[str, QIcon],
         entry: ArchiveEntry,
     ) -> None:
+        # One entry on purpose. Which operation an import turns out to be --
+        # geometry only, geometry and bindings, the full asset, materials and
+        # textures alone -- is a decision the reader makes in the Builder with
+        # the model in front of them, not one they can make from a context menu
+        # before they have seen it. Three entries here asked the same question
+        # earlier and with less information.
         import_patch_action = menu.addAction(menu_icons["mesh"], "Import Mesh...")
         import_patch_action.triggered.connect(
             lambda _checked=False, current_entry=entry: self._start_archive_mesh_patch(current_entry)
-        )
-        full_import_action = menu.addAction(menu_icons["mesh"], "Full Import Model Replacement...")
-        full_import_action.triggered.connect(
-            lambda _checked=False, current_entry=entry: self._start_archive_full_import_model_replacement(current_entry)
-        )
-        materials_only_action = menu.addAction(menu_icons["mesh"], "Replace Materials and Textures Only...")
-        materials_only_action.triggered.connect(
-            lambda _checked=False, current_entry=entry: self._start_archive_materials_and_textures_replacement(current_entry)
         )
 
     def _add_archive_material_context_action(

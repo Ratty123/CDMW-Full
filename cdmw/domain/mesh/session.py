@@ -33,6 +33,7 @@ class MeshImportSetupSelection:
     source_skeleton: object | None = None
     preferred_complete_source_swap: bool = False
     full_import_model_replacement: bool = False
+    materials_and_textures_only: bool = False
 
 
 @dataclass(slots=True, frozen=True)

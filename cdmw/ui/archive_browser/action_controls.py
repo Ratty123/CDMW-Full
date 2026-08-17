@@ -12,7 +12,7 @@ class ArchiveBrowserActionControlsMixin:
     """Synchronize Archive Browser action buttons with the current selection."""
 
     def _update_archive_mesh_import_action_controls(self, enabled: bool, disabled_reason: str) -> None:
-        """The three mesh-import entry points share one enablement rule."""
+        """The two mesh-import entry points share one enablement rule."""
         self._set_action_button_state(
             self.archive_model_import_patch_button,
             enabled,
@@ -23,12 +23,6 @@ class ArchiveBrowserActionControlsMixin:
             self.archive_model_full_import_button,
             enabled,
             "Replace the selected game item outright with an external model that owns the mesh, textures, and material sidecar.",
-            disabled_reason,
-        )
-        self._set_action_button_state(
-            self.archive_model_materials_only_button,
-            enabled,
-            "Take an external model's materials and texture files and keep the selected item's own mesh.",
             disabled_reason,
         )
 
