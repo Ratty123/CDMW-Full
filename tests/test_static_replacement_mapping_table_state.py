@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from cdmw.domain.mesh.operation_spec import OperationKind, operation_spec
 from cdmw.ui.archive_browser.static_replacement_mapping_table_state import (
+    operation_summary_lines,
     geometry_mapping_summary_html,
     invalid_submesh_mapping_missing_source_message,
     invalid_submesh_mapping_non_numeric_message,
@@ -552,3 +554,64 @@ def test_output_impact_review_presentation_preserves_prune_and_empty_states() ->
     assert "| sidecar -" in empty["html"]
     assert "Removed targets: none" in empty["tooltip"]
     assert "No original targets are removed." in empty["tooltip"]
+
+
+def test_output_impact_review_says_nothing_about_an_operation_it_was_not_given() -> None:
+    # Every caller that has not been wired to classify yet, and every direct
+    # construction in a test, must keep the review it already had.
+    presentation = output_impact_review_presentation((), 0, 0, 0, 0)
+
+    assert "replaces" not in presentation["html"]
+    assert "Operation:" not in presentation["tooltip"]
+
+
+def test_output_impact_review_names_what_the_build_replaces() -> None:
+    presentation = output_impact_review_presentation(
+        (),
+        used_source_count=1,
+        disabled_mapped_source_count=0,
+        preview_only_source_count=0,
+        generated_dds_count=0,
+        operation=operation_spec(OperationKind.REPLACE_FULL_ASSET),
+    )
+
+    assert "| replaces geometry, material bindings, textures" in presentation["html"]
+    assert "Operation: Replace Full Mesh and Textures" in presentation["tooltip"]
+    assert "Target keeps: nothing" in presentation["tooltip"]
+    # The existing review is prefixed, not displaced.
+    assert "Removed targets: none" in presentation["tooltip"]
+
+
+def test_output_impact_review_names_what_a_geometry_only_build_keeps() -> None:
+    presentation = output_impact_review_presentation(
+        (),
+        0,
+        0,
+        0,
+        0,
+        operation=operation_spec(OperationKind.REPLACE_GEOMETRY),
+    )
+
+    assert "| replaces geometry" in presentation["html"]
+    assert "Target keeps: material bindings, textures" in presentation["tooltip"]
+    assert "Operation: Replace Geometry Only" in presentation["tooltip"]
+
+
+def test_operation_summary_lines_are_empty_without_an_operation() -> None:
+    assert operation_summary_lines(None) == ()
+    assert operation_summary_lines(SimpleNamespace()) == ()
+
+
+def test_operation_summary_lines_name_all_three_authorities() -> None:
+    lines = operation_summary_lines(operation_spec(OperationKind.MODIFY_ORIGINAL))
+
+    assert lines[0] == "Operation: Modify Original Mesh"
+    assert "Geometry: original" in lines
+    assert "Material bindings: original" in lines
+    assert "Textures: original" in lines
+
+
+def test_every_operation_in_the_matrix_has_a_display_name() -> None:
+    for kind in OperationKind:
+        first_line = operation_summary_lines(operation_spec(kind))[0]
+        assert first_line != f"Operation: {kind.value}", kind

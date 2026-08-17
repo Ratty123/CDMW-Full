@@ -145,3 +145,58 @@ def test_export_transform_axes_keep_distinct_numeric_fields(
         sliders = tuple(builder.control("alignment_transform_sliders").values())
         assert len(sliders) == 9
         assert all(slider.minimumWidth() == 72 for slider in sliders)
+
+
+@_MODES
+def test_output_impact_review_names_the_operation_the_build_will_run(
+    modify_original_clone_mode: bool, mode_name: str
+) -> None:
+    """The review answers from the classified operation, not from the toggles.
+
+    A source assertion cannot prove this: the review is refreshed through a
+    callback resolved at runtime, and its label is a live widget. Constructing
+    the Builder and reading the tooltip is the smallest real path.
+    """
+    with open_mesh_builder(
+        modify_original_clone_mode=modify_original_clone_mode,
+        dialog_title=f"{mode_name} output review",
+    ) as builder:
+        builder.control("_refresh_output_impact_review")()
+        tooltip = builder.control("output_impact_review_label").toolTip()
+
+        expected = (
+            "Operation: Modify Original Mesh"
+            if modify_original_clone_mode
+            else "Operation: Replace"
+        )
+        assert expected in tooltip
+        for authority in ("Geometry:", "Material bindings:", "Textures:"):
+            assert authority in tooltip
+        assert "Target keeps:" in tooltip
+        assert "Build replaces:" in tooltip
+        # The review it already carried is prefixed, not displaced.
+        assert "Removed targets:" in tooltip
+
+
+def test_output_impact_review_reports_edited_geometry_once_the_mesh_is_edited() -> None:
+    """Modify Original replaces nothing until it does.
+
+    The session opens on the target's own geometry, so "replaces nothing" is
+    correct at entry. After an edit the export serializes the working mesh, and
+    a summary still reading "nothing" would be the silent policy change the
+    operation specification exists to prevent.
+    """
+    with open_mesh_builder(
+        modify_original_clone_mode=True, dialog_title="Modify Original edited"
+    ) as builder:
+        refresh = builder.control("_refresh_output_impact_review")
+        label = builder.control("output_impact_review_label")
+
+        refresh()
+        assert "Geometry: original" in label.toolTip()
+        assert "Build replaces: nothing" in label.toolTip()
+
+        builder.control("mesh_edit_revision")["value"] = 1
+        refresh()
+        assert "Geometry: working_edited" in label.toolTip()
+        assert "Build replaces: geometry" in label.toolTip()

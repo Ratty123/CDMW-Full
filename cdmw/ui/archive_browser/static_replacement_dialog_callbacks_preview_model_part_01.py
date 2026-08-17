@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from cdmw.domain.mesh.builder_operation import (
+    BuilderMaterialControls,
+    classify_builder_operation,
+)
 from cdmw.ui.archive_browser.static_replacement_dialog_helpers import (
     modify_original_centered_transform_anchors,
 )
@@ -230,6 +234,36 @@ def _preview_model_step_008(_state):
             return default
     _state._combo_data = _combo_data
 
+    def _current_builder_operation():
+        # The same classification the accept path builds its option flags from,
+        # read through the tolerant control accessors because this refreshes
+        # while the dialog is still assembling and while Modify Original has
+        # never built the imported-model checkboxes at all.
+        tuning_getter = _state.context.get('_modify_original_texture_tuning_enabled')
+        swap_getter = _state._complete_external_swap_enabled
+        clone = bool(_state.modify_original_clone_mode)
+        operation = classify_builder_operation(
+            modify_original_clone_mode=clone,
+            complete_swap_enabled=bool(swap_getter()) if callable(swap_getter) else False,
+            full_import_model_replacement=bool(_state.context.get('full_import_model_replacement')),
+            controls=BuilderMaterialControls(
+                rebuild_sidecar=_state._checkbox_checked('rebuild_sidecar_checkbox'),
+                source_color_faithful=_state._checkbox_checked('source_color_faithful_checkbox'),
+                external_material_reset=_state._checkbox_checked('external_material_reset_checkbox'),
+                inject_base_color=_state._checkbox_checked('inject_base_color_checkbox'),
+                prune_unmapped_original_dds=_state._checkbox_checked('prune_unmapped_original_dds_checkbox'),
+            ),
+            modify_original_tuning_enabled=bool(tuning_getter()) if callable(tuning_getter) else False,
+        )
+        # A Modify Original session starts with the target's own geometry, so
+        # the operation replaces nothing until the user edits the working mesh.
+        # Once they have, the export serializes what was edited, and a summary
+        # still reading "replaces nothing" would be the exact silent policy
+        # change the specification exists to prevent.
+        edited = int(_state.mesh_edit_revision.get('value', 0) or 0) or int(_state.source_geometry_revision.get('value', 0) or 0)
+        return operation.with_edits() if edited else operation
+    _state._current_builder_operation = _current_builder_operation
+
 def _preview_model_step_009(_state):
 
     def _refresh_output_impact_review() -> None:
@@ -250,7 +284,7 @@ def _preview_model_step_009(_state):
         generated_dds_count = len([row for row in _state.texture_override_rows if str(row.get('checked', '') or '').lower() in {'1', 'true'} or bool(str(row.get('assigned_source', '') or row.get('suggested_source', '') or '').strip())])
         sidecar_enabled = _state._checkbox_checked('rebuild_sidecar_checkbox')
         prune_unmapped_enabled = _state._checkbox_checked('prune_unmapped_original_dds_checkbox')
-        output_impact = _state._output_impact_review_presentation_helper(removed_targets, len(used_sources), len(disabled_mapped_sources), len(_state.preview_only_source_indices), generated_dds_count, sidecar_enabled=sidecar_enabled, prune_unmapped_enabled=prune_unmapped_enabled)
+        output_impact = _state._output_impact_review_presentation_helper(removed_targets, len(used_sources), len(disabled_mapped_sources), len(_state.preview_only_source_indices), generated_dds_count, sidecar_enabled=sidecar_enabled, prune_unmapped_enabled=prune_unmapped_enabled, operation=_state._current_builder_operation())
         _state.output_impact_review_label.setText(output_impact['html'])
         _state.output_impact_review_label.setToolTip(output_impact['tooltip'])
         _state._refresh_mesh_replacement_properties_inspector()
