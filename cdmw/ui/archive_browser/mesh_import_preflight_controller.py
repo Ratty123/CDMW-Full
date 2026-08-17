@@ -134,6 +134,7 @@ def dispatch_mesh_import_setup_preflight(
     placement_review_title: str = "",
     placement_context_note: str = "",
     full_import_model_replacement: bool = False,
+    materials_and_textures_only: bool = False,
     selected_member: str = "",
 ) -> int:
     request_id = int(getattr(owner, "archive_mesh_import_setup_request_id", 0) or 0) + 1
@@ -187,7 +188,9 @@ def dispatch_mesh_import_setup_preflight(
                 original_mesh=original_mesh, source_label=source_label,
                 force_static_replacement=force_static_replacement,
                 placement_review_title=placement_review_title, placement_context_note=placement_context_note,
-                full_import_model_replacement=full_import_model_replacement, selected_member=str(selected),
+                full_import_model_replacement=full_import_model_replacement,
+                materials_and_textures_only=materials_and_textures_only,
+                selected_member=str(selected),
             )
             return
         if (
@@ -208,6 +211,7 @@ def dispatch_mesh_import_setup_preflight(
             placement_review_title=placement_review_title,
             placement_context_note=placement_context_note,
             full_import_model_replacement=full_import_model_replacement,
+            materials_and_textures_only=materials_and_textures_only,
         )
         on_complete(setup)
 

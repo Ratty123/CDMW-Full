@@ -74,6 +74,7 @@ class ArchiveMeshImportExportMixin:
         placement_review_title: str = "",
         placement_context_note: str = "",
         full_import_model_replacement: bool = False,
+        materials_and_textures_only: bool = False,
     ) -> int:
         return dispatch_mesh_import_setup_preflight(
             self,
@@ -89,6 +90,7 @@ class ArchiveMeshImportExportMixin:
             placement_review_title=placement_review_title,
             placement_context_note=placement_context_note,
             full_import_model_replacement=full_import_model_replacement,
+            materials_and_textures_only=materials_and_textures_only,
         )
 
     def _prompt_archive_mesh_import_setup(
@@ -104,6 +106,7 @@ class ArchiveMeshImportExportMixin:
         placement_review_title: str = "",
         placement_context_note: str = "",
         full_import_model_replacement: bool = False,
+        materials_and_textures_only: bool = False,
         ) -> Optional[MeshImportSetupSelection]:
         source_display_label = source_label.strip() or str(scene_path)
         scene_import_result = prepared_preflight.scene_import_result
@@ -644,14 +647,12 @@ class ArchiveMeshImportExportMixin:
         import_mode = "roundtrip" if roundtrip_radio.isChecked() else "static_replacement"
         if import_mode == "static_replacement" and not static_radio.isEnabled():
             return None
-        supplemental_files: list[Path] = []
-        for index in range(supplemental_list.count()):
-            item = supplemental_list.item(index)
-            if item is None or item.checkState() != Qt.Checked:
-                continue
-            raw_path = str(item.data(Qt.UserRole) or "")
-            if raw_path:
-                supplemental_files.append(Path(raw_path))
+        checked_items = (supplemental_list.item(index) for index in range(supplemental_list.count()))
+        supplemental_files: list[Path] = [
+            Path(str(item.data(Qt.UserRole) or ""))
+            for item in checked_items
+            if item is not None and item.checkState() == Qt.Checked and str(item.data(Qt.UserRole) or "")
+        ]
         return MeshImportSetupSelection(
             scene_path=scene_path,
             import_mode=import_mode,
@@ -664,6 +665,7 @@ class ArchiveMeshImportExportMixin:
             placement_review_title=placement_review_title,
             placement_context_note=placement_context_note.strip(),
             full_import_model_replacement=bool(full_import_model_replacement),
+            materials_and_textures_only=bool(materials_and_textures_only),
         )
 
     def _start_archive_mesh_export(self, entry: ArchiveEntry, export_format: str) -> None:

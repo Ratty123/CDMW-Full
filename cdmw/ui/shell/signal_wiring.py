@@ -9,6 +9,7 @@ class ShellSignalWiringMixin:
     def _connect_archive_mesh_import_signals(self) -> None:
         self.archive_model_import_patch_button.clicked.connect(self._patch_current_archive_mesh_from_obj)
         self.archive_model_full_import_button.clicked.connect(self._full_import_current_archive_model_replacement)
+        self.archive_model_materials_only_button.clicked.connect(self._replace_current_archive_materials_and_textures)
 
     def _connect_shell_signals(self) -> None:
         self.export_profile_action.triggered.connect(self.export_profile)

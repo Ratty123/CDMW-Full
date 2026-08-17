@@ -50,11 +50,11 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     scene_import_result = context.get("scene_import_result")
     self = context.get("self")
     full_import_model_replacement = bool(context.get("full_import_model_replacement"))
+    materials_and_textures_only = bool(context.get("materials_and_textures_only"))
     static_replacement_workflow_mode = (
-        "full_import"
-        if full_import_model_replacement
-        else "modify_original"
-        if modify_original_clone_mode
+        "full_import" if full_import_model_replacement
+        else "materials_and_textures_only" if materials_and_textures_only
+        else "modify_original" if modify_original_clone_mode
         else "import_mesh"
     )
 

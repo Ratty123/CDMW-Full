@@ -284,7 +284,7 @@ def _accept_build_step_009(_state):
         # controls, and touching them here would read widgets Modify Original
         # never builds.
         material_controls = BuilderMaterialControls() if _state.modify_original_clone_mode else BuilderMaterialControls(rebuild_sidecar=bool(_state.rebuild_sidecar_checkbox.isChecked()), source_color_faithful=bool(_state.source_color_faithful_checkbox.isChecked()), external_material_reset=bool(_state.external_material_reset_checkbox.isChecked()), inject_base_color=bool(_state.inject_base_color_checkbox.isChecked()), prune_unmapped_original_dds=bool(_state.prune_unmapped_original_dds_checkbox.isChecked()))
-        operation, operation_flags = builder_operation_flags(modify_original_clone_mode=bool(_state.modify_original_clone_mode), complete_swap_enabled=bool(complete_swap_enabled), full_import_model_replacement=bool(_state.context.get('full_import_model_replacement')), controls=material_controls, modify_original_tuning_enabled=bool(modify_original_tuning_enabled))
+        operation, operation_flags = builder_operation_flags(modify_original_clone_mode=bool(_state.modify_original_clone_mode), complete_swap_enabled=bool(complete_swap_enabled), full_import_model_replacement=bool(_state.context.get('full_import_model_replacement')) or bool(_state.context.get('materials_and_textures_only')), controls=material_controls, modify_original_tuning_enabled=bool(modify_original_tuning_enabled))
         options = _state._static_options_from_placement_snapshot(placement_snapshot, texture_slot_overrides=texture_slot_overrides, include_edited_source_mesh=bool(include_edited_source_mesh), **operation_flags.as_option_fields(), texture_output_size_mode=str(_state.texture_output_size_combo.currentData() or 'source'), complete_swap_material_profile=str(_state._current_complete_swap_material_profile_token()), global_gloss_reduction=0.0 if _state.modify_original_clone_mode else float(_state.global_gloss_reduction_spin.value()), edge_relief_strength=0.0 if _state.modify_original_clone_mode else float(_state.edge_relief_spin.value()), edge_relief_source='hybrid' if _state.modify_original_clone_mode else str(_state.edge_relief_source_combo.currentData() or 'hybrid'), accent_glow_strength=0.0 if _state.modify_original_clone_mode else float(_state.accent_glow_spin.value()), auto_brightness_balance=0.0 if _state.modify_original_clone_mode else float(_state.auto_brightness_spin.value()), dark_detail_lift=0.0 if _state.modify_original_clone_mode else float(_state.source_brightness_spin.value()), tone_contrast=0.0 if _state.modify_original_clone_mode else float(_state.tone_contrast_spin.value()), allow_unsafe_material_preflight_export=bool(False if _state.modify_original_clone_mode else _state.unsafe_material_preflight_checkbox.isChecked()), additional_supplemental_files=[] if _state.modify_original_clone_mode else list(_state.dialog_added_supplemental_files), custom_item_icon_override=custom_item_icon_override)
         options.operation_spec = operation
         if complete_swap_enabled and material_state_ready:
@@ -299,6 +299,9 @@ def _accept_build_step_009(_state):
         if bool(_state.context.get('full_import_model_replacement')):
             from cdmw.services.mesh_workflow_service import apply_full_import_model_replacement_preset
             return apply_full_import_model_replacement_preset(options)
+        if bool(_state.context.get('materials_and_textures_only')):
+            from cdmw.services.mesh_workflow_service import apply_materials_and_textures_only_preset
+            return apply_materials_and_textures_only_preset(options)
         return options
     _state._build_static_options_from_dialog = _build_static_options_from_dialog
 
