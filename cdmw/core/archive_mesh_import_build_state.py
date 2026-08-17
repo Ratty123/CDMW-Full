@@ -55,5 +55,9 @@ class MeshImportBuildState:
     supplemental_file_specs: tuple = ()
     material_options: dict[str, object] = field(default_factory=dict)
     material_authority_settings: dict[str, object] = field(default_factory=dict)
+    #: What this import resolved per material slot, as a structure rather than
+    #: as the build log's account of it. `None` until the texture replacement
+    #: report exists, which is also every import that routes no textures at all.
+    imported_material_manifest: Any = None
     paired_lod_data: Optional[bytes] = None
     paired_lod_path: str = ""

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import PurePosixPath
 
 from cdmw.core.archive_mesh_import_build_state import MeshImportBuildState
 from cdmw.core.common import raise_if_cancelled
+from cdmw.domain.mesh.imported_material_manifest import build_imported_material_manifest
 from cdmw.modding.scene_importer import SCENE_TEXTURE_SOURCE_EXTENSIONS
 
 
@@ -275,15 +277,28 @@ def append_texture_replacement_report(state: MeshImportBuildState, report: objec
             )
         if len(routes) > 16:
             state.summary_lines.append(f"  ... {len(routes) - 16:,} more routing row(s)")
+    # The manifest is built from this report and then reported from, rather than
+    # the log retelling the same rows in its own words. It is also kept on the
+    # state, so what the build wrote is inspectable rather than only readable.
+    manifest = build_imported_material_manifest(
+        report,
+        packaged_target_paths=tuple(
+            str(getattr(payload, "target_path", "") or "")
+            for payload in tuple(getattr(report, "generated_payloads", ()) or ())
+        ),
+    )
+    state.imported_material_manifest = manifest
     mappings = tuple(getattr(report, "slot_mappings", ()) or ())
     if mappings:
+        state.summary_lines.extend(manifest.summary_lines())
         state.summary_lines.append("Static texture replacement mapping:")
         state.summary_lines.extend(
-            f"  {item.source_material_name} {item.slot_kind} ({item.source_path.name}) -> {item.output_texture_path}"
-            for item in mappings[:16]
+            f"  {slot.source_material} {slot.semantic} ({PurePosixPath(slot.source_path.replace(chr(92), '/')).name}) "
+            f"-> {slot.target_path} [{slot.status.value}; {slot.conversion}]"
+            for slot in manifest.slots[:16]
         )
-        if len(mappings) > 16:
-            state.summary_lines.append(f"  ... {len(mappings) - 16:,} more texture mapping(s)")
+        if len(manifest.slots) > 16:
+            state.summary_lines.append(f"  ... {len(manifest.slots) - 16:,} more texture mapping(s)")
     if report.warnings:
         state.summary_lines.append("Static texture replacement warnings:")
         state.summary_lines.extend(f"  {warning}" for warning in report.warnings)
