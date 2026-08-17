@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 
+from cdmw.domain.mesh.operation_spec import OPERATION_SPECS, OperationKind
 from cdmw.modding.static_mesh_types import StaticMeshReplacementOptions
 
 
@@ -41,6 +42,11 @@ def apply_full_import_model_replacement_preset(
         accent_glow_strength=base.accent_glow_strength if preserve_tuning else 0.0,
         prune_removed_target_texture_parameters=True,
         prune_unmapped_original_texture_parameters=True,
+        # The preset asserts the flags itself rather than deriving them, so it
+        # has to name the operation it is asserting; otherwise a caller that
+        # classified the controls first would be overwritten without the
+        # specification following.
+        operation_spec=OPERATION_SPECS[OperationKind.REPLACE_FULL_ASSET],
     )
 
 

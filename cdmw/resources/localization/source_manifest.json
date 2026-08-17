@@ -1936,7 +1936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_remaining_static_preview_refresh_part_01.py",
-          "line": 313,
+          "line": 318,
           "sink": "ModelPreviewData"
         }
       ]
@@ -12826,7 +12826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_accept_build_part_01.py",
-          "line": 210,
+          "line": 215,
           "sink": "question"
         }
       ]
@@ -42426,7 +42426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_mesh_geometry_preview_part_01.py",
-          "line": 693,
+          "line": 707,
           "sink": "CollapsibleSection"
         }
       ]
@@ -89706,7 +89706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_accept_build_part_01.py",
-          "line": 210,
+          "line": 215,
           "sink": "question"
         }
       ]
