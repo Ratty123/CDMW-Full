@@ -25,7 +25,9 @@ $TestsByArea = @{
         # containing one goes stale -- no new string required. That is not
         # guessable from an area name, so it belongs in the cheapest gate.
         "tests/test_window_feature_controller.py",
-        "tests/test_localization_catalog_contracts.py"
+        "tests/test_localization_catalog_contracts.py",
+        # New Item Studio: headless construction, and a plan driven through its panels.
+        "tests/test_new_item_studio_tab.py"
     )
     stability = @(
         "tests/test_runtime_dependency_smoke.py",

@@ -8,6 +8,27 @@ from typing import Dict, List, Tuple
 from cdmw.constants import APP_TITLE, APP_VERSION
 
 
+#: The New Item Studio's About section; spliced into the section list without growing it.
+NEW_ITEM_STUDIO_SECTION = {
+    "id": "new_item_studio",
+    "title": "Neuer-Gegenstand-Studio",
+    "summary": "Einen Ausrüstungsgegenstand zu einem neuen klonen: Name, Werte, Modell, Symbol, Laden.",
+    "keywords": "neuer gegenstand klonen vorlage iteminfo stringinfo laden gruppe modell symbol loose mod installieren",
+    "html": """
+    <p><b>Neuer-Gegenstand-Studio</b> (Assets) erstellt aus einer Vorlage einen neuen Gegenstand, statt einen vorhandenen zu ersetzen. Die Vorlage legt die Klasse fest (Ausrüstungstyp, Gegenstandstyp, Sockel, Animationen, Scheide und Wertestruktur); alles andere gehört dir.</p>
+    <ul>
+      <li><b>Archive lesen</b> einmal pro Sitzung: die Tabellen für Gegenstände, Zeichenketten, Teil-Prefabs, Läden, Gruppen und Sprachen werden in eine Momentaufnahme gelesen; danach ist jede Prüfung ein Nachschlagen.</li>
+      <li><b>Vorlage</b> aus dem Suchfeld oder über <b>Gegenstandssuche &gt; Als neuen Gegenstand klonen...</b>. <b>Identität</b>: interner Name, Namen und Beschreibungen je Sprache (Englisch ist Pflicht, die anderen fallen darauf zurück), ein Schlüssel aus dem reservierten Bereich und ein Modellstamm, beide automatisch vergeben, sofern du sie nicht setzt.</li>
+      <li><b>Modell und Symbol</b>: das Modell der Vorlage behalten oder <b>Über den Builder importieren...</b>, was Mesh importieren über dem Vorlagen-Mesh ausführt und das Ergebnis hierher übergibt, statt es über die Vorlage zu schreiben; es wird auf die eigene Familie des neuen Gegenstands umgeleitet. Symbol der Vorlage behalten oder aus einem Bild oder Ordner erzeugen, angepasst an das DDS-Format des Vorlagensymbols.</li>
+      <li><b>Werte und Preise</b>: ein Raster über die Verzauberungsleiter der Vorlage; Zellen bearbeiten, skalieren, fest setzen, eine Stufe hinzufügen (Kopie der darunter), Grundpreise und Stapelgröße ändern. Ein Wert oder eine Stufe, die die Vorlage nicht hat, geht durch den Neuaufbau des Werteblocks, der im Spiel unerprobt ist.</li>
+      <li><b>Laden und Gruppen</b>: einen Ladeneintrag ersetzen (die Form, die das Spiel angenommen hat) oder einen Eintrag hinzufügen (unerprobt); den Gruppen der Vorlage oder einer eigenen Liste beitreten.</li>
+      <li><b>Ausgabe</b>: <b>Plan erstellen</b> setzt jede Tabellenänderung und Datei zusammen, ohne zu schreiben; <b>Loose Mod schreiben</b> legt sie für CDUMM, DMM oder JMM ab, neue Dateien deklariert; <b>In die Spielarchive installieren...</b> geht denselben bestätigten, gesicherten, wiederherstellbaren Weg wie jeder andere Patch und wird verweigert, solange das Spiel läuft.</li>
+    </ul>
+    <p>Die Zusammenfassung des Plans nennt, was im Spiel unerprobt ist; die Checkliste darunter sagt, worauf nach dem Installieren zu achten ist.</p>
+    """,
+}
+
+
 class AboutDocumentationGermanMixin:
     """German documentation topic content."""
 
@@ -443,7 +464,7 @@ class AboutDocumentationGermanMixin:
                       <li><b>Platzierung vergleichen</b> prueft aufgeloeste Prefab-/Socket-/HKX-Daten vor dem Paketbau. <b>Socket-Werte bearbeiten</b> erscheint, wenn das wiederhergestellte XML sicher angezeigt und geschrieben werden kann.</li>
                     </ul>
                     """,
-                },
+                }, NEW_ITEM_STUDIO_SECTION,
                 {
                     "id": "mod_packaging",
                     "title": "Mod-fertige Pakete",

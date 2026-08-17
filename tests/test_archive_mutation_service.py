@@ -205,6 +205,8 @@ class ArchiveMutationServiceTests(unittest.TestCase):
         for path in (
             Path("cdmw/ui/archive_browser/patch_actions.py"),
             Path("cdmw/ui/archive_browser/mesh_patch_flow.py"),
+            Path("cdmw/ui/new_item/tab.py"),
+            Path("cdmw/ui/new_item/controller.py"),
         ):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             called = {
