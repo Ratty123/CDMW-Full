@@ -164,14 +164,13 @@ def builder_presentation_state(
         elif viewport_display_mode == MESH_PREVIEW_DEFAULT_DISPLAY_MODE:
             viewport_display_mode = MESH_EDIT_DEFAULT_DISPLAY_MODE
     material_debug_mode = dotnet_preview_material_debug_mode(dotnet_view_mode)
-    return {
+    state: dict[str, object] = {
         "active_view": active_view,
         "comparison_mode": mode,
         "side_by_side_split_ratio": max(
             0.18,
             min(0.82, float(side_by_side_split_ratio)),
         ),
-        "camera": _json_value(dict(camera or {})),
         "display": {
             "mode": viewport_display_mode,
             "material_debug_mode": material_debug_mode,
@@ -199,6 +198,17 @@ def builder_presentation_state(
         "part_transforms": adjustments,
         "uv": _json_value(dict(uv_state or {})),
     }
+    # A camera only travels when the caller actually means to move one. The
+    # resident helper applies any camera block it is given, and a block carrying
+    # `fit_to_view` refits the zoom and zeroes the pan, so including an empty or
+    # synthesised camera in a routine republish is a camera reset. Presentation
+    # republishes are triggered by things that have nothing to do with the
+    # camera -- a gizmo or grid toggle, a part highlight, a display mode -- and
+    # the helper owns the camera in between.
+    camera_state = _json_value(dict(camera or {}))
+    if camera_state:
+        state["camera"] = camera_state
+    return state
 
 
 def builder_part_highlight_state(

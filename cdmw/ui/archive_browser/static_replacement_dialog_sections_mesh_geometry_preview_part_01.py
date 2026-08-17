@@ -436,8 +436,19 @@ def _bind_embedded_mesh_editor_preview(_state):
     )
 
     def _mesh_editor_embedded_presentation_state():
-        camera_getter = getattr(_state, '_alignment_current_camera_state', None)
-        camera = camera_getter() if callable(camera_getter) else {}
+        # No camera. This snapshot is republished for reasons that have nothing
+        # to do with the camera -- a gizmo or grid toggle, a part highlight, a
+        # display mode, an accepted scene frame -- and the resident helper is
+        # the only thing that knows where the camera actually is while the
+        # embedded viewport is live.
+        #
+        # `_alignment_current_camera_state` cannot answer for it here: its
+        # embedded branch returns a per-mode snapshot saved at the last mode
+        # switch, or failing that a hardcoded yaw -35/pitch 20 with
+        # `fit_to_view` set. The helper honours `fit_to_view` by refitting the
+        # zoom and zeroing the pan, so sending either one turns "I enabled the
+        # gizmo" into "put the camera back where it started".
+        camera = None
         # This section is created before the alignment-settings callbacks. Read
         # through the live preview-settings accessor instead of retaining the
         # initial settings object captured in this factory state.

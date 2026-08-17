@@ -574,6 +574,9 @@ def test_resident_presentation_queue_has_one_active_and_one_merged_pending_state
 
     assert state._send_dotnet_presentation_state({"camera": {"preset": "front"}})
     assert len(sent) == 1
+    # The camera is a command and rides its own publish.
+    assert sent[0]["camera"]["preset"] == "front"
+    assert sent[0]["camera"]["command_generation"] == 1
     assert state._send_dotnet_presentation_state({"display": {"mode": "wire"}})
     assert len(sent) == 1
     assert state.standalone_dotnet_presentation_queued is True
@@ -588,8 +591,11 @@ def test_resident_presentation_queue_has_one_active_and_one_merged_pending_state
     assert MeshEditorDotNetProtocolMixin._handle_dotnet_presentation_state_ack(state, ack)
     assert state.standalone_dotnet_protocol_events == [ack]
     assert len(sent) == 2
-    assert sent[1]["camera"]["preset"] == "front"
-    assert sent[1]["camera"]["command_generation"] == 1
+    # The merged pending publish carries the display change and NOT the camera.
+    # Replaying it is a camera reset: the helper re-applies any camera it is
+    # given, and its "already applied this generation" guard does not survive
+    # the context re-initialisation that a package apply performs.
+    assert "camera" not in sent[1]
     assert sent[1]["display"] == {"mode": "wire"}
     assert sent[1]["request_id"] == 2
 
@@ -598,11 +604,16 @@ def test_resident_presentation_queue_has_one_active_and_one_merged_pending_state
     assert state._send_dotnet_presentation_state(
         {"camera": {"preset": "front"}, "display": {"mode": "solid"}}
     )
-    assert sent[2]["camera"]["command_generation"] == 1
+    # Same camera as the retained one, so it is not a new command and does not
+    # travel; the display change alongside it still does.
+    assert "camera" not in sent[2]
+    assert sent[2]["display"]["mode"] == "solid"
 
     ack["request_id"] = 3
     assert MeshEditorDotNetProtocolMixin._handle_dotnet_presentation_state_ack(state, ack)
     assert state._send_dotnet_presentation_state({"camera": {"preset": "front"}})
+    # An explicit camera-only call is always a command, so it gets a new
+    # generation and travels again.
     assert sent[3]["camera"]["command_generation"] == 2
 
 

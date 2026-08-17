@@ -98,6 +98,10 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_presentation_pending: dict[str, object] | None = None
         self.standalone_dotnet_presentation_queued = False
         self.standalone_dotnet_presentation_desired: dict[str, object] = {}
+        # A camera rides exactly the publish that follows its own command and is
+        # then dropped, so a later republish of unrelated presentation state
+        # cannot move the viewport.
+        self.standalone_dotnet_presentation_camera_pending = False
         self.standalone_dotnet_presentation_acknowledged: dict[str, object] | None = None
         # The presentation content the helper is known to be holding. A publish
         # whose content matches this one would re-apply what is already on
