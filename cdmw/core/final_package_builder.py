@@ -22,6 +22,7 @@ from cdmw.core.archive_mesh_types import (
     MeshImportSupplementalFileSpec,
 )
 from cdmw.core.final_package_binding_contract import binding_row_preflight_messages
+from cdmw.domain.mesh.material_manifest_agreement import manifest_agreement_warnings
 from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
 from cdmw.core.upscale_profiles import parse_texture_sidecar_bindings
 
@@ -813,6 +814,15 @@ def build_final_package_preview(
     preflight_errors: List[str] = []
     if source_owned_binding_contract_enabled:
         preflight_errors.extend(_material_export_safety_blockers_for_specs(preview_result, source_materials_for_report, tuple(sidecars.values()), package_written=package_root is not None))
+    # Two accounts of one resolution, compared rather than assumed to match.
+    # Warnings rather than blockers: nobody has measured whether a legitimate
+    # build produces differences here, and a rule that has never been measured
+    # should say what it saw rather than stop the build the first time it fires.
+    warnings.extend(
+        manifest_agreement_warnings(
+            getattr(preview_result, "imported_material_manifest", None), binding_rows
+        )
+    )
     row_errors, row_warnings = binding_row_preflight_messages(
         binding_rows,
         planned_placeholder_material_keys=planned_placeholder_material_keys,

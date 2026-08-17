@@ -427,4 +427,5 @@ def finish_mesh_import_preview(state: MeshImportBuildState):
         roundtrip_manifest=state.manifest_payload if isinstance(state.manifest_payload, dict) else None,
         source_owned_output_draw_sections=tuple(getattr(state.static_report, "output_draw_sections", ()) or ()),
         material_authority_settings=state.material_authority_settings,
+        imported_material_manifest=state.imported_material_manifest,
     )

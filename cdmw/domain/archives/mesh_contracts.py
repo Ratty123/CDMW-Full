@@ -38,6 +38,10 @@ class MeshImportPreviewResult:
     roundtrip_manifest: Optional[dict] = None
     source_owned_output_draw_sections: Tuple[object, ...] = ()
     material_authority_settings: Mapping[str, object] = field(default_factory=dict)
+    #: What the import resolved per material slot. Carried so the package
+    #: boundary can compare its own account against it instead of the two
+    #: agreeing only by having read the same pipeline.
+    imported_material_manifest: Any = None
 
 @dataclass(slots=True)
 class ArchiveLooseExportResult:
