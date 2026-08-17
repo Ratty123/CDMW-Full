@@ -122,8 +122,12 @@ _TOPOLOGY_CAPABILITY: dict[str, AuthoringCapability] = {
 }
 
 #: Native editor actions that change topology but have no exact-writer route at
-#: all, with the reason each is unavailable. These are the actions the UI hides
-#: today; hiding them is what makes them read as unfinished rather than blocked.
+#: all, with the reason each is unavailable. The UI hides these rather than
+#: showing them disabled, which is a settled product decision rather than a
+#: pending one -- see `_UNAUTHORABLE_TOPOLOGY_ACTION_KEYS` in
+#: `cdmw/ui/mesh_editor/actions.py`. The reasons are kept current anyway: they
+#: are what a capability panel or a diagnostics snapshot reads, and what a
+#: future decision to surface them would use.
 _UNIMPLEMENTED_TOPOLOGY_ACTIONS: dict[str, str] = {
     "edge_split": "Edge Split has no exact writeback route",
     "bridge": "Bridge has no exact writeback route",
