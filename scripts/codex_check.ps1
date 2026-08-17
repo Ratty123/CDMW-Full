@@ -177,6 +177,13 @@ $TestsByArea = @{
         # payload nests it, the host read the top level, and every drag reported
         # no movement at all.
         "tests/test_placement_gizmo_transform_signals.py",
+        # An imported material's emissive surviving the Material Authority
+        # update that used to clear it: the preview mesh dropped the factor
+        # parameters, so the bridge decided the part had no glow.
+        "tests/test_imported_emissive_survives_material_authority.py",
+        # Part Setup's combo selecting and highlighting a part the lazily
+        # populated source tree has not reached yet.
+        "tests/test_part_setup_combo_selects_and_highlights.py",
         # Replace Materials and Textures Only, whose whole guarantee is that the
         # commit boundary emits no mesh entry at all.
         "tests/test_materials_and_textures_replacement.py",

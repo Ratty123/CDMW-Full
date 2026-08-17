@@ -305,7 +305,10 @@ def _source_parts_outliner_step_022(_state):
     _state._part_mapped_target_indices = _state.alignment_source_role_flush_callbacks._part_mapped_target_indices
     _state.alignment_selected_part_adjustment_callbacks = _state.create_alignment_selected_part_adjustment_callbacks({**_state.context, **_state._factory_globals, **vars(_state), '_queue_part_transform_preview_update': lambda *args, **kwargs: _state._queue_part_transform_preview_update(*args, **kwargs)})
     _state._update_selected_part_adjustment = _state.alignment_selected_part_adjustment_callbacks._update_selected_part_adjustment
-    _state.alignment_selected_part_control_callbacks = _state.create_alignment_selected_part_control_callbacks({**_state.context, **_state._factory_globals, **vars(_state)})
+    # The source-tree selection callbacks are created below this factory, so
+    # the combo's route into them has to be late-bound the way the outliner
+    # mapping callbacks already late-bind it further down.
+    _state.alignment_selected_part_control_callbacks = _state.create_alignment_selected_part_control_callbacks({**_state.context, **_state._factory_globals, **vars(_state), '_select_source_part_from_viewport': lambda *args, **kwargs: _state._select_source_part_from_viewport(*args, **kwargs)})
     _state._update_selected_part_material_adjustment = _state.alignment_selected_part_control_callbacks._update_selected_part_material_adjustment
     _state._pick_selected_part_tint_colour = _state.alignment_selected_part_control_callbacks._pick_selected_part_tint_colour
     _state._pick_selected_part_colourise_colour = _state.alignment_selected_part_control_callbacks._pick_selected_part_colourise_colour
