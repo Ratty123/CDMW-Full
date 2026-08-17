@@ -173,6 +173,10 @@ $TestsByArea = @{
         # Every link of the import setup chain accepts every workflow preset.
         # Two shipped crashes were a keyword one link took and the next refused.
         "tests/test_mesh_import_setup_flag_chain.py",
+        # The gizmo drag reaching the host with the transform it was sent. The
+        # payload nests it, the host read the top level, and every drag reported
+        # no movement at all.
+        "tests/test_placement_gizmo_transform_signals.py",
         # Replace Materials and Textures Only, whose whole guarantee is that the
         # commit boundary emits no mesh entry at all.
         "tests/test_materials_and_textures_replacement.py",
