@@ -1,0 +1,512 @@
+"""Turning a valid :class:`NewItemSpec` into archive changes.
+
+The planner composes the format owners into one set of patches (whole replacement
+payloads for the tables and language files a new item touches) and additions
+(brand-new files: a cloned model family and a generated icon). The order inside a
+plan is the order the game needs the data to exist in: StringInfo strings first, so
+every hash the row carries resolves; part-prefab records, so every stem the strings
+name resolves to a file; then the ItemInfo row that points at them; item groups,
+the store, the names in every language; and the files.
+
+Nothing here writes to the archives. A :class:`NewItemPlan` is data that
+:class:`~cdmw.services.new_item_service.NewItemService` exports as a loose mod or
+installs through :class:`~cdmw.services.archive_mutation_service.ArchiveMutationService`.
+"""
+
+from __future__ import annotations
+
+import threading
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+
+from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem
+from cdmw.core.item_model_family import ItemModelFamily
+from cdmw.core.itemgroupinfo_table import add_group_members, apply_item_group_row, groups_containing
+from cdmw.core.iteminfo_row import (
+    EnchantLevel,
+    ItemInfoRow,
+    clone_iteminfo_row,
+    level_with_buy_price,
+    level_with_stat,
+    next_level_like,
+    parse_iteminfo_row,
+    price_list_with,
+    rebuild_stat_block,
+    set_max_stack_count,
+)
+from cdmw.core.paloc_format import add_localization_entries, encode_paloc, entries_like, text_for_language
+from cdmw.core.pappt_format import encode_pappt, insert_part_prefabs
+from cdmw.core.prefab_binary_edit import rewrite_prefab_paths_any_length
+from cdmw.core.storeinfo_table import apply_store_row, insert_stock_entry, swap_stock_item
+from cdmw.core.stringinfo_table import append_stringinfo_strings, stringinfo_key
+from cdmw.core.structured_binary_editor import append_table_rows
+from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest
+from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.domain.new_item.rules import ValidationIssue
+from cdmw.domain.new_item.spec import IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind
+from cdmw.models import ArchiveEntry
+from cdmw.services.new_item_snapshot import NewItemSnapshot, NewItemSnapshotError
+
+
+class NewItemPlanError(ValueError):
+    """Raised when a spec cannot become a plan; carries the validation issues when there are any."""
+
+    def __init__(self, message: str, issues: Sequence[ValidationIssue] = ()) -> None:
+        super().__init__(message)
+        self.issues = tuple(issues)
+
+
+@dataclass(frozen=True, slots=True)
+class NewItemPlan:
+    """Everything a new item changes, as data."""
+
+    spec: NewItemSpec
+    patches: Tuple[ArchivePatchRequest, ...]
+    additions: Tuple[ArchiveAddRequest, ...]
+    #: game-relative path -> bytes, for every patch and every addition (the loose form).
+    loose_files: Mapping[str, bytes]
+    new_paths: Tuple[str, ...]
+    summary_lines: Tuple[str, ...]
+    warnings: Tuple[str, ...]
+    manifest: Mapping[str, object]
+    issues: Tuple[ValidationIssue, ...] = ()
+
+    @property
+    def touched_paths(self) -> Tuple[str, ...]:
+        return tuple(request.entry.path for request in self.patches) + self.new_paths
+
+
+@dataclass(slots=True)
+class ModelFiles:
+    """An imported build, as the planner needs it: the mesh and its side files."""
+
+    pac_data: bytes
+    #: game-relative template path -> bytes for the sidecar and textures the import produced.
+    side_files: Mapping[str, bytes] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class _Planner:
+    spec: NewItemSpec
+    snapshot: NewItemSnapshot
+    model: Optional[ModelFiles]
+    icon: Optional[NewItemIcon]
+    on_log: Optional[Callable[[str], None]]
+    stop_event: Optional[threading.Event]
+    patches: List[ArchivePatchRequest] = field(default_factory=list)
+    additions: List[ArchiveAddRequest] = field(default_factory=list)
+    summary: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    manifest: Dict[str, object] = field(default_factory=dict)
+    icon_string: str = ""
+    icon_hash: int = 0
+
+    # ------------------------------------------------------------------ helpers
+
+    def log(self, message: str) -> None:
+        if self.on_log is not None:
+            self.on_log(message)
+
+    def check(self) -> None:
+        raise_if_cancelled(self.stop_event, "New item plan cancelled.")
+
+    @property
+    def template(self) -> ItemInfoRow:
+        return self.snapshot.row(self.spec.template_key)
+
+    @property
+    def family(self) -> ItemModelFamily:
+        return self.snapshot.family(self.spec.template_key)
+
+    @property
+    def new_stem(self) -> str:
+        return str(self.spec.stem or "")
+
+    @property
+    def clones_model(self) -> bool:
+        return self.spec.model_source is ModelSource.IMPORTED
+
+    def patch(self, entry: ArchiveEntry, payload: bytes, what: str) -> None:
+        self.patches.append(ArchivePatchRequest(entry=entry, payload_data=bytes(payload)))
+        self.summary.append(what)
+
+    def add(self, template_entry: ArchiveEntry, path: str, payload: bytes, what: str) -> None:
+        if self.snapshot.has_entry(path):
+            raise NewItemPlanError(f"{path} already exists in the archives; a new item must not overwrite it")
+        if any(request.path.lower() == path.lower() for request in self.additions):
+            raise NewItemPlanError(f"{path} is added twice")
+        self.additions.append(ArchiveAddRequest.from_template(template_entry, path, payload))
+        self.summary.append(what)
+
+    def owned_stem_map(self) -> Mapping[str, str]:
+        """old part stem -> new part stem for the template's owned prefabs."""
+
+        return {part.stem: self.family.rename_stem(part.stem, self.new_stem) for part in self.family.owned_parts if part.record is not None}
+
+    # ------------------------------------------------------------------ steps
+
+    def plan_strings(self) -> None:
+        texts: List[str] = []
+        if self.clones_model:
+            texts.extend(self.owned_stem_map().values())
+        if self.spec.icon is IconSource.GENERATED:
+            self.icon_string = planned_icon_string(self.spec, self.snapshot)
+            if self.icon is not None and self.icon.icon_string != self.icon_string:
+                raise NewItemPlanError(f"the built icon is named {self.icon.icon_string!r}, the plan needs {self.icon_string!r}")
+            self.icon_hash = stringinfo_key(self.icon_string)
+            texts.append(self.icon_string)
+        self.manifest["stringinfo_texts"] = list(texts)
+        if not texts:
+            return
+        pair = self.snapshot.stringinfo
+        payload, header, _keys = append_stringinfo_strings(pair.payload, pair.header, texts, name="stringinfo")
+        self.patch(pair.payload_entry, payload, f"StringInfo: {len(texts)} new string(s)")
+        self.patch(pair.header_entry, header, "StringInfo directory")
+
+    def plan_part_prefabs(self) -> None:
+        if not self.clones_model:
+            return
+        mapping = self.owned_stem_map()
+        if not mapping:
+            raise NewItemPlanError(f"{self.template.string_key} owns no part-prefab records to clone")
+        index = self.snapshot.pappt.index()
+        records = [index[old].cloned(new) for old, new in mapping.items()]
+        table = insert_part_prefabs(self.snapshot.pappt, records, after_stem=next(iter(mapping)))
+        self.manifest["pappt_records"] = dict(mapping)
+        self.patch(self.snapshot.pappt_entry, encode_pappt(table), f"partprefabtable.pappt: {len(records)} record(s) cloned")
+
+    def plan_item_row(self) -> bytes:
+        template = self.template
+        hashes: Dict[int, int] = {}
+        if self.clones_model:
+            hashes.update({stringinfo_key(old): stringinfo_key(new) for old, new in self.owned_stem_map().items()})
+        if self.spec.icon is IconSource.GENERATED and self.family.icon_hash:
+            hashes[self.family.icon_hash] = self.icon_hash
+        row_bytes = clone_iteminfo_row(
+            template,
+            key=int(self.spec.item_key),
+            string_key=self.spec.internal_name,
+            name_key=str(self.spec.name_key),
+            desc_key=self.spec.desc_key,
+            replace_hashes=hashes or None,
+        )
+        row_bytes = self._apply_row_edits(row_bytes)
+        pair = self.snapshot.iteminfo
+        payload, header = append_table_rows(pair.payload, pair.header, [row_bytes])
+        self.manifest["iteminfo"] = {
+            "template_key": template.key, "template_name": template.string_key,
+            "item_key": int(self.spec.item_key), "internal_name": self.spec.internal_name,
+            "name_key": self.spec.name_key, "desc_key": self.spec.desc_key,
+            "hash_swaps": {f"0x{old:08X}": f"0x{new:08X}" for old, new in hashes.items()},
+            "rows_before": len(self.snapshot.rows), "rows_after": len(self.snapshot.rows) + 1,
+        }
+        self.patch(pair.payload_entry, payload, f"ItemInfo: row {self.spec.item_key} {self.spec.internal_name} appended (template {template.string_key})")
+        self.patch(pair.header_entry, header, "ItemInfo directory")
+        return row_bytes
+
+    def _apply_row_edits(self, row_bytes: bytes) -> bytes:
+        spec = self.spec
+        row = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(spec.item_key)})
+        if spec.max_stack_count is not None and int(spec.max_stack_count) != row.max_stack_count:
+            row_bytes = set_max_stack_count(row, int(spec.max_stack_count))
+            row = parse_iteminfo_row(row_bytes, item_keys=set(self.snapshot.rows) | {int(spec.item_key)})
+        if not (spec.stat_edits or spec.buy_price_edits or spec.price_edits):
+            return row_bytes
+        if row.stat_block_offset is None:
+            raise NewItemPlanError(f"{self.template.string_key} has no decoded stat block; stats and prices cannot be edited")
+        levels: List[EnchantLevel] = list(row.enchant_levels)
+        for edit in spec.stat_edits:
+            levels = _grow_levels(levels, edit.level, what=f"stat {edit.status_key}")
+            levels[edit.level] = level_with_stat(levels[edit.level], int(edit.status_key), int(edit.value))
+        for edit in spec.buy_price_edits:
+            levels = _grow_levels(levels, edit.level, what=f"buy price in item {edit.item_key}")
+            levels[edit.level] = level_with_buy_price(levels[edit.level], int(edit.item_key), int(edit.price))
+        prices = row.price_list
+        for edit in spec.price_edits:
+            prices = price_list_with(prices, int(edit.item_key), int(edit.price))
+        rebuilt = rebuild_stat_block(row, levels=levels, price_list=prices)
+        again = parse_iteminfo_row(rebuilt, item_keys=set(self.snapshot.rows) | {int(spec.item_key)})
+        if again.stat_block_offset is None or again.enchant_count != len(levels):
+            raise NewItemPlanError("the rebuilt stat block did not parse back the way it was written")
+        if len(levels) > len(row.enchant_levels):
+            self.warnings.append(
+                f"The row carries {len(levels) - len(row.enchant_levels)} enchant level(s) the template lacks; "
+                "a rebuilt ladder is unproven in game."
+            )
+        self.summary.append(
+            f"stats: {len(spec.stat_edits)} stat, {len(spec.buy_price_edits)} buy-price and {len(spec.price_edits)} price edit(s)"
+        )
+        return rebuilt
+
+    def plan_item_groups(self) -> None:
+        template_key = int(self.spec.template_key)
+        if self.spec.item_groups is ItemGroupsChoice.EXPLICIT:
+            wanted = {int(k) for k in self.spec.explicit_item_groups}
+            groups = [g for g in self.snapshot.item_groups if g.key in wanted]
+        else:
+            groups = list(groups_containing(self.snapshot.item_groups, template_key))
+        if not groups:
+            self.manifest["item_groups"] = []
+            return
+        pair = self.snapshot.itemgroupinfo
+        payload, header = pair.payload, pair.header
+        names = []
+        for group in groups:
+            grown = add_group_members(group, [int(self.spec.item_key)], after=template_key if template_key in group.members else None)
+            payload, header = apply_item_group_row(payload, header, grown)
+            names.append(group.name)
+        self.manifest["item_groups"] = names
+        self.patch(pair.payload_entry, payload, f"ItemGroupInfo: joined {len(groups)} group(s)")
+        self.patch(pair.header_entry, header, "ItemGroupInfo directory")
+
+    def plan_store(self) -> None:
+        placement = self.spec.placement
+        if placement.kind is PlacementKind.NONE:
+            self.manifest["store"] = None
+            return
+        store = self.snapshot.store(placement.store_name)
+        if placement.kind is PlacementKind.SWAP:
+            old_key = self.snapshot.keys_by_name.get(placement.old_item_name)
+            if old_key is None:
+                raise NewItemPlanError(f"there is no item named {placement.old_item_name}")
+            updated = swap_stock_item(store, old_key, int(self.spec.item_key))
+            what = f"StoreInfo: {store.name} sells {self.spec.internal_name} instead of {placement.old_item_name}"
+        else:
+            updated = insert_stock_entry(store, int(self.spec.item_key))
+            what = f"StoreInfo: {store.name} gains a stock entry for {self.spec.internal_name}"
+            self.warnings.append("A whole new stock entry is unproven in game; swapping an existing entry is the proven form.")
+        if placement.price is not None:
+            self.warnings.append("StoreInfo entries carry no price of their own; the shop prices the item from its buy-price list, so the placement price was not written. Use a buy-price edit.")
+        pair = self.snapshot.storeinfo
+        payload, header = apply_store_row(pair.payload, pair.header, updated)
+        self.manifest["store"] = {"name": store.name, "kind": placement.kind.value, "old_item": placement.old_item_name or None}
+        self.patch(pair.payload_entry, payload, what)
+        self.patch(pair.header_entry, header, "StoreInfo directory")
+
+    def plan_names(self) -> None:
+        template = self.template
+        if not template.name_key:
+            raise NewItemPlanError(f"{template.string_key} has no name key to copy the category from")
+        languages = self.snapshot.languages
+        written: Dict[str, Dict[str, str]] = {}
+        for language in languages:
+            self.check()
+            table = self.snapshot.paloc_table(language)
+            index = table.index()
+            template_name = index.get(template.name_key)
+            if template_name is None:
+                raise NewItemPlanError(f"the {language} table has no entry {template.name_key} for the template's name")
+            name = text_for_language(self.spec.display_names, language) or template_name.text
+            texts = {str(self.spec.name_key): name}
+            template_desc = index.get(template.desc_key) if template.desc_key else None
+            if self.spec.desc_key and template.desc_key:
+                if template_desc is None:
+                    raise NewItemPlanError(f"the {language} table has no entry {template.desc_key} for the template's description")
+                texts[str(self.spec.desc_key)] = text_for_language(self.spec.descriptions, language) or template_desc.text
+            new_entries = entries_like(table, template.name_key, {str(self.spec.name_key): texts[str(self.spec.name_key)]})
+            if len(texts) == 2:
+                new_entries += entries_like(table, template.desc_key, {str(self.spec.desc_key): texts[str(self.spec.desc_key)]})
+            grown = add_localization_entries(table, new_entries)
+            entry = self.snapshot.paloc_entries[language]
+            self.patch(entry, encode_paloc(grown), f"{language}: {len(new_entries)} localisation record(s)")
+            written[language] = texts
+        self.manifest["localisation"] = written
+
+    def plan_model_files(self) -> None:
+        if not self.clones_model:
+            self.manifest["model_files"] = []
+            return
+        if self.model is None:
+            raise NewItemPlanError("the spec imports a model but no build was given")
+        family = self.family
+        renamed = {old: (role, new) for role, old, new in family.renamed(self.new_stem)}
+        pac_files = [item for item in family.files_for("pac") if item.exists]
+        if not pac_files:
+            raise NewItemPlanError(f"{self.template.string_key}'s family has no .pac to replace")
+        # The family stem names the mesh the import replaces; a second owned mesh (a
+        # sheath) is copied under the new stem so its prefabs keep resolving.
+        primary = next((item for item in pac_files if item.path.lower().rsplit("/", 1)[-1] == f"{family.model_stem.lower()}.pac"), pac_files[0])
+        pac_map = {item.path: renamed[item.path][1] for item in pac_files}
+        old_pac = primary.path
+        texture_map = self._texture_renames()
+        written: List[str] = []
+        for item in family.files:
+            role, new_path = renamed[item.path]
+            if role == "icon":
+                continue
+            if not item.exists:
+                self.warnings.append(f"The template has no {role} at {item.path}; the clone goes without one.")
+                continue
+            if role == "pac":
+                payload = self.model.pac_data if item.path == old_pac else self.snapshot.payload(item.path)
+            elif role == "prefab":
+                result = rewrite_prefab_paths_any_length(self.snapshot.payload(item.path), pac_map)
+                if not result.edits:
+                    raise NewItemPlanError(f"{item.path} names none of the family's meshes, so it cannot be re-pathed")
+                payload = result.data
+            elif role == "pac_xml":
+                payload = self.model.side_files.get(item.path, self.snapshot.payload(item.path))
+                for old_name, new_name in texture_map.items():
+                    payload = payload.replace(old_name.encode("utf-8"), new_name.encode("utf-8"))
+            else:
+                payload = self.snapshot.payload(item.path)
+            self.add(self.snapshot.entry(item.path), new_path, payload, f"{role}: {new_path}")
+            written.append(new_path)
+        for old_path, data in self.model.side_files.items():
+            if not old_path.lower().endswith(".dds"):
+                continue
+            folder, _, name = old_path.replace("\\", "/").rpartition("/")
+            new_name = texture_map[name]
+            new_path = f"{folder}/{new_name}" if folder else new_name
+            template_entry = self.snapshot.entry(old_path) if self.snapshot.has_entry(old_path) else self.snapshot.entry(old_pac)
+            self.add(template_entry, new_path, data, f"texture: {new_path}")
+            written.append(new_path)
+        self.manifest["model_files"] = written
+
+    def _texture_renames(self) -> Mapping[str, str]:
+        """texture file name -> new file name for the textures the import produced."""
+
+        stem = self.family.model_stem
+        out: Dict[str, str] = {}
+        if self.model is None:
+            return out
+        for old_path in self.model.side_files:
+            if not old_path.lower().endswith(".dds"):
+                continue
+            name = old_path.replace("\\", "/").rsplit("/", 1)[-1]
+            lower = name.lower()
+            if lower.startswith(stem.lower()):
+                out[name] = self.new_stem + name[len(stem):]
+            else:
+                out[name] = f"{self.new_stem}_{name}"
+        return out
+
+    def plan_icon(self) -> None:
+        if self.spec.icon is not IconSource.GENERATED:
+            self.manifest["icon"] = None
+            return
+        if self.icon is None:
+            raise NewItemPlanError("the spec asks for a generated icon but no icon was built")
+        icon_files = self.family.files_for("icon")
+        template_entry = self.snapshot.entry(icon_files[0].path) if icon_files and icon_files[0].exists else None
+        if template_entry is None:
+            raise NewItemPlanError(f"{self.template.string_key} has no icon file to shape the new one after")
+        self.add(template_entry, self.icon.target_path, self.icon.payload_data, f"icon: {self.icon.target_path}")
+        self.manifest["icon"] = {"string": self.icon.icon_string, "hash": f"0x{self.icon.icon_hash:08X}", "path": self.icon.target_path}
+
+
+def planned_icon_string(spec: NewItemSpec, snapshot: NewItemSnapshot) -> str:
+    """The `ItemIcon_Prefab_*` string a generated icon for `spec` is named by."""
+
+    if not spec.stem:
+        raise NewItemPlanError("a generated icon needs the spec's stem to be allocated")
+    family = snapshot.family(spec.template_key)
+    return family.renamed_icon_string(str(spec.stem)) or icon_string_for_stem(str(spec.stem))
+
+
+def _grow_levels(levels: List[EnchantLevel], level: int, *, what: str) -> List[EnchantLevel]:
+    if level < 0:
+        raise NewItemPlanError(f"enchant level {level} for {what} is negative")
+    if level > len(levels):
+        raise NewItemPlanError(f"enchant level {level} for {what} skips level {len(levels)}; levels are added one at a time")
+    if level == len(levels):
+        if not levels:
+            raise NewItemPlanError(f"the template has no enchant level to copy for {what}")
+        levels = levels + [next_level_like(levels[-1])]
+    return levels
+
+
+def build_plan(
+    spec: NewItemSpec,
+    snapshot: NewItemSnapshot,
+    *,
+    model: Optional[ModelFiles] = None,
+    icon: Optional[NewItemIcon] = None,
+    issues: Sequence[ValidationIssue] = (),
+    on_log: Optional[Callable[[str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
+) -> NewItemPlan:
+    """Compose the plan for an allocated, validated spec."""
+
+    for name in ("item_key", "name_key"):
+        if getattr(spec, name) is None:
+            raise NewItemPlanError(f"the spec's {name} is not allocated")
+    if spec.needs_new_stem and not spec.stem:
+        raise NewItemPlanError("the spec needs a stem and none is allocated")
+    planner = _Planner(spec=spec, snapshot=snapshot, model=model, icon=icon, on_log=on_log, stop_event=stop_event)
+    planner.manifest.update({
+        "template_key": int(spec.template_key),
+        "item_key": int(spec.item_key),
+        "internal_name": spec.internal_name,
+        "stem": spec.stem,
+        "model_source": spec.model_source.value,
+        "icon_source": spec.icon.value,
+    })
+    try:
+        for step, label in (
+            (planner.plan_strings, "strings"), (planner.plan_part_prefabs, "part prefabs"), (planner.plan_item_row, "item row"),
+            (planner.plan_item_groups, "item groups"), (planner.plan_store, "store"), (planner.plan_names, "names"),
+            (planner.plan_model_files, "model files"), (planner.plan_icon, "icon"),
+        ):
+            planner.check()
+            planner.log(f"Planning {label}...")
+            step()
+    except NewItemSnapshotError as exc:
+        raise NewItemPlanError(str(exc)) from exc
+    loose: Dict[str, bytes] = {request.entry.path.replace("\\", "/"): bytes(request.payload_data) for request in planner.patches}
+    for request in planner.additions:
+        loose[request.path] = bytes(request.payload_data)
+    return NewItemPlan(
+        spec=spec,
+        patches=tuple(planner.patches),
+        additions=tuple(planner.additions),
+        loose_files=loose,
+        new_paths=tuple(request.path for request in planner.additions),
+        summary_lines=tuple(planner.summary),
+        warnings=tuple(planner.warnings),
+        manifest=dict(planner.manifest),
+        issues=tuple(issues),
+    )
+
+
+def model_files_from_import(result: object, *, family: ItemModelFamily) -> ModelFiles:
+    """Read a Builder result (`MeshImportPreviewResult`) into :class:`ModelFiles`.
+
+    `rebuilt_data` is the mesh; each supplemental spec is taken by its target path,
+    from `payload_data` when the import carried the bytes and from `source_path`
+    otherwise. Only the family's own sidecar and `.dds` textures are kept; anything
+    else the import produced is reported through the returned object's side files
+    being absent, and the planner warns about the sidecar it fell back on.
+    """
+
+    data = bytes(getattr(result, "rebuilt_data", b"") or b"")
+    if not data:
+        raise NewItemPlanError("the imported build carries no rebuilt mesh data")
+    side: Dict[str, bytes] = {}
+    pac_xml_paths = {item.path.lower() for item in family.files_for("pac_xml")}
+    for spec in tuple(getattr(result, "supplemental_file_specs", ()) or ()):
+        target = str(getattr(spec, "target_path", "") or "").replace("\\", "/").strip("/")
+        if not target:
+            continue
+        lower = target.lower()
+        if not (lower.endswith(".dds") or lower in pac_xml_paths):
+            continue
+        payload = bytes(getattr(spec, "payload_data", b"") or b"")
+        if not payload:
+            source = getattr(spec, "source_path", None)
+            if source is not None and Path(source).is_file():
+                payload = Path(source).read_bytes()
+        if payload:
+            side[target] = payload
+    return ModelFiles(pac_data=data, side_files=side)
+
+
+__all__ = [
+    "ModelFiles",
+    "NewItemPlan",
+    "NewItemPlanError",
+    "build_plan",
+    "model_files_from_import",
+    "planned_icon_string",
+]

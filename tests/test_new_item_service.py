@@ -1,0 +1,541 @@
+"""Gates for the New Item service: snapshot, context, plan, export and install.
+
+The synthetic package below carries one template sword with everything the planner
+touches (ItemInfo, StringInfo, the part-prefab table, StoreInfo, ItemGroupInfo,
+StatusInfo, EquipTypeInfo, two language tables, the model family files and the
+icon), laid out the way the archive writer expects, so a plan can be applied
+through the real mutation path and read back.
+"""
+
+from __future__ import annotations
+
+import json
+import struct
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "tests"))
+
+from cdmw.core.archive_extraction import read_archive_entry_data  # noqa: E402
+from cdmw.core.archive_format import calculate_pa_checksum, parse_archive_pamt  # noqa: E402
+from cdmw.core.item_icon_addition import NewItemIcon  # noqa: E402
+from cdmw.core.itemgroupinfo_table import parse_item_group_table  # noqa: E402
+from cdmw.core.iteminfo_row import equip_type_key, parse_iteminfo_row  # noqa: E402
+from cdmw.core.paloc_format import LocalizationEntry, encode_paloc, parse_paloc  # noqa: E402
+from cdmw.core.pappt_format import PartPrefabPart, PartPrefabRecord, PartPrefabTable, encode_pappt, parse_pappt  # noqa: E402
+from cdmw.core.prefab_binary import decode_prefab_binary  # noqa: E402
+from cdmw.core.storeinfo_table import parse_store_table  # noqa: E402
+from cdmw.core.stringinfo_table import build_stringinfo_row, parse_stringinfo, stringinfo_index, stringinfo_key  # noqa: E402
+from cdmw.core.structured_binary_editor import parse_pabgh_table  # noqa: E402
+from cdmw.domain.archives.mutation import ArchiveAddRequest  # noqa: E402
+from cdmw.domain.new_item.spec import (  # noqa: E402
+    BuyPriceEdit,
+    IconSource,
+    ItemGroupsChoice,
+    ModelSource,
+    NewItemSpec,
+    Placement,
+    PlacementKind,
+    PriceEdit,
+    StatEdit,
+)
+from cdmw.services.archive_mutation_service import ArchiveMutationService  # noqa: E402
+from cdmw.services.new_item_planning import ModelFiles, NewItemPlanError  # noqa: E402
+from cdmw.services.new_item_service import NewItemInstallRefused, NewItemService  # noqa: E402
+from cdmw.services.new_item_snapshot import build_context  # noqa: E402
+from cdmw.workers.new_item_workers import export_task, install_task, plan_task, snapshot_task  # noqa: E402
+from test_iteminfo_row import COPPER, DDD, build_row  # noqa: E402
+from test_prefab_binary_edit import _build as build_prefab  # noqa: E402
+from test_storeinfo_table import _entry as stock_entry, _row as store_row  # noqa: E402
+
+TEMPLATE = 1001295
+OTHER = 240018
+FOLDER = "1_pc/01_phm/weapon/01_onehandweapon"
+MODEL_FOLDER = "1_pc/1_phm/weapon/1_onehandweapon"
+STEM = "cd_phm_01_sword_0109"
+PAC = f"character/model/{MODEL_FOLDER}/{STEM}.pac"
+PAC_XML = f"character/modelproperty/{MODEL_FOLDER}/{STEM}.pac_xml"
+HKX = f"character/bin__/meshphysics/{MODEL_FOLDER}/{STEM}.hkx"
+ICON = f"ui/texture/icon/itemicon_prefab_{STEM}.dds"
+ICON_STRING = "ItemIcon_Prefab_CD_PHM_01_Sword_0109"
+BIN = "gamedata/binary__/client/bin"
+LOC = "gamedata/stringtable/binary__"
+NAME_KEY, DESC_KEY = "4300529278648432", "4300529278648433"
+
+
+def _table4(rows: list[tuple[int, bytes]]) -> tuple[bytes, bytes]:
+    payload = bytearray()
+    header = bytearray(struct.pack("<H", len(rows)))
+    for key, raw in rows:
+        header += struct.pack("<II", key, len(payload))
+        payload += raw
+    return bytes(payload), bytes(header)
+
+
+def _table2(rows: list[bytes]) -> tuple[bytes, bytes]:
+    payload = bytearray()
+    header = bytearray(struct.pack("<H", len(rows)))
+    for raw in rows:
+        header += raw[:2] + struct.pack("<I", len(payload))
+        payload += raw
+    return bytes(payload), bytes(header)
+
+
+def _named_row(key: int, name: str) -> bytes:
+    raw = name.encode("ascii") + b"\x00"
+    return struct.pack("<II", key, len(raw)) + raw
+
+
+def _group_row(key: int, name: str, members: tuple[int, ...]) -> bytes:
+    raw = name.encode("ascii")
+    digits = b"7284264533"
+    out = struct.pack("<H", key) + struct.pack("<I", len(raw)) + raw + b"\x00" + bytes([8, 0x80, 0, 0, 0])
+    out += struct.pack("<II", key, len(digits)) + digits
+    out += struct.pack("<I", 0)
+    out += struct.pack("<I", len(members)) + b"".join(struct.pack("<I", m) for m in members)
+    out += struct.pack("<I", 0) + b"\xff\xff" + b"\x02" + struct.pack("<I", 0xEAC5E173) + struct.pack("<I", 0)
+    return out
+
+
+def _fake_dds(width: int = 256, height: int = 256) -> bytes:
+    data = bytearray(128)
+    data[0:4] = b"DDS "
+    struct.pack_into("<I", data, 4, 124)
+    struct.pack_into("<I", data, 12, height)
+    struct.pack_into("<I", data, 16, width)
+    struct.pack_into("<I", data, 28, 1)
+    struct.pack_into("<I", data, 76, 32)
+    struct.pack_into("<I", data, 80, 0x4)
+    data[84:88] = b"DXT5"
+    return bytes(data)
+
+
+def _record(stem: str, part: str) -> PartPrefabRecord:
+    return PartPrefabRecord(stem=stem, folder=FOLDER, sockets_path="x.sockets.xml", parts=(PartPrefabPart(part, 1),))
+
+
+def synthetic_files() -> dict[str, bytes]:
+    """Every archive file the planner touches, keyed by game path."""
+
+    template = build_row(
+        key=TEMPLATE, string_key="Ziane_OneHandSword", name_key=NAME_KEY, desc_key=DESC_KEY,
+        stems=(f"{STEM}_r", "cd_phm_01_sword_0168_r_in_index01", f"{STEM}_l", ICON_STRING),
+    )
+    other = build_row(
+        key=OTHER, string_key="Cigar_OneHandSword", name_key="4300529202400181", desc_key="4300529202400182",
+        stems=("cd_phm_01_sword_0016_r", "cd_phm_01_sword_0016_l"),
+    )
+    money = [
+        (key, build_row(key=key, string_key=name, equip="", stems=(), levels=[], prices=(), socket_items=(), adds=()))
+        for key, name in ((COPPER, "Money_Copper"), (11, "Money_Silver"), (15, "Camp_Weapon_Token"), (1002791, "Socket_Gem"))
+    ]
+    iteminfo = _table4([(TEMPLATE, template), (OTHER, other)] + money)
+    texts = [f"{STEM}_r", f"{STEM}_l", "cd_phm_01_sword_0168_r_in_index01", "cd_phm_01_sword_0016_r", "cd_phm_01_sword_0016_l", ICON_STRING, "rootlevel"]
+    stringinfo = _table4([(stringinfo_key(t), build_stringinfo_row(t)) for t in texts])
+    pappt = encode_pappt(PartPrefabTable(records=(
+        _record("cd_phm_01_sword_0016_r", "CD_MainWeapon_Sword_R"), _record("cd_phm_01_sword_0016_l", "CD_MainWeapon_Sword_L"),
+        _record(f"{STEM}_r", "CD_MainWeapon_Sword_R"), _record(f"{STEM}_l", "CD_MainWeapon_Sword_L"),
+        _record("cd_phm_01_sword_0168_r_in_index01", "CD_MainWeapon_Sword_R_In"),
+    )))
+    stores = _table2([
+        store_row((stock_entry(OTHER, 0), stock_entry(50001, 1)), name="Store_Camp_Equipment", key=6600),
+        store_row((stock_entry(TEMPLATE, 0),), name="Store_Pai_BlackMarket", key=2003),
+    ])
+    groups = _table2([
+        _group_row(17010, "ItemGroup_Equip_Weapon_OneHandSword", (OTHER, TEMPLATE, 13800)),
+        _group_row(17011, "ItemGroup_Equip", (TEMPLATE,)),
+        _group_row(17012, "ItemGroup_Junk", (OTHER,)),
+    ])
+    statusinfo = _table4([(DDD, _named_row(DDD, "DDD")), (1000003, _named_row(1000003, "DPV")), (1000007, _named_row(1000007, "CriticalRate"))])
+    equiptypes = _table4([(equip_type_key("OneHandSword"), _named_row(equip_type_key("OneHandSword"), "OneHandSword"))])
+    eng = encode_paloc([
+        LocalizationEntry(7, NAME_KEY, "Wolf's Fang"), LocalizationEntry(8, DESC_KEY, "Ziane's own sword."),
+        LocalizationEntry(7, "4300529202400181", "Cigar"), LocalizationEntry(9, "other_key", "Other."),
+    ])
+    ger = encode_paloc([
+        LocalizationEntry(7, NAME_KEY, "Wolfszahn"), LocalizationEntry(8, DESC_KEY, "Zianes eigenes Schwert."),
+        LocalizationEntry(7, "4300529202400181", "Zigarre"),
+    ])
+    sheath_pac = f"character/model/{MODEL_FOLDER}/cd_phm_01_sword_0168_in.pac"
+    other_pac = f"character/model/{MODEL_FOLDER}/cd_phm_01_sword_0016.pac"
+    return {
+        f"{BIN}/iteminfo.pabgb": iteminfo[0], f"{BIN}/iteminfo.pabgh": iteminfo[1],
+        f"{BIN}/stringinfo.pabgb": stringinfo[0], f"{BIN}/stringinfo.pabgh": stringinfo[1],
+        f"{BIN}/storeinfo.pabgb": stores[0], f"{BIN}/storeinfo.pabgh": stores[1],
+        f"{BIN}/itemgroupinfo.pabgb": groups[0], f"{BIN}/itemgroupinfo.pabgh": groups[1],
+        f"{BIN}/statusinfo.pabgb": statusinfo[0], f"{BIN}/statusinfo.pabgh": statusinfo[1],
+        f"{BIN}/equiptypeinfo.pabgb": equiptypes[0], f"{BIN}/equiptypeinfo.pabgh": equiptypes[1],
+        f"{LOC}/localizationstring_eng.paloc": eng, f"{LOC}/localizationstring_ger.paloc": ger,
+        "character/bin__/partprefabtable.pappt": pappt,
+        f"character/bin__/prefab/{FOLDER}/{STEM}_r.prefab": build_prefab(PAC),
+        f"character/bin__/prefab/{FOLDER}/{STEM}_l.prefab": build_prefab(PAC),
+        f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0168_r_in_index01.prefab": build_prefab(sheath_pac),
+        f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0016_r.prefab": build_prefab(other_pac),
+        f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0016_l.prefab": build_prefab(other_pac),
+        PAC: b"PAC template mesh", sheath_pac: b"PAC sheath", other_pac: b"PAC other",
+        PAC_XML: b"<pac_xml><texture>cd_phm_01_sword_0109_d.dds</texture><texture>shared_metal_n.dds</texture></pac_xml>",
+        HKX: b"HKX physics",
+        f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4),
+        ICON: _fake_dds(),
+        "ui/texture/icon/itemicon_prefab_cd_phm_01_sword_0016.dds": _fake_dds(),
+    }
+
+
+def _flat_name(name: str) -> bytes:
+    raw = name.encode("utf-8")
+    return struct.pack("<IB", 0xFFFFFFFF, len(raw)) + raw
+
+
+def build_package(root: Path, files: dict[str, bytes]) -> Path:
+    """Write meta/0.papgt and 0009/{0.pamt,0.paz,1.paz} holding `files`; return the pamt path."""
+
+    group = root / "0009"
+    meta = root / "meta"
+    group.mkdir(parents=True, exist_ok=True)
+    meta.mkdir(parents=True, exist_ok=True)
+    by_folder: dict[str, list[str]] = {}
+    for path in files:
+        folder, _, name = path.rpartition("/")
+        by_folder.setdefault(folder, []).append(name)
+    folders = sorted(by_folder)
+    paz0 = bytearray()
+    paz1 = b"\0" * 16
+    dir_block = bytearray()
+    dir_offsets = {}
+    for folder in folders:
+        dir_offsets[folder] = len(dir_block)
+        dir_block += _flat_name(folder)
+    name_block = bytearray()
+    file_records: list[bytes] = []
+    folder_records: list[bytes] = []
+    for folder in folders:
+        start = len(file_records)
+        names = sorted(by_folder[folder], key=lambda n: n.encode("utf-8"))
+        for name in names:
+            payload = files[f"{folder}/{name}"]
+            offset = len(paz0)
+            paz0 += payload
+            paz0 += b"\0" * ((-len(paz0)) % 16)
+            name_offset = len(name_block)
+            name_block += _flat_name(name)
+            file_records.append(struct.pack("<IIIIHH", name_offset, offset, len(payload), len(payload), 0, 0))
+        folder_records.append(struct.pack("<IIII", calculate_pa_checksum(folder), dir_offsets[folder], start, len(names)))
+    (group / "0.paz").write_bytes(bytes(paz0))
+    (group / "1.paz").write_bytes(paz1)
+    pamt = bytearray()
+    pamt += struct.pack("<III", 0, 2, 0x610D3AB2)
+    pamt += struct.pack("<III", 0, calculate_pa_checksum(bytes(paz0)), len(paz0))
+    pamt += struct.pack("<III", 1, calculate_pa_checksum(paz1), len(paz1))
+    pamt += struct.pack("<I", len(dir_block)) + dir_block
+    pamt += struct.pack("<I", len(name_block)) + name_block
+    pamt += struct.pack("<I", len(folder_records)) + b"".join(folder_records)
+    pamt += struct.pack("<I", len(file_records)) + b"".join(file_records)
+    pamt_crc = calculate_pa_checksum(bytes(pamt[12:]))
+    struct.pack_into("<I", pamt, 0, pamt_crc)
+    pamt_path = group / "0.pamt"
+    pamt_path.write_bytes(bytes(pamt))
+    papgt = bytearray(24)
+    struct.pack_into("<I", papgt, 20, pamt_crc)
+    struct.pack_into("<I", papgt, 4, calculate_pa_checksum(bytes(papgt[12:])))
+    (meta / "0.papgt").write_bytes(bytes(papgt))
+    return pamt_path
+
+
+def _read(entry) -> bytes:
+    return read_archive_entry_data(entry)[0]
+
+
+class _PackageCase(unittest.TestCase):
+    def setUp(self) -> None:
+        self._temp = tempfile.TemporaryDirectory()
+        self.root = Path(self._temp.name)
+        self.pamt_path = build_package(self.root, synthetic_files())
+        self.entries = parse_archive_pamt(self.pamt_path)
+        self.service = NewItemService()
+        self.snapshot = self.service.build_snapshot(self.entries, read_entry=_read)
+        self._backup_patch = patch("cdmw.core.archive_patching.ARCHIVE_PATCH_BACKUP_ROOT", self.root / "backups")
+        self._backup_patch.start()
+
+    def tearDown(self) -> None:
+        self._backup_patch.stop()
+        self._temp.cleanup()
+
+    def reread(self) -> dict[str, bytes]:
+        return {e.path.replace("\\", "/"): _read(e) for e in parse_archive_pamt(self.pamt_path)}
+
+
+class SnapshotTests(_PackageCase):
+    def test_snapshot_and_context_describe_the_template(self) -> None:
+        snap = self.snapshot
+        self.assertEqual(sorted(snap.rows), [COPPER, 11, 15, OTHER, TEMPLATE, 1002791])
+        self.assertEqual(snap.keys_by_name["Ziane_OneHandSword"], TEMPLATE)
+        self.assertEqual(snap.languages, ("eng", "ger"))
+        self.assertEqual([s.name for s in snap.stores], ["Store_Camp_Equipment", "Store_Pai_BlackMarket"])
+        self.assertIn(STEM, snap.model_stems)
+        family = snap.family(TEMPLATE)
+        self.assertEqual(family.model_stem, STEM)
+        self.assertEqual(family.owned_stems, (f"{STEM}_r", f"{STEM}_l"))
+        self.assertEqual(family.borrowed_stems, ("cd_phm_01_sword_0168_r_in_index01",))
+        self.assertEqual(family.missing_files, ())
+        context = build_context(snap, TEMPLATE)
+        self.assertEqual(context.template.equip_type_name, "OneHandSword")
+        self.assertEqual(context.template.model_stem, STEM)
+        self.assertEqual(context.template.item_group_keys, (17010, 17011))
+        self.assertEqual(context.template.levels[0].status_keys, (DDD,))
+        self.assertEqual(context.store_stock_names["Store_Camp_Equipment"], frozenset({"Cigar_OneHandSword"}))
+        self.assertIn(NAME_KEY, context.localization_keys)
+        self.assertTrue(context.store_insert_supported and context.stat_shape_edits_supported)
+        self.assertEqual(snapshot_task(self.entries, service=self.service, read_entry=_read)(lambda _m: None, None).rows.keys(), snap.rows.keys())
+
+
+class PlanTests(_PackageCase):
+    def _spec(self, **changes) -> NewItemSpec:
+        base = dict(
+            template_key=TEMPLATE, internal_name="Ziane_Clone_OneHandSword",
+            display_names={"eng": "Wolf's Fang (Clone)", "ger": "Wolfszahn (Klon)"},
+            descriptions={"eng": "A cloned sword."},
+        )
+        base.update(changes)
+        return NewItemSpec(**base)
+
+    def test_template_model_plan_touches_only_tables(self) -> None:
+        plan = self.service.plan(self._spec(
+            stat_edits=(StatEdit(0, DDD, 20000), StatEdit(0, 1000007, 500), StatEdit(2, DDD, 30000)),
+            buy_price_edits=(BuyPriceEdit(0, COPPER, 999),), price_edits=(PriceEdit(11, 250),), max_stack_count=3,
+            placement=Placement(PlacementKind.SWAP, "Store_Camp_Equipment", "Cigar_OneHandSword"),
+        ), self.snapshot)
+        self.assertEqual(plan.additions, ())
+        self.assertEqual(plan.spec.item_key, 1990000)
+        self.assertEqual((plan.spec.name_key, plan.spec.desc_key), ("4300529219900001", "4300529219900002"))
+        self.assertIsNone(plan.spec.stem)
+        touched = {request.entry.path.replace("\\", "/") for request in plan.patches}
+        self.assertEqual(touched, {
+            f"{BIN}/iteminfo.pabgb", f"{BIN}/iteminfo.pabgh", f"{BIN}/itemgroupinfo.pabgb", f"{BIN}/itemgroupinfo.pabgh",
+            f"{BIN}/storeinfo.pabgb", f"{BIN}/storeinfo.pabgh", f"{LOC}/localizationstring_eng.paloc", f"{LOC}/localizationstring_ger.paloc",
+        }, "no StringInfo, no pappt, no files: the template model and icon are kept")
+        files = dict(plan.loose_files)
+        rows = parse_pabgh_table(files[f"{BIN}/iteminfo.pabgh"], payload=files[f"{BIN}/iteminfo.pabgb"]).row_spans(len(files[f"{BIN}/iteminfo.pabgb"]))
+        self.assertEqual(len(rows), 7)
+        raw = files[f"{BIN}/iteminfo.pabgb"][rows[-1][1]:rows[-1][2]]
+        item = parse_iteminfo_row(raw, item_keys=set(self.snapshot.rows) | {1990000})
+        self.assertEqual((item.key, item.string_key, item.name_key, item.desc_key), (1990000, "Ziane_Clone_OneHandSword", "4300529219900001", "4300529219900002"))
+        self.assertEqual(item.max_stack_count, 3)
+        self.assertEqual(item.stat(0, DDD).value, 20000)
+        self.assertEqual(item.stat(0, 1000007).value, 500)
+        self.assertEqual(item.stat(2, DDD).value, 30000, "a third level was added by copying the second")
+        self.assertEqual(item.enchant_count, 3)
+        self.assertEqual([p.price for p in item.enchant_levels[0].buy_prices if p.item_key == COPPER], [999])
+        self.assertEqual([p.price for p in item.price_list if p.item_key == 11], [250])
+        # the template row is untouched, and the model hashes still name the template's parts
+        template = parse_iteminfo_row(files[f"{BIN}/iteminfo.pabgb"][rows[0][1]:rows[0][2]])
+        self.assertEqual(template.raw, self.snapshot.row(TEMPLATE).raw)
+        self.assertIn(struct.pack("<I", stringinfo_key(f"{STEM}_r")), raw)
+        stores = {s.name: s for s in parse_store_table(files[f"{BIN}/storeinfo.pabgb"], files[f"{BIN}/storeinfo.pabgh"])}
+        self.assertEqual([e.item_key for e in stores["Store_Camp_Equipment"].entries], [1990000, 50001])
+        groups = parse_item_group_table(files[f"{BIN}/itemgroupinfo.pabgb"], files[f"{BIN}/itemgroupinfo.pabgh"])
+        self.assertEqual([g.members for g in groups], [(OTHER, TEMPLATE, 1990000, 13800), (TEMPLATE, 1990000), (OTHER,)])
+        eng = parse_paloc(files[f"{LOC}/localizationstring_eng.paloc"]).index()
+        ger = parse_paloc(files[f"{LOC}/localizationstring_ger.paloc"]).index()
+        self.assertEqual((eng["4300529219900001"].text, eng["4300529219900001"].category), ("Wolf's Fang (Clone)", 7))
+        self.assertEqual(eng["4300529219900002"].text, "A cloned sword.")
+        self.assertEqual(ger["4300529219900001"].text, "Wolfszahn (Klon)")
+        self.assertEqual(ger["4300529219900002"].text, "A cloned sword.", "no German description: English fallback")
+        self.assertTrue(any("unproven" in w for w in plan.warnings), plan.warnings)
+        self.assertEqual(plan.manifest["item_groups"], ["ItemGroup_Equip_Weapon_OneHandSword", "ItemGroup_Equip"])
+        self.assertEqual(plan.manifest["store"]["old_item"], "Cigar_OneHandSword")
+        self.assertTrue(any("ItemInfo: row 1990000" in line for line in plan.summary_lines))
+
+    def test_imported_model_and_generated_icon_add_a_family(self) -> None:
+        model = ModelFiles(
+            pac_data=b"PAC imported mesh",
+            side_files={PAC_XML: b"<pac_xml><texture>cd_phm_01_sword_0109_d.dds</texture><texture>extra_n.dds</texture></pac_xml>",
+                        f"character/texture/1_pc/{STEM}_d.dds": b"DDS diffuse", "character/texture/1_pc/extra_n.dds": b"DDS extra"},
+        )
+        spec = self._spec(model_source=ModelSource.IMPORTED, icon=IconSource.GENERATED, item_groups=ItemGroupsChoice.EXPLICIT, explicit_item_groups=(17012,))
+        allocated = self.service.allocate(spec, self.snapshot)
+        self.assertEqual(allocated.stem, "cd_phm_01_sword_9109")
+        icon = NewItemIcon(
+            icon_string="ItemIcon_Prefab_cd_phm_01_sword_9109", icon_hash=stringinfo_key("ItemIcon_Prefab_cd_phm_01_sword_9109"),
+            target_path="ui/texture/icon/itemicon_prefab_cd_phm_01_sword_9109.dds", payload_data=_fake_dds(),
+            add_request=ArchiveAddRequest.from_template(self.snapshot.entry(ICON), "ui/texture/icon/itemicon_prefab_cd_phm_01_sword_9109.dds", _fake_dds()),
+            build=None,
+        )
+        plan = self.service.plan(spec, self.snapshot, model=model, icon=icon)
+        new_stem = "cd_phm_01_sword_9109"
+        added = {request.path: request for request in plan.additions}
+        self.assertEqual(set(added), {
+            f"character/model/{MODEL_FOLDER}/{new_stem}.pac", f"character/modelproperty/{MODEL_FOLDER}/{new_stem}.pac_xml",
+            f"character/bin__/meshphysics/{MODEL_FOLDER}/{new_stem}.hkx",
+            f"character/bin__/prefab/{FOLDER}/{new_stem}_r.prefab", f"character/bin__/prefab/{FOLDER}/{new_stem}_l.prefab",
+            f"character/texture/1_pc/{new_stem}_d.dds", f"character/texture/1_pc/{new_stem}_extra_n.dds",
+            "ui/texture/icon/itemicon_prefab_cd_phm_01_sword_9109.dds",
+        })
+        self.assertEqual(added[f"character/model/{MODEL_FOLDER}/{new_stem}.pac"].payload_data, b"PAC imported mesh")
+        self.assertEqual(added[f"character/bin__/meshphysics/{MODEL_FOLDER}/{new_stem}.hkx"].payload_data, b"HKX physics")
+        self.assertEqual(
+            added[f"character/modelproperty/{MODEL_FOLDER}/{new_stem}.pac_xml"].payload_data,
+            b"<pac_xml><texture>cd_phm_01_sword_9109_d.dds</texture><texture>cd_phm_01_sword_9109_extra_n.dds</texture></pac_xml>",
+        )
+        for hand in ("r", "l"):
+            prefab = decode_prefab_binary(added[f"character/bin__/prefab/{FOLDER}/{new_stem}_{hand}.prefab"].payload_data)
+            self.assertEqual([s.text for s in prefab.resource_strings()], [f"character/model/{MODEL_FOLDER}/{new_stem}.pac"])
+        self.assertTrue(all(request.pamt_path == self.pamt_path for request in plan.additions))
+        files = dict(plan.loose_files)
+        strings = stringinfo_index(parse_stringinfo(files[f"{BIN}/stringinfo.pabgb"], files[f"{BIN}/stringinfo.pabgh"]))
+        for text in (f"{new_stem}_r", f"{new_stem}_l", "ItemIcon_Prefab_cd_phm_01_sword_9109"):
+            self.assertEqual(strings[stringinfo_key(text)], text)
+        pappt = parse_pappt(files["character/bin__/partprefabtable.pappt"])
+        stems = [r.stem for r in pappt.records]
+        self.assertEqual(stems.index(f"{new_stem}_r"), stems.index(f"{STEM}_r") + 1)
+        self.assertEqual(pappt.find(f"{new_stem}_l").parts, pappt.find(f"{STEM}_l").parts)
+        rows = parse_pabgh_table(files[f"{BIN}/iteminfo.pabgh"], payload=files[f"{BIN}/iteminfo.pabgb"]).row_spans(len(files[f"{BIN}/iteminfo.pabgb"]))
+        raw = files[f"{BIN}/iteminfo.pabgb"][rows[-1][1]:rows[-1][2]]
+        for old, new in ((f"{STEM}_r", f"{new_stem}_r"), (f"{STEM}_l", f"{new_stem}_l"), (ICON_STRING, "ItemIcon_Prefab_cd_phm_01_sword_9109")):
+            self.assertNotIn(struct.pack("<I", stringinfo_key(old)), raw)
+            self.assertIn(struct.pack("<I", stringinfo_key(new)), raw)
+        self.assertIn(struct.pack("<I", stringinfo_key("cd_phm_01_sword_0168_r_in_index01")), raw, "the borrowed sheath stays borrowed")
+        groups = parse_item_group_table(files[f"{BIN}/itemgroupinfo.pabgb"], files[f"{BIN}/itemgroupinfo.pabgh"])
+        self.assertEqual([g.members for g in groups], [(OTHER, TEMPLATE, 13800), (TEMPLATE,), (OTHER, 1990000)])
+        self.assertEqual(plan.new_paths, tuple(added))
+        self.assertEqual(plan.manifest["pappt_records"], {f"{STEM}_r": f"{new_stem}_r", f"{STEM}_l": f"{new_stem}_l"})
+        self.assertEqual(plan.manifest["icon"]["path"], "ui/texture/icon/itemicon_prefab_cd_phm_01_sword_9109.dds")
+
+    def test_refusals(self) -> None:
+        with self.assertRaises(NewItemPlanError) as caught:
+            self.service.plan(self._spec(internal_name="Ziane_OneHandSword"), self.snapshot)
+        self.assertTrue(any(issue.code == "internal_name.taken" for issue in caught.exception.issues))
+        with self.assertRaisesRegex(NewItemPlanError, "no build was given"):
+            self.service.plan(self._spec(model_source=ModelSource.IMPORTED), self.snapshot)
+        with self.assertRaisesRegex(NewItemPlanError, "generated icon"):
+            self.service.plan(self._spec(icon=IconSource.GENERATED), self.snapshot)
+        with self.assertRaisesRegex(NewItemPlanError, "skips level"):
+            self.service.plan(self._spec(stat_edits=(StatEdit(4, DDD, 1),)), self.snapshot)
+        with self.assertRaises(NewItemPlanError):
+            self.service.plan(self._spec(placement=Placement(PlacementKind.SWAP, "Store_Camp_Equipment", "Nope")), self.snapshot)
+        insert = self.service.plan(self._spec(placement=Placement(PlacementKind.INSERT, "Store_Pai_BlackMarket", price=5)), self.snapshot)
+        self.assertTrue(any("unproven" in w for w in insert.warnings) and any("no price" in w for w in insert.warnings))
+        files = dict(insert.loose_files)
+        stores = {s.name: s for s in parse_store_table(files[f"{BIN}/storeinfo.pabgb"], files[f"{BIN}/storeinfo.pabgh"])}
+        self.assertEqual([e.item_key for e in stores["Store_Pai_BlackMarket"].entries], [TEMPLATE, 1990000])
+
+
+class WriteTests(_PackageCase):
+    def _plan(self):
+        spec = NewItemSpec(
+            template_key=TEMPLATE, internal_name="Ziane_Clone_OneHandSword", display_names={"eng": "Wolf's Fang (Clone)"},
+            model_source=ModelSource.IMPORTED, placement=Placement(PlacementKind.SWAP, "Store_Camp_Equipment", "Cigar_OneHandSword"),
+        )
+        return self.service.plan(spec, self.snapshot, model=ModelFiles(pac_data=b"PAC imported mesh"))
+
+    def test_install_writes_the_package_and_reads_back(self) -> None:
+        plan = self._plan()
+        mutations = ArchiveMutationService()
+        with self.assertRaisesRegex(NewItemInstallRefused, "confirmation"):
+            self.service.install(plan, mutation_service=mutations, confirmed=False, game_running=lambda: False)
+        with self.assertRaisesRegex(NewItemInstallRefused, "running"):
+            self.service.install(plan, mutation_service=mutations, confirmed=True, game_running=lambda: True)
+        logs: list[str] = []
+        with patch("cdmw.services.new_item_service.game_is_running", lambda: False):
+            result = install_task(plan, service=self.service, mutation_service=mutations, confirmed=True)(logs.append, None)
+        self.assertTrue(result.backup_dir.is_dir())
+        self.assertTrue(any("Backup created" in line for line in logs), logs[:5])
+        self.assertEqual(sorted(result.added_paths), sorted(plan.new_paths))
+        after = self.reread()
+        for path, data in plan.loose_files.items():
+            self.assertEqual(after[path], data, path)
+        rows = parse_pabgh_table(after[f"{BIN}/iteminfo.pabgh"], payload=after[f"{BIN}/iteminfo.pabgb"]).row_spans(len(after[f"{BIN}/iteminfo.pabgb"]))
+        item = parse_iteminfo_row(after[f"{BIN}/iteminfo.pabgb"][rows[-1][1]:rows[-1][2]])
+        self.assertEqual((item.key, item.string_key), (1990000, "Ziane_Clone_OneHandSword"))
+        # the installed archive is itself a valid snapshot again, and the new item resolves
+        again = self.service.build_snapshot(parse_archive_pamt(self.pamt_path), read_entry=_read)
+        family = again.family(1990000)
+        self.assertEqual(family.model_stem, "cd_phm_01_sword_9109")
+        self.assertEqual(family.owned_stems, ("cd_phm_01_sword_9109_r", "cd_phm_01_sword_9109_l"))
+        self.assertEqual(family.missing_files, ())
+        self.assertEqual([s for s in again.stores if s.name == "Store_Camp_Equipment"][0].entries[0].item_key, 1990000)
+
+    def test_export_writes_a_loose_mod_with_new_paths(self) -> None:
+        plan = self._plan()
+        out = self.root / "export"
+        result = export_task(plan, out, service=self.service, manager="CDUMM")(lambda _m: None, None)
+        self.assertEqual(result.manager, "CDUMM")
+        self.assertEqual(sorted(result.payload_paths), sorted(plan.loose_files))
+        self.assertEqual(result.new_paths, plan.new_paths)
+        files_root = out / "files"
+        self.assertTrue((files_root / "character" / "model" / Path(MODEL_FOLDER) / "cd_phm_01_sword_9109.pac").is_file())
+        manifest_path = out / "manifest.json"
+        self.assertTrue(manifest_path.is_file(), sorted(p.name for p in out.iterdir()))
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        text = json.dumps(manifest)
+        self.assertIn("cd_phm_01_sword_9109", text)
+        with self.assertRaisesRegex(ValueError, "manager profile"):
+            self.service.export_loose(plan, self.root / "x", manager="nope")
+        jmm = self.service.export_loose(plan, self.root / "jmm", manager="JMM")
+        self.assertTrue((self.root / "jmm" / "character" / "model" / Path(MODEL_FOLDER) / "cd_phm_01_sword_9109.pac").is_file())
+        self.assertEqual(jmm.manager, "JMM")
+
+    def test_plan_task_runs_the_service(self) -> None:
+        spec = NewItemSpec(template_key=TEMPLATE, internal_name="Ziane_Clone_OneHandSword", display_names={"eng": "X"})
+        plan = plan_task(spec, self.snapshot, service=self.service)(lambda _m: None, None)
+        self.assertEqual(plan.spec.item_key, 1990000)
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+import pytest  # noqa: E402
+
+
+@pytest.mark.real_game
+class VanillaNewItemTests(unittest.TestCase):
+    """The snapshot and a plan against the shipped tables (nothing is written)."""
+
+    def test_snapshot_and_plans_against_the_shipped_archives(self) -> None:
+        import time
+        from tools.placement_studio import corpus
+
+        if not corpus.game_root().is_dir():
+            self.skipTest("needs the installed game")
+        entries = [entry for _package, entry in corpus._iter_archive_entries(corpus.game_root())]
+        service = NewItemService()
+        started = time.perf_counter()
+        snapshot = service.build_snapshot(entries)
+        elapsed = time.perf_counter() - started
+        self.assertGreater(len(snapshot.rows), 6000)
+        self.assertEqual(len(snapshot.languages), 14)
+        self.assertLess(elapsed, 120.0, f"snapshot took {elapsed:.1f}s")
+        ziane = snapshot.keys_by_name["Ziane_OneHandSword"]
+        context = build_context(snapshot, ziane)
+        self.assertEqual(context.template.equip_type_name, "OneHandSword")
+        self.assertEqual(context.template.owned_stems, ("cd_phm_01_sword_0109_r", "cd_phm_01_sword_0109_l"))
+        self.assertIn("Store_Pai_BlackMarket", context.store_names)
+        self.assertIn("Ziane_OneHandSword", context.store_stock_names["Store_Pai_BlackMarket"])
+        spec = NewItemSpec(
+            template_key=ziane, internal_name="Ziane_GateClone_OneHandSword",
+            display_names={"eng": "Wolf's Fang (gate)"}, descriptions={"eng": "A planning gate."},
+            stat_edits=(StatEdit(0, DDD, 99999),),
+            placement=Placement(PlacementKind.SWAP, "Store_Pai_BlackMarket", "Ziane_OneHandSword"),
+        )
+        plan = service.plan(spec, snapshot)
+        self.assertEqual(plan.additions, ())
+        self.assertEqual(len([p for p in plan.patches if p.entry.path.endswith(".paloc")]), 14)
+        self.assertNotIn(plan.spec.item_key, snapshot.rows)
+        imported = service.plan(
+            NewItemSpec(template_key=ziane, internal_name="Ziane_GateCloneB_OneHandSword", display_names={"eng": "B"}, model_source=ModelSource.IMPORTED),
+            snapshot,
+            model=ModelFiles(pac_data=snapshot.payload("character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0109.pac")),
+        )
+        self.assertEqual(sorted(request.path.rsplit("/", 1)[-1] for request in imported.additions), [
+            f"{imported.spec.stem}.hkx", f"{imported.spec.stem}.pac", f"{imported.spec.stem}.pac_xml",
+            f"{imported.spec.stem}_l.prefab", f"{imported.spec.stem}_r.prefab",
+        ])
+        self.assertTrue(imported.spec.stem.startswith("cd_phm_01_sword_"))
+        for request in imported.additions:
+            self.assertFalse(snapshot.has_entry(request.path), request.path)

@@ -16,5 +16,8 @@ convert, and diff tasks.
 Mesh Editor topology workers execute Delete/Subdivide/Refine through service
 bridges off the UI thread; the normal edit math path is native-first through
 `native/cdmw_mesh_core`.
+`new_item_workers.py` shapes the New Item Studio's snapshot, plan, export and
+install as `(log, stop_event)` tasks for the utility runner; the service does
+the work and the tab only sees results.
 
 Related tests: `tests/test_workers.py` and worker entries under `tests/`.
