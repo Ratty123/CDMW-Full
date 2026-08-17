@@ -184,6 +184,106 @@ def builder_operation_flags(
     return spec, derive_builder_operation_flags(spec, controls)
 
 
+def operation_flag_disagreements(
+    spec: MeshOperationSpec,
+    flags: BuilderOperationFlags,
+) -> tuple[str, ...]:
+    """Where these flags contradict the operation they claim to implement.
+
+    Only the flags the operation decides for itself are compared. In the
+    geometry-only case four of them are independent user choices, and an
+    operation that leaves a flag to the user cannot be contradicted by it.
+
+    This is the check behind "no silent policy changes": a full replacement
+    quietly reduced to geometry-only, or an imported material authority quietly
+    switched back to the target's, shows up here as a disagreement between what
+    the operation says and what the flags would actually build.
+    """
+
+    problems: list[str] = []
+    imported = spec.material is MaterialAuthority.IMPORTED
+
+    if bool(flags.rebuild_material_sidecar) != bool(spec.writes_material_sidecar):
+        problems.append(
+            f"operation {spec.kind.value} "
+            f"{'writes' if spec.writes_material_sidecar else 'does not write'} a material sidecar, "
+            f"but rebuild_material_sidecar is {bool(flags.rebuild_material_sidecar)}"
+        )
+    if bool(flags.complete_external_swap) != imported:
+        problems.append(
+            f"operation {spec.kind.value} gives material authority to "
+            f"{spec.material.value}, but complete_external_swap is "
+            f"{bool(flags.complete_external_swap)}"
+        )
+
+    tuning = {
+        "neutralize_inherited_material_layers": bool(flags.neutralize_inherited_material_layers),
+        "complete_external_material_reset": bool(flags.complete_external_material_reset),
+        "enable_missing_base_color_parameters": bool(flags.enable_missing_base_color_parameters),
+        "prune_unmapped_original_texture_parameters": bool(flags.prune_unmapped_original_texture_parameters),
+    }
+    if imported:
+        off = sorted(name for name, value in tuning.items() if not value)
+        if off:
+            problems.append(
+                f"operation {spec.kind.value} replaces the target's materials, "
+                f"but these are off: {', '.join(off)}"
+            )
+    elif spec.kind is OperationKind.MODIFY_ORIGINAL:
+        # A clone preserves the target's inherited layers; the texture-tuning
+        # switch may reset its material response and nothing else may fire.
+        on = sorted(
+            name
+            for name, value in tuning.items()
+            if value and name != "complete_external_material_reset"
+        )
+        if on:
+            problems.append(
+                f"operation {spec.kind.value} keeps the target's material layers, "
+                f"but these are on: {', '.join(on)}"
+            )
+        if tuning["complete_external_material_reset"] != bool(spec.writes_material_sidecar):
+            problems.append(
+                f"operation {spec.kind.value} "
+                f"{'tunes' if spec.writes_material_sidecar else 'does not tune'} textures, "
+                "but complete_external_material_reset disagrees"
+            )
+    return tuple(problems)
+
+
+def option_operation_disagreements(options: object) -> tuple[str, ...]:
+    """The same check against a replacement options object.
+
+    Returns nothing when the options carry no operation. An options object
+    nobody classified cannot be checked against a specification it does not
+    have, and inventing one here would guess at the very intent this exists to
+    verify.
+    """
+
+    spec = getattr(options, "operation_spec", None)
+    if spec is None:
+        return ()
+    return operation_flag_disagreements(
+        spec,
+        BuilderOperationFlags(
+            rebuild_material_sidecar=bool(getattr(options, "rebuild_material_sidecar", False)),
+            complete_external_swap=bool(getattr(options, "complete_external_swap", False)),
+            neutralize_inherited_material_layers=bool(
+                getattr(options, "neutralize_inherited_material_layers", False)
+            ),
+            complete_external_material_reset=bool(
+                getattr(options, "complete_external_material_reset", False)
+            ),
+            enable_missing_base_color_parameters=bool(
+                getattr(options, "enable_missing_base_color_parameters", False)
+            ),
+            prune_unmapped_original_texture_parameters=bool(
+                getattr(options, "prune_unmapped_original_texture_parameters", False)
+            ),
+        ),
+    )
+
+
 def _any_material_override(controls: BuilderMaterialControls) -> bool:
     return bool(
         controls.rebuild_sidecar
@@ -200,4 +300,6 @@ __all__ = [
     "builder_operation_flags",
     "classify_builder_operation",
     "derive_builder_operation_flags",
+    "operation_flag_disagreements",
+    "option_operation_disagreements",
 ]

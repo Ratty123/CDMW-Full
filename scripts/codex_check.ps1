@@ -153,6 +153,12 @@ $TestsByArea = @{
         "tests/test_mesh_editor_edit_session_boundary.py",
         "tests/test_mesh_editor_error_codes.py",
         "tests/test_mesh_operation_spec.py",
+        # The operation the Builder's controls classify to, the flags derived
+        # from it, and the build that refuses options which stopped describing
+        # it. The first proves the derivation still produces what the six
+        # expressions it replaced produced; the second is the fail-closed path.
+        "tests/test_mesh_builder_operation.py",
+        "tests/test_static_mesh_build_operation_guard.py",
         "tests/test_mesh_authoring_capability.py",
         "tests/test_fbx_support_contract.py",
         "tests/test_mesh_editor_mixin_composition.py",
