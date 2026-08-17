@@ -167,6 +167,9 @@ $TestsByArea = @{
         # What an import resolved per material slot, and the build log that now
         # reads that manifest rather than retelling the same rows.
         "tests/test_imported_material_manifest.py",
+        # The import's account of a slot against the package's, which agreed
+        # only by reading the same pipeline until this compared them.
+        "tests/test_material_manifest_agreement.py",
         # Replace Materials and Textures Only, whose whole guarantee is that the
         # commit boundary emits no mesh entry at all.
         "tests/test_materials_and_textures_replacement.py",
