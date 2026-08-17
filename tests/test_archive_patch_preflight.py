@@ -87,6 +87,20 @@ def _write_test_archive(
 
 
 class ArchivePatchPreflightTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # The real writer publishes a backup under the user's temp root on every patch;
+        # these tests patch synthetic archives, so their backups go to a scratch root
+        # rather than piling up beside the user's own (two per gate run before this).
+        from cdmw.core import archive_patching
+
+        self._backup_temp = tempfile.TemporaryDirectory()
+        self._backup_root = patch.object(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", Path(self._backup_temp.name) / "backups")
+        self._backup_root.start()
+
+    def tearDown(self) -> None:
+        self._backup_root.stop()
+        self._backup_temp.cleanup()
+
     def test_valid_patch_updates_checksum_chain(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

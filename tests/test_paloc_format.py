@@ -95,22 +95,36 @@ class EditTests(unittest.TestCase):
 
 
 class AddTests(unittest.TestCase):
-    """New records for a new item, appended after the shipped ones."""
+    """New records for a new item, slotted into the numeric order the shipped tables keep."""
 
-    def test_new_records_land_at_the_end_shaped_like_the_template(self) -> None:
-        table = _table((7, "43005292000010991", "Wolf's Fang"), (8, "43005292000010992", "A sword."))
+    def test_new_records_keep_the_numeric_order_shaped_like_the_template(self) -> None:
+        # Wolf's Fang (1001295) name and description, then a later item's, as shipped.
+        table = _table((7, "4300529278648432", "Wolf's Fang"), (8, "4300529278648433", "A sword."), (7, "4300533573615728", "Boots"))
         added = add_localization_entries(
             table,
-            entries_like(table, "43005292000010991", {"43005292019900011": "Clone A"})
-            + entries_like(table, "43005292000010992", {"43005292019900012": "A clone."}),
+            entries_like(table, "4300529278648432", {"8546989214007408": "Clone A"})    # 1990001 << 32 | 0x70
+            + entries_like(table, "4300529278648433", {"4300529278648500": "Fan"}),     # between the sword and the boots
         )
-        self.assertEqual(len(added), 4)
-        self.assertEqual(added.entries[:2], table.entries)
-        self.assertEqual(added.entries[2], LocalizationEntry(7, "43005292019900011", "Clone A"))
-        self.assertEqual(added.entries[3], LocalizationEntry(8, "43005292019900012", "A clone."))
+        self.assertEqual(len(added), 5)
+        self.assertEqual([entry.key for entry in added.entries], ["4300529278648432", "4300529278648433", "4300529278648500", "4300533573615728", "8546989214007408"])
+        self.assertEqual(added.entries[2], LocalizationEntry(8, "4300529278648500", "Fan"))
+        self.assertEqual(added.entries[4], LocalizationEntry(7, "8546989214007408", "Clone A"))
         self.assertEqual(parse_paloc(encode_paloc(added)), added)
-        # nothing shipped moved
-        self.assertTrue(encode_paloc(added).startswith(encode_paloc(table)[:-4]))
+
+    def test_two_new_keys_bound_for_the_same_gap_stay_ordered(self) -> None:
+        table = _table((7, "100", "a"), (38, "questdialog_x", "q"), (7, "900", "z"), (38, "questdialog_y", "q"))
+        added = add_localization_entries(table, [LocalizationEntry(7, "500", "big"), LocalizationEntry(7, "300", "small"), LocalizationEntry(7, "950", "last"), LocalizationEntry(7, "940", "penultimate")])
+        self.assertEqual([entry.key for entry in added.entries], ["100", "questdialog_x", "300", "500", "900", "940", "950", "questdialog_y"])
+
+    def test_named_keys_append_and_an_out_of_order_tail_is_left_alone(self) -> None:
+        table = _table((7, "100", "a"), (7, "900", "z"))
+        added = add_localization_entries(table, [LocalizationEntry(38, "questdialog_new", "q"), LocalizationEntry(7, "500", "m")])
+        self.assertEqual([entry.key for entry in added.entries], ["100", "500", "900", "questdialog_new"])
+        # an earlier mod appended 300 at the end: the shipped order is the leading run, and the tail is neither moved nor trusted
+        tailed = _table((7, "100", "a"), (7, "900", "z"), (7, "300", "mod"))
+        added = add_localization_entries(tailed, [LocalizationEntry(7, "500", "m"), LocalizationEntry(7, "950", "n")])
+        self.assertEqual([entry.key for entry in added.entries], ["100", "500", "900", "950", "300"])
+        self.assertEqual([entry.key for entry in add_localization_entries(_table((38, "only_named", "x")), [LocalizationEntry(7, "5", "m")]).entries], ["only_named", "5"])
 
     def test_duplicate_and_empty_keys_are_refused(self) -> None:
         table = _table((7, "a", "A"))

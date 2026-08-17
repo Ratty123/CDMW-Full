@@ -56,6 +56,8 @@ DESC_TAG = b"\x07\x71\x00\x00\x00"
 _ITEM_TYPE_GAP = 17
 _STAT_BLOCK_MARKER = 0x11
 _MAX_LADDER_LEVELS = 40
+#: The socket list the reader accepts (`_read_u32_list(limit=8)`); the shipped rows carry at most 4.
+_MAX_SOCKET_ITEMS = 8
 _MAX_LIST = 64
 
 
@@ -612,23 +614,31 @@ def encode_stat_block(
     *,
     levels: Optional[Sequence[EnchantLevel]] = None,
     price_list: Optional[Sequence[PriceEntry]] = None,
+    socket_items: Optional[Sequence[int]] = None,
 ) -> bytes:
-    """The stat block bytes for `row`, with its ladder and/or price list replaced.
+    """The stat block bytes for `row`, with its ladder, price list and/or socket items replaced.
 
-    With neither argument the result equals `row.raw[stat_block_offset:stat_block_end]`
+    With no argument the result equals `row.raw[stat_block_offset:stat_block_end]`
     on every shipped row (the corpus gate). Levels must be numbered 0..n-1 in order.
+    `socket_items` are the Abyss Gear items embedded by default (the "perks" the
+    tooltip lists); the shipped rows carry 0..4 and the reader accepts up to 8.
     """
 
     if row.stat_block_offset is None:
         raise ItemInfoRowError(f"{row.string_key} has no decoded stat block to rebuild")
     ladder = tuple(row.enchant_levels if levels is None else levels)
     prices = tuple(row.price_list if price_list is None else price_list)
+    sockets = tuple(int(item) for item in (row.socket_items if socket_items is None else socket_items))
     if [entry.level for entry in ladder] != list(range(len(ladder))):
         raise ItemInfoRowError("enchant levels must run 0..n-1 without gaps")
     if len(ladder) > _MAX_LADDER_LEVELS:
         raise ItemInfoRowError(f"more than {_MAX_LADDER_LEVELS} enchant levels")
-    out = bytearray(struct.pack("<I", len(row.socket_items)))
-    for item in row.socket_items:
+    if len(sockets) > _MAX_SOCKET_ITEMS:
+        raise ItemInfoRowError(f"more than {_MAX_SOCKET_ITEMS} socket items")
+    if any(not 0 < item <= 0xFFFFFFFF for item in sockets):
+        raise ItemInfoRowError("socket items are positive u32 item keys")
+    out = bytearray(struct.pack("<I", len(sockets)))
+    for item in sockets:
         out += struct.pack("<I", item)
     out += struct.pack("<I", len(row.add_socket_materials))
     for item, count, extra in row.add_socket_materials:
@@ -644,10 +654,11 @@ def rebuild_stat_block(
     *,
     levels: Optional[Sequence[EnchantLevel]] = None,
     price_list: Optional[Sequence[PriceEntry]] = None,
+    socket_items: Optional[Sequence[int]] = None,
 ) -> bytes:
-    """The row with its stat block re-serialised from `levels` / `price_list`; every other byte stays."""
+    """The row with its stat block re-serialised from `levels` / `price_list` / `socket_items`; every other byte stays."""
 
-    block = encode_stat_block(row, levels=levels, price_list=price_list)
+    block = encode_stat_block(row, levels=levels, price_list=price_list, socket_items=socket_items)
     return row.raw[: row.stat_block_offset] + block + row.raw[row.stat_block_end :]
 
 

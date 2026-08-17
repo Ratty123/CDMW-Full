@@ -21,12 +21,16 @@ length: rewriting the table is just re-emitting the records. That is what makes
 
 Keys are identifiers rather than indices -- `questdialog_main_01262`,
 `aidialogstringinfogroup_cheerup_36512` -- and about 30% of them are bare numbers.
-Both forms are UTF-8 and both are preserved verbatim.
+Both forms are UTF-8 and both are preserved verbatim. The bare numbers are u64s the
+game derives from a table row (`(row key << 32) | field tag`; an item's name is tag
+0x70, its description 0x71) and the tables keep them in ascending order, which is why
+:func:`add_localization_entries` slots a new numeric key in rather than appending.
 """
 
 from __future__ import annotations
 
 import struct
+from bisect import bisect_right
 from collections import Counter
 from dataclasses import dataclass
 from typing import Iterable, Mapping, Sequence, Tuple
@@ -169,12 +173,20 @@ def replace_text(
 def add_localization_entries(
     table: LocalizationTable, entries: Iterable[LocalizationEntry]
 ) -> LocalizationTable:
-    """Return the table with new records appended at the end.
+    """Return the table with new records added where the game keeps them.
+
+    The shipped tables hold their numeric keys in strictly ascending order (129,386
+    of them in the English table, not one descent, 2026-08-17), with the named keys
+    interleaved; a numeric key is the u64 the game computes from a row (an item's name
+    is `(key << 32) | 0x70`). A new numeric key therefore goes in front of the first
+    larger numeric key, so a reader that searches the order still finds it; a named
+    key, whose place in that order is not derivable, is appended. The order is taken
+    from the table's leading ascending run, so records an earlier mod appended out of
+    order at the end neither break the placement nor move.
 
     A key that already exists, or that repeats inside the batch, is refused rather than
     shadowed: the engine keeps the later duplicate, which would silently rename a
-    shipped line. Appending is what the 2026-08-17 spike did in every language table,
-    and the game read the new records back.
+    shipped line.
     """
 
     additions = tuple(entries)
@@ -188,7 +200,30 @@ def add_localization_entries(
         if entry.key in seen:
             raise PalocFormatError(f"localization key {entry.key!r} is repeated in the additions")
         seen.add(entry.key)
-    return LocalizationTable(entries=table.entries + additions)
+    if not additions:
+        return table
+    spine: list[tuple[int, int]] = []  # (numeric key, index) of the leading ascending run
+    for index, entry in enumerate(table.entries):
+        if entry.key.isdigit():
+            value = int(entry.key)
+            if spine and value <= spine[-1][0]:
+                break
+            spine.append((value, index))
+    values = [value for value, _index in spine]
+    ordered = sorted((entry for entry in additions if entry.key.isdigit()), key=lambda item: int(item.key), reverse=True)
+    merged = list(table.entries)
+    # largest first, at positions of the unedited table: each insertion lands at or
+    # after every later one, so earlier positions stay valid, and equal positions
+    # keep the smaller key in front.
+    for entry in ordered:
+        slot = bisect_right(values, int(entry.key))
+        if slot < len(spine):
+            at = spine[slot][1]
+        else:
+            at = spine[-1][1] + 1 if spine else len(table.entries)
+        merged.insert(at, entry)
+    named = tuple(entry for entry in additions if not entry.key.isdigit())
+    return LocalizationTable(entries=tuple(merged) + named)
 
 
 def entries_like(

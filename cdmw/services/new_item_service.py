@@ -265,6 +265,7 @@ class NewItemService:
         mutation_plan = mutation_service.prepare_patch(
             plan.patches,
             additions=plan.additions,
+            meta_files=plan.meta_files,
             confirmed=True,
             description=f"New item {plan.spec.internal_name} ({plan.spec.item_key}) from template {plan.spec.template_key}",
         )

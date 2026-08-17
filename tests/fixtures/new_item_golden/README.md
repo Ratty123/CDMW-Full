@@ -23,6 +23,13 @@ This fixture pins `NewItemService.plan()` to that accepted output.
   StringInfo rows, part-prefab records, group memberships, localisation records,
   the new files' hashes, and the spec the spike used (keys, names, swaps).
 
+One thing the spike got wrong, kept here on purpose: its localisation keys
+(`4300529299990011` and friends) were invented, and the game derives an item's
+keys from its id (`(id << 32) | 0x70` and `| 0x71`), so both clones showed up
+nameless. The gate passes those keys explicitly, so it still replays the bytes
+that were installed; the allocator itself now derives the shipped form
+(`localization_keys()`), and `NewItemSpec` validation warns on any other.
+
 Regenerate with the session scratch script `build_golden_fixture.py` from the
 pre-spike table extracts, the archive backup `20260817_110150` and
 `spike_out/loose`; the point of checking it in is that none of those need to

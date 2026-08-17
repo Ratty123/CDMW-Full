@@ -20,6 +20,7 @@ from cdmw.domain.new_item import (
     TemplateLevelFacts,
     allocate_item_key,
     derive_family_stems,
+    is_conventional_localization_key,
     localization_keys,
     suggest_stem,
     validate_against_context,
@@ -160,6 +161,7 @@ class ValidateAgainstContextTests(unittest.TestCase):
         self.assertIn("internal_name.same_as_template", _codes(validate_against_context(_spec(internal_name="Ziane_OneHandSword"), _context(internal_names=frozenset()))))
         self.assertIn("item_key.taken", _codes(validate_against_context(_spec(item_key=1990001), _context())))
         self.assertIn("stem.taken", _codes(validate_against_context(_spec(stem="cd_phm_01_sword_0110"), _context())))
+        self.assertIn("stem.taken", _codes(validate_against_context(_spec(stem="cd_phm_01_sword_9110"), _context(stringinfo_texts=frozenset({"ItemIcon_Prefab_CD_PHM_01_Sword_9110"})))))
         self.assertIn("stem.same_as_template", _codes(validate_against_context(_spec(stem="cd_phm_01_sword_0109"), _context())))
         self.assertIn("name_key.taken", _codes(validate_against_context(_spec(name_key="4300529278648432"), _context())))
         unused = validate_against_context(_spec(model_source=ModelSource.TEMPLATE, icon=IconSource.TEMPLATE), _context())
@@ -190,6 +192,24 @@ class ValidateAgainstContextTests(unittest.TestCase):
         issues = validate_against_context(_spec(model_source=ModelSource.TEMPLATE, icon=IconSource.GENERATED), _context())
         self.assertIn("icon.generated_for_template_model", _codes(issues))
         self.assertFalse(has_errors(issues))
+
+    def test_socket_items(self) -> None:
+        # shape rules need no context
+        self.assertIn("sockets.range", _codes(validate_spec(_spec(socket_items=(0,)))))
+        self.assertIn("sockets.too_many", _codes(validate_spec(_spec(socket_items=tuple(range(1, 10))))))
+        five = validate_spec(_spec(socket_items=tuple(range(1, 6))))
+        self.assertIn("sockets.unproven", _codes(five))
+        self.assertFalse(has_errors(five))
+        self.assertNotIn("sockets.unproven", _codes(validate_spec(_spec(socket_items=(1, 2, 3, 4)))))
+        # against the archives: they must be item keys, and Abyss Gear ones are the known-good kind
+        gear = _context(item_keys=frozenset({1001295, 1000738, 1990001, 1002791, 1002793, 1000372}), socket_item_keys=frozenset({1002791, 1002793}))
+        self.assertFalse(has_errors(validate_against_context(_spec(socket_items=(1002793, 1002791)), gear)))
+        self.assertIn("sockets.unknown_item", _codes(validate_against_context(_spec(socket_items=(424242,)), gear)))
+        odd = validate_against_context(_spec(socket_items=(1000372,)), gear)
+        self.assertIn("sockets.not_gear", _codes(odd))
+        self.assertFalse(has_errors(odd))
+        self.assertIn("sockets.no_stat_block", _codes(validate_against_context(_spec(socket_items=(1002791,)), _context(template=_template(has_stat_block=False)))))
+        self.assertEqual([c for c in _codes(validate_against_context(_spec(socket_items=None), gear)) if c.startswith("sockets.")], [], "None keeps the template's")
 
 
 class SpecHelpersTests(unittest.TestCase):
@@ -227,6 +247,9 @@ class AllocationTests(unittest.TestCase):
         self.assertEqual(suggest_stem("cd_phm_00_hel_0047_05", ()), "cd_phm_00_hel_9047_05")
         self.assertEqual(suggest_stem("cd_phm_00_hand_00_0191", ()), "cd_phm_00_hand_00_9191")
         self.assertEqual(len(suggest_stem("cd_phm_01_sword_0109", taken)), len("cd_phm_01_sword_0109"))
+        # an item that only generated an icon under 9110 owns that stem too (the icon string is `ItemIcon_Prefab_<stem>`, any case)
+        self.assertEqual(suggest_stem("cd_phm_01_sword_0109", taken | {"ItemIcon_Prefab_cd_phm_01_sword_9110"}), "cd_phm_01_sword_9111")
+        self.assertEqual(suggest_stem("cd_phm_01_sword_0109", taken | {"ItemIcon_Prefab_CD_PHM_01_Sword_9110"}), "cd_phm_01_sword_9111")
         with self.assertRaisesRegex(AllocationError, "no digit run"):
             suggest_stem("cd_phm_sword", ())
         with self.assertRaisesRegex(AllocationError, "no free stem"):
@@ -246,13 +269,29 @@ class AllocationTests(unittest.TestCase):
         with self.assertRaisesRegex(AllocationError, "equals"):
             derive_family_stems("a", "a", ())
 
-    def test_localization_keys(self) -> None:
-        self.assertEqual(localization_keys(1990002), ("4300529219900021", "4300529219900022"))
+    def test_localization_keys_are_the_ones_the_game_computes(self) -> None:
+        # Wolf's Fang, 1001295, is 4300529278648432 / ..433 in the shipped row and paloc.
+        self.assertEqual(localization_keys(1001295), ("4300529278648432", "4300529278648433"))
+        self.assertEqual(localization_keys(1990002), (str((1990002 << 32) | 0x70), str((1990002 << 32) | 0x71)))
         name, desc = localization_keys(7)
-        self.assertNotEqual(name, desc)
-        self.assertTrue(name.isdigit() and desc.isdigit())
+        self.assertEqual((name, desc), ("30064771184", "30064771185"))
+        self.assertTrue(is_conventional_localization_key(1001295, "4300529278648432"))
+        self.assertTrue(is_conventional_localization_key(1001295, "4300529278648433", description=True))
+        self.assertFalse(is_conventional_localization_key(1001295, "4300529278648433"))
+        self.assertFalse(is_conventional_localization_key(1990002, "4300529219900021"), "the invented key that left the spike nameless")
+        self.assertFalse(is_conventional_localization_key(0, "112"))
         with self.assertRaises(AllocationError):
             localization_keys(0)
+        with self.assertRaises(AllocationError):
+            localization_keys(1 << 32)
+
+    def test_an_unconventional_key_is_a_warning(self) -> None:
+        issues = validate_spec(_spec(item_key=1990002, name_key="4300529219900021", desc_key="4300529219900022"))
+        self.assertEqual(sorted(i.code for i in issues if i.code.endswith("unconventional")), ["desc_key.unconventional", "name_key.unconventional"])
+        self.assertTrue(all(i.severity == "warning" for i in issues if i.code.endswith("unconventional")))
+        conventional = validate_spec(_spec(item_key=1990002, name_key=str((1990002 << 32) | 0x70), desc_key=str((1990002 << 32) | 0x71)))
+        self.assertEqual([i.code for i in conventional if i.code.endswith("unconventional")], [])
+        self.assertEqual([i.code for i in validate_spec(_spec(name_key="4300529219900021")) if i.code.endswith("unconventional")], [], "no item key yet: nothing to compare against")
 
 
 if __name__ == "__main__":

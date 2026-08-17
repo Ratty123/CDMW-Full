@@ -8,6 +8,7 @@ from cdmw.domain.new_item.allocation import (
     AllocationError,
     allocate_item_key,
     derive_family_stems,
+    is_conventional_localization_key,
     localization_keys,
     suggest_stem,
 )
@@ -51,6 +52,7 @@ __all__ = [
     "ValidationIssue",
     "allocate_item_key",
     "derive_family_stems",
+    "is_conventional_localization_key",
     "localization_keys",
     "suggest_stem",
     "validate_against_context",

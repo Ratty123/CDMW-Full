@@ -177,6 +177,37 @@ class ArchiveMutationServiceTests(unittest.TestCase):
                 service.prepare_patch(())
             with self.assertRaisesRegex(TypeError, "ArchiveAddRequest"):
                 service.prepare_patch((ArchivePatchRequest(entry, b"x"),), additions=("character/model/x.pac",))  # type: ignore[arg-type]
+            with self.assertRaisesRegex(TypeError, "MetaFileWrite"):
+                service.prepare_patch((ArchivePatchRequest(entry, b"x"),), meta_files=("meta/0.pathc",))  # type: ignore[arg-type]
+
+    def test_meta_files_are_written_backed_up_and_restored_with_the_patch(self) -> None:
+        from cdmw.core.archive_extraction import read_archive_entry_data
+        from cdmw.core.archive_format import parse_archive_pamt
+        from cdmw.domain.archives.mutation import MetaFileWrite
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            entry = _write_test_archive(root, "character/model/existing.pac")
+            pathc = entry.pamt_path.parent.parent / "meta" / "0.pathc"
+            pathc.write_bytes(b"registry v1")
+            service = ArchiveMutationService()
+            plan = service.prepare_patch((ArchivePatchRequest(entry, b"new-payload"),), meta_files=MetaFileWrite("meta/0.pathc", b"registry v2"), confirmed=True)
+            self.assertEqual(plan.target_paths, ("character/model/existing.pac", "meta/0.pathc"))
+            with patch.object(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", root / "backups"):
+                result = service.apply_patch(plan)
+                self.assertEqual(result.meta_paths, ["meta/0.pathc"])
+                self.assertEqual(pathc.read_bytes(), b"registry v2")
+                entries = {e.path.lower(): e for e in parse_archive_pamt(entry.pamt_path)}
+                self.assertEqual(read_archive_entry_data(entries["character/model/existing.pac"])[0], b"new-payload")
+                service.restore_backup(result.backup_dir, confirmed=True)
+            self.assertEqual(pathc.read_bytes(), b"registry v1")
+            # a meta file that does not ship is not created, and one outside the root is refused
+            missing = service.prepare_patch((ArchivePatchRequest(entry, b"x"),), meta_files=MetaFileWrite("meta/1.pathc", b"?"), confirmed=True)
+            with patch.object(archive_patching, "ARCHIVE_PATCH_BACKUP_ROOT", root / "backups"):
+                with self.assertRaisesRegex(FileNotFoundError, "does not exist"):
+                    service.apply_patch(missing)
+            with self.assertRaisesRegex(ValueError, "relative path"):
+                MetaFileWrite("../outside.bin", b"?")
 
     def test_addition_preflight_refuses_a_path_that_already_exists_before_backup(self) -> None:
         from cdmw.services.archive_mutation_service import ArchiveAddRequest

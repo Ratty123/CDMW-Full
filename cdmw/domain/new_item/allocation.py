@@ -14,9 +14,12 @@ Why these shapes:
   the template's is what lets the prefab's `.pac` path be rewritten in place, so
   the default suggestion only replaces the leading digit of the template's last
   four-digit run with 9 (`cd_phm_01_sword_9109`) and counts up from there.
-* Localisation keys are opaque strings; the shipped ones are 16-digit numbers.
-  `43005292` + the seven-digit key + `1` (name) / `2` (description) keeps that
-  look and is unique per item key.
+* Localisation keys are the decimal text of a u64 the game computes from the row:
+  `(item key << 32) | 0x70` for the name and `| 0x71` for the description, on all
+  6,573 shipped ItemInfo rows (Wolf's Fang, 1001295, is `4300529278648432` /
+  `..433`; the paloc tables are sorted by that number). An invented key that only
+  looks like one is carried in the row but never found: the 2026-08-17 spike and
+  the first phase 6 checks shipped `43005292` + id + `1`/`2` and had blank names.
 """
 
 from __future__ import annotations
@@ -25,7 +28,8 @@ import re
 from typing import Iterable, Mapping, Optional, Tuple
 
 DEFAULT_ITEM_KEY_RANGE = range(1_990_000, 2_000_000)
-_LOC_KEY_PREFIX = "43005292"
+NAME_KEY_TAG = 0x70
+DESCRIPTION_KEY_TAG = 0x71
 _DIGIT_RUN = re.compile(r"\d{4,}")
 
 
@@ -56,8 +60,16 @@ def allocate_item_key(
 
 
 def _stem_taken(stem: str, taken: Iterable[str]) -> bool:
+    """A stem is taken by an equal name, a `<stem>_...` variant, or a `..._<stem>` name
+    such as the icon string `ItemIcon_Prefab_<stem>` (compared case-insensitively:
+    an item that generated only an icon under a stem still owns that stem)."""
+
+    lower = stem.lower()
     for existing in taken:
         if existing == stem or existing.startswith(stem + "_"):
+            return True
+        folded = existing.lower()
+        if folded == lower or folded.startswith(lower + "_") or folded.endswith("_" + lower):
             return True
     return False
 
@@ -72,8 +84,8 @@ def suggest_stem(
     the leading digit swapped for `replacement_digit`, counting up while taken.
 
     `taken` should hold every stem the archives know (part-prefab stems, StringInfo
-    texts, model family stems); a stem is taken when it or any `<stem>_...`
-    variant is present.
+    texts, model family stems); a stem is taken when it, any `<stem>_...` variant
+    or any `..._<stem>` name (an icon string) is present.
     """
 
     stem = str(template_stem or "")
@@ -117,19 +129,34 @@ def derive_family_stems(template_stem: str, new_stem: str, owned_stems: Iterable
 
 
 def localization_keys(item_key: int) -> Tuple[str, str]:
-    """(name key, description key) for an item key."""
+    """(name key, description key) for an item key, the way the game derives them."""
 
     key = int(item_key)
     if key <= 0:
         raise AllocationError("item keys are positive")
-    return f"{_LOC_KEY_PREFIX}{key:07d}1", f"{_LOC_KEY_PREFIX}{key:07d}2"
+    if key > 0xFFFFFFFF:
+        raise AllocationError("item keys fit a u32")
+    return str((key << 32) | NAME_KEY_TAG), str((key << 32) | DESCRIPTION_KEY_TAG)
+
+
+def is_conventional_localization_key(item_key: int, key: str, *, description: bool = False) -> bool:
+    """True when `key` is the one the game would compute for `item_key`."""
+
+    try:
+        name_key, desc_key = localization_keys(item_key)
+    except AllocationError:
+        return False
+    return str(key) == (desc_key if description else name_key)
 
 
 __all__ = [
     "AllocationError",
     "DEFAULT_ITEM_KEY_RANGE",
+    "DESCRIPTION_KEY_TAG",
+    "NAME_KEY_TAG",
     "allocate_item_key",
     "derive_family_stems",
+    "is_conventional_localization_key",
     "localization_keys",
     "suggest_stem",
 ]

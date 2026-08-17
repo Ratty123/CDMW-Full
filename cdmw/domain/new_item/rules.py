@@ -23,6 +23,7 @@ import re
 from dataclasses import dataclass, field
 from typing import FrozenSet, Iterable, Mapping, Optional, Tuple
 
+from cdmw.domain.new_item.allocation import is_conventional_localization_key
 from cdmw.domain.new_item.spec import (
     EnhancementRows,
     IconSource,
@@ -37,6 +38,10 @@ LOCALIZATION_LANGUAGES: Tuple[str, ...] = (
     "eng", "kor", "jpn", "rus", "tur", "spa-es", "spa-mx", "fre", "ger", "ita", "pol", "por-br", "zho-tw", "zho-cn",
 )
 REQUIRED_LANGUAGE = "eng"
+
+#: The socket list the row reader accepts, and the most any shipped item carries (Regglin's boss sword, four).
+MAX_SOCKET_ITEMS = 8
+MAX_SHIPPED_SOCKET_ITEMS = 4
 
 _INTERNAL_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 _STEM_RE = re.compile(r"^[a-z0-9][a-z0-9_]{0,63}$")
@@ -85,6 +90,8 @@ class TemplateFacts:
     price_items: Tuple[int, ...] = ()
     max_stack_count: int = 1
     item_group_keys: Tuple[int, ...] = ()
+    #: The Abyss Gear items the template embeds by default (its tooltip's perk lines).
+    socket_items: Tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +111,8 @@ class NewItemContext:
     localization_keys: FrozenSet[str] = frozenset()
     status_keys: FrozenSet[int] = frozenset()
     item_group_keys: FrozenSet[int] = frozenset()
+    #: Item keys some shipped item embeds as a socket item (the Abyss Gear "perks").
+    socket_item_keys: FrozenSet[int] = frozenset()
     #: Capabilities of the current build; the rules refuse what the writers cannot do yet.
     store_insert_supported: bool = False
     stat_shape_edits_supported: bool = False
@@ -146,6 +155,10 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
             issues.append(_issue(f"{field_name}.shape", field_name, "Localisation keys are short ASCII identifiers."))
     if spec.name_key is not None and spec.desc_key is not None and spec.name_key == spec.desc_key:
         issues.append(_issue("desc_key.same_as_name", "desc_key", "The description key must differ from the name key."))
+    if spec.item_key is not None and 0 < int(spec.item_key) <= _U32_MAX:
+        for field_name, value, is_desc in (("name_key", spec.name_key, False), ("desc_key", spec.desc_key, True)):
+            if value is not None and not is_conventional_localization_key(int(spec.item_key), str(value), description=is_desc):
+                issues.append(_issue(f"{field_name}.unconventional", field_name, "The game derives this key from the item key; a different key is carried in the row but the name stays blank in game. Leave it unset to allocate the derived one.", "warning"))
 
     english = str(spec.display_names.get(REQUIRED_LANGUAGE, "") or "").strip()
     if not english:
@@ -188,6 +201,14 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
     if spec.max_stack_count is not None and not (1 <= int(spec.max_stack_count) <= _U32_MAX):
         issues.append(_issue("max_stack.range", "max_stack_count", "Max stack count is a positive 32-bit integer."))
 
+    if spec.socket_items is not None:
+        if any(not 0 < int(item) <= _U32_MAX for item in spec.socket_items):
+            issues.append(_issue("sockets.range", "socket_items", "Socket items are positive 32-bit item keys."))
+        if len(spec.socket_items) > MAX_SOCKET_ITEMS:
+            issues.append(_issue("sockets.too_many", "socket_items", f"At most {MAX_SOCKET_ITEMS} socket items fit the row."))
+        elif len(spec.socket_items) > MAX_SHIPPED_SOCKET_ITEMS:
+            issues.append(_issue("sockets.unproven", "socket_items", f"No shipped item carries more than {MAX_SHIPPED_SOCKET_ITEMS} socket items; more is unproven in game.", "warning"))
+
     placement = spec.placement
     if placement.kind is PlacementKind.NONE:
         issues.append(_issue("placement.none", "placement", "No shop placement: the item will exist but nothing in the game hands it out.", "warning"))
@@ -217,7 +238,8 @@ def _stem_family_taken(stem: str, context: NewItemContext) -> Optional[str]:
         return "a model family with that stem already exists"
     if stem in context.pappt_stems or any(existing.startswith(stem + "_") for existing in context.pappt_stems):
         return "the part-prefab table already knows that stem"
-    if stem in context.stringinfo_texts or any(text.startswith(stem + "_") for text in context.stringinfo_texts):
+    lower = stem.lower()
+    if stem in context.stringinfo_texts or any(text.startswith(stem + "_") or text.lower().endswith("_" + lower) for text in context.stringinfo_texts):
         return "StringInfo already carries that stem"
     return None
 
@@ -281,6 +303,17 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
     for edit in spec.price_edits:
         if edit.item_key not in template.price_items and not context.stat_shape_edits_supported:
             issues.append(_issue("price.not_in_template", "price_edits", f"{template.internal_name} has no price in item {edit.item_key}."))
+    if spec.socket_items is not None:
+        if not template.has_stat_block:
+            issues.append(_issue("sockets.no_stat_block", "socket_items", f"{template.internal_name}'s stat block did not decode, so its socket items cannot be replaced."))
+        if context.item_keys:
+            unknown = [item for item in spec.socket_items if int(item) not in context.item_keys]
+            if unknown:
+                issues.append(_issue("sockets.unknown_item", "socket_items", f"Not item keys: {', '.join(str(k) for k in unknown)}."))
+        if context.socket_item_keys:
+            odd = [item for item in spec.socket_items if int(item) in context.item_keys and int(item) not in context.socket_item_keys]
+            if odd:
+                issues.append(_issue("sockets.not_gear", "socket_items", f"Not Abyss Gear socket items (nothing shipped embeds them): {', '.join(str(k) for k in odd)}.", "warning"))
 
     placement = spec.placement
     if placement.kind is not PlacementKind.NONE:
@@ -310,6 +343,8 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
 
 __all__ = [
     "LOCALIZATION_LANGUAGES",
+    "MAX_SHIPPED_SOCKET_ITEMS",
+    "MAX_SOCKET_ITEMS",
     "REQUIRED_LANGUAGE",
     "NewItemContext",
     "TemplateFacts",

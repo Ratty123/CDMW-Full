@@ -15,6 +15,7 @@ from __future__ import annotations
 import struct
 import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Dict, FrozenSet, Iterable, Mapping, Optional, Tuple
 
 from cdmw.core.archive_extraction import read_archive_entry_data
@@ -22,6 +23,7 @@ from cdmw.core.item_model_family import ItemModelFamily, ItemModelFamilyError, d
 from cdmw.core.itemgroupinfo_table import ItemGroupRow, groups_containing, parse_item_group_table
 from cdmw.core.iteminfo_row import ItemInfoRow, ItemInfoRowError, parse_iteminfo_row, parse_status_names
 from cdmw.core.multichangeinfo_table import MultiChangeRow, parse_multichange_table
+from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, PathcTable, parse_pathc
 from cdmw.core.paloc_format import LocalizationTable, language_of_paloc_path, parse_paloc
 from cdmw.core.pappt_format import PartPrefabTable, parse_pappt
 from cdmw.core.storeinfo_table import StoreInfoError, StoreRow, parse_store_table
@@ -77,6 +79,9 @@ class NewItemSnapshot:
     paloc_entries: Mapping[str, ArchiveEntry]
     english: LocalizationTable
     model_stems: FrozenSet[str]
+    #: The texture registry beside the archives (`meta/0.pathc`), or None when the
+    #: package root has none; a new icon needs a row in it to draw.
+    pathc: Optional[PathcTable] = None
     _families: Dict[int, ItemModelFamily] = field(default_factory=dict, repr=False)
     _payloads: Dict[str, bytes] = field(default_factory=dict, repr=False)
 
@@ -88,6 +93,12 @@ class NewItemSnapshot:
         if entry is None:
             raise NewItemSnapshotError(f"the archives have no entry {path}")
         return entry
+
+    @property
+    def socket_item_keys(self) -> FrozenSet[int]:
+        """Item keys some shipped row embeds as a socket item (the Abyss Gear "perks")."""
+
+        return frozenset(item for row in self.rows.values() for item in row.socket_items)
 
     def has_entry(self, path: str) -> bool:
         return str(path or "").replace("\\", "/").strip("/").lower() in self.entries
@@ -260,6 +271,14 @@ def build_snapshot(
         for path in by_path
         if path.startswith(MODEL_ROOT) and path.endswith(".pac")
     )
+    pathc: Optional[PathcTable] = None
+    pathc_path = Path(iteminfo.payload_entry.pamt_path).parent.parent / PATHC_RELATIVE_PATH
+    if pathc_path.is_file():
+        log("Reading the texture registry (meta/0.pathc)...")
+        try:
+            pathc = parse_pathc(pathc_path.read_bytes())
+        except PathcError as exc:
+            log(f"The texture registry did not decode; new icons will not be registered: {exc}")
     log(f"Snapshot ready: {len(rows):,} items, {len(stores):,} stores, {len(item_groups):,} item groups, {len(paloc_entries)} languages.")
     return NewItemSnapshot(
         entries=by_path,
@@ -282,6 +301,7 @@ def build_snapshot(
         paloc_entries=paloc_entries,
         english=english,
         model_stems=model_stems,
+        pathc=pathc,
     )
 
 
@@ -320,6 +340,7 @@ def template_facts(snapshot: NewItemSnapshot, template_key: int) -> TemplateFact
         price_items=tuple(price.item_key for price in row.price_list),
         max_stack_count=int(row.max_stack_count),
         item_group_keys=tuple(group.key for group in groups_containing(snapshot.item_groups, row.key)),
+        socket_items=tuple(row.socket_items),
     )
 
 
@@ -346,6 +367,7 @@ def build_context(snapshot: NewItemSnapshot, template_key: int) -> NewItemContex
         localization_keys=frozenset(entry.key for entry in snapshot.english.entries),
         status_keys=frozenset(snapshot.status_names),
         item_group_keys=frozenset(group.key for group in snapshot.item_groups),
+        socket_item_keys=snapshot.socket_item_keys,
         store_insert_supported=True,
         stat_shape_edits_supported=True,
     )

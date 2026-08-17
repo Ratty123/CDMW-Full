@@ -87,7 +87,9 @@ $TestsByArea = @{
         # New Item Studio, phase 5: the plan reproduces the in-game-verified spike byte for byte.
         "tests/test_new_item_golden.py",
         # New Item Studio, phase 6: enhancement transition rows.
-        "tests/test_multichangeinfo_table.py"
+        "tests/test_multichangeinfo_table.py",
+        # New Item Studio, phase 6b: the texture registry (meta/0.pathc) a new icon must be registered in.
+        "tests/test_pathc_format.py"
     )
     texture = @(
         "tests/test_texture_backend_retirement.py",
