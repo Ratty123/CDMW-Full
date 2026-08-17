@@ -3661,7 +3661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 431,
+          "line": 449,
           "sink": "_manual_int"
         }
       ]
@@ -4811,7 +4811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_workflow_shell.py",
-          "line": 139,
+          "line": 138,
           "sink": "CollapsibleSection"
         }
       ]
@@ -4886,12 +4886,12 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 565,
+          "line": 583,
           "sink": "QCheckBox"
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 689,
+          "line": 714,
           "sink": "CollapsibleSection"
         }
       ]
@@ -5116,7 +5116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 409,
+          "line": 427,
           "sink": "_manual_float"
         }
       ]
@@ -5126,7 +5126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 412,
+          "line": 430,
           "sink": "_manual_float"
         }
       ]
@@ -5136,7 +5136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 410,
+          "line": 428,
           "sink": "_manual_float"
         }
       ]
@@ -5146,7 +5146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 411,
+          "line": 429,
           "sink": "_manual_int"
         }
       ]
@@ -5156,7 +5156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 408,
+          "line": 426,
           "sink": "_manual_int"
         }
       ]
@@ -5166,7 +5166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 415,
+          "line": 433,
           "sink": "_manual_int"
         }
       ]
@@ -5176,7 +5176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 413,
+          "line": 431,
           "sink": "_manual_float"
         }
       ]
@@ -5186,7 +5186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 414,
+          "line": 432,
           "sink": "_manual_float"
         }
       ]
@@ -5196,7 +5196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 419,
+          "line": 437,
           "sink": "_manual_int"
         }
       ]
@@ -5206,7 +5206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 423,
+          "line": 441,
           "sink": "_manual_int"
         }
       ]
@@ -5216,7 +5216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 421,
+          "line": 439,
           "sink": "_manual_int"
         }
       ]
@@ -5226,7 +5226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 418,
+          "line": 436,
           "sink": "_manual_float"
         }
       ]
@@ -5236,7 +5236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 431,
+          "line": 449,
           "sink": "_manual_int"
         }
       ]
@@ -5246,7 +5246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 416,
+          "line": 434,
           "sink": "_manual_int"
         }
       ]
@@ -5256,7 +5256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 422,
+          "line": 440,
           "sink": "_manual_float"
         }
       ]
@@ -5266,7 +5266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 420,
+          "line": 438,
           "sink": "_manual_int"
         }
       ]
@@ -5276,7 +5276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 417,
+          "line": 435,
           "sink": "_manual_int"
         }
       ]
@@ -5286,7 +5286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 432,
+          "line": 450,
           "sink": "_manual_int"
         }
       ]
@@ -5296,7 +5296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 430,
+          "line": 448,
           "sink": "_manual_float"
         }
       ]
@@ -5306,7 +5306,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 429,
+          "line": 447,
           "sink": "_manual_float"
         }
       ]
@@ -5891,7 +5891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 438,
+          "line": 456,
           "sink": "_manual_check"
         }
       ]
@@ -19146,7 +19146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 410,
+          "line": 428,
           "sink": "_manual_float"
         }
       ]
@@ -19156,7 +19156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 412,
+          "line": 430,
           "sink": "_manual_float"
         }
       ]
@@ -19166,7 +19166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 404,
+          "line": 422,
           "sink": "_manual_combo"
         }
       ]
@@ -20636,7 +20636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 406,
+          "line": 424,
           "sink": "_manual_combo"
         }
       ]
@@ -23566,7 +23566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 408,
+          "line": 426,
           "sink": "_manual_int"
         }
       ]
@@ -25551,7 +25551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 407,
+          "line": 425,
           "sink": "_manual_combo"
         }
       ]
@@ -27981,7 +27981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 407,
+          "line": 425,
           "sink": "_manual_combo"
         },
         {
@@ -27996,7 +27996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 415,
+          "line": 433,
           "sink": "_manual_int"
         }
       ]
@@ -28016,7 +28016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 414,
+          "line": 432,
           "sink": "_manual_float"
         }
       ]
@@ -28026,7 +28026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 413,
+          "line": 431,
           "sink": "_manual_float"
         }
       ]
@@ -28126,7 +28126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 567,
+          "line": 585,
           "sink": "setToolTip"
         }
       ]
@@ -29016,7 +29016,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 450,
+          "line": 468,
           "sink": "QLabel"
         }
       ]
@@ -31751,7 +31751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_d3d11_package_lifecycle_part_01.py",
-          "line": 624,
+          "line": 629,
           "sink": "_set_alignment_d3d11_progress"
         }
       ]
@@ -32166,7 +32166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 440,
+          "line": 458,
           "sink": "_manual_check"
         }
       ]
@@ -34206,7 +34206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 434,
+          "line": 452,
           "sink": "_manual_check"
         }
       ]
@@ -34886,7 +34886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 409,
+          "line": 427,
           "sink": "_manual_float"
         }
       ]
@@ -35036,7 +35036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 439,
+          "line": 457,
           "sink": "_manual_check"
         }
       ]
@@ -35161,7 +35161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 439,
+          "line": 457,
           "sink": "_manual_check"
         }
       ]
@@ -35358,16 +35358,6 @@
           "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
           "line": 682,
           "sink": "append_archive_log"
-        }
-      ]
-    },
-    {
-      "key": "Glow strength",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 351,
-          "sink": "QLabel"
         }
       ]
     },
@@ -36716,7 +36706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 430,
+          "line": 448,
           "sink": "_manual_float"
         }
       ]
@@ -36736,7 +36726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 429,
+          "line": 447,
           "sink": "_manual_float"
         }
       ]
@@ -40366,7 +40356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 436,
+          "line": 454,
           "sink": "_manual_check"
         }
       ]
@@ -40451,7 +40441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 435,
+          "line": 453,
           "sink": "_manual_check"
         }
       ]
@@ -40711,7 +40701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 715,
+          "line": 740,
           "sink": "CollapsibleSection"
         }
       ]
@@ -44736,7 +44726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 444,
+          "line": 462,
           "sink": "QGroupBox"
         }
       ]
@@ -44866,7 +44856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 432,
+          "line": 450,
           "sink": "_manual_int"
         }
       ]
@@ -45306,7 +45296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 662,
+          "line": 680,
           "sink": "CollapsibleSection"
         },
         {
@@ -45786,7 +45776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 436,
+          "line": 454,
           "sink": "_manual_check"
         }
       ]
@@ -45796,7 +45786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 435,
+          "line": 453,
           "sink": "_manual_check"
         }
       ]
@@ -45806,7 +45796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 434,
+          "line": 452,
           "sink": "_manual_check"
         }
       ]
@@ -48816,7 +48806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 423,
+          "line": 441,
           "sink": "_manual_int"
         }
       ]
@@ -48826,7 +48816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 420,
+          "line": 438,
           "sink": "_manual_int"
         }
       ]
@@ -48836,7 +48826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 421,
+          "line": 439,
           "sink": "_manual_int"
         }
       ]
@@ -48846,7 +48836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 422,
+          "line": 440,
           "sink": "_manual_float"
         }
       ]
@@ -51906,7 +51896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 433,
+          "line": 451,
           "sink": "_manual_rgb"
         }
       ]
@@ -58522,6 +58512,16 @@
       ]
     },
     {
+      "key": "Options",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/static_replacement_dialog_workflow_shell.py",
+          "line": 135,
+          "sink": "CollapsibleSection"
+        }
+      ]
+    },
+    {
       "key": "Orbit",
       "origins": [
         {
@@ -59246,7 +59246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 296,
+          "line": 302,
           "sink": "QCheckBox"
         }
       ]
@@ -59256,7 +59256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 298,
+          "line": 304,
           "sink": "setToolTip"
         }
       ]
@@ -59476,7 +59476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 405,
+          "line": 423,
           "sink": "_manual_combo"
         }
       ]
@@ -60391,7 +60391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_preview_model_part_01.py",
-          "line": 332,
+          "line": 331,
           "sink": "CollapsibleSection"
         }
       ]
@@ -64391,7 +64391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 437,
+          "line": 455,
           "sink": "_manual_check"
         }
       ]
@@ -64426,7 +64426,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 441,
+          "line": 459,
           "sink": "_manual_check"
         }
       ]
@@ -69476,7 +69476,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 325,
+          "line": 331,
           "sink": "QPushButton"
         },
         {
@@ -69516,7 +69516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 327,
+          "line": 333,
           "sink": "setToolTip"
         }
       ]
@@ -73931,7 +73931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 419,
+          "line": 437,
           "sink": "_manual_int"
         }
       ]
@@ -73941,7 +73941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 416,
+          "line": 434,
           "sink": "_manual_int"
         }
       ]
@@ -73951,7 +73951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 417,
+          "line": 435,
           "sink": "_manual_int"
         }
       ]
@@ -73961,7 +73961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 418,
+          "line": 436,
           "sink": "_manual_float"
         }
       ]
@@ -74026,7 +74026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 443,
+          "line": 461,
           "sink": "_manual_check"
         }
       ]
@@ -79541,7 +79541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 301,
+          "line": 307,
           "sink": "setToolTip"
         }
       ]
@@ -80481,7 +80481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 425,
+          "line": 443,
           "sink": "_manual_float"
         }
       ]
@@ -80491,7 +80491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 424,
+          "line": 442,
           "sink": "_manual_float"
         }
       ]
@@ -80501,7 +80501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 426,
+          "line": 444,
           "sink": "_manual_float"
         }
       ]
@@ -81866,7 +81866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 433,
+          "line": 451,
           "sink": "_manual_rgb"
         }
       ]
@@ -81876,7 +81876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 437,
+          "line": 455,
           "sink": "_manual_check"
         }
       ]
@@ -81886,7 +81886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 441,
+          "line": 459,
           "sink": "_manual_check"
         }
       ]
@@ -81896,7 +81896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 426,
+          "line": 444,
           "sink": "_manual_float"
         }
       ]
@@ -81906,7 +81906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 425,
+          "line": 443,
           "sink": "_manual_float"
         }
       ]
@@ -81916,7 +81916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 424,
+          "line": 442,
           "sink": "_manual_float"
         }
       ]
@@ -81926,7 +81926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 443,
+          "line": 461,
           "sink": "_manual_check"
         }
       ]
@@ -84061,7 +84061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 440,
+          "line": 458,
           "sink": "_manual_check"
         }
       ]
@@ -86005,11 +86005,6 @@
       "key": "Summary",
       "origins": [
         {
-          "path": "cdmw/ui/archive_browser/static_replacement_dialog_workflow_shell.py",
-          "line": 136,
-          "sink": "CollapsibleSection"
-        },
-        {
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 278,
           "sink": "QTreeWidgetItem"
@@ -86096,7 +86091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 406,
+          "line": 424,
           "sink": "_manual_combo"
         }
       ]
@@ -92236,7 +92231,7 @@
         },
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 321,
+          "line": 327,
           "sink": "QPushButton"
         },
         {
@@ -92316,7 +92311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 323,
+          "line": 329,
           "sink": "setToolTip"
         }
       ]
@@ -92591,7 +92586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 678,
+          "line": 703,
           "sink": "CollapsibleSection"
         }
       ]
@@ -93746,7 +93741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 438,
+          "line": 456,
           "sink": "_manual_check"
         }
       ]
@@ -96816,7 +96811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 405,
+          "line": 423,
           "sink": "_manual_combo"
         }
       ]
@@ -96856,7 +96851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 404,
+          "line": 422,
           "sink": "_manual_combo"
         }
       ]
@@ -96916,7 +96911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py",
-          "line": 411,
+          "line": 429,
           "sink": "_manual_int"
         }
       ]

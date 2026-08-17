@@ -544,6 +544,9 @@ def _source_parts_outliner_step_007(_state):
     _state.show_advanced_mapping_checkbox.toggled.connect(_state._set_advanced_mapping_visible)
     _state._set_advanced_mapping_visible(_state.show_advanced_mapping_checkbox.isChecked())
     _state.control_tabs.currentChanged.connect(lambda index: _state._ensure_mapping_table_building() if _state.control_tabs.widget(index) is _state.parts_tab else None)
+    # Part Setup is built later and needs this to build the mapping table
+    # when it is opened, now that the Parts tab it used to follow is hidden.
+    setattr(_state.dialog, '_mesh_editor_ensure_mapping_table_building', _state._ensure_mapping_table_building)
     _state._remap_source_index_collection = lambda values, index_map: _state._remap_source_index_collection_helper(tuple(values or ()), index_map)
     _state._remap_selected_source_index = lambda value, index_map: _state._remap_selected_source_index_helper(value, index_map)
     _state._remap_source_index_dict = lambda values, index_map, *, copy_values=False: _state._remap_source_index_dict_helper(values, index_map, copy_values=copy_values)

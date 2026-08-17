@@ -52,10 +52,8 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     full_import_model_replacement = bool(context.get("full_import_model_replacement"))
     materials_and_textures_only = bool(context.get("materials_and_textures_only"))
     static_replacement_workflow_mode = (
-        "full_import" if full_import_model_replacement
-        else "materials_and_textures_only" if materials_and_textures_only
-        else "modify_original" if modify_original_clone_mode
-        else "import_mesh"
+        "full_import" if full_import_model_replacement else "materials_and_textures_only" if materials_and_textures_only
+        else "modify_original" if modify_original_clone_mode else "import_mesh"
     )
 
     control_tabs = QTabWidget(content_container)
@@ -98,6 +96,7 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     if hasattr(control_tabs, "setTabVisible"):
         control_tabs.setTabVisible(control_tabs.indexOf(mesh_edit_tab), False)
         control_tabs.setTabVisible(control_tabs.indexOf(textures_tab), False)
+        control_tabs.setTabVisible(control_tabs.indexOf(parts_tab), False)
     diagnostics_page.setMinimumWidth(0 if embedded_alignment_builder else alignment_control_content_min_width)
     diagnostics_toolbar = QHBoxLayout()
     diagnostics_toolbar.setContentsMargins(5, 3, 5, 3)
@@ -133,7 +132,7 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     intro.setObjectName("HintLabel")
     intro.setVisible(False)
     setup_layout.addWidget(intro)
-    summary_section = CollapsibleSection("Summary", expanded=False)
+    summary_section = CollapsibleSection("Options", expanded=False)
     setup_summary_layout = summary_section.body_layout
     setup_layout.addWidget(summary_section)
     advanced_setup_section = CollapsibleSection("Advanced", expanded=False)

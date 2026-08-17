@@ -388,6 +388,11 @@ def _d3d11_package_lifecycle_step_021(_state):
     def _alignment_geometry_tab_active() -> bool:
         if _state._active_tab_is_helper(_state.control_tabs, _state.parts_tab):
             return True
+        # Parts & Routing is folded into Part Setup on the Setup tab, so the
+        # Setup tab is where part geometry work happens now. Without this,
+        # every part pick and drag routed as though the parts UI were hidden.
+        if _state._active_tab_is_helper(_state.control_tabs, _state.context.get('setup_tab')):
+            return True
         try:
             return _state.control_tabs.tabText(_state.control_tabs.currentIndex()).strip().lower() in {'mesh editing', 'merged mesh editing'}
         except (AttributeError, RuntimeError, TypeError, ValueError):

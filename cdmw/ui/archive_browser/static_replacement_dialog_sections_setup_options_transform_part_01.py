@@ -124,6 +124,7 @@ def _setup_options_transform_step_002(_state):
     _state.replacement_only_preview = _state.context.get('replacement_only_preview')
     _state.self = _state.context.get('self')
     _state.advanced_setup_section = _state.context.get('advanced_setup_section')
+    _state.setup_summary_layout = _state.context.get('setup_summary_layout')
     _state.setup_layout = _state.context.get('setup_layout')
     _state.setup_advanced_layout = _state.context.get('setup_advanced_layout')
     _state.setup_texture_flip_u_checkbox = _state.context.get('setup_texture_flip_u_checkbox')
@@ -149,7 +150,12 @@ def _setup_options_transform_step_002(_state):
     _state.form.setHorizontalSpacing(6)
     _state.form.setVerticalSpacing(2)
     _state.options_layout.addLayout(_state.form)
-    if _state.setup_advanced_layout is not None:
+    # Alignment mode, scale-to-length, and flip are options a reader sets
+    # on most imports; they lived under Advanced and were found by nobody.
+    # The section they go into is the one the shell titles "Options".
+    if _state.setup_summary_layout is not None:
+        _state.setup_summary_layout.addWidget(_state.options_group)
+    elif _state.setup_advanced_layout is not None:
         _state.setup_advanced_layout.addWidget(_state.options_group)
     else:
         _state.setup_layout.addWidget(_state.options_group)
@@ -344,14 +350,26 @@ def _setup_options_transform_step_005(_state):
     _state.true_source_basic_form.addLayout(_state.edge_relief_row, 5, 1)
     _state.true_source_basic_form.addWidget(_state.QLabel(_state.material_authority_adjustment_labels['edge_relief_source']), 6, 0)
     _state.true_source_basic_form.addWidget(_state.edge_relief_source_combo, 6, 1)
-    _state.true_source_basic_form.addWidget(_state.QLabel(_state.material_authority_adjustment_labels['accent_glow']), 7, 0)
-    _state.true_source_basic_form.addLayout(_state.accent_glow_row, 7, 1)
-    _state.true_source_basic_form.addWidget(_state.QLabel(_state.material_authority_adjustment_labels['glow_color']), 8, 0)
-    _state.true_source_basic_form.addLayout(_state.part_glow_color_row, 8, 1)
-    _state.true_source_basic_form.addWidget(_state.QLabel('Glow strength'), 9, 0)
-    _state.true_source_basic_form.addLayout(_state.part_glow_strength_row, 9, 1)
-    _state.true_source_basic_form.addLayout(_state.material_authority_history_row, 10, 0, 1, 2)
-    _state.true_source_basic_form.addWidget(_state.true_source_basic_hint, 11, 0, 1, 2)
+    # Glow is a per-part decision and Part Setup owns it -- an emissive toggle,
+    # a colour, and a strength for the selected part. The three Material
+    # Authority glow rows asked the same question again for the whole model,
+    # and a reader could not tell which of the two the preview was showing.
+    # The controls stay constructed because the accept path still reads the
+    # accent-glow value it carries into the build; they are just not shown.
+    for _glow_widget in (
+        _state.accent_glow_slider,
+        _state.accent_glow_spin,
+        _state.part_glow_color_checkbox,
+        *_state.part_glow_color_spins,
+        _state.part_glow_color_pick_button,
+        _state.part_glow_strength_checkbox,
+        _state.part_glow_strength_spin,
+    ):
+        # Their rows are no longer in any parent layout, so a shown widget
+        # here would become a stray top-level window.
+        _glow_widget.setVisible(False)
+    _state.true_source_basic_form.addLayout(_state.material_authority_history_row, 7, 0, 1, 2)
+    _state.true_source_basic_form.addWidget(_state.true_source_basic_hint, 8, 0, 1, 2)
     _state.unsafe_material_preflight_checkbox = _state.QCheckBox(_state.material_authority_setup_labels['unsafe_preflight'])
     _state.unsafe_material_preflight_checkbox.setObjectName('MeshAlignmentUnsafeMaterialPreflightExportCheckbox')
     _state.unsafe_material_preflight_checkbox.setChecked(False)
@@ -659,14 +677,21 @@ def _setup_options_transform_step_009(_state):
         _state.custom_icon_target_combo.addItem(_state.icon_entry.path, _state.icon_entry)
     _state.form.addWidget(_state.scale_to_length_checkbox, 1, 0, 1, 2)
     _state.form.addWidget(_state.flip_direction_checkbox, 2, 0, 1, 2)
-    _state.material_authority_section = _state.CollapsibleSection('Material Authority', expanded=False)
+    _state.material_authority_section = _state.CollapsibleSection('Material Authority', expanded=True)
+    # Directly inside Advanced rather than a section within a group within it.
+    # The section object stays because two shortcuts are scoped to it and
+    # every consumer resolves it by this name; only its header is hidden.
+    _state.material_authority_section.toggle_button.setVisible(False)
     _state.material_authority_widget = _state.QWidget()
     _state.material_authority_form = _state.QGridLayout(_state.material_authority_widget)
     _state.material_authority_form.setContentsMargins(0, 0, 0, 0)
     _state.material_authority_form.setHorizontalSpacing(6)
     _state.material_authority_form.setVerticalSpacing(2)
     _state.material_authority_section.body_layout.addWidget(_state.material_authority_widget)
-    _state.options_layout.addWidget(_state.material_authority_section)
+    if _state.setup_advanced_layout is not None:
+        _state.setup_advanced_layout.addWidget(_state.material_authority_section)
+    else:
+        _state.options_layout.addWidget(_state.material_authority_section)
     _state.material_authority_section.setVisible(not _state.modify_original_clone_mode)
     _state.material_authority_form.addWidget(_state.material_route_summary_label, 0, 0, 1, 2)
     _state.runtime_material_profile_label = _state.QLabel(_state.material_authority_setup_labels['runtime_material_profile'])
