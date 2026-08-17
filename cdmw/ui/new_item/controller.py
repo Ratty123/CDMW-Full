@@ -150,6 +150,46 @@ class NewItemStudioController(QObject):
     def languages(self) -> Tuple[str, ...]:
         return self.snapshot.languages if self.snapshot else ("eng",)
 
+    def perk_catalogue(self, text: str = "", *, limit: int = 400) -> Tuple[Tuple[int, str], ...]:
+        """(item key, label) for every gem the archives know (embedded socket items and every
+        item of their type), by English name."""
+
+        if self.snapshot is None:
+            return ()
+        needle = str(text or "").strip().casefold()
+        english = self.snapshot.english.index()
+        out = []
+        for key in self.snapshot.perk_item_keys:
+            row = self.snapshot.rows.get(key)
+            if row is None:
+                continue
+            entry = english.get(row.name_key) if row.name_key else None
+            label = f"{entry.text} ({row.string_key})" if entry is not None else row.string_key
+            if needle and needle not in label.casefold() and needle != str(key):
+                continue
+            out.append((key, label))
+        return tuple(sorted(out, key=lambda item: item[1].casefold())[:limit])
+
+    def perk_label(self, key: int) -> str:
+        for candidate, label in self.perk_catalogue():
+            if candidate == int(key):
+                return label
+        return str(key)
+
+    def template_socket_items(self) -> Tuple[int, ...]:
+        if self.snapshot is None or self.draft.template_key is None:
+            return ()
+        return tuple(self.snapshot.row(self.draft.template_key).socket_items)
+
+    def effect_stems(self, text: str = "", *, limit: int = 300) -> Tuple[str, ...]:
+        """Shipped effect stems whose name contains `text`, alphabetical."""
+
+        if self.snapshot is None:
+            return ()
+        needle = str(text or "").strip().casefold()
+        stems = [stem for stem in self.snapshot.effect_stems if not needle or needle in stem.casefold()]
+        return tuple(sorted(stems)[:limit])
+
     def template_entries(self) -> Tuple[ArchiveEntry, ...]:
         """The template's own model files, for the Builder to import over."""
 

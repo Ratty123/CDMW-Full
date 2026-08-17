@@ -12,7 +12,7 @@ from cdmw.constants import APP_TITLE, APP_VERSION
 NEW_ITEM_STUDIO_SECTION = {
     "id": "new_item_studio",
     "title": "Estudio de objetos nuevos",
-    "summary": "Clonar un objeto de equipo en uno nuevo: nombre, estadísticas, modelo, icono, tienda.",
+    "summary": "Clonar un objeto de equipo en uno nuevo: nombre, estadísticas, modelo, icono, ventajas, efecto, tienda.",
     "keywords": "objeto nuevo clonar plantilla iteminfo stringinfo tienda grupo modelo icono mod suelto instalar",
     "html": """
     <p><b>Estudio de objetos nuevos</b> (Recursos) crea un objeto nuevo a partir de una plantilla en lugar de sustituir uno del juego. La plantilla fija la clase (tipo de equipo, tipo de objeto, sockets, animaciones, vaina y forma de las estadísticas); todo lo demás es tuyo.</p>
@@ -21,6 +21,7 @@ NEW_ITEM_STUDIO_SECTION = {
       <li><b>Plantilla</b> desde el buscador o desde <b>Buscador de objetos &gt; Clonar como objeto nuevo...</b>. <b>Identidad</b>: nombre interno, nombres y descripciones por idioma (el inglés es obligatorio, los demás lo usan como respaldo), una clave del rango reservado y una raíz de modelo, ambas asignadas automáticamente salvo que las fijes.</li>
       <li><b>Modelo e icono</b>: conserva el modelo de la plantilla o <b>Importar con el Builder...</b>, que ejecuta Importar malla sobre la malla de la plantilla y entrega el resultado aquí en lugar de escribirlo sobre la plantilla; se reasigna a la familia del objeto nuevo. Conserva el icono o genera uno a partir de una imagen o carpeta, ajustado al formato DDS del icono de la plantilla.</li>
       <li><b>Estadísticas y precios</b>: una cuadrícula sobre la escalera de encantamiento de la plantilla; edita celdas, escala, fija un valor, añade un nivel (copia del inferior), edita precios base y apilamiento. Una estadística o nivel que la plantilla no tiene pasa por la reconstrucción del bloque, no probada en el juego.</li>
+      <li><b>Ventajas y efecto</b>: las ventajas son los objetos de engarce Abyss Gear que el objeto lleva por defecto (las líneas "Insight I", "Malicebane I" de la descripción); conserva las de la plantilla o elige hasta ocho de todo el catálogo de gemas (ningún objeto del juego lleva más de cuatro). Un efecto de arma es uno de los binarios de efectos del juego, injertado en los prefabs propios del objeto como EffectComponent, igual que la lanza de rayos arrojadiza lleva su aura; no probado en el juego.</li>
       <li><b>Tienda y grupos</b>: sustituye una entrada de una tienda (la forma que el juego aceptó) o añade una entrada (no probada); une los grupos de la plantilla o una lista propia.</li>
       <li><b>Salida</b>: <b>Construir plan</b> compone cada cambio de tabla y archivo sin escribir; <b>Escribir mod suelto</b> lo dispone para CDUMM, DMM o JMM con los archivos nuevos declarados; <b>Instalar en los archivos del juego...</b> sigue la misma ruta confirmada, con copia de seguridad y restaurable que cualquier otro parche, y se rechaza mientras el juego se ejecuta.</li>
     </ul>

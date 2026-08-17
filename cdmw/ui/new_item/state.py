@@ -108,6 +108,10 @@ class NewItemDraft:
     manager: str = "CDUMM"
     export_root: str = ""
     own_enhancement_rows: bool = False
+    #: The perks (Abyss Gear socket items) the item carries; None keeps the template's.
+    socket_items: Optional[List[int]] = None
+    #: A weapon effect stem (`fx_cc_firesweapon_a__fire1`); empty for none.
+    effect_stem: str = ""
 
     def reset_for_template(self, template_key: Optional[int]) -> None:
         self.template_key = template_key
@@ -117,6 +121,7 @@ class NewItemDraft:
         self.max_stack_count = None
         self.stem = ""
         self.item_key = None
+        self.socket_items = None
 
 
 def stat_edits_from_grid(draft: NewItemDraft, grid: StatGrid) -> Tuple[Tuple[StatEdit, ...], Tuple[BuyPriceEdit, ...]]:
@@ -193,7 +198,19 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         item_groups=draft.item_groups,
         explicit_item_groups=tuple(draft.explicit_item_groups),
         enhancement=EnhancementRows.OWN if draft.own_enhancement_rows else EnhancementRows.TEMPLATE,
+        socket_items=None if draft.socket_items is None else tuple(int(item) for item in draft.socket_items),
+        effect=effect_reference(draft.effect_stem),
     )
+
+
+EFFECT_KIND = "level"
+
+
+def effect_reference(stem: str) -> Optional[str]:
+    """`<stem>.level.effect`, the persistent form a weapon carries; None for no stem."""
+
+    clean = str(stem or "").strip()
+    return f"{clean}.{EFFECT_KIND}.effect" if clean else None
 
 
 def with_template(draft: NewItemDraft, template_key: Optional[int]) -> NewItemDraft:
@@ -205,8 +222,10 @@ def with_template(draft: NewItemDraft, template_key: Optional[int]) -> NewItemDr
 
 
 __all__ = [
+    "EFFECT_KIND",
     "MANAGERS",
     "NewItemDraft",
+    "effect_reference",
     "StatColumn",
     "StatGrid",
     "flat_grid_values",

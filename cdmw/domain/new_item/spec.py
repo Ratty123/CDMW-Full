@@ -119,14 +119,26 @@ class NewItemSpec:
     #: The Abyss Gear items embedded by default (the tooltip's perk lines), as item keys;
     #: None keeps the template's. The shipped rows carry up to four.
     socket_items: Optional[Tuple[int, ...]] = None
+    #: A persistent visual on the weapon: an effect reference such as
+    #: `fx_cc_firesweapon_a__fire1.level.effect` (`effect/binary__/releasebin/<stem>.pae`),
+    #: grafted into the item's own prefabs as an `EffectComponent`. None for none. Any
+    #: effect gives the item its own model family (prefabs of its own), copying the
+    #: template's mesh when no model is imported.
+    effect: Optional[str] = None
 
     @property
     def needs_new_model_files(self) -> bool:
         return self.model_source is ModelSource.IMPORTED
 
     @property
+    def needs_own_family(self) -> bool:
+        """The item gets prefabs, mesh and side files of its own under its stem."""
+
+        return self.model_source is ModelSource.IMPORTED or self.effect is not None
+
+    @property
     def needs_new_stem(self) -> bool:
-        return self.model_source is ModelSource.IMPORTED or self.icon is IconSource.GENERATED
+        return self.needs_own_family or self.icon is IconSource.GENERATED
 
     def with_allocations(
         self,

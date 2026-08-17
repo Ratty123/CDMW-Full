@@ -193,6 +193,21 @@ class ValidateAgainstContextTests(unittest.TestCase):
         self.assertIn("icon.generated_for_template_model", _codes(issues))
         self.assertFalse(has_errors(issues))
 
+    def test_effects(self) -> None:
+        self.assertIn("effect.shape", _codes(validate_spec(_spec(effect="not an effect"))))
+        self.assertIn("effect.shape", _codes(validate_spec(_spec(effect="fx_a.pae"))))
+        self.assertEqual([c for c in _codes(validate_spec(_spec(effect="fx_cc_firesweapon_a__fire1.level.effect"))) if c.startswith("effect")], [])
+        self.assertTrue(_spec(model_source=ModelSource.TEMPLATE, effect="fx_a.level.effect", stem=None).needs_own_family)
+        self.assertTrue(_spec(model_source=ModelSource.TEMPLATE, effect="fx_a.level.effect", stem=None).needs_new_stem)
+        self.assertFalse(_spec(model_source=ModelSource.TEMPLATE, effect=None, icon=IconSource.TEMPLATE, stem=None).needs_new_stem)
+        known = _context(effect_stems=frozenset({"fx_a", "fx_b"}))
+        issues = validate_against_context(_spec(effect="fx_a.level.effect"), known)
+        self.assertIn("effect.unproven", _codes(issues))
+        self.assertFalse(has_errors(issues))
+        self.assertIn("effect.unknown", _codes(validate_against_context(_spec(effect="fx_zzz.level.effect"), known)))
+        self.assertNotIn("effect.unknown", _codes(validate_against_context(_spec(effect="fx_zzz.level.effect"), _context())), "no stem list: nothing to refuse against")
+        self.assertIn("template.no_owned_stems", _codes(validate_against_context(_spec(model_source=ModelSource.TEMPLATE, effect="fx_a.level.effect"), _context(template=_template(owned_stems=())))))
+
     def test_socket_items(self) -> None:
         # shape rules need no context
         self.assertIn("sockets.range", _codes(validate_spec(_spec(socket_items=(0,)))))

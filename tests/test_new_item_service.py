@@ -49,10 +49,11 @@ from cdmw.domain.new_item.spec import (  # noqa: E402
 from cdmw.services.archive_mutation_service import ArchiveMutationService  # noqa: E402
 from cdmw.services.new_item_planning import ModelFiles, NewItemPlanError  # noqa: E402
 from cdmw.services.new_item_service import NewItemInstallRefused, NewItemService  # noqa: E402
-from cdmw.services.new_item_snapshot import build_context  # noqa: E402
+from cdmw.services.new_item_snapshot import EFFECT_DONOR_PATH, EFFECT_DONOR_PREFAB, build_context  # noqa: E402
 from cdmw.workers.new_item_workers import export_task, install_task, plan_task, snapshot_task  # noqa: E402
 from test_iteminfo_row import COPPER, DDD, build_row  # noqa: E402
 from test_prefab_binary_edit import _build as build_prefab  # noqa: E402
+from test_prefab_component_graft import build_prefab as build_component_prefab  # noqa: E402
 from test_storeinfo_table import _entry as stock_entry, _row as store_row  # noqa: E402
 
 TEMPLATE = 1001295
@@ -147,7 +148,10 @@ def synthetic_files() -> dict[str, bytes]:
     )
     money = [
         (key, build_row(key=key, string_key=name, equip="", stems=(), levels=[], prices=(), socket_items=(), adds=()))
-        for key, name in ((COPPER, "Money_Copper"), (11, "Money_Silver"), (15, "Camp_Weapon_Token"), (1002791, "Socket_Gem"), (1002793, "Socket_Gem_III"), (1002812, "Socket_Swift_III"))
+        for key, name in ((COPPER, "Money_Copper"), (11, "Money_Silver"), (15, "Camp_Weapon_Token"))
+    ] + [
+        (key, build_row(key=key, string_key=name, equip="", item_type=2501, stems=(), levels=[], prices=(), socket_items=(), adds=()))
+        for key, name in ((1002791, "Socket_Gem"), (1002793, "Socket_Gem_III"), (1002812, "Socket_Swift_III"))
     ]
     iteminfo = _table4([(TEMPLATE, template), (OTHER, other)] + money)
     texts = [f"{STEM}_r", f"{STEM}_l", "cd_phm_01_sword_0168_r_in_index01", "cd_phm_01_sword_0016_r", "cd_phm_01_sword_0016_l", ICON_STRING, "rootlevel"]
@@ -193,8 +197,13 @@ def synthetic_files() -> dict[str, bytes]:
         f"{BIN}/equiptypeinfo.pabgb": equiptypes[0], f"{BIN}/equiptypeinfo.pabgh": equiptypes[1],
         f"{LOC}/localizationstring_eng.paloc": eng, f"{LOC}/localizationstring_ger.paloc": ger,
         "character/bin__/partprefabtable.pappt": pappt,
-        f"character/bin__/prefab/{FOLDER}/{STEM}_r.prefab": build_prefab(PAC),
-        f"character/bin__/prefab/{FOLDER}/{STEM}_l.prefab": build_prefab(PAC),
+        # the family's own prefabs are shaped like the shipped ones (a SkinnedMeshComponent in
+        # `_components`), so an effect can be grafted into them; the others keep the older shape
+        f"character/bin__/prefab/{FOLDER}/{STEM}_r.prefab": build_component_prefab(component="SkinnedMeshComponent", member_kind="pointer", value=PAC, pointee_type="ResourceReferencePath_SkinnedMesh"),
+        f"character/bin__/prefab/{FOLDER}/{STEM}_l.prefab": build_component_prefab(component="SkinnedMeshComponent", member_kind="pointer", value=PAC, pointee_type="ResourceReferencePath_SkinnedMesh"),
+        EFFECT_DONOR_PREFAB: build_component_prefab(component="EffectComponent", member_kind="object", value=EFFECT_DONOR_PATH, with_transform=True, pointee_type="EffectDataReferencePath"),
+        "effect/binary__/releasebin/fx_test_fire.pae": b"PAE fire",
+        "effect/binary__/releasebin/fx_test_ice.pae": b"PAE ice",
         f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0168_r_in_index01.prefab": build_prefab(sheath_pac),
         f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0016_r.prefab": build_prefab(other_pac),
         f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0016_l.prefab": build_prefab(other_pac),
@@ -468,6 +477,47 @@ class PlanTests(_PackageCase):
         self.assertTrue(any("5 socket items" in w for w in five.warnings), five.warnings)
         with self.assertRaises(NewItemPlanError):
             self.service.plan(self._spec(socket_items=(424242,)), self.snapshot)
+
+    def test_an_effect_gives_the_item_prefabs_of_its_own_with_an_effect_component(self) -> None:
+        context = build_context(self.snapshot, TEMPLATE)
+        self.assertEqual(context.effect_stems, frozenset({"fx_test_fire", "fx_test_ice"}))
+        spec = self._spec(model_source=ModelSource.TEMPLATE, effect="fx_test_fire.level.effect")
+        self.assertTrue(spec.needs_own_family and spec.needs_new_stem)
+        plan = self.service.plan(spec, self.snapshot)
+        added = {request.path: request for request in plan.additions}
+        new_stem = plan.spec.stem
+        self.assertEqual(new_stem, "cd_phm_01_sword_9109")
+        self.assertEqual(set(added), {
+            f"character/model/{MODEL_FOLDER}/{new_stem}.pac", f"character/modelproperty/{MODEL_FOLDER}/{new_stem}.pac_xml",
+            f"character/bin__/meshphysics/{MODEL_FOLDER}/{new_stem}.hkx",
+            f"character/bin__/prefab/{FOLDER}/{new_stem}_r.prefab", f"character/bin__/prefab/{FOLDER}/{new_stem}_l.prefab",
+        }, "the template's family copied under the new stem, no textures, no icon")
+        self.assertEqual(added[f"character/model/{MODEL_FOLDER}/{new_stem}.pac"].payload_data, self.snapshot.payload(PAC), "the template's own mesh")
+        for hand in ("r", "l"):
+            doc = decode_prefab_binary(added[f"character/bin__/prefab/{FOLDER}/{new_stem}_{hand}.prefab"].payload_data)
+            self.assertTrue(doc.walk_complete, doc.walk_note)
+            self.assertEqual([o.component_type for o in doc.objects], ["SkinnedMeshComponent", "EffectComponent"])
+            self.assertEqual([r.text for r in doc.resource_strings()], [f"character/model/{MODEL_FOLDER}/{new_stem}.pac", "fx_test_fire.level.effect"])
+            self.assertIn("EffectComponent", [t.type_name for t in doc.types])
+        self.assertEqual(plan.manifest["effect"]["path"], "fx_test_fire.level.effect")
+        self.assertEqual(len(plan.manifest["effect"]["prefabs"]), 2)
+        self.assertTrue(any("grafted" in w and "unproven" in w for w in plan.warnings), plan.warnings)
+        self.assertTrue(any(line.startswith("effect: fx_test_fire") for line in plan.summary_lines))
+        # the item's row points at its own part stems and the part-prefab table knows them
+        files = dict(plan.loose_files)
+        pappt = parse_pappt(files["character/bin__/partprefabtable.pappt"])
+        self.assertIsNotNone(pappt.find(f"{new_stem}_r"))
+        # rules: an unknown stem is refused before anything is planned; a bad shape too
+        with self.assertRaises(NewItemPlanError) as caught:
+            self.service.plan(self._spec(model_source=ModelSource.TEMPLATE, effect="fx_nope.level.effect"), self.snapshot)
+        self.assertIn("effect.unknown", [i.code for i in caught.exception.issues])
+        with self.assertRaises(NewItemPlanError) as caught:
+            self.service.plan(self._spec(model_source=ModelSource.TEMPLATE, effect="not an effect"), self.snapshot)
+        self.assertIn("effect.shape", [i.code for i in caught.exception.issues])
+        # on an imported model the effect rides on the imported family
+        imported = self.service.plan(self._spec(model_source=ModelSource.IMPORTED, effect="fx_test_ice.level.effect"), self.snapshot, model=ModelFiles(pac_data=b"PAC imported mesh"))
+        doc = decode_prefab_binary({r.path: r for r in imported.additions}[f"character/bin__/prefab/{FOLDER}/{new_stem}_r.prefab"].payload_data)
+        self.assertEqual([r.text for r in doc.resource_strings()], [f"character/model/{MODEL_FOLDER}/{new_stem}.pac", "fx_test_ice.level.effect"])
 
     def test_refusals(self) -> None:
         with self.assertRaises(NewItemPlanError) as caught:

@@ -22,6 +22,8 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem
 from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, encode_pathc, register_dds, register_texture
+from cdmw.core.prefab_binary_edit import PrefabEditError
+from cdmw.core.prefab_component_graft import encode_transform, graft_prefab_component
 from cdmw.core.item_model_family import ItemModelFamily
 from cdmw.core.itemgroupinfo_table import add_group_members, apply_item_group_row, groups_containing
 from cdmw.core.multichangeinfo_table import allocate_multichange_keys, clone_transition_rows, find_multichange_keys, transition_rows_for
@@ -48,7 +50,7 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.rules import ValidationIssue
 from cdmw.domain.new_item.spec import EnhancementRows, IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind
 from cdmw.models import ArchiveEntry
-from cdmw.services.new_item_snapshot import NewItemSnapshot, NewItemSnapshotError
+from cdmw.services.new_item_snapshot import EFFECT_DONOR_PATH, EFFECT_DONOR_PREFAB, NewItemSnapshot, NewItemSnapshotError
 
 
 class NewItemPlanError(ValueError):
@@ -132,7 +134,10 @@ class _Planner:
 
     @property
     def clones_model(self) -> bool:
-        return self.spec.model_source is ModelSource.IMPORTED
+        """The item gets a model family of its own: an imported build, or the template's
+        mesh copied so its prefabs can carry an effect."""
+
+        return self.spec.needs_own_family
 
     def patch(self, entry: ArchiveEntry, payload: bytes, what: str) -> None:
         self.patches.append(ArchivePatchRequest(entry=entry, payload_data=bytes(payload)))
@@ -357,9 +362,8 @@ class _Planner:
     def plan_model_files(self) -> None:
         if not self.clones_model:
             self.manifest["model_files"] = []
+            self.manifest["effect"] = None
             return
-        if self.model is None:
-            raise NewItemPlanError("the spec imports a model but no build was given")
         family = self.family
         renamed = {old: (role, new) for role, old, new in family.renamed(self.new_stem)}
         pac_files = [item for item in family.files_for("pac") if item.exists]
@@ -368,9 +372,15 @@ class _Planner:
         # The family stem names the mesh the import replaces; a second owned mesh (a
         # sheath) is copied under the new stem so its prefabs keep resolving.
         primary = next((item for item in pac_files if item.path.lower().rsplit("/", 1)[-1] == f"{family.model_stem.lower()}.pac"), pac_files[0])
+        if self.model is None:
+            if self.spec.model_source is ModelSource.IMPORTED:
+                raise NewItemPlanError("the spec imports a model but no build was given")
+            # an effect on the template's own model: the family is copied as it is
+            self.model = ModelFiles(pac_data=self.snapshot.payload(primary.path))
         pac_map = {item.path: renamed[item.path][1] for item in pac_files}
         old_pac = primary.path
         texture_map = self._texture_renames()
+        donor = self._effect_donor()
         written: List[str] = []
         for item in family.files:
             role, new_path = renamed[item.path]
@@ -386,6 +396,8 @@ class _Planner:
                 if not result.edits:
                     raise NewItemPlanError(f"{item.path} names none of the family's meshes, so it cannot be re-pathed")
                 payload = result.data
+                if donor is not None:
+                    payload = self._graft_effect(payload, donor, new_path)
             elif role == "pac_xml":
                 payload = self.model.side_files.get(item.path, self.snapshot.payload(item.path))
                 for old_name, new_name in texture_map.items():
@@ -404,6 +416,28 @@ class _Planner:
             self.add(template_entry, new_path, data, f"texture: {new_path}")
             written.append(new_path)
         self.manifest["model_files"] = written
+
+    def _effect_donor(self) -> Optional[bytes]:
+        if self.spec.effect is None:
+            self.manifest["effect"] = None
+            return None
+        if not self.snapshot.has_entry(EFFECT_DONOR_PREFAB):
+            raise NewItemPlanError(f"the archives have no {EFFECT_DONOR_PREFAB}, the prefab a weapon effect is grafted from")
+        self.manifest["effect"] = {"path": str(self.spec.effect), "donor": EFFECT_DONOR_PREFAB, "prefabs": []}
+        self.warnings.append(f"The effect {self.spec.effect} is grafted into the item's prefabs as an EffectComponent; a grafted effect is unproven in game.")
+        return self.snapshot.payload(EFFECT_DONOR_PREFAB)
+
+    def _graft_effect(self, prefab: bytes, donor: bytes, new_path: str) -> bytes:
+        try:
+            result = graft_prefab_component(
+                prefab, donor, component_type="EffectComponent",
+                path_replacements={EFFECT_DONOR_PATH: str(self.spec.effect)}, offset_transform=encode_transform(),
+            )
+        except PrefabEditError as exc:
+            raise NewItemPlanError(f"{new_path}: the effect could not be grafted: {exc}") from exc
+        self.manifest["effect"]["prefabs"].append(new_path)
+        self.summary.append(f"effect: {self.spec.effect} grafted into {new_path.rsplit('/', 1)[-1]} ({', '.join(result.types_added) or 'types already declared'})")
+        return result.data
 
     def _texture_renames(self) -> Mapping[str, str]:
         """texture file name -> new file name for the textures the import produced."""

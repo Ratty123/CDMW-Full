@@ -22,7 +22,7 @@ from cdmw.ui.new_item.controller import NewItemStudioController
 
 class PlacementPanel(QGroupBox):
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
-        super().__init__("5. Shop and item groups", parent)
+        super().__init__("6. Shop and item groups", parent)
         self._controller = controller
         layout = QVBoxLayout(self)
 

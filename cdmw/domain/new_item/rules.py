@@ -46,6 +46,7 @@ MAX_SHIPPED_SOCKET_ITEMS = 4
 _INTERNAL_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 _STEM_RE = re.compile(r"^[a-z0-9][a-z0-9_]{0,63}$")
 _LOC_KEY_RE = re.compile(r"^[A-Za-z0-9_]{1,64}$")
+_EFFECT_RE = re.compile(r"^[A-Za-z0-9_\-]{1,128}\.(level|action)\.effect$")
 _U32_MAX = 0xFFFFFFFF
 _I32_MIN, _I32_MAX = -0x80000000, 0x7FFFFFFF
 
@@ -113,6 +114,8 @@ class NewItemContext:
     item_group_keys: FrozenSet[int] = frozenset()
     #: Item keys some shipped item embeds as a socket item (the Abyss Gear "perks").
     socket_item_keys: FrozenSet[int] = frozenset()
+    #: Stems of the shipped effect binaries (`effect/binary__/releasebin/<stem>.pae`).
+    effect_stems: FrozenSet[str] = frozenset()
     #: Capabilities of the current build; the rules refuse what the writers cannot do yet.
     store_insert_supported: bool = False
     stat_shape_edits_supported: bool = False
@@ -201,6 +204,9 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
     if spec.max_stack_count is not None and not (1 <= int(spec.max_stack_count) <= _U32_MAX):
         issues.append(_issue("max_stack.range", "max_stack_count", "Max stack count is a positive 32-bit integer."))
 
+    if spec.effect is not None and not _EFFECT_RE.match(str(spec.effect)):
+        issues.append(_issue("effect.shape", "effect", "An effect is named `<stem>.level.effect` (or `.action.effect`), the stem being a shipped `effect/binary__/releasebin/<stem>.pae`."))
+
     if spec.socket_items is not None:
         if any(not 0 < int(item) <= _U32_MAX for item in spec.socket_items):
             issues.append(_issue("sockets.range", "socket_items", "Socket items are positive 32-bit item keys."))
@@ -279,8 +285,13 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
                 issues.append(_issue("stem.taken", "stem", f"Stem {stem} cannot be used: {reason}."))
         if not spec.needs_new_stem:
             issues.append(_issue("stem.unused", "stem", "A stem was given but the item keeps the template's model and icon, so it is not used.", "warning"))
-    if spec.needs_new_stem and spec.model_source is ModelSource.IMPORTED and not template.owned_stems:
+    if spec.needs_own_family and not template.owned_stems:
         issues.append(_issue("template.no_owned_stems", "template_key", f"{template.internal_name} owns no prefab stems to clone (all of its parts are borrowed)."))
+    if spec.effect is not None:
+        stem = str(spec.effect).split(".", 1)[0]
+        if context.effect_stems and stem not in context.effect_stems:
+            issues.append(_issue("effect.unknown", "effect", f"No shipped effect is named {stem}."))
+        issues.append(_issue("effect.unproven", "effect", "A weapon effect is grafted into the item's prefabs as an EffectComponent, the way the shipped thrown lightning spear carries one; unproven in game.", "warning"))
 
     for field_name, value in (("name_key", spec.name_key), ("desc_key", spec.desc_key)):
         if value is not None and str(value) in context.localization_keys:

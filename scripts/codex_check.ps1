@@ -89,7 +89,9 @@ $TestsByArea = @{
         # New Item Studio, phase 6: enhancement transition rows.
         "tests/test_multichangeinfo_table.py",
         # New Item Studio, phase 6b: the texture registry (meta/0.pathc) a new icon must be registered in.
-        "tests/test_pathc_format.py"
+        "tests/test_pathc_format.py",
+        # New Item Studio, phase 7: grafting a component (a weapon effect) into a prefab.
+        "tests/test_prefab_component_graft.py"
     )
     texture = @(
         "tests/test_texture_backend_retirement.py",
