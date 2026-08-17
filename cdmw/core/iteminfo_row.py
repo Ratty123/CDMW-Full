@@ -58,6 +58,8 @@ _STAT_BLOCK_MARKER = 0x11
 _MAX_LADDER_LEVELS = 40
 #: The socket list the reader accepts (`_read_u32_list(limit=8)`); the shipped rows carry at most 4.
 _MAX_SOCKET_ITEMS = 8
+#: Socket-slot (add-socket material) entries the reader walks back over; the shipped rows carry at most 5.
+_MAX_SOCKET_SLOTS = 8
 _MAX_LIST = 64
 
 
@@ -615,13 +617,19 @@ def encode_stat_block(
     levels: Optional[Sequence[EnchantLevel]] = None,
     price_list: Optional[Sequence[PriceEntry]] = None,
     socket_items: Optional[Sequence[int]] = None,
+    add_socket_materials: Optional[Sequence[Tuple[int, int, int]]] = None,
 ) -> bytes:
-    """The stat block bytes for `row`, with its ladder, price list and/or socket items replaced.
+    """The stat block bytes for `row`, with its ladder, price list, socket items and/or
+    socket-slot materials replaced.
 
     With no argument the result equals `row.raw[stat_block_offset:stat_block_end]`
     on every shipped row (the corpus gate). Levels must be numbered 0..n-1 in order.
     `socket_items` are the Abyss Gear items embedded by default (the "perks" the
     tooltip lists); the shipped rows carry 0..4 and the reader accepts up to 8.
+    `add_socket_materials` (item, count, extra) is `_addSocketMaterialList`, one entry
+    per socket *slot* (the cost of opening it: 500, 1000, 2000 copper on Wolf's Fang,
+    up to 4000 on the boss sword with five); a row shows and uses at most that many
+    socket items, so a fourth gem on a three-slot row is dropped (seen in game 2026-08-18).
     """
 
     if row.stat_block_offset is None:
@@ -629,6 +637,9 @@ def encode_stat_block(
     ladder = tuple(row.enchant_levels if levels is None else levels)
     prices = tuple(row.price_list if price_list is None else price_list)
     sockets = tuple(int(item) for item in (row.socket_items if socket_items is None else socket_items))
+    slots = tuple((int(a), int(b), int(c)) for a, b, c in (row.add_socket_materials if add_socket_materials is None else add_socket_materials))
+    if len(slots) > _MAX_SOCKET_SLOTS:
+        raise ItemInfoRowError(f"more than {_MAX_SOCKET_SLOTS} socket slots")
     if [entry.level for entry in ladder] != list(range(len(ladder))):
         raise ItemInfoRowError("enchant levels must run 0..n-1 without gaps")
     if len(ladder) > _MAX_LADDER_LEVELS:
@@ -640,8 +651,8 @@ def encode_stat_block(
     out = bytearray(struct.pack("<I", len(sockets)))
     for item in sockets:
         out += struct.pack("<I", item)
-    out += struct.pack("<I", len(row.add_socket_materials))
-    for item, count, extra in row.add_socket_materials:
+    out += struct.pack("<I", len(slots))
+    for item, count, extra in slots:
         out += struct.pack("<III", item, count, extra)
     out += bytes([_STAT_BLOCK_MARKER, row.stat_block_flags[0], row.stat_block_flags[1]])
     out += struct.pack("<I", len(ladder)) + b"".join(encode_enchant_level(level) for level in ladder)
@@ -655,11 +666,27 @@ def rebuild_stat_block(
     levels: Optional[Sequence[EnchantLevel]] = None,
     price_list: Optional[Sequence[PriceEntry]] = None,
     socket_items: Optional[Sequence[int]] = None,
+    add_socket_materials: Optional[Sequence[Tuple[int, int, int]]] = None,
 ) -> bytes:
-    """The row with its stat block re-serialised from `levels` / `price_list` / `socket_items`; every other byte stays."""
+    """The row with its stat block re-serialised from the given parts; every other byte stays."""
 
-    block = encode_stat_block(row, levels=levels, price_list=price_list, socket_items=socket_items)
+    block = encode_stat_block(row, levels=levels, price_list=price_list, socket_items=socket_items, add_socket_materials=add_socket_materials)
     return row.raw[: row.stat_block_offset] + block + row.raw[row.stat_block_end :]
+
+
+def socket_slots_for(row: ItemInfoRow, count: int) -> Tuple[Tuple[int, int, int], ...]:
+    """The row's `_addSocketMaterialList` grown to at least `count` slots, each new slot
+    priced like the shipped progression (500, 1000, 2000, then +1000 a slot, in the last
+    entry's money item; 500 copper when the row has none)."""
+
+    slots = [tuple(int(v) for v in item) for item in row.add_socket_materials]
+    while len(slots) < int(count):
+        if not slots:
+            slots.append((1, 500, 0))
+        else:
+            item, cost, extra = slots[-1]
+            slots.append((item, cost * 2 if cost < 2000 else cost + 1000, extra))
+    return tuple(slots)
 
 
 def level_with_stat(level: EnchantLevel, status_key: int, value: int, *, extra: int = 0) -> EnchantLevel:
@@ -798,4 +825,5 @@ __all__ = [
     "set_max_stack_count",
     "set_price",
     "set_stat_value",
+    "socket_slots_for",
 ]

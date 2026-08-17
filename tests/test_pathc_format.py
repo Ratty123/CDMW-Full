@@ -17,6 +17,7 @@ from cdmw.core.pathc_format import (  # noqa: E402
     PathcEntry,
     PathcError,
     PathcTable,
+    block_infos_for,
     dds_shape,
     encode_pathc,
     parse_pathc,
@@ -96,10 +97,27 @@ class PathcTests(unittest.TestCase):
         new = register_dds(table, "character/texture/new_d.dds", BIG_HEADER + bytes(16))
         entry = new.find("character/texture/new_d.dds")
         self.assertEqual((entry.header_index, entry.block_infos), (0, BIG_BLOCKS), "the header's usual block infos, not the odd one out")
-        with self.assertRaisesRegex(PathcError, "no shipped texture header"):
-            register_dds(table, "x.dds", dds_header(width=64, height=64))
         with self.assertRaisesRegex(PathcError, "DDS header"):
             register_dds(table, "x.dds", b"nope")
+        # a shape the registry has never seen gets a header row of its own, with computed mip sizes
+        odd_shape = dds_header(width=64, height=64, mips=7)  # DXT5
+        grown = register_dds(table, "x/new_64.dds", odd_shape + bytes(4096))
+        self.assertEqual(len(grown.headers), 3)
+        entry = grown.find("x/new_64.dds")
+        self.assertEqual(entry.header_index, 2)
+        self.assertEqual(struct.unpack("<4I", entry.block_infos), (4096, 1024, 256, 64), "DXT5 64x64 mips 0..3")
+        self.assertEqual(grown.headers[2][:32], odd_shape[:32])
+        self.assertEqual(grown.headers[2][32:76], bytes(44), "dwReserved1 zeroed")
+        self.assertEqual(struct.unpack_from("<I", grown.headers[2], 124)[0], 4, "the usual usage tag")
+        self.assertEqual(grown.headers[2][128:], bytes(20))
+        self.assertEqual(parse_pathc(encode_pathc(grown)), grown)
+        one_mip = register_dds(table, "x/one.dds", dds_header(width=64, height=64, mips=1) + bytes(4096))
+        self.assertEqual(struct.unpack("<4I", one_mip.find("x/one.dds").block_infos), (4096, 4096, 0, 0), "a one-mip texture repeats the top size, like the icons")
+        bc5 = register_dds(table, "x/n.dds", dds_header(width=32, height=32, fourcc=b"BC5U", mips=6) + bytes(1024))
+        self.assertEqual(struct.unpack("<4I", bc5.find("x/n.dds").block_infos), (1024, 256, 64, 16))
+        self.assertEqual(block_infos_for(dds_header(width=256, height=256, fourcc=b"DXT5", mips=1)), struct.pack("<4I", 65536, 65536, 0, 0))
+        with self.assertRaisesRegex(PathcError, "not one whose mip sizes"):
+            register_dds(table, "x/rgba.dds", dds_header(width=8, height=8, fourcc=bytes(4)))
 
     def test_encode_refuses_malformed_rows(self) -> None:
         table = build_table(headers=[ICON_HEADER], entries=[(ICON, 0, ICON_BLOCKS)])

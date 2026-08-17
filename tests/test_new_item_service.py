@@ -162,7 +162,8 @@ def synthetic_files() -> dict[str, bytes]:
         _record("cd_phm_01_sword_0168_r_in_index01", "CD_MainWeapon_Sword_R_In"),
     )))
     stores = _table2([
-        store_row((stock_entry(OTHER, 0), stock_entry(50001, 1)), name="Store_Camp_Equipment", key=6600),
+        # Cigar's line wants the knowledge of item 15 (a collection prop stand-in) before it sells, like 1,856 shipped lines
+        store_row((stock_entry(OTHER, 0, option=struct.pack("<IBQ", 15, 1, 0x7A601F54819F3FB4)), stock_entry(50001, 1)), name="Store_Camp_Equipment", key=6600),
         store_row((stock_entry(TEMPLATE, 0),), name="Store_Pai_BlackMarket", key=2003),
     ])
     groups = _table2([
@@ -204,6 +205,8 @@ def synthetic_files() -> dict[str, bytes]:
         EFFECT_DONOR_PREFAB: build_component_prefab(component="EffectComponent", member_kind="object", value=EFFECT_DONOR_PATH, with_transform=True, pointee_type="EffectDataReferencePath"),
         "effect/binary__/releasebin/fx_test_fire.pae": b"PAE fire",
         "effect/binary__/releasebin/fx_test_ice.pae": b"PAE ice",
+        "ui/xml/texture/cd_item_icon.xml": (b"\xef\xbb\xbf" + b'<Texture Name="itemicon_empty"\tFilename="UI/texture/icon/ItemIcon_Heavy_Silver_Pack.dds" Type="Image" GetRect="0,0,256,256"/>\r\n'
+                                            + b'<Texture Name="ItemIcon_Prefab_cd_phm_01_sword_0109"\tFilename="UI/texture/icon/ItemIcon_Prefab_cd_phm_01_sword_0109.dds" Type="Image" GetRect="0,0,256,256"/>\r\n\r\n'),
         f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0168_r_in_index01.prefab": build_prefab(sheath_pac),
         f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0016_r.prefab": build_prefab(other_pac),
         f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0016_l.prefab": build_prefab(other_pac),
@@ -367,6 +370,14 @@ class PlanTests(_PackageCase):
         self.assertIn(struct.pack("<I", stringinfo_key(f"{STEM}_r")), raw)
         stores = {s.name: s for s in parse_store_table(files[f"{BIN}/storeinfo.pabgb"], files[f"{BIN}/storeinfo.pabgh"])}
         self.assertEqual([e.item_key for e in stores["Store_Camp_Equipment"].entries], [1990000, 50001])
+        self.assertIsNone(stores["Store_Camp_Equipment"].entries[0].requirement_item_key, "the line's unlock requirement is dropped by default")
+        self.assertFalse(plan.manifest["store"]["requirement_kept"])
+        self.assertTrue(any("sells freely" in line for line in plan.summary_lines), plan.summary_lines)
+        kept = self.service.plan(self._spec(placement=Placement(PlacementKind.SWAP, "Store_Camp_Equipment", "Cigar_OneHandSword", keep_requirement=True)), self.snapshot)
+        kept_files = dict(kept.loose_files)
+        kept_store = {s.name: s for s in parse_store_table(kept_files[f"{BIN}/storeinfo.pabgb"], kept_files[f"{BIN}/storeinfo.pabgh"])}["Store_Camp_Equipment"]
+        self.assertEqual(kept_store.entries[0].requirement_item_key, self.snapshot.store("Store_Camp_Equipment").entries[0].requirement_item_key)
+        self.assertTrue(any("keeps its unlock requirement" in w for w in kept.warnings), kept.warnings)
         groups = parse_item_group_table(files[f"{BIN}/itemgroupinfo.pabgb"], files[f"{BIN}/itemgroupinfo.pabgh"])
         self.assertEqual([g.members for g in groups], [(OTHER, TEMPLATE, 1990000, 13800), (TEMPLATE, 1990000), (OTHER,)])
         eng = parse_paloc(files[f"{LOC}/localizationstring_eng.paloc"]).index()
@@ -434,6 +445,12 @@ class PlanTests(_PackageCase):
         self.assertEqual(plan.new_paths, tuple(added))
         self.assertEqual(plan.manifest["pappt_records"], {f"{STEM}_r": f"{new_stem}_r", f"{STEM}_l": f"{new_stem}_l"})
         self.assertEqual(plan.manifest["icon"]["path"], "ui/texture/icon/itemicon_prefab_cd_phm_01_sword_9109.dds")
+        # the UI's icon registry gets the new name, shaped like the template's line
+        self.assertTrue(plan.manifest["icon"]["registered"])
+        registry = files["ui/xml/texture/cd_item_icon.xml"]
+        self.assertIn(b'<Texture Name="ItemIcon_Prefab_cd_phm_01_sword_9109"\tFilename="UI/texture/icon/ItemIcon_Prefab_cd_phm_01_sword_9109.dds" Type="Image" GetRect="0,0,256,256"/>\r\n', registry)
+        self.assertTrue(registry.startswith(b"\xef\xbb\xbf"))
+        self.assertTrue(any("icon registry" in line for line in plan.summary_lines))
 
     def test_own_enhancement_rows_are_cloned_and_repointed(self) -> None:
         from cdmw.core.multichangeinfo_table import find_multichange_keys, parse_multichange_table
@@ -471,6 +488,10 @@ class PlanTests(_PackageCase):
         self.assertEqual(plan.manifest["socket_items"], [1002793, 1002812, 1002791, 1002793])
         self.assertTrue(any("socket items: 4" in line for line in plan.summary_lines), plan.summary_lines)
         self.assertFalse(any("socket" in w for w in plan.warnings), "four is the shipped maximum")
+        # the template has one socket slot; four gems need four, priced like the shipped progression
+        self.assertEqual(clone.add_socket_materials, ((COPPER, 500, 0), (COPPER, 1000, 0), (COPPER, 2000, 0), (COPPER, 3000, 0)))
+        self.assertEqual(plan.manifest["socket_slots"], [[COPPER, 500, 0], [COPPER, 1000, 0], [COPPER, 2000, 0], [COPPER, 3000, 0]])
+        self.assertTrue(any("socket slots: grown from 1 to 4" in line for line in plan.summary_lines))
         same = self.service.plan(self._spec(socket_items=(1002791,)), self.snapshot)
         self.assertNotIn("socket_items", same.manifest, "the template's own list changes nothing")
         five = self.service.plan(self._spec(socket_items=(1002791,) * 5), self.snapshot)
@@ -650,10 +671,12 @@ class TextureRegistryTests(_PackageCase):
         self.assertIn("meta/0.pathc", plan.touched_paths)
         self.assertNotIn("meta/0.pathc", plan.loose_files, "a loose mod leaves the registry to the manager")
         self.assertTrue(any("texture registry" in line for line in plan.summary_lines))
-        # a texture of a shape the registry has never seen is refused, not guessed
-        odd = ModelFiles(pac_data=b"PAC", side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(8, 8)})
-        with self.assertRaisesRegex(NewItemPlanError, "no shipped texture header"):
-            self.service.plan(self.service.allocate(NewItemSpec(template_key=TEMPLATE, internal_name="Ziane_Odd_OneHandSword", display_names={"eng": "X"}, model_source=ModelSource.IMPORTED), self.snapshot), self.snapshot, model=odd)
+        # a texture of a shape the registry has never seen gets a header row of its own
+        odd = ModelFiles(pac_data=b"PAC", side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(8, 8) + bytes(64)})
+        odd_plan = self.service.plan(self.service.allocate(NewItemSpec(template_key=TEMPLATE, internal_name="Ziane_Odd_OneHandSword", display_names={"eng": "X"}, model_source=ModelSource.IMPORTED), self.snapshot), self.snapshot, model=odd)
+        odd_table = parse_pathc(odd_plan.meta_files[0].payload_data)
+        self.assertEqual(len(odd_table.headers), 3, "one header row added for the 8x8 shape")
+        self.assertEqual(odd_table.find("character/texture/1_pc/cd_phm_01_sword_9109_d.dds").header_index, 2)
 
     def test_without_a_registry_the_plan_only_warns(self) -> None:
         self.pathc_path.unlink()

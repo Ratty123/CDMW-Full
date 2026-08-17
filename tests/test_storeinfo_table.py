@@ -137,6 +137,17 @@ class EditTests(unittest.TestCase):
         with self.assertRaisesRegex(StoreInfoError, "2 times"):
             swap_stock_item(twice, ZIANE, CLONE)
         self.assertEqual([e.item_key for e in swap_stock_item(twice, ZIANE, CLONE, all_entries=True).entries], [CLONE, CLONE])
+        # the line's unlock requirement (the knowledge of a collection prop) can be dropped so the item sells freely
+        self.assertEqual(row.entries[1].requirement_item_key, 1001479)
+        freed = swap_stock_item(row, ZIANE, CLONE, keep_requirement=False)
+        self.assertEqual(len(freed.raw), len(raw) - 13)
+        again = parse_store_row(freed.raw)
+        self.assertIsNone(again.entries[1].requirement_item_key)
+        self.assertEqual([e.item_key for e in again.entries], [50001, CLONE, 1000372, 1000692])
+        self.assertEqual((again.buyable_count, again.sellable_count), (row.buyable_count, row.sellable_count))
+        self.assertEqual(again.entries[0].requirement_item_key, row.entries[0].requirement_item_key, "other lines keep theirs")
+        free_insert = parse_store_row(insert_stock_entry(row, CLONE, template=row.entries[1], keep_requirement=False).raw)
+        self.assertIsNone(free_insert.entries_for(CLONE)[0].requirement_item_key)
 
     def test_insert_after_the_buyable_entries(self) -> None:
         row = parse_store_row(_sample())

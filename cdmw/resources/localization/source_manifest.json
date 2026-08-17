@@ -13771,12 +13771,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 313,
+          "line": 325,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 320,
+          "line": 332,
           "sink": "emit"
         },
         {
@@ -17701,7 +17701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 172,
+          "line": 174,
           "sink": "ValueError"
         }
       ]
@@ -17816,7 +17816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 292,
+          "line": 304,
           "sink": "ValueError"
         }
       ]
@@ -18126,7 +18126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_placement.py",
-          "line": 53,
+          "line": 59,
           "sink": "QCheckBox"
         }
       ]
@@ -33291,7 +33291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_placement.py",
-          "line": 57,
+          "line": 63,
           "sink": "setPlaceholderText"
         }
       ]
@@ -41921,7 +41921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_placement.py",
-          "line": 48,
+          "line": 54,
           "sink": "QGroupBox"
         }
       ]
@@ -42146,7 +42146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 220,
+          "line": 232,
           "sink": "emit"
         }
       ]
@@ -42927,6 +42927,16 @@
       ]
     },
     {
+      "key": "Keep the shop line's unlock requirement (a collection's knowledge; the shop shows Knowledge until the buyer has it)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_placement.py",
+          "line": 47,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Keep the template's icon",
       "origins": [
         {
@@ -42973,6 +42983,16 @@
           "path": "cdmw/ui/archive_browser/attachment_plan.py",
           "line": 519,
           "sink": "add_row"
+        }
+      ]
+    },
+    {
+      "key": "Kept: the buyer needs the knowledge of {value_0} first.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_placement.py",
+          "line": 125,
+          "sink": "setText"
         }
       ]
     },
@@ -53426,7 +53446,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 121,
+          "line": 123,
           "sink": "raise_if_cancelled"
         },
         {
@@ -54866,7 +54886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 308,
+          "line": 320,
           "sink": "ValueError"
         }
       ]
@@ -64656,7 +64676,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 562,
+          "line": 591,
           "sink": "log"
         }
       ]
@@ -69066,7 +69086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 258,
+          "line": 270,
           "sink": "emit"
         }
       ]
@@ -87771,7 +87791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 327,
+          "line": 339,
           "sink": "emit"
         }
       ]
@@ -91571,7 +91591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 242,
+          "line": 254,
           "sink": "emit"
         }
       ]
@@ -91821,12 +91841,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_placement.py",
-          "line": 50,
+          "line": 56,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_placement.py",
-          "line": 115,
+          "line": 137,
           "sink": "setText"
         }
       ]
@@ -91836,7 +91856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_placement.py",
-          "line": 113,
+          "line": 135,
           "sink": "setText"
         }
       ]
@@ -92036,7 +92056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 297,
+          "line": 309,
           "sink": "ValueError"
         }
       ]
@@ -92216,7 +92236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 283,
+          "line": 295,
           "sink": "emit"
         }
       ]
@@ -92481,7 +92501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 251,
+          "line": 263,
           "sink": "emit"
         }
       ]
@@ -93087,6 +93107,16 @@
       ]
     },
     {
+      "key": "This line normally needs the knowledge of {value_0}; the new item will sell freely instead.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_placement.py",
+          "line": 127,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "This local item is not an importable model or ZIP.",
       "origins": [
         {
@@ -93373,6 +93403,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_workspace_part_02.py",
           "line": 183,
           "sink": "setPlainText"
+        }
+      ]
+    },
+    {
+      "key": "This shop line sells freely.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_placement.py",
+          "line": 123,
+          "sink": "setText"
         }
       ]
     },
@@ -109026,7 +109066,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 470,
+          "line": 488,
           "sink": "add"
         }
       ]
@@ -193146,7 +193186,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 416,
+          "line": 434,
           "sink": "add"
         }
       ]
@@ -196021,7 +196061,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_placement.py",
-          "line": 97,
+          "line": 104,
           "sink": "addItem"
         },
         {
@@ -199326,12 +199366,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 407,
+          "line": 425,
           "sink": "add"
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 416,
+          "line": 434,
           "sink": "add"
         },
         {
@@ -199596,7 +199636,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 407,
+          "line": 425,
           "sink": "add"
         },
         {

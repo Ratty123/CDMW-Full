@@ -44,6 +44,12 @@ class PlacementPanel(QGroupBox):
         self.old_item.currentIndexChanged.connect(self._old_item_changed)
         row.addWidget(self.old_item, 1)
         layout.addLayout(row)
+        self.keep_requirement = QCheckBox("Keep the shop line's unlock requirement (a collection's knowledge; the shop shows Knowledge until the buyer has it)")
+        self.keep_requirement.toggled.connect(self._keep_requirement_changed)
+        layout.addWidget(self.keep_requirement)
+        self.requirement_note = QLabel("")
+        self.requirement_note.setWordWrap(True)
+        layout.addWidget(self.requirement_note)
 
         groups = QGroupBox("Item groups")
         groups_layout = QVBoxLayout(groups)
@@ -93,8 +99,9 @@ class PlacementPanel(QGroupBox):
         self.old_item.blockSignals(True)
         try:
             self.old_item.clear()
-            for key, item_name in self._controller.store_stock(self._controller.draft.store_name):
-                self.old_item.addItem(f"{item_name} ({key})", item_name)
+            for key, item_name, requirement in self._controller.store_stock(self._controller.draft.store_name):
+                label = f"{item_name} ({key})" + (f", unlocked by {requirement}" if requirement else "")
+                self.old_item.addItem(label, item_name)
         finally:
             self.old_item.blockSignals(False)
         self._old_item_changed(self.old_item.currentIndex())
@@ -103,6 +110,21 @@ class PlacementPanel(QGroupBox):
     def _old_item_changed(self, _index: int) -> None:
         self._controller.draft.old_item_name = str(self.old_item.currentData() or "")
         self._controller.plan = None
+        self._refresh_requirement_note()
+
+    def _keep_requirement_changed(self, checked: bool) -> None:
+        self._controller.draft.keep_requirement = bool(checked)
+        self._controller.plan = None
+        self._refresh_requirement_note()
+
+    def _refresh_requirement_note(self) -> None:
+        requirement = self._controller.line_requirement(self._controller.draft.store_name, self._controller.draft.old_item_name)
+        if not requirement:
+            self.requirement_note.setText("This shop line sells freely.")
+        elif self.keep_requirement.isChecked():
+            self.requirement_note.setText(f"Kept: the buyer needs the knowledge of {requirement} first.")
+        else:
+            self.requirement_note.setText(f"This line normally needs the knowledge of {requirement}; the new item will sell freely instead.")
 
     # ------------------------------------------------------------------ groups
 

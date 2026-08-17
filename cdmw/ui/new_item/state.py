@@ -103,6 +103,8 @@ class NewItemDraft:
     placement_kind: PlacementKind = PlacementKind.NONE
     store_name: str = ""
     old_item_name: str = ""
+    #: Keep the shop line's unlock-knowledge requirement (default: sell freely).
+    keep_requirement: bool = False
     item_groups: ItemGroupsChoice = ItemGroupsChoice.TEMPLATE
     explicit_item_groups: Tuple[int, ...] = ()
     manager: str = "CDUMM"
@@ -180,6 +182,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         kind=draft.placement_kind,
         store_name=draft.store_name if draft.placement_kind is not PlacementKind.NONE else "",
         old_item_name=draft.old_item_name if draft.placement_kind is PlacementKind.SWAP else "",
+        keep_requirement=bool(draft.keep_requirement),
     )
     return NewItemSpec(
         template_key=int(draft.template_key),
