@@ -179,14 +179,35 @@ class DotNetPreviewHostProtocolMixin:
         if event in {"embedded_window_revealed", "reembed_ack"}:
             self._remember_embedded_child_window(payload)
         if event == "placement_transform_request":
-            translation = _triple(tuple(payload.get("translation", ()) or ()), (0.0, 0.0, 0.0))
+            # The renderer nests the transform under `placement`; reading
+            # `translation` at the top level always found nothing and fell back
+            # to (0, 0, 0). The viewport moved because it transforms its own
+            # scene locally, and the host then applied zero on release, which is
+            # why a dragged part snapped back the moment the mouse came up.
+            placement = payload.get("placement")
+            placement = placement if isinstance(placement, Mapping) else {}
             phase = str(payload.get("placement_phase", "update") or "update").lower()
+            tool = str(payload.get("gizmo_tool", "move") or "move").strip().lower()
+            if tool == "rotate":
+                values = _triple(tuple(placement.get("rotation_degrees", ()) or ()), (0.0, 0.0, 0.0))
+                changed = self.alignment_rotation_changed
+                finished = self.alignment_rotation_finished
+            elif tool == "scale":
+                # No scale signal exists on this host and no Builder handler
+                # consumes one. Emitting a translation for a scale drag would
+                # apply the wrong axis, so this is left unwired rather than
+                # wired wrongly.
+                return
+            else:
+                values = _triple(tuple(placement.get("translation", ()) or ()), (0.0, 0.0, 0.0))
+                changed = self.alignment_drag_changed
+                finished = self.alignment_drag_finished
             if phase == "begin":
                 self.alignment_drag_started.emit()
             elif phase == "end":
-                self.alignment_drag_finished.emit(*translation)
+                finished.emit(*values)
             else:
-                self.alignment_drag_changed.emit(*translation)
+                changed.emit(*values)
         elif event == "stroke_begin":
             self.mesh_edit_stroke_started.emit(dict(payload))
         elif event == "stroke_update":

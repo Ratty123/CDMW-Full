@@ -2559,8 +2559,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         widget_source = _widgets_source()
         main_source = _main_window_source()
         host_source = "\n".join((ROOT / "cdmw" / "ui" / "preview" / name).read_text(encoding="utf-8") for name in ("dotnet_host.py", "dotnet_host_protocol.py"))
-        self.assertIn("alignment_drag_changed.emit(*translation)", host_source)
-        self.assertIn("alignment_drag_finished.emit(*translation)", host_source)
+        # This pinned emit(*translation) while every drag reported (0, 0, 0), because the payload nests it; behaviour is in tests/test_placement_gizmo_transform_signals.py.
+        self.assertIn('placement.get("translation"', host_source)
         self.assertIn("_finish_alignment_d3d11_translation", main_source)
         return
         native_source = d3d11_preview_source()
