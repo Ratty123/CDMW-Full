@@ -135,10 +135,18 @@ def test_native_transfer_uses_closest_triangle_and_reports_far_mapping() -> None
     assert exact_submesh.bone_indices == [(2,)]
     assert exact_submesh.bone_weights == [(1.0,)]
 
+    # A far vertex still gets the nearest-surface weights; the distance is a
+    # warning in the report, not a refusal that leaves the stale row in place.
+    # Refusing is what stopped an imported weapon -- which never sits on the
+    # target handle's surface -- from being built at all.
     far = ParsedMesh(submeshes=[SubMesh(
         vertices=[(10.0, 10.0, 0.0)],
         bone_indices=[(9,)],
         bone_weights=[(1.0,)],
     )], has_bones=True)
-    assert transfer_native_mesh_skin_weights_from_source(far, source, {0: [0]}) is None
-    assert far.submeshes[0].bone_indices == [(9,)]
+    far_report: dict[str, object] = {}
+    assert transfer_native_mesh_skin_weights_from_source(far, source, {0: [0]}, transfer_report=far_report) is not None
+    assert far.submeshes[0].bone_indices != [(9,)]
+    assert far_report["distance_warning"] is True
+    far_metric = far_report["submeshes"][0]
+    assert far_metric["distance_p95"] > far_metric["distance_limit"]

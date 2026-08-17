@@ -4,6 +4,9 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_material_bridge import (
     send_resident_material_parameters,
     source_part_material_parameter_groups_for_mesh,
 )
+from cdmw.ui.archive_browser.static_replacement_shared_context import (
+    shared_context_container,
+)
 
 _MATERIAL_HISTORY_WIDGETS = (
     'complete_external_swap_checkbox', 'complete_swap_material_profile_combo',
@@ -152,7 +155,7 @@ def _remaining_geometry_history_step_002(_state):
     _state.static_preview_geometry_cache = _state.context.get('static_preview_geometry_cache')
     _state.static_preview_prepared_cache = _state.context.get('static_preview_prepared_cache')
     _state.target_index = _state.context.get('target_index')
-    _state.texture_files_for_mapping = _state.context.get('texture_files_for_mapping') or []
+    _state.texture_files_for_mapping = shared_context_container(_state.context, 'texture_files_for_mapping', list)
     _state.texture_override_assignments = _state.context.get('texture_override_assignments')
     _state.texture_overrides_dirty = _state.context.get('texture_overrides_dirty')
     _state.texture_uv_global_transform_state = _state.context.get('texture_uv_global_transform_state')

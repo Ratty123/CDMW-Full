@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from cdmw.ui.archive_browser.static_replacement_shared_context import (
+    shared_context_container,
+)
+
 def _remaining_original_copy_payload_step_001(_state):
     _state.state = _state._StaticReplacementDialogState(_state.context)
     _state.Mapping = _state.context.get('Mapping')
@@ -81,7 +85,7 @@ def _remaining_original_copy_payload_step_001(_state):
     _state.static_preview_geometry_cache = _state.context.get('static_preview_geometry_cache')
     _state.static_preview_prepared_cache = _state.context.get('static_preview_prepared_cache')
     _state.target_index = _state.context.get('target_index')
-    _state.texture_files_for_mapping = _state.context.get('texture_files_for_mapping') or []
+    _state.texture_files_for_mapping = shared_context_container(_state.context, 'texture_files_for_mapping', list)
     _state.texture_rows = _state.context.get('texture_rows')
     _state.title = _state.context.get('title')
     _state.undo_label = _state.context.get('undo_label')

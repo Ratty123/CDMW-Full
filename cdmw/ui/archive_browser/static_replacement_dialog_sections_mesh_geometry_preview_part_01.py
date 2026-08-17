@@ -7,6 +7,9 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
 from cdmw.ui.archive_browser.static_replacement_preview_status_state import (
     preview_grid_visible,
 )
+from cdmw.ui.archive_browser.static_replacement_shared_context import (
+    shared_context_container,
+)
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     normalize_mesh_preview_display_mode,
 )
@@ -145,13 +148,17 @@ def _mesh_geometry_preview_step_001(_state):
     _state.locals = _state._context_builtin(_state.context, 'locals')
     _state.mapping_edits = _state.context.get('mapping_edits')
     _state.mapping_tree = _state.context.get('mapping_tree')
-    _state.hovered_source_part = _state.context.get('hovered_source_part') or {}
-    _state.selected_source_highlight_indices = _state.context.get('selected_source_highlight_indices') or set()
-    _state.selected_target_source_highlight_indices = _state.context.get('selected_target_source_highlight_indices') or set()
-    _state.selected_original_highlight_indices = _state.context.get('selected_original_highlight_indices') or set()
-    _state.selected_target_original_highlight_indices = _state.context.get('selected_target_original_highlight_indices') or set()
-    _state.source_part_adjustments = _state.context.get('source_part_adjustments') or {}
-    _state.texture_uv_global_transform_state = _state.context.get('texture_uv_global_transform_state') or {}
+    # These are the dialog's live containers, read by the presentation
+    # snapshot on every republish. They are empty when this factory binds, so
+    # `or set()` would swap each for a private copy and the snapshot would
+    # publish no highlight, no hidden part and no part transform ever after.
+    _state.hovered_source_part = shared_context_container(_state.context, 'hovered_source_part', dict)
+    _state.selected_source_highlight_indices = shared_context_container(_state.context, 'selected_source_highlight_indices', set)
+    _state.selected_target_source_highlight_indices = shared_context_container(_state.context, 'selected_target_source_highlight_indices', set)
+    _state.selected_original_highlight_indices = shared_context_container(_state.context, 'selected_original_highlight_indices', set)
+    _state.selected_target_original_highlight_indices = shared_context_container(_state.context, 'selected_target_original_highlight_indices', set)
+    _state.source_part_adjustments = shared_context_container(_state.context, 'source_part_adjustments', dict)
+    _state.texture_uv_global_transform_state = shared_context_container(_state.context, 'texture_uv_global_transform_state', dict)
     _state.max = _state._context_builtin(_state.context, 'max')
     _state.mesh_edit_layout_page = _state.context.get('mesh_edit_layout_page')
     _state.mesh_edit_page = _state.context.get('mesh_edit_page')

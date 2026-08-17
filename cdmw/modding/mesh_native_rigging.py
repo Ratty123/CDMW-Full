@@ -99,8 +99,11 @@ def _apply_native_skin_weight_report(
             "submeshes": transfer_metrics,
             "distance_warning": any(bool(item["distance_warning"]) for item in transfer_metrics),
         })
-    if any(bool(item["distance_warning"]) for item in transfer_metrics):
-        raise ValueError("native skin weight transfer exceeds the 5% source-bounds distance limit")
+    # A far transfer is a quality warning, not a failure. The native core
+    # computed and returned the weights either way; raising here threw away a
+    # valid result and turned "this imported mesh does not sit on the target
+    # surface" -- true of most weapon swaps -- into a build the reader could
+    # not make. The warning travels in `transfer_report` for the caller to show.
     affected: set[int] = set()
     changed_vertices_by_submesh: dict[int, Sequence[int] | set[int]] = {}
     for raw_item in raw_reports:
