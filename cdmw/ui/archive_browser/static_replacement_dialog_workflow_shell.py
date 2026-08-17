@@ -208,7 +208,6 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
         import_layout.addWidget(import_label)
         import_section = CollapsibleSection(import_diagnostics_control_text["import_notes_section"], expanded=False)
         import_section.body_layout.addWidget(import_group)
-        setup_summary_layout.addWidget(import_section)
 
     _alignment_startup_step(alignment_startup_text["alignment_summary"])
     context_html, context_values = self._build_archive_static_placement_context_html(
@@ -244,7 +243,9 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
         context_layout.addWidget(label_widget, fact_row, 0)
         context_layout.addWidget(value_widget, fact_row, 1)
     context_group.setToolTip(context_html)
-    setup_summary_layout.addWidget(context_group)
+    setup_summary_layout.addWidget(context_group)  # summary before import notes
+    if import_diagnostics:
+        setup_summary_layout.addWidget(import_section)
 
     return SimpleNamespace(
         _add_loose_source_folder_for_alignment=locals().get("_add_loose_source_folder_for_alignment"),

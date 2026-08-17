@@ -111,6 +111,10 @@ def _remaining_static_preview_refresh_step_008(_state):
     def _modify_original_tuning_enabled_value() -> bool:
         if not callable(_state._modify_original_texture_tuning_enabled):
             return False
+        # The preview must agree with the build about whether materials change.
+        active = _state.context.get('_modify_original_texture_tuning_active')
+        if callable(active):
+            return bool(active())
         return bool(_state._modify_original_texture_tuning_enabled())
     _state._modify_original_tuning_enabled_value = _modify_original_tuning_enabled_value
 

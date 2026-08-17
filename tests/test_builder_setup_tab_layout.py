@@ -148,3 +148,90 @@ def test_opening_part_setup_starts_the_deferred_mapping_build() -> None:
         # test is that opening the section requested it; the driver refuses to
         # close over a live timer, so stop it once that is established.
         builder.control("mapping_table_build_timer").stop()
+
+
+def test_options_reads_controls_then_summary_then_notes_then_compatibility() -> None:
+    """The Options section's order, and that it does not say Options twice."""
+    from PySide6.QtWidgets import QGroupBox
+
+    with open_mesh_builder(dialog_title="Options order") as builder:
+        options = _section_titled(builder, "Options")
+        layout = options.body_layout
+        widgets = [layout.itemAt(index).widget() for index in range(layout.count())]
+        widgets = [widget for widget in widgets if widget is not None]
+
+        # The alignment controls come first, and their group carries no title of
+        # its own inside a section that is already called Options.
+        first = widgets[0]
+        assert _has_ancestor(builder.control("alignment_mode_combo"), first) or first is builder.control("alignment_mode_combo").parentWidget()
+        assert isinstance(first, QGroupBox) and first.title() == ""
+
+        titles = []
+        for widget in widgets[1:]:
+            if isinstance(widget, QGroupBox):
+                titles.append(widget.title())
+            elif isinstance(widget, CollapsibleSection):
+                titles.append(widget.toggle_button.text())
+        # Alignment Summary, then (Import Notes when the import produced any),
+        # then the compatibility details.
+        assert titles[0] == "Alignment Summary"
+        assert titles[-1] == "Compatibility Details"
+        if "Import Notes" in titles:
+            assert titles.index("Import Notes") == 1
+
+
+def test_modify_original_advanced_holds_the_tuning_controls_without_a_gate() -> None:
+    """One Advanced in Modify Original, with the tuning group inside and no tick required."""
+    with open_mesh_builder(
+        modify_original_clone_mode=True, dialog_title="Modify Original advanced"
+    ) as builder:
+        advanced = _section_titled(builder, "Advanced")
+        tuning_group = builder.control("manual_profile_group")
+
+        assert _has_ancestor(tuning_group, advanced)
+        # No second section, and no gate the reader has to tick.
+        assert builder.control("modify_original_texture_tuning_section").isHidden()
+        gate = builder.control("modify_original_texture_tuning_checkbox")
+        assert gate.isHidden() and gate.isChecked()
+
+
+def test_modify_original_writes_material_changes_only_when_something_was_tuned() -> None:
+    """The gate is gone; the build decides from what the reader actually moved."""
+    with open_mesh_builder(
+        modify_original_clone_mode=True, dialog_title="Modify Original tuned"
+    ) as builder:
+        active = builder.context["_modify_original_texture_tuning_active"]
+        assert not active(), "an untouched session keeps the target's own materials"
+
+        controls = builder.control("manual_profile_controls")
+        key, control = next(
+            (name, widget)
+            for name, widget in controls.items()
+            if hasattr(widget, "setValue") and hasattr(widget, "maximum")
+        )
+        control.setValue(control.maximum())
+        builder.pump()
+
+        assert active(), f"moving {key} did not register as tuning"
+
+
+def test_import_mesh_material_authority_has_one_switch_and_the_acknowledgement() -> None:
+    from PySide6.QtWidgets import QCheckBox
+
+    with open_mesh_builder(dialog_title="Material Authority switch") as builder:
+        authority = builder.control("material_authority_section")
+        swap = builder.checkbox("MeshAlignmentCompleteExternalSwapCheckbox")
+        unsafe = builder.checkbox("MeshAlignmentUnsafeMaterialPreflightExportCheckbox")
+
+        assert _has_ancestor(swap, authority)
+        assert _has_ancestor(unsafe, authority)
+        assert not swap.isHidden() and not unsafe.isHidden()
+        # The five routing checkboxes the switch replaced are gone from view.
+        for name in (
+            "rebuild_sidecar_checkbox",
+            "prune_unmapped_original_dds_checkbox",
+            "inject_base_color_checkbox",
+            "source_color_faithful_checkbox",
+            "external_material_reset_checkbox",
+        ):
+            assert builder.control(name).isHidden(), name
