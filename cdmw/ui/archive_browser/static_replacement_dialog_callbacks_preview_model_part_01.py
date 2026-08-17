@@ -239,7 +239,8 @@ def _preview_model_step_008(_state):
         # read through the tolerant control accessors because this refreshes
         # while the dialog is still assembling and while Modify Original has
         # never built the imported-model checkboxes at all.
-        tuning_getter = _state.context.get('_modify_original_texture_tuning_enabled')
+        # Same predicate the build uses, so the review agrees with the output.
+        tuning_getter = _state.context.get('_modify_original_texture_tuning_active') or _state.context.get('_modify_original_texture_tuning_enabled')
         swap_getter = _state._complete_external_swap_enabled
         clone = bool(_state.modify_original_clone_mode)
         operation = classify_builder_operation(

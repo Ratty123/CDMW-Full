@@ -115,6 +115,10 @@ def _accept_build_step_003(_state):
     def _modify_original_tuning_enabled_value() -> bool:
         if not callable(_state._modify_original_texture_tuning_enabled):
             return False
+        # Build semantics: did the reader tune anything, not is the panel open.
+        active = _state.context.get('_modify_original_texture_tuning_active')
+        if callable(active):
+            return bool(active())
         return bool(_state._modify_original_texture_tuning_enabled())
     _state._modify_original_tuning_enabled_value = _modify_original_tuning_enabled_value
 

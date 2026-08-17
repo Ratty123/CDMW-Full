@@ -1,9 +1,12 @@
-"""An external Import Mesh opens as a complete source-owned swap, visibly.
+"""An external Import Mesh opens as a complete source-owned swap, armed.
 
 The switch that turns an import into a real swap used to sit under two collapsed
 sections and default off, so a first import got the legacy overwrite route with
-the target's shader layers still applied. It now sits in the setup form and is
-armed for external models; Modify Original never shows it.
+the target's shader layers still applied. It is armed for external models, and
+it is the one material switch: the five routing checkboxes it used to sit among
+are forced by it and no longer shown. Owner's direction, 2026-08-17: it lives in
+Material Authority beside the runtime profile it applies to. Modify Original
+never shows it.
 """
 
 from __future__ import annotations
@@ -17,12 +20,13 @@ def test_external_import_opens_with_the_complete_swap_armed_and_visible() -> Non
     with open_mesh_builder(dialog_title="Complete swap default") as builder:
         checkbox = builder.checkbox("MeshAlignmentCompleteExternalSwapCheckbox")
         assert checkbox.isChecked()
-        assert checkbox.isVisibleTo(builder.dialog)
-        # It lives at the top level of the Setup tab, not under Advanced >
-        # Material Authority > Unsafe Expert Controls.
-        assert checkbox.parentWidget().objectName() == "MeshAlignmentMaterialsSetupGroup"
+        # It is one row of the Material Authority form, beside the runtime
+        # profile combo -- the same widget the combo lives in.
+        profile_combo = builder.combo("MeshAlignmentCompleteSwapMaterialProfileCombo")
+        assert checkbox.parentWidget() is profile_combo.parentWidget()
         assert builder.context["_complete_external_swap_enabled"]()
-        # The toggle handler forces the dependent sidecar options.
+        # The switch forces the routing options it replaced in the form. They
+        # stay constructed for the accept path and are hidden from the reader.
         for name in (
             "rebuild_sidecar_checkbox",
             "prune_unmapped_original_dds_checkbox",
@@ -32,6 +36,10 @@ def test_external_import_opens_with_the_complete_swap_armed_and_visible() -> Non
         ):
             dependent = builder.control(name)
             assert isinstance(dependent, QCheckBox) and dependent.isChecked(), name
+            assert dependent.isHidden(), name
+        # The one acknowledgement with meaning of its own stays visible.
+        unsafe = builder.checkbox("MeshAlignmentUnsafeMaterialPreflightExportCheckbox")
+        assert not unsafe.isHidden()
 
 
 def test_expert_manual_controls_follow_the_complete_swap_switch() -> None:

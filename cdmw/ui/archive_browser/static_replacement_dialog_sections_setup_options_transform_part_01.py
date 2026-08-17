@@ -154,7 +154,11 @@ def _setup_options_transform_step_002(_state):
     # on most imports; they lived under Advanced and were found by nobody.
     # The section they go into is the one the shell titles "Options".
     if _state.setup_summary_layout is not None:
-        _state.setup_summary_layout.addWidget(_state.options_group)
+        # First thing under Options, and untitled: the section is already
+        # called Options, and a group inside it saying so again read as noise.
+        _state.options_group.setTitle('')
+        _state.options_group.setFlat(True)
+        _state.setup_summary_layout.insertWidget(0, _state.options_group)
     elif _state.setup_advanced_layout is not None:
         _state.setup_advanced_layout.addWidget(_state.options_group)
     else:
@@ -586,13 +590,55 @@ def _setup_options_transform_step_006(_state):
     _state.modify_original_tuning_raw = _state.self.settings.value(_state.modify_original_texture_tuning_enabled_key, 'false')
 
 def _setup_options_transform_step_007(_state):
-    _state.modify_original_texture_tuning_checkbox.setChecked(str(_state.modify_original_tuning_raw).strip().lower() in {'1', 'true', 'yes', 'on'})
+    # The tuning controls are always shown in Modify Original; nobody should
+    # have to tick a box to see them. The checkbox stays constructed because
+    # every enablement gate reads it, and it is checked so those gates open.
+    # Whether a build actually writes material changes is decided by
+    # `_modify_original_texture_tuning_active` below -- did the reader tune
+    # anything -- not by this widget.
+    _state.modify_original_texture_tuning_checkbox.setChecked(True)
+    _state.modify_original_texture_tuning_checkbox.setVisible(False)
 
 def _setup_options_transform_step_008(_state):
 
     def _modify_original_texture_tuning_enabled() -> bool:
         return bool(_state.modify_original_clone_mode and _state.modify_original_texture_tuning_checkbox.isChecked())
     _state._modify_original_texture_tuning_enabled = _modify_original_texture_tuning_enabled
+
+    def _modify_original_texture_tuning_active() -> bool:
+        """Whether a Modify Original build should write material changes at all.
+
+        The controls are always available; this asks whether any of them was
+        moved. An untouched session keeps the target's own materials, which
+        is what a reader who only edited geometry expects.
+        """
+        if not _state.modify_original_clone_mode:
+            return False
+        current = getattr(_state, '_current_manual_material_profile_values', None)
+        defaults = dict(getattr(_state, 'manual_profile_default_values', {}) or {})
+        if callable(current):
+            try:
+                values = dict(current() or {})
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                values = {}
+            for key, value in values.items():
+                if key in defaults and value != defaults[key]:
+                    return True
+        adjustments = getattr(_state, 'source_part_adjustments', None) or {}
+        for adjustment in tuple(getattr(adjustments, 'values', lambda: ())()):
+            if (
+                tuple(getattr(adjustment, 'material_tint_rgb', ()) or ())
+                or tuple(getattr(adjustment, 'material_colourise_rgb', ()) or ())
+                or tuple(getattr(adjustment, 'emissive_color_rgb', ()) or ())
+                or str(getattr(adjustment, 'material_role', '') or '').strip()
+                or abs(float(getattr(adjustment, 'material_brightness', 0.0) or 0.0)) > 1e-9
+                or abs(float(getattr(adjustment, 'material_contrast', 0.0) or 0.0)) > 1e-9
+                or abs(float(getattr(adjustment, 'material_saturation', 0.0) or 0.0)) > 1e-9
+                or abs(float(getattr(adjustment, 'material_gamma', 1.0) or 1.0) - 1.0) > 1e-9
+            ):
+                return True
+        return False
+    _state._modify_original_texture_tuning_active = _modify_original_texture_tuning_active
 
 def _setup_options_transform_step_009(_state):
     _state.manual_profile_runtime_callbacks = _state.create_manual_material_profile_runtime_callbacks({**_state.context, **_state._factory_globals, **vars(_state), '_queue_material_authority_adjustment_preview_refresh': lambda *args, **kwargs: _state._queue_material_authority_adjustment_preview_refresh(*args, **kwargs)})
@@ -694,12 +740,21 @@ def _setup_options_transform_step_009(_state):
         _state.options_layout.addWidget(_state.material_authority_section)
     _state.material_authority_section.setVisible(not _state.modify_original_clone_mode)
     _state.material_authority_form.addWidget(_state.material_route_summary_label, 0, 0, 1, 2)
+    # One switch decides material ownership: the complete source-owned swap,
+    # beside the runtime profile it applies to. When it is on, the five
+    # routing checkboxes it used to sit among are all on underneath -- the
+    # operation classification already forces them for an imported-material
+    # authority -- so they are not shown. What stays visible below is the
+    # one acknowledgement that means something on its own: allowing an
+    # export the material preflight would otherwise block.
+    _state.material_authority_form.addWidget(_state.complete_external_swap_checkbox, 1, 0, 1, 2)
     _state.runtime_material_profile_label = _state.QLabel(_state.material_authority_setup_labels['runtime_material_profile'])
-    _state.material_authority_form.addWidget(_state.runtime_material_profile_label, 1, 0)
+    _state.material_authority_form.addWidget(_state.runtime_material_profile_label, 2, 0)
 
 def _setup_options_transform_step_010(_state):
-    _state.material_authority_form.addWidget(_state.complete_swap_material_profile_combo, 1, 1)
-    _state.material_authority_form.addWidget(_state.true_source_basic_group, 2, 0, 1, 2)
+    _state.material_authority_form.addWidget(_state.complete_swap_material_profile_combo, 2, 1)
+    _state.material_authority_form.addWidget(_state.unsafe_material_preflight_checkbox, 3, 0, 1, 2)
+    _state.material_authority_form.addWidget(_state.true_source_basic_group, 4, 0, 1, 2)
     _state.material_authority_unsafe_section = _state.CollapsibleSection('Unsafe Expert Controls', expanded=False)
     _state.unsafe_material_widgets = (
         _state.rebuild_sidecar_checkbox,
@@ -709,12 +764,16 @@ def _setup_options_transform_step_010(_state):
         _state.external_material_reset_checkbox,
         _state.unsafe_material_preflight_checkbox,
     )
-    for _state.unsafe_widget in _state.unsafe_material_widgets:
-        _state.material_authority_unsafe_section.body_layout.addWidget(_state.unsafe_widget)
+    for _state.unsafe_widget in _state.unsafe_material_widgets[:-1]:
+        # Constructed and readable -- the accept path and every guard still
+        # resolve them -- but not shown; the swap switch owns their value.
+        _state.unsafe_widget.setVisible(False)
+    _state.material_authority_unsafe_section.setVisible(False)
     _state.modify_original_texture_tuning_section = _state.CollapsibleSection('Advanced Texture Tuning', expanded=False)
     _state.modify_original_texture_tuning_section.setObjectName('MeshAlignmentAdvancedTextureTuningSection')
     _state.modify_original_texture_tuning_section.body_layout.addWidget(_state.modify_original_texture_tuning_checkbox)
-    _state.modify_original_texture_tuning_checkbox.setVisible(bool(_state.modify_original_clone_mode))
+    # The tuning gate is never shown; see step 007.
+    _state.modify_original_texture_tuning_checkbox.setVisible(False)
     if _state.modify_original_clone_mode:
         _state.modify_original_texture_tuning_section.body_layout.addWidget(_state.manual_profile_group)
     else:
