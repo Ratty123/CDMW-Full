@@ -13,7 +13,7 @@ import shutil
 import tempfile
 import threading
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QThread, Qt, QTimer
 from PySide6.QtWidgets import (
@@ -31,11 +31,33 @@ from PySide6.QtWidgets import (
 
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.effect_placement_preview import EffectPlacementPreview, build_effect_placement_package, next_scale
+from cdmw.services.effect_preview_model import EffectPreview
 from cdmw.workers.utility_workers import UtilityWorker
 
 Vec3 = Tuple[float, float, float]
 
-__all__ = ["EffectPlacementDialog"]
+__all__ = ["EffectPlacementDialog", "describe_effect_preview"]
+
+
+def describe_effect_preview(preview: Optional[EffectPreview]) -> str:
+    """The emitters as the description read them, one line each, then what it could not read."""
+
+    if preview is None:
+        return ""
+    lines = []
+    for emitter in preview.emitters:
+        short = emitter.name.rsplit("/", 1)[-1]
+        rate = emitter.burst * emitter.bursts_per_second
+        colour = max(emitter.color_over_life, key=max) if emitter.color_over_life else emitter.emissive_color
+        top = max(colour) or 1.0
+        hex_colour = "#%02x%02x%02x" % tuple(int(round(255 * min(1.0, c / top))) for c in colour)
+        texture = emitter.texture.rsplit("/", 1)[-1] if emitter.texture else "no texture"
+        loop = "loops" if emitter.loop else "once"
+        lines.append(f"{short}: {emitter.kind}, {rate:.0f}/s, {emitter.life[0]:.2f}-{emitter.life[1]:.2f} s, {loop}, {emitter.blend}, {texture}, {hex_colour}")
+    if not lines:
+        lines.append("The effect names no emitters the description could read.")
+    lines.extend(preview.notes)
+    return "\n".join(lines)
 
 
 class EffectPlacementDialog(QDialog):
@@ -53,6 +75,8 @@ class EffectPlacementDialog(QDialog):
         effect_label: str = "",
         output_root: Optional[Path] = None,
         host_factory=None,
+        effect_preview: Optional[EffectPreview] = None,
+        texture_reader: Optional[Callable[[str], Optional[bytes]]] = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Place the effect on the item")
@@ -64,6 +88,8 @@ class EffectPlacementDialog(QDialog):
         self.scale: float = float(scale)
         self._output_root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_effect_placement"
         self._preview: Optional[EffectPlacementPreview] = None
+        self._effect_preview = effect_preview
+        self._texture_reader = texture_reader
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
         self._closed = False
@@ -133,6 +159,10 @@ class EffectPlacementDialog(QDialog):
         self.size_label.setWordWrap(True)
         self._box_size = (width, height, depth)
         side.addWidget(self.size_label)
+        self.emitters_label = QLabel(describe_effect_preview(effect_preview))
+        self.emitters_label.setWordWrap(True)
+        self.emitters_label.setVisible(effect_preview is not None)
+        side.addWidget(self.emitters_label)
         self.status = QLabel("Preparing the viewport...")
         self.status.setWordWrap(True)
         side.addWidget(self.status)
@@ -158,9 +188,13 @@ class EffectPlacementDialog(QDialog):
             return
         mesh, box = self._item_mesh, self._box
         root = self._output_root
+        effect_preview, texture_reader = self._effect_preview, self._texture_reader
 
         def task(_log, stop_event: threading.Event) -> EffectPlacementPreview:
-            return build_effect_placement_package(mesh, box[0], box[1], output_root=root, cancelled=stop_event.is_set)
+            return build_effect_placement_package(
+                mesh, box[0], box[1], output_root=root, cancelled=stop_event.is_set,
+                effect_preview=effect_preview, texture_reader=texture_reader,
+            )
 
         worker = UtilityWorker(task, task_accepts_cancel=True)
         thread = QThread(self)
@@ -198,7 +232,12 @@ class EffectPlacementDialog(QDialog):
             self.host.set_display_mode("overlay")
             self.host.set_alignment_state(enabled=True, source_submesh_indices=(self._preview.box_submesh_index,))
             self._sync_host()
-            self.status.setText("Drag the gizmo on the box. Move: offset along the item's axes. Scale: a uniform scale on the effect.")
+            sentences = ["Drag the gizmo on the box. Move: offset along the item's axes. Scale: a uniform scale on the effect."]
+            if self._preview.preview_file is not None:
+                sentences.append("The effect's particle description is in the package; the viewport draws it once its particle layer lands, the box until then.")
+            if self._preview.missing_textures:
+                sentences.append(f"{len(self._preview.missing_textures)} sprite texture(s) could not be read from the archives.")
+            self.status.setText(" ".join(sentences))
         elif str(state) == "error":
             self.status.setText(str(message or "The viewport reported an error."))
 

@@ -19,17 +19,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Callable, Optional, Sequence, Tuple
 
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+
+if TYPE_CHECKING:
+    from cdmw.services.effect_preview_model import EffectPreview
 
 __all__ = [
     "EFFECT_BOX_MATERIAL",
     "EFFECT_BOX_SUBMESH",
+    "EFFECT_PREVIEW_FILE",
+    "EFFECT_TEXTURE_DIR",
     "EffectPlacementPreview",
     "box_mesh",
     "build_effect_placement_package",
     "next_scale",
+    "write_effect_preview",
 ]
 
 Vec3 = Tuple[float, float, float]
@@ -137,6 +143,49 @@ class EffectPlacementPreview:
     item_submesh_count: int
     box_min: Vec3
     box_max: Vec3
+    #: `effect_preview.json` in the package when the caller gave an effect preview, else None
+    preview_file: Optional[Path] = None
+    #: archive texture paths the package could not carry (no reader, or the reader had none)
+    missing_textures: Tuple[str, ...] = ()
+
+
+#: The simulation description the viewer's particle layer reads (schema 1), next to the mesh files.
+EFFECT_PREVIEW_FILE = "effect_preview.json"
+EFFECT_TEXTURE_DIR = "effect_textures"
+
+
+def write_effect_preview(
+    package_dir: Path,
+    preview: "EffectPreview",
+    *,
+    texture_reader: Optional[Callable[[str], Optional[bytes]]] = None,
+) -> Tuple[Path, Tuple[str, ...]]:
+    """Write `preview` into `package_dir` as `effect_preview.json` and copy the sprite
+    textures it names (DDS bytes from `texture_reader`, archive path -> bytes) into
+    `effect_textures/`; the JSON's `texture_files` maps each archive path to the
+    relative file the viewer loads. Returns the JSON path and the textures not carried."""
+
+    import json
+
+    from cdmw.services.effect_preview_model import effect_preview_json
+
+    payload = json.loads(effect_preview_json(preview))
+    files: dict = {}
+    missing: list = []
+    texture_dir = Path(package_dir) / EFFECT_TEXTURE_DIR
+    for archive_path in preview.textures:
+        data = texture_reader(archive_path) if texture_reader is not None else None
+        if not data:
+            missing.append(archive_path)
+            continue
+        texture_dir.mkdir(parents=True, exist_ok=True)
+        name = archive_path.rsplit("/", 1)[-1]
+        (texture_dir / name).write_bytes(bytes(data))
+        files[archive_path] = f"{EFFECT_TEXTURE_DIR}/{name}"
+    payload["texture_files"] = files
+    target = Path(package_dir) / EFFECT_PREVIEW_FILE
+    target.write_text(json.dumps(payload, indent=1), encoding="utf-8")
+    return target, tuple(missing)
 
 
 def build_effect_placement_package(
@@ -146,9 +195,13 @@ def build_effect_placement_package(
     *,
     output_root: Path,
     cancelled: Optional[Callable[[], bool]] = None,
+    effect_preview: Optional["EffectPreview"] = None,
+    texture_reader: Optional[Callable[[str], Optional[bytes]]] = None,
 ) -> EffectPlacementPreview:
     """Package the item's mesh (reference, drawn as its wire) and the effect's box
-    (the editable mesh the gizmo moves) for the resident .NET viewport."""
+    (the editable mesh the gizmo moves) for the resident .NET viewport; with
+    `effect_preview`, the simulation description and its textures go in beside them
+    (see :func:`write_effect_preview`)."""
 
     from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
 
@@ -163,10 +216,16 @@ def build_effect_placement_package(
         include_material_resources=False,
     )
     _tint_box_material(Path(package.package_dir) / "net_materials.json")
+    preview_file: Optional[Path] = None
+    missing: Tuple[str, ...] = ()
+    if effect_preview is not None:
+        preview_file, missing = write_effect_preview(Path(package.package_dir), effect_preview, texture_reader=texture_reader)
     return EffectPlacementPreview(
         package_dir=Path(package.package_dir),
         box_submesh_index=0,
         item_submesh_count=len(item_mesh.submeshes),
         box_min=tuple(box.bbox_min),  # type: ignore[arg-type]
         box_max=tuple(box.bbox_max),  # type: ignore[arg-type]
+        preview_file=preview_file,
+        missing_textures=missing,
     )

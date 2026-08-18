@@ -94,6 +94,52 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(box["alpha_mode"], "blend")
 
 
+def _fire_preview():
+    from cdmw.core.effect_binary import decode_effect_binary
+    from cdmw.core.effect_edit import emitter_layout_of
+    from cdmw.services.effect_preview_model import build_effect_preview
+
+    fixtures = Path(__file__).parent / "fixtures" / "effects"
+    trail_path = "effect/binary__/emitter/cdem_last_fire_circle_trail_001a.paem"
+    trail = decode_effect_binary((fixtures / "cdem_last_fire_circle_trail_001a.paem").read_bytes())
+    effect = decode_effect_binary((fixtures / "fx_hit_common_fire_attach_a_loop.pae").read_bytes())
+    return build_effect_preview("fx_hit_common_fire_attach_a_loop", effect, emitter_documents={trail_path: trail}, layouts={trail_path: emitter_layout_of(trail)})
+
+
+class EffectPreviewInPackageTests(unittest.TestCase):
+    def test_the_description_and_its_textures_are_written_beside_the_mesh(self) -> None:
+        from cdmw.services.effect_placement_preview import EFFECT_PREVIEW_FILE, EFFECT_TEXTURE_DIR, write_effect_preview
+
+        preview = _fire_preview()
+        with tempfile.TemporaryDirectory() as folder:
+            target, missing = write_effect_preview(Path(folder), preview, texture_reader=lambda path: b"DDS fake" if path.endswith("pafx_fire_003a_kjd.dds") else None)
+            self.assertEqual(target.name, EFFECT_PREVIEW_FILE)
+            self.assertEqual(missing, ())
+            payload = json.loads(target.read_text(encoding="utf-8"))
+            self.assertEqual(payload["schema"], 1)
+            self.assertEqual(payload["texture_files"], {"effect/texture/pafx_fire_003a_kjd.dds": f"{EFFECT_TEXTURE_DIR}/pafx_fire_003a_kjd.dds"})
+            self.assertEqual((Path(folder) / EFFECT_TEXTURE_DIR / "pafx_fire_003a_kjd.dds").read_bytes(), b"DDS fake")
+            self.assertEqual(len(payload["emitters"]), 2)
+            # no reader: the JSON is still written, the texture is said to be missing
+            target, missing = write_effect_preview(Path(folder), preview)
+            self.assertEqual(missing, ("effect/texture/pafx_fire_003a_kjd.dds",))
+            self.assertEqual(json.loads(target.read_text(encoding="utf-8"))["texture_files"], {})
+
+    def test_the_dialog_describes_the_emitters(self) -> None:
+        from cdmw.ui.new_item.effect_placement_dialog import describe_effect_preview
+
+        text = describe_effect_preview(_fire_preview())
+        lines = text.split("\n")
+        self.assertTrue(lines[0].startswith("cdem_last_fire_circle_trail_001a: billboard, "), lines[0])
+        self.assertIn("loops", lines[0])
+        self.assertIn("pafx_fire_003a_kjd.dds", lines[0])
+        self.assertIn("#", lines[0])
+        self.assertTrue(lines[1].startswith("cdem_material_firefly_alpha_uberstandard: billboard, "), lines[1])
+        self.assertIn("once", lines[1])
+        self.assertTrue(any("was not read" in line for line in lines[2:]), "the missing firefly file is a note")
+        self.assertEqual(describe_effect_preview(None), "")
+
+
 class DialogTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -107,9 +153,12 @@ class DialogTests(unittest.TestCase):
         dialog = EffectPlacementDialog(
             None, item_mesh=_blade(), box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
             offset=(0.0, 0.0, 0.1), scale=0.5, effect_label="fx_test", host_factory=lambda parent: None,
+            effect_preview=_fire_preview(),
         )
         try:
             self.assertIsNone(dialog.host)
+            self.assertTrue(dialog.emitters_label.isVisibleTo(dialog))
+            self.assertIn("cdem_last_fire_circle_trail_001a: billboard", dialog.emitters_label.text())
             self.assertIn("2.00 x 2.00 x 2.00 m; at scale 0.50: 1.00 x 1.00 x 1.00 m", dialog.size_label.text())
             dialog.apply_deltas((0.0, 0.0, 0.2))
             self.assertEqual(dialog.offset, (0.0, 0.0, 0.3))
