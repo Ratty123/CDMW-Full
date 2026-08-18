@@ -743,6 +743,29 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
         self._scene_state["scene_generation"] = self._scene_generation
         return self.controller.remember_state("scene", "scene_state_update", self._scene_state)
 
+    def set_alignment_gizmo_tool(self, tool: str) -> bool:
+        """Switch the placement gizmo between move, rotate and scale.
+
+        The tool lives in the scene state the helper was booted with, so it goes
+        out as a scene update; the placement is resent unchanged with it.
+        """
+
+        if not self._scene_state:
+            return False
+        normalized = str(tool or "move").strip().lower()
+        if normalized not in {"move", "rotate", "scale"}:
+            return False
+        gizmo = dict(self._scene_state.get("gizmo", {}) or {})
+        gizmo["tool"] = normalized
+        gizmo.setdefault("visible", True)
+        self._scene_state["gizmo"] = gizmo
+        placement = dict(self._scene_state.get("placement", {}) or {})
+        return self.set_alignment_preview_transform(
+            translation=tuple(placement.get("translation", (0.0, 0.0, 0.0)) or (0.0, 0.0, 0.0)),
+            rotation_degrees=tuple(placement.get("rotation_degrees", (0.0, 0.0, 0.0)) or (0.0, 0.0, 0.0)),
+            scale_xyz=tuple(placement.get("scale", (1.0, 1.0, 1.0)) or (1.0, 1.0, 1.0)),
+        )
+
     def set_alignment_preview_transforms(
         self,
         *,
