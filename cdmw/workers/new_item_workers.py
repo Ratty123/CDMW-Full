@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Optional
 
 from cdmw.core.item_icon_addition import NewItemIcon
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.archives.mutation import ArchivePatchResult
 from cdmw.domain.new_item.spec import NewItemSpec
 from cdmw.domain.packages.export_policy import ModPackageExportOptions
@@ -26,18 +27,57 @@ LogSink = Callable[[str], None]
 Task = Callable[[LogSink, threading.Event], object]
 
 
+def list_archive_entries(package_root: Path, log: LogSink, stop_event: threading.Event) -> tuple[ArchiveEntry, ...]:
+    """Every entry of every package table under `package_root`, read directly.
+
+    The shell's standalone catalogue backend shows the Archive Browser without ever
+    filling the window's legacy entry list, so a tool that needs the whole list reads
+    it here (about ten seconds for the shipped game); a package table that will not
+    parse is skipped and said so.
+    """
+
+    from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
+
+    root = Path(package_root)
+    tables = discover_pamt_files(root)
+    if not tables:
+        raise ValueError(f"No package tables (0.pamt) were found under {root}.")
+    log(f"Listing the archives under {root} ({len(tables)} package tables)...")
+    entries: list[ArchiveEntry] = []
+    for index, pamt in enumerate(tables, start=1):
+        raise_if_cancelled(stop_event, "New item snapshot cancelled.")
+        try:
+            entries.extend(parse_archive_pamt(pamt))
+        except Exception as error:  # noqa: BLE001 - one bad package is not the end of the list
+            log(f"Skipping {pamt.parent.name}/{pamt.name}: {error}")
+        if index % 8 == 0 or index == len(tables):
+            log(f"Listed {index}/{len(tables)} package tables, {len(entries):,} entries so far...")
+    return tuple(entries)
+
+
 def snapshot_task(
     entries: Iterable[ArchiveEntry],
     *,
     service: NewItemService,
     read_entry: Optional[Callable[[ArchiveEntry], bytes]] = None,
+    package_root: Optional[Path] = None,
 ) -> Callable[[LogSink, threading.Event], NewItemSnapshot]:
-    """Read every table a new item touches; seconds of work, once per archive scan."""
+    """Read every table a new item touches; seconds of work, once per archive scan.
+
+    With no `entries` and a `package_root`, the archives are listed first
+    (:func:`list_archive_entries`), which is what the studio does when the shell's
+    catalogue backend has not filled the legacy entry list.
+    """
 
     frozen = tuple(entries)
 
     def run(log: LogSink, stop_event: threading.Event) -> NewItemSnapshot:
-        return service.build_snapshot(frozen, read_entry=read_entry, on_log=log, stop_event=stop_event)
+        listed = frozen
+        if not listed:
+            if package_root is None:
+                raise ValueError("The archive list is empty and no package root was given.")
+            listed = list_archive_entries(Path(package_root), log, stop_event)
+        return service.build_snapshot(listed, read_entry=read_entry, on_log=log, stop_event=stop_event)
 
     return run
 

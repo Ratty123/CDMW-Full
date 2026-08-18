@@ -99,6 +99,35 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_an_empty_entry_list_is_read_from_the_package_root(self) -> None:
+        """The shell's catalogue backend shows the browser without filling the legacy
+        entry list; the studio then lists the archives itself from the game folder."""
+
+        from cdmw.ui.new_item.controller import NewItemStudioController
+        from cdmw.ui.new_item.tab import NewItemStudioTab
+
+        controller = NewItemStudioController(service=NewItemService(), read_entry=_read, synchronous=True)
+        tab = NewItemStudioTab(controller=controller, get_archive_entries=lambda: (), get_package_root=lambda: str(self.root))
+        tab.start_snapshot()
+        self.assertTrue(tab.controller.ready, "listed from the package root and read")
+        self.assertIn(TEMPLATE, tab.controller.snapshot.rows)
+        tab.request_shutdown()
+        tab.shutdown()
+        tab.close()
+        tab.deleteLater()
+
+    def test_no_entries_and_no_game_folder_says_so(self) -> None:
+        from cdmw.ui.new_item.controller import NewItemStudioController
+        from cdmw.ui.new_item.tab import NewItemStudioTab
+
+        controller = NewItemStudioController(service=NewItemService(), read_entry=_read, synchronous=True)
+        tab = NewItemStudioTab(controller=controller, get_archive_entries=lambda: (), get_package_root=lambda: "")
+        tab.start_snapshot()
+        self.assertFalse(tab.controller.ready)
+        self.assertIn("no game folder", tab._status.text())
+        tab.close()
+        tab.deleteLater()
+
     def test_snapshot_panels_and_a_plan_through_the_panels(self) -> None:
         from PySide6.QtCore import Qt
 

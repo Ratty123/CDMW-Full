@@ -343,12 +343,15 @@ class NewItemStudioController(QObject):
 
     # ------------------------------------------------------------------ tasks
 
-    def start_snapshot(self, entries: Iterable[ArchiveEntry]) -> bool:
+    def start_snapshot(self, entries: Iterable[ArchiveEntry], *, package_root: Optional[Path] = None) -> bool:
+        """Read the tables from `entries`, or, with none, list the archives under
+        `package_root` first (the shell's catalogue backend leaves the legacy list empty)."""
+
         frozen = tuple(entries)
-        if not frozen:
+        if not frozen and package_root is None:
             self.snapshot_failed.emit("The archive list is empty; scan the archives first.")
             return False
-        task = snapshot_task(frozen, service=self.service, read_entry=self._read_entry)
+        task = snapshot_task(frozen, service=self.service, read_entry=self._read_entry, package_root=package_root)
 
         def done(result: object) -> None:
             if isinstance(result, NewItemSnapshot):
