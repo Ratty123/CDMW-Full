@@ -507,8 +507,6 @@ class _Planner:
                 raise NewItemPlanError(f"{part.prefab_path} names no mesh to re-path to the imported model")
             self.add(self.snapshot.entry(part.prefab_path), new_prefab, result.data, f"sheathed prefab: {new_prefab} (draws the imported mesh instead of {part.pac_path.rsplit('/', 1)[-1]})")
             written.append(new_prefab)
-        if self.owns_sheathed_parts and not self.sheathed_stem_map():
-            self.warnings.append("The template has no sheathed (_IN) part to give the item, so nothing draws for it when sheathed; the template's own is what it had.")
         self.manifest["model_files"] = written
         self.manifest["sheathed_model"] = self.spec.sheathed_model.value if self.spec.model_source is ModelSource.IMPORTED else None
         self.manifest["material_route"] = self.model.material_route or None

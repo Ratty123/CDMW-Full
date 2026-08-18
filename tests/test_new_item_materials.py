@@ -19,6 +19,7 @@ from cdmw.domain.new_item.spec import MaterialRoute  # noqa: E402
 from cdmw.services.new_item_materials import (  # noqa: E402
     SourceMaterialTextures,
     encode_emissive_from_png,
+    encode_sp_from_factors,
     encode_sp_from_png,
     route_model_files,
     route_plain_pbr,
@@ -66,6 +67,7 @@ class Section:
 class Binding:
     material_name: str
     texture_slots: tuple = ()
+    submesh_index: int = -1
 
 
 @dataclass
@@ -74,8 +76,25 @@ class Result:
 
 
 @dataclass
+class Parameter:
+    parameter_name: str
+    value: str
+
+
+@dataclass
+class Submesh:
+    preview_material_parameters: tuple = ()
+
+
+@dataclass
+class Mesh:
+    submeshes: tuple = ()
+
+
+@dataclass
 class Scene:
     material_bindings: tuple = ()
+    mesh: object = None
 
 
 class RouteTests(unittest.TestCase):
@@ -98,6 +117,10 @@ class RouteTests(unittest.TestCase):
     def _encode_emissive(self, png: Path):
         self.encoded.append(png.name)
         return dds(b"BC4U"), "#4461F3FF"
+
+    def _encode_factors(self, roughness: float, metallic: float) -> bytes:
+        self.encoded.append(f"factors {roughness:g} {metallic:g}")
+        return dds()
 
     def test_rewrites_owned_wrappers_with_a_source_sp_and_drops_the_orphaned_mask(self) -> None:
         sources = {"cd_phm_02_sword_0003": SourceMaterialTextures(name="lambert1", material=self.mr)}
@@ -129,14 +152,19 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(files.warnings, route.warnings)
 
     def test_source_emissive_is_encoded_with_its_colour(self) -> None:
-        sources = {"cd_phm_02_sword_handle_0003": SourceMaterialTextures(name="Gem", emissive=self.emi)}
-        route = route_plain_pbr(builder_files(), sources=sources, encode=self._encode, encode_emissive=self._encode_emissive)
-        self.assertEqual(self.encoded, ["gem_emissive.png"])
-        self.assertEqual(route.encoded, (GEM_EMI,))
+        sources = {"cd_phm_02_sword_handle_0003": SourceMaterialTextures(name="Gem", emissive=self.emi, roughness_factor=0.3, metallic_factor=0.9)}
+        route = route_plain_pbr(builder_files(), sources=sources, encode=self._encode, encode_emissive=self._encode_emissive, encode_factors=self._encode_factors)
+        # no metallic/roughness map on the source: its factors become a solid _sp; the emissive is encoded from the source
+        self.assertEqual(self.encoded, ["factors 0.3 0.9", "gem_emissive.png"])
+        gem_sp = f"{TEX}/cd_phm_02_sword_0003_gem_sp.dds"
+        self.assertEqual(route.encoded, (gem_sp, GEM_EMI))
         gem = {w.submesh_name: w for w in find_material_wrappers(route.files.side_files[XML].decode("utf-8"))}["cd_phm_02_sword_handle_0003"]
+        self.assertEqual(gem.textures["_materialTexture"], gem_sp)
+        self.assertNotIn(GEM_MASK, route.files.side_files, "the Builder's mask is no longer named")
         self.assertEqual(gem.value("_emissiveColor"), "#4461F3FF", "the colour the source glows in")
         self.assertEqual(gem.value("_emissiveIntensity"), "10.000000")
         self.assertEqual(route.files.side_files[GEM_EMI][84:88], b"BC4U", "the intensity map replaces the Builder's")
+        self.assertTrue(any("factors (roughness 0.3, metalness 0.9)" in line for line in route.lines), route.lines)
 
     def test_without_sources_the_builder_masks_stand_in(self) -> None:
         route = route_plain_pbr(builder_files(), encode=self._encode)
@@ -171,14 +199,16 @@ class RouteTests(unittest.TestCase):
     def test_source_materials_are_read_off_the_result_and_the_scene(self) -> None:
         result = Result((Section("cd_phm_02_sword_0003", "lambert1"), Section("cd_phm_02_sword_guard_0003", "Gem_outside"), Section("x", "unknown")))
         scene = Scene((
-            Binding("lambert1", (("base", str(self.folder / "missing.png")), ("material", str(self.mr)), ("emissive", str(self.emi)))),
-            Binding("Gem_outside", ()),
-        ))
+            Binding("lambert1", (("base", str(self.folder / "missing.png")), ("material", str(self.mr)), ("emissive", str(self.emi))), submesh_index=0),
+            Binding("Gem_outside", (), submesh_index=1),
+        ), mesh=Mesh((Submesh(), Submesh((Parameter("_roughnessFactor", "0.250000"), Parameter("_metallicFactor", "1.000000"), Parameter("_baseColorFactor", "#112233"))))))
         sources = source_materials_from_import(result, scene)
         self.assertEqual(set(sources), {"cd_phm_02_sword_0003", "cd_phm_02_sword_guard_0003"})
         lambert = sources["cd_phm_02_sword_0003"]
         self.assertEqual((lambert.name, lambert.material, lambert.emissive, lambert.base), ("lambert1", self.mr, self.emi, None), "only files that exist")
-        self.assertEqual(sources["cd_phm_02_sword_guard_0003"].material, None)
+        self.assertEqual((lambert.roughness_factor, lambert.metallic_factor), (1.0, 1.0), "no factors given: the glTF defaults")
+        gem = sources["cd_phm_02_sword_guard_0003"]
+        self.assertEqual((gem.material, gem.roughness_factor, gem.metallic_factor), (None, 0.25, 1.0), "the factors the importer kept on the submesh")
         self.assertEqual(source_materials_from_import(None, None), {})
         self.assertEqual(source_materials_from_import(result, None), {})
 
@@ -223,6 +253,10 @@ class EncoderTests(unittest.TestCase):
             self.assertEqual((info.width, info.height, info.mip_count), (16, 16, 5))
             self.assertIn("BC4", str(info.format_name).upper())
             self.assertEqual(color, "#4766FFFF", "the lit pixels' colour, brightest channel full")
+            solid = encode_sp_from_factors(0.3, 0.9)
+            info = inspect_dds_native(solid)
+            self.assertEqual((info.width, info.height, info.mip_count), (16, 16, 5))
+            self.assertIn("BC1", str(info.format_name).upper())
 
 
 if __name__ == "__main__":
