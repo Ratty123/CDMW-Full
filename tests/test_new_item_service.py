@@ -630,7 +630,10 @@ class TextureRegistryTests(_PackageCase):
         from cdmw.core.pathc_format import PathcEntry, PathcTable, encode_pathc, pathc_checksum
 
         icon_header = _fake_dds()[:128] + bytes(20)
-        small_header = _fake_dds(4, 4)[:128] + bytes(20)
+        # the shipped registry tags a colour-with-alpha (DXT5) header 13 in dwReserved2; a header is only reused when its tag matches too
+        small = bytearray(_fake_dds(4, 4)[:128])
+        struct.pack_into("<I", small, 124, 13)
+        small_header = bytes(small) + bytes(20)
         rows = sorted((
             PathcEntry(pathc_checksum(ICON), 0, 255, 255, struct.pack("<4I", 65536, 65536, 0, 0)),
             PathcEntry(pathc_checksum("ui/texture/icon/itemicon_prefab_cd_phm_01_sword_0016.dds"), 0, 255, 255, struct.pack("<4I", 65536, 65536, 0, 0)),

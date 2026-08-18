@@ -93,6 +93,10 @@ class ModelFiles:
     pac_data: bytes
     #: game-relative template path -> bytes for the sidecar and textures the import produced.
     side_files: Mapping[str, bytes] = field(default_factory=dict)
+    #: how the materials were written (`MaterialRoute` value), and what that route has to say
+    material_route: str = ""
+    notes: Tuple[str, ...] = ()
+    warnings: Tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -434,6 +438,12 @@ class _Planner:
             self.add(template_entry, new_path, data, f"texture: {new_path}")
             written.append(new_path)
         self.manifest["model_files"] = written
+        self.manifest["material_route"] = self.model.material_route or None
+        if self.model.material_route:
+            self.summary.append(f"materials: {self.model.material_route}")
+        for note in self.model.notes:
+            self.summary.append(f"  {note}")
+        self.warnings.extend(self.model.warnings)
 
     def _effect_donor(self) -> Optional[bytes]:
         if self.spec.effect is None:

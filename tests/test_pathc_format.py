@@ -20,6 +20,8 @@ from cdmw.core.pathc_format import (  # noqa: E402
     block_infos_for,
     dds_shape,
     encode_pathc,
+    header_tag,
+    header_tag_for,
     parse_pathc,
     pathc_checksum,
     register_dds,
@@ -30,13 +32,14 @@ ICON = "ui/texture/icon/itemicon_prefab_cd_phm_01_sword_0109.dds"
 NEW_ICON = "ui/texture/icon/itemicon_prefab_cd_phm_01_sword_9109.dds"
 
 
-def dds_header(*, width: int, height: int, fourcc: bytes = b"DXT5", mips: int = 1) -> bytes:
+def dds_header(*, width: int, height: int, fourcc: bytes = b"DXT5", mips: int = 1, tag: int = 4) -> bytes:
     head = bytearray(128)
     head[:4] = b"DDS "
     struct.pack_into("<7I", head, 4, 124, 0x000A1007, height, width, width * height, 1, mips)
     struct.pack_into("<I", head, 76, 32)
     struct.pack_into("<I", head, 80, 4)
     head[84:88] = fourcc
+    struct.pack_into("<I", head, 124, tag)
     return bytes(head)
 
 
@@ -94,9 +97,15 @@ class PathcTests(unittest.TestCase):
     def test_register_a_dds_by_its_own_header(self) -> None:
         odd = struct.pack("<4I", 1153, 65536, 16384, 4096)
         table = build_table(headers=[BIG_HEADER, ICON_HEADER], entries=[(ICON, 1, ICON_BLOCKS), ("a/b.dds", 0, BIG_BLOCKS), ("a/c.dds", 0, BIG_BLOCKS), ("a/d.dds", 0, odd)])
-        new = register_dds(table, "character/texture/new_d.dds", BIG_HEADER + bytes(16))
-        entry = new.find("character/texture/new_d.dds")
+        new = register_dds(table, "character/texture/new_mg.dds", BIG_HEADER + bytes(16))
+        entry = new.find("character/texture/new_mg.dds")
         self.assertEqual((entry.header_index, entry.block_infos), (0, BIG_BLOCKS), "the header's usual block infos, not the odd one out")
+        # the tag is part of the match: a base colour (tag 12) does not land on a mask's header (tag 4)
+        colour = register_dds(table, "character/texture/new_d.dds", BIG_HEADER + bytes(16))
+        self.assertEqual(colour.find("character/texture/new_d.dds").header_index, 2, "a new header row, tagged 12")
+        self.assertEqual(header_tag(colour.headers[2]), 12)
+        self.assertEqual(colour.find("character/texture/new_d.dds").block_infos, BIG_BLOCKS)
+        self.assertEqual(register_dds(table, "character/texture/new_d.dds", BIG_HEADER + bytes(16), tag=4).find("character/texture/new_d.dds").header_index, 0, "an explicit tag overrides the role")
         with self.assertRaisesRegex(PathcError, "DDS header"):
             register_dds(table, "x.dds", b"nope")
         # a shape the registry has never seen gets a header row of its own, with computed mip sizes
@@ -108,7 +117,7 @@ class PathcTests(unittest.TestCase):
         self.assertEqual(struct.unpack("<4I", entry.block_infos), (4096, 1024, 256, 64), "DXT5 64x64 mips 0..3")
         self.assertEqual(grown.headers[2][:32], odd_shape[:32])
         self.assertEqual(grown.headers[2][32:76], bytes(44), "dwReserved1 zeroed")
-        self.assertEqual(struct.unpack_from("<I", grown.headers[2], 124)[0], 4, "the usual usage tag")
+        self.assertEqual(struct.unpack_from("<I", grown.headers[2], 124)[0], 13, "the tag of a colour texture with alpha")
         self.assertEqual(grown.headers[2][128:], bytes(20))
         self.assertEqual(parse_pathc(encode_pathc(grown)), grown)
         one_mip = register_dds(table, "x/one.dds", dds_header(width=64, height=64, mips=1) + bytes(4096))
@@ -118,6 +127,18 @@ class PathcTests(unittest.TestCase):
         self.assertEqual(block_infos_for(dds_header(width=256, height=256, fourcc=b"DXT5", mips=1)), struct.pack("<4I", 65536, 65536, 0, 0))
         with self.assertRaisesRegex(PathcError, "not one whose mip sizes"):
             register_dds(table, "x/rgba.dds", dds_header(width=8, height=8, fourcc=bytes(4)))
+
+    def test_header_tags_follow_the_texture_kind(self) -> None:
+        dxt1 = dds_header(width=64, height=64, fourcc=b"DXT1", mips=7)
+        dxt5 = dds_header(width=64, height=64, fourcc=b"DXT5", mips=7)
+        self.assertEqual(header_tag_for("character/texture/cd_phm_02_sword_9003_blade_basecolor.dds", dxt1), 12)
+        self.assertEqual(header_tag_for("character/texture/cd_phm_02_sword_9003_blade.dds", dxt5), 13, "a colour with alpha")
+        self.assertEqual(header_tag_for("character/texture/x_sp.dds", dxt1), 12, "_sp ships tagged like a colour")
+        for suffix in ("n", "disp", "ma", "mg", "emi", "o"):
+            self.assertEqual(header_tag_for(f"character/texture/x_{suffix}.dds", dxt1), 4, suffix)
+        self.assertEqual(header_tag_for("character/texture/x_m.dds", dxt5), 5)
+        self.assertEqual(header_tag_for("ui/texture/icon/x.dds", dxt5), 13)
+        self.assertEqual(header_tag(dds_header(width=8, height=8, tag=15)), 15)
 
     def test_encode_refuses_malformed_rows(self) -> None:
         table = build_table(headers=[ICON_HEADER], entries=[(ICON, 0, ICON_BLOCKS)])

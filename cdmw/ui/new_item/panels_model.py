@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -14,7 +15,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.domain.new_item.spec import IconSource, ModelSource
+from cdmw.domain.new_item.spec import IconSource, MaterialRoute, ModelSource
 from cdmw.ui.new_item.controller import NewItemStudioController
 
 
@@ -50,6 +51,16 @@ class ModelPanel(QGroupBox):
         self.model_status = QLabel("No imported model.")
         self.model_status.setWordWrap(True)
         layout.addWidget(self.model_status)
+        self.plain_pbr = QCheckBox("Write the imported materials for the game's plain PBR shaders (SkinnedMeshStandard: base colour, normal, roughness/metal)")
+        self.plain_pbr.setChecked(True)
+        self.plain_pbr.setToolTip(
+            "The Builder keeps the template's layered material and fits the imported textures into it, and the game draws "
+            "its own detail layers over them. Checked, the wrappers the import owns are rewritten to the shaders the shipped "
+            "texture-driven weapons use, with a real _sp roughness/metal map from the source. Unchecked, the Builder's sidecar "
+            "goes in as it came (Material Authority)."
+        )
+        self.plain_pbr.toggled.connect(self._material_route_changed)
+        layout.addWidget(self.plain_pbr)
 
         icon = QGroupBox("Icon")
         icon_layout = QVBoxLayout(icon)
@@ -82,18 +93,26 @@ class ModelPanel(QGroupBox):
         controller.model_changed.connect(self._show_model)
         controller.template_changed.connect(lambda _key: self._show_model(controller.model_result))
         self._icon_source_changed(True)
+        self.plain_pbr.setEnabled(False)
 
     def _model_source_changed(self, keep: bool) -> None:
         draft = self._controller.draft
         draft.model_source = ModelSource.TEMPLATE if keep else ModelSource.IMPORTED
+        self.plain_pbr.setEnabled(not keep)
+        self._controller.plan = None
+
+    def _material_route_changed(self, plain: bool) -> None:
+        self._controller.draft.material_route = MaterialRoute.PLAIN_PBR if plain else MaterialRoute.BUILDER
         self._controller.plan = None
 
     def _show_model(self, result: object) -> None:
         if result is None:
             self.keep_model.setChecked(True)
             self.model_status.setText("No imported model.")
+            self.plain_pbr.setEnabled(False)
             return
         self.import_model.setChecked(True)
+        self.plain_pbr.setEnabled(True)
         lines = list(getattr(result, "summary_lines", ()) or ())[:4]
         entry = self._controller.model_entry
         head = f"Imported model for {entry.basename}" if entry is not None else "Imported model"
