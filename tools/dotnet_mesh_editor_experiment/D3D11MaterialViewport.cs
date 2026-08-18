@@ -407,7 +407,9 @@ internal sealed partial class D3D11MaterialViewport : Control
         byte[] OverlayVertex,
         byte[] WireGeometry,
         byte[] MarkerGeometry,
-        byte[] OverlayPixel);
+        byte[] OverlayPixel,
+        byte[] ParticleVertex,
+        byte[] ParticlePixel);
 
     private static readonly (string Entry, string Profile)[] ShaderStages =
     {
@@ -417,6 +419,8 @@ internal sealed partial class D3D11MaterialViewport : Control
         ("GSWireLine", "gs_5_0"),
         ("GSVertexMarker", "gs_5_0"),
         ("PSOverlay", "ps_5_0"),
+        ("VSParticle", "vs_5_0"),
+        ("PSParticle", "ps_5_0"),
     };
 
     private static string ShaderCacheDirectory => Path.Combine(
@@ -463,7 +467,7 @@ internal sealed partial class D3D11MaterialViewport : Control
             var (entry, profile) = ShaderStages[index];
             stages[index] = ShaderStageBytecode(shaderPath, sourceKey, entry, profile, useCache);
         }
-        return new ShaderBytecodeSet(stages[0], stages[1], stages[2], stages[3], stages[4], stages[5]);
+        return new ShaderBytecodeSet(stages[0], stages[1], stages[2], stages[3], stages[4], stages[5], stages[6], stages[7]);
     }
 
     private static byte[] ShaderStageBytecode(
@@ -570,6 +574,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         _overlayInputLayout = _device.CreateInputLayout(
             new[] { new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0) },
             bytecode.OverlayVertex);
+        CreateEffectParticleShaders(bytecode.ParticleVertex, bytecode.ParticlePixel);
     }
 
     private static string ResolveShaderPath()
@@ -640,6 +645,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         _gizmoDepthState = _device.CreateDepthStencilState(overlayNoDepthDescription);
         _cameraBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<D3D11CameraConstants>(), BindFlags.ConstantBuffer));
         _overlayCameraBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<D3D11OverlayConstants>(), BindFlags.ConstantBuffer));
+        CreateEffectParticlePipelineStates();
     }
 
     private void ResizeSwapChainResources()
@@ -838,6 +844,7 @@ internal sealed partial class D3D11MaterialViewport : Control
                 }
             }
         }
+        DrawEffectParticles(replacementOnly);
         if (includeOverlays)
         {
             var captureOverlay = PreviewPerformanceCapture.IsActive;

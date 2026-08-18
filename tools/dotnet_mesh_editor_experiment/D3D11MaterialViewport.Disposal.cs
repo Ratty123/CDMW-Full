@@ -39,6 +39,7 @@ internal sealed partial class D3D11MaterialViewport
         DiscardTextureResourceRefreshState();
         DisposeOverlayDynamicResources();
         DisposeGpuTimingQueries();
+        DisposeEffectParticleDeviceResources();
         _blendState?.Dispose();
         _transparentBlendState?.Dispose();
         _overlayBlendState?.Dispose();
@@ -106,6 +107,13 @@ internal sealed partial class D3D11MaterialViewport
             _resizeCommitTimer.Stop();
             _resizeCommitTimer.Tick -= OnResizeCommitTimerTick;
             _resizeCommitTimer.Dispose();
+            if (_effectParticlePump is not null)
+            {
+                _effectParticlePump.Stop();
+                _effectParticlePump.Tick -= OnEffectParticlePumpTick;
+                _effectParticlePump.Dispose();
+                _effectParticlePump = null;
+            }
             DisposeDeviceResources(clearDeviceContext: true);
         }
         base.Dispose(disposing);

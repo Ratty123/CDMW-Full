@@ -1431,7 +1431,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 850,
+          "line": 856,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -2021,7 +2021,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 847,
+          "line": 853,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -4661,7 +4661,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 223,
+          "line": 229,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -13121,7 +13121,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 227,
+          "line": 233,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -21021,7 +21021,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 255,
+          "line": 261,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -27216,7 +27216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 240,
+          "line": 243,
           "sink": "setText"
         }
       ]
@@ -28706,7 +28706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 255,
+          "line": 270,
           "sink": "setText"
         }
       ]
@@ -28776,7 +28776,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 549,
+          "line": 555,
           "sink": "csharp:.Text="
         }
       ]
@@ -32616,7 +32616,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 264,
+          "line": 270,
           "sink": "csharp:.Text="
         }
       ]
@@ -32691,7 +32691,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 220,
+          "line": 226,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -43791,7 +43791,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 227,
+          "line": 233,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -44441,7 +44441,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 255,
+          "line": 261,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -45121,7 +45121,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 276,
+          "line": 282,
           "sink": "csharp:.Text="
         }
       ]
@@ -45536,7 +45536,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 321,
+          "line": 327,
           "sink": "csharp:.Text="
         }
       ]
@@ -52481,7 +52481,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 788,
+          "line": 794,
           "sink": "csharp:.Text="
         }
       ]
@@ -52511,7 +52511,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 855,
+          "line": 861,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -52521,7 +52521,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 854,
+          "line": 860,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -64816,7 +64816,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 708,
+          "line": 714,
           "sink": "csharp:.Text="
         }
       ]
@@ -64826,7 +64826,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 777,
+          "line": 783,
           "sink": "csharp:.Text="
         }
       ]
@@ -72111,7 +72111,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 227,
+          "line": 233,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -73681,7 +73681,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 223,
+          "line": 229,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -74856,7 +74856,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.PackageProtocol.cs",
-          "line": 263,
+          "line": 264,
           "sink": "csharp:.Text="
         }
       ]
@@ -85821,7 +85821,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 255,
+          "line": 261,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -89096,7 +89096,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 223,
+          "line": 229,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -92026,7 +92026,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 376,
+          "line": 382,
           "sink": "csharp:.Text="
         }
       ]
@@ -92036,7 +92036,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 405,
+          "line": 411,
           "sink": "csharp:.Text="
         }
       ]
@@ -92706,7 +92706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 240,
+          "line": 243,
           "sink": "setText"
         }
       ]
@@ -92978,6 +92978,16 @@
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
           "line": 269,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "The particles are an approximate CPU reading of the effect's emitters (sprites, colours and motion from its binaries), not the game's own simulation; they follow the box.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 243,
+          "sink": "setText"
         }
       ]
     },
@@ -94336,7 +94346,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 789,
+          "line": 795,
           "sink": "csharp:.Text="
         }
       ]
@@ -94516,7 +94526,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 223,
+          "line": 229,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -98611,7 +98621,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 220,
+          "line": 226,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -100941,7 +100951,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 220,
+          "line": 226,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -102381,7 +102391,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 239,
+          "line": 245,
           "sink": "csharp:csharp-wrapper:ConfigureCheckBox[1]"
         }
       ]
@@ -102391,7 +102401,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 249,
+          "line": 255,
           "sink": "csharp:.Text="
         }
       ]
@@ -194181,7 +194191,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/MeshViewport.ResidentPackage.cs",
-          "line": 20,
+          "line": 34,
           "sink": "csharp:csharp-return:InitialResidentDisplayMode"
         }
       ]
@@ -199316,7 +199326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 240,
+          "line": 243,
           "sink": "setText"
         }
       ]

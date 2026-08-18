@@ -140,6 +140,35 @@ class EffectPreviewInPackageTests(unittest.TestCase):
         self.assertEqual(describe_effect_preview(None), "")
 
 
+class ViewerParticleLayerContractTests(unittest.TestCase):
+    """The resident .NET viewer's particle layer, as source: it reads what the package writes."""
+
+    ROOT = Path(__file__).resolve().parents[1] / "tools" / "dotnet_mesh_editor_experiment"
+
+    def test_the_viewer_reads_the_description_and_announces_the_capability(self) -> None:
+        reader = (self.ROOT / "EffectParticlePreview.cs").read_text(encoding="utf-8")
+        renderer = (self.ROOT / "D3D11MaterialViewport.EffectParticles.cs").read_text(encoding="utf-8")
+        shaders = (self.ROOT / "D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
+        provenance = (self.ROOT / "HelperBuildProvenance.cs").read_text(encoding="utf-8")
+        package_protocol = (self.ROOT / "ExperimentForm.PackageProtocol.cs").read_text(encoding="utf-8")
+        from cdmw.services.effect_placement_preview import EFFECT_PREVIEW_FILE
+
+        self.assertIn(f'FileName = "{EFFECT_PREVIEW_FILE}"', reader)
+        for key in ("bursts_per_second", "life", "spawn", "spread", "points", "force", "damping", "speed_limit", "scale", "rotation",
+                    "scale_over_life", "alpha_over_life", "color_over_life", "emissive_color", "beam_width", "beam_length", "beam_axis",
+                    "mass", "simulation_speed", "sequence", "velocity_stretch", "texture_files"):
+            self.assertIn(f'"{key}"', reader, key)
+        self.assertIn("class EffectEmitterSimulation", reader)
+        self.assertIn("AppendBeamVertices", reader)
+        self.assertIn("LoadEffectParticlePreview", renderer)
+        self.assertIn("DrawEffectParticles", renderer)
+        self.assertIn("VSParticle", shaders)
+        self.assertIn("PSParticle", shaders)
+        self.assertIn('"effect_particle_preview_v1"', provenance)
+        self.assertIn("LoadEffectParticlePreview(prepared.PackagePath)", package_protocol)
+        self.assertIn('["effect_preview"]', package_protocol)
+
+
 class DialogTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

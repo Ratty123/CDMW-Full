@@ -246,6 +246,7 @@ internal sealed partial class ExperimentForm
             prepared.Materials,
             nextTextures,
             prepared.Scene);
+        _viewport.LoadEffectParticlePreview(prepared.PackagePath);
         _document = prepared.Document;
         _materials = prepared.Materials;
         _textureSet = prepared.DetachTextureSet();
@@ -272,6 +273,7 @@ internal sealed partial class ExperimentForm
             ["texture_ms"] = prepared.TextureMilliseconds,
             ["apply_ms"] = phase.Elapsed.TotalMilliseconds,
             ["texture_resources_ready"] = _viewport.HasTexturedMaterialResources,
+            ["effect_preview"] = _viewport.EffectParticlePreviewStatus(),
             ["resident_package_load_count"] = loadCount,
             ["resident_scene_load_count"] = _viewport.ResidentSceneLoadCount,
             ["renderer"] = RendererCompactStatusWithLifecycle(),
