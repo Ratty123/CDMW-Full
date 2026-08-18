@@ -58,6 +58,16 @@ class ModelPanel(QGroupBox):
         )
         flip_note.setWordWrap(True)
         layout.addWidget(flip_note)
+        baseline_note = QLabel(
+            "Head cover and placement come from the template. An imported model inherits the template's part prefabs (which "
+            "character parts it occupies, and any mesh drawn beside it, such as a helm's helmet hair; the Template panel lists "
+            "them), so pick a helm template for the look it gives in game: the Northern Fighter's Plate Helm keeps the face drawn, "
+            "the Unyielding Warrior's and Canta helms hide the head. Where the model sits is the Builder's placement review: on the "
+            "shipped swords the guard's handle-side edge is 0.10 m in front of the hand (offset z, + toward the pommel), and a helm "
+            "wants manual placement (a source in centimetres: scale 0.01, no rotation, origin at the head, about y 1.745, z -0.03)."
+        )
+        baseline_note.setWordWrap(True)
+        layout.addWidget(baseline_note)
         self.plain_pbr = QCheckBox("Write the imported materials for the game's plain PBR shaders (SkinnedMeshStandard: base colour, normal, roughness/metal)")
         self.plain_pbr.setChecked(True)
         self.plain_pbr.setToolTip(

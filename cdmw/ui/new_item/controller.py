@@ -18,6 +18,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
 from cdmw.models import ArchiveEntry
+from cdmw.services.new_item_baseline import baseline_facts, baseline_lines
 from cdmw.services.new_item_planning import NewItemPlan, NewItemPlanError
 from cdmw.services.new_item_service import NewItemInstallRefused, NewItemService
 from cdmw.services.new_item_snapshot import NewItemSnapshot, NewItemSnapshotError
@@ -105,6 +106,7 @@ class NewItemStudioController(QObject):
             missing = [item.path for item in family.missing_files]
             if missing:
                 lines.append(f"missing family files: {', '.join(missing)}")
+            lines.extend(baseline_lines(baseline_facts(family, self.snapshot.payload)))
         except Exception as exc:  # noqa: BLE001 - shown, not raised
             lines.append(f"model family: {exc}")
         groups = facts.item_group_keys
