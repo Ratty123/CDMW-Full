@@ -19,7 +19,8 @@ or anything with the same five attributes) to those values without moving a byte
   parameters by position (an override record carries no `_splineID` or `_name`), so
   a caller that has the emitter files passes their :class:`EmitterLayout` and the
   positional overrides are recoloured as well;
-* intensity: `_emissiveBrightness` and `_brightness` (float3) are multiplied;
+* intensity: `_emissiveBrightness` and `_brightness` (float3) are multiplied, and the
+  material's `_temperatureBrightness` (what a temperature-driven fire's ramp is scaled by);
 * size: `EmitterSimulationData._scaleMin/_scaleMax` and `EmitterData._particleScaleMax`
   (float3) are multiplied, and the effect's bounding boxes with them;
 * rate: `EmitterSpawnData._spawnCountMin/_spawnCountMax/_maxParticleCount` (uint)
@@ -56,6 +57,7 @@ __all__ = [
     "EMITTER_DIR",
     "RENDER_PRESET_DIR",
     "SIMULATION_PRESET_DIR",
+    "TEMPERATURE_BRIGHTNESS",
     "TEMPERATURE_RAMP",
     "EffectEditError",
     "EffectEditReport",
@@ -80,6 +82,8 @@ Vec3 = Tuple[float, float, float]
 COLOR_CURVE_ID = 21
 #: The material parameter that maps normalised temperature to (R, G, B, intensity).
 TEMPERATURE_RAMP = "_temperatureColorSpline"
+#: The material parameter that scales what the temperature ramp gives.
+TEMPERATURE_BRIGHTNESS = "_temperatureBrightness"
 COLOR_MEMBERS = ("_emissiveColor", "_color", "_precomputeEmissiveLightLinearColor")
 BRIGHTNESS_MEMBERS = ("_emissiveBrightness", "_brightness")
 SIZE_MEMBERS = ("_scaleMin", "_scaleMax", "_particleScaleMax")
@@ -300,16 +304,19 @@ def apply_effect_look(
             continue
         out = write_value(out, value, replacement)
         report.count(value.name)
-    if look.color is not None:
-        out = _recolor_curves_and_ramps(out, document, look.color, report, emitter_layouts or {})
+    if look.color is not None or abs(look.intensity - 1.0) > 1e-9:
+        out = _edit_curves_and_material_parameters(out, document, look, report, emitter_layouts or {})
     return out, report
 
 
-def _recolor_curves_and_ramps(out: bytes, document: EffectDocument, color: Vec3, report: EffectEditReport, layouts: Mapping[str, EmitterLayout]) -> bytes:
-    """Recolour every colour-over-life curve and temperature ramp the graph carries:
-    an emitter file's own (ids and names present) and an effect's embedded overrides
-    (by position, through `layouts`)."""
+def _edit_curves_and_material_parameters(out: bytes, document: EffectDocument, look: "LookLike", report: EffectEditReport, layouts: Mapping[str, EmitterLayout]) -> bytes:
+    """The edits that go by curve id and material parameter name: a colour recolours
+    every colour-over-life curve and temperature ramp the graph carries, an intensity
+    multiplies `_temperatureBrightness`; an emitter file's own (ids and names present)
+    and an effect's embedded overrides (by position, through `layouts`)."""
 
+    color = look.color
+    intensity = float(look.intensity)
     for node in document.root.walk():
         if node.type_name == "EmitterData":
             layout = _layout_of_node(node)
@@ -321,7 +328,7 @@ def _recolor_curves_and_ramps(out: bytes, document: EffectDocument, color: Vec3,
         for index, entry in enumerate(curves if isinstance(curves, tuple) else ()):
             sid = entry.value("_splineID")
             curve_id = int(sid.value) if sid is not None and isinstance(sid.value, int) else (layout.curve_ids[index] if index < len(layout.curve_ids) else None)
-            if curve_id != COLOR_CURVE_ID:
+            if color is None or curve_id != COLOR_CURVE_ID:
                 continue
             samples = entry.value("_splineData")
             if samples is None or samples.kind != 3 or samples.size < 8 or samples.size % 8:
@@ -333,9 +340,13 @@ def _recolor_curves_and_ramps(out: bytes, document: EffectDocument, color: Vec3,
         for index, parameter in enumerate(parameters if isinstance(parameters, tuple) else ()):
             name = parameter.value("_name")
             parameter_name = str(name.value) if name is not None and name.kind == 1 else (layout.parameter_names[index] if index < len(layout.parameter_names) else None)
-            if parameter_name != TEMPERATURE_RAMP:
-                continue
-            out = _recolor_ramp(out, parameter, color, report)
+            if color is not None and parameter_name == TEMPERATURE_RAMP:
+                out = _recolor_ramp(out, parameter, color, report)
+            elif abs(intensity - 1.0) > 1e-9 and parameter_name == TEMPERATURE_BRIGHTNESS:
+                value = parameter.value("_value")
+                if value is not None and value.type_name == "float" and value.size == 4:
+                    out = write_value(out, value, _multiplied_float(value.raw, intensity))
+                    report.count(TEMPERATURE_BRIGHTNESS)
     return out
 
 
