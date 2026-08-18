@@ -1732,7 +1732,7 @@
       ]
     },
     {
-      "key": ", which runs Import Mesh over the template's mesh and hands the result here instead of writing it over the template; it is re-pathed to the new item's own family. An imported model's materials are written for the game's plain PBR shaders by default (SkinnedMeshStandard: the source's albedo, normal and roughness/metal map, SkinnedMeshEmissive where the source glows), the way the shipped texture-driven weapons are; untick that to keep the Builder's layered sidecar as it came. Keep the template's icon or generate one from an image or a folder, fitted to the template icon's DDS format.",
+      "key": ", which runs Import Mesh over the template's mesh and hands the result here instead of writing it over the template; it is re-pathed to the new item's own family. An imported model's materials are written for the game's plain PBR shaders by default (SkinnedMeshStandard: the source's albedo, normal and roughness/metal map, SkinnedMeshEmissive where the source glows), the way the shipped texture-driven weapons are; untick that to keep the Builder's layered sidecar as it came. The template is also the baseline the import inherits: its part prefabs decide which character parts the item occupies and what is drawn beside it (a helm's helmet hair), and the Template panel lists them; a helm imported over the Northern Fighter's Plate Helm keeps the face drawn, one over the Unyielding Warrior's or Canta helm hides the head. Where the model sits is the Builder's placement review: on the shipped swords the guard's handle-side edge is 0.10 m in front of the hand (offset z, + toward the pommel); a helm wants manual placement (scale, no rotation, origin at the head). Keep the template's icon or generate one from an image or a folder, fitted to the template icon's DDS format.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -3846,7 +3846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 73,
+          "line": 83,
           "sink": "setToolTip"
         }
       ]
@@ -5906,7 +5906,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 157,
+          "line": 167,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -13791,12 +13791,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 330,
+          "line": 332,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 337,
+          "line": 339,
           "sink": "emit"
         },
         {
@@ -17606,7 +17606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 165,
+          "line": 175,
           "sink": "getExistingDirectory"
         }
       ]
@@ -17836,7 +17836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 157,
+          "line": 167,
           "sink": "getOpenFileName"
         }
       ]
@@ -17846,7 +17846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 309,
+          "line": 311,
           "sink": "ValueError"
         }
       ]
@@ -29017,6 +29017,16 @@
       ]
     },
     {
+      "key": "Encoding a solid _sp for {value_0} (roughness {value_1}, metalness {value_2}) -> {value_3}",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_materials.py",
+          "line": 293,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
       "key": "Encoding generated model preview icon...",
       "origins": [
         {
@@ -29036,7 +29046,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 237,
+          "line": 283,
           "sink": "on_log"
         }
       ]
@@ -29046,7 +29056,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 258,
+          "line": 314,
           "sink": "on_log"
         }
       ]
@@ -34966,7 +34976,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 97,
+          "line": 107,
           "sink": "QPushButton"
         },
         {
@@ -36031,7 +36041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 87,
+          "line": 97,
           "sink": "QRadioButton"
         }
       ]
@@ -37642,6 +37652,16 @@
       ]
     },
     {
+      "key": "Head cover and placement come from the template. An imported model inherits the template's part prefabs (which character parts it occupies, and any mesh drawn beside it, such as a helm's helmet hair; the Template panel lists them), so pick a helm template for the look it gives in game: the Northern Fighter's Plate Helm keeps the face drawn, the Unyielding Warrior's and Canta helms hide the head. Where the model sits is the Builder's placement review: on the shipped swords the guard's handle-side edge is 0.10 m in front of the hand (offset z, + toward the pommel), and a helm wants manual placement (a source in centimetres: scale 0.01, no rotation, origin at the head, about y 1.745, z -0.03).",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 61,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Heal",
       "origins": [
         {
@@ -38511,7 +38531,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 81,
+          "line": 91,
           "sink": "QGroupBox"
         }
       ]
@@ -39106,7 +39126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 91,
+          "line": 101,
           "sink": "setPlaceholderText"
         }
       ]
@@ -39126,7 +39146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 94,
+          "line": 104,
           "sink": "QPushButton"
         }
       ]
@@ -39136,7 +39156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 157,
+          "line": 167,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -42206,7 +42226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 233,
+          "line": 235,
           "sink": "emit"
         }
       ]
@@ -43001,7 +43021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 83,
+          "line": 93,
           "sink": "QRadioButton"
         }
       ]
@@ -54961,7 +54981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 325,
+          "line": 327,
           "sink": "ValueError"
         }
       ]
@@ -55071,7 +55091,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 133,
+          "line": 143,
           "sink": "setText"
         }
       ]
@@ -64761,7 +64781,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 680,
+          "line": 678,
           "sink": "log"
         }
       ]
@@ -69171,7 +69191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 275,
+          "line": 277,
           "sink": "emit"
         }
       ]
@@ -83021,7 +83041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 71,
+          "line": 81,
           "sink": "QCheckBox"
         }
       ]
@@ -87906,7 +87926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 344,
+          "line": 346,
           "sink": "emit"
         }
       ]
@@ -91536,7 +91556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 63,
+          "line": 73,
           "sink": "setToolTip"
         }
       ]
@@ -91716,7 +91736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 259,
+          "line": 261,
           "sink": "emit"
         }
       ]
@@ -92171,7 +92191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 101,
+          "line": 111,
           "sink": "QLabel"
         }
       ]
@@ -92181,7 +92201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 314,
+          "line": 316,
           "sink": "ValueError"
         }
       ]
@@ -92361,7 +92381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 300,
+          "line": 302,
           "sink": "emit"
         }
       ]
@@ -92626,7 +92646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 268,
+          "line": 270,
           "sink": "emit"
         }
       ]
@@ -100956,7 +100976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 61,
+          "line": 71,
           "sink": "QCheckBox"
         }
       ]
@@ -109211,7 +109231,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 577,
+          "line": 575,
           "sink": "add"
         }
       ]
