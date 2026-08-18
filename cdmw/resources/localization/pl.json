@@ -9258,6 +9258,7 @@
     "preparing": "preparing",
     "present": "present",
     "preset and automatic rules enabled.": "włączone reguły wstępne i automatyczne.",
+    "preset clone: {value_0}": "klon presetu: {value_0}",
     "preset driver identity does not match the active definition profile": "Ustawiona tożsamość sterownika nie pasuje do aktywnego profilu definicji",
     "preset first and leave automatic rules enabled so risky technical DDS files are preserved instead of pushed through the visible PNG path.": "Najpierw ustaw wstępnie i pozostaw włączone reguły automatyczne, aby ryzykowne techniczne pliki DDS zostały zachowane, a nie przesyłane przez widoczną ścieżkę PNG.",
     "preset references a missing procedural definition": "Ustawienie wstępne odwołuje się do brakującej definicji proceduralnej",

@@ -9258,6 +9258,7 @@
     "preparing": "preparing",
     "present": "present",
     "preset and automatic rules enabled.": "règles prédéfinies et automatiques activées.",
+    "preset clone: {value_0}": "clone du préréglage : {value_0}",
     "preset driver identity does not match the active definition profile": "l'identité du pilote prédéfini ne correspond pas au profil de définition actif",
     "preset first and leave automatic rules enabled so risky technical DDS files are preserved instead of pushed through the visible PNG path.": "prédéfinissez d'abord et laissez les règles automatiques activées afin que les fichiers DDS techniques à risque soient préservés au lieu d'être poussés via le chemin PNG visible.",
     "preset references a missing procedural definition": "le préréglage fait référence à une définition procédurale manquante",

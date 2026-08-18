@@ -26,7 +26,7 @@ from cdmw.core.item_icon_registry import ICON_REGISTRY_PATH, IconRegistryError, 
 from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, encode_pathc, register_dds, register_texture
 from cdmw.core.prefab_binary_edit import PrefabEditError
 from cdmw.core.effect_binary import decode_effect_binary
-from cdmw.core.effect_edit import EMITTER_DIR, EffectEditReport, apply_effect_look, emitter_paths_of, preset_names_of, preset_path, rename_effect_strings, rename_string_values, same_length_stem
+from cdmw.core.effect_edit import EMITTER_DIR, EffectEditReport, apply_effect_look, emitter_layout_of, emitter_paths_of, preset_names_of, preset_path, rename_effect_strings, rename_string_values, same_length_stem
 from cdmw.core.prefab_component_graft import encode_transform, graft_prefab_component
 from cdmw.core.item_model_family import FamilyPart, ItemModelFamily
 from cdmw.core.itemgroupinfo_table import add_group_members, apply_item_group_row, groups_containing
@@ -603,7 +603,14 @@ class _Planner:
                 renamed = rename_string_values(renamed, preset_renames)
             return renamed
 
-        edited_effect, report = apply_effect_look(cloned(source), look, report=report)
+        # the effect overrides its emitters' curves and material parameters by position:
+        # the emitters' layouts (under the clones' paths, which the renamed effect names)
+        # let a colour reach those overrides too
+        layouts = {
+            _emitter_file(new_emitter): emitter_layout_of(decode_effect_binary(emitter_sources[emitter_path]))
+            for emitter_path, _old, new_emitter in emitter_clones
+        }
+        edited_effect, report = apply_effect_look(cloned(source), look, report=report, emitter_layouts=layouts)
         new_effect_path = _effect_file(new_stem)
         self.add(self.snapshot.entry(effect_path), new_effect_path, edited_effect, f"effect clone: {new_effect_path}")
         written = [new_effect_path]
