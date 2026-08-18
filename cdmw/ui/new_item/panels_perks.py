@@ -21,6 +21,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
     QDoubleSpinBox,
     QGroupBox,
     QHBoxLayout,
@@ -138,6 +139,13 @@ class PerksPanel(QGroupBox):
             self.effect_offset.append(box)
         placement_row.addStretch(1)
         effect_layout.addLayout(placement_row)
+        self.place_button = QPushButton("Place in viewport...")
+        self.place_button.setToolTip(
+            "Open the resident viewport with the item's mesh and the effect's box at the current scale and offset; "
+            "drag the gizmo to move or scale it, and the numbers come back here."
+        )
+        self.place_button.clicked.connect(self._place_in_viewport)
+        placement_row.addWidget(self.place_button)
         self.effect_note = QLabel("The effect is drawn at the weapon's own origin, as the shipped thrown lightning spear draws its aura. Effects made for other weapons may sit or scale oddly; the scale and offset above move them, and the presets carry a starting scale.")
         self.effect_note.setWordWrap(True)
         effect_layout.addWidget(self.effect_note)
@@ -230,7 +238,7 @@ class PerksPanel(QGroupBox):
     # ------------------------------------------------------------------ effect
 
     def _use_effect_changed(self, checked: bool) -> None:
-        for widget in (self.effect_filter, self.effect, self.effect_preset, self.effect_scale, self.index_button, *self.effect_offset):
+        for widget in (self.effect_filter, self.effect, self.effect_preset, self.effect_scale, self.index_button, self.place_button, *self.effect_offset):
             widget.setEnabled(bool(checked))
         self._effect_changed(self.effect.currentIndex())
 
@@ -243,6 +251,33 @@ class PerksPanel(QGroupBox):
 
     def _index_effects(self) -> None:
         self._controller.start_effect_index()
+
+    def _place_in_viewport(self, *_args) -> None:
+        stem = str(self._controller.draft.effect_stem or "")
+        if not stem:
+            self._controller.status_message.emit("Choose an effect first.", True)
+            return
+        mesh = self._controller.item_mesh_for_preview()
+        if mesh is None:
+            self._controller.status_message.emit("Choose a template (or import a model) first; there is no mesh to place the effect on.", True)
+            return
+        box_min, box_max = self._controller.effect_box(stem)
+        dialog = self.placement_dialog_factory(
+            self, item_mesh=mesh, box_min=box_min, box_max=box_max,
+            offset=tuple(float(box.value()) for box in self.effect_offset), scale=float(self.effect_scale.value()), effect_label=stem,
+        )
+        if dialog.exec() != QDialog.Accepted:
+            return
+        self.effect_scale.setValue(float(dialog.scale))
+        for box, value in zip(self.effect_offset, dialog.offset):
+            box.setValue(float(value))
+        self._effect_transform_changed()
+
+    @staticmethod
+    def placement_dialog_factory(parent, **kwargs):
+        from cdmw.ui.new_item.effect_placement_dialog import EffectPlacementDialog
+
+        return EffectPlacementDialog(parent, **kwargs)
 
     def _catalogue_ready(self) -> None:
         catalogue = self._controller.effect_catalogue

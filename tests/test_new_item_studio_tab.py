@@ -195,6 +195,33 @@ class TabTests(unittest.TestCase):
         self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["fx_test_ice"])
         self.assertTrue(tab.controller.effect_facts("fx_test_ice").walk_note, "a stub effect is kept, marked undecoded")
         perks.effect_filter.setText("")
+        # place in the viewport: the dialog gets the item's mesh, the effect's box and the
+        # current numbers, and what it returns lands in the spins and the draft
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+
+        seen = {}
+
+        class FakeDialog:
+            def __init__(self, parent, **kwargs):
+                seen.update(kwargs)
+                self.offset = (0.1, 0.0, -0.2)
+                self.scale = 0.75
+
+            def exec(self):
+                from PySide6.QtWidgets import QDialog
+
+                return QDialog.Accepted
+
+        blade = ParsedMesh(path="blade", format="pac", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)])])
+        with patch.object(type(tab.controller), "item_mesh_for_preview", lambda self_: blade), patch.object(type(perks), "placement_dialog_factory", staticmethod(FakeDialog)):
+            perks.choose_effect("fx_test_fire")
+            perks.place_button.click()
+        self.assertIs(seen["item_mesh"], blade)
+        self.assertEqual(tuple(round(v, 2) for v in seen["box_min"]), (-1.24, -1.24, -1.39))
+        self.assertEqual(seen["scale"], 0.25)
+        self.assertEqual(seen["effect_label"], "fx_test_fire")
+        self.assertEqual(tab.controller.draft.effect_scale, 0.75)
+        self.assertEqual(tab.controller.draft.effect_offset, (0.1, 0.0, -0.2))
         # a second tab loads the cache instead of indexing again
         again = self._tab()
         again.start_snapshot()

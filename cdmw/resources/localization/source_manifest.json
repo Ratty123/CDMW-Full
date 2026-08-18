@@ -3526,7 +3526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 279,
+          "line": 314,
           "sink": "setText"
         }
       ]
@@ -3536,7 +3536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 279,
+          "line": 314,
           "sink": "setText"
         }
       ]
@@ -3546,7 +3546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 279,
+          "line": 314,
           "sink": "setText"
         }
       ]
@@ -3866,7 +3866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 124,
+          "line": 125,
           "sink": "setToolTip"
         }
       ]
@@ -4621,7 +4621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 78,
+          "line": 79,
           "sink": "QPushButton"
         },
         {
@@ -6566,7 +6566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 210,
+          "line": 218,
           "sink": "emit"
         }
       ]
@@ -11751,7 +11751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 64,
+          "line": 65,
           "sink": "QPushButton"
         }
       ]
@@ -13821,12 +13821,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 386,
+          "line": 420,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 393,
+          "line": 427,
           "sink": "emit"
         },
         {
@@ -17696,7 +17696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 286,
+          "line": 321,
           "sink": "addItem"
         }
       ]
@@ -17753,6 +17753,16 @@
           "path": "cdmw/ui/tools/mod_package_retrofit_widget.py",
           "line": 123,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Choose a template (or import a model) first; there is no mesh to place the effect on.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 262,
+          "sink": "emit"
         }
       ]
     },
@@ -17822,6 +17832,16 @@
       ]
     },
     {
+      "key": "Choose an effect first.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 258,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "Choose an existing folder.",
       "origins": [
         {
@@ -17876,7 +17896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 365,
+          "line": 399,
           "sink": "ValueError"
         }
       ]
@@ -18221,7 +18241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 53,
+          "line": 54,
           "sink": "QCheckBox"
         }
       ]
@@ -27062,6 +27082,16 @@
       ]
     },
     {
+      "key": "Drag the gizmo on the box. Move: offset along the item's axes. Scale: a uniform scale on the effect.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 201,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Drag the selected point to reposition it.",
       "origins": [
         {
@@ -28532,6 +28562,16 @@
       ]
     },
     {
+      "key": "Effect box {value_0} x {value_1} x {value_2} m; at scale {value_3}: {value_4} x {value_5} x {value_6} m.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 216,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Effect indexing cancelled.",
       "origins": [
         {
@@ -28556,7 +28596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 90,
+          "line": 91,
           "sink": "QLabel"
         }
       ]
@@ -33381,7 +33421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 98,
+          "line": 99,
           "sink": "setPlaceholderText"
         }
       ]
@@ -33471,7 +33511,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 72,
+          "line": 73,
           "sink": "setPlaceholderText"
         }
       ]
@@ -36286,7 +36326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 86,
+          "line": 87,
           "sink": "QCheckBox"
         }
       ]
@@ -40841,7 +40881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 105,
+          "line": 106,
           "sink": "QPushButton"
         },
         {
@@ -40876,7 +40916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 261,
+          "line": 296,
           "sink": "setText"
         }
       ]
@@ -42301,7 +42341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 289,
+          "line": 323,
           "sink": "emit"
         }
       ]
@@ -45343,6 +45383,16 @@
           "path": "cdmw/ui/archive_browser/scan_lifecycle.py",
           "line": 284,
           "sink": "_set_archive_warmup_overlay"
+        }
+      ]
+    },
+    {
+      "key": "Loading the viewport...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 190,
+          "sink": "setText"
         }
       ]
     },
@@ -52095,6 +52145,11 @@
           "sink": "MeshEditorAction"
         },
         {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 102,
+          "sink": "QPushButton"
+        },
+        {
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 489,
           "sink": "setText"
@@ -52341,7 +52396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 135,
+          "line": 136,
           "sink": "setToolTip"
         }
       ]
@@ -55056,7 +55111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 381,
+          "line": 415,
           "sink": "ValueError"
         }
       ]
@@ -58241,7 +58296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 127,
+          "line": 128,
           "sink": "QLabel"
         }
       ]
@@ -59577,6 +59632,16 @@
         {
           "path": "cdmw/ui/archive_browser/preview_layout.py",
           "line": 204,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Open the resident viewport with the item's mesh and the effect's box at the current scale and offset; drag the gizmo to move or scale it, and the numbers come back here.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 143,
           "sink": "setToolTip"
         }
       ]
@@ -63791,7 +63856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 48,
+          "line": 49,
           "sink": "QGroupBox"
         }
       ]
@@ -64138,6 +64203,31 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 46,
           "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
+      "key": "Place in viewport...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 142,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 46,
+          "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
+      "key": "Place the effect on the item",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 58,
+          "sink": "setWindowTitle"
         }
       ]
     },
@@ -66388,6 +66478,16 @@
           "path": "cdmw/ui/shell/texture_workspace_layout.py",
           "line": 60,
           "sink": "pump_startup_splash"
+        }
+      ]
+    },
+    {
+      "key": "Preparing the viewport...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 136,
+          "sink": "QLabel"
         }
       ]
     },
@@ -69196,7 +69296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 106,
+          "line": 107,
           "sink": "setToolTip"
         }
       ]
@@ -69276,12 +69376,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 241,
+          "line": 275,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 331,
+          "line": 365,
           "sink": "emit"
         }
       ]
@@ -72891,7 +72991,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 61,
+          "line": 62,
           "sink": "QPushButton"
         },
         {
@@ -77630,6 +77730,16 @@
           "sink": "QTreeWidgetItem"
         },
         {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 105,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 119,
+          "sink": "addRow"
+        },
+        {
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 565,
           "sink": "QLabel"
@@ -77726,7 +77836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 118,
+          "line": 119,
           "sink": "QLabel"
         }
       ]
@@ -83211,7 +83321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 92,
+          "line": 93,
           "sink": "setToolTip"
         }
       ]
@@ -88016,7 +88126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 400,
+          "line": 434,
           "sink": "emit"
         }
       ]
@@ -91826,7 +91936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 315,
+          "line": 349,
           "sink": "emit"
         }
       ]
@@ -92066,7 +92176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 50,
+          "line": 51,
           "sink": "QLabel"
         }
       ]
@@ -92166,7 +92276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 257,
+          "line": 291,
           "sink": "emit"
         }
       ]
@@ -92176,7 +92286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 141,
+          "line": 149,
           "sink": "QLabel"
         }
       ]
@@ -92301,7 +92411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 370,
+          "line": 404,
           "sink": "ValueError"
         }
       ]
@@ -92452,6 +92562,16 @@
       ]
     },
     {
+      "key": "The placement preview could not be built: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 170,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "The placement source picker uses a static geometry thumbnail for source candidates. This keeps browsing stable while still confirming that the selected source is the expected model.",
       "origins": [
         {
@@ -92481,7 +92601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 356,
+          "line": 390,
           "sink": "emit"
         }
       ]
@@ -92603,6 +92723,26 @@
           "path": "cdmw/ui/mesh_editor/tab_dotnet_launch.py",
           "line": 419,
           "sink": "_set_embedded_dotnet_preview_loading"
+        }
+      ]
+    },
+    {
+      "key": "The resident viewport is not available here; set the numbers by hand.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 95,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "The resident viewport rejected the placement package.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 192,
+          "sink": "setText"
         }
       ]
     },
@@ -92746,7 +92886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 324,
+          "line": 358,
           "sink": "emit"
         }
       ]
@@ -92866,7 +93006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 167,
+          "line": 175,
           "sink": "setText"
         }
       ]
@@ -92876,7 +93016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 165,
+          "line": 173,
           "sink": "setText"
         }
       ]
@@ -99186,7 +99326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 84,
+          "line": 85,
           "sink": "QGroupBox"
         }
       ]
@@ -113738,6 +113878,16 @@
     },
     {
       "key": "opens the PAC XML Editor with Parameters, Connections, and Source & Changes tabs.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 46,
+          "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
+      "key": "opens the resident viewport with the item's mesh as a wire and the effect's box in orange at the current scale and offset; the placement gizmo moves it (Move) or resizes it (Scale), and the numbers come back to the panel.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -197511,7 +197661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 250,
+          "line": 285,
           "sink": "setText"
         }
       ]
@@ -199841,7 +199991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 279,
+          "line": 314,
           "sink": "setText"
         }
       ]
@@ -199923,6 +200073,16 @@
           "path": "tools/placement_studio/armour.py",
           "line": 442,
           "sink": "ValueError"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}: the orange box is where the effect spans at this scale and offset; the item is the wire. Drag the gizmo to move it, switch to Scale to resize it; the numbers below follow, and go into the plan when you accept.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 72,
+          "sink": "QLabel"
         }
       ]
     },
@@ -200026,7 +200186,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 291,
+          "line": 326,
           "sink": "setItemData"
         },
         {

@@ -222,6 +222,40 @@ class NewItemStudioController(QObject):
             return None
         return self.effect_catalogue.get(stem)
 
+    def item_mesh_for_preview(self):
+        """The item's mesh as it will be: the imported model, else the template's own.
+        None when there is nothing to parse (no snapshot, no template, no mesh)."""
+
+        from cdmw.modding.mesh_parser import parse_pac
+
+        data = bytes(getattr(self.model_result, "rebuilt_data", b"") or b"")
+        label = "imported model"
+        if not data and self.snapshot is not None and self.draft.template_key is not None:
+            try:
+                family = self.snapshot.family(self.draft.template_key)
+            except Exception:  # noqa: BLE001 - no mesh is a plain "None"
+                return None
+            primary = next((item for item in family.files_for("pac") if item.exists and item.path.lower().rsplit("/", 1)[-1] == f"{family.model_stem.lower()}.pac"), None)
+            primary = primary or next((item for item in family.files_for("pac") if item.exists), None)
+            if primary is None:
+                return None
+            data = self.snapshot.payload(primary.path)
+            label = primary.path
+        if not data:
+            return None
+        try:
+            return parse_pac(data, label)
+        except Exception:  # noqa: BLE001
+            return None
+
+    def effect_box(self, stem: str = "") -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
+        """The chosen effect's bounding box at scale 1.0, or a metre cube before indexing."""
+
+        facts = self.effect_facts(stem or self.draft.effect_stem)
+        if facts is None or all(abs(v) < 1e-9 for v in (*facts.box_min, *facts.box_max)):
+            return (-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)
+        return facts.box_min, facts.box_max
+
     def load_effect_catalogue(self) -> bool:
         """Take the on-disk catalogue when it was built for these archives' effects."""
 
