@@ -131,6 +131,28 @@ class Placement:
 
 
 @dataclass(frozen=True, slots=True)
+class EffectLook:
+    """Edits to a shipped effect's named values, all multiplicative except the colour.
+
+    `color` replaces the emitters' emissive and particle colours (their brightness is
+    kept: the new colour is scaled to the old colour's peak component); `intensity`
+    multiplies the emissive brightness; `size` the particle scale; `rate` the spawn
+    counts; `lifetime` the particle lifetimes. 1.0 (and no colour) means as shipped.
+    Which of these the game honours is a matter for the first in-game look.
+    """
+
+    color: Optional[Tuple[float, float, float]] = None
+    intensity: float = 1.0
+    size: float = 1.0
+    rate: float = 1.0
+    lifetime: float = 1.0
+
+    @property
+    def is_default(self) -> bool:
+        return self.color is None and all(abs(float(v) - 1.0) < 1e-9 for v in (self.intensity, self.size, self.rate, self.lifetime))
+
+
+@dataclass(frozen=True, slots=True)
 class NewItemSpec:
     template_key: int
     internal_name: str
@@ -169,6 +191,10 @@ class NewItemSpec:
     #: offset in the weapon's own axes, metres. Only read with an effect.
     effect_scale: float = 1.0
     effect_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #: How the effect should look, when not as shipped: the effect and the emitters it
+    #: instances are cloned under stems of the item's own and their named values edited in
+    #: place (see :mod:`cdmw.core.effect_edit`). Only read with an effect.
+    effect_look: "EffectLook" = field(default_factory=lambda: EffectLook())
 
     @property
     def needs_new_model_files(self) -> bool:
@@ -210,6 +236,7 @@ __all__ = [
     "MaterialRoute",
     "ItemGroupsChoice",
     "ModelSource",
+    "EffectLook",
     "NewItemSpec",
     "Placement",
     "PlacementKind",

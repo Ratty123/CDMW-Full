@@ -562,6 +562,51 @@ class PlanTests(_PackageCase):
         doc = decode_prefab_binary({r.path: r for r in imported.additions}[f"character/bin__/prefab/{FOLDER}/{new_stem}_r.prefab"].payload_data)
         self.assertEqual([r.text for r in doc.resource_strings()], [f"character/model/{MODEL_FOLDER}/{new_stem}.pac", "fx_test_ice.level.effect"])
 
+    def test_a_look_clones_the_effect_and_its_emitters_under_the_items_stems(self) -> None:
+        from cdmw.core.effect_binary import decode_effect_binary
+        from cdmw.domain.new_item.spec import EffectLook
+
+        fixtures = Path(__file__).parent / "fixtures" / "effects"
+        files = synthetic_files()
+        files["effect/binary__/releasebin/fx_real_fire.pae"] = (fixtures / "fx_hit_common_fire_attach_a_loop.pae").read_bytes()
+        files["effect/binary__/emitter/cdem_last_fire_circle_trail_001a.paem"] = (fixtures / "cdem_last_fire_circle_trail_001a.paem").read_bytes()
+        pamt_path = build_package(self.root / "look", files)
+        snapshot = self.service.build_snapshot(parse_archive_pamt(pamt_path), read_entry=_read)
+        look = EffectLook(color=(0.2, 0.4, 1.0), intensity=2.0, size=0.5, rate=2.0, lifetime=1.0)
+        plan = self.service.plan(self._spec(model_source=ModelSource.TEMPLATE, effect="fx_real_fire.level.effect", effect_look=look), snapshot)
+        added = {request.path: request for request in plan.additions}
+        key = plan.spec.item_key
+        effect_stem = f"fx_re_n{key % 100000:05d}"
+        emitter_stem = f"cdem_last_fire_circle_tra_n{key % 100000:05d}"
+        self.assertEqual(len(effect_stem), len("fx_real_fire"))
+        self.assertIn(f"effect/binary__/releasebin/{effect_stem}.pae", added)
+        self.assertIn(f"effect/binary__/emitter/{emitter_stem}.paem", added)
+        # the clone decodes, names the cloned emitter and carries the look
+        effect = decode_effect_binary(added[f"effect/binary__/releasebin/{effect_stem}.pae"].payload_data)
+        self.assertTrue(effect.walk_complete, effect.walk_note)
+        # the file's authoring name is not this package's stem, so it stays (a shipped file's is, and is renamed with it)
+        self.assertEqual(effect.root.value("_effectDataName").value, "fx/materialfx/fx_hit_common_fire_attach_a_loop")
+        self.assertIn(f"emitter/{emitter_stem}", effect.emitter_names())
+        self.assertIn("emitter/cdem_material_firefly_alpha_uberstandard", effect.emitter_names(), "the emitter the package lacks keeps its shipped name")
+        emitter = decode_effect_binary(added[f"effect/binary__/emitter/{emitter_stem}.paem"].payload_data)
+        self.assertTrue(emitter.walk_complete, emitter.walk_note)
+        self.assertEqual(emitter.root.value("_emitterDataName").value, f"emitter/{emitter_stem}")
+        # the graft names the clone, and the manifest says what was edited
+        prefab = decode_prefab_binary(added[f"character/bin__/prefab/{FOLDER}/{plan.spec.stem}_r.prefab"].payload_data)
+        self.assertIn(f"{effect_stem}.level.effect", [r.text for r in prefab.resource_strings()])
+        self.assertEqual(plan.manifest["effect"]["path"], f"{effect_stem}.level.effect")
+        look_manifest = plan.manifest["effect"]["look"]
+        self.assertEqual(look_manifest["source"], "fx_real_fire.level.effect")
+        self.assertEqual(look_manifest["color"], [0.2, 0.4, 1.0])
+        self.assertGreater(look_manifest["edited"].get("_spawnCountMin", 0), 0)
+        self.assertTrue(any(line.startswith("effect look: fx_real_fire cloned as") for line in plan.summary_lines))
+        self.assertTrue(any("firefly" in w and "do not have" in w for w in plan.warnings), plan.warnings)
+        self.assertTrue(any(issue.code == "effect.look.unproven" for issue in plan.issues))
+        # a default look leaves the shipped effect alone
+        plain = self.service.plan(self._spec(model_source=ModelSource.TEMPLATE, effect="fx_real_fire.level.effect"), snapshot)
+        self.assertFalse(any(path.startswith("effect/") for path in (r.path for r in plain.additions)))
+        self.assertIsNone(plain.manifest["effect"]["look"])
+
     def test_refusals(self) -> None:
         with self.assertRaises(NewItemPlanError) as caught:
             self.service.plan(self._spec(internal_name="Ziane_OneHandSword"), self.snapshot)
