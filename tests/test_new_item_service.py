@@ -46,6 +46,7 @@ from cdmw.domain.new_item.spec import (  # noqa: E402
     PriceEdit,
     SheathedModel,
     StatEdit,
+    UNLIMITED_STOCK,
 )
 from cdmw.services.archive_mutation_service import ArchiveMutationService  # noqa: E402
 from cdmw.services.new_item_planning import ModelFiles, NewItemPlanError  # noqa: E402
@@ -379,6 +380,14 @@ class PlanTests(_PackageCase):
         kept_store = {s.name: s for s in parse_store_table(kept_files[f"{BIN}/storeinfo.pabgb"], kept_files[f"{BIN}/storeinfo.pabgh"])}["Store_Camp_Equipment"]
         self.assertEqual(kept_store.entries[0].requirement_item_key, self.snapshot.store("Store_Camp_Equipment").entries[0].requirement_item_key)
         self.assertTrue(any("keeps its unlock requirement" in w for w in kept.warnings), kept.warnings)
+        self.assertEqual(stores["Store_Camp_Equipment"].entries[0].count, self.snapshot.store("Store_Camp_Equipment").entries[0].count, "no stock count asked: the line keeps its own")
+        self.assertIsNone(plan.manifest["store"]["stock_count"])
+        endless = self.service.plan(self._spec(placement=Placement(PlacementKind.SWAP, "Store_Camp_Equipment", "Cigar_OneHandSword", stock_count=UNLIMITED_STOCK)), self.snapshot)
+        endless_files = dict(endless.loose_files)
+        endless_store = {s.name: s for s in parse_store_table(endless_files[f"{BIN}/storeinfo.pabgb"], endless_files[f"{BIN}/storeinfo.pabgh"])}["Store_Camp_Equipment"]
+        self.assertEqual(endless_store.entries[0].count, UNLIMITED_STOCK)
+        self.assertEqual(endless.manifest["store"]["stock_count"], UNLIMITED_STOCK)
+        self.assertTrue(any("unlimited stock" in line for line in endless.summary_lines), endless.summary_lines)
         groups = parse_item_group_table(files[f"{BIN}/itemgroupinfo.pabgb"], files[f"{BIN}/itemgroupinfo.pabgh"])
         self.assertEqual([g.members for g in groups], [(OTHER, TEMPLATE, 1990000, 13800), (TEMPLATE, 1990000), (OTHER,)])
         eng = parse_paloc(files[f"{LOC}/localizationstring_eng.paloc"]).index()
@@ -630,7 +639,8 @@ class PlanTests(_PackageCase):
         with self.assertRaises(NewItemPlanError):
             self.service.plan(self._spec(placement=Placement(PlacementKind.SWAP, "Store_Camp_Equipment", "Nope")), self.snapshot)
         insert = self.service.plan(self._spec(placement=Placement(PlacementKind.INSERT, "Store_Pai_BlackMarket", price=5)), self.snapshot)
-        self.assertTrue(any("unproven" in w for w in insert.warnings) and any("no price" in w for w in insert.warnings))
+        self.assertTrue(any("no price" in w for w in insert.warnings), insert.warnings)
+        self.assertFalse(any("unproven" in w and "stock entry" in w for w in insert.warnings), "a whole new stock entry sold in game (2026-08-18)")
         files = dict(insert.loose_files)
         stores = {s.name: s for s in parse_store_table(files[f"{BIN}/storeinfo.pabgb"], files[f"{BIN}/storeinfo.pabgh"])}
         self.assertEqual([e.item_key for e in stores["Store_Pai_BlackMarket"].entries], [TEMPLATE, 1990000])

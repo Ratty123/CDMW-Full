@@ -24,6 +24,7 @@ from cdmw.domain.new_item.spec import (
     PlacementKind,
     PriceEdit,
     StatEdit,
+    UNLIMITED_STOCK,
 )
 
 MANAGERS: Tuple[str, ...] = ("CDUMM", "DMM", "JMM")
@@ -113,6 +114,9 @@ class NewItemDraft:
     old_item_name: str = ""
     #: Keep the shop line's unlock-knowledge requirement (default: sell freely).
     keep_requirement: bool = False
+    #: The shop line never runs out (default); off keeps the line's own count, which is
+    #: 1 on most equipment lines: sold once, then "0 in stock".
+    unlimited_stock: bool = True
     item_groups: ItemGroupsChoice = ItemGroupsChoice.TEMPLATE
     explicit_item_groups: Tuple[int, ...] = ()
     manager: str = "CDUMM"
@@ -201,6 +205,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         store_name=draft.store_name if draft.placement_kind is not PlacementKind.NONE else "",
         old_item_name=draft.old_item_name if draft.placement_kind is PlacementKind.SWAP else "",
         keep_requirement=bool(draft.keep_requirement),
+        stock_count=UNLIMITED_STOCK if draft.unlimited_stock else None,
     )
     return NewItemSpec(
         template_key=int(draft.template_key),

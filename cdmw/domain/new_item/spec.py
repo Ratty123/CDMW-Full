@@ -81,6 +81,10 @@ class EnhancementRows(str, Enum):
     OWN = "own"
 
 
+#: A shop line's stock count that never runs out (the bank's gold bars carry it).
+UNLIMITED_STOCK = 0xFFFFFFFF
+
+
 class PlacementKind(str, Enum):
     NONE = "none"
     #: Replace one existing stock entry of a store with the new item.
@@ -128,6 +132,9 @@ class Placement:
     #: shop shows "Knowledge" until then). False, the default, sells the new item freely
     #: by dropping that block from the line it takes; True keeps the line's own.
     keep_requirement: bool = False
+    #: How many the shop has: None keeps the line's own count (1 on most equipment
+    #: lines: sold once, then "0 in stock"), :data:`UNLIMITED_STOCK` never runs out.
+    stock_count: Optional[int] = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -239,6 +246,7 @@ __all__ = [
     "EffectLook",
     "NewItemSpec",
     "Placement",
+    "UNLIMITED_STOCK",
     "PlacementKind",
     "PriceEdit",
     "SheathedModel",

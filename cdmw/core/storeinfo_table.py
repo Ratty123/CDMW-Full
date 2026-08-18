@@ -12,7 +12,7 @@ The row grammar was measured on the shipped table (437 rows, 6,378 stock entries
 
     StockData (relative offsets):
     +0x00 u16 storeInfo (== the row key)     +0x02 u64 minPricePercent (1,000,000 = 100%)
-    +0x0a u64 maxPricePercent                +0x12 u32 count (refill / stock quantity)
+    +0x0a u64 maxPricePercent                +0x12 u32 count (stock quantity; 0xFFFFFFFF = unlimited)
     +0x16 i32 threshold (-1 or a count)      +0x1a u32 stockIndex (== position, always)
     +0x1e u32 orderIndex                     +0x22 i32 importantSaveIndex (-1 everywhere)
     +0x26 5 x u8 flags: ?, isStockSellable, isStockBuyable, ?, ?
@@ -28,7 +28,10 @@ head counts equal the number of entries carrying each flag, so an insert renumbe
 recounts from the entries rather than trusting the caller. The 2026-08-17 spike swapped
 items in place in `Store_Camp_Equipment` and `Store_Pai_Equipment` and the game sold the
 new items; inserting a whole entry changes the row length and goes through
-`replace_table_row`, and is unproven in game.
+`replace_table_row`, and drew a line the game sold (2026-08-18). `count` is how many the
+shop has: 1 on most equipment lines (sold once, then "0 in stock"), 10-60 on arrows,
+0xFFFFFFFF on the bank's gold bars and the leather shops' Theona Checkerspot, which never
+run out; :data:`UNLIMITED_STOCK` is that value.
 """
 
 from __future__ import annotations
@@ -50,6 +53,8 @@ _ITEM_A = 0x2B
 _ITEM_B = 0x66
 _OPTION_FLAG = 0x72
 _KNOWN_STORE_TYPES = (0, 1, 2, 4, 5)
+#: The `count` of a line that never runs out (the bank's gold bars carry it).
+UNLIMITED_STOCK = 0xFFFFFFFF
 _MAX_ORDER_RECORDS = 8
 
 
@@ -110,6 +115,11 @@ class StockEntry:
         """The entry sold freely: no unlock-knowledge block."""
 
         return replace(self, option_block=None, offset=-1, end=-1)
+
+    def with_count(self, count: int) -> "StockEntry":
+        """The entry with `count` in stock (:data:`UNLIMITED_STOCK` for a line that never runs out)."""
+
+        return replace(self, count=_u32(count, "count"), offset=-1, end=-1)
 
     def with_indices(self, stock_index: int, order_index: Optional[int] = None) -> "StockEntry":
         return replace(
@@ -358,7 +368,15 @@ def _renumbered(row: StoreRow, entries: Sequence[StockEntry]) -> StoreRow:
     return replace(updated, raw=encode_store_row(updated))
 
 
-def swap_stock_item(row: StoreRow, old_item_key: int, new_item_key: int, *, all_entries: bool = False, keep_requirement: bool = True) -> StoreRow:
+def swap_stock_item(
+    row: StoreRow,
+    old_item_key: int,
+    new_item_key: int,
+    *,
+    all_entries: bool = False,
+    keep_requirement: bool = True,
+    count: Optional[int] = None,
+) -> StoreRow:
     """Point the entry stocking `old_item_key` at `new_item_key`, in place.
 
     Both copies of the key move together and nothing else in the row changes, which is
@@ -366,7 +384,8 @@ def swap_stock_item(row: StoreRow, old_item_key: int, new_item_key: int, *, all_
     once is refused unless `all_entries` is set, so a caller cannot retarget an entry it
     has not looked at. With `keep_requirement` false the line's unlock-knowledge block
     is dropped too, so the new item is sold freely; the row shrinks by 13 bytes and the
-    caller writes it back with `replace_table_row`.
+    caller writes it back with `replace_table_row`. `count` replaces the line's stock
+    quantity (:data:`UNLIMITED_STOCK` for a line that never runs out); None keeps it.
     """
 
     matches = row.entries_for(old_item_key)
@@ -378,7 +397,8 @@ def swap_stock_item(row: StoreRow, old_item_key: int, new_item_key: int, *, all_
         )
     def retarget(entry: StockEntry) -> StockEntry:
         moved = entry.with_item(new_item_key)
-        return moved if keep_requirement else moved.without_requirement()
+        moved = moved if keep_requirement else moved.without_requirement()
+        return moved if count is None else moved.with_count(count)
     entries = tuple(retarget(entry) if entry.item_key == int(old_item_key) else entry for entry in row.entries)
     updated = replace(row, entries=entries)
     return replace(updated, raw=encode_store_row(updated))
@@ -391,6 +411,7 @@ def insert_stock_entry(
     template: Optional[StockEntry] = None,
     position: Optional[int] = None,
     keep_requirement: bool = True,
+    count: Optional[int] = None,
 ) -> StoreRow:
     """Add a stock entry for `item_key`, shaped like `template`.
 
@@ -400,7 +421,8 @@ def insert_stock_entry(
     sellable ones stay behind it), every entry is renumbered so `stockIndex` still equals
     its position, the order index becomes one past the largest, and the head counts are
     recounted from the flags. The row grows, so the caller writes it back with
-    `replace_table_row`.
+    `replace_table_row`. `count` sets the new line's stock quantity; None copies the
+    template's.
     """
 
     source = template
@@ -420,9 +442,22 @@ def insert_stock_entry(
     fresh = replace(source, store_key=row.key, item_key=_u32(item_key, "item key"), order_index=next_order, offset=-1, end=-1)
     if not keep_requirement:
         fresh = fresh.without_requirement()
+    if count is not None:
+        fresh = fresh.with_count(count)
     entries = list(row.entries)
     entries.insert(int(position), fresh)
     return _renumbered(row, entries)
+
+
+def set_stock_count(row: StoreRow, item_key: int, count: int) -> StoreRow:
+    """Every line of `row` stocking `item_key` with `count` in stock, in place (the row
+    keeps its length)."""
+
+    if not row.entries_for(item_key):
+        raise StoreInfoError(f"store {row.name!r} does not stock item {int(item_key)}")
+    entries = tuple(entry.with_count(count) if entry.item_key == int(item_key) else entry for entry in row.entries)
+    updated = replace(row, entries=entries)
+    return replace(updated, raw=encode_store_row(updated))
 
 
 def remove_stock_entry(row: StoreRow, item_key: int) -> StoreRow:
@@ -456,6 +491,7 @@ def apply_store_row(payload: bytes, header: bytes, row: StoreRow) -> Tuple[bytes
 __all__ = [
     "STOREINFO_HEADER_PATH",
     "STOREINFO_PAYLOAD_PATH",
+    "UNLIMITED_STOCK",
     "StockEntry",
     "StoreInfoError",
     "StoreRow",
@@ -466,6 +502,7 @@ __all__ = [
     "parse_store_row",
     "parse_store_table",
     "remove_stock_entry",
+    "set_stock_count",
     "store_index",
     "swap_stock_item",
 ]

@@ -53,7 +53,7 @@ from cdmw.core.structured_binary_editor import append_table_rows
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest, MetaFileWrite
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.rules import ValidationIssue
-from cdmw.domain.new_item.spec import EnhancementRows, IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind, SheathedModel
+from cdmw.domain.new_item.spec import UNLIMITED_STOCK, EnhancementRows, IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind, SheathedModel
 from cdmw.models import ArchiveEntry
 from cdmw.services.new_item_snapshot import EFFECT_DIR, EFFECT_DONOR_PATH, EFFECT_DONOR_PREFAB, NewItemSnapshot, NewItemSnapshotError
 
@@ -406,13 +406,12 @@ class _Planner:
             old_key = self.snapshot.keys_by_name.get(placement.old_item_name)
             if old_key is None:
                 raise NewItemPlanError(f"there is no item named {placement.old_item_name}")
-            updated = swap_stock_item(store, old_key, int(self.spec.item_key), keep_requirement=placement.keep_requirement)
+            updated = swap_stock_item(store, old_key, int(self.spec.item_key), keep_requirement=placement.keep_requirement, count=placement.stock_count)
             what = f"StoreInfo: {store.name} sells {self.spec.internal_name} instead of {placement.old_item_name}"
             required = next((e.requirement_item_key for e in store.entries_for(old_key) if e.requirement_item_key is not None), None)
         else:
-            updated = insert_stock_entry(store, int(self.spec.item_key), keep_requirement=placement.keep_requirement)
+            updated = insert_stock_entry(store, int(self.spec.item_key), keep_requirement=placement.keep_requirement, count=placement.stock_count)
             what = f"StoreInfo: {store.name} gains a stock entry for {self.spec.internal_name}"
-            self.warnings.append("A whole new stock entry is unproven in game; swapping an existing entry is the proven form.")
             required = store.buyable_entries[-1].requirement_item_key if store.buyable_entries else None
         if required is not None:
             unlock = self.snapshot.rows.get(required)
@@ -421,11 +420,16 @@ class _Planner:
                 self.warnings.append(f"The shop line keeps its unlock requirement: the buyer needs the knowledge of {unlock_name} before it sells (the shop shows \"Knowledge\" until then).")
             else:
                 what += f" (its unlock requirement, the knowledge of {unlock_name}, dropped so it sells freely)"
+        if placement.stock_count is not None:
+            what += " (unlimited stock)" if placement.stock_count == UNLIMITED_STOCK else f" ({placement.stock_count} in stock)"
         if placement.price is not None:
             self.warnings.append("StoreInfo entries carry no price of their own; the shop prices the item from its buy-price list, so the placement price was not written. Use a buy-price edit.")
         pair = self.snapshot.storeinfo
         payload, header = apply_store_row(pair.payload, pair.header, updated)
-        self.manifest["store"] = {"name": store.name, "kind": placement.kind.value, "old_item": placement.old_item_name or None, "requirement_kept": bool(placement.keep_requirement)}
+        self.manifest["store"] = {
+            "name": store.name, "kind": placement.kind.value, "old_item": placement.old_item_name or None,
+            "requirement_kept": bool(placement.keep_requirement), "stock_count": placement.stock_count,
+        }
         self.patch(pair.payload_entry, payload, what)
         self.patch(pair.header_entry, header, "StoreInfo directory")
 

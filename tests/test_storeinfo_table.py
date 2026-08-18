@@ -23,8 +23,10 @@ from cdmw.core.storeinfo_table import (  # noqa: E402
     parse_store_row,
     parse_store_table,
     remove_stock_entry,
+    set_stock_count,
     store_index,
     swap_stock_item,
+    UNLIMITED_STOCK,
 )
 from cdmw.core.structured_binary_editor import parse_pabgh_table  # noqa: E402
 
@@ -148,6 +150,29 @@ class EditTests(unittest.TestCase):
         self.assertEqual(again.entries[0].requirement_item_key, row.entries[0].requirement_item_key, "other lines keep theirs")
         free_insert = parse_store_row(insert_stock_entry(row, CLONE, template=row.entries[1], keep_requirement=False).raw)
         self.assertIsNone(free_insert.entries_for(CLONE)[0].requirement_item_key)
+
+    def test_a_line_can_be_given_unlimited_stock(self) -> None:
+        raw = _sample()
+        row = parse_store_row(raw)
+        self.assertEqual(UNLIMITED_STOCK, 0xFFFFFFFF)
+        # on a swap: the count is the only other thing that moves
+        swapped = parse_store_row(swap_stock_item(row, ZIANE, CLONE, count=UNLIMITED_STOCK).raw)
+        self.assertEqual(swapped.entries_for(CLONE)[0].count, UNLIMITED_STOCK)
+        self.assertEqual(len(swapped.raw), len(raw))
+        self.assertEqual([e.count for e in swapped.entries if e.item_key != CLONE], [e.count for e in row.entries if e.item_key != ZIANE])
+        # on an insert: the new line's own count, the template's untouched
+        grown = parse_store_row(insert_stock_entry(row, CLONE, count=UNLIMITED_STOCK).raw)
+        self.assertEqual(grown.entries_for(CLONE)[0].count, UNLIMITED_STOCK)
+        self.assertEqual(grown.entries_for(1000372)[0].count, row.entries_for(1000372)[0].count)
+        # on a line already in the shop: in place, same length, only the count bytes differ
+        again = set_stock_count(row, ZIANE, 7)
+        self.assertEqual(len(again.raw), len(raw))
+        self.assertEqual(parse_store_row(again.raw).entries_for(ZIANE)[0].count, 7)
+        entry = row.entries[1]
+        diff = [i for i in range(len(raw)) if raw[i] != again.raw[i]]
+        self.assertTrue(diff and all(entry.offset + 0x12 <= i < entry.offset + 0x16 for i in diff))
+        with self.assertRaisesRegex(StoreInfoError, "does not stock"):
+            set_stock_count(row, 42, 1)
 
     def test_insert_after_the_buyable_entries(self) -> None:
         row = parse_store_row(_sample())
