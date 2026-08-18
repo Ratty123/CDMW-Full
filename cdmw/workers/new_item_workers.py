@@ -48,14 +48,16 @@ def plan_task(
     *,
     service: NewItemService,
     model: object | None = None,
+    scene: object | None = None,
     icon: Optional[NewItemIcon] = None,
     icon_source_path: Optional[Path] = None,
 ) -> Callable[[LogSink, threading.Event], NewItemPlan]:
-    """Validate, allocate and compose the plan (fourteen language tables, an icon encode)."""
+    """Validate, allocate and compose the plan (fourteen language tables, an icon encode,
+    the material route's texture encodes)."""
 
     def run(log: LogSink, stop_event: threading.Event) -> NewItemPlan:
         return service.plan(
-            spec, snapshot, model=model, icon=icon, icon_source_path=icon_source_path, on_log=log, stop_event=stop_event
+            spec, snapshot, model=model, scene=scene, icon=icon, icon_source_path=icon_source_path, on_log=log, stop_event=stop_event
         )
 
     return run

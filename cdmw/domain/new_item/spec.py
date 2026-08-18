@@ -34,6 +34,18 @@ class IconSource(str, Enum):
     GENERATED = "generated"
 
 
+class MaterialRoute(str, Enum):
+    """How an imported model's materials are written for the game."""
+
+    #: The Builder's own sidecar as it came: the template's layered material with the
+    #: imported textures fitted into it (Material Authority).
+    BUILDER = "builder"
+    #: The wrappers the import owns rewritten to the game's texture-driven shaders
+    #: (`SkinnedMeshStandard`, `SkinnedMeshEmissive`): albedo, normal, `_sp` roughness/
+    #: metalness from the source. What the shipped texture-driven weapons use.
+    PLAIN_PBR = "plain_pbr"
+
+
 class ItemGroupsChoice(str, Enum):
     #: Join every item group the template is in.
     TEMPLATE = "template"
@@ -111,6 +123,8 @@ class NewItemSpec:
     name_key: Optional[str] = None
     desc_key: Optional[str] = None
     model_source: ModelSource = ModelSource.TEMPLATE
+    #: Only read for an imported model.
+    material_route: MaterialRoute = MaterialRoute.PLAIN_PBR
     icon: IconSource = IconSource.TEMPLATE
     stat_edits: Tuple[StatEdit, ...] = ()
     buy_price_edits: Tuple[BuyPriceEdit, ...] = ()
@@ -167,6 +181,7 @@ __all__ = [
     "BuyPriceEdit",
     "EnhancementRows",
     "IconSource",
+    "MaterialRoute",
     "ItemGroupsChoice",
     "ModelSource",
     "NewItemSpec",

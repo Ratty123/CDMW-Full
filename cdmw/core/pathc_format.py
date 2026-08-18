@@ -184,8 +184,44 @@ def register_texture(
 
 #: The `dwReserved2` tag the registry's headers carry; 4 on 22,611 of the 36,477 shipped
 #: character textures (normals, displacement, mask, gloss, emissive alike), so it is
-#: the tag a new header takes.
+#: the tag a new header takes when nothing better is known.
 DEFAULT_HEADER_TAG = 4
+#: The tags by texture role, measured on the 36,485 shipped `character/texture` files
+#: (2026-08-18): base colours are 12 (6,082 DXT1) or 13 (625 DXT5, 543 DXT1); `_sp`
+#: material maps 12 (3,956 of 4,594); `_n`, `_disp`, `_ma`, `_mg`, `_o`, `_emi` are 4;
+#: `_m` masks 5 (2,387 DXT5). Icons are 15. Whatever the engine reads the tag as
+#: (a colour-space or a streaming class), a new texture takes the tag its kind ships with.
+COLOR_HEADER_TAG = 12
+COLOR_ALPHA_HEADER_TAG = 13
+MASK_HEADER_TAG = 5
+_TAG_BY_SUFFIX = {"n": 4, "disp": 4, "ma": 4, "mg": 4, "o": 4, "emi": 4, "wn": 4, "flow": 4, "sp": COLOR_HEADER_TAG, "m": MASK_HEADER_TAG}
+
+
+def header_tag_for(path: str, dds_data: bytes) -> int:
+    """The `dwReserved2` tag a texture of `path`'s kind ships with; see the tags above.
+    Named suffixes decide; anything else is a colour texture, 13 when it carries alpha
+    (DXT5 / BC3 / BC7) and 12 otherwise."""
+
+    name = str(path).replace("\\", "/").rsplit("/", 1)[-1].lower()
+    stem = name[:-4] if name.endswith(".dds") else name
+    suffix = stem.rsplit("_", 1)[-1] if "_" in stem else ""
+    if suffix in _TAG_BY_SUFFIX:
+        return _TAG_BY_SUFFIX[suffix]
+    header = bytes(dds_data[:_DDS_HEADER_LENGTH])
+    fourcc = header[84:88] if len(header) >= 88 else b""
+    if fourcc in (b"DXT3", b"DXT5"):
+        return COLOR_ALPHA_HEADER_TAG
+    if fourcc == b"DX10" and len(dds_data) >= 132:
+        dxgi = struct.unpack_from("<I", dds_data, 128)[0]
+        if dxgi in (77, 78, 98, 99):  # BC3, BC7
+            return COLOR_ALPHA_HEADER_TAG
+    return COLOR_HEADER_TAG
+
+
+def header_tag(header: bytes) -> int:
+    """The `dwReserved2` tag of a registry (or file) DDS header."""
+
+    return struct.unpack_from("<I", bytes(header[:_DDS_HEADER_LENGTH]), 124)[0]
 _BLOCK_BYTES = {b"DXT1": 8, b"BC4U": 8, b"ATI1": 8, b"BC4S": 8, b"DXT3": 16, b"DXT5": 16, b"BC5U": 16, b"ATI2": 16, b"BC5S": 16}
 _DXGI_BLOCK_BYTES = {70: 8, 71: 8, 72: 8, 79: 8, 80: 8, 81: 8, 73: 16, 74: 16, 75: 16, 76: 16, 77: 16, 78: 16, 82: 16, 83: 16, 84: 16, 94: 16, 95: 16, 96: 16, 97: 16, 98: 16, 99: 16}
 
@@ -238,9 +274,14 @@ def registry_header_for(dds_data: bytes, *, tag: int = DEFAULT_HEADER_TAG) -> by
     return bytes(header) + extension
 
 
-def register_dds(table: PathcTable, path: str, dds_data: bytes, *, tag: int = DEFAULT_HEADER_TAG) -> PathcTable:
+def register_dds(table: PathcTable, path: str, dds_data: bytes, *, tag: Optional[int] = None) -> PathcTable:
     """Register `path` under the shipped header its own 128-byte DDS header equals, or,
-    when no shipped header has that shape, under a new header row made from the file.
+    when no shipped header has that shape and tag, under a new header row made from
+    the file.
+
+    `tag` is the header's `dwReserved2`; None takes :func:`header_tag_for` (the tag the
+    texture's kind ships with). A shipped header is reused only when it carries that
+    tag as well as the shape, so a base colour never lands on a mask's header row.
 
     Under a shipped header the block infos are the ones most of that header's textures
     carry (the plain per-mip sizes; a minority carry per-file values for textures stored
@@ -251,14 +292,19 @@ def register_dds(table: PathcTable, path: str, dds_data: bytes, *, tag: int = DE
     header = bytes(dds_data[:_DDS_HEADER_LENGTH])
     if len(header) != _DDS_HEADER_LENGTH or header[:4] != b"DDS ":
         raise PathcError(f"{path!r} does not start with a DDS header")
+    if tag is None:
+        tag = header_tag_for(path, dds_data)
     checksum = pathc_checksum(path)
     checksums = [entry.checksum for entry in table.entries]
     at = bisect_left(checksums, checksum)
     if at < len(checksums) and checksums[at] == checksum:
         raise PathcError(f"checksum {checksum:#010x} of {path!r} is already registered (a collision would need the collision table)")
-    exact = [index for index, candidate in enumerate(table.headers) if candidate[:_DDS_HEADER_LENGTH] == header]
+    exact = [index for index, candidate in enumerate(table.headers) if candidate[:_DDS_HEADER_LENGTH] == header and header_tag(candidate) == tag]
     shape = dds_shape(header)
-    matches = exact + [index for index, candidate in enumerate(table.headers) if index not in exact and dds_shape(candidate) == shape]
+    matches = exact + [
+        index for index, candidate in enumerate(table.headers)
+        if index not in exact and dds_shape(candidate) == shape and header_tag(candidate) == tag
+    ]
     for header_index in matches:
         tally: dict[bytes, int] = {}
         for entry in table.entries:
@@ -282,7 +328,10 @@ def _insert(table: PathcTable, at: int, entry: PathcEntry) -> PathcTable:
 
 
 __all__ = [
+    "COLOR_ALPHA_HEADER_TAG",
+    "COLOR_HEADER_TAG",
     "DEFAULT_HEADER_TAG",
+    "MASK_HEADER_TAG",
     "PATHC_RELATIVE_PATH",
     "PathcEntry",
     "PathcError",
@@ -291,6 +340,8 @@ __all__ = [
     "dds_shape",
     "registry_header_for",
     "encode_pathc",
+    "header_tag",
+    "header_tag_for",
     "parse_pathc",
     "pathc_checksum",
     "register_dds",

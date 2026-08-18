@@ -178,6 +178,9 @@ class ArchiveMeshPatchFlowMixin:
         it is matched on the entry's path and consumed once, so an unrelated later
         import is never captured. The preview is still shown so the reader sees what
         was handed over, and the Builder is told nothing was written over the template.
+        The scene import the build ran from goes along (`_new_item_model_scene`, kept
+        by `_start_archive_mesh_patch` while the sink is armed) so the studio can read
+        the source's own textures.
         """
 
         if not isinstance(result, MeshImportPreviewResult):
@@ -190,8 +193,10 @@ class ArchiveMeshPatchFlowMixin:
         if str(entry.path or "").replace("\\", "/").casefold() != wanted:
             return False
         self._new_item_model_sink = None
+        scene = getattr(self, "_new_item_model_scene", None)
+        self._new_item_model_scene = None
         self._show_archive_import_preview(entry, result, patched=False)
-        on_result(entry, result)
+        on_result(entry, result, scene)
         activate = getattr(self, "_activate_tool_key", None)
         if callable(activate):
             activate("new_item_studio")
@@ -230,6 +235,9 @@ class ArchiveMeshPatchFlowMixin:
             return
         scene_path_obj = setup.scene_path
         import_mode = setup.import_mode
+        armed_sink = getattr(self, "_new_item_model_sink", None)
+        if armed_sink and str(entry.path or "").replace("\\", "/").casefold() == armed_sink[0]:
+            self._new_item_model_scene = setup.scene_import_result
         setup_title_key = f"{setup.placement_review_title} {setup.source_label}".casefold()
         mesh_editor_mode = (
             "modify_original"

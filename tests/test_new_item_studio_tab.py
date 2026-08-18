@@ -17,7 +17,7 @@ if str(REPO_ROOT) not in sys.path:
 sys.path.insert(0, str(REPO_ROOT / "tests"))
 
 from cdmw.core.archive_format import parse_archive_pamt  # noqa: E402
-from cdmw.domain.new_item.spec import ModelSource, PlacementKind  # noqa: E402
+from cdmw.domain.new_item.spec import MaterialRoute, ModelSource, PlacementKind  # noqa: E402
 from cdmw.services.new_item_service import NewItemService  # noqa: E402
 from cdmw.ui.new_item.state import (  # noqa: E402
     NewItemDraft,
@@ -66,7 +66,10 @@ class TabTests(unittest.TestCase):
     def setUp(self) -> None:
         self._temp = tempfile.TemporaryDirectory()
         self.root = Path(self._temp.name)
-        self.pamt_path = build_package(self.root, synthetic_files())
+        files = synthetic_files()
+        # one shipped effect the presets name, so the preset combo has something to offer
+        files["effect/binary__/releasebin/fx_cc_firesweapon_a__fire1.pae"] = b"PAE fire preset"
+        self.pamt_path = build_package(self.root, files)
         self.entries = tuple(parse_archive_pamt(self.pamt_path))
         self._backup_patch = patch("cdmw.core.archive_patching.ARCHIVE_PATCH_BACKUP_ROOT", self.root / "backups")
         self._backup_patch.start()
@@ -152,7 +155,13 @@ class TabTests(unittest.TestCase):
         perks.chosen.setCurrentRow(0)
         perks.remove_button.click()
         self.assertEqual(tab.controller.draft.socket_items, [1002812, 1002793])
-        self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["fx_test_fire", "fx_test_ice"])
+        self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["fx_cc_firesweapon_a__fire1", "fx_test_fire", "fx_test_ice"])
+        # the element presets: only the shipped ones, the proven one marked; choosing one selects the effect
+        self.assertEqual([perks.effect_preset.itemData(i) for i in range(perks.effect_preset.count())], ["", "fx_cc_firesweapon_a__fire1"])
+        self.assertIn("(proven)", perks.effect_preset.itemText(1))
+        perks.effect_preset.setCurrentIndex(1)
+        self.assertTrue(perks.use_effect.isChecked())
+        self.assertEqual(tab.controller.draft.effect_stem, "fx_cc_firesweapon_a__fire1")
         perks.choose_effect("fx_test_fire")
         self.assertEqual(tab.controller.draft.effect_stem, "fx_test_fire")
         self.assertEqual(tab.controller.current_spec().effect, "fx_test_fire.level.effect")
@@ -233,9 +242,17 @@ class TabTests(unittest.TestCase):
             tab.model_panel.import_button.click()
         self.assertTrue(info.called, "without a shell hook the tab says how to reach the Builder")
         entry = tab.controller.template_entries()[0]
-        tab.receive_imported_model(entry, ModelFiles(pac_data=b"PAC imported"))
+        self.assertFalse(tab.model_panel.plain_pbr.isEnabled(), "the material route is an imported model's question")
+        tab.receive_imported_model(entry, ModelFiles(pac_data=b"PAC imported"), scene=None)
         self.assertTrue(tab.model_panel.import_model.isChecked())
         self.assertEqual(tab.controller.draft.model_source, ModelSource.IMPORTED)
+        self.assertTrue(tab.model_panel.plain_pbr.isEnabled())
+        self.assertTrue(tab.model_panel.plain_pbr.isChecked(), "the plain PBR shaders by default")
+        self.assertEqual(tab.controller.draft.material_route, MaterialRoute.PLAIN_PBR)
+        self.assertEqual(tab.controller.current_spec().material_route, MaterialRoute.PLAIN_PBR)
+        tab.model_panel.plain_pbr.setChecked(False)
+        self.assertEqual(tab.controller.draft.material_route, MaterialRoute.BUILDER)
+        tab.model_panel.plain_pbr.setChecked(True)
         tab.identity_panel.internal_name.setText("Ziane_Clone_OneHandSword")
         tab.identity_panel.display_name.setText("X")
         tab.output_panel.build_button.click()

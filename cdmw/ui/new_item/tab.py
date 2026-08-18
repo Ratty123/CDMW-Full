@@ -160,10 +160,12 @@ class NewItemStudioTab(QWidget):
             return
         self.template_panel.prefill(int(template_key))
 
-    def receive_imported_model(self, entry: Optional[ArchiveEntry], result: object) -> None:
-        """Take a Builder result for the current template's mesh."""
+    def receive_imported_model(self, entry: Optional[ArchiveEntry], result: object, scene: object | None = None) -> None:
+        """Take a Builder result for the current template's mesh, with the scene import
+        it was built from when the hand-off carried it (the plain-PBR material route
+        reads the source's own textures through it)."""
 
-        self.controller.set_imported_model(entry, result)
+        self.controller.set_imported_model(entry, result, scene)
         if self._panels_built:
             self.identity_panel.refresh_issues()
 

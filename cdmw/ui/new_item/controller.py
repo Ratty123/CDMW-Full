@@ -56,6 +56,7 @@ class NewItemStudioController(QObject):
         self.plan: Optional[NewItemPlan] = None
         self.model_result: object | None = None
         self.model_entry: Optional[ArchiveEntry] = None
+        self.model_scene: object | None = None
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
         self._lane: str = ""
@@ -235,13 +236,17 @@ class NewItemStudioController(QObject):
         self.plan = None
         self.model_result = None
         self.model_entry = None
+        self.model_scene = None
         self.template_changed.emit(template_key)
 
-    def set_imported_model(self, entry: Optional[ArchiveEntry], result: object | None) -> None:
-        """Take a Builder result for the template's mesh; None clears it."""
+    def set_imported_model(self, entry: Optional[ArchiveEntry], result: object | None, scene: object | None = None) -> None:
+        """Take a Builder result for the template's mesh; None clears it. `scene` is the
+        scene import the Builder ran from, when the hand-off carried it: the plain-PBR
+        route reads the source's own textures through it."""
 
         self.model_result = result
         self.model_entry = entry
+        self.model_scene = scene if result is not None else None
         self.draft.model_source = ModelSource.IMPORTED if result is not None else ModelSource.TEMPLATE
         self.plan = None
         self.model_changed.emit(result)
@@ -285,7 +290,7 @@ class NewItemStudioController(QObject):
             except ValueError as exc:
                 self.plan_failed.emit(str(exc), ())
                 return False
-        task = plan_task(spec, self.snapshot, service=self.service, model=self.model_result, icon_source_path=icon_source)
+        task = plan_task(spec, self.snapshot, service=self.service, model=self.model_result, scene=self.model_scene, icon_source_path=icon_source)
 
         def done(result: object) -> None:
             if isinstance(result, NewItemPlan):

@@ -26,6 +26,7 @@ from cdmw.domain.new_item.rules import NewItemContext, ValidationIssue, has_erro
 from cdmw.domain.new_item.spec import IconSource, NewItemSpec
 from cdmw.domain.packages.export_policy import ModPackageExportOptions
 from cdmw.models import ArchiveEntry, ModPackageInfo
+from cdmw.services.new_item_materials import route_model_files
 from cdmw.services.new_item_planning import (
     ModelFiles,
     NewItemPlan,
@@ -155,12 +156,18 @@ class NewItemService:
         snapshot: NewItemSnapshot,
         *,
         model: object | None = None,
+        scene: object | None = None,
         icon: Optional[NewItemIcon] = None,
         icon_source_path: Optional[Path] = None,
         on_log: Optional[Callable[[str], None]] = None,
         stop_event: Optional[threading.Event] = None,
     ) -> NewItemPlan:
         """Validate, allocate and compose. `model` is a Builder result or :class:`ModelFiles`.
+
+        A Builder result's materials are written the way `spec.material_route` says;
+        the plain-PBR route reads the source's own textures through `scene` (the
+        scene import result the Builder ran from) when it is given, and falls back
+        to the Builder's textures when it is not. `ModelFiles` are taken as they are.
 
         A generated icon comes either pre-built (`icon`) or from `icon_source_path`,
         which this builds through the icon generator first.
@@ -179,6 +186,8 @@ class NewItemService:
             files = model
         elif model is not None:
             files = model_files_from_import(model, family=snapshot.family(allocated.template_key))
+            raise_if_cancelled(stop_event, "New item plan cancelled.")
+            files = route_model_files(files, allocated.material_route, result=model, scene=scene, on_log=on_log)
         built = icon
         if allocated.icon is IconSource.GENERATED and built is None:
             if icon_source_path is None:

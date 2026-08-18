@@ -3,8 +3,9 @@
 Perks are the item row's default socket items: the tooltip's "Insight I", "Malicebane I"
 lines. The panel offers every item some shipped row embeds, by English name, and holds
 up to eight of them (no shipped item carries more than four). An effect is one of the
-shipped effect binaries, grafted into the item's own prefabs as an EffectComponent; the
-game has not been seen drawing one yet, and the panel says so.
+shipped effect binaries, grafted into the item's own prefabs as an EffectComponent; a
+grafted fire drew on the sword in game (2026-08-18), and the presets start from the
+effects named for weapons and elements.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from cdmw.domain.new_item.effects import presets_for
 from cdmw.ui.new_item.controller import NewItemStudioController
 
 MAX_PERKS = 8
@@ -75,9 +77,16 @@ class PerksPanel(QGroupBox):
 
         effect = QGroupBox("Weapon effect")
         effect_layout = QVBoxLayout(effect)
-        self.use_effect = QCheckBox("Give the weapon a persistent effect (grafted into its own prefabs; unproven in game)")
+        self.use_effect = QCheckBox("Give the weapon a persistent effect (grafted into its own prefabs; fire proven in game)")
         self.use_effect.toggled.connect(self._use_effect_changed)
         effect_layout.addWidget(self.use_effect)
+        preset_row = QHBoxLayout()
+        preset_row.addWidget(QLabel("Element preset:"))
+        self.effect_preset = QComboBox()
+        self.effect_preset.setToolTip("Shipped effects named for weapons and elements, as a place to start; the list below has every shipped effect.")
+        self.effect_preset.currentIndexChanged.connect(self._preset_chosen)
+        preset_row.addWidget(self.effect_preset, 1)
+        effect_layout.addLayout(preset_row)
         effect_row = QHBoxLayout()
         self.effect_filter = QLineEdit()
         self.effect_filter.setPlaceholderText("Filter effects (fire, lightning, aura, sword...)")
@@ -103,6 +112,7 @@ class PerksPanel(QGroupBox):
 
     def _refresh_all(self) -> None:
         self._refresh_catalogue()
+        self._refresh_presets()
         self._refresh_effects()
         self._template_changed(None)
 
@@ -178,9 +188,28 @@ class PerksPanel(QGroupBox):
     # ------------------------------------------------------------------ effect
 
     def _use_effect_changed(self, checked: bool) -> None:
-        for widget in (self.effect_filter, self.effect):
+        for widget in (self.effect_filter, self.effect, self.effect_preset):
             widget.setEnabled(bool(checked))
         self._effect_changed(self.effect.currentIndex())
+
+    def _refresh_presets(self) -> None:
+        available = set(self._controller.effect_stems("", limit=100000))
+        self.effect_preset.blockSignals(True)
+        try:
+            self.effect_preset.clear()
+            self.effect_preset.addItem("Choose a preset...", "")
+            for preset in presets_for(available):
+                label = preset.label + (" (proven)" if preset.proven else "")
+                self.effect_preset.addItem(label, preset.stem)
+                if preset.note:
+                    self.effect_preset.setItemData(self.effect_preset.count() - 1, f"{preset.stem}: {preset.note}", Qt.ItemDataRole.ToolTipRole)
+        finally:
+            self.effect_preset.blockSignals(False)
+
+    def _preset_chosen(self, index: int) -> None:
+        stem = self.effect_preset.itemData(index) if index >= 0 else ""
+        if stem:
+            self.choose_effect(str(stem))
 
     def _refresh_effects(self, *_args) -> None:
         current = self.effect.currentData()

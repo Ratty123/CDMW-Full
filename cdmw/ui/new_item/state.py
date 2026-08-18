@@ -15,6 +15,7 @@ from cdmw.domain.new_item.spec import (
     EnhancementRows,
     IconSource,
     ItemGroupsChoice,
+    MaterialRoute,
     ModelSource,
     NewItemSpec,
     Placement,
@@ -93,6 +94,9 @@ class NewItemDraft:
     stem: str = ""
     item_key: Optional[int] = None
     model_source: ModelSource = ModelSource.TEMPLATE
+    #: how an imported model's materials are written; the plain-PBR shaders unless the
+    #: Builder's own sidecar is asked for
+    material_route: MaterialRoute = MaterialRoute.PLAIN_PBR
     icon: IconSource = IconSource.TEMPLATE
     icon_source_path: str = ""
     #: level -> column index -> value; None means "as the template".
@@ -192,6 +196,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         item_key=draft.item_key,
         stem=draft.stem.strip() or None,
         model_source=draft.model_source,
+        material_route=draft.material_route,
         icon=draft.icon,
         stat_edits=stats,
         buy_price_edits=buy_prices,

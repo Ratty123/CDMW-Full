@@ -309,5 +309,30 @@ class AllocationTests(unittest.TestCase):
         self.assertEqual([i.code for i in validate_spec(_spec(name_key="4300529219900021")) if i.code.endswith("unconventional")], [], "no item key yet: nothing to compare against")
 
 
+class EffectPresetTests(unittest.TestCase):
+    def test_presets_name_shipped_stems_and_filter_to_what_is_available(self) -> None:
+        from cdmw.domain.new_item.effects import EFFECT_PRESETS, presets_for
+
+        stems = [preset.stem for preset in EFFECT_PRESETS]
+        self.assertEqual(len(stems), len(set(stems)), "no stem twice")
+        self.assertTrue(all(preset.label and preset.element for preset in EFFECT_PRESETS))
+        proven = [preset.stem for preset in EFFECT_PRESETS if preset.proven]
+        self.assertEqual(proven, ["fx_cc_firesweapon_a__fire1"], "the fire seen drawing in game")
+        self.assertEqual(presets_for(None), EFFECT_PRESETS)
+        self.assertEqual([p.stem for p in presets_for({"fx_cc_firesweapon_a__fire1", "nothing"})], ["fx_cc_firesweapon_a__fire1"])
+        self.assertEqual(presets_for(set()), ())
+        # every preset is a bare stem: no folder, no `.level.effect`, no `.pae`
+        for stem in stems:
+            self.assertNotIn("/", stem)
+            self.assertNotIn(".", stem)
+
+    def test_material_route_defaults_to_the_plain_shaders(self) -> None:
+        from cdmw.domain.new_item.spec import MaterialRoute
+
+        self.assertEqual(_spec().material_route, MaterialRoute.PLAIN_PBR)
+        self.assertEqual(_spec(material_route=MaterialRoute.BUILDER).material_route, MaterialRoute.BUILDER)
+        self.assertEqual({route.value for route in MaterialRoute}, {"builder", "plain_pbr"})
+
+
 if __name__ == "__main__":
     unittest.main()

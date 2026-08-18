@@ -27,6 +27,7 @@ CHECKLIST = (
     "In game: the item shows in the shop you chose (or in the inventory when given by other means).",
     "Its name and description read right in your language.",
     "It equips, draws and sheathes; the imported model, if any, renders.",
+    "An imported model's textures read as the source's (albedo, shine and glow); the plain PBR shaders are the first thing to switch off if they do not.",
     "The icon shows (a generated icon at a new path is the first thing to check).",
     "Its stats match the grid; an added level is the least-proven part.",
     "The tooltip lists the perks you chose; a weapon effect, if any, shows on the drawn blade.",
