@@ -9,6 +9,7 @@ confirmation). It never touches the archives.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Callable, Iterable, Optional
 
 from PySide6.QtCore import Qt, Signal
@@ -52,6 +53,9 @@ class NewItemStudioTab(QWidget):
         self._window = window
         self._get_entries = get_archive_entries or (lambda: getattr(window, "archive_entries", None) or ())
         self.controller = controller or NewItemStudioController(service=service, parent=self)
+        cache_root = getattr(window, "archive_cache_root", None)
+        if cache_root is not None and self.controller.effect_cache_path is None:
+            self.controller.effect_cache_path = Path(cache_root) / "index" / "effect_catalogue_v1.json"
         self._pending_template: Optional[int] = None
         self._panels_built = False
 

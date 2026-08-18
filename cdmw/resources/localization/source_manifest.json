@@ -3522,6 +3522,36 @@
       ]
     },
     {
+      "key": "; carries lights",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 279,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "; meshes {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 279,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "; the file did not decode fully ({value_0})",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 279,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "; {value_1}",
       "origins": [
         {
@@ -3836,7 +3866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 113,
+          "line": 124,
           "sink": "setToolTip"
         }
       ]
@@ -6536,7 +6566,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 198,
+          "line": 210,
           "sink": "emit"
         }
       ]
@@ -13791,12 +13821,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 332,
+          "line": 386,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 339,
+          "line": 393,
           "sink": "emit"
         },
         {
@@ -17666,7 +17696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 236,
+          "line": 286,
           "sink": "addItem"
         }
       ]
@@ -17756,7 +17786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 175,
+          "line": 179,
           "sink": "information"
         }
       ]
@@ -17846,7 +17876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 311,
+          "line": 365,
           "sink": "ValueError"
         }
       ]
@@ -28498,6 +28528,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 550,
           "sink": "setHeaderLabels"
+        }
+      ]
+    },
+    {
+      "key": "Effect indexing cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_catalogue.py",
+          "line": 182,
+          "sink": "RuntimeError"
         }
       ]
     },
@@ -39506,7 +39546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 179,
+          "line": 183,
           "sink": "information"
         }
       ]
@@ -39886,12 +39926,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 175,
+          "line": 179,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 179,
+          "line": 183,
           "sink": "information"
         }
       ]
@@ -40797,6 +40837,21 @@
       ]
     },
     {
+      "key": "Index effects",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 105,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 46,
+          "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
       "key": "Index pages",
       "origins": [
         {
@@ -40817,6 +40872,16 @@
       ]
     },
     {
+      "key": "Index the effects to see what this one draws and how big it is.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 261,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Indexed metadata: {value_0} model(s), {value_1} catalogue page(s). Downloads are stored under {value_2} after you enter the mirror URL.",
       "origins": [
         {
@@ -40833,6 +40898,16 @@
           "path": "cdmw/ui/archive_browser/asset_family_panel.py",
           "line": 172,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "Indexed {value_0} effects; {value_1} did not decode.",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_catalogue.py",
+          "line": 201,
+          "sink": "on_log"
         }
       ]
     },
@@ -41371,12 +41446,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 194,
+          "line": 198,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 198,
+          "line": 202,
           "sink": "question"
         }
       ]
@@ -41401,7 +41476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 198,
+          "line": 202,
           "sink": "question"
         }
       ]
@@ -42226,7 +42301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 235,
+          "line": 289,
           "sink": "emit"
         }
       ]
@@ -52266,7 +52341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 124,
+          "line": 135,
           "sink": "setToolTip"
         }
       ]
@@ -53461,7 +53536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 58,
+          "line": 62,
           "sink": "QLabel"
         }
       ]
@@ -54981,7 +55056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 327,
+          "line": 381,
           "sink": "ValueError"
         }
       ]
@@ -58166,7 +58241,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 116,
+          "line": 127,
           "sink": "QLabel"
         }
       ]
@@ -69117,6 +69192,16 @@
       ]
     },
     {
+      "key": "Read every shipped effect once (about a minute, kept on disk): the filter then also matches the emitters, textures and meshes an effect is made of, and the line below says what the chosen effect draws and how big it is.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 106,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Read only",
       "origins": [
         {
@@ -69176,7 +69261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 64,
+          "line": 68,
           "sink": "QPushButton"
         },
         {
@@ -69191,7 +69276,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 277,
+          "line": 241,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 331,
           "sink": "emit"
         }
       ]
@@ -69681,7 +69771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 95,
+          "line": 99,
           "sink": "setText"
         }
       ]
@@ -77636,7 +77726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 107,
+          "line": 118,
           "sink": "QLabel"
         }
       ]
@@ -87926,7 +88016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 346,
+          "line": 400,
           "sink": "emit"
         }
       ]
@@ -91726,7 +91816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 91,
+          "line": 95,
           "sink": "setText"
         }
       ]
@@ -91736,7 +91826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 261,
+          "line": 315,
           "sink": "emit"
         }
       ]
@@ -91746,7 +91836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 194,
+          "line": 198,
           "sink": "warning"
         }
       ]
@@ -91906,7 +91996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 105,
+          "line": 109,
           "sink": "setText"
         }
       ]
@@ -92072,11 +92162,21 @@
       ]
     },
     {
+      "key": "The effect catalogue could not be cached: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 257,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
       "key": "The effect is drawn at the weapon's own origin, as the shipped thrown lightning spear draws its aura. Effects made for other weapons may sit or scale oddly; the scale and offset above move them, and the presets carry a starting scale.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 130,
+          "line": 141,
           "sink": "QLabel"
         }
       ]
@@ -92201,7 +92301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 316,
+          "line": 370,
           "sink": "ValueError"
         }
       ]
@@ -92381,7 +92481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 302,
+          "line": 356,
           "sink": "emit"
         }
       ]
@@ -92646,7 +92746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 270,
+          "line": 324,
           "sink": "emit"
         }
       ]
@@ -92766,7 +92866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 155,
+          "line": 167,
           "sink": "setText"
         }
       ]
@@ -92776,7 +92876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 153,
+          "line": 165,
           "sink": "setText"
         }
       ]
@@ -94526,7 +94626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 104,
+          "line": 108,
           "sink": "setText"
         },
         {
@@ -115598,6 +115698,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_physics_part_01.py",
           "line": 332,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "reads every shipped effect once (about a minute, kept on disk); the filter then matches the emitters, textures and meshes an effect is made of, and the panel says what the chosen effect draws and how big its box is at the chosen scale.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 46,
+          "sink": "python-return:_build_about_sections"
         }
       ]
     },
@@ -197397,6 +197507,16 @@
       ]
     },
     {
+      "key": "{value_0} effects indexed",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 250,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "{value_0} equivalent ({value_1} byte-exact), {value_2} mismatched, {value_3} opaque",
       "origins": [
         {
@@ -199717,6 +199837,16 @@
       ]
     },
     {
+      "key": "{value_0}: emitters {value_1}; textures {value_2}; box {value_3} x {value_4} x {value_5} m, at scale {value_6}: {value_7} x {value_8} x {value_9} m; {value_10}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 279,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "{value_0}: id={value_1} offset=0x{value_2}",
       "origins": [
         {
@@ -199896,7 +200026,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 241,
+          "line": 291,
           "sink": "setItemData"
         },
         {
@@ -200274,6 +200404,11 @@
     {
       "key": "{value_0}:{value_1}:{value_2}",
       "origins": [
+        {
+          "path": "cdmw/services/effect_catalogue.py",
+          "line": 164,
+          "sink": "python-return:catalogue_signature"
+        },
         {
           "path": "cdmw/ui/preview_widgets.py",
           "line": 419,

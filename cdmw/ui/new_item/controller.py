@@ -18,6 +18,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
 from cdmw.models import ArchiveEntry
+from cdmw.services.effect_catalogue import EffectCatalogue, EffectFacts, build_effect_catalogue, catalogue_signature, load_effect_catalogue, save_effect_catalogue
 from cdmw.services.new_item_baseline import baseline_facts, baseline_lines
 from cdmw.services.new_item_planning import NewItemPlan, NewItemPlanError
 from cdmw.services.new_item_service import NewItemInstallRefused, NewItemService
@@ -39,6 +40,7 @@ class NewItemStudioController(QObject):
     export_finished = Signal(object)
     install_finished = Signal(object)
     model_changed = Signal(object)
+    effect_catalogue_ready = Signal()
 
     def __init__(
         self,
@@ -61,6 +63,10 @@ class NewItemStudioController(QObject):
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
         self._lane: str = ""
+        #: What every shipped effect is made of, once indexed (a minute, cached on disk).
+        self.effect_catalogue: Optional[EffectCatalogue] = None
+        #: Where the catalogue cache lives; None keeps it in memory only.
+        self.effect_cache_path: Optional[Path] = None
 
     # ------------------------------------------------------------------ facts
 
@@ -197,13 +203,61 @@ class NewItemStudioController(QObject):
         return tuple(self.snapshot.row(self.draft.template_key).socket_items)
 
     def effect_stems(self, text: str = "", *, limit: int = 300) -> Tuple[str, ...]:
-        """Shipped effect stems whose name contains `text`, alphabetical."""
+        """Shipped effect stems matching `text`, alphabetical. With the catalogue indexed
+        the match runs over the effect's emitters, textures and meshes as well as its
+        stem, and every word of `text` must match; before, over the stem alone."""
 
         if self.snapshot is None:
             return ()
+        if self.effect_catalogue is not None and len(self.effect_catalogue):
+            return tuple(item.stem for item in self.effect_catalogue.search(text, limit=limit))
         needle = str(text or "").strip().casefold()
         stems = [stem for stem in self.snapshot.effect_stems if not needle or needle in stem.casefold()]
         return tuple(sorted(stems)[:limit])
+
+    def effect_facts(self, stem: str) -> Optional[EffectFacts]:
+        """What the catalogue knows about `stem`, or None before indexing."""
+
+        if self.effect_catalogue is None:
+            return None
+        return self.effect_catalogue.get(stem)
+
+    def load_effect_catalogue(self) -> bool:
+        """Take the on-disk catalogue when it was built for these archives' effects."""
+
+        if self.snapshot is None or self.effect_cache_path is None:
+            return False
+        catalogue = load_effect_catalogue(self.effect_cache_path, signature=catalogue_signature(self.snapshot))
+        if catalogue is None:
+            return False
+        self.effect_catalogue = catalogue
+        self.effect_catalogue_ready.emit()
+        return True
+
+    def start_effect_index(self) -> bool:
+        """Read and decode every shipped effect into the catalogue (a minute, once)."""
+
+        if self.snapshot is None:
+            self.status_message.emit("Read the archives first.", True)
+            return False
+        if self.load_effect_catalogue():
+            return True
+        snapshot = self.snapshot
+
+        def task(log, stop_event):
+            return build_effect_catalogue(snapshot, on_log=log, stop_event=stop_event)
+
+        def done(result: object) -> None:
+            if isinstance(result, EffectCatalogue):
+                self.effect_catalogue = result
+                if self.effect_cache_path is not None:
+                    try:
+                        save_effect_catalogue(result, self.effect_cache_path)
+                    except OSError as exc:
+                        self.log_message.emit(f"The effect catalogue could not be cached: {exc}")
+                self.effect_catalogue_ready.emit()
+
+        return self._run("effects", task, done, lambda message: self.status_message.emit(message, True))
 
     def template_entries(self) -> Tuple[ArchiveEntry, ...]:
         """The template's own model files, for the Builder to import over."""
