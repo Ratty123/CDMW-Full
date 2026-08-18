@@ -4571,7 +4571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 72,
+          "line": 77,
           "sink": "QPushButton"
         },
         {
@@ -6516,7 +6516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 168,
+          "line": 173,
           "sink": "emit"
         }
       ]
@@ -11701,7 +11701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 58,
+          "line": 63,
           "sink": "QPushButton"
         }
       ]
@@ -17646,7 +17646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 200,
+          "line": 205,
           "sink": "addItem"
         }
       ]
@@ -18171,7 +18171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 47,
+          "line": 52,
           "sink": "QCheckBox"
         }
       ]
@@ -28496,7 +28496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 84,
+          "line": 89,
           "sink": "QLabel"
         }
       ]
@@ -33311,7 +33311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 92,
+          "line": 97,
           "sink": "setPlaceholderText"
         }
       ]
@@ -33397,11 +33397,11 @@
       ]
     },
     {
-      "key": "Filter perks by name (Insight, Destruction, Malicebane...)",
+      "key": "Filter perks by name (Insight, Destruction, Malicebane; Item_Skill for the Abyss skills: Volcanic Eruption, Storm Fang, Groundsurge...)",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 66,
+          "line": 71,
           "sink": "setPlaceholderText"
         }
       ]
@@ -36216,7 +36216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 80,
+          "line": 85,
           "sink": "QCheckBox"
         }
       ]
@@ -63656,7 +63656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 42,
+          "line": 47,
           "sink": "QGroupBox"
         }
       ]
@@ -72741,7 +72741,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 55,
+          "line": 60,
           "sink": "QPushButton"
         },
         {
@@ -83041,7 +83041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 86,
+          "line": 91,
           "sink": "setToolTip"
         }
       ]
@@ -91896,7 +91896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 44,
+          "line": 49,
           "sink": "QLabel"
         }
       ]
@@ -91996,7 +91996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 100,
+          "line": 105,
           "sink": "QLabel"
         }
       ]
@@ -92686,7 +92686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 125,
+          "line": 130,
           "sink": "setText"
         }
       ]
@@ -92696,7 +92696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 123,
+          "line": 128,
           "sink": "setText"
         }
       ]
@@ -99006,7 +99006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 78,
+          "line": 83,
           "sink": "QGroupBox"
         }
       ]
@@ -199796,7 +199796,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 205,
+          "line": 210,
           "sink": "setItemData"
         },
         {

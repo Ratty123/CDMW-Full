@@ -2822,7 +2822,7 @@
     "Filter model entries, e.g. nude, phm, cloak, damian, body": "모델 항목을 필터링합니다. 누드, phm, 망토, 데미안, 신체",
     "Filter name, path, tags, or notes": "이름, 경로, 태그 또는 메모 필터링",
     "Filter or paste an existing archive item icon path": "기존 아카이브 항목 아이콘 경로 필터링 또는 붙여넣기",
-    "Filter perks by name (Insight, Destruction, Malicebane...)": "특전 이름으로 필터(Insight, Destruction, Malicebane...)",
+    "Filter perks by name (Insight, Destruction, Malicebane; Item_Skill for the Abyss skills: Volcanic Eruption, Storm Fang, Groundsurge...)": "이름으로 특전 필터(Insight, Destruction, Malicebane; 어비스 스킬은 Item_Skill: Volcanic Eruption, Storm Fang, Groundsurge...)",
     "Filter source candidates to one archive extension.": "소스 후보를 하나의 아카이브 확장으로 필터링합니다.",
     "Filter the HKX Modding Workspace to a practical physics tuning task.": "HKX Modding Workspace를 실용적인 물리 튜닝 작업으로 필터링합니다.",
     "Filter the loaded archive DDS entries, then choose the original that matches the edited texture.": "로드된 아카이브 DDS 항목을 필터링한 다음 편집된 텍스처와 일치하는 원본을 선택합니다.",
