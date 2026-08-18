@@ -102,7 +102,18 @@ class PerksPanel(QGroupBox):
         self.effect.setMinimumWidth(260)
         self.effect.currentIndexChanged.connect(self._effect_changed)
         effect_row.addWidget(self.effect, 2)
+        self.index_button = QPushButton("Index effects")
+        self.index_button.setToolTip(
+            "Read every shipped effect once (about a minute, kept on disk): the filter then also matches the emitters, "
+            "textures and meshes an effect is made of, and the line below says what the chosen effect draws and how big it is."
+        )
+        self.index_button.clicked.connect(self._index_effects)
+        effect_row.addWidget(self.index_button)
         effect_layout.addLayout(effect_row)
+        self.effect_facts = QLabel("")
+        self.effect_facts.setWordWrap(True)
+        self.effect_facts.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        effect_layout.addWidget(self.effect_facts)
         placement_row = QHBoxLayout()
         placement_row.addWidget(QLabel("Scale:"))
         self.effect_scale = QDoubleSpinBox()
@@ -135,6 +146,7 @@ class PerksPanel(QGroupBox):
         self._own_perks_changed(False)
         self._use_effect_changed(False)
         controller.snapshot_ready.connect(self._refresh_all)
+        controller.effect_catalogue_ready.connect(self._catalogue_ready)
         controller.template_changed.connect(self._template_changed)
         self._refresh_all()
 
@@ -218,7 +230,7 @@ class PerksPanel(QGroupBox):
     # ------------------------------------------------------------------ effect
 
     def _use_effect_changed(self, checked: bool) -> None:
-        for widget in (self.effect_filter, self.effect, self.effect_preset, self.effect_scale, *self.effect_offset):
+        for widget in (self.effect_filter, self.effect, self.effect_preset, self.effect_scale, self.index_button, *self.effect_offset):
             widget.setEnabled(bool(checked))
         self._effect_changed(self.effect.currentIndex())
 
@@ -227,6 +239,44 @@ class PerksPanel(QGroupBox):
         draft.effect_scale = float(self.effect_scale.value())
         draft.effect_offset = tuple(float(box.value()) for box in self.effect_offset)
         self._controller.plan = None
+        self._refresh_facts()
+
+    def _index_effects(self) -> None:
+        self._controller.start_effect_index()
+
+    def _catalogue_ready(self) -> None:
+        catalogue = self._controller.effect_catalogue
+        count = len(catalogue) if catalogue is not None else 0
+        self.index_button.setText(f"{count} effects indexed")
+        self.index_button.setEnabled(False)
+        self._refresh_effects()
+
+    def _refresh_facts(self) -> None:
+        stem = str(self._controller.draft.effect_stem or "")
+        facts = self._controller.effect_facts(stem) if stem else None
+        if not stem or not self.use_effect.isChecked():
+            self.effect_facts.setText("")
+            return
+        if facts is None:
+            self.effect_facts.setText("Index the effects to see what this one draws and how big it is.")
+            return
+        emitters = ", ".join(name.rsplit("/", 1)[-1] for name in facts.emitters) or "none named"
+        textures = ", ".join(path.rsplit("/", 1)[-1] for path in facts.textures) or "none"
+        meshes = ", ".join(path.rsplit("/", 1)[-1] for path in facts.meshes)
+        width, height, depth = facts.size
+        scale = float(self.effect_scale.value())
+        loop = "loops" if facts.loops else f"plays once ({facts.max_spawnable_time:.1f} s)"
+        text = (
+            f"{facts.name or facts.stem}: emitters {emitters}; textures {textures}; "
+            f"box {width:.2f} x {height:.2f} x {depth:.2f} m, at scale {scale:.2f}: {width * scale:.2f} x {height * scale:.2f} x {depth * scale:.2f} m; {loop}"
+        )
+        if meshes:
+            text += f"; meshes {meshes}"
+        if facts.has_lights:
+            text += "; carries lights"
+        if facts.walk_note:
+            text += f"; the file did not decode fully ({facts.walk_note})"
+        self.effect_facts.setText(text)
 
     def _refresh_presets(self) -> None:
         available = set(self._controller.effect_stems("", limit=100000))
@@ -270,6 +320,7 @@ class PerksPanel(QGroupBox):
         stem = self.effect.currentData() if self.use_effect.isChecked() else None
         self._controller.draft.effect_stem = str(stem or "")
         self._controller.plan = None
+        self._refresh_facts()
 
     def choose_effect(self, stem: str) -> None:
         """Select an effect by stem (used by tests and by callers with a known effect)."""

@@ -69,6 +69,8 @@ class TabTests(unittest.TestCase):
         files = synthetic_files()
         # one shipped effect the presets name, so the preset combo has something to offer
         files["effect/binary__/releasebin/fx_cc_firesweapon_a__fire1.pae"] = b"PAE fire preset"
+        # and one real effect binary, so the catalogue has facts to show
+        files["effect/binary__/releasebin/fx_test_fire.pae"] = (Path(__file__).parent / "fixtures" / "effects" / "fx_hit_common_fire_attach_a_loop.pae").read_bytes()
         self.pamt_path = build_package(self.root, files)
         self.entries = tuple(parse_archive_pamt(self.pamt_path))
         self._backup_patch = patch("cdmw.core.archive_patching.ARCHIVE_PATCH_BACKUP_ROOT", self.root / "backups")
@@ -172,6 +174,33 @@ class TabTests(unittest.TestCase):
         self.assertEqual(tab.controller.draft.effect_stem, "fx_test_fire")
         self.assertEqual(tab.controller.current_spec().effect, "fx_test_fire.level.effect")
         self.assertEqual(tab.controller.current_spec().socket_items, (1002812, 1002793))
+        # the effect catalogue: before indexing the facts line asks for it; after, the real
+        # effect says what it draws, the stubs say they did not decode, and the filter
+        # matches emitters and textures too
+        self.assertIn("Index the effects", perks.effect_facts.text())
+        tab.controller.effect_cache_path = self.root / "effect_catalogue.json"
+        perks.index_button.click()
+        self.assertIsNotNone(tab.controller.effect_catalogue)
+        self.assertEqual(len(tab.controller.effect_catalogue), 3)
+        self.assertTrue((self.root / "effect_catalogue.json").is_file())
+        self.assertIn("effects indexed", perks.index_button.text())
+        facts = perks.effect_facts.text()
+        self.assertIn("cdem_last_fire_circle_trail_001a", facts)
+        self.assertIn("pafx_vector_chaos_01a.dds", facts)
+        self.assertIn("box 2.50 x 2.53 x 2.64 m", facts)
+        self.assertIn("loops", facts)
+        perks.effect_filter.setText("firefly")
+        self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["fx_test_fire"])
+        perks.effect_filter.setText("ice")
+        self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["fx_test_ice"])
+        self.assertTrue(tab.controller.effect_facts("fx_test_ice").walk_note, "a stub effect is kept, marked undecoded")
+        perks.effect_filter.setText("")
+        # a second tab loads the cache instead of indexing again
+        again = self._tab()
+        again.start_snapshot()
+        again.controller.effect_cache_path = self.root / "effect_catalogue.json"
+        self.assertTrue(again.controller.load_effect_catalogue())
+        self.assertEqual(len(again.controller.effect_catalogue), 3)
         perks.use_effect.setChecked(False)
         self.assertEqual(tab.controller.draft.effect_stem, "")
         self.assertIsNone(tab.controller.current_spec().effect)
