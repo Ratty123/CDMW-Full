@@ -6,10 +6,14 @@ import struct
 import unittest
 from pathlib import Path
 
-from cdmw.core.effect_binary import decode_effect_binary
+from cdmw.core.effect_binary import decode_effect_binary, half_floats
 from cdmw.core.effect_edit import (
+    COLOR_CURVE_ID,
+    TEMPERATURE_RAMP,
     EffectEditError,
+    EmitterLayout,
     apply_effect_look,
+    emitter_layout_of,
     emitter_paths_of,
     preset_names_of,
     preset_path,
@@ -150,6 +154,83 @@ class LookTests(unittest.TestCase):
         after = decode_effect_binary(out).root.value("_boundingBoxMax").value
         self.assertEqual(tuple(round(v, 4) for v in after), tuple(round(v * 2.0, 4) for v in before))
         self.assertGreaterEqual(report.edited.get("_spawnCountMin", 0), 1, "the embedded override carries spawn counts")
+
+    def test_the_layout_names_what_an_emitter_keeps_at_each_position(self) -> None:
+        layout = emitter_layout_of(decode_effect_binary(EMBER.read_bytes()))
+        self.assertEqual(layout.curve_ids, (2, 8, 15, 0, 3, 5, 19, 12, 14, 16, 17, 21))
+        self.assertEqual(len(layout.parameter_names), 45)
+        self.assertEqual(layout.parameter_names[22], TEMPERATURE_RAMP)
+        self.assertEqual(layout.parameter_names[:2], ("_materialFlags", "_materialFlags2"))
+
+    def test_colour_recolours_the_colour_curve_and_the_temperature_ramp(self) -> None:
+        data = EMBER.read_bytes()
+        out, report = apply_effect_look(data, EffectLook(color=(0.1, 0.3, 1.0)))
+        self.assertEqual(len(out), len(data))
+        self.assertGreaterEqual(report.edited.get("_splineData:color", 0), 1)
+        self.assertGreaterEqual(report.edited.get(TEMPERATURE_RAMP, 0), 10, "R, G and B ramp points")
+        before = decode_effect_binary(data)
+        after = decode_effect_binary(out)
+        self.assertTrue(after.walk_complete, after.walk_note)
+
+        def colour_curve(doc):
+            for node in doc.root.find("EmitterCurveData"):
+                sid = node.value("_splineID")
+                if sid is not None and sid.value == COLOR_CURVE_ID:
+                    return half_floats(node.value("_splineData").raw)
+            self.fail("no colour curve")
+
+        old, new = colour_curve(before), colour_curve(after)
+        self.assertEqual(len(new), len(old))
+        for start in range(0, len(old), 4):
+            r, g, b, t = old[start:start + 4]
+            nr, ng, nb, nt = new[start:start + 4]
+            self.assertEqual(nt, t, "the temperature channel is kept")
+            peak = max(r, g, b, 0.0)
+            self.assertAlmostEqual(nb, peak, places=5, msg="blue is the peak channel now")
+            self.assertAlmostEqual(nr, 0.1 * peak, places=5)
+            self.assertAlmostEqual(ng, 0.3 * peak, places=5)
+
+        def ramp_points(doc):
+            for node in doc.root.walk():
+                name = node.value("_name")
+                if node.type_name == "MaterialParameterSplineRef" and name is not None and name.value == TEMPERATURE_RAMP:
+                    comps = node.child("_value").child("_splineDataInstance").child("_dataForSerialize")
+                    return [
+                        [struct.unpack("<2f", p.value("_position").raw) for p in comp.child("_pointListForSerialize") if p.value("_position") is not None]
+                        for comp in comps
+                    ]
+            self.fail("no ramp")
+
+        old_ramp, new_ramp = ramp_points(before), ramp_points(after)
+        self.assertEqual(new_ramp[3], old_ramp[3], "the intensity spline is untouched")
+        old_top = max(comp[-1][1] for comp in old_ramp[:3])
+        self.assertAlmostEqual(new_ramp[2][-1][1], old_top, places=4, msg="blue tops the ramp at x=1 where red did")
+        self.assertAlmostEqual(new_ramp[0][-1][1], 0.1 * old_top, places=4)
+        self.assertAlmostEqual(new_ramp[1][-1][1], 0.3 * old_top, places=4)
+        for comp_old, comp_new in zip(old_ramp[:3], new_ramp[:3]):
+            self.assertEqual([p[0] for p in comp_new], [p[0] for p in comp_old], "x positions stay")
+
+    def test_an_effect_recolours_its_positional_overrides_through_the_layouts(self) -> None:
+        data = EFFECT.read_bytes()
+        trail = "effect/binary__/emitter/cdem_last_fire_circle_trail_001a.paem"
+        # a made-up layout that says the trail's override at curve position 4 is the colour curve
+        layout = EmitterLayout(curve_ids=(2, 8, 15, 0, COLOR_CURVE_ID), parameter_names=())
+        out, report = apply_effect_look(data, EffectLook(color=(1.0, 0.0, 0.0)), emitter_layouts={trail: layout})
+        self.assertGreaterEqual(report.edited.get("_splineData:color", 0), 1)
+        doc = decode_effect_binary(out)
+        self.assertTrue(doc.walk_complete)
+        for node in doc.root.walk():
+            if node.type_name.endswith("cdem_last_fire_circle_trail_001a.paem"):
+                entry = node.child("_curveEntryDataList")[4]
+                samples = half_floats(entry.value("_splineData").raw)
+                self.assertGreater(samples[0], 0.0)
+                self.assertEqual(samples[1], 0.0)
+                self.assertEqual(samples[2], 0.0)
+                break
+        else:
+            self.fail("the trail override was not found")
+        untouched, report = apply_effect_look(data, EffectLook(color=(1.0, 0.0, 0.0)))
+        self.assertEqual(report.edited.get("_splineData:color", 0), 0, "without a layout a positional override is left alone")
 
     def test_a_broken_file_is_refused(self) -> None:
         with self.assertRaises((EffectEditError, ValueError)):

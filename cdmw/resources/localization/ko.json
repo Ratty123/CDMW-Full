@@ -9258,6 +9258,7 @@
     "preparing": "준비 중",
     "present": "현재",
     "preset and automatic rules enabled.": "사전 설정 및 자동 규칙이 활성화되어 있습니다.",
+    "preset clone: {value_0}": "프리셋 복제: {value_0}",
     "preset driver identity does not match the active definition profile": "사전 설정된 운전자 ID가 활성 정의 프로필과 일치하지 않습니다",
     "preset first and leave automatic rules enabled so risky technical DDS files are preserved instead of pushed through the visible PNG path.": "먼저 사전 설정하고 자동 규칙을 활성화한 상태로 두십시오. 그러면 위험한 기술 DDS 파일이 보이는 PNG 경로를 통해 푸시되는 대신 보존됩니다.",
     "preset references a missing procedural definition": "사전 설정은 누락된 절차 정의를 참조합니다.",

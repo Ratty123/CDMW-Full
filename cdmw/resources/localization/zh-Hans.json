@@ -9258,6 +9258,7 @@
     "preparing": "准备",
     "present": "当前",
     "preset and automatic rules enabled.": "启用预设和自动规则。",
+    "preset clone: {value_0}": "预设克隆：{value_0}",
     "preset driver identity does not match the active definition profile": "预设驱动程序身份与活动定义配置文件不匹配",
     "preset first and leave automatic rules enabled so risky technical DDS files are preserved instead of pushed through the visible PNG path.": "首先预设并启用自动规则，以便保留有风险的技术 DDS 文件，而不是通过可见的 PNG 路径推送。",
     "preset references a missing procedural definition": "预设引用了缺失的程序定义",

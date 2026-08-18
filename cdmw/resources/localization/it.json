@@ -9258,6 +9258,7 @@
     "preparing": "preparing",
     "present": "present",
     "preset and automatic rules enabled.": "regole preimpostate e automatiche abilitato.",
+    "preset clone: {value_0}": "clone del preset: {value_0}",
     "preset driver identity does not match the active definition profile": "l'identità del driver preimpostato non corrisponde al profilo di definizione attivo",
     "preset first and leave automatic rules enabled so risky technical DDS files are preserved instead of pushed through the visible PNG path.": "preimpostato prima e lascia abilitate le regole automatiche in modo che i file DDS tecnici rischiosi vengano preservati anziché inseriti nel percorso PNG visibile.",
     "preset references a missing procedural definition": "il preimpostato fa riferimento a una definizione procedurale mancante",

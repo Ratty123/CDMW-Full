@@ -9258,6 +9258,7 @@
     "preparing": "preparing",
     "present": "present",
     "preset and automatic rules enabled.": "preset and automatic rules enabled.",
+    "preset clone: {value_0}": "preset clone: {value_0}",
     "preset driver identity does not match the active definition profile": "preset driver identity does not match the active definition profile",
     "preset first and leave automatic rules enabled so risky technical DDS files are preserved instead of pushed through the visible PNG path.": "preset first and leave automatic rules enabled so risky technical DDS files are preserved instead of pushed through the visible PNG path.",
     "preset references a missing procedural definition": "preset references a missing procedural definition",
