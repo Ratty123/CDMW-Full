@@ -8848,6 +8848,7 @@
     "generated item icon image is empty": "oluşturulan öğe simgesi resmi boş",
     "generated item icon selection is empty": "oluşturulan öğe simgesi seçimi boş",
     "glTF ZIP": "glTF ZIP",
+    "glTF, GLB and OBJ sources: tick Flip V in the Builder's texture setup. The importer stores their texture V as 1-v, and the game samples a mesh's V from the top of the image, the way the file has it, so without the flip the textures draw mirrored along the model (seen in game 2026-08-18).": "glTF, GLB ve OBJ kaynakları: Builder'ın doku kurulumunda Flip V'yi işaretleyin. İçe aktarıcı doku V'lerini 1-v olarak saklar, oyun ise bir mesh'in V'sini dosyadaki gibi görüntünün üstünden örnekler; bu yüzden çevirme olmadan dokular model boyunca aynalanmış çizilir (2026-08-18'de oyunda görüldü).",
     "glb": "glb",
     "glob": "küre",
     "gltf": "gltf",

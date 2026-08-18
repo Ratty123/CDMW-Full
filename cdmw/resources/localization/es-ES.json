@@ -8848,6 +8848,7 @@
     "generated item icon image is empty": "la imagen del icono del elemento generado está vacía",
     "generated item icon selection is empty": "la selección del icono del elemento generado está vacía",
     "glTF ZIP": "código postal glTF",
+    "glTF, GLB and OBJ sources: tick Flip V in the Builder's texture setup. The importer stores their texture V as 1-v, and the game samples a mesh's V from the top of the image, the way the file has it, so without the flip the textures draw mirrored along the model (seen in game 2026-08-18).": "Fuentes glTF, GLB y OBJ: marca Flip V en la configuración de texturas del Builder. El importador guarda su V de textura como 1-v, y el juego muestrea la V de una malla desde la parte superior de la imagen, tal como está en el archivo, así que sin el volteo las texturas se dibujan reflejadas a lo largo del modelo (visto en el juego el 2026-08-18).",
     "glb": "glb",
     "glob": "globo",
     "gltf": "gltf",

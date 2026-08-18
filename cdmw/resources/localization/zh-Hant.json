@@ -8848,6 +8848,7 @@
     "generated item icon image is empty": "產生的項目圖示影像為空",
     "generated item icon selection is empty": "產生的項目圖示選擇為空",
     "glTF ZIP": "GLTF 郵遞區號",
+    "glTF, GLB and OBJ sources: tick Flip V in the Builder's texture setup. The importer stores their texture V as 1-v, and the game samples a mesh's V from the top of the image, the way the file has it, so without the flip the textures draw mirrored along the model (seen in game 2026-08-18).": "glTF、GLB 和 OBJ 來源：在 Builder 的紋理設定中勾選 Flip V。匯入器把它們的紋理 V 存為 1-v，而遊戲按檔案原樣從影像頂部取樣網格的 V，因此不翻轉時紋理會沿模型鏡像繪製（2026-08-18 在遊戲內確認）。",
     "glb": "格魯布",
     "glob": "全域",
     "gltf": "GLTF",

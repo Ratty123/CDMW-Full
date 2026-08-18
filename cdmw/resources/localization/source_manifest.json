@@ -3846,7 +3846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 66,
+          "line": 73,
           "sink": "setToolTip"
         }
       ]
@@ -5906,7 +5906,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 150,
+          "line": 157,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -17606,7 +17606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 158,
+          "line": 165,
           "sink": "getExistingDirectory"
         }
       ]
@@ -17836,7 +17836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 150,
+          "line": 157,
           "sink": "getOpenFileName"
         }
       ]
@@ -34966,7 +34966,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 90,
+          "line": 97,
           "sink": "QPushButton"
         },
         {
@@ -36031,7 +36031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 80,
+          "line": 87,
           "sink": "QRadioButton"
         }
       ]
@@ -38511,7 +38511,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 74,
+          "line": 81,
           "sink": "QGroupBox"
         }
       ]
@@ -39106,7 +39106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 84,
+          "line": 91,
           "sink": "setPlaceholderText"
         }
       ]
@@ -39126,7 +39126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 87,
+          "line": 94,
           "sink": "QPushButton"
         }
       ]
@@ -39136,7 +39136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 150,
+          "line": 157,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -43001,7 +43001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 76,
+          "line": 83,
           "sink": "QRadioButton"
         }
       ]
@@ -55071,7 +55071,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 126,
+          "line": 133,
           "sink": "setText"
         }
       ]
@@ -83021,7 +83021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 64,
+          "line": 71,
           "sink": "QCheckBox"
         }
       ]
@@ -91536,7 +91536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 56,
+          "line": 63,
           "sink": "setToolTip"
         }
       ]
@@ -92171,7 +92171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 94,
+          "line": 101,
           "sink": "QLabel"
         }
       ]
@@ -100956,7 +100956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 54,
+          "line": 61,
           "sink": "QCheckBox"
         }
       ]
@@ -108693,6 +108693,16 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 163,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "glTF, GLB and OBJ sources: tick Flip V in the Builder's texture setup. The importer stores their texture V as 1-v, and the game samples a mesh's V from the top of the image, the way the file has it, so without the flip the textures draw mirrored along the model (seen in game 2026-08-18).",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 54,
+          "sink": "QLabel"
         }
       ]
     },
