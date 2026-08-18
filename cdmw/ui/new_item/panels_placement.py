@@ -28,8 +28,8 @@ class PlacementPanel(QGroupBox):
 
         self.no_store = QRadioButton("Not sold in a shop")
         self.no_store.setChecked(True)
-        self.swap = QRadioButton("Replace one shop entry with the new item (the form the game accepted)")
-        self.insert = QRadioButton("Add a new shop entry (unproven in game)")
+        self.swap = QRadioButton("Replace one shop entry with the new item")
+        self.insert = QRadioButton("Add a new shop entry")
         for radio in (self.no_store, self.swap, self.insert):
             radio.toggled.connect(self._placement_changed)
             layout.addWidget(radio)
@@ -47,6 +47,10 @@ class PlacementPanel(QGroupBox):
         self.keep_requirement = QCheckBox("Keep the shop line's unlock requirement (a collection's knowledge; the shop shows Knowledge until the buyer has it)")
         self.keep_requirement.toggled.connect(self._keep_requirement_changed)
         layout.addWidget(self.keep_requirement)
+        self.unlimited_stock = QCheckBox("Unlimited stock (off: the line's own count, 1 on most equipment lines, so it sells once and then shows 0 in stock)")
+        self.unlimited_stock.setChecked(bool(controller.draft.unlimited_stock))
+        self.unlimited_stock.toggled.connect(self._unlimited_stock_changed)
+        layout.addWidget(self.unlimited_stock)
         self.requirement_note = QLabel("")
         self.requirement_note.setWordWrap(True)
         layout.addWidget(self.requirement_note)
@@ -116,6 +120,10 @@ class PlacementPanel(QGroupBox):
         self._controller.draft.keep_requirement = bool(checked)
         self._controller.plan = None
         self._refresh_requirement_note()
+
+    def _unlimited_stock_changed(self, checked: bool) -> None:
+        self._controller.draft.unlimited_stock = bool(checked)
+        self._controller.plan = None
 
     def _refresh_requirement_note(self) -> None:
         requirement = self._controller.line_requirement(self._controller.draft.store_name, self._controller.draft.old_item_name)

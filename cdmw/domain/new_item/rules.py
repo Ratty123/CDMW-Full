@@ -251,6 +251,8 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
             issues.append(_issue("placement.price", "placement", "A placement price is a non-negative 32-bit integer."))
         if placement.kind is PlacementKind.INSERT and placement.price is not None:
             issues.append(_issue("placement.price_ignored", "placement", "StoreInfo entries carry no price of their own; the shop prices the item from its buy-price list, so this price is not written.", "warning"))
+        if placement.stock_count is not None and not 1 <= int(placement.stock_count) <= _U32_MAX:
+            issues.append(_issue("placement.stock_count", "placement", "A stock count is 1 or more (0xFFFFFFFF for unlimited)."))
 
     if spec.item_groups is ItemGroupsChoice.EXPLICIT and not spec.explicit_item_groups:
         issues.append(_issue("item_groups.empty", "item_groups", "Explicit item groups were chosen but none were listed."))

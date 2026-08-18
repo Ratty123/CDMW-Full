@@ -17,7 +17,7 @@ if str(REPO_ROOT) not in sys.path:
 sys.path.insert(0, str(REPO_ROOT / "tests"))
 
 from cdmw.core.archive_format import parse_archive_pamt  # noqa: E402
-from cdmw.domain.new_item.spec import MaterialRoute, ModelSource, PlacementKind, SheathedModel  # noqa: E402
+from cdmw.domain.new_item.spec import UNLIMITED_STOCK, MaterialRoute, ModelSource, PlacementKind, SheathedModel  # noqa: E402
 from cdmw.services.new_item_service import NewItemService  # noqa: E402
 from cdmw.ui.new_item.state import (  # noqa: E402
     NewItemDraft,
@@ -141,6 +141,13 @@ class TabTests(unittest.TestCase):
         self.assertTrue(tab.controller.draft.keep_requirement)
         self.assertIn("Kept", placement.requirement_note.text())
         placement.keep_requirement.setChecked(False)
+        self.assertTrue(placement.unlimited_stock.isChecked(), "unlimited stock is the default")
+        self.assertTrue(tab.controller.draft.unlimited_stock)
+        self.assertEqual(tab.controller.current_spec().placement.stock_count, UNLIMITED_STOCK)
+        placement.unlimited_stock.setChecked(False)
+        self.assertFalse(tab.controller.draft.unlimited_stock)
+        self.assertIsNone(tab.controller.current_spec().placement.stock_count)
+        placement.unlimited_stock.setChecked(True)
         self.assertIn("2 group(s)", placement.template_groups.text())
         # perks: the template's, then two chosen ones; and an effect from the shipped stems
         perks = tab.perks_panel
