@@ -146,6 +146,34 @@ class PerksPanel(QGroupBox):
         )
         self.place_button.clicked.connect(self._place_in_viewport)
         placement_row.addWidget(self.place_button)
+        look_row = QHBoxLayout()
+        look_row.addWidget(QLabel("Look:"))
+        self.color_button = QPushButton("Colour: as shipped")
+        self.color_button.setToolTip("Recolour the effect: its emitters' emissive and particle colours take this hue at their own brightness. The effect and its emitters are cloned under the item's own stems; the shipped ones stay as they are.")
+        self.color_button.clicked.connect(self._pick_color)
+        look_row.addWidget(self.color_button)
+        self.color_reset = QPushButton("As shipped")
+        self.color_reset.setToolTip("Drop the colour edit.")
+        self.color_reset.clicked.connect(self._reset_color)
+        look_row.addWidget(self.color_reset)
+        self.look_factors: dict[str, QDoubleSpinBox] = {}
+        for key, label, tip in (
+            ("intensity", "Brightness x", "Multiplies the emitters' emissive brightness."),
+            ("size", "Particle size x", "Multiplies the particle scale (and the effect's bounding boxes)."),
+            ("rate", "Spawn rate x", "Multiplies the spawn counts and the particle cap."),
+            ("lifetime", "Lifetime x", "Multiplies the particle lifetimes."),
+        ):
+            look_row.addWidget(QLabel(label))
+            box = QDoubleSpinBox()
+            box.setRange(0.05, 20.0)
+            box.setDecimals(2)
+            box.setSingleStep(0.1)
+            box.setValue(1.0)
+            box.setToolTip(tip)
+            box.valueChanged.connect(self._look_changed)
+            look_row.addWidget(box)
+            self.look_factors[key] = box
+        effect_layout.addLayout(look_row)
         self.effect_note = QLabel("The effect is drawn at the weapon's own origin, as the shipped thrown lightning spear draws its aura. Effects made for other weapons may sit or scale oddly; the scale and offset above move them, and the presets carry a starting scale.")
         self.effect_note.setWordWrap(True)
         effect_layout.addWidget(self.effect_note)
@@ -238,7 +266,7 @@ class PerksPanel(QGroupBox):
     # ------------------------------------------------------------------ effect
 
     def _use_effect_changed(self, checked: bool) -> None:
-        for widget in (self.effect_filter, self.effect, self.effect_preset, self.effect_scale, self.index_button, self.place_button, *self.effect_offset):
+        for widget in (self.effect_filter, self.effect, self.effect_preset, self.effect_scale, self.index_button, self.place_button, self.color_button, self.color_reset, *self.effect_offset, *self.look_factors.values()):
             widget.setEnabled(bool(checked))
         self._effect_changed(self.effect.currentIndex())
 
@@ -251,6 +279,47 @@ class PerksPanel(QGroupBox):
 
     def _index_effects(self) -> None:
         self._controller.start_effect_index()
+
+    def _look_changed(self, *_args) -> None:
+        draft = self._controller.draft
+        draft.effect_intensity = float(self.look_factors["intensity"].value())
+        draft.effect_size = float(self.look_factors["size"].value())
+        draft.effect_rate = float(self.look_factors["rate"].value())
+        draft.effect_lifetime = float(self.look_factors["lifetime"].value())
+        self._controller.plan = None
+
+    def _pick_color(self) -> None:
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QColorDialog
+
+        current = self._controller.draft.effect_color
+        start = QColor.fromRgbF(*current) if current else QColor(255, 120, 30)
+        chosen = self.color_dialog(start, self)
+        if chosen is None:
+            return
+        self.set_effect_color((chosen.redF(), chosen.greenF(), chosen.blueF()))
+
+    @staticmethod
+    def color_dialog(start, parent):
+        from PySide6.QtWidgets import QColorDialog
+
+        chosen = QColorDialog.getColor(start, parent, "Effect colour")
+        return chosen if chosen.isValid() else None
+
+    def set_effect_color(self, rgb) -> None:
+        draft = self._controller.draft
+        draft.effect_color = tuple(max(0.0, min(1.0, float(v))) for v in rgb) if rgb is not None else None
+        if draft.effect_color is None:
+            self.color_button.setText("Colour: as shipped")
+            self.color_button.setStyleSheet("")
+        else:
+            r, g, b = (int(round(v * 255)) for v in draft.effect_color)
+            self.color_button.setText(f"Colour: #{r:02x}{g:02x}{b:02x}")
+            self.color_button.setStyleSheet(f"background-color: rgb({r},{g},{b}); color: {'black' if (r + g + b) > 380 else 'white'};")
+        self._controller.plan = None
+
+    def _reset_color(self) -> None:
+        self.set_effect_color(None)
 
     def _place_in_viewport(self, *_args) -> None:
         stem = str(self._controller.draft.effect_stem or "")

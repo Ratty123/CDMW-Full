@@ -216,6 +216,20 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
         offset = tuple(spec.effect_offset)
         if len(offset) != 3 or any(not -5.0 <= float(v) <= 5.0 for v in offset):
             issues.append(_issue("effect.offset", "effect_offset", "The effect offset is three metres-scale numbers within 5 of the weapon's origin."))
+        look = spec.effect_look
+        for name in ("intensity", "size", "rate", "lifetime"):
+            try:
+                factor = float(getattr(look, name))
+            except (TypeError, ValueError):
+                factor = float("nan")
+            if not 0.05 <= factor <= 20.0:
+                issues.append(_issue(f"effect.look.{name}", "effect_look", f"The effect look's {name} is a factor between 0.05 and 20 (1 = as shipped)."))
+        if look.color is not None:
+            color = tuple(look.color)
+            if len(color) != 3 or any(not 0.0 <= float(v) <= 1.0 for v in color):
+                issues.append(_issue("effect.look.color", "effect_look", "The effect look's colour is three components between 0 and 1."))
+        if not look.is_default:
+            issues.append(_issue("effect.look.unproven", "effect_look", "A look edits the cloned effect's named colours, brightness, particle scale, spawn counts and lifetimes in place; which of them the game honours is unproven until the first in-game look.", "warning"))
 
     if spec.socket_items is not None:
         if any(not 0 < int(item) <= _U32_MAX for item in spec.socket_items):

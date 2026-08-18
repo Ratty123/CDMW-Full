@@ -99,7 +99,8 @@ $TestsByArea = @{
         "tests/test_new_item_materials.py",
         "tests/test_effect_binary.py",
         "tests/test_effect_catalogue.py",
-        "tests/test_effect_placement_preview.py"
+        "tests/test_effect_placement_preview.py",
+        "tests/test_effect_edit.py"
     )
     texture = @(
         "tests/test_texture_backend_retirement.py",

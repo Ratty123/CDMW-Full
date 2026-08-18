@@ -12,6 +12,7 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.domain.new_item.spec import (
     BuyPriceEdit,
+    EffectLook,
     EnhancementRows,
     IconSource,
     ItemGroupsChoice,
@@ -124,6 +125,13 @@ class NewItemDraft:
     #: the grafted effect's uniform scale and offset (x, y, z, metres in the weapon's axes)
     effect_scale: float = 1.0
     effect_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #: The effect's look: colour (RGB 0..1) or None, and factors on brightness, particle
+    #: size, spawn rate and lifetime; all as shipped by default.
+    effect_color: Optional[Tuple[float, float, float]] = None
+    effect_intensity: float = 1.0
+    effect_size: float = 1.0
+    effect_rate: float = 1.0
+    effect_lifetime: float = 1.0
 
     def reset_for_template(self, template_key: Optional[int]) -> None:
         self.template_key = template_key
@@ -217,6 +225,11 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         effect=effect_reference(draft.effect_stem),
         effect_scale=float(draft.effect_scale),
         effect_offset=tuple(float(v) for v in draft.effect_offset),
+        effect_look=EffectLook(
+            color=tuple(float(v) for v in draft.effect_color) if draft.effect_color is not None else None,
+            intensity=float(draft.effect_intensity), size=float(draft.effect_size),
+            rate=float(draft.effect_rate), lifetime=float(draft.effect_lifetime),
+        ),
     )
 
 

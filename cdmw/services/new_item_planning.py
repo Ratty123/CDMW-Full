@@ -25,6 +25,8 @@ from cdmw.core.item_icon_addition import NewItemIcon, icon_string_for_stem
 from cdmw.core.item_icon_registry import ICON_REGISTRY_PATH, IconRegistryError, add_icon_texture
 from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, encode_pathc, register_dds, register_texture
 from cdmw.core.prefab_binary_edit import PrefabEditError
+from cdmw.core.effect_binary import decode_effect_binary
+from cdmw.core.effect_edit import EMITTER_DIR, EffectEditReport, apply_effect_look, emitter_paths_of, rename_effect_strings, same_length_stem
 from cdmw.core.prefab_component_graft import encode_transform, graft_prefab_component
 from cdmw.core.item_model_family import FamilyPart, ItemModelFamily
 from cdmw.core.itemgroupinfo_table import add_group_members, apply_item_group_row, groups_containing
@@ -53,7 +55,19 @@ from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.rules import ValidationIssue
 from cdmw.domain.new_item.spec import EnhancementRows, IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind, SheathedModel
 from cdmw.models import ArchiveEntry
-from cdmw.services.new_item_snapshot import EFFECT_DONOR_PATH, EFFECT_DONOR_PREFAB, NewItemSnapshot, NewItemSnapshotError
+from cdmw.services.new_item_snapshot import EFFECT_DIR, EFFECT_DONOR_PATH, EFFECT_DONOR_PREFAB, NewItemSnapshot, NewItemSnapshotError
+
+
+def _effect_file(stem: str) -> str:
+    """The archive path of an effect binary by stem."""
+
+    return "".join((EFFECT_DIR, stem, ".pae"))
+
+
+def _emitter_file(stem: str) -> str:
+    """The archive path of an emitter binary by stem."""
+
+    return "".join((EMITTER_DIR, stem, ".paem"))
 
 
 def _is_sheathed_part_name(name: str) -> bool:
@@ -129,6 +143,8 @@ class _Planner:
     icon_string: str = ""
     icon_hash: int = 0
     enhancement_map: Dict[int, int] = field(default_factory=dict)
+    #: What the graft names: the shipped effect, or the clone with the item's look.
+    effect_reference: str = ""
 
     # ------------------------------------------------------------------ helpers
 
@@ -522,9 +538,65 @@ class _Planner:
             return None
         if not self.snapshot.has_entry(EFFECT_DONOR_PREFAB):
             raise NewItemPlanError(f"the archives have no {EFFECT_DONOR_PREFAB}, the prefab a weapon effect is grafted from")
+        self.effect_reference = str(self.spec.effect)
         self.manifest["effect"] = {"path": str(self.spec.effect), "donor": EFFECT_DONOR_PREFAB, "prefabs": []}
         self.warnings.append(f"The effect {self.spec.effect} is grafted into the item's prefabs as an EffectComponent; a grafted fire has drawn in game, and an effect made for another weapon may need a scale or an offset to sit on this one.")
+        self._clone_effect_for_look()
         return self.snapshot.payload(EFFECT_DONOR_PREFAB)
+
+    def _clone_effect_for_look(self) -> None:
+        """With a look that is not as shipped: the effect and its emitters cloned under
+        stems of the item's own (same length, no relocation), edited in place, added; the
+        graft then names the clone."""
+
+        look = self.spec.effect_look
+        if look.is_default:
+            self.manifest["effect"]["look"] = None
+            return
+        stem, suffix = str(self.spec.effect).split(".", 1)
+        effect_path = _effect_file(stem)
+        if not self.snapshot.has_entry(effect_path):
+            raise NewItemPlanError(f"the archives have no {effect_path}, so its look cannot be edited")
+        tag = f"_n{int(self.spec.item_key or 0) % 100000:05d}"
+        taken = set(self.snapshot.effect_stems)
+        new_stem = same_length_stem(stem, tag, taken=taken)
+        taken.add(new_stem)
+        source = self.snapshot.payload(effect_path)
+        document = decode_effect_binary(source)
+        if not document.walk_complete:
+            raise NewItemPlanError(f"{effect_path} did not decode fully ({document.walk_note}); its look cannot be edited")
+        renames: Dict[str, str] = {stem: new_stem}
+        emitter_clones: List[Tuple[str, str, str]] = []
+        for emitter_path in emitter_paths_of(document):
+            if not self.snapshot.has_entry(emitter_path):
+                self.warnings.append(f"The effect names {emitter_path}, which the archives do not have; the clone keeps naming the shipped emitter.")
+                continue
+            old_emitter = emitter_path.rsplit("/", 1)[-1][: -len(".paem")]
+            new_emitter = same_length_stem(old_emitter, tag, taken=taken)
+            taken.add(new_emitter)
+            renames[old_emitter] = new_emitter
+            emitter_clones.append((emitter_path, old_emitter, new_emitter))
+        report = EffectEditReport()
+        edited_effect, report = apply_effect_look(rename_effect_strings(source, renames), look, report=report)
+        new_effect_path = _effect_file(new_stem)
+        self.add(self.snapshot.entry(effect_path), new_effect_path, edited_effect, f"effect clone: {new_effect_path}")
+        written = [new_effect_path]
+        for emitter_path, _old, new_emitter in emitter_clones:
+            edited, report = apply_effect_look(rename_effect_strings(self.snapshot.payload(emitter_path), renames), look, report=report)
+            new_path = _emitter_file(new_emitter)
+            self.add(self.snapshot.entry(emitter_path), new_path, edited, f"emitter clone: {new_path}")
+            written.append(new_path)
+        self.effect_reference = f"{new_stem}.{suffix}"
+        self.manifest["effect"]["path"] = self.effect_reference
+        self.manifest["effect"]["look"] = {
+            "source": str(self.spec.effect), "color": list(look.color) if look.color else None,
+            "intensity": look.intensity, "size": look.size, "rate": look.rate, "lifetime": look.lifetime,
+            "files": written, "edited": dict(report.edited),
+        }
+        touched = ", ".join(f"{name} x{count}" for name, count in sorted(report.edited.items())) or "nothing the files carry"
+        self.summary.append(f"effect look: {stem} cloned as {new_stem} with {len(emitter_clones)} emitter(s); edited {touched}")
+        if not report.total:
+            self.warnings.append("The chosen look edits nothing this effect carries (no colour, brightness, scale, spawn count or lifetime member); the clone draws as shipped.")
 
     def _graft_effect(self, prefab: bytes, donor: bytes, new_path: str) -> bytes:
         try:
@@ -532,7 +604,7 @@ class _Planner:
             offset = tuple(float(v) for v in self.spec.effect_offset)
             result = graft_prefab_component(
                 prefab, donor, component_type="EffectComponent",
-                path_replacements={EFFECT_DONOR_PATH: str(self.spec.effect)},
+                path_replacements={EFFECT_DONOR_PATH: str(self.effect_reference)},
                 offset_transform=encode_transform(scale=(scale, scale, scale), position=offset),
             )
         except PrefabEditError as exc:
@@ -541,7 +613,7 @@ class _Planner:
         self.manifest["effect"]["scale"] = scale
         self.manifest["effect"]["offset"] = list(offset)
         placed = f", scale {scale:g}" + (f", offset {offset[0]:g} {offset[1]:g} {offset[2]:g}" if any(offset) else "")
-        self.summary.append(f"effect: {self.spec.effect} grafted into {new_path.rsplit('/', 1)[-1]} ({', '.join(result.types_added) or 'types already declared'}{placed})")
+        self.summary.append(f"effect: {self.effect_reference} grafted into {new_path.rsplit('/', 1)[-1]} ({', '.join(result.types_added) or 'types already declared'}{placed})")
         return result.data
 
     def _texture_renames(self) -> Mapping[str, str]:

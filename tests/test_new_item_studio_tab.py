@@ -222,6 +222,19 @@ class TabTests(unittest.TestCase):
         self.assertEqual(seen["effect_label"], "fx_test_fire")
         self.assertEqual(tab.controller.draft.effect_scale, 0.75)
         self.assertEqual(tab.controller.draft.effect_offset, (0.1, 0.0, -0.2))
+        # the look: a colour and four factors go into the spec's EffectLook; as shipped by default
+        self.assertTrue(tab.controller.current_spec().effect_look.is_default)
+        perks.set_effect_color((0.2, 0.4, 1.0))
+        perks.look_factors["intensity"].setValue(2.0)
+        perks.look_factors["rate"].setValue(0.5)
+        look = tab.controller.current_spec().effect_look
+        self.assertEqual((look.color, look.intensity, look.size, look.rate, look.lifetime), ((0.2, 0.4, 1.0), 2.0, 1.0, 0.5, 1.0))
+        self.assertIn("#3366ff", perks.color_button.text())
+        perks.color_reset.click()
+        self.assertIsNone(tab.controller.current_spec().effect_look.color)
+        self.assertEqual(perks.color_button.text(), "Colour: as shipped")
+        perks.look_factors["intensity"].setValue(1.0)
+        perks.look_factors["rate"].setValue(1.0)
         # a second tab loads the cache instead of indexing again
         again = self._tab()
         again.start_snapshot()

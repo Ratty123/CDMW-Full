@@ -2492,6 +2492,16 @@
       ]
     },
     {
+      "key": ": a colour and factors on brightness, particle size, spawn rate and lifetime; with any of them set the effect and the emitters it instances are cloned under stems of the item's own (same length, so nothing in the files moves) and their named values edited in place; which of them the game honours is unproven until the first look.",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 46,
+          "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
       "key": ": a grid over the template's enchant ladder; edit cells, scale, set flat, add a level (a copy of the one below), edit base prices and the stack count. A stat or level the template lacks goes through the stat-block rebuild, which is unproven in game.",
       "origins": [
         {
@@ -3526,7 +3536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 314,
+          "line": 383,
           "sink": "setText"
         }
       ]
@@ -3536,7 +3546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 314,
+          "line": 383,
           "sink": "setText"
         }
       ]
@@ -3546,7 +3556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 314,
+          "line": 383,
           "sink": "setText"
         }
       ]
@@ -6566,7 +6576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 218,
+          "line": 246,
           "sink": "emit"
         }
       ]
@@ -10297,6 +10307,16 @@
       ]
     },
     {
+      "key": "As shipped",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 155,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Asking the provider...",
       "origins": [
         {
@@ -12843,6 +12863,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 46,
           "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
+      "key": "Brightness x",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 166,
+          "sink": "QLabel"
         }
       ]
     },
@@ -17696,7 +17726,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 321,
+          "line": 390,
           "sink": "addItem"
         }
       ]
@@ -17761,7 +17791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 262,
+          "line": 331,
           "sink": "emit"
         }
       ]
@@ -17771,7 +17801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 184,
+          "line": 192,
           "sink": "ValueError"
         }
       ]
@@ -17836,7 +17866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 258,
+          "line": 327,
           "sink": "emit"
         }
       ]
@@ -19893,6 +19923,31 @@
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolList.cs",
           "line": 154,
           "sink": "csharp:csharp-return:ToolListRowCaption"
+        }
+      ]
+    },
+    {
+      "key": "Colour: #{value_0}{value_1}{value_2}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 317,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Colour: as shipped",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 151,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 313,
+          "sink": "setText"
         }
       ]
     },
@@ -27287,6 +27342,16 @@
       ]
     },
     {
+      "key": "Drop the colour edit.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 156,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Dropped stale .NET/Vortice preview package; rebuilding current preview.",
       "origins": [
         {
@@ -28568,6 +28633,16 @@
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
           "line": 216,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "Effect colour",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 306,
+          "sink": "getColor"
         }
       ]
     },
@@ -40916,7 +40991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 296,
+          "line": 365,
           "sink": "setText"
         }
       ]
@@ -44072,6 +44147,16 @@
       ]
     },
     {
+      "key": "Lifetime x",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 166,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Light azimuth",
       "origins": [
         {
@@ -45707,6 +45792,16 @@
       ]
     },
     {
+      "key": "Look",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 46,
+          "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
       "key": "Look around",
       "origins": [
         {
@@ -45723,6 +45818,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 46,
           "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
+      "key": "Look:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 150,
+          "sink": "QLabel"
         }
       ]
     },
@@ -52452,6 +52557,46 @@
       ]
     },
     {
+      "key": "Multiplies the emitters' emissive brightness.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 172,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Multiplies the particle lifetimes.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 172,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Multiplies the particle scale (and the effect's bounding boxes).",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 172,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Multiplies the spawn counts and the particle cap.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 172,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Multiply",
       "origins": [
         {
@@ -53666,7 +53811,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 140,
+          "line": 156,
           "sink": "raise_if_cancelled"
         },
         {
@@ -62622,6 +62767,16 @@
       "manual": true
     },
     {
+      "key": "Particle size x",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 166,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Partly read. {value_0}{value_1} What is shown was read from the file; the rest uses a structure this tool cannot follow yet. You can still swap a file for another whose name is exactly the same length - that moves nothing in the file - but anything that would resize it is refused.{value_2}",
       "origins": [
         {
@@ -64946,7 +65101,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 678,
+          "line": 750,
           "sink": "log"
         }
       ]
@@ -71173,6 +71328,16 @@
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 1164,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Recolour the effect: its emitters' emissive and particle colours take this hue at their own brightness. The effect and its emitters are cloned under the item's own stems; the shipped ones stay as they are.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 152,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -86852,6 +87017,16 @@
       ]
     },
     {
+      "key": "Spawn rate x",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 166,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "Specify worker_executable or worker_program, not both.",
       "origins": [
         {
@@ -92286,7 +92461,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 149,
+          "line": 177,
           "sink": "QLabel"
         }
       ]
@@ -93006,7 +93181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 175,
+          "line": 203,
           "sink": "setText"
         }
       ]
@@ -93016,7 +93191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 173,
+          "line": 201,
           "sink": "setText"
         }
       ]
@@ -106812,6 +106987,16 @@
       ]
     },
     {
+      "key": "effect clone: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_planning.py",
+          "line": 582,
+          "sink": "add"
+        }
+      ]
+    },
+    {
       "key": "emissive",
       "origins": [
         {
@@ -106843,6 +107028,16 @@
           "path": "cdmw/ui/texture_workflow/workflow_profiles_ui.py",
           "line": 304,
           "sink": "addItems"
+        }
+      ]
+    },
+    {
+      "key": "emitter clone: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_planning.py",
+          "line": 587,
+          "sink": "add"
         }
       ]
     },
@@ -109471,7 +109666,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 575,
+          "line": 647,
           "sink": "add"
         }
       ]
@@ -192306,7 +192501,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 508,
+          "line": 524,
           "sink": "add"
         }
       ]
@@ -193621,7 +193816,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 499,
+          "line": 515,
           "sink": "add"
         }
       ]
@@ -197661,7 +197856,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 285,
+          "line": 354,
           "sink": "setText"
         }
       ]
@@ -199811,12 +200006,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 490,
+          "line": 506,
           "sink": "add"
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 499,
+          "line": 515,
           "sink": "add"
         },
         {
@@ -199991,7 +200186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 314,
+          "line": 383,
           "sink": "setText"
         }
       ]
@@ -200101,7 +200296,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 490,
+          "line": 506,
           "sink": "add"
         },
         {
@@ -200186,7 +200381,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 326,
+          "line": 395,
           "sink": "setItemData"
         },
         {
