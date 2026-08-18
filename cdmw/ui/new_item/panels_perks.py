@@ -332,9 +332,11 @@ class PerksPanel(QGroupBox):
             self._controller.status_message.emit("Choose a template (or import a model) first; there is no mesh to place the effect on.", True)
             return
         box_min, box_max = self._controller.effect_box(stem)
+        effect_preview, texture_reader = self._controller.effect_preview_for_placement(stem)
         dialog = self.placement_dialog_factory(
             self, item_mesh=mesh, box_min=box_min, box_max=box_max,
             offset=tuple(float(box.value()) for box in self.effect_offset), scale=float(self.effect_scale.value()), effect_label=stem,
+            effect_preview=effect_preview, texture_reader=texture_reader,
         )
         if dialog.exec() != QDialog.Accepted:
             return

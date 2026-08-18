@@ -309,6 +309,15 @@ class TabTests(unittest.TestCase):
         self.assertEqual(tuple(round(v, 2) for v in seen["box_min"]), (-1.24, -1.24, -1.39))
         self.assertEqual(seen["scale"], 0.25)
         self.assertEqual(seen["effect_label"], "fx_test_fire")
+        # the dialog also gets the effect's particle description (read from the snapshot with
+        # the draft's look) and a reader for its sprite textures
+        from cdmw.services.effect_preview_model import EffectPreview
+
+        self.assertIsInstance(seen["effect_preview"], EffectPreview)
+        self.assertEqual(seen["effect_preview"].stem, "fx_test_fire")
+        self.assertEqual(len(seen["effect_preview"].emitters), 2)
+        self.assertTrue(callable(seen["texture_reader"]))
+        self.assertIsNone(seen["texture_reader"]("effect/texture/not_in_the_snapshot.dds"))
         self.assertEqual(tab.controller.draft.effect_scale, 0.75)
         self.assertEqual(tab.controller.draft.effect_offset, (0.1, 0.0, -0.2))
         # the look: a colour and four factors go into the spec's EffectLook; as shipped by default

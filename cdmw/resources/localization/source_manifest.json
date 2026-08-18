@@ -3536,7 +3536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 384,
+          "line": 386,
           "sink": "setText"
         }
       ]
@@ -3546,7 +3546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 384,
+          "line": 386,
           "sink": "setText"
         }
       ]
@@ -3556,7 +3556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 384,
+          "line": 386,
           "sink": "setText"
         }
       ]
@@ -13866,12 +13866,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 431,
+          "line": 463,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 438,
+          "line": 470,
           "sink": "emit"
         },
         {
@@ -17791,7 +17791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 391,
+          "line": 393,
           "sink": "addItem"
         }
       ]
@@ -18001,7 +18001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 410,
+          "line": 442,
           "sink": "ValueError"
         }
       ]
@@ -27216,7 +27216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 201,
+          "line": 240,
           "sink": "setText"
         }
       ]
@@ -28706,7 +28706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 216,
+          "line": 255,
           "sink": "setText"
         }
       ]
@@ -41076,7 +41076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 366,
+          "line": 368,
           "sink": "setText"
         }
       ]
@@ -42501,7 +42501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 331,
+          "line": 363,
           "sink": "emit"
         }
       ]
@@ -45591,7 +45591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 190,
+          "line": 224,
           "sink": "setText"
         },
         {
@@ -52371,7 +52371,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 102,
+          "line": 128,
           "sink": "QPushButton"
         },
         {
@@ -55386,7 +55386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 426,
+          "line": 458,
           "sink": "ValueError"
         }
       ]
@@ -64541,7 +64541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 58,
+          "line": 82,
           "sink": "setWindowTitle"
         }
       ]
@@ -66801,7 +66801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 136,
+          "line": 166,
           "sink": "QLabel"
         },
         {
@@ -69696,12 +69696,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 283,
+          "line": 315,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 376,
+          "line": 408,
           "sink": "emit"
         }
       ]
@@ -78061,12 +78061,12 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 105,
+          "line": 131,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 119,
+          "line": 145,
           "sink": "addRow"
         },
         {
@@ -88506,7 +88506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 445,
+          "line": 477,
           "sink": "emit"
         }
       ]
@@ -92326,7 +92326,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 360,
+          "line": 392,
           "sink": "emit"
         }
       ]
@@ -92676,7 +92676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 299,
+          "line": 331,
           "sink": "emit"
         }
       ]
@@ -92688,6 +92688,26 @@
           "path": "cdmw/ui/new_item/panels_perks.py",
           "line": 177,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "The effect {value_0} gave no particle description: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 280,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "The effect's particle description is in the package; the viewport draws it once its particle layer lands, the box until then.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 240,
+          "sink": "setText"
         }
       ]
     },
@@ -92811,7 +92831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 415,
+          "line": 447,
           "sink": "ValueError"
         }
       ]
@@ -92976,7 +92996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 170,
+          "line": 204,
           "sink": "setText"
         }
       ]
@@ -93011,7 +93031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 401,
+          "line": 433,
           "sink": "emit"
         }
       ]
@@ -93161,7 +93181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 95,
+          "line": 121,
           "sink": "QLabel"
         }
       ]
@@ -93171,7 +93191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 192,
+          "line": 226,
           "sink": "setText"
         }
       ]
@@ -93326,7 +93346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 369,
+          "line": 401,
           "sink": "emit"
         }
       ]
@@ -198191,7 +198211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 355,
+          "line": 357,
           "sink": "setText"
         }
       ]
@@ -199288,6 +199308,16 @@
           "path": "cdmw/ui/archive_browser/source_mix_overlay.py",
           "line": 123,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} sprite texture(s) could not be read from the archives.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 240,
+          "sink": "setText"
         }
       ]
     },
@@ -200531,7 +200561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 384,
+          "line": 386,
           "sink": "setText"
         }
       ]
@@ -200621,7 +200651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 72,
+          "line": 98,
           "sink": "QLabel"
         }
       ]
@@ -200726,7 +200756,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 396,
+          "line": 398,
           "sink": "setItemData"
         },
         {

@@ -256,6 +256,38 @@ class NewItemStudioController(QObject):
         except Exception:  # noqa: BLE001
             return None
 
+    def effect_preview_for_placement(self, stem: str = ""):
+        """The chosen effect's simulation description with the draft's look applied, and a
+        reader for its sprite textures, for the placement dialog's viewport; (None, None)
+        when there is no snapshot, no effect, or the effect will not read."""
+
+        from cdmw.domain.new_item.spec import EffectLook
+        from cdmw.services.effect_preview_model import preview_effect_from_snapshot
+
+        snapshot = self.snapshot
+        chosen = str(stem or self.draft.effect_stem or "")
+        if snapshot is None or not chosen:
+            return None, None
+        draft = self.draft
+        look = EffectLook(
+            color=tuple(float(v) for v in draft.effect_color) if draft.effect_color is not None else None,
+            intensity=float(draft.effect_intensity), size=float(draft.effect_size),
+            rate=float(draft.effect_rate), lifetime=float(draft.effect_lifetime),
+        )
+        try:
+            preview = preview_effect_from_snapshot(snapshot, chosen, look)
+        except Exception as exc:  # noqa: BLE001 - the box still places; the description is extra
+            self.log_message.emit(f"The effect {chosen} gave no particle description: {exc}")
+            return None, None
+
+        def read_texture(path: str) -> Optional[bytes]:
+            try:
+                return snapshot.payload(path) if snapshot.has_entry(path) else None
+            except Exception:  # noqa: BLE001
+                return None
+
+        return preview, read_texture
+
     def effect_box(self, stem: str = "") -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
         """The chosen effect's bounding box at scale 1.0, or a metre cube before indexing."""
 
