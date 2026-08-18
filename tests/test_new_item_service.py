@@ -570,6 +570,7 @@ class PlanTests(_PackageCase):
         files = synthetic_files()
         files["effect/binary__/releasebin/fx_real_fire.pae"] = (fixtures / "fx_hit_common_fire_attach_a_loop.pae").read_bytes()
         files["effect/binary__/emitter/cdem_last_fire_circle_trail_001a.paem"] = (fixtures / "cdem_last_fire_circle_trail_001a.paem").read_bytes()
+        files["effect/binary__/renderpreset/fx_fire_uber_ember_01.parg"] = (fixtures / "fx_fire_uber_ember_01.parg").read_bytes()
         pamt_path = build_package(self.root / "look", files)
         snapshot = self.service.build_snapshot(parse_archive_pamt(pamt_path), read_entry=_read)
         look = EffectLook(color=(0.2, 0.4, 1.0), intensity=2.0, size=0.5, rate=2.0, lifetime=1.0)
@@ -591,6 +592,15 @@ class PlanTests(_PackageCase):
         emitter = decode_effect_binary(added[f"effect/binary__/emitter/{emitter_stem}.paem"].payload_data)
         self.assertTrue(emitter.walk_complete, emitter.walk_note)
         self.assertEqual(emitter.root.value("_emitterDataName").value, f"emitter/{emitter_stem}")
+        # the render preset the effect names is cloned and the clone points at it
+        preset_stem = f"fx_fire_uber_e_n{key % 100000:05d}"
+        self.assertIn(f"effect/binary__/renderpreset/{preset_stem}.parg", added)
+        from cdmw.core.effect_edit import preset_names_of
+
+        self.assertIn(("render", preset_stem), preset_names_of(effect))
+        self.assertNotIn(("render", "fx_fire_uber_ember_01"), preset_names_of(effect))
+        preset = decode_effect_binary(added[f"effect/binary__/renderpreset/{preset_stem}.parg"].payload_data)
+        self.assertTrue(preset.walk_complete, preset.walk_note)
         # the graft names the clone, and the manifest says what was edited
         prefab = decode_prefab_binary(added[f"character/bin__/prefab/{FOLDER}/{plan.spec.stem}_r.prefab"].payload_data)
         self.assertIn(f"{effect_stem}.level.effect", [r.text for r in prefab.resource_strings()])
