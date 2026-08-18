@@ -17,7 +17,7 @@ if str(REPO_ROOT) not in sys.path:
 sys.path.insert(0, str(REPO_ROOT / "tests"))
 
 from cdmw.core.archive_format import parse_archive_pamt  # noqa: E402
-from cdmw.domain.new_item.spec import MaterialRoute, ModelSource, PlacementKind  # noqa: E402
+from cdmw.domain.new_item.spec import MaterialRoute, ModelSource, PlacementKind, SheathedModel  # noqa: E402
 from cdmw.services.new_item_service import NewItemService  # noqa: E402
 from cdmw.ui.new_item.state import (  # noqa: E402
     NewItemDraft,
@@ -162,6 +162,12 @@ class TabTests(unittest.TestCase):
         perks.effect_preset.setCurrentIndex(1)
         self.assertTrue(perks.use_effect.isChecked())
         self.assertEqual(tab.controller.draft.effect_stem, "fx_cc_firesweapon_a__fire1")
+        self.assertEqual(perks.effect_scale.value(), 0.6, "the preset's starting scale")
+        self.assertEqual(tab.controller.draft.effect_scale, 0.6)
+        perks.effect_scale.setValue(0.25)
+        perks.effect_offset[1].setValue(0.1)
+        self.assertEqual((tab.controller.draft.effect_scale, tab.controller.draft.effect_offset), (0.25, (0.0, 0.1, 0.0)))
+        self.assertEqual((tab.controller.current_spec().effect_scale, tab.controller.current_spec().effect_offset), (0.25, (0.0, 0.1, 0.0)))
         perks.choose_effect("fx_test_fire")
         self.assertEqual(tab.controller.draft.effect_stem, "fx_test_fire")
         self.assertEqual(tab.controller.current_spec().effect, "fx_test_fire.level.effect")
@@ -253,6 +259,11 @@ class TabTests(unittest.TestCase):
         tab.model_panel.plain_pbr.setChecked(False)
         self.assertEqual(tab.controller.draft.material_route, MaterialRoute.BUILDER)
         tab.model_panel.plain_pbr.setChecked(True)
+        self.assertTrue(tab.model_panel.own_sheath.isChecked() and tab.model_panel.own_sheath.isEnabled())
+        self.assertEqual(tab.controller.current_spec().sheathed_model, SheathedModel.OWN_MODEL)
+        tab.model_panel.own_sheath.setChecked(False)
+        self.assertEqual(tab.controller.draft.sheathed_model, SheathedModel.TEMPLATE)
+        tab.model_panel.own_sheath.setChecked(True)
         tab.identity_panel.internal_name.setText("Ziane_Clone_OneHandSword")
         tab.identity_panel.display_name.setText("X")
         tab.output_panel.build_button.click()

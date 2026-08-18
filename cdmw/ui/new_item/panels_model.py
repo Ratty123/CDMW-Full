@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.domain.new_item.spec import IconSource, MaterialRoute, ModelSource
+from cdmw.domain.new_item.spec import IconSource, MaterialRoute, ModelSource, SheathedModel
 from cdmw.ui.new_item.controller import NewItemStudioController
 
 
@@ -61,6 +61,15 @@ class ModelPanel(QGroupBox):
         )
         self.plain_pbr.toggled.connect(self._material_route_changed)
         layout.addWidget(self.plain_pbr)
+        self.own_sheath = QCheckBox("Sheathed on the back, draw the imported model itself (instead of the template's borrowed scabbard part)")
+        self.own_sheath.setChecked(True)
+        self.own_sheath.setToolTip(
+            "A weapon's sheathed look is a part of its own (the _IN stems), usually borrowed from another item: Reckleeman's greatsword "
+            "borrows the shipped sword-in-scabbard model, so an imported sword shows that scabbard beside it. Checked, the borrowed "
+            "record is cloned under the item's stem and its prefab re-pathed to the imported mesh. Unchecked, the template's stays borrowed."
+        )
+        self.own_sheath.toggled.connect(self._sheath_changed)
+        layout.addWidget(self.own_sheath)
 
         icon = QGroupBox("Icon")
         icon_layout = QVBoxLayout(icon)
@@ -94,15 +103,21 @@ class ModelPanel(QGroupBox):
         controller.template_changed.connect(lambda _key: self._show_model(controller.model_result))
         self._icon_source_changed(True)
         self.plain_pbr.setEnabled(False)
+        self.own_sheath.setEnabled(False)
 
     def _model_source_changed(self, keep: bool) -> None:
         draft = self._controller.draft
         draft.model_source = ModelSource.TEMPLATE if keep else ModelSource.IMPORTED
         self.plain_pbr.setEnabled(not keep)
+        self.own_sheath.setEnabled(not keep)
         self._controller.plan = None
 
     def _material_route_changed(self, plain: bool) -> None:
         self._controller.draft.material_route = MaterialRoute.PLAIN_PBR if plain else MaterialRoute.BUILDER
+        self._controller.plan = None
+
+    def _sheath_changed(self, own: bool) -> None:
+        self._controller.draft.sheathed_model = SheathedModel.OWN_MODEL if own else SheathedModel.TEMPLATE
         self._controller.plan = None
 
     def _show_model(self, result: object) -> None:
@@ -110,9 +125,11 @@ class ModelPanel(QGroupBox):
             self.keep_model.setChecked(True)
             self.model_status.setText("No imported model.")
             self.plain_pbr.setEnabled(False)
+            self.own_sheath.setEnabled(False)
             return
         self.import_model.setChecked(True)
         self.plain_pbr.setEnabled(True)
+        self.own_sheath.setEnabled(True)
         lines = list(getattr(result, "summary_lines", ()) or ())[:4]
         entry = self._controller.model_entry
         head = f"Imported model for {entry.basename}" if entry is not None else "Imported model"

@@ -15,6 +15,7 @@ installs through :class:`~cdmw.services.archive_mutation_service.ArchiveMutation
 
 from __future__ import annotations
 
+import re
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,7 +26,7 @@ from cdmw.core.item_icon_registry import ICON_REGISTRY_PATH, IconRegistryError, 
 from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, encode_pathc, register_dds, register_texture
 from cdmw.core.prefab_binary_edit import PrefabEditError
 from cdmw.core.prefab_component_graft import encode_transform, graft_prefab_component
-from cdmw.core.item_model_family import ItemModelFamily
+from cdmw.core.item_model_family import FamilyPart, ItemModelFamily
 from cdmw.core.itemgroupinfo_table import add_group_members, apply_item_group_row, groups_containing
 from cdmw.core.multichangeinfo_table import allocate_multichange_keys, clone_transition_rows, find_multichange_keys, transition_rows_for
 from cdmw.core.iteminfo_row import (
@@ -42,7 +43,7 @@ from cdmw.core.iteminfo_row import (
     socket_slots_for,
 )
 from cdmw.core.paloc_format import add_localization_entries, encode_paloc, entries_like, text_for_language
-from cdmw.core.pappt_format import encode_pappt, insert_part_prefabs
+from cdmw.core.pappt_format import PAPPT_PREFAB_ROOT, encode_pappt, insert_part_prefabs
 from cdmw.core.prefab_binary_edit import rewrite_prefab_paths_any_length
 from cdmw.core.storeinfo_table import apply_store_row, insert_stock_entry, swap_stock_item
 from cdmw.core.stringinfo_table import append_stringinfo_strings, stringinfo_key
@@ -50,9 +51,21 @@ from cdmw.core.structured_binary_editor import append_table_rows
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest, MetaFileWrite
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.new_item.rules import ValidationIssue
-from cdmw.domain.new_item.spec import EnhancementRows, IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind
+from cdmw.domain.new_item.spec import EnhancementRows, IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind, SheathedModel
 from cdmw.models import ArchiveEntry
 from cdmw.services.new_item_snapshot import EFFECT_DONOR_PATH, EFFECT_DONOR_PREFAB, NewItemSnapshot, NewItemSnapshotError
+
+
+def _is_sheathed_part_name(name: str) -> bool:
+    """`CD_TwoHandWeapon_Sword_IN`, `CD_MainWeapon_Sword_IN_R`: the part a weapon draws sheathed."""
+
+    return re.search(r"_in(_|$)", str(name or ""), re.I) is not None
+
+
+def _is_sheathed_stem(stem: str) -> bool:
+    """`cd_phm_02_sword_0001_in`, `cd_phm_01_sword_0168_r_in_index01`."""
+
+    return re.search(r"_in(_|$)", str(stem or ""), re.I) is not None
 
 
 class NewItemPlanError(ValueError):
@@ -162,12 +175,56 @@ class _Planner:
 
         return {part.stem: self.family.rename_stem(part.stem, self.new_stem) for part in self.family.owned_parts if part.record is not None}
 
+    @property
+    def owns_sheathed_parts(self) -> bool:
+        """The item gets sheathed (`_IN`) parts of its own drawing the imported mesh."""
+
+        return self.spec.model_source is ModelSource.IMPORTED and self.spec.sheathed_model is SheathedModel.OWN_MODEL
+
+    def sheathed_parts(self) -> Tuple[FamilyPart, ...]:
+        """The template's borrowed `_IN` parts (the sheathed look), with a readable record and mesh."""
+
+        return tuple(
+            part for part in self.family.borrowed_parts
+            if part.record is not None and part.pac_path
+            and (any(_is_sheathed_part_name(p.name) for p in part.record.parts) or _is_sheathed_stem(part.stem))
+        )
+
+    def sheathed_stem_map(self) -> Mapping[str, str]:
+        """borrowed `_IN` stem -> the item's own `_IN` stem, when the spec asks for them.
+
+        `<new stem>_in`, with the hand from the part name (`_r_in`, `_l_in`) when the
+        record says one, and a counter when two would collide.
+        """
+
+        if not self.owns_sheathed_parts:
+            return {}
+        out: Dict[str, str] = {}
+        taken = set()
+        for part in self.sheathed_parts():
+            hand = ""
+            for p in part.record.parts:
+                match = re.search(r"_IN_([RL])(?![A-Za-z0-9])", p.name, re.I)
+                if match:
+                    hand = f"_{match.group(1).lower()}"
+                    break
+            base = self.new_stem + hand + "_in"
+            candidate = base
+            counter = 2
+            while candidate in taken:
+                candidate = base + str(counter)
+                counter += 1
+            taken |= {candidate}
+            out[part.stem] = candidate
+        return out
+
     # ------------------------------------------------------------------ steps
 
     def plan_strings(self) -> None:
         texts: List[str] = []
         if self.clones_model:
             texts.extend(self.owned_stem_map().values())
+            texts.extend(self.sheathed_stem_map().values())
         if self.spec.icon is IconSource.GENERATED:
             self.icon_string = planned_icon_string(self.spec, self.snapshot)
             if self.icon is not None and self.icon.icon_string != self.icon_string:
@@ -188,10 +245,13 @@ class _Planner:
         mapping = self.owned_stem_map()
         if not mapping:
             raise NewItemPlanError(f"{self.template.string_key} owns no part-prefab records to clone")
+        sheathed = self.sheathed_stem_map()
         index = self.snapshot.pappt.index()
         records = [index[old].cloned(new) for old, new in mapping.items()]
+        records += [index[old].cloned(new) for old, new in sheathed.items()]
         table = insert_part_prefabs(self.snapshot.pappt, records, after_stem=next(iter(mapping)))
         self.manifest["pappt_records"] = dict(mapping)
+        self.manifest["sheathed_records"] = dict(sheathed)
         self.patch(self.snapshot.pappt_entry, encode_pappt(table), f"partprefabtable.pappt: {len(records)} record(s) cloned")
 
     def plan_enhancements(self) -> None:
@@ -223,6 +283,7 @@ class _Planner:
         hashes: Dict[int, int] = {}
         if self.clones_model:
             hashes.update({stringinfo_key(old): stringinfo_key(new) for old, new in self.owned_stem_map().items()})
+            hashes.update({stringinfo_key(old): stringinfo_key(new) for old, new in self.sheathed_stem_map().items()})
         if self.spec.icon is IconSource.GENERATED and self.family.icon_hash:
             hashes[self.family.icon_hash] = self.icon_hash
         hashes.update(self.enhancement_map)
@@ -437,7 +498,19 @@ class _Planner:
             template_entry = self.snapshot.entry(old_path) if self.snapshot.has_entry(old_path) else self.snapshot.entry(old_pac)
             self.add(template_entry, new_path, data, f"texture: {new_path}")
             written.append(new_path)
+        for old_stem, new_stem in self.sheathed_stem_map().items():
+            part = next(p for p in self.sheathed_parts() if p.stem == old_stem)
+            new_prefab = part.record.cloned(new_stem).prefab_path
+            source = self.snapshot.payload(part.prefab_path)
+            result = rewrite_prefab_paths_any_length(source, {part.pac_path: pac_map[old_pac]})
+            if not result.edits:
+                raise NewItemPlanError(f"{part.prefab_path} names no mesh to re-path to the imported model")
+            self.add(self.snapshot.entry(part.prefab_path), new_prefab, result.data, f"sheathed prefab: {new_prefab} (draws the imported mesh instead of {part.pac_path.rsplit('/', 1)[-1]})")
+            written.append(new_prefab)
+        if self.owns_sheathed_parts and not self.sheathed_stem_map():
+            self.warnings.append("The template has no sheathed (_IN) part to give the item, so nothing draws for it when sheathed; the template's own is what it had.")
         self.manifest["model_files"] = written
+        self.manifest["sheathed_model"] = self.spec.sheathed_model.value if self.spec.model_source is ModelSource.IMPORTED else None
         self.manifest["material_route"] = self.model.material_route or None
         if self.model.material_route:
             self.summary.append(f"materials: {self.model.material_route}")
@@ -452,19 +525,25 @@ class _Planner:
         if not self.snapshot.has_entry(EFFECT_DONOR_PREFAB):
             raise NewItemPlanError(f"the archives have no {EFFECT_DONOR_PREFAB}, the prefab a weapon effect is grafted from")
         self.manifest["effect"] = {"path": str(self.spec.effect), "donor": EFFECT_DONOR_PREFAB, "prefabs": []}
-        self.warnings.append(f"The effect {self.spec.effect} is grafted into the item's prefabs as an EffectComponent; a grafted effect is unproven in game.")
+        self.warnings.append(f"The effect {self.spec.effect} is grafted into the item's prefabs as an EffectComponent; a grafted fire has drawn in game, and an effect made for another weapon may need a scale or an offset to sit on this one.")
         return self.snapshot.payload(EFFECT_DONOR_PREFAB)
 
     def _graft_effect(self, prefab: bytes, donor: bytes, new_path: str) -> bytes:
         try:
+            scale = float(self.spec.effect_scale)
+            offset = tuple(float(v) for v in self.spec.effect_offset)
             result = graft_prefab_component(
                 prefab, donor, component_type="EffectComponent",
-                path_replacements={EFFECT_DONOR_PATH: str(self.spec.effect)}, offset_transform=encode_transform(),
+                path_replacements={EFFECT_DONOR_PATH: str(self.spec.effect)},
+                offset_transform=encode_transform(scale=(scale, scale, scale), position=offset),
             )
         except PrefabEditError as exc:
             raise NewItemPlanError(f"{new_path}: the effect could not be grafted: {exc}") from exc
         self.manifest["effect"]["prefabs"].append(new_path)
-        self.summary.append(f"effect: {self.spec.effect} grafted into {new_path.rsplit('/', 1)[-1]} ({', '.join(result.types_added) or 'types already declared'})")
+        self.manifest["effect"]["scale"] = scale
+        self.manifest["effect"]["offset"] = list(offset)
+        placed = f", scale {scale:g}" + (f", offset {offset[0]:g} {offset[1]:g} {offset[2]:g}" if any(offset) else "")
+        self.summary.append(f"effect: {self.spec.effect} grafted into {new_path.rsplit('/', 1)[-1]} ({', '.join(result.types_added) or 'types already declared'}{placed})")
         return result.data
 
     def _texture_renames(self) -> Mapping[str, str]:

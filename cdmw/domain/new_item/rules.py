@@ -206,6 +206,16 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
 
     if spec.effect is not None and not _EFFECT_RE.match(str(spec.effect)):
         issues.append(_issue("effect.shape", "effect", "An effect is named `<stem>.level.effect` (or `.action.effect`), the stem being a shipped `effect/binary__/releasebin/<stem>.pae`."))
+    if spec.effect is not None:
+        try:
+            scale = float(spec.effect_scale)
+        except (TypeError, ValueError):
+            scale = float("nan")
+        if not 0.01 <= scale <= 10.0:
+            issues.append(_issue("effect.scale", "effect_scale", "The effect scale is a factor between 0.01 and 10 (the shipped spear carries 0.7)."))
+        offset = tuple(spec.effect_offset)
+        if len(offset) != 3 or any(not -5.0 <= float(v) <= 5.0 for v in offset):
+            issues.append(_issue("effect.offset", "effect_offset", "The effect offset is three metres-scale numbers within 5 of the weapon's origin."))
 
     if spec.socket_items is not None:
         if any(not 0 < int(item) <= _U32_MAX for item in spec.socket_items):
@@ -291,7 +301,7 @@ def validate_against_context(spec: NewItemSpec, context: NewItemContext) -> Tupl
         stem = str(spec.effect).split(".", 1)[0]
         if context.effect_stems and stem not in context.effect_stems:
             issues.append(_issue("effect.unknown", "effect", f"No shipped effect is named {stem}."))
-        issues.append(_issue("effect.unproven", "effect", "A weapon effect is grafted into the item's prefabs as an EffectComponent, the way the shipped thrown lightning spear carries one; unproven in game.", "warning"))
+        issues.append(_issue("effect.unproven", "effect", "A weapon effect is grafted into the item's prefabs as an EffectComponent, the way the shipped thrown lightning spear carries one; a grafted fire has drawn in game, and an effect made for another weapon may need a scale or an offset to sit on this one.", "warning"))
 
     for field_name, value in (("name_key", spec.name_key), ("desc_key", spec.desc_key)):
         if value is not None and str(value) in context.localization_keys:

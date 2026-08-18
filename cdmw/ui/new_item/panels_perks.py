@@ -21,6 +21,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -102,7 +103,31 @@ class PerksPanel(QGroupBox):
         self.effect.currentIndexChanged.connect(self._effect_changed)
         effect_row.addWidget(self.effect, 2)
         effect_layout.addLayout(effect_row)
-        self.effect_note = QLabel("The effect is drawn at the weapon's own origin, as the shipped thrown lightning spear draws its aura. Effects made for other weapons may sit or scale oddly; try a few.")
+        placement_row = QHBoxLayout()
+        placement_row.addWidget(QLabel("Scale:"))
+        self.effect_scale = QDoubleSpinBox()
+        self.effect_scale.setRange(0.01, 10.0)
+        self.effect_scale.setSingleStep(0.1)
+        self.effect_scale.setDecimals(2)
+        self.effect_scale.setValue(1.0)
+        self.effect_scale.setToolTip("A uniform scale on the grafted effect. Effects made for bigger weapons (the titan's lightning, the fire sweep) reach past a sword at 1.0; the shipped spear carries 0.7.")
+        self.effect_scale.valueChanged.connect(self._effect_transform_changed)
+        placement_row.addWidget(self.effect_scale)
+        placement_row.addWidget(QLabel("Offset x y z (m):"))
+        self.effect_offset = []
+        for _axis in range(3):
+            box = QDoubleSpinBox()
+            box.setRange(-5.0, 5.0)
+            box.setSingleStep(0.05)
+            box.setDecimals(2)
+            box.setValue(0.0)
+            box.setToolTip("Moves the effect along the weapon's own axes, in metres, from the weapon's origin.")
+            box.valueChanged.connect(self._effect_transform_changed)
+            placement_row.addWidget(box)
+            self.effect_offset.append(box)
+        placement_row.addStretch(1)
+        effect_layout.addLayout(placement_row)
+        self.effect_note = QLabel("The effect is drawn at the weapon's own origin, as the shipped thrown lightning spear draws its aura. Effects made for other weapons may sit or scale oddly; the scale and offset above move them, and the presets carry a starting scale.")
         self.effect_note.setWordWrap(True)
         effect_layout.addWidget(self.effect_note)
         layout.addWidget(effect)
@@ -193,9 +218,15 @@ class PerksPanel(QGroupBox):
     # ------------------------------------------------------------------ effect
 
     def _use_effect_changed(self, checked: bool) -> None:
-        for widget in (self.effect_filter, self.effect, self.effect_preset):
+        for widget in (self.effect_filter, self.effect, self.effect_preset, self.effect_scale, *self.effect_offset):
             widget.setEnabled(bool(checked))
         self._effect_changed(self.effect.currentIndex())
+
+    def _effect_transform_changed(self, *_args) -> None:
+        draft = self._controller.draft
+        draft.effect_scale = float(self.effect_scale.value())
+        draft.effect_offset = tuple(float(box.value()) for box in self.effect_offset)
+        self._controller.plan = None
 
     def _refresh_presets(self) -> None:
         available = set(self._controller.effect_stems("", limit=100000))
@@ -215,6 +246,10 @@ class PerksPanel(QGroupBox):
         stem = self.effect_preset.itemData(index) if index >= 0 else ""
         if stem:
             self.choose_effect(str(stem))
+            for preset in presets_for(None):
+                if preset.stem == str(stem):
+                    self.effect_scale.setValue(float(preset.scale))
+                    break
 
     def _refresh_effects(self, *_args) -> None:
         current = self.effect.currentData()

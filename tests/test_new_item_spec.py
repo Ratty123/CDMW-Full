@@ -309,6 +309,19 @@ class AllocationTests(unittest.TestCase):
         self.assertEqual([i.code for i in validate_spec(_spec(name_key="4300529219900021")) if i.code.endswith("unconventional")], [], "no item key yet: nothing to compare against")
 
 
+class EffectTransformRuleTests(unittest.TestCase):
+    def test_scale_and_offset_are_ranged_only_with_an_effect(self) -> None:
+        codes = lambda spec: [i.code for i in validate_spec(spec)]
+        self.assertNotIn("effect.scale", codes(_spec(effect_scale=0.0)), "no effect: the transform is not read")
+        with_effect = dict(effect="fx_test_fire.level.effect")
+        self.assertNotIn("effect.scale", codes(_spec(**with_effect, effect_scale=0.2)))
+        self.assertIn("effect.scale", codes(_spec(**with_effect, effect_scale=0.0)))
+        self.assertIn("effect.scale", codes(_spec(**with_effect, effect_scale=11.0)))
+        self.assertIn("effect.offset", codes(_spec(**with_effect, effect_offset=(0.0, 6.0, 0.0))))
+        self.assertNotIn("effect.offset", codes(_spec(**with_effect, effect_offset=(0.0, 0.5, -0.5))))
+        self.assertEqual((_spec().effect_scale, _spec().effect_offset), (1.0, (0.0, 0.0, 0.0)))
+
+
 class EffectPresetTests(unittest.TestCase):
     def test_presets_name_shipped_stems_and_filter_to_what_is_available(self) -> None:
         from cdmw.domain.new_item.effects import EFFECT_PRESETS, presets_for
@@ -318,6 +331,10 @@ class EffectPresetTests(unittest.TestCase):
         self.assertTrue(all(preset.label and preset.element for preset in EFFECT_PRESETS))
         proven = [preset.stem for preset in EFFECT_PRESETS if preset.proven]
         self.assertEqual(proven, ["fx_cc_firesweapon_a__fire1"], "the fire seen drawing in game")
+        self.assertTrue(all(0.01 <= preset.scale <= 10.0 for preset in EFFECT_PRESETS))
+        by_stem = {preset.stem: preset for preset in EFFECT_PRESETS}
+        self.assertLess(by_stem["fx_body_lightning_loop_a__weaponr_titan_01"].scale, 0.5, "the titan's lightning ran metres past a sword at 1.0")
+        self.assertLess(by_stem["fx_cc_firesweapon_a__fire1"].scale, 1.0, "the fire sweep reached past the tip at 1.0")
         self.assertEqual(presets_for(None), EFFECT_PRESETS)
         self.assertEqual([p.stem for p in presets_for({"fx_cc_firesweapon_a__fire1", "nothing"})], ["fx_cc_firesweapon_a__fire1"])
         self.assertEqual(presets_for(set()), ())

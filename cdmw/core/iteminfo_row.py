@@ -22,7 +22,11 @@ gap the caller can see. What is modelled, and how it was established:
 * **Stat block**, anchored by a composite signature and taken at its first
   occurrence after the item type: `DropDefaultData`'s `_socketItemList` (u32 count +
   item keys), `_addSocketMaterialItemList` (u32 count + {item, count, u32}), the
-  byte 0x11 then two flag bytes, then **`_enchantDataList`** (u32 count, then one
+  byte 0x11, then the **socket item count** again as a u8 (equal to
+  `_socketItemList`'s length on all 5,767 shipped rows with a stat block; the game
+  reads this one: a row whose list holds four gems under a count of three shows
+  three, under a count of zero none, seen 2026-08-18) and a **has-sockets** u8 (1 on
+  every row with a socket slot, 0 on the 5,110 without), then **`_enchantDataList`** (u32 count, then one
   `EnchantData` per level: u32 level 0..n-1, six bytes, `_statList_DataDefinedStatic`
   as u32 count + 12-byte {u32 StatusInfo key, i32 value, u32}, `_statList_
   DataDefinedStaticLevel` as u32 count + 25-byte {u32 StatusInfo key, 21 bytes},
@@ -139,7 +143,8 @@ class ItemInfoRow:
     enchant_count: Optional[int]
     price_list: Tuple[PriceEntry, ...]
     stat_block_end: Optional[int]
-    #: The two bytes after the 0x11 marker (`01 03` on Wolf's Fang); carried, not interpreted.
+    #: The two bytes after the 0x11 marker: the socket item count and the has-sockets
+    #: flag (`03 01` on Wolf's Fang). The encoder derives them from the lists it writes.
     stat_block_flags: Tuple[int, int] = (0, 0)
 
     @property
@@ -628,8 +633,10 @@ def encode_stat_block(
     tooltip lists); the shipped rows carry 0..4 and the reader accepts up to 8.
     `add_socket_materials` (item, count, extra) is `_addSocketMaterialList`, one entry
     per socket *slot* (the cost of opening it: 500, 1000, 2000 copper on Wolf's Fang,
-    up to 4000 on the boss sword with five); a row shows and uses at most that many
-    socket items, so a fourth gem on a three-slot row is dropped (seen in game 2026-08-18).
+    up to 4000 on the boss sword with five). The two bytes after the 0x11 marker are
+    written from the lists: the socket item count (what the game reads to show the
+    perks: four gems under a stale count of three showed three, five under zero showed
+    none, 2026-08-18) and 1 when the row has any slot.
     """
 
     if row.stat_block_offset is None:
@@ -654,7 +661,7 @@ def encode_stat_block(
     out += struct.pack("<I", len(slots))
     for item, count, extra in slots:
         out += struct.pack("<III", item, count, extra)
-    out += bytes([_STAT_BLOCK_MARKER, row.stat_block_flags[0], row.stat_block_flags[1]])
+    out += bytes([_STAT_BLOCK_MARKER, len(sockets), 1 if slots else 0])
     out += struct.pack("<I", len(ladder)) + b"".join(encode_enchant_level(level) for level in ladder)
     out += struct.pack("<I", len(prices)) + b"".join(_encode_price_entry(entry) for entry in prices)
     return bytes(out)
