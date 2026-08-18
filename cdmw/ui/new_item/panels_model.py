@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
+    QDialog,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -107,16 +108,22 @@ class ModelPanel(QGroupBox):
         self.icon_folder_button = QPushButton("Folder...")
         self.icon_folder_button.clicked.connect(self._pick_icon_folder)
         source_row.addWidget(self.icon_folder_button)
+        self.icon_capture_button = QPushButton("Capture from viewport...")
+        self.icon_capture_button.setToolTip("Show the item's mesh (the imported model, else the template's) in the resident viewport, orbit it, and take the frame as the icon.")
+        self.icon_capture_button.clicked.connect(self._capture_icon)
+        source_row.addWidget(self.icon_capture_button)
         icon_layout.addLayout(source_row)
         note = QLabel(
             "The icon is fitted and encoded against the template icon's DDS format, the way the Builder's "
-            "Generate Icon does. A capture from the resident preview can be saved as an image and picked here."
+            "Generate Icon does. Capture from viewport takes it from the resident preview at the angle you choose; "
+            "Image and Folder take a picture you already have."
         )
         note.setWordWrap(True)
         icon_layout.addWidget(note)
         layout.addWidget(icon)
 
         controller.model_changed.connect(self._show_model)
+        layout.addStretch(1)
         controller.template_changed.connect(lambda _key: self._show_model(controller.model_result))
         self._icon_source_changed(True)
         self.plain_pbr.setEnabled(False)
@@ -156,9 +163,26 @@ class ModelPanel(QGroupBox):
 
     def _icon_source_changed(self, keep: bool) -> None:
         self._controller.draft.icon = IconSource.TEMPLATE if keep else IconSource.GENERATED
-        for widget in (self.icon_source, self.icon_file_button, self.icon_folder_button):
+        for widget in (self.icon_source, self.icon_file_button, self.icon_folder_button, self.icon_capture_button):
             widget.setEnabled(not keep)
         self._controller.plan = None
+
+    def _capture_icon(self) -> None:
+        mesh = self._controller.item_mesh_for_preview()
+        if mesh is None:
+            self._controller.status_message.emit("Choose a template (or import a model) first; there is no mesh to show.", True)
+            return
+        dialog = self.icon_capture_dialog_factory(self, item_mesh=mesh, item_label=self._controller.draft.internal_name or self._controller.template_name())
+        if dialog.exec() != QDialog.Accepted or dialog.captured_path is None:
+            return
+        self.generate_icon.setChecked(True)
+        self.icon_source.setText(str(dialog.captured_path))
+
+    @staticmethod
+    def icon_capture_dialog_factory(parent, **kwargs):
+        from cdmw.ui.new_item.icon_capture_dialog import IconCaptureDialog
+
+        return IconCaptureDialog(parent, **kwargs)
 
     def _store_icon_source(self, text: str) -> None:
         self._controller.draft.icon_source_path = str(text)

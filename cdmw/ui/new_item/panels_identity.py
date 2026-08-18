@@ -75,6 +75,7 @@ class IdentityPanel(QGroupBox):
         self.issues.setWordWrap(True)
         self.issues.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(self.issues)
+        layout.addStretch(1)
         controller.template_changed.connect(self._template_changed)
 
     # ------------------------------------------------------------------ draft

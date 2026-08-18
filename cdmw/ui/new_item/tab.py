@@ -14,11 +14,15 @@ from typing import Callable, Iterable, Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -163,19 +167,93 @@ class NewItemStudioTab(QWidget):
         controller.template_changed.connect(lambda _key: self.identity_panel.refresh_issues())
         controller.model_changed.connect(lambda _result: self.identity_panel.refresh_issues())
 
+        # one step at a time: a step list on the left, the step's panel filling the right,
+        # Back/Next and a one-line summary of the item so far along the bottom
+        self.steps = QListWidget()
+        self.steps.setObjectName("new_item_steps")
+        self.steps.setFixedWidth(210)
+        self.steps.setSpacing(2)
+        self.pages = QStackedWidget()
+        self._panels = (self.template_panel, self.identity_panel, self.model_panel, self.stats_panel, self.perks_panel, self.placement_panel, self.output_panel)
+        for panel in self._panels:
+            item = QListWidgetItem(panel.title())
+            item.setToolTip(panel.toolTip())
+            self.steps.addItem(item)
+            page = QScrollArea()
+            page.setWidgetResizable(True)
+            page.setFrameShape(QScrollArea.NoFrame)
+            page.setWidget(panel)
+            self.pages.addWidget(page)
+        self.steps.currentRowChanged.connect(self._show_step)
+        columns = QHBoxLayout()
+        columns.setContentsMargins(0, 0, 0, 0)
+        columns.setSpacing(8)
+        columns.addWidget(self.steps)
+        columns.addWidget(self.pages, 1)
         body = QWidget()
         body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(12, 12, 12, 12)
-        body_layout.setSpacing(10)
-        for panel in (self.template_panel, self.identity_panel, self.model_panel, self.stats_panel, self.perks_panel, self.placement_panel, self.output_panel):
-            body_layout.addWidget(panel)
-        body_layout.addStretch(1)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(body)
-        self._layout.addWidget(scroll, 1)
+        body_layout.setContentsMargins(12, 12, 12, 8)
+        body_layout.setSpacing(8)
+        body_layout.addLayout(columns, 1)
+        footer = QHBoxLayout()
+        self.back_button = QPushButton("Back")
+        self.back_button.clicked.connect(lambda: self._step_by(-1))
+        self.next_button = QPushButton("Next")
+        self.next_button.clicked.connect(lambda: self._step_by(+1))
+        footer.addWidget(self.back_button)
+        footer.addWidget(self.next_button)
+        self.summary = QLabel("")
+        self.summary.setObjectName("new_item_summary")
+        self.summary.setWordWrap(False)
+        footer.addSpacing(16)
+        footer.addWidget(self.summary, 1)
+        body_layout.addLayout(footer)
+        self._layout.addWidget(body, 1)
+        controller.template_changed.connect(self._refresh_summary)
+        controller.model_changed.connect(self._refresh_summary)
+        controller.plan_ready.connect(self._refresh_summary)
+        self.identity_panel.internal_name.textChanged.connect(self._refresh_summary)
+        self.steps.setCurrentRow(0)
+        self._refresh_summary()
         self.template_panel._refresh_matches()
         self.placement_panel._refresh_stores()
+
+    # ------------------------------------------------------------------ steps
+
+    def _show_step(self, row: int) -> None:
+        if row < 0:
+            return
+        self.pages.setCurrentIndex(row)
+        self.back_button.setEnabled(row > 0)
+        self.next_button.setEnabled(row < self.pages.count() - 1)
+
+    def _step_by(self, delta: int) -> None:
+        row = self.steps.currentRow() + int(delta)
+        if 0 <= row < self.pages.count():
+            self.steps.setCurrentRow(row)
+
+    def show_step(self, index: int) -> None:
+        """Bring step `index` (0-based) to the front; the shell and the panels use it to
+        jump the reader to where a message points."""
+
+        if 0 <= int(index) < self.pages.count():
+            self.steps.setCurrentRow(int(index))
+
+    def _refresh_summary(self, *_args) -> None:
+        controller = self.controller
+        draft = controller.draft
+        parts = []
+        template = controller.template_name()
+        if template:
+            parts.append(f"from {template}")
+        if draft.internal_name:
+            parts.append(draft.internal_name)
+        parts.append("imported model" if controller.model_result is not None else "template's model")
+        if draft.placement_kind.value != "none" and draft.store_name:
+            parts.append(f"sold in {draft.store_name}")
+        if controller.plan is not None:
+            parts.append(f"plan ready: item {controller.plan.spec.item_key}")
+        self.summary.setText("  ·  ".join(parts))
 
     # ------------------------------------------------------------------ entry points
 
