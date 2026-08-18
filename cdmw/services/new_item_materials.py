@@ -35,7 +35,8 @@ _BOM = "\ufeff"
 
 @dataclass(frozen=True, slots=True)
 class SourceMaterialTextures:
-    """The source (glTF) textures of one material, by role, as files on disk."""
+    """The source (glTF) textures of one material, by role, as files on disk, and the
+    scalar factors that stand in for a map the source does not carry."""
 
     name: str
     base: Optional[Path] = None
@@ -43,6 +44,10 @@ class SourceMaterialTextures:
     #: the metallic/roughness map (glTF: G roughness, B metalness, the `_sp` layout)
     material: Optional[Path] = None
     emissive: Optional[Path] = None
+    #: glTF `roughnessFactor` / `metallicFactor` (1.0 when the source says nothing);
+    #: without a metallic/roughness map they become a solid `_sp`
+    roughness_factor: float = 1.0
+    metallic_factor: float = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,9 +72,23 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
     """
 
     bindings = {}
+    submeshes = tuple(getattr(getattr(scene, "mesh", None), "submeshes", ()) or ())
     for binding in tuple(getattr(scene, "material_bindings", ()) or ()):
         name = str(getattr(binding, "material_name", "") or "")
         slots = {}
+        # the scalar factors the importer keeps on the submesh's preview parameters
+        index = int(getattr(binding, "submesh_index", -1))
+        if 0 <= index < len(submeshes):
+            for parameter in tuple(getattr(submeshes[index], "preview_material_parameters", ()) or ()):
+                pname = str(getattr(parameter, "parameter_name", "") or "")
+                try:
+                    value = float(getattr(parameter, "value", ""))
+                except (TypeError, ValueError):
+                    continue
+                if pname == "_roughnessFactor":
+                    slots["roughness_factor"] = max(0.0, min(1.0, value))
+                elif pname == "_metallicFactor":
+                    slots["metallic_factor"] = max(0.0, min(1.0, value))
         for slot_kind, path in tuple(getattr(binding, "texture_slots", ()) or ()):
             kind = str(slot_kind or "").strip().lower()
             candidate = Path(str(path))
@@ -131,6 +150,27 @@ def encode_sp_from_png(png: Path, *, on_log: Optional[Callable[[str], None]] = N
         return produced.read_bytes()
 
 
+def encode_sp_from_factors(roughness: float, metallic: float, *, on_log: Optional[Callable[[str], None]] = None) -> bytes:
+    """A solid `_sp` (16x16, BC1, full mips) from glTF `roughnessFactor` and `metallicFactor`,
+    for a source material with no metallic/roughness map (the Buster Sword's, factors only)."""
+
+    from PIL import Image
+
+    from cdmw.core.texture_native import encode_dds_with_directxtex
+    from cdmw.domain.textures.output import max_mips_for_size
+
+    g = int(round(max(0.0, min(1.0, float(roughness))) * 255))
+    b = int(round(max(0.0, min(1.0, float(metallic))) * 255))
+    with tempfile.TemporaryDirectory(prefix="cdmw_new_item_sp_") as temp:
+        prepared = Path(temp) / f"factors_r{g}_m{b}_sp.png"
+        Image.new("RGB", (16, 16), (255, g, b)).save(prepared)
+        produced = Path(temp) / f"factors_r{g}_m{b}_sp.dds"
+        report = encode_dds_with_directxtex(prepared, produced, dds_format="BC1_UNORM", width=16, height=16, mip_count=max_mips_for_size(16, 16), on_log=on_log)
+        if not report or not produced.is_file() or produced.stat().st_size == 0:
+            raise NewItemPlanError("the DDS encoder produced nothing for the factor-only _sp")
+        return produced.read_bytes()
+
+
 def encode_emissive_from_png(png: Path, *, on_log: Optional[Callable[[str], None]] = None) -> Tuple[bytes, str]:
     """Encode an emissive PNG as the game's intensity map (BC4, luminance, full mips)
     and return it with the `#RRGGBBFF` colour the lit pixels average to.
@@ -180,6 +220,7 @@ def route_plain_pbr(
     sources: Optional[Mapping[str, SourceMaterialTextures]] = None,
     encode: Callable[[Path], bytes] = encode_sp_from_png,
     encode_emissive: Callable[[Path], Tuple[bytes, str]] = encode_emissive_from_png,
+    encode_factors: Callable[[float, float], bytes] = encode_sp_from_factors,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> PlainPbrRoute:
     """Rewrite the wrappers the import owns to the plain shaders; see the module doc.
@@ -239,6 +280,16 @@ def route_plain_pbr(
                 encoded.append(sp_path)
             material = sp_path
             how = f"_sp from {source.material.name}"
+        elif source is not None:
+            # a source with factors and no map: a solid _sp says what the factors say
+            sp_path = _sp_path_for(base, source.name)
+            if sp_path.casefold() not in {k.casefold() for k in new_files}:
+                if on_log:
+                    on_log(f"Encoding a solid _sp for {source.name} (roughness {source.roughness_factor:g}, metalness {source.metallic_factor:g}) -> {sp_path.rsplit('/', 1)[-1]}")
+                new_files[sp_path] = encode_factors(source.roughness_factor, source.metallic_factor)
+                encoded.append(sp_path)
+            material = sp_path
+            how = f"_sp from the source's factors (roughness {source.roughness_factor:g}, metalness {source.metallic_factor:g})"
         elif owned.get("_detailMaskTexture"):
             material = owned["_detailMaskTexture"]
             how = "_sp from the Builder's material mask (its roughness clamped towards matte)"
@@ -325,6 +376,7 @@ __all__ = [
     "PlainPbrRoute",
     "SourceMaterialTextures",
     "encode_emissive_from_png",
+    "encode_sp_from_factors",
     "encode_sp_from_png",
     "route_model_files",
     "route_plain_pbr",
