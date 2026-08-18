@@ -172,11 +172,15 @@ def encode_sp_from_factors(roughness: float, metallic: float, *, on_log: Optiona
 
 
 def encode_emissive_from_png(png: Path, *, on_log: Optional[Callable[[str], None]] = None) -> Tuple[bytes, str]:
-    """Encode an emissive PNG as the game's intensity map (BC4, luminance, full mips)
-    and return it with the `#RRGGBBFF` colour the lit pixels average to.
+    """Encode an emissive PNG as the game's intensity map (BC4, the pixel's strongest
+    channel, full mips) and return it with the `#RRGGBBFF` colour the lit pixels
+    average to.
 
     The game's emissive is one intensity texture times one colour; a coloured
-    source keeps its hue through the colour and its shape through the map.
+    source keeps its hue through the colour and its shape through the map. The map
+    takes the strongest channel, not the luminance: a pure blue glow is as bright
+    as a white one to the eye that reads it, and luminance would have made
+    Frostmourne's runes a quarter as strong (seen in game 2026-08-18).
     """
 
     import numpy as np
@@ -188,11 +192,12 @@ def encode_emissive_from_png(png: Path, *, on_log: Optional[Callable[[str], None
     with Image.open(png) as image:
         width, height = image.size
         rgb = image.convert("RGB")
-    luminance = rgb.convert("L")
-    # the colour: luminance-weighted mean of the pixels that glow at all, scaled so
-    # the strongest channel is full (the map carries the strength)
     pixels = np.asarray(rgb, dtype=np.float64).reshape(-1, 3)
-    weights = np.asarray(luminance, dtype=np.float64).reshape(-1)
+    strength = pixels.max(axis=1)
+    luminance = Image.fromarray(strength.reshape(height, width).astype(np.uint8), mode="L")
+    # the colour: strength-weighted mean of the pixels that glow at all, scaled so
+    # the strongest channel is full (the map carries the strength)
+    weights = strength
     lit = weights > 8
     if lit.any():
         mean = (pixels[lit] * weights[lit, None]).sum(axis=0) / weights[lit].sum()
