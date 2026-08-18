@@ -9,6 +9,7 @@ from pathlib import Path
 from cdmw.core.effect_binary import decode_effect_binary, half_floats
 from cdmw.core.effect_edit import (
     COLOR_CURVE_ID,
+    TEMPERATURE_BRIGHTNESS,
     TEMPERATURE_RAMP,
     EffectEditError,
     EmitterLayout,
@@ -209,6 +210,20 @@ class LookTests(unittest.TestCase):
         self.assertAlmostEqual(new_ramp[1][-1][1], 0.3 * old_top, places=4)
         for comp_old, comp_new in zip(old_ramp[:3], new_ramp[:3]):
             self.assertEqual([p[0] for p in comp_new], [p[0] for p in comp_old], "x positions stay")
+
+    def test_intensity_scales_the_temperature_brightness_too(self) -> None:
+        data = EMBER.read_bytes()
+        out, report = apply_effect_look(data, EffectLook(intensity=2.5))
+        self.assertEqual(report.edited.get(TEMPERATURE_BRIGHTNESS, 0), 1)
+
+        def brightness(doc):
+            for node in doc.root.walk():
+                name = node.value("_name")
+                if node.type_name == "MaterialParameterFloat" and name is not None and name.value == TEMPERATURE_BRIGHTNESS:
+                    return node.value("_value").value
+            self.fail("no temperature brightness")
+
+        self.assertAlmostEqual(brightness(decode_effect_binary(out)), brightness(decode_effect_binary(data)) * 2.5, places=5)
 
     def test_an_effect_recolours_its_positional_overrides_through_the_layouts(self) -> None:
         data = EFFECT.read_bytes()
