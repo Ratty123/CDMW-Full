@@ -32,7 +32,7 @@ class TemplatePanel(QGroupBox):
         row.addWidget(self.filter_edit, 1)
         layout.addLayout(row)
         self.matches = QListWidget()
-        self.matches.setMaximumHeight(160)
+        self.matches.setMinimumHeight(160)
         self.matches.currentItemChanged.connect(self._pick)
         layout.addWidget(self.matches)
         self.summary = QLabel("Choose a template item.")

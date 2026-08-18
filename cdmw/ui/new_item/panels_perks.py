@@ -181,6 +181,7 @@ class PerksPanel(QGroupBox):
 
         self._own_perks_changed(False)
         self._use_effect_changed(False)
+        layout.addStretch(1)
         controller.snapshot_ready.connect(self._refresh_all)
         controller.effect_catalogue_ready.connect(self._catalogue_ready)
         controller.template_changed.connect(self._template_changed)

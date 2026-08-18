@@ -68,7 +68,7 @@ class PlacementPanel(QGroupBox):
         self.group_filter.textChanged.connect(self._refresh_groups)
         groups_layout.addWidget(self.group_filter)
         self.group_list = QListWidget()
-        self.group_list.setMaximumHeight(120)
+        self.group_list.setMinimumHeight(120)
         self.group_list.itemChanged.connect(self._group_toggled)
         groups_layout.addWidget(self.group_list)
         layout.addWidget(groups)

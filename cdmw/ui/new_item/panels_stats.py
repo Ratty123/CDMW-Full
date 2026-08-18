@@ -15,11 +15,13 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from cdmw.ui.new_item.controller import NewItemStudioController
-from cdmw.ui.new_item.state import StatGrid, flat_grid_values, scaled_grid_values
+from cdmw.ui.new_item.state import BUY_PRICE_KIND, StatGrid, flat_grid_values, scaled_grid_values
 
 _MAX_EXTRA_LEVELS = 8
 
@@ -34,18 +36,37 @@ class StatsPanel(QGroupBox):
         self._syncing = False
         layout = QVBoxLayout(self)
         intro = QLabel(
-            "Values start as the template's. Edit a cell to change it; a value the template lacks is added through "
-            "the stat-block rebuild, and a level past the last copies the last one. Rebuilt ladders are unproven in game."
+            "One row per enhancement level (+0 at the top). The stat columns are the item's numbers at that level, "
+            "the price columns what the shop charges for it at that level. Everything starts as the template's; "
+            "edit a cell to change it."
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
 
         self.table = QTableWidget(0, 0)
         self.table.setMinimumHeight(140)
+        self.table.setToolTip("Stat columns are named after the game's status entries (DDD is the damage stat every weapon ladder carries). A blue value differs from the template's; hover it to see the template's.")
         self.table.cellChanged.connect(self._cell_changed)
         layout.addWidget(self.table)
 
-        presets = QHBoxLayout()
+        quick = QHBoxLayout()
+        self.one_copper_button = QPushButton("Sell for one copper")
+        self.one_copper_button.setToolTip("Every shop price at every level and every base price becomes 1: the item costs one copper in the shop.")
+        self.one_copper_button.clicked.connect(self._one_copper)
+        quick.addWidget(self.one_copper_button)
+        self.advanced_toggle = QToolButton()
+        self.advanced_toggle.setText("Advanced: scale, set, add a level, reset")
+        self.advanced_toggle.setCheckable(True)
+        self.advanced_toggle.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.advanced_toggle.setArrowType(Qt.RightArrow)
+        self.advanced_toggle.toggled.connect(self._toggle_advanced)
+        quick.addWidget(self.advanced_toggle)
+        quick.addStretch(1)
+        layout.addLayout(quick)
+
+        self.advanced = QWidget()
+        presets = QHBoxLayout(self.advanced)
+        presets.setContentsMargins(0, 0, 0, 0)
         self.scale = QDoubleSpinBox()
         self.scale.setRange(0.01, 100.0)
         self.scale.setSingleStep(0.1)
@@ -70,10 +91,13 @@ class StatsPanel(QGroupBox):
         self.reset_button.clicked.connect(self._reset)
         presets.addWidget(self.reset_button)
         presets.addStretch(1)
-        layout.addLayout(presets)
+        self.advanced.setVisible(False)
+        layout.addWidget(self.advanced)
 
         prices = QHBoxLayout()
-        prices.addWidget(QLabel("Base prices:"))
+        base_label = QLabel("Base prices:")
+        base_label.setToolTip("The item's own price list, per money item; the shop's asking price is this plus the embedded perks' prices, before the level prices above.")
+        prices.addWidget(base_label)
         self.price_table = QTableWidget(0, 2)
         self.price_table.setHorizontalHeaderLabels(["Money item", "Price"])
         self.price_table.setMaximumHeight(96)
@@ -87,8 +111,31 @@ class StatsPanel(QGroupBox):
         layout.addLayout(prices)
         self.own_rows = QCheckBox("Give the item enhancement rows of its own (unproven in game; otherwise it enhances through the template's rows)")
         self.own_rows.toggled.connect(self._own_rows_changed)
+        self.own_rows.setVisible(False)
         layout.addWidget(self.own_rows)
+        layout.addStretch(1)
         controller.template_changed.connect(self.rebuild)
+
+    def _toggle_advanced(self, checked: bool) -> None:
+        self.advanced.setVisible(bool(checked))
+        self.own_rows.setVisible(bool(checked))
+        self.advanced_toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
+
+    def _one_copper(self) -> None:
+        """Every shop price at every level and every base price becomes 1."""
+
+        if self._grid is None:
+            return
+        draft = self._controller.draft
+        rows = self._grid.level_count + draft.extra_levels
+        for column_index, column in enumerate(self._grid.columns):
+            if column.kind == BUY_PRICE_KIND:
+                for level in range(rows):
+                    draft.grid_values[(level, column_index)] = 1
+        for key, _label, _template in self._grid.price_items:
+            draft.price_values[key] = 1
+        self._controller.plan = None
+        self.rebuild()
 
     # ------------------------------------------------------------------ building
 

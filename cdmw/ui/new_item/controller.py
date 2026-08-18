@@ -97,6 +97,14 @@ class NewItemStudioController(QObject):
         out.sort(key=lambda item: item[1].casefold())
         return out
 
+    def template_name(self) -> str:
+        """The template's internal name, or "" before one is chosen."""
+
+        if self.snapshot is None or self.draft.template_key is None:
+            return ""
+        row = self.snapshot.rows.get(int(self.draft.template_key))
+        return row.string_key if row is not None else ""
+
     def template_summary(self) -> Tuple[str, ...]:
         if self.snapshot is None or self.draft.template_key is None:
             return ()

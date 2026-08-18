@@ -128,6 +128,59 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_the_icon_can_be_captured_from_the_viewport(self) -> None:
+        from PySide6.QtWidgets import QDialog
+
+        captured = Path(self.root) / "capture.png"
+        captured.write_bytes(bytes([0x89]) + b"PNG placeholder")
+
+        class FakeDialog:
+            def __init__(self, parent, **kwargs):
+                self.kwargs = kwargs
+                self.captured_path = captured
+
+            def exec(self):
+                return QDialog.Accepted
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        model = tab.model_panel
+        seen = {}
+        blade = ParsedMesh(path="blade", format="pac", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)])])
+        with patch.object(type(tab.controller), "item_mesh_for_preview", lambda self_: blade),              patch.object(type(model), "icon_capture_dialog_factory", staticmethod(lambda parent, **kwargs: seen.setdefault("d", FakeDialog(parent, **kwargs)))):
+            model._capture_icon()
+        self.assertIs(seen["d"].kwargs["item_mesh"], blade, "the item's mesh is what the dialog shows")
+        self.assertTrue(model.generate_icon.isChecked())
+        self.assertEqual(tab.controller.draft.icon_source_path, str(captured))
+        tab.close()
+        tab.deleteLater()
+
+    def test_one_copper_and_the_folded_advanced_controls(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        stats = tab.stats_panel
+        self.assertFalse(stats.advanced.isVisibleTo(stats), "advanced controls start folded")
+        stats.one_copper_button.click()
+        spec = tab.controller.current_spec()
+        self.assertTrue(spec.buy_price_edits and all(e.price == 1 for e in spec.buy_price_edits), spec.buy_price_edits)
+        self.assertTrue(spec.price_edits and all(e.price == 1 for e in spec.price_edits), spec.price_edits)
+        stats.advanced_toggle.setChecked(True)
+        self.assertTrue(stats.advanced.isVisibleTo(stats))
+        stats.reset_button.click()
+        self.assertEqual(tab.controller.current_spec().price_edits, ())
+        # the step navigator: one page at a time, Back/Next, the summary names the template
+        self.assertEqual(tab.steps.count(), 7)
+        self.assertEqual(tab.pages.currentIndex(), 0)
+        tab.next_button.click()
+        self.assertEqual(tab.pages.currentIndex(), 1)
+        tab.show_step(3)
+        self.assertEqual(tab.steps.currentRow(), 3)
+        self.assertIn("Ziane_OneHandSword", tab.summary.text())
+        tab.close()
+        tab.deleteLater()
+
     def test_snapshot_panels_and_a_plan_through_the_panels(self) -> None:
         from PySide6.QtCore import Qt
 
