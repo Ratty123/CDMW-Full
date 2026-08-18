@@ -13851,12 +13851,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 420,
+          "line": 423,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 427,
+          "line": 430,
           "sink": "emit"
         },
         {
@@ -17826,7 +17826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 179,
+          "line": 203,
           "sink": "information"
         }
       ]
@@ -17926,7 +17926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 399,
+          "line": 402,
           "sink": "ValueError"
         }
       ]
@@ -39661,7 +39661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 183,
+          "line": 207,
           "sink": "information"
         }
       ]
@@ -40041,12 +40041,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 179,
+          "line": 203,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 183,
+          "line": 207,
           "sink": "information"
         }
       ]
@@ -41561,12 +41561,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 198,
+          "line": 222,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 202,
+          "line": 226,
           "sink": "question"
         }
       ]
@@ -41591,7 +41591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 202,
+          "line": 226,
           "sink": "question"
         }
       ]
@@ -44513,6 +44513,36 @@
           "path": "cdmw/ui/archive_browser/progress.py",
           "line": 75,
           "sink": "python-return:_archive_progress_phase_for_detail"
+        }
+      ]
+    },
+    {
+      "key": "Listed {value_0}/{value_1} package tables, {value_2} entries so far...",
+      "origins": [
+        {
+          "path": "cdmw/workers/new_item_workers.py",
+          "line": 54,
+          "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Listing the archives under {value_0} ({value_1} package tables)...",
+      "origins": [
+        {
+          "path": "cdmw/workers/new_item_workers.py",
+          "line": 45,
+          "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "Listing the archives under {value_0}, then reading the tables...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 123,
+          "sink": "setText"
         }
       ]
     },
@@ -53736,7 +53766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 62,
+          "line": 77,
           "sink": "QLabel"
         }
       ]
@@ -53847,6 +53877,11 @@
         {
           "path": "cdmw/services/new_item_snapshot.py",
           "line": 276,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/workers/new_item_workers.py",
+          "line": 48,
           "sink": "raise_if_cancelled"
         }
       ]
@@ -55256,7 +55291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 415,
+          "line": 418,
           "sink": "ValueError"
         }
       ]
@@ -55918,6 +55953,16 @@
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 1160,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "No package tables (0.pamt) were found under {value_0}.",
+      "origins": [
+        {
+          "path": "cdmw/workers/new_item_workers.py",
+          "line": 44,
+          "sink": "ValueError"
         }
       ]
     },
@@ -69516,7 +69561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 68,
+          "line": 83,
           "sink": "QPushButton"
         },
         {
@@ -69536,7 +69581,7 @@
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 365,
+          "line": 368,
           "sink": "emit"
         }
       ]
@@ -70026,7 +70071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 99,
+          "line": 121,
           "sink": "setText"
         }
       ]
@@ -85517,6 +85562,16 @@
       ]
     },
     {
+      "key": "Skipping {value_0}/{value_1}: {value_2}",
+      "origins": [
+        {
+          "path": "cdmw/workers/new_item_workers.py",
+          "line": 52,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "Slider ID",
       "origins": [
         {
@@ -88301,7 +88356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 434,
+          "line": 437,
           "sink": "emit"
         }
       ]
@@ -92097,12 +92152,22 @@
       ]
     },
     {
-      "key": "The archive list is empty. Scan the archives in the Archive Browser first, then come back.",
+      "key": "The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 95,
+          "line": 115,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "The archive list is empty and no package root was given.",
+      "origins": [
+        {
+          "path": "cdmw/workers/new_item_workers.py",
+          "line": 78,
+          "sink": "ValueError"
         }
       ]
     },
@@ -92111,7 +92176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 349,
+          "line": 352,
           "sink": "emit"
         }
       ]
@@ -92121,7 +92186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 198,
+          "line": 222,
           "sink": "warning"
         }
       ]
@@ -92281,7 +92346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 109,
+          "line": 133,
           "sink": "setText"
         }
       ]
@@ -92586,7 +92651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 404,
+          "line": 407,
           "sink": "ValueError"
         }
       ]
@@ -92776,7 +92841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 390,
+          "line": 393,
           "sink": "emit"
         }
       ]
@@ -93061,7 +93126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 358,
+          "line": 361,
           "sink": "emit"
         }
       ]
@@ -94941,7 +95006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 108,
+          "line": 132,
           "sink": "setText"
         },
         {
@@ -101596,7 +101661,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 76,
+          "line": 116,
           "sink": "log"
         }
       ]
@@ -101991,7 +102056,7 @@
       "origins": [
         {
           "path": "cdmw/workers/new_item_workers.py",
-          "line": 80,
+          "line": 120,
           "sink": "log"
         }
       ]

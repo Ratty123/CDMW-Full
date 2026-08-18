@@ -35,6 +35,19 @@ from cdmw.ui.new_item.panels_stats import StatsPanel
 from cdmw.ui.new_item.panels_template import TemplatePanel
 
 
+def _window_package_root(window: object) -> str:
+    """The game folder the shell's Archive Browser points at, if the window has one."""
+
+    edit = getattr(window, "archive_package_root_edit", None)
+    text = getattr(edit, "text", None)
+    if callable(text):
+        try:
+            return str(text() or "")
+        except Exception:  # noqa: BLE001 - a half-built window is not a reason to raise
+            return ""
+    return str(getattr(window, "archive_package_root", "") or "")
+
+
 class NewItemStudioTab(QWidget):
     """Clone an equipment item into a brand-new one: identity, model, icon, stats, perks, shop, output."""
 
@@ -48,10 +61,12 @@ class NewItemStudioTab(QWidget):
         service: Optional[NewItemService] = None,
         controller: Optional[NewItemStudioController] = None,
         get_archive_entries: Optional[Callable[[], Iterable[ArchiveEntry]]] = None,
+        get_package_root: Optional[Callable[[], str]] = None,
     ) -> None:
         super().__init__(parent)
         self._window = window
         self._get_entries = get_archive_entries or (lambda: getattr(window, "archive_entries", None) or ())
+        self._get_package_root = get_package_root or (lambda: _window_package_root(window))
         self.controller = controller or NewItemStudioController(service=service, parent=self)
         cache_root = getattr(window, "archive_cache_root", None)
         if cache_root is not None and self.controller.effect_cache_path is None:
@@ -91,14 +106,23 @@ class NewItemStudioTab(QWidget):
         if self.controller.busy or self.controller.ready:
             return
         entries = tuple(self._get_entries() or ())
+        package_root: Optional[Path] = None
         if not entries:
-            self._status.setText("The archive list is empty. Scan the archives in the Archive Browser first, then come back.")
-            return
+            # the shell's catalogue backend shows the browser without filling the legacy
+            # entry list; the studio then lists the archives itself from the package root
+            root_text = str(self._get_package_root() or "").strip()
+            if not root_text or not Path(root_text).is_dir():
+                self._status.setText("The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.")
+                return
+            package_root = Path(root_text)
         self._read_button.setEnabled(False)
         self._progress.setVisible(True)
-        self._status.setText(f"Reading the tables from {len(entries):,} archive entries...")
+        if entries:
+            self._status.setText(f"Reading the tables from {len(entries):,} archive entries...")
+        else:
+            self._status.setText(f"Listing the archives under {package_root}, then reading the tables...")
         self.controller.log_message.connect(self._status.setText)
-        if not self.controller.start_snapshot(entries):
+        if not self.controller.start_snapshot(entries, package_root=package_root):
             self._read_button.setEnabled(True)
             self._progress.setVisible(False)
 
