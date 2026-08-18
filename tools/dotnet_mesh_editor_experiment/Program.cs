@@ -190,6 +190,12 @@ internal sealed partial class ExperimentForm : Form
 
         _viewport = new MeshViewport(document, _materials, _textureSet, _scene, options) { Dock = DockStyle.Fill };
         InitializeResidentPackageProtocol();
+        // A package booted from the command line may carry an effect particle
+        // description beside its scene; a resident swap loads its own later.
+        if (!options.HeadlessSmoke && !string.IsNullOrWhiteSpace(options.ScenePath))
+        {
+            _viewport.LoadEffectParticlePreview(Path.GetDirectoryName(options.ScenePath));
+        }
         if (options.SimplePreview)
         {
             _overlaySettings = new MeshOverlaySettings(

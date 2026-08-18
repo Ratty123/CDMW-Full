@@ -1324,3 +1324,67 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     // here, so that it cannot desaturate.
     return float4(saturate(finalColor), baseColor.a);
 }
+
+// ---------------------------------------------------------------------------
+// Effect particle preview: camera-facing sprites the host built on the CPU
+// from an effect's simulation description (effect_preview.json). Vertices are
+// in world space already; the overlay constants carry the camera. The sprite
+// texture sits past the material slots so neither pass disturbs the other.
+// ---------------------------------------------------------------------------
+Texture2D ParticleTexture : register(t11);
+
+struct ParticleVSInput
+{
+    float3 Position : POSITION;
+    float4 Color : COLOR0;
+    float2 TexCoord : TEXCOORD0;
+};
+
+struct ParticleVSOutput
+{
+    float4 Position : SV_Position;
+    float4 Color : COLOR0;
+    float2 TexCoord : TEXCOORD0;
+};
+
+ParticleVSOutput VSParticle(ParticleVSInput input)
+{
+    ParticleVSOutput output;
+    output.Position = mul(float4(input.Position, 1.0f), OverlayWorldViewProjection);
+    output.Color = input.Color;
+    output.TexCoord = input.TexCoord;
+    return output;
+}
+
+float4 PSParticle(ParticleVSOutput input) : SV_Target
+{
+    // OverlayMarkerSettings.z: 1 when a sprite texture is bound, 0 for a shaped quad;
+    // OverlayMarkerSettings.w: 1 for a beam ribbon, 0 for a soft disc.
+    float4 colour = input.Color;
+    if (OverlayMarkerSettings.z > 0.5f)
+    {
+        float4 sample = ParticleTexture.Sample(MaterialSampler, input.TexCoord);
+        // Fire sprites are grey luminance masks with or without an alpha
+        // channel; take the stronger of the two so either kind reads.
+        float mask = max(sample.a, dot(sample.rgb, float3(0.299f, 0.587f, 0.114f)));
+        colour.rgb *= sample.rgb * 0.5f + 0.5f;
+        colour.a *= mask;
+    }
+    else if (OverlayMarkerSettings.w > 0.5f)
+    {
+        // a beam ribbon: soft across (u), constant along (v)
+        float across = abs(input.TexCoord.x * 2.0f - 1.0f);
+        colour.a *= saturate(1.0f - smoothstep(0.3f, 1.0f, across));
+    }
+    else
+    {
+        float2 centred = input.TexCoord * 2.0f - 1.0f;
+        float radius = length(centred);
+        colour.a *= saturate(1.0f - smoothstep(0.35f, 1.0f, radius));
+    }
+    if (colour.a <= 0.002f)
+    {
+        discard;
+    }
+    return colour;
+}

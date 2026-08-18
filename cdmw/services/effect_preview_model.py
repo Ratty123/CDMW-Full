@@ -95,6 +95,18 @@ class EmitterPreview:
     beam_width: float = 0.0
     beam_jitter: float = 0.0
     mesh: str = ""
+    #: how long a non-looping emitter keeps spawning (`_spawnTime`), seconds
+    spawn_time: float = 0.0
+    #: particle mass (`_mass`) and the emitter's time factor (`_simulationSpeed`)
+    mass: float = 1.0
+    simulation_speed: float = 1.0
+    #: the sprite texture's flipbook grid (`_sequenceCountX/Y`), played over the particle's life
+    sequence: Tuple[int, int] = (1, 1)
+    #: how much the sprite stretches along its velocity (`_velocityStretch`)
+    velocity_stretch: float = 0.0
+    #: beams: how far the bolt runs, metres (from the emitter's own box), and along which axis
+    beam_length: float = 0.0
+    beam_axis: Vec3 = (0.0, 0.0, 0.0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -348,6 +360,14 @@ def _emitter_preview(
     life = (float(_read(sources, "_spawnData", "_lifeTimeMin", 1.0, _number)), float(_read(sources, "_spawnData", "_lifeTimeMax", 1.0, _number)))
     max_particles = int(_read(sources, "_spawnData", "_maxParticleCount", 200, _number))
     loop = int(_read(sources, "_spawnData", "_loopCount", 0, _number)) == -1
+    spawn_time = float(_read(sources, "_spawnData", "_spawnTime", 0.0, _number))
+    mass = float(_read(sources, "_simulationData", "_mass", 1.0, _number))
+    simulation_speed = float(_read(sources, "_simulationData", "_simulationSpeed", 1.0, _number))
+    velocity_stretch = float(_read(sources, "_renderData", "_velocityStretch", 0.0, _number))
+    sequence = (
+        max(1, int(_read(sources, "_renderData", "_sequenceCountX", 1, _number))),
+        max(1, int(_read(sources, "_renderData", "_sequenceCountY", 1, _number))),
+    )
     force = (
         _read(sources, "_simulationData", "_forceMin", (0.0, 0.0, 0.0), _vec3),
         _read(sources, "_simulationData", "_forceMax", (0.0, 0.0, 0.0), _vec3),
@@ -399,11 +419,23 @@ def _emitter_preview(
     kind = "billboard"
     beam_width = 0.0
     beam_jitter = 0.0
+    beam_length = 0.0
+    beam_axis: Vec3 = (0.0, 0.0, 0.0)
     lowered = name.lower()
     if "beam" in lowered or "lightning" in lowered or "spark_once" in lowered or "ray" in lowered:
         kind = "beam"
-        beam_width = float(max(0.005, min(scale[0][0], scale[1][0]) * 0.1))
+        # a reading: a bolt as wide as a quarter of the particle scale, as long as the
+        # emitter's own box (what the game reserves for it), jittered a sixth of that
+        beam_width = float(max(0.01, min(scale[1]) * 0.25))
         beam_jitter = 0.15
+        box_low = _read(sources, "", "_emitterBoundBoxMin", (0.0, 0.0, 0.0), _vec3)
+        box_high = _read(sources, "", "_emitterBoundBoxMax", (0.0, 0.0, 0.0), _vec3)
+        extents = [abs(h - l) for l, h in zip(box_low, box_high)]
+        beam_length = float(max(0.1, max(extents) * 0.6 or 0.5))
+        # the bolt runs along the box's long axis, toward the side the box reaches further on
+        axis = max(range(3), key=lambda i: extents[i]) if max(extents) > 1e-6 else 1
+        sign = -1.0 if abs(box_low[axis]) > abs(box_high[axis]) else 1.0
+        beam_axis = tuple(sign if i == axis else 0.0 for i in range(3))
     elif particle_mesh:
         kind = "mesh"
 
@@ -415,6 +447,8 @@ def _emitter_preview(
         force=force, damping=damping, speed_limit=speed_limit, scale=scale, rotation=rotation,
         scale_over_life=scale_over_life, alpha_over_life=alpha_over_life, color_over_life=color_over_life,
         emissive_color=emissive, brightness=brightness, beam_width=beam_width, beam_jitter=beam_jitter, mesh=particle_mesh,
+        spawn_time=max(0.0, spawn_time), mass=max(0.0, mass), simulation_speed=max(0.05, simulation_speed),
+        sequence=sequence, velocity_stretch=max(0.0, velocity_stretch), beam_length=beam_length, beam_axis=beam_axis,
     )
 
 
@@ -591,5 +625,7 @@ def effect_preview_json(preview: EffectPreview) -> str:
         item["alpha_over_life"] = list(emitter.alpha_over_life)
         item["color_over_life"] = [list(c) for c in emitter.color_over_life]
         item["emissive_color"] = list(emitter.emissive_color)
+        item["sequence"] = list(emitter.sequence)
+        item["beam_axis"] = list(emitter.beam_axis)
         payload["emitters"].append(item)
     return json.dumps(payload, indent=1)

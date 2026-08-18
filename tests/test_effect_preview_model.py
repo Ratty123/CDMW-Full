@@ -73,6 +73,10 @@ class PreviewTests(unittest.TestCase):
         early = trail.color_over_life[2]
         self.assertGreater(early[0], early[2], "the ramp read at temperature 1000 is orange: red over blue")
         self.assertGreater(early[0], 0.5)
+        self.assertEqual(trail.sequence, (5, 5), "the sprite is a 5 x 5 flipbook")
+        self.assertAlmostEqual(trail.spawn_time, 1.0, places=4, msg="the effect's override says 1.0 s over the emitter file's 0.2")
+        self.assertAlmostEqual(trail.mass, 0.011, places=3)
+        self.assertAlmostEqual(trail.velocity_stretch, 0.4, places=5)
         self.assertEqual(preview.textures, ("effect/texture/pafx_fire_003a_kjd.dds",))
 
     def test_a_look_edit_shows_in_the_preview(self) -> None:
@@ -128,9 +132,14 @@ class PreviewTests(unittest.TestCase):
         self.assertEqual(payload["stem"], "fx_hit_common_fire_attach_a_loop")
         self.assertEqual(len(payload["emitters"]), 2)
         first = payload["emitters"][0]
-        for key in ("kind", "texture", "blend", "burst", "bursts_per_second", "life", "spawn", "spread", "points", "force", "damping", "scale", "scale_over_life", "alpha_over_life", "color_over_life"):
+        # the keys the viewer's EffectParticlePreview.cs reads (schema 1)
+        for key in ("kind", "texture", "blend", "burst", "bursts_per_second", "max_particles", "life", "loop", "spawn_time", "spawn", "spread", "points",
+                    "force", "damping", "speed_limit", "scale", "rotation", "scale_over_life", "alpha_over_life", "color_over_life", "emissive_color",
+                    "brightness", "beam_width", "beam_jitter", "beam_length", "beam_axis", "mass", "simulation_speed", "sequence", "velocity_stretch"):
             self.assertIn(key, first)
         self.assertEqual(len(first["color_over_life"][0]), 3)
+        self.assertEqual(first["sequence"], [5, 5])
+        self.assertEqual(first["beam_axis"], [0.0, 0.0, 0.0], "a sprite emitter has no beam axis")
 
 
 if __name__ == "__main__":

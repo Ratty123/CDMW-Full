@@ -61,6 +61,11 @@ internal static class HelperBuildProvenance
         "overlay_state_update_v1",
         "skeleton_overlay_v1",
         "pbd_cloth_overlay_v1",
+        // A package that carries effect_preview.json beside its mesh gets its
+        // emitters simulated on the CPU and drawn as sprites in the editable
+        // submesh's frame; the package_load ack reports what loaded. An older
+        // helper shows the box alone, so hosts gate on this rather than require it.
+        "effect_particle_preview_v1",
     };
 
     public static string[] ProtocolCapabilities(string profile)

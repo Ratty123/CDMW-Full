@@ -7727,6 +7727,7 @@
     "The move was not applied": "移动未被应用",
     "The operation you just accepted, replayed onto vanilla on its own.": "你刚刚确认的操作，单独在 vanilla 上重新应用的结果。",
     "The optional model audit could not confidently classify this file. Geometry can still be routed manually; use the part list, DDS contract, and live preview diagnostics as the source of truth.": "可选模型审核无法自信地对此文件进行分类。几何图形仍然可以手动布线；使用零件清单、DDS 合同和实时预览诊断作为事实来源。",
+    "The particles are an approximate CPU reading of the effect's emitters (sprites, colours and motion from its binaries), not the game's own simulation; they follow the box.": "粒子是对效果发射器的近似 CPU 读取（精灵、颜色和运动来自其二进制文件），不是游戏自身的模拟；它们跟随方框。",
     "The placement is a pending change and will be exported. No animation was swapped — either nothing was measured for the old position, or this is the position the item already had.": "该展示位置是待处理的更改，将被导出。没有交换动画 - 要么没有对旧位置进行任何测量，要么这是项目已经具有的位置。",
     "The placement preview could not be built: {value_0}": "无法构建放置预览：{value_0}",
     "The placement source picker uses a static geometry thumbnail for source candidates. This keeps browsing stable while still confirming that the selected source is the expected model.": "放置源选择器使用静态几何缩略图作为源候选。这可以保持浏览稳定，同时仍然确认所选源是预期的模型。",

@@ -24,6 +24,17 @@ internal sealed partial class NetTextureSet
         return !string.IsNullOrWhiteSpace(value) && Path.GetExtension(value).Equals(".dds", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// A DDS file decoded to a bitmap by the same reader the material textures use
+    /// (BC1/BC3/BC4/BC5/BC7 and the uncompressed layouts, else the CdTextureDx
+    /// fallback), or null when it does not read. For sprites outside the material set:
+    /// the effect particle preview.
+    /// </summary>
+    internal static Bitmap? DecodeDdsFileToBitmap(string path)
+    {
+        return IsDdsPath(path) && File.Exists(path) ? DecodeDds(path).Bitmap : null;
+    }
+
     private static (NetDdsTextureInfo? Info, Bitmap? Bitmap, NetDdsNativeTextureData? NativeDds) DecodeDds(string path)
     {
         try

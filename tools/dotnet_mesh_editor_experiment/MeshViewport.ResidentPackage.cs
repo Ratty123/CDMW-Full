@@ -10,6 +10,20 @@ internal sealed partial class MeshViewport
         _d3d11Viewport?.HasTexturedMaterialResourcesForSubmeshes(submeshIndices) ?? false;
 
     /// <summary>
+    /// The effect particle preview a package may carry (effect_preview.json beside
+    /// its mesh): loaded into the renderer, or cleared when the package has none.
+    /// </summary>
+    public void LoadEffectParticlePreview(string? packageDirectory)
+    {
+        _d3d11Viewport?.LoadEffectParticlePreview(packageDirectory);
+    }
+
+    public bool HasEffectParticlePreview => _d3d11Viewport?.HasEffectParticlePreview ?? false;
+
+    public Dictionary<string, object?> EffectParticlePreviewStatus() =>
+        _d3d11Viewport?.EffectParticlePreviewStatus() ?? new Dictionary<string, object?> { ["loaded"] = false };
+
+    /// <summary>
     /// The view a freshly loaded package settles on. Read-only previews show
     /// wire over untextured geometry by default, and plain textured geometry
     /// once textures are resolved; the wire overlay is the authoring default,

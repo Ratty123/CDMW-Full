@@ -234,12 +234,27 @@ class EffectPlacementDialog(QDialog):
             self._sync_host()
             sentences = ["Drag the gizmo on the box. Move: offset along the item's axes. Scale: a uniform scale on the effect."]
             if self._preview.preview_file is not None:
-                sentences.append("The effect's particle description is in the package; the viewport draws it once its particle layer lands, the box until then.")
+                if self._host_draws_particles():
+                    sentences.append("The particles are an approximate CPU reading of the effect's emitters (sprites, colours and motion from its binaries), not the game's own simulation; they follow the box.")
+                else:
+                    sentences.append("The effect's particle description is in the package; the viewport draws it once its particle layer lands, the box until then.")
             if self._preview.missing_textures:
                 sentences.append(f"{len(self._preview.missing_textures)} sprite texture(s) could not be read from the archives.")
             self.status.setText(" ".join(sentences))
         elif str(state) == "error":
             self.status.setText(str(message or "The viewport reported an error."))
+
+    def _host_draws_particles(self) -> bool:
+        """Whether the resident helper announced the particle layer (`effect_particle_preview_v1`)."""
+
+        host = self.host
+        if host is None:
+            return False
+        try:
+            capabilities = host.controller.capabilities
+        except Exception:  # noqa: BLE001 - a fake host in tests has none
+            return False
+        return "effect_particle_preview_v1" in (capabilities or ())
 
     # ------------------------------------------------------------------ edits
 
