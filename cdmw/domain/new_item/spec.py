@@ -46,6 +46,25 @@ class MaterialRoute(str, Enum):
     PLAIN_PBR = "plain_pbr"
 
 
+class SheathedModel(str, Enum):
+    """What draws when an imported weapon is sheathed (the `_IN` part).
+
+    A weapon's sheathed look is a part of its own (`CD_TwoHandWeapon_Sword_IN`, the
+    `_in` stems), usually borrowed from another item: Reckleeman's greatsword borrows
+    `cd_phm_02_sword_0001_in`, the shipped sword-in-scabbard model, so an imported
+    model on that template shows the shipped scabbard beside it. Only read for an
+    imported model.
+    """
+
+    #: Keep borrowing the template's sheathed part.
+    TEMPLATE = "template"
+    #: A sheathed part of the item's own that draws the imported mesh: the borrowed
+    #: `_IN` records are cloned under the item's stem and their prefabs re-pathed to
+    #: the new mesh (eight shipped two-hand swords have no sheathed part at all, so
+    #: nothing depends on the scabbard being there).
+    OWN_MODEL = "own_model"
+
+
 class ItemGroupsChoice(str, Enum):
     #: Join every item group the template is in.
     TEMPLATE = "template"
@@ -125,6 +144,8 @@ class NewItemSpec:
     model_source: ModelSource = ModelSource.TEMPLATE
     #: Only read for an imported model.
     material_route: MaterialRoute = MaterialRoute.PLAIN_PBR
+    #: Only read for an imported model.
+    sheathed_model: SheathedModel = SheathedModel.OWN_MODEL
     icon: IconSource = IconSource.TEMPLATE
     stat_edits: Tuple[StatEdit, ...] = ()
     buy_price_edits: Tuple[BuyPriceEdit, ...] = ()
@@ -143,6 +164,11 @@ class NewItemSpec:
     #: effect gives the item its own model family (prefabs of its own), copying the
     #: template's mesh when no model is imported.
     effect: Optional[str] = None
+    #: The grafted effect's `_offsetTransform`: a uniform scale (the titan's weapon lightning
+    #: and the fire sweep are sized for bigger weapons; the spear's own carried 0.7) and an
+    #: offset in the weapon's own axes, metres. Only read with an effect.
+    effect_scale: float = 1.0
+    effect_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0)
 
     @property
     def needs_new_model_files(self) -> bool:
@@ -188,5 +214,6 @@ __all__ = [
     "Placement",
     "PlacementKind",
     "PriceEdit",
+    "SheathedModel",
     "StatEdit",
 ]

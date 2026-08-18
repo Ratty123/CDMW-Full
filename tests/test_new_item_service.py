@@ -44,6 +44,7 @@ from cdmw.domain.new_item.spec import (  # noqa: E402
     Placement,
     PlacementKind,
     PriceEdit,
+    SheathedModel,
     StatEdit,
 )
 from cdmw.services.archive_mutation_service import ArchiveMutationService  # noqa: E402
@@ -159,7 +160,7 @@ def synthetic_files() -> dict[str, bytes]:
     pappt = encode_pappt(PartPrefabTable(records=(
         _record("cd_phm_01_sword_0016_r", "CD_MainWeapon_Sword_R"), _record("cd_phm_01_sword_0016_l", "CD_MainWeapon_Sword_L"),
         _record(f"{STEM}_r", "CD_MainWeapon_Sword_R"), _record(f"{STEM}_l", "CD_MainWeapon_Sword_L"),
-        _record("cd_phm_01_sword_0168_r_in_index01", "CD_MainWeapon_Sword_R_In"),
+        _record("cd_phm_01_sword_0168_r_in_index01", "CD_MainWeapon_Sword_IN_R"),
     )))
     stores = _table2([
         # Cigar's line wants the knowledge of item 15 (a collection prop stand-in) before it sells, like 1,856 shipped lines
@@ -413,9 +414,15 @@ class PlanTests(_PackageCase):
             f"character/model/{MODEL_FOLDER}/{new_stem}.pac", f"character/modelproperty/{MODEL_FOLDER}/{new_stem}.pac_xml",
             f"character/bin__/meshphysics/{MODEL_FOLDER}/{new_stem}.hkx",
             f"character/bin__/prefab/{FOLDER}/{new_stem}_r.prefab", f"character/bin__/prefab/{FOLDER}/{new_stem}_l.prefab",
+            # the sheathed (_IN) part of the item's own: the borrowed scabbard record cloned, its prefab re-pathed to the imported mesh
+            f"character/bin__/prefab/{FOLDER}/{new_stem}_r_in.prefab",
             f"character/texture/1_pc/{new_stem}_d.dds", f"character/texture/1_pc/{new_stem}_extra_n.dds",
             "ui/texture/icon/itemicon_prefab_cd_phm_01_sword_9109.dds",
         })
+        sheathed = decode_prefab_binary(added[f"character/bin__/prefab/{FOLDER}/{new_stem}_r_in.prefab"].payload_data)
+        self.assertEqual([s.text for s in sheathed.resource_strings()], [f"character/model/{MODEL_FOLDER}/{new_stem}.pac"], "the sheathed part draws the imported mesh, not the borrowed scabbard")
+        self.assertEqual(plan.manifest["sheathed_records"], {"cd_phm_01_sword_0168_r_in_index01": f"{new_stem}_r_in"})
+        self.assertEqual(plan.manifest["sheathed_model"], "own_model")
         self.assertEqual(added[f"character/model/{MODEL_FOLDER}/{new_stem}.pac"].payload_data, b"PAC imported mesh")
         self.assertEqual(added[f"character/bin__/meshphysics/{MODEL_FOLDER}/{new_stem}.hkx"].payload_data, b"HKX physics")
         self.assertEqual(
@@ -428,18 +435,25 @@ class PlanTests(_PackageCase):
         self.assertTrue(all(request.pamt_path == self.pamt_path for request in plan.additions))
         files = dict(plan.loose_files)
         strings = stringinfo_index(parse_stringinfo(files[f"{BIN}/stringinfo.pabgb"], files[f"{BIN}/stringinfo.pabgh"]))
-        for text in (f"{new_stem}_r", f"{new_stem}_l", "ItemIcon_Prefab_cd_phm_01_sword_9109"):
+        for text in (f"{new_stem}_r", f"{new_stem}_l", f"{new_stem}_r_in", "ItemIcon_Prefab_cd_phm_01_sword_9109"):
             self.assertEqual(strings[stringinfo_key(text)], text)
         pappt = parse_pappt(files["character/bin__/partprefabtable.pappt"])
         stems = [r.stem for r in pappt.records]
         self.assertEqual(stems.index(f"{new_stem}_r"), stems.index(f"{STEM}_r") + 1)
         self.assertEqual(pappt.find(f"{new_stem}_l").parts, pappt.find(f"{STEM}_l").parts)
+        self.assertEqual(pappt.find(f"{new_stem}_r_in").parts, pappt.find("cd_phm_01_sword_0168_r_in_index01").parts, "the sheathed record keeps its part slot")
         rows = parse_pabgh_table(files[f"{BIN}/iteminfo.pabgh"], payload=files[f"{BIN}/iteminfo.pabgb"]).row_spans(len(files[f"{BIN}/iteminfo.pabgb"]))
         raw = files[f"{BIN}/iteminfo.pabgb"][rows[-1][1]:rows[-1][2]]
-        for old, new in ((f"{STEM}_r", f"{new_stem}_r"), (f"{STEM}_l", f"{new_stem}_l"), (ICON_STRING, "ItemIcon_Prefab_cd_phm_01_sword_9109")):
+        for old, new in ((f"{STEM}_r", f"{new_stem}_r"), (f"{STEM}_l", f"{new_stem}_l"), (ICON_STRING, "ItemIcon_Prefab_cd_phm_01_sword_9109"), ("cd_phm_01_sword_0168_r_in_index01", f"{new_stem}_r_in")):
             self.assertNotIn(struct.pack("<I", stringinfo_key(old)), raw)
             self.assertIn(struct.pack("<I", stringinfo_key(new)), raw)
-        self.assertIn(struct.pack("<I", stringinfo_key("cd_phm_01_sword_0168_r_in_index01")), raw, "the borrowed sheath stays borrowed")
+        # asked to keep the template's, the borrowed sheath stays borrowed and no _in prefab is written
+        kept = self.service.plan(self._spec(model_source=ModelSource.IMPORTED, icon=IconSource.GENERATED, item_groups=ItemGroupsChoice.EXPLICIT, explicit_item_groups=(17012,), sheathed_model=SheathedModel.TEMPLATE), self.snapshot, model=model, icon=icon)
+        self.assertNotIn(f"character/bin__/prefab/{FOLDER}/{new_stem}_r_in.prefab", {r.path for r in kept.additions})
+        kept_files = dict(kept.loose_files)
+        kept_rows = parse_pabgh_table(kept_files[f"{BIN}/iteminfo.pabgh"], payload=kept_files[f"{BIN}/iteminfo.pabgb"]).row_spans(len(kept_files[f"{BIN}/iteminfo.pabgb"]))
+        self.assertIn(struct.pack("<I", stringinfo_key("cd_phm_01_sword_0168_r_in_index01")), kept_files[f"{BIN}/iteminfo.pabgb"][kept_rows[-1][1]:kept_rows[-1][2]], "the borrowed sheath stays borrowed")
+        self.assertEqual(kept.manifest["sheathed_records"], {})
         groups = parse_item_group_table(files[f"{BIN}/itemgroupinfo.pabgb"], files[f"{BIN}/itemgroupinfo.pabgh"])
         self.assertEqual([g.members for g in groups], [(OTHER, TEMPLATE, 13800), (TEMPLATE,), (OTHER, 1990000)])
         self.assertEqual(plan.new_paths, tuple(added))
@@ -522,8 +536,16 @@ class PlanTests(_PackageCase):
             self.assertIn("EffectComponent", [t.type_name for t in doc.types])
         self.assertEqual(plan.manifest["effect"]["path"], "fx_test_fire.level.effect")
         self.assertEqual(len(plan.manifest["effect"]["prefabs"]), 2)
-        self.assertTrue(any("grafted" in w and "unproven" in w for w in plan.warnings), plan.warnings)
-        self.assertTrue(any(line.startswith("effect: fx_test_fire") for line in plan.summary_lines))
+        self.assertEqual((plan.manifest["effect"]["scale"], plan.manifest["effect"]["offset"]), (1.0, [0.0, 0.0, 0.0]))
+        self.assertTrue(any("grafted" in w and "scale or an offset" in w for w in plan.warnings), plan.warnings)
+        self.assertTrue(any(line.startswith("effect: fx_test_fire") and "scale 1" in line for line in plan.summary_lines))
+        # the grafted component carries the spec's transform: a uniform scale and an offset in the weapon's axes
+        from cdmw.core.prefab_component_graft import encode_transform
+        placed = self.service.plan(self._spec(model_source=ModelSource.TEMPLATE, effect="fx_test_fire.level.effect", effect_scale=0.25, effect_offset=(0.0, 0.1, -0.05)), self.snapshot)
+        prefab = {r.path: r for r in placed.additions}[f"character/bin__/prefab/{FOLDER}/{new_stem}_r.prefab"].payload_data
+        self.assertIn(encode_transform(scale=(0.25, 0.25, 0.25), position=(0.0, 0.1, -0.05)), prefab)
+        self.assertNotIn(encode_transform(), prefab, "no identity transform left in the graft")
+        self.assertTrue(any("scale 0.25, offset 0 0.1 -0.05" in line for line in placed.summary_lines), placed.summary_lines)
         # the item's row points at its own part stems and the part-prefab table knows them
         files = dict(plan.loose_files)
         pappt = parse_pappt(files["character/bin__/partprefabtable.pappt"])
@@ -590,7 +612,7 @@ class WriteTests(_PackageCase):
         again = self.service.build_snapshot(parse_archive_pamt(self.pamt_path), read_entry=_read)
         family = again.family(1990000)
         self.assertEqual(family.model_stem, "cd_phm_01_sword_9109")
-        self.assertEqual(family.owned_stems, ("cd_phm_01_sword_9109_r", "cd_phm_01_sword_9109_l"))
+        self.assertEqual(family.owned_stems, ("cd_phm_01_sword_9109_r", "cd_phm_01_sword_9109_r_in", "cd_phm_01_sword_9109_l"), "the installed item owns its sheathed part too")
         self.assertEqual(family.missing_files, ())
         self.assertEqual([s for s in again.stores if s.name == "Store_Camp_Equipment"][0].entries[0].item_key, 1990000)
 

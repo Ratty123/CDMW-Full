@@ -31,6 +31,7 @@ from cdmw.domain.new_item.spec import (
     Placement,
     PlacementKind,
     PriceEdit,
+    SheathedModel,
     StatEdit,
 )
 
@@ -48,6 +49,7 @@ __all__ = [
     "Placement",
     "PlacementKind",
     "PriceEdit",
+    "SheathedModel",
     "StatEdit",
     "TemplateFacts",
     "TemplateLevelFacts",

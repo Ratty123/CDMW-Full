@@ -18,6 +18,7 @@ from cdmw.domain.new_item.spec import (
     MaterialRoute,
     ModelSource,
     NewItemSpec,
+    SheathedModel,
     Placement,
     PlacementKind,
     PriceEdit,
@@ -97,6 +98,8 @@ class NewItemDraft:
     #: how an imported model's materials are written; the plain-PBR shaders unless the
     #: Builder's own sidecar is asked for
     material_route: MaterialRoute = MaterialRoute.PLAIN_PBR
+    #: what an imported weapon draws when sheathed: a part of its own, or the template's borrowed one
+    sheathed_model: SheathedModel = SheathedModel.OWN_MODEL
     icon: IconSource = IconSource.TEMPLATE
     icon_source_path: str = ""
     #: level -> column index -> value; None means "as the template".
@@ -118,6 +121,9 @@ class NewItemDraft:
     socket_items: Optional[List[int]] = None
     #: A weapon effect stem (`fx_cc_firesweapon_a__fire1`); empty for none.
     effect_stem: str = ""
+    #: the grafted effect's uniform scale and offset (x, y, z, metres in the weapon's axes)
+    effect_scale: float = 1.0
+    effect_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0)
 
     def reset_for_template(self, template_key: Optional[int]) -> None:
         self.template_key = template_key
@@ -197,6 +203,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         stem=draft.stem.strip() or None,
         model_source=draft.model_source,
         material_route=draft.material_route,
+        sheathed_model=draft.sheathed_model,
         icon=draft.icon,
         stat_edits=stats,
         buy_price_edits=buy_prices,
@@ -208,6 +215,8 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         enhancement=EnhancementRows.OWN if draft.own_enhancement_rows else EnhancementRows.TEMPLATE,
         socket_items=None if draft.socket_items is None else tuple(int(item) for item in draft.socket_items),
         effect=effect_reference(draft.effect_stem),
+        effect_scale=float(draft.effect_scale),
+        effect_offset=tuple(float(v) for v in draft.effect_offset),
     )
 
 

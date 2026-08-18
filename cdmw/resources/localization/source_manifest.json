@@ -3832,6 +3832,26 @@
       ]
     },
     {
+      "key": "A uniform scale on the grafted effect. Effects made for bigger weapons (the titan's lightning, the fire sweep) reach past a sword at 1.0; the shipped spear carries 0.7.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 113,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "A weapon's sheathed look is a part of its own (the _IN stems), usually borrowed from another item: Reckleeman's greatsword borrows the shipped sword-in-scabbard model, so an imported sword shows that scabbard beside it. Checked, the borrowed record is cloned under the item's stem and its prefab re-pathed to the imported mesh. Unchecked, the template's stays borrowed.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 66,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "A+",
       "origins": [
         {
@@ -4571,7 +4591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 77,
+          "line": 78,
           "sink": "QPushButton"
         },
         {
@@ -5886,7 +5906,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 133,
+          "line": 150,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -6516,7 +6536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 173,
+          "line": 198,
           "sink": "emit"
         }
       ]
@@ -11701,7 +11721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 63,
+          "line": 64,
           "sink": "QPushButton"
         }
       ]
@@ -17586,7 +17606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 141,
+          "line": 158,
           "sink": "getExistingDirectory"
         }
       ]
@@ -17646,7 +17666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 205,
+          "line": 236,
           "sink": "addItem"
         }
       ]
@@ -17711,7 +17731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 178,
+          "line": 184,
           "sink": "ValueError"
         }
       ]
@@ -17816,7 +17836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 133,
+          "line": 150,
           "sink": "getOpenFileName"
         }
       ]
@@ -18171,7 +18191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 52,
+          "line": 53,
           "sink": "QCheckBox"
         }
       ]
@@ -28496,7 +28516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 89,
+          "line": 90,
           "sink": "QLabel"
         }
       ]
@@ -33311,7 +33331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 97,
+          "line": 98,
           "sink": "setPlaceholderText"
         }
       ]
@@ -33401,7 +33421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 71,
+          "line": 72,
           "sink": "setPlaceholderText"
         }
       ]
@@ -34946,7 +34966,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 81,
+          "line": 90,
           "sink": "QPushButton"
         },
         {
@@ -36011,7 +36031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 71,
+          "line": 80,
           "sink": "QRadioButton"
         }
       ]
@@ -36216,7 +36236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 85,
+          "line": 86,
           "sink": "QCheckBox"
         }
       ]
@@ -38491,7 +38511,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 65,
+          "line": 74,
           "sink": "QGroupBox"
         }
       ]
@@ -39086,7 +39106,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 75,
+          "line": 84,
           "sink": "setPlaceholderText"
         }
       ]
@@ -39106,7 +39126,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 78,
+          "line": 87,
           "sink": "QPushButton"
         }
       ]
@@ -39116,7 +39136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 133,
+          "line": 150,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -42981,7 +43001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 67,
+          "line": 76,
           "sink": "QRadioButton"
         }
       ]
@@ -52222,6 +52242,16 @@
       ]
     },
     {
+      "key": "Moves the effect along the weapon's own axes, in metres, from the weapon's origin.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 124,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Multiple Crimson Desert package roots were found. Choose one:",
       "origins": [
         {
@@ -53486,7 +53516,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 127,
+          "line": 140,
           "sink": "raise_if_cancelled"
         },
         {
@@ -55041,7 +55071,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 111,
+          "line": 126,
           "sink": "setText"
         }
       ]
@@ -58108,6 +58138,16 @@
           "path": "cdmw/ui/texture_workflow/editor_adjustments.py",
           "line": 516,
           "sink": "_adjustment_param_state"
+        }
+      ]
+    },
+    {
+      "key": "Offset x y z (m):",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 116,
+          "sink": "QLabel"
         }
       ]
     },
@@ -63656,7 +63696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 47,
+          "line": 48,
           "sink": "QGroupBox"
         }
       ]
@@ -64721,7 +64761,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 601,
+          "line": 680,
           "sink": "log"
         }
       ]
@@ -72741,7 +72781,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 60,
+          "line": 61,
           "sink": "QPushButton"
         },
         {
@@ -77568,6 +77608,16 @@
           "path": "cdmw/ui/new_item/panels_stats.py",
           "line": 55,
           "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Scale:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 107,
+          "sink": "QLabel"
         }
       ]
     },
@@ -82967,6 +83017,16 @@
       ]
     },
     {
+      "key": "Sheathed on the back, draw the imported model itself (instead of the template's borrowed scabbard part)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 64,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Shift + left-drag",
       "origins": [
         {
@@ -83041,7 +83101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 91,
+          "line": 92,
           "sink": "setToolTip"
         }
       ]
@@ -91896,7 +91956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 49,
+          "line": 50,
           "sink": "QLabel"
         }
       ]
@@ -91992,11 +92052,11 @@
       ]
     },
     {
-      "key": "The effect is drawn at the weapon's own origin, as the shipped thrown lightning spear draws its aura. Effects made for other weapons may sit or scale oddly; try a few.",
+      "key": "The effect is drawn at the weapon's own origin, as the shipped thrown lightning spear draws its aura. Effects made for other weapons may sit or scale oddly; the scale and offset above move them, and the presets carry a starting scale.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 105,
+          "line": 130,
           "sink": "QLabel"
         }
       ]
@@ -92111,7 +92171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 85,
+          "line": 94,
           "sink": "QLabel"
         }
       ]
@@ -92686,7 +92746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 130,
+          "line": 155,
           "sink": "setText"
         }
       ]
@@ -92696,7 +92756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 128,
+          "line": 153,
           "sink": "setText"
         }
       ]
@@ -99006,7 +99066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 83,
+          "line": 84,
           "sink": "QGroupBox"
         }
       ]
@@ -109141,7 +109201,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 498,
+          "line": 577,
           "sink": "add"
         }
       ]
@@ -191952,6 +192012,16 @@
       ]
     },
     {
+      "key": "sheathed prefab: {value_0} (draws the imported mesh instead of {value_1})",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_planning.py",
+          "line": 508,
+          "sink": "add"
+        }
+      ]
+    },
+    {
       "key": "shield",
       "origins": [
         {
@@ -193261,7 +193331,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 438,
+          "line": 499,
           "sink": "add"
         }
       ]
@@ -199441,12 +199511,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 429,
+          "line": 490,
           "sink": "add"
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 438,
+          "line": 499,
           "sink": "add"
         },
         {
@@ -199711,7 +199781,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 429,
+          "line": 490,
           "sink": "add"
         },
         {
@@ -199796,7 +199866,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 210,
+          "line": 241,
           "sink": "setItemData"
         },
         {

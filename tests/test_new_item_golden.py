@@ -32,7 +32,7 @@ from cdmw.core.pappt_format import parse_pappt  # noqa: E402
 from cdmw.core.storeinfo_table import parse_store_row, parse_store_table, swap_stock_item  # noqa: E402
 from cdmw.core.stringinfo_table import parse_stringinfo, stringinfo_key  # noqa: E402
 from cdmw.core.structured_binary_editor import parse_pabgh_table  # noqa: E402
-from cdmw.domain.new_item.spec import ModelSource, NewItemSpec, Placement, PlacementKind  # noqa: E402
+from cdmw.domain.new_item.spec import ModelSource, NewItemSpec, Placement, PlacementKind, SheathedModel  # noqa: E402
 from cdmw.services.new_item_planning import ModelFiles, NewItemPlan  # noqa: E402
 from cdmw.services.new_item_service import NewItemService  # noqa: E402
 from test_new_item_service import _read, build_package  # noqa: E402
@@ -88,6 +88,8 @@ class GoldenReplayTests(unittest.TestCase):
             name_key=item["name_key"],
             desc_key=item["desc_key"],
             model_source=model,
+            # the spike kept borrowing the template's sheathed (_IN) parts; the studio gives an imported model its own now
+            sheathed_model=SheathedModel.TEMPLATE,
             # the spike swapped the item in place and kept the line's unlock requirement (a collection's knowledge);
             # the studio drops it by default now, so the replay says so explicitly
             placement=Placement(PlacementKind.SWAP, store, victim, keep_requirement=True),

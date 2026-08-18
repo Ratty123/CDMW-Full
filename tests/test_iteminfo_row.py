@@ -108,7 +108,7 @@ def build_row(
     # stat block
     out += struct.pack("<I", len(socket_items)) + b"".join(struct.pack("<I", i) for i in socket_items)
     out += struct.pack("<I", len(adds)) + b"".join(struct.pack("<III", *a) for a in adds)
-    out += bytes([0x11, 0x03, 0x01])
+    out += bytes([0x11, len(socket_items), 1 if adds else 0])  # the socket item count and the has-sockets flag, as every shipped row
     out += struct.pack("<I", len(levels)) + b"".join(_level(i, s, b) for i, (s, b) in enumerate(levels))
     out += struct.pack("<I", len(prices)) + b"".join(_price(i, p) for i, p in prices)
     # tail: an optional key, socket name, and the item-group u16 list the game keeps here
@@ -160,7 +160,7 @@ class ParseTests(unittest.TestCase):
     def test_a_row_without_a_stat_block_still_parses(self) -> None:
         raw = build_row()
         # corrupt the marker so no block is found; the prefix and description still decode
-        cut = raw.replace(bytes([0x11, 0x03, 0x01]), bytes([0x12, 0x03, 0x01]))
+        cut = raw.replace(bytes([0x11, 0x01, 0x01]), bytes([0x12, 0x01, 0x01]))
         row = parse_iteminfo_row(cut)
         self.assertEqual(row.coverage, "no-stat-block")
         self.assertEqual(row.item_type, 103)
@@ -321,6 +321,9 @@ class RebuildTests(unittest.TestCase):
         self.assertEqual(row.socket_items, (1002791,))
         four = parse_iteminfo_row(rebuild_stat_block(row, socket_items=(1002787, 1002793, 1002812, 1002910)))
         self.assertEqual(four.socket_items, (1002787, 1002793, 1002812, 1002910))
+        # the byte after 0x11 is the count the game reads (a stale 3 under four gems showed three in game, 2026-08-18)
+        self.assertEqual(four.stat_block_flags, (4, 1))
+        self.assertEqual(row.stat_block_flags, (1, 1))
         def shape(item):
             return (
                 [[(s.status_key, s.value) for s in level.stats] for level in item.enchant_levels],
@@ -331,6 +334,7 @@ class RebuildTests(unittest.TestCase):
         self.assertEqual(len(four.raw), len(raw) + 12)
         none = parse_iteminfo_row(rebuild_stat_block(row, socket_items=()))
         self.assertEqual(none.socket_items, ())
+        self.assertEqual(none.stat_block_flags, (0, 1))
         self.assertEqual(none.enchant_count, row.enchant_count)
         self.assertEqual(rebuild_stat_block(row, socket_items=row.socket_items), raw, "the template's own list is a no-op")
         eight = parse_iteminfo_row(rebuild_stat_block(row, socket_items=tuple(1002785 + i for i in range(8))))
@@ -347,6 +351,7 @@ class RebuildTests(unittest.TestCase):
         self.assertEqual(shape(grown)[0], shape(row)[0], "the ladder is untouched")
         bare = parse_iteminfo_row(rebuild_stat_block(row, add_socket_materials=()))
         self.assertEqual(socket_slots_for(bare, 2), ((1, 500, 0), (1, 1000, 0)))
+        self.assertEqual(bare.stat_block_flags, (1, 0), "no slots: the has-sockets byte drops")
 
     def test_rebuild_refusals(self) -> None:
         row = parse_iteminfo_row(build_row())
@@ -362,7 +367,7 @@ class RebuildTests(unittest.TestCase):
             encode_enchant_level(EnchantLevel(level=0, stats=(), buy_prices=(), header_bytes=b"\x00"))
         with self.assertRaisesRegex(ItemInfoRowError, "25 bytes"):
             encode_enchant_level(EnchantLevel(level=0, stats=(), buy_prices=(), level_stat_keys=(1,), level_stat_entries=(b"\x00",)))
-        no_block = parse_iteminfo_row(build_row().replace(bytes([0x11, 0x03, 0x01]), bytes([0x12, 0x03, 0x01])))
+        no_block = parse_iteminfo_row(build_row().replace(bytes([0x11, 0x01, 0x01]), bytes([0x12, 0x01, 0x01])))
         with self.assertRaisesRegex(ItemInfoRowError, "no decoded stat block"):
             rebuild_stat_block(no_block)
         # a level built by hand still encodes
@@ -467,6 +472,7 @@ class VanillaItemInfoTests(unittest.TestCase):
                 continue
             self.assertEqual(encode_stat_block(item), item.raw[item.stat_block_offset:item.stat_block_end], item.string_key)
             self.assertEqual(rebuild_stat_block(item), item.raw, item.string_key)
+            self.assertEqual(item.stat_block_flags, (len(item.socket_items), 1 if item.add_socket_materials else 0), f"{item.string_key}: the two bytes after 0x11 are the socket count and the has-sockets flag")
             checked += 1
         self.assertGreater(checked, 6000)
 

@@ -29,19 +29,22 @@ class EffectPreset:
     #: seen drawing on a weapon in game
     proven: bool = False
     note: str = ""
+    #: a starting uniform scale: effects authored for bigger weapons reach past a sword at 1.0
+    #: (the titan's weapon lightning ran metres past the blade, the fire sweep past the tip)
+    scale: float = 1.0
 
 
 EFFECT_PRESETS: Tuple[EffectPreset, ...] = (
-    EffectPreset("Fire: flames along the blade", "fx_cc_firesweapon_a__fire1", "fire", proven=True, note="the phase 7 fire check; flames on the sword in the shop preview"),
-    EffectPreset("Fire: larger flames", "fx_cc_firesweapon_a__fire2", "fire"),
+    EffectPreset("Fire: flames along the blade", "fx_cc_firesweapon_a__fire1", "fire", proven=True, note="the phase 7 fire check; flames on the sword in the shop preview, reaching past a one-hand blade at 1.0", scale=0.6),
+    EffectPreset("Fire: larger flames", "fx_cc_firesweapon_a__fire2", "fire", scale=0.6),
     EffectPreset("Fire: rising fire (sword 1)", "fx_fire_up_a__sword1", "fire"),
     EffectPreset("Fire: rising fire (sword 2)", "fx_fire_up_a__sword2", "fire"),
     EffectPreset("Fire: burning attach loop", "fx_hit_common_fire_attach_a_loop", "fire", note="the burning-status visual the game attaches to a body"),
     EffectPreset("Frost: frozen attach loop", "fx_hit_common_ice_attach_a_loop", "ice", note="the frozen-status visual the game attaches to a body"),
-    EffectPreset("Frost: giant frozen attach loop", "fx_hit_common_ice_attach_a_giant_loop", "ice"),
-    EffectPreset("Lightning: titan weapon loop", "fx_body_lightning_loop_a__weaponr_titan_01", "lightning", note="the arcs the titan's right-hand weapon carries; the phase 8 J check"),
+    EffectPreset("Frost: giant frozen attach loop", "fx_hit_common_ice_attach_a_giant_loop", "ice", scale=0.3),
+    EffectPreset("Lightning: titan weapon loop", "fx_body_lightning_loop_a__weaponr_titan_01", "lightning", note="the arcs the titan's right-hand weapon carries; the phase 8 J check ran metres past a sword at 1.0", scale=0.2),
     EffectPreset("Lightning: shocked attach loop", "fx_hit_common_lightning_attach_a_loop", "lightning"),
-    EffectPreset("Lightning: titan body loop", "fx_body_lightning_loop_a__titan1", "lightning"),
+    EffectPreset("Lightning: titan body loop", "fx_body_lightning_loop_a__titan1", "lightning", scale=0.2),
     EffectPreset("Lightning: Damian's dagger strike (flashes once)", "fx_damian_weapon_b__punishdagger_lightning1", "lightning", note="one-shot; the phase 7 lightning check struck once when the weapon appeared"),
     EffectPreset("Glow: weapon mesh glow", "fx_glow_weaponmesh_a__glow3", "glow"),
     EffectPreset("Glow: Caliburn sword on", "fx_caliburn_exp_c__swordon1", "glow"),
