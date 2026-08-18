@@ -15,6 +15,15 @@ or anything with the same five attributes) to those values without moving a byte
   are multiplied and rounded (at least 1);
 * lifetime: `_lifeTimeMin/_lifeTimeMax` (float) are multiplied.
 
+An emitter's colour is the render preset's unless `EmitterRenderData._overridePresetColor`
+says otherwise (the fire ember carries `_emissiveColor` (0.37, 0.05, 0.005) and the flag
+false, and draws the preset `fx_fire_uber_ember_01`'s look), so a colour edit also sets
+that flag wherever it is present, and the presets an effect or emitter names
+(`_renderGroupPreset` -> `effect/binary__/renderpreset/<name>.parg`,
+`_simulationGroupPreset` -> `effect/binary__/simulationpreset/<name>.pasg`, the same
+container) are cloned and edited alongside; :func:`preset_names_of` lists them and
+:func:`rename_string_values` points a clone at them.
+
 Renaming keeps every string the same length: a cloned effect and its cloned emitters
 take stems of the same length as the shipped ones, so the type table, the string pool
 and every self pointer stay where they are and the file needs no relocation. The
@@ -33,15 +42,22 @@ from cdmw.core.effect_binary import EffectDocument, ReflectValue, decode_effect_
 
 __all__ = [
     "EMITTER_DIR",
+    "RENDER_PRESET_DIR",
+    "SIMULATION_PRESET_DIR",
     "EffectEditError",
     "EffectEditReport",
     "apply_effect_look",
     "emitter_paths_of",
+    "preset_names_of",
+    "preset_path",
     "rename_effect_strings",
+    "rename_string_values",
     "same_length_stem",
 ]
 
 EMITTER_DIR = "effect/binary__/emitter/"
+RENDER_PRESET_DIR = "effect/binary__/renderpreset/"
+SIMULATION_PRESET_DIR = "effect/binary__/simulationpreset/"
 Vec3 = Tuple[float, float, float]
 
 COLOR_MEMBERS = ("_emissiveColor", "_color")
@@ -111,6 +127,51 @@ def emitter_paths_of(document: EffectDocument) -> Tuple[str, ...]:
     """The emitter files an effect names, as archive paths, in order."""
 
     return tuple(f"{EMITTER_DIR}{name.split('/', 1)[-1]}.paem" for name in document.emitter_names())
+
+
+def preset_names_of(document: EffectDocument) -> Tuple[Tuple[str, str], ...]:
+    """(kind, name) for every render (`_renderGroupPreset`) and simulation
+    (`_simulationGroupPreset`) preset the graph names, in order, deduplicated."""
+
+    out: List[Tuple[str, str]] = []
+    for value in document.root.all_values():
+        if value.kind != 1:
+            continue
+        kind = {"_renderGroupPreset": "render", "_simulationGroupPreset": "simulation"}.get(value.name)
+        if kind is None:
+            continue
+        name = str(value.value)
+        if name and (kind, name) not in out:
+            out.append((kind, name))
+    return tuple(out)
+
+
+def preset_path(kind: str, name: str) -> str:
+    """The archive path of a render or simulation preset by kind and name."""
+
+    folder = RENDER_PRESET_DIR if kind == "render" else SIMULATION_PRESET_DIR
+    suffix = ".parg" if kind == "render" else ".pasg"
+    return "".join((folder, name, suffix))
+
+
+def rename_string_values(data: bytes, renames: Mapping[str, str]) -> bytes:
+    """Replace whole string values (`_renderGroupPreset` and the like) that equal a
+    key of `renames` with its same-length value, in place."""
+
+    for old, new in renames.items():
+        if len(old.encode("utf-8")) != len(new.encode("utf-8")):
+            raise EffectEditError(f"{old} -> {new}: a rename must keep the length")
+    document = decode_effect_binary(data)
+    if not document.walk_complete:
+        raise EffectEditError(f"the file did not decode fully ({document.walk_note}); its strings are not renamed")
+    out = bytes(data)
+    for value in list(document.root.all_values()):
+        if value.kind != 1:
+            continue
+        text = str(value.value)
+        if text in renames:
+            out = write_value(out, value, renames[text].encode("utf-8"))
+    return out
 
 
 def rename_effect_strings(data: bytes, renames: Mapping[str, str]) -> bytes:
@@ -192,6 +253,8 @@ def _replacement_for(value: ReflectValue, look: "LookLike") -> Optional[bytes]:
     name = value.name
     if look.color is not None and name in COLOR_MEMBERS and value.type_name == "float3" and value.size == 12:
         return _scaled_color(value.raw, look.color)
+    if look.color is not None and name == "_overridePresetColor" and value.type_name == "bool" and value.size == 1:
+        return bytes([1])
     if abs(look.intensity - 1.0) > 1e-9 and name in BRIGHTNESS_MEMBERS and value.type_name == "float3" and value.size == 12:
         return _multiplied_float3(value.raw, look.intensity)
     if abs(look.size - 1.0) > 1e-9 and value.type_name == "float3" and value.size == 12 and (name in SIZE_MEMBERS or name in BOX_MEMBERS):

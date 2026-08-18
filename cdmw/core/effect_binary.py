@@ -445,8 +445,9 @@ class _Walker:
             self.pos += member.value_size
             node.values.append(ReflectValue(member.name, member.type_name, kind, raw, at))
         elif kind == KIND_STRING:
-            raw, _at = self.text()
-            node.values.append(ReflectValue(member.name, member.type_name, kind, raw, at))
+            raw, length_at = self.text()
+            # the span is the characters, after the u32 length, so a same-length write lands on them
+            node.values.append(ReflectValue(member.name, member.type_name, kind, raw, length_at + 4))
         elif kind == KIND_OBJECT:
             node.children.append((member.name, self.read_object(f"{path}.{member.name}", depth + 1)))
         elif kind == KIND_POINTER:

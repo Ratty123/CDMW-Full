@@ -234,7 +234,8 @@ class EncoderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             folder = Path(temp)
             mr = folder / "mr.png"
-            Image.merge("RGB", (Image.new("L", (16, 16), 255), Image.new("L", (16, 16), 40), Image.new("L", (16, 16), 220))).save(mr)
+            # a glTF map's R (occlusion here: 0) is not carried; the game's _sp has 255 in R
+            Image.merge("RGB", (Image.new("L", (16, 16), 0), Image.new("L", (16, 16), 40), Image.new("L", (16, 16), 220))).save(mr)
             try:
                 sp = encode_sp_from_png(mr)
             except Exception as exc:  # the native encoder is a build artefact; without it the gate says so and stops
@@ -242,6 +243,13 @@ class EncoderTests(unittest.TestCase):
             info = inspect_dds_native(sp)
             self.assertEqual((info.width, info.height, info.mip_count), (16, 16, 5))
             self.assertIn("BC1", str(info.format_name).upper())
+            from io import BytesIO
+
+            decoded = Image.open(BytesIO(sp)).convert("RGB")
+            red, green, blue = decoded.getpixel((4, 4))
+            self.assertGreaterEqual(red, 240, "R is 255 as shipped")
+            self.assertLess(abs(green - 40), 12)
+            self.assertLess(abs(blue - 220), 12)
             emissive = folder / "emi.png"
             image = Image.new("RGB", (16, 16), (0, 0, 0))
             for x in range(8):

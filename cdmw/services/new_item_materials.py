@@ -125,8 +125,10 @@ def _sp_path_for(base_path: str, source_name: str) -> str:
 def encode_sp_from_png(png: Path, *, on_log: Optional[Callable[[str], None]] = None) -> bytes:
     """Encode a metallic/roughness PNG as the game's `_sp` DDS (BC1, full mip chain).
 
-    glTF packs roughness in G and metalness in B, which is the `_sp` layout, so the
-    pixels go through unchanged.
+    glTF packs roughness in G and metalness in B, which is the `_sp` layout, so those
+    two channels go through unchanged; the shipped `_sp` textures carry 255 in R (a
+    steel sword's guard reads 255/59/255, its handle 255/111/43), and a glTF map's R
+    is occlusion or nothing, so R is set to 255 the way the game's own are.
     """
 
     from PIL import Image
@@ -137,6 +139,8 @@ def encode_sp_from_png(png: Path, *, on_log: Optional[Callable[[str], None]] = N
     with Image.open(png) as image:
         width, height = image.size
         rgb = image.convert("RGB")
+    _red, green, blue = rgb.split()
+    rgb = Image.merge("RGB", (Image.new("L", rgb.size, 255), green, blue))
     with tempfile.TemporaryDirectory(prefix="cdmw_new_item_sp_") as temp:
         prepared = Path(temp) / f"{png.stem}_sp.png"
         rgb.save(prepared)

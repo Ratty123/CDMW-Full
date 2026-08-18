@@ -26,7 +26,7 @@ from cdmw.core.item_icon_registry import ICON_REGISTRY_PATH, IconRegistryError, 
 from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, encode_pathc, register_dds, register_texture
 from cdmw.core.prefab_binary_edit import PrefabEditError
 from cdmw.core.effect_binary import decode_effect_binary
-from cdmw.core.effect_edit import EMITTER_DIR, EffectEditReport, apply_effect_look, emitter_paths_of, rename_effect_strings, same_length_stem
+from cdmw.core.effect_edit import EMITTER_DIR, EffectEditReport, apply_effect_look, emitter_paths_of, preset_names_of, preset_path, rename_effect_strings, rename_string_values, same_length_stem
 from cdmw.core.prefab_component_graft import encode_transform, graft_prefab_component
 from cdmw.core.item_model_family import FamilyPart, ItemModelFamily
 from cdmw.core.itemgroupinfo_table import add_group_members, apply_item_group_row, groups_containing
@@ -576,15 +576,46 @@ class _Planner:
             taken.add(new_emitter)
             renames[old_emitter] = new_emitter
             emitter_clones.append((emitter_path, old_emitter, new_emitter))
+        # the render and simulation presets the effect and its emitters name: cloned too,
+        # since an emitter's colour is the render preset's unless it overrides it
+        emitter_sources = {path: self.snapshot.payload(path) for path, _old, _new in emitter_clones}
+        preset_renames: Dict[str, str] = {}
+        preset_clones: List[Tuple[str, str, str]] = []
+        seen_presets: List[Tuple[str, str]] = []
+        for kind, name in preset_names_of(document) + tuple(
+            item for data in emitter_sources.values() for item in preset_names_of(decode_effect_binary(data))
+        ):
+            if (kind, name) in seen_presets:
+                continue
+            seen_presets.append((kind, name))
+            path = preset_path(kind, name)
+            if not self.snapshot.has_entry(path):
+                continue
+            new_name = same_length_stem(name, tag, taken=taken)
+            taken.add(new_name)
+            preset_renames[name] = new_name
+            preset_clones.append((path, kind, new_name))
         report = EffectEditReport()
-        edited_effect, report = apply_effect_look(rename_effect_strings(source, renames), look, report=report)
+
+        def cloned(data: bytes) -> bytes:
+            renamed = rename_effect_strings(data, renames)
+            if preset_renames:
+                renamed = rename_string_values(renamed, preset_renames)
+            return renamed
+
+        edited_effect, report = apply_effect_look(cloned(source), look, report=report)
         new_effect_path = _effect_file(new_stem)
         self.add(self.snapshot.entry(effect_path), new_effect_path, edited_effect, f"effect clone: {new_effect_path}")
         written = [new_effect_path]
         for emitter_path, _old, new_emitter in emitter_clones:
-            edited, report = apply_effect_look(rename_effect_strings(self.snapshot.payload(emitter_path), renames), look, report=report)
+            edited, report = apply_effect_look(cloned(emitter_sources[emitter_path]), look, report=report)
             new_path = _emitter_file(new_emitter)
             self.add(self.snapshot.entry(emitter_path), new_path, edited, f"emitter clone: {new_path}")
+            written.append(new_path)
+        for path, kind, new_name in preset_clones:
+            edited, report = apply_effect_look(rename_string_values(self.snapshot.payload(path), preset_renames), look, report=report)
+            new_path = preset_path(kind, new_name)
+            self.add(self.snapshot.entry(path), new_path, edited, f"preset clone: {new_path}")
             written.append(new_path)
         self.effect_reference = f"{new_stem}.{suffix}"
         self.manifest["effect"]["path"] = self.effect_reference
@@ -594,7 +625,7 @@ class _Planner:
             "files": written, "edited": dict(report.edited),
         }
         touched = ", ".join(f"{name} x{count}" for name, count in sorted(report.edited.items())) or "nothing the files carry"
-        self.summary.append(f"effect look: {stem} cloned as {new_stem} with {len(emitter_clones)} emitter(s); edited {touched}")
+        self.summary.append(f"effect look: {stem} cloned as {new_stem} with {len(emitter_clones)} emitter(s) and {len(preset_clones)} preset(s); edited {touched}")
         if not report.total:
             self.warnings.append("The chosen look edits nothing this effect carries (no colour, brightness, scale, spawn count or lifetime member); the clone draws as shipped.")
 

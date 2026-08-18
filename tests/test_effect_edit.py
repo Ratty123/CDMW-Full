@@ -11,7 +11,10 @@ from cdmw.core.effect_edit import (
     EffectEditError,
     apply_effect_look,
     emitter_paths_of,
+    preset_names_of,
+    preset_path,
     rename_effect_strings,
+    rename_string_values,
     same_length_stem,
 )
 from cdmw.domain.new_item.spec import EffectLook
@@ -20,6 +23,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "effects"
 EFFECT = FIXTURES / "fx_hit_common_fire_attach_a_loop.pae"
 EMBER = FIXTURES / "cdem_standard_fire_large_fire_ember_001a.paem"
 TRAIL = FIXTURES / "cdem_last_fire_circle_trail_001a.paem"
+PRESET = FIXTURES / "fx_fire_uber_ember_01.parg"
 
 
 def _values(data: bytes, name: str):
@@ -69,6 +73,40 @@ class RenameTests(unittest.TestCase):
         doc = decode_effect_binary(renamed)
         self.assertTrue(doc.walk_complete, doc.walk_note)
         self.assertEqual(doc.root.value("_emitterDataName").value, "emitter/cdem_last_fire_circle_tra_n90012")
+
+
+class PresetTests(unittest.TestCase):
+    def test_the_effect_names_its_render_preset_and_the_preset_decodes(self) -> None:
+        doc = decode_effect_binary(EFFECT.read_bytes())
+        self.assertIn(("render", "fx_fire_uber_ember_01"), preset_names_of(doc))
+        self.assertEqual(preset_path("render", "fx_fire_uber_ember_01"), "effect/binary__/renderpreset/fx_fire_uber_ember_01.parg")
+        self.assertEqual(preset_path("simulation", "butterfly"), "effect/binary__/simulationpreset/butterfly.pasg")
+        preset = decode_effect_binary(PRESET.read_bytes())
+        self.assertTrue(preset.walk_complete, preset.walk_note)
+        self.assertEqual(preset.root_type, "EmitterRenderGroupData")
+        self.assertIsNotNone(preset.root.value("_emissiveBrightness"))
+
+    def test_a_preset_name_is_renamed_as_a_whole_string_value(self) -> None:
+        data = EFFECT.read_bytes()
+        renamed = rename_string_values(data, {"fx_fire_uber_ember_01": "fx_fire_uber_e_n90021"})
+        self.assertEqual(len(renamed), len(data))
+        doc = decode_effect_binary(renamed)
+        self.assertTrue(doc.walk_complete)
+        self.assertIn(("render", "fx_fire_uber_e_n90021"), preset_names_of(doc))
+        self.assertNotIn(("render", "fx_fire_uber_ember_01"), preset_names_of(doc))
+        with self.assertRaises(EffectEditError):
+            rename_string_values(data, {"fx_fire_uber_ember_01": "short"})
+
+    def test_a_colour_sets_the_override_flag_and_edits_the_preset_too(self) -> None:
+        emitter, report = apply_effect_look(EMBER.read_bytes(), EffectLook(color=(0.2, 0.4, 1.0)))
+        self.assertGreaterEqual(report.edited.get("_overridePresetColor", 0), 1)
+        flags = [value.value for value in decode_effect_binary(emitter).root.all_values() if value.name == "_overridePresetColor"]
+        self.assertTrue(flags and all(flags))
+        preset, report = apply_effect_look(PRESET.read_bytes(), EffectLook(intensity=3.0))
+        self.assertGreaterEqual(report.edited.get("_emissiveBrightness", 0), 1)
+        before = decode_effect_binary(PRESET.read_bytes()).root.value("_emissiveBrightness").value
+        after = decode_effect_binary(preset).root.value("_emissiveBrightness").value
+        self.assertEqual(tuple(round(v, 4) for v in after), tuple(round(v * 3.0, 4) for v in before))
 
 
 class LookTests(unittest.TestCase):
