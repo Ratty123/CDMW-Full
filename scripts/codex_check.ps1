@@ -96,7 +96,8 @@ $TestsByArea = @{
         "tests/test_item_icon_registry.py",
         # New Item Studio, phase 9: imported materials rewritten to the game's plain-PBR shaders.
         "tests/test_pac_xml_standard_material.py",
-        "tests/test_new_item_materials.py"
+        "tests/test_new_item_materials.py",
+        "tests/test_effect_binary.py"
     )
     texture = @(
         "tests/test_texture_backend_retirement.py",

@@ -456,6 +456,17 @@ def _read_header(data: bytes) -> _Header:
     )
 
 
+def read_reflect_header(data: bytes) -> _Header:
+    """The container's header: version, type table, string pool and blob span.
+
+    For the other formats that share this reflection serialisation and walk their
+    blob by their own grammar; :mod:`cdmw.core.effect_binary` reads ``.pae`` and
+    ``.paem`` this way after stripping their ``PARC`` wrapper.
+    """
+
+    return _read_header(data)
+
+
 def pointer_sites(data: bytes, blob_offset: int, blob_length: int) -> tuple[int, ...]:
     """Absolute offsets of every pointer field in the blob.
 
