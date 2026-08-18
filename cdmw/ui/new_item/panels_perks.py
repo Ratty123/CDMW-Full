@@ -1,8 +1,13 @@
 """New Item Studio, panel 5: perks (the Abyss Gear socket items the item carries) and a weapon effect.
 
 Perks are the item row's default socket items: the tooltip's "Insight I", "Malicebane I"
-lines. The panel offers every item some shipped row embeds, by English name, and holds
-up to eight of them (no shipped item carries more than four). An effect is one of the
+lines. The panel offers every gem the archives know, by English name, and holds up to
+eight of them (no shipped item carries more than four). The gems are of two kinds: the
+`Item_Stat_*` ones (Destruction, Swift, the resistances) and the `Item_Skill_*` ones,
+which grant Abyss skills, the elemental abilities among them (Volcanic Eruption, Frost
+Hail, Orbs of Lightning, Storm Fang, Groundsurge, Tempest of Destruction, Wind Slash...);
+shipped items embed both kinds by default (Crow Storm on the White Crow witch's war
+hammer, Storm Fang on Endour's helm), so an elemental ability is a perk away. An effect is one of the
 shipped effect binaries, grafted into the item's own prefabs as an EffectComponent; a
 grafted fire drew on the sword in game (2026-08-18), and the presets start from the
 effects named for weapons and elements.
@@ -63,7 +68,7 @@ class PerksPanel(QGroupBox):
         perks_layout.addLayout(chosen_row)
         add_row = QHBoxLayout()
         self.perk_filter = QLineEdit()
-        self.perk_filter.setPlaceholderText("Filter perks by name (Insight, Destruction, Malicebane...)")
+        self.perk_filter.setPlaceholderText("Filter perks by name (Insight, Destruction, Malicebane; Item_Skill for the Abyss skills: Volcanic Eruption, Storm Fang, Groundsurge...)")
         self.perk_filter.textChanged.connect(self._refresh_catalogue)
         add_row.addWidget(self.perk_filter, 1)
         self.catalogue = QComboBox()

@@ -2822,7 +2822,7 @@
     "Filter model entries, e.g. nude, phm, cloak, damian, body": "過濾模型條目，例如裸體，phm，斗篷，達米安，身體",
     "Filter name, path, tags, or notes": "過濾名稱、路徑、標籤或註釋",
     "Filter or paste an existing archive item icon path": "過濾或貼上現有存檔項目圖示路徑",
-    "Filter perks by name (Insight, Destruction, Malicebane...)": "依名稱篩選特長（Insight、Destruction、Malicebane...）",
+    "Filter perks by name (Insight, Destruction, Malicebane; Item_Skill for the Abyss skills: Volcanic Eruption, Storm Fang, Groundsurge...)": "按名稱篩選特長（Insight、Destruction、Malicebane；深淵技能用 Item_Skill：Volcanic Eruption、Storm Fang、Groundsurge...）",
     "Filter source candidates to one archive extension.": "將候選來源過濾到一個存檔副檔名。",
     "Filter the HKX Modding Workspace to a practical physics tuning task.": "將 HKX 改裝工作區篩選為實際的實體調整任務。",
     "Filter the loaded archive DDS entries, then choose the original that matches the edited texture.": "過濾載入的存檔 DDS 條目，然後選擇與編輯的紋理相符的原始條目。",
