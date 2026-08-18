@@ -8848,6 +8848,7 @@
     "generated item icon image is empty": "생성된 항목 아이콘 이미지가 비어 있습니다",
     "generated item icon selection is empty": "생성된 항목 아이콘 선택이 비어 있습니다",
     "glTF ZIP": "glTF 우편번호",
+    "glTF, GLB and OBJ sources: tick Flip V in the Builder's texture setup. The importer stores their texture V as 1-v, and the game samples a mesh's V from the top of the image, the way the file has it, so without the flip the textures draw mirrored along the model (seen in game 2026-08-18).": "glTF, GLB, OBJ 원본: Builder의 텍스처 설정에서 Flip V를 체크하세요. 가져오기는 텍스처 V를 1-v로 저장하지만 게임은 메시의 V를 파일 그대로 이미지 위쪽부터 샘플링하므로, 뒤집지 않으면 텍스처가 모델을 따라 거울상으로 그려집니다(2026-08-18 게임에서 확인).",
     "glb": "glb",
     "glob": "글로브",
     "gltf": "글티프",

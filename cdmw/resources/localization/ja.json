@@ -8848,6 +8848,7 @@
     "generated item icon image is empty": "生成されたアイテム アイコンの画像が空です",
     "generated item icon selection is empty": "生成されたアイテム アイコンの選択が空です",
     "glTF ZIP": "glTF ZIP",
+    "glTF, GLB and OBJ sources: tick Flip V in the Builder's texture setup. The importer stores their texture V as 1-v, and the game samples a mesh's V from the top of the image, the way the file has it, so without the flip the textures draw mirrored along the model (seen in game 2026-08-18).": "glTF・GLB・OBJ ソース：Builder のテクスチャ設定で Flip V にチェックを入れてください。インポーターはテクスチャ V を 1-v として保存しますが、ゲームはメッシュの V をファイル通り画像の上端から参照するため、反転なしではテクスチャがモデルに沿って鏡像に描かれます（2026-08-18 にゲーム内で確認）。",
     "glb": "glb",
     "glob": "グロブ",
     "gltf": "gltf",

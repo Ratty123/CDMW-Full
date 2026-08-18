@@ -51,6 +51,13 @@ class ModelPanel(QGroupBox):
         self.model_status = QLabel("No imported model.")
         self.model_status.setWordWrap(True)
         layout.addWidget(self.model_status)
+        flip_note = QLabel(
+            "glTF, GLB and OBJ sources: tick Flip V in the Builder's texture setup. The importer stores their texture V as 1-v, "
+            "and the game samples a mesh's V from the top of the image, the way the file has it, so without the flip the textures "
+            "draw mirrored along the model (seen in game 2026-08-18)."
+        )
+        flip_note.setWordWrap(True)
+        layout.addWidget(flip_note)
         self.plain_pbr = QCheckBox("Write the imported materials for the game's plain PBR shaders (SkinnedMeshStandard: base colour, normal, roughness/metal)")
         self.plain_pbr.setChecked(True)
         self.plain_pbr.setToolTip(
