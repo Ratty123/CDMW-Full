@@ -337,11 +337,13 @@ class NewItemStudioController(QObject):
                 return None
             template_token, template_build = template
             model = source.preview_model
+            placement = self.model_placement
+            bounds = source.bounds
 
             def build_scene(stop_event):
                 from cdmw.ui.new_item.item_preview import PlacementScene
 
-                return PlacementScene(template=template_build(stop_event), model=model)
+                return PlacementScene(template=template_build(stop_event), model=model, placement=placement, model_bounds=bounds)
 
             return (("placement", id(source), template_token), build_scene)
         result = self.model_result

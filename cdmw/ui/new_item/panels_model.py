@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from cdmw.domain.new_item.spec import IconSource, MaterialRoute, ModelSource, SheathedModel
@@ -50,8 +51,18 @@ class ModelPanel(QGroupBox):
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("3. Model and icon", parent)
         self._controller = controller
-        layout = QVBoxLayout(self)
-        layout.addWidget(intro_label("What the item looks like: the template's model or one you import and place here, and the icon the inventory shows."))
+        outer = QVBoxLayout(self)
+        outer.addWidget(intro_label("What the item looks like: the template's model or one you import and place here, and the icon the inventory shows."))
+        # two columns: the choices and numbers on the left, the viewport on the right with
+        # the height to itself, so the step uses the width instead of stacking everything
+        columns = QHBoxLayout()
+        columns.setSpacing(12)
+        outer.addLayout(columns, 1)
+        left = QWidget()
+        left.setMaximumWidth(640)
+        layout = QVBoxLayout(left)
+        layout.setContentsMargins(0, 0, 0, 0)
+        columns.addWidget(left, 0)
         self.preview = ItemPreviewFrame(self)
         self._syncing_numbers = False
 
@@ -186,7 +197,7 @@ class ModelPanel(QGroupBox):
             "The imported model with its own textures over the template when there is one, else the template's mesh and textures "
             "from the archives, in the same viewport the Model Library uses. Orbit and zoom to check it; take the icon from the view you like."
         ))
-        self.preview.setMinimumHeight(360)
+        self.preview.setMinimumHeight(420)
         self.preview.status_changed.connect(self._preview_status)
         self.preview.captured.connect(self._inline_capture_done)
         self.preview.placement_changed.connect(self._gizmo_moved)
@@ -207,7 +218,7 @@ class ModelPanel(QGroupBox):
         self.icon_thumbnail.setVisible(False)
         preview_row.addWidget(self.icon_thumbnail)
         preview_layout.addLayout(preview_row)
-        layout.addWidget(preview)
+        columns.addWidget(preview, 1)
         self._preview_mesh_token: object = None
 
         icon = QGroupBox("Icon")
@@ -330,11 +341,10 @@ class ModelPanel(QGroupBox):
         imported = self._controller.model_import
         if imported is not None:
             # the placement scene: the same token only takes the new placement
-            count = len(tuple(getattr(getattr(imported, "scene", None), "mesh", None).submeshes or ())) if getattr(getattr(imported, "scene", None), "mesh", None) is not None else 0
             if token != self._preview_mesh_token:
                 self.capture_inline_button.setEnabled(False)
             self._preview_mesh_token = token
-            self.preview.show_placement(build, token=token, placement=self._controller.model_placement, model_submesh_count=count)
+            self.preview.show_placement(build, token=token, placement=self._controller.model_placement, model_bounds=imported.bounds)
             return
         if token == self._preview_mesh_token and self.preview.is_ready:
             return

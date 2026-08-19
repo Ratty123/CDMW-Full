@@ -717,6 +717,18 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
             {"display": {"gizmo_visible": bool(enabled)}}
         )
 
+    def remember_editable_local_bounds(self, minimum: Sequence[float], maximum: Sequence[float]) -> None:
+        """Tell the placement fallback the editable role's bounds in its own space. The
+        fallback otherwise reads them off the first unplaced frame; a package built with
+        the placement already in it has no such frame."""
+
+        if not self._scene_state:
+            return
+        self._scene_state["_editable_local_bounds"] = {
+            "min": list(_triple(tuple(minimum), (0.0, 0.0, 0.0))),
+            "max": list(_triple(tuple(maximum), (0.0, 0.0, 0.0))),
+        }
+
     def set_alignment_preview_transform(
         self,
         *,
@@ -1016,26 +1028,28 @@ __all__ = ["DotNetPreviewHostFrame"]
 
 
 def _placement_matrix(translation, rotation_degrees, scale_xyz) -> list:
-    """S * R * T in the helper's row-vector convention (translation in the last row);
-    the rotation is yaw (y), pitch (x), roll (z) in degrees, applied as the helper's
-    CreateFromYawPitchRoll does."""
+    """S * Rx * Ry * Rz * T in the helper's row-vector convention (translation in the
+    last row): scale, then the rotations about x, y and z in that order, then the
+    offset. That is the helper's own manual placement composition for an authoritative
+    scene (`ManualLinearMatrix`, what a gizmo drag rebuilds live) and the static
+    replacement pipeline's `_rotate_xyz`, so a placement drawn here is the one a build
+    applies."""
 
     import math
 
     sx, sy, sz = (float(v) for v in scale_xyz)
-    yaw, pitch, roll = (math.radians(float(v)) for v in (rotation_degrees[1], rotation_degrees[0], rotation_degrees[2]))
-    cy, sy_ = math.cos(yaw), math.sin(yaw)
-    cp, sp = math.cos(pitch), math.sin(pitch)
-    cr, sr = math.cos(roll), math.sin(roll)
-    # System.Numerics: CreateFromYawPitchRoll(yaw, pitch, roll) == Rz(roll) * Rx(pitch) * Ry(yaw) in row-vector order
-    rz = ((cr, sr, 0.0), (-sr, cr, 0.0), (0.0, 0.0, 1.0))
-    rx = ((1.0, 0.0, 0.0), (0.0, cp, sp), (0.0, -sp, cp))
+    ax, ay, az = (math.radians(float(v)) for v in rotation_degrees[:3])
+    cx, sx_ = math.cos(ax), math.sin(ax)
+    cy, sy_ = math.cos(ay), math.sin(ay)
+    cz, sz_ = math.cos(az), math.sin(az)
+    rx = ((1.0, 0.0, 0.0), (0.0, cx, sx_), (0.0, -sx_, cx))
     ry = ((cy, 0.0, -sy_), (0.0, 1.0, 0.0), (sy_, 0.0, cy))
+    rz = ((cz, sz_, 0.0), (-sz_, cz, 0.0), (0.0, 0.0, 1.0))
 
     def mul(a, b):
         return tuple(tuple(sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)) for i in range(3))
 
-    r = mul(mul(rz, rx), ry)
+    r = mul(mul(rx, ry), rz)
     rows = [
         [sx * r[0][0], sx * r[0][1], sx * r[0][2], 0.0],
         [sy * r[1][0], sy * r[1][1], sy * r[1][2], 0.0],
@@ -1047,13 +1061,23 @@ def _placement_matrix(translation, rotation_degrees, scale_xyz) -> list:
 
 def _apply_placement_to_editable_role(scene_state: dict, placement: Mapping[str, Sequence[float]]) -> None:
     """Write the placement into `roles.editable.model_matrix` (and its world bounds from
-    the local bounds remembered on the first call), when the scene state has that role."""
+    the local bounds remembered on the first call, or given through
+    `_editable_local_bounds`), and move `placement_pivot` with it (the gizmo sits there:
+    the source anchor under the placement, the model's origin when the scene's automatic
+    alignment names no anchor), when the scene state has that role."""
 
     roles = scene_state.get("roles")
     editable = roles.get("editable") if isinstance(roles, dict) else None
     if not isinstance(editable, dict):
         return
     matrix = _placement_matrix(placement["translation"], placement["rotation_degrees"], placement["scale"])
+    alignment = scene_state.get("automatic_alignment")
+    anchor = _triple(tuple(alignment.get("source_anchor", ()) or ()), (0.0, 0.0, 0.0)) if isinstance(alignment, Mapping) else (0.0, 0.0, 0.0)
+    scene_state["placement_pivot"] = [
+        anchor[0] * matrix[0] + anchor[1] * matrix[4] + anchor[2] * matrix[8] + matrix[12],
+        anchor[0] * matrix[1] + anchor[1] * matrix[5] + anchor[2] * matrix[9] + matrix[13],
+        anchor[0] * matrix[2] + anchor[1] * matrix[6] + anchor[2] * matrix[10] + matrix[14],
+    ]
     local = scene_state.get("_editable_local_bounds")
     if local is None:
         bounds = editable.get("world_bounds")
