@@ -98,9 +98,9 @@ def next_scale(current: float, delta: Sequence[float]) -> float:
     return max(0.01, min(10.0, float(current) + mean))
 
 
-#: The box's look in the viewport: a translucent orange, so the item inside it stays visible.
+#: The box's faces are fully transparent: the box shows only as the wire the viewport draws in its wire display mode (the placement dialog's Show the effect's box), so it never hides the item or the particles.
 BOX_TINT = (1.0, 0.45, 0.1)
-BOX_OPACITY = 0.35
+BOX_OPACITY = 0.0
 
 
 def _tint_box_material(materials_path: Path) -> None:
@@ -123,7 +123,10 @@ def _tint_box_material(materials_path: Path) -> None:
     for item in payload.get("submeshes", ()):
         if not isinstance(item, dict) or str(item.get("material", "")) != EFFECT_BOX_MATERIAL:
             continue
-        item["alpha_mode"] = "blend"
+        # cutout at opacity 0: every fragment of the faces is clipped, so the box is only
+        # ever the wire the viewport draws in its wire display mode (Show the effect's box)
+        item["alpha_mode"] = "cutout"
+        item["alpha_cutoff"] = 0.5
         item["opacity_factor"] = BOX_OPACITY
         item["double_sided"] = True
         parameters = dict(item.get("parameters", {}) or {})

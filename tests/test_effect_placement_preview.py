@@ -66,7 +66,8 @@ class BoxAndScaleTests(unittest.TestCase):
             _tint_box_material(path)
             payload = json.loads(path.read_text(encoding="utf-8"))
             box, steel = payload["submeshes"]
-            self.assertEqual(box["alpha_mode"], "blend")
+            self.assertEqual(box["alpha_mode"], "cutout")
+            self.assertEqual(box["alpha_cutoff"], 0.5)
             self.assertEqual(box["opacity_factor"], BOX_OPACITY)
             self.assertTrue(box["double_sided"])
             self.assertEqual(box["parameters"]["base_tint_color"], [1.0, 0.45, 0.1])
@@ -91,7 +92,7 @@ class PackageTests(unittest.TestCase):
             self.assertTrue(scene["gizmo"]["visible"])
             materials = json.loads((preview.package_dir / "net_materials.json").read_text(encoding="utf-8"))
             box = next(item for item in materials["submeshes"] if item["material"] == EFFECT_BOX_MATERIAL)
-            self.assertEqual(box["alpha_mode"], "blend")
+            self.assertEqual(box["alpha_mode"], "cutout")
 
 
 def _fire_preview():
