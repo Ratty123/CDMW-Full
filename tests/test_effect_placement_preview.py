@@ -1,4 +1,4 @@
-"""The effect placement preview: the box mesh, the scale delta, the tinted package, the dialog's numbers."""
+"""The effect placement preview: the anchor mesh, the scale delta, the tinted package, the dialog's numbers."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ from pathlib import Path
 
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services.effect_placement_preview import (
-    BOX_OPACITY,
-    EFFECT_BOX_MATERIAL,
-    _tint_box_material,
-    box_mesh,
+    EFFECT_ANCHOR_MATERIAL,
+    EFFECT_ANCHOR_RADIUS,
+    _tint_anchor_material,
+    anchor_mesh,
     build_effect_placement_package,
     next_scale,
 )
@@ -26,28 +26,26 @@ def _blade() -> ParsedMesh:
     return ParsedMesh(path="blade.pac", format="pac", submeshes=[submesh], bbox_min=(-0.02, 0.0, -0.9), bbox_max=(0.02, 0.0, 0.2), total_vertices=4, total_faces=2, has_uvs=True)
 
 
-class BoxAndScaleTests(unittest.TestCase):
-    def test_box_mesh_is_a_closed_box_of_the_given_span(self) -> None:
-        mesh = box_mesh((-1.24, -1.24, -1.39), (1.26, 1.29, 1.25))
+class AnchorAndScaleTests(unittest.TestCase):
+    def test_anchor_mesh_is_a_small_closed_octahedron_at_the_origin(self) -> None:
+        mesh = anchor_mesh()
         self.assertEqual(len(mesh.submeshes), 1)
-        box = mesh.submeshes[0]
-        self.assertEqual(box.material, EFFECT_BOX_MATERIAL)
-        self.assertEqual(len(box.vertices), 24)
-        self.assertEqual(len(box.faces), 12)
-        self.assertEqual(len(box.normals), 24)
-        xs = sorted({round(v[0], 2) for v in box.vertices})
-        self.assertEqual(xs, [-1.24, 1.26])
-        self.assertEqual(mesh.bbox_min, (-1.24, -1.24, -1.39))
-        self.assertEqual(mesh.bbox_max, (1.26, 1.29, 1.25))
-        # every face index is a vertex, and every face is a real triangle
-        for face in box.faces:
-            self.assertTrue(all(0 <= index < 24 for index in face))
+        anchor = mesh.submeshes[0]
+        self.assertEqual(anchor.material, EFFECT_ANCHOR_MATERIAL)
+        self.assertEqual(len(anchor.faces), 8)
+        self.assertEqual(len(anchor.vertices), 24)
+        self.assertEqual(len(anchor.normals), 24)
+        r = EFFECT_ANCHOR_RADIUS
+        self.assertEqual(mesh.bbox_min, (-r, -r, -r))
+        self.assertEqual(mesh.bbox_max, (r, r, r))
+        self.assertLess(r, 0.05, "a marker, not a box the size of the effect")
+        # every face is a real triangle whose normal points away from the origin
+        for face, normal in zip(anchor.faces, anchor.normals[::3]):
             self.assertEqual(len(set(face)), 3)
-
-    def test_a_flat_or_empty_box_gets_a_floor_extent(self) -> None:
-        mesh = box_mesh((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
-        low, high = mesh.bbox_min, mesh.bbox_max
-        self.assertTrue(all(h - l > 0.04 for l, h in zip(low, high)))
+            a, b, c = (anchor.vertices[i] for i in face)
+            centre = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
+            self.assertGreater(sum(normal[i] * centre[i] for i in range(3)), 0.0)
+        self.assertEqual(anchor_mesh(0.0).bbox_max, (0.001, 0.001, 0.001), "a floor on the radius")
 
     def test_next_scale_is_the_mean_delta_clamped(self) -> None:
         self.assertAlmostEqual(next_scale(0.5, (0.1, 0.1, 0.1)), 0.6)
@@ -56,34 +54,34 @@ class BoxAndScaleTests(unittest.TestCase):
         self.assertEqual(next_scale(9.0, (5.0, 5.0, 5.0)), 10.0)
         self.assertEqual(next_scale(1.0, ()), 1.0)
 
-    def test_the_box_material_becomes_translucent_orange(self) -> None:
+    def test_the_anchor_material_becomes_opaque_orange(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "net_materials.json"
             path.write_text(json.dumps({"submeshes": [
-                {"submesh_index": 0, "material": EFFECT_BOX_MATERIAL, "alpha_mode": "opaque", "opacity_factor": 1.0, "parameters": {"roughness": 0.5}},
+                {"submesh_index": 0, "material": EFFECT_ANCHOR_MATERIAL, "alpha_mode": "blend", "opacity_factor": 0.2, "parameters": {"roughness": 0.5}},
                 {"submesh_index": 1, "material": "steel", "alpha_mode": "opaque", "opacity_factor": 1.0, "parameters": {}},
             ]}), encoding="utf-8")
-            _tint_box_material(path)
+            _tint_anchor_material(path)
             payload = json.loads(path.read_text(encoding="utf-8"))
-            box, steel = payload["submeshes"]
-            self.assertEqual(box["alpha_mode"], "cutout")
-            self.assertEqual(box["alpha_cutoff"], 0.5)
-            self.assertEqual(box["opacity_factor"], BOX_OPACITY)
-            self.assertTrue(box["double_sided"])
-            self.assertEqual(box["parameters"]["base_tint_color"], [1.0, 0.45, 0.1])
+            anchor, steel = payload["submeshes"]
+            self.assertEqual(anchor["alpha_mode"], "opaque")
+            self.assertEqual(anchor["opacity_factor"], 1.0)
+            self.assertTrue(anchor["double_sided"])
+            self.assertEqual(anchor["parameters"]["base_tint_color"], [1.0, 0.45, 0.1])
             self.assertEqual(steel["alpha_mode"], "opaque")
             # a missing file is left alone
-            _tint_box_material(Path(folder) / "missing.json")
+            _tint_anchor_material(Path(folder) / "missing.json")
 
 
 class PackageTests(unittest.TestCase):
-    def test_the_package_puts_the_box_first_and_the_item_as_reference(self) -> None:
+    def test_the_package_puts_the_anchor_first_and_the_item_as_reference(self) -> None:
         if os.environ.get("CDMW_SKIP_DOTNET_PACKAGE_TESTS") == "1":
             self.skipTest("dotnet package tests skipped by request")
         with tempfile.TemporaryDirectory() as folder:
             preview = build_effect_placement_package(_blade(), (-0.5, -0.5, -0.5), (0.5, 0.5, 0.5), output_root=Path(folder))
             self.assertEqual(preview.box_submesh_index, 0)
             self.assertEqual(preview.item_submesh_count, 1)
+            self.assertEqual((preview.box_min, preview.box_max), ((-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)), "the reach travels as numbers")
             scene = json.loads((preview.package_dir / "dotnet_scene.json").read_text(encoding="utf-8-sig"))
             self.assertEqual(scene["comparison_mode"], "overlay")
             self.assertEqual(scene["interaction_mode"], "placement")
@@ -91,8 +89,11 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(scene["roles"]["original_reference"], [1])
             self.assertTrue(scene["gizmo"]["visible"])
             materials = json.loads((preview.package_dir / "net_materials.json").read_text(encoding="utf-8"))
-            box = next(item for item in materials["submeshes"] if item["material"] == EFFECT_BOX_MATERIAL)
-            self.assertEqual(box["alpha_mode"], "cutout")
+            anchor = next(item for item in materials["submeshes"] if item["material"] == EFFECT_ANCHOR_MATERIAL)
+            self.assertEqual(anchor["alpha_mode"], "opaque")
+            # the scene frames the item, not the anchor: the anchor is tiny inside the item's bounds
+            bounds = scene["bounds"]
+            self.assertLess(bounds["min"][2], -0.8)
 
 
 def _fire_preview():
@@ -208,14 +209,14 @@ class DialogTests(unittest.TestCase):
         )
         try:
             self.assertIsNone(dialog.host)
-            self.assertTrue(dialog.emitters_label.isVisibleTo(dialog))
+            self.assertTrue(dialog.emitters_toggle.isVisibleTo(dialog), "the emitters are folded under a toggle")
             self.assertIn("cdem_last_fire_circle_trail_001a: billboard", dialog.emitters_label.text())
-            self.assertIn("2.00 x 2.00 x 2.00 m; at scale 0.50: 1.00 x 1.00 x 1.00 m", dialog.size_label.text())
+            self.assertIn("Reach at scale 0.50: 1.00 x 1.00 x 1.00 m (the effect's own 2.00 x 2.00 x 2.00 m)", dialog.size_label.text())
             dialog.apply_deltas((0.0, 0.0, 0.2))
             self.assertEqual(dialog.offset, (0.0, 0.0, 0.3))
             dialog.apply_deltas((0.0, 0.0, 0.0), (0.1, 0.1, 0.1))
             self.assertAlmostEqual(dialog.scale, 0.6)
-            self.assertIn("at scale 0.60: 1.20 x 1.20 x 1.20 m", dialog.size_label.text())
+            self.assertIn("Reach at scale 0.60: 1.20 x 1.20 x 1.20 m", dialog.size_label.text())
             dialog.scale_spin.setValue(0.25)
             dialog.offset_spins[1].setValue(-0.05)
             self.assertEqual(dialog.scale, 0.25)

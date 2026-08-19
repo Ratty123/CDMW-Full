@@ -846,7 +846,14 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         package = self._desired_package
         if package is None or not self._session_established:
             return False
-        capture_dir = package.output_dir / "captures"
+        # The helper only writes captures under the output directory it was launched
+        # with; a package loaded into the resident process later has its own output
+        # directory, which the helper refuses ("Capture output must remain inside the
+        # package output directory"). Ask under the launch package's, recreated if the
+        # package was cleaned up meanwhile; the file is moved to `output_path` anyway.
+        launch = str(self._launch_package_path or "")
+        capture_root = Path(launch) / "output" if launch and self._process is not None else package.output_dir
+        capture_dir = capture_root / "captures"
         try:
             capture_dir.mkdir(parents=True, exist_ok=True)
         except OSError:

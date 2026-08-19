@@ -8,7 +8,6 @@ from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QDialog,
     QDoubleSpinBox,
     QFileDialog,
     QGridLayout,
@@ -16,6 +15,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QProgressBar,
     QPushButton,
     QRadioButton,
     QVBoxLayout,
@@ -52,7 +52,7 @@ class ModelPanel(QGroupBox):
         super().__init__("3. Model and icon", parent)
         self._controller = controller
         outer = QVBoxLayout(self)
-        outer.addWidget(intro_label("What the item looks like: the template's model or one you import and place here, and the icon the inventory shows."))
+        outer.addWidget(intro_label("The model (the template's, or one of your own placed over it) and the inventory icon."))
         # two columns: the choices and numbers on the left, the viewport on the right with
         # the height to itself, so the step uses the width instead of stacking everything
         columns = QHBoxLayout()
@@ -89,11 +89,12 @@ class ModelPanel(QGroupBox):
         model_layout.addLayout(row)
         self.model_status = NoteLabel("No imported model.", None)
         model_layout.addWidget(self.model_status)
-        model_layout.addWidget(intro_label(
-            "Hand placement: the game holds the new item exactly as it holds the template (grip at the origin, blade toward -z), "
-            "so your model is placed over the template's mesh below, with the gizmo or the numbers, and the placement is applied "
-            "before the plan is built."
-        ))
+        self.busy_bar = QProgressBar()
+        self.busy_bar.setRange(0, 0)
+        self.busy_bar.setTextVisible(False)
+        self.busy_bar.setFixedHeight(6)
+        self.busy_bar.setVisible(False)
+        model_layout.addWidget(self.busy_bar)
         self.plain_pbr = QCheckBox("Use the game's plain PBR shaders for the imported textures (recommended)")
         self.plain_pbr.setChecked(True)
         self.plain_pbr.setToolTip(
@@ -127,9 +128,8 @@ class ModelPanel(QGroupBox):
         self.placement_group = QGroupBox("Place the model over the template")
         placement_layout = QVBoxLayout(self.placement_group)
         placement_layout.addWidget(intro_label(
-            "Your model is the solid one, the template the reference drawn under it. Drag the gizmo in the viewport (move, rotate, "
-            "scale) or type the numbers: scale first, then rotation, then offset, all about the origin. Apply the placement to build "
-            "the item's mesh from it; move it again and the build is dropped until you apply once more."
+            "Drag the gizmo in the viewport or type the numbers. The game holds the item as it holds the template: origin = the hand, "
+            "blade toward -z. Apply the placement builds the item's mesh from it."
         ))
         view_row = QHBoxLayout()
         view_row.addWidget(QLabel("View:"))
@@ -193,10 +193,7 @@ class ModelPanel(QGroupBox):
 
         preview = QGroupBox("Preview: the item as it will be")
         preview_layout = QVBoxLayout(preview)
-        preview_layout.addWidget(intro_label(
-            "The imported model with its own textures over the template when there is one, else the template's mesh and textures "
-            "from the archives, in the same viewport the Model Library uses. Orbit and zoom to check it; take the icon from the view you like."
-        ))
+        preview_layout.addWidget(intro_label("Your model (textured) over the template, or the template alone. Orbit and zoom; the icon is taken from this view."))
         self.preview.setMinimumHeight(420)
         self.preview.status_changed.connect(self._preview_status)
         self.preview.captured.connect(self._inline_capture_done)
@@ -204,7 +201,7 @@ class ModelPanel(QGroupBox):
         preview_layout.addWidget(self.preview, 1)
         preview_row = QHBoxLayout()
         self.capture_inline_button = QPushButton("Capture the icon from this view")
-        self.capture_inline_button.setToolTip("Takes the frame above at 512 x 512 with the grid and gizmo hidden and makes it the item's icon (ticks Give the item its own icon).")
+        self.capture_inline_button.setToolTip("The view as it is, at 512 x 512, grid and gizmo hidden, as the item's icon.")
         self.capture_inline_button.clicked.connect(self._capture_inline)
         self.capture_inline_button.setEnabled(False)
         preview_row.addWidget(self.capture_inline_button)
@@ -243,10 +240,6 @@ class ModelPanel(QGroupBox):
         self.icon_folder_button.setToolTip("Pick the best-matching image out of a folder.")
         self.icon_folder_button.clicked.connect(self._pick_icon_folder)
         source_row.addWidget(self.icon_folder_button)
-        self.icon_capture_button = QPushButton("Capture in a window...")
-        self.icon_capture_button.setToolTip("The same capture in its own window: the item's mesh in the resident viewport, orbit it, take the frame as the icon.")
-        self.icon_capture_button.clicked.connect(self._capture_icon)
-        source_row.addWidget(self.icon_capture_button)
         icon_layout.addLayout(source_row)
         layout.addWidget(icon)
 
@@ -314,7 +307,7 @@ class ModelPanel(QGroupBox):
 
     def _icon_source_changed(self, keep: bool) -> None:
         self._controller.draft.icon = IconSource.TEMPLATE if keep else IconSource.GENERATED
-        for widget in (self.icon_source, self.icon_file_button, self.icon_folder_button, self.icon_capture_button):
+        for widget in (self.icon_source, self.icon_file_button, self.icon_folder_button):
             widget.setEnabled(not keep)
         self._controller.plan = None
 
@@ -325,11 +318,15 @@ class ModelPanel(QGroupBox):
         QTimer.singleShot(0, self.refresh_preview)
 
     def refresh_preview(self) -> None:
-        """Show the item as it will be in the inline viewport, textured, when the step is
-        on screen: the imported model's own preview, else the template's mesh decoded
-        from the archives with its textures (the decode runs off the UI thread)."""
+        """Show the item as it will be in the inline viewport, textured: the imported
+        model's own preview, else the template's mesh decoded from the archives with its
+        textures. The decode and the package run off the UI thread, and they start as
+        soon as a template is chosen, shown or not, so the step opens with the item
+        already there."""
 
-        if not self.isVisible():
+        window = self.window()
+        if not (self.isVisible() or (window is not None and window.isVisible())):
+            # nothing on screen at all (tests, a tab never shown): no background work
             return
         source = self._controller.item_preview_source()
         if source is None:
@@ -410,6 +407,7 @@ class ModelPanel(QGroupBox):
         lane = getattr(self._controller, "_lane", "")
         for widget in (self.import_button, self.apply_button, self.fit_button, self.reset_placement_button):
             widget.setEnabled(not busy)
+        self.busy_bar.setVisible(bool(busy) and lane in {"model_import", "model_apply"})
         if busy and lane == "model_import":
             self.model_status.set_note("Reading the model file...", EDIT)
         elif busy and lane == "model_apply":
@@ -420,8 +418,7 @@ class ModelPanel(QGroupBox):
 
     def _capture_inline(self) -> None:
         if not self.preview.capture():
-            # no live view: the dialog route still works
-            self._capture_icon()
+            self.preview_status.setText("The viewport is not showing the item yet; wait for it, then capture.")
 
     def _inline_capture_done(self, path: object, image: object) -> None:
         self.generate_icon.setChecked(True)
@@ -439,28 +436,6 @@ class ModelPanel(QGroupBox):
             self.preview.shutdown()
         except Exception:  # noqa: BLE001
             pass
-
-    def _capture_icon(self) -> None:
-        source = self._controller.item_preview_source()
-        if source is None:
-            self._controller.status_message.emit("Choose a template (or import a model) first; there is no mesh to show.", True)
-            return
-        token, build = source
-        dialog = self.icon_capture_dialog_factory(
-            self, item_source=build, item_token=token,
-            item_placement=self._controller.model_placement if self._controller.model_import is not None else None,
-            item_label=self._controller.draft.internal_name or self._controller.template_name(),
-        )
-        if dialog.exec() != QDialog.Accepted or dialog.captured_path is None:
-            return
-        self.generate_icon.setChecked(True)
-        self.icon_source.setText(str(dialog.captured_path))
-
-    @staticmethod
-    def icon_capture_dialog_factory(parent, **kwargs):
-        from cdmw.ui.new_item.icon_capture_dialog import IconCaptureDialog
-
-        return IconCaptureDialog(parent, **kwargs)
 
     def _store_icon_source(self, text: str) -> None:
         self._controller.draft.icon_source_path = str(text)

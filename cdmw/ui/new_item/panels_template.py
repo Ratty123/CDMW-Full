@@ -19,10 +19,7 @@ class TemplatePanel(QGroupBox):
         self._controller = controller
         self._syncing = False
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label(
-            "Every new item is a copy of a shipped one. The template fixes what it is (equip slot, item type, sockets, "
-            "animations, sheath, stat shape); everything after this step changes the copy. Only equipment can be cloned."
-        ))
+        layout.addWidget(intro_label("Every new item is a copy of a shipped one: the template sets what it is (slot, type, sockets, animations, sheath); everything after changes the copy. Equipment only."))
         row = QHBoxLayout()
         row.addWidget(QLabel("Find:"))
         self.filter_edit = QLineEdit()

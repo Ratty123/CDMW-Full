@@ -853,10 +853,13 @@ class VanillaNewItemTests(unittest.TestCase):
             snapshot,
             model=ModelFiles(pac_data=snapshot.payload("character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0109.pac")),
         )
-        self.assertEqual(sorted(request.path.rsplit("/", 1)[-1] for request in imported.additions), [
+        # an imported model draws its own sheathed look by default (SheathedModel.OWN_MODEL),
+        # so the borrowed _in prefabs are cloned under the stem too
+        self.assertEqual(sorted(request.path.rsplit("/", 1)[-1] for request in imported.additions), sorted([
             f"{imported.spec.stem}.hkx", f"{imported.spec.stem}.pac", f"{imported.spec.stem}.pac_xml",
             f"{imported.spec.stem}_l.prefab", f"{imported.spec.stem}_r.prefab",
-        ])
+            f"{imported.spec.stem}_l_in.prefab", f"{imported.spec.stem}_r_in.prefab",
+        ]))
         self.assertTrue(imported.spec.stem.startswith("cd_phm_01_sword_"))
         for request in imported.additions:
             self.assertFalse(snapshot.has_entry(request.path), request.path)

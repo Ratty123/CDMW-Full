@@ -17,7 +17,6 @@ from typing import Callable, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QThread, Qt, QTimer
 from PySide6.QtWidgets import (
-    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
@@ -33,6 +32,7 @@ from PySide6.QtWidgets import (
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.effect_placement_preview import EffectPlacementPreview, build_effect_placement_package, next_scale
 from cdmw.services.effect_preview_model import EffectPreview
+from cdmw.ui.new_item.ui_kit import DetailsToggle
 from cdmw.workers.utility_workers import UtilityWorker
 
 Vec3 = Tuple[float, float, float]
@@ -97,10 +97,8 @@ class EffectPlacementDialog(QDialog):
 
         layout = QVBoxLayout(self)
         intro = QLabel(
-            f"{effect_label or 'The effect'} on the item. The wire is the item as the game holds it: its origin is the hand, the blade runs "
-            "toward -z, the pommel toward +z. The particles are an approximate reading of the effect, where it will be at this scale and "
-            "offset. Move or scale it with the gizmo or the numbers on the right; the numbers go into the plan when you accept. "
-            "Tick Show the effect's box to see its bounding box (the reach the game reserves for it)."
+            f"{effect_label or 'The effect'} on the item: drag the orange anchor with the gizmo (Move / Scale) or type the numbers. "
+            "The wire is the item as the game holds it (origin = the hand, blade toward -z); the particles are an approximate reading of the effect."
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
@@ -157,20 +155,15 @@ class EffectPlacementDialog(QDialog):
             form.addRow(axis, spin)
             self.offset_spins.append(spin)
         side.addLayout(form)
-        self.show_box = QCheckBox("Show the effect's box")
-        self.show_box.setToolTip("The effect's bounding box at this scale and offset, drawn as a wire box. Off by default: the particles show where the effect is, and the box only gets in the way of the item.")
-        self.show_box.setChecked(False)
-        self.show_box.toggled.connect(lambda _checked: self._apply_box_visibility())
-        side.addWidget(self.show_box)
         width, height, depth = (high - low for low, high in zip(*self._box))
         self.size_label = QLabel("")
         self.size_label.setWordWrap(True)
         self._box_size = (width, height, depth)
         side.addWidget(self.size_label)
-        self.emitters_label = QLabel(describe_effect_preview(effect_preview))
-        self.emitters_label.setWordWrap(True)
-        self.emitters_label.setVisible(effect_preview is not None)
-        side.addWidget(self.emitters_label)
+        self.emitters_toggle = DetailsToggle(describe_effect_preview(effect_preview), title="What the effect is made of")
+        self.emitters_label = self.emitters_toggle.body
+        self.emitters_toggle.setVisible(effect_preview is not None)
+        side.addWidget(self.emitters_toggle)
         self.status = QLabel("Preparing the viewport...")
         self.status.setWordWrap(True)
         side.addWidget(self.status)
@@ -238,34 +231,34 @@ class EffectPlacementDialog(QDialog):
             return
         if str(state) == "ready" and self._preview is not None:
             self.host.set_display_mode("overlay")
-            self.host.set_alignment_state(enabled=True, source_submesh_indices=(self._preview.box_submesh_index,))
+            self.host.set_viewport_display_mode("textured")
+            self.host.set_alignment_state(enabled=True)
+            # the camera frames the editable role's bounds; the anchor is a few centimetres,
+            # so hand it the item's bounds instead and the view opens on the item
+            remember = getattr(self.host, "remember_editable_local_bounds", None)
+            if callable(remember):
+                low, high = self._item_bounds()
+                remember(low, high)
             self._sync_host()
-            self._apply_box_visibility()
-            sentences = ["Drag the gizmo on the box. Move: offset along the item's axes. Scale: a uniform scale on the effect."]
-            if self._preview.preview_file is not None:
-                if self._host_draws_particles():
-                    sentences.append("The particles are an approximate CPU reading of the effect's emitters (sprites, colours and motion from its binaries), not the game's own simulation; they follow the box.")
-                else:
-                    sentences.append("The effect's particle description is in the package; the viewport draws it once its particle layer lands, the box until then.")
+            reset = getattr(self.host, "reset_view", None)
+            if callable(reset):
+                reset()
+            sentences = []
+            if self._preview.preview_file is not None and not self._host_draws_particles():
+                sentences.append("This viewport build draws no particles yet; the anchor shows where the effect sits.")
             if self._preview.missing_textures:
                 sentences.append(f"{len(self._preview.missing_textures)} sprite texture(s) could not be read from the archives.")
             self.status.setText(" ".join(sentences))
         elif str(state) == "error":
             self.status.setText(str(message or "The viewport reported an error."))
 
-    def _apply_box_visibility(self) -> None:
-        """Show or hide the box's edges: its faces are fully transparent in the package, so
-        the box is only visible as the wire the viewport draws in its wire display mode.
-        The gizmo, the frame the particles follow and the numbers do not depend on it."""
-
-        if self.host is None or self._preview is None:
-            return
-        setter = getattr(self.host, "set_viewport_display_mode", None)
-        if callable(setter):
-            try:
-                setter("untextured_wire" if self.show_box.isChecked() else "untextured_faces")
-            except Exception:  # noqa: BLE001 - a host without display modes keeps whatever it draws
-                pass
+    def _item_bounds(self) -> Tuple[Vec3, Vec3]:
+        mesh = self._item_mesh
+        low = tuple(float(v) for v in (getattr(mesh, "bbox_min", None) or (-0.5, -0.5, -0.5)))
+        high = tuple(float(v) for v in (getattr(mesh, "bbox_max", None) or (0.5, 0.5, 0.5)))
+        if all(abs(h - l) < 1e-6 for l, h in zip(low, high)):
+            low, high = (-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)
+        return low, high  # type: ignore[return-value]
 
     def _host_draws_particles(self) -> bool:
         """Whether the resident helper announced the particle layer (`effect_particle_preview_v1`)."""
@@ -291,7 +284,7 @@ class EffectPlacementDialog(QDialog):
     def _refresh_size_label(self) -> None:
         width, height, depth = self._box_size
         self.size_label.setText(
-            f"Effect box {width:.2f} x {height:.2f} x {depth:.2f} m; at scale {self.scale:.2f}: {width * self.scale:.2f} x {height * self.scale:.2f} x {depth * self.scale:.2f} m."
+            f"Reach at scale {self.scale:.2f}: {width * self.scale:.2f} x {height * self.scale:.2f} x {depth * self.scale:.2f} m (the effect's own {width:.2f} x {height:.2f} x {depth:.2f} m)."
         )
 
     def _set_numbers(self, offset: Vec3, scale: float) -> None:
