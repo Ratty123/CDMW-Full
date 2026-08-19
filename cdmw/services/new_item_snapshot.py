@@ -21,6 +21,7 @@ from typing import Callable, Dict, FrozenSet, Iterable, List, Mapping, Optional,
 from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.item_model_family import ItemModelFamily, ItemModelFamilyError, discover_item_model_family
 from cdmw.core.itemgroupinfo_table import ItemGroupRow, groups_containing, parse_item_group_table
+from cdmw.domain.new_item.allocation import DEFAULT_ITEM_KEY_RANGE
 from cdmw.core.iteminfo_row import ItemInfoRow, ItemInfoRowError, parse_iteminfo_row, parse_status_names
 from cdmw.core.multichangeinfo_table import MultiChangeRow, parse_multichange_table
 from cdmw.core.pathc_format import PATHC_RELATIVE_PATH, PathcError, PathcTable, parse_pathc
@@ -92,6 +93,8 @@ class NewItemSnapshot:
     #: Stems of the shipped effect binaries (`effect/binary__/releasebin/<stem>.pae`),
     #: what a weapon effect may name.
     effect_stems: FrozenSet[str] = frozenset()
+    _status_ranges: Optional[Mapping[int, Tuple[int, int, int, int]]] = field(default=None, repr=False)
+    _socket_users: Optional[Mapping[int, int]] = field(default=None, repr=False)
     _families: Dict[int, ItemModelFamily] = field(default_factory=dict, repr=False)
     _payloads: Dict[str, bytes] = field(default_factory=dict, repr=False)
     _index_maps: Optional[Tuple[Mapping[str, Tuple[ArchiveEntry, ...]], Mapping[str, Tuple[ArchiveEntry, ...]]]] = field(default=None, repr=False)
@@ -198,6 +201,51 @@ class NewItemSnapshot:
 
     def equip_type_name(self, row: ItemInfoRow) -> str:
         return self.equip_type_names.get(int(row.equip_type_key or 0), "") if row.equip_type_key else ""
+
+    def socket_item_users(self) -> Mapping[int, int]:
+        """`{gem item key: how many shipped rows carry it in their socket list}`.
+
+        Two thirds of the gem catalogue is carried by nothing the game ships, and those
+        are the ones with no evidence that an equipment row may hold them at all.
+        """
+
+        if self._socket_users is None:
+            users: Dict[int, int] = {}
+            for key, row in self.rows.items():
+                if int(key) in DEFAULT_ITEM_KEY_RANGE:
+                    continue
+                for item in row.socket_items:
+                    users[int(item)] = users.get(int(item), 0) + 1
+            self._socket_users = users
+        return self._socket_users
+
+    def status_value_ranges(self) -> Mapping[int, Tuple[int, int, int, int]]:
+        """`{status key: (entries, low, median, high)}` over shipped equipment rows.
+
+        What the game's own ladders carry for a stat is the only measure of a sane value
+        for it: `AttackSpeedRate` runs 30,000,000 to 90,000,000 across the five shipped
+        rows that carry it, so a 1,000 written into that column is three orders of
+        magnitude out. Rows in the studio's own key range are left out, since an item the
+        studio wrote is not evidence of what the game ships. The whole corpus measures in
+        about a fiftieth of a second and the answer is kept.
+        """
+
+        if self._status_ranges is None:
+            from statistics import median
+
+            values: Dict[int, List[int]] = {}
+            for key, row in self.rows.items():
+                if int(key) in DEFAULT_ITEM_KEY_RANGE or not self.equip_type_name(row):
+                    continue
+                for level in row.enchant_levels:
+                    for stat in level.stats:
+                        values.setdefault(int(stat.status_key), []).append(int(stat.value))
+            self._status_ranges = {
+                key: (len(numbers), min(numbers), int(median(numbers)), max(numbers))
+                for key, numbers in values.items()
+                if numbers
+            }
+        return self._status_ranges
 
 
 # --------------------------------------------------------------------------- building

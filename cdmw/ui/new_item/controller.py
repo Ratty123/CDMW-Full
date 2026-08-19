@@ -193,6 +193,22 @@ class NewItemStudioController(QObject):
         self._equipment_status_cache = frozenset(keys)
         return self._equipment_status_cache
 
+    def status_value_range(self, status_key: int):
+        """What shipped equipment carries for one stat: `(entries, low, median, high)`,
+        or None when no shipped row carries it.
+
+        The studio will happily write any i32 into a stat it adds, and a value the game
+        never sees on that stat is where an item goes strange in play: `AttackSpeedRate`
+        runs 30,000,000 to 90,000,000 on the five shipped rows that carry it, so the
+        1,000 the spin box used to start at is three orders of magnitude out. The whole
+        corpus is measured in about half a second, so this is read from the rows rather
+        than guessed.
+        """
+
+        if self.snapshot is None:
+            return None
+        return self.snapshot.status_value_ranges().get(int(status_key))
+
     def store_names(self) -> Tuple[str, ...]:
         return tuple(sorted(store.name for store in self.snapshot.stores)) if self.snapshot else ()
 
@@ -266,23 +282,35 @@ class NewItemStudioController(QObject):
             return ()
         needle = str(text or "").strip().casefold()
         english = self.snapshot.english.index()
+        users = self.snapshot.socket_item_users()
         out = []
         for key in self.snapshot.perk_item_keys:
             row = self.snapshot.rows.get(key)
             if row is None:
                 continue
-            entry = english.get(row.name_key) if row.name_key else None
-            label = f"{entry.text} ({row.string_key})" if entry is not None else row.string_key
+            label = self._perk_label(key, row, english, users)
             if needle and needle not in label.casefold() and needle != str(key):
                 continue
             out.append((key, label))
         return tuple(sorted(out, key=lambda item: item[1].casefold())[:limit])
 
     def perk_label(self, key: int) -> str:
-        for candidate, label in self.perk_catalogue():
-            if candidate == int(key):
-                return label
-        return str(key)
+        """One gem's label, read from the row rather than from the (truncated) catalogue."""
+
+        if self.snapshot is None:
+            return str(key)
+        row = self.snapshot.rows.get(int(key))
+        if row is None:
+            return str(key)
+        return self._perk_label(int(key), row, self.snapshot.english.index(), self.snapshot.socket_item_users())
+
+    @staticmethod
+    def _perk_label(key: int, row, english, users) -> str:
+        entry = english.get(row.name_key) if row.name_key else None
+        label = f"{entry.text} ({row.string_key})" if entry is not None else row.string_key
+        # a gem nothing in the game carries is a gem with no evidence it may sit in an
+        # equipment row at all, which is worth seeing before it is picked
+        return label if users.get(int(key)) else f"{label}  (no shipped item carries it: unproven)"
 
     def template_socket_items(self) -> Tuple[int, ...]:
         if self.snapshot is None or self.draft.template_key is None:

@@ -42,6 +42,8 @@ REQUIRED_LANGUAGE = "eng"
 #: The socket list the row reader accepts, and the most any shipped item carries (Regglin's boss sword, four).
 MAX_SOCKET_ITEMS = 8
 MAX_SHIPPED_SOCKET_ITEMS = 4
+#: The longest `_addSocketMaterialList` any shipped row carries (162 rows carry five).
+MAX_SHIPPED_SOCKET_SLOTS = 5
 
 _INTERNAL_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 _STEM_RE = re.compile(r"^[a-z0-9][a-z0-9_]{0,63}$")

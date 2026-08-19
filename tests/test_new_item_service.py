@@ -519,8 +519,32 @@ class PlanTests(_PackageCase):
         self.assertNotIn("socket_items", same.manifest, "the template's own list changes nothing")
         five = self.service.plan(self._spec(socket_items=(1002791,) * 5), self.snapshot)
         self.assertTrue(any("5 socket items" in w for w in five.warnings), five.warnings)
+        # a gem nothing in the game carries has no evidence an equipment row may hold it;
+        # 108 of the 190 gems in the shipped archives are in that position
+        self.assertTrue(any("carried by no shipped item" in w for w in plan.warnings), plan.warnings)
+        self.assertFalse(any("carried by no shipped item" in w for w in same.warnings), "the template's own perk is carried")
+        six = self.service.plan(self._spec(socket_items=(1002791,) * 6), self.snapshot)
+        self.assertTrue(any("6 socket slots" in w for w in six.warnings), six.warnings)
         with self.assertRaises(NewItemPlanError):
             self.service.plan(self._spec(socket_items=(424242,)), self.snapshot)
+
+    def test_a_stat_written_far_outside_the_shipped_range_is_flagged(self) -> None:
+        """The tables read fine either way; the item behaves strangely in play. Shipped
+        equipment carries AttackSpeedRate between 30 and 90 million, so the 1,000 a spin
+        box starts at is three orders of magnitude out, and the plan should say so."""
+
+        ranges = self.snapshot.status_value_ranges()
+        self.assertIn(DDD, ranges, "the corpus measures what the rows carry")
+        entries, low, middle, high = ranges[DDD]
+        self.assertGreater(entries, 0)
+        self.assertLessEqual(low, middle)
+        self.assertLessEqual(middle, high)
+
+        inside = self.service.plan(self._spec(stat_edits=(StatEdit(0, DDD, middle),)), self.snapshot)
+        self.assertFalse(any("shipped equipment carries it" in w for w in inside.warnings), inside.warnings)
+        outside = self.service.plan(self._spec(stat_edits=(StatEdit(0, DDD, 1),)), self.snapshot)
+        self.assertTrue(any("shipped equipment carries it" in w for w in outside.warnings), outside.warnings)
+        self.assertTrue(any(f"{low:,}" in w and f"{high:,}" in w for w in outside.warnings), outside.warnings)
 
     def test_an_effect_gives_the_item_prefabs_of_its_own_with_an_effect_component(self) -> None:
         context = build_context(self.snapshot, TEMPLATE)

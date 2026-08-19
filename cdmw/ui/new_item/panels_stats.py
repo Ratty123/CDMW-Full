@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import BUY_PRICE_KIND, STAT_KIND, StatGrid, flat_grid_values, scaled_grid_values
-from cdmw.ui.new_item.ui_kit import EDIT, compact_table_height, intro_label, tone_color
+from cdmw.ui.new_item.ui_kit import EDIT, WARN, NoteLabel, compact_table_height, intro_label, tone_color
 
 _MAX_EXTRA_LEVELS = 8
 
@@ -125,6 +125,11 @@ class StatsPanel(QGroupBox):
         self.remove_stat_button.clicked.connect(self._remove_stat_column)
         add_row.addWidget(self.remove_stat_button)
         ladder_layout.addLayout(add_row)
+        #: what the game's own rows carry for the chosen stat: a value outside that range
+        #: is where an added stat goes strange in play
+        self.stat_range_note = NoteLabel("")
+        ladder_layout.addWidget(self.stat_range_note)
+        self.new_stat.currentIndexChanged.connect(self._stat_choice_changed)
         layout.addWidget(ladder)
 
         base = QGroupBox("Base price and stack")
@@ -277,6 +282,24 @@ class StatsPanel(QGroupBox):
             self.new_stat.blockSignals(False)
         self.add_stat_button.setEnabled(self.new_stat.count() > 0 and self._grid is not None)
         self.remove_stat_button.setEnabled(bool(self._controller.draft.extra_stat_keys))
+        self._stat_choice_changed()
+
+    def _stat_choice_changed(self, _index: int = 0) -> None:
+        """Say what shipped equipment carries for this stat, and start the value there."""
+
+        key = self.new_stat.currentData()
+        if key is None:
+            self.stat_range_note.set_note("", None)
+            return
+        measured = self._controller.status_value_range(int(key))
+        label = self.new_stat.currentText().split("  (")[0]
+        if measured is None:
+            self.stat_range_note.set_note(f"No shipped equipment carries {label}, so there is no value to go by; whatever you type here is a guess.", WARN)
+            return
+        entries, low, middle, high = measured
+        self.stat_range_note.set_note(f"Shipped equipment carries {label} between {low:,} and {high:,} (median {middle:,}, {entries:,} entrie(s)).", None)
+        if not self.new_stat_value.hasFocus():
+            self.new_stat_value.setValue(int(middle))
 
     def _add_stat_column(self) -> None:
         """A new stat column after the template's stat columns, with the value on every

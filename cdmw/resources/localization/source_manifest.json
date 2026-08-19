@@ -5101,7 +5101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 191,
+          "line": 196,
           "sink": "setText"
         }
       ]
@@ -12371,7 +12371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 130,
+          "line": 135,
           "sink": "QGroupBox"
         }
       ]
@@ -14021,12 +14021,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 872,
+          "line": 900,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 879,
+          "line": 907,
           "sink": "emit"
         },
         {
@@ -14521,7 +14521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 715,
+          "line": 743,
           "sink": "log"
         }
       ]
@@ -18061,7 +18061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 646,
+          "line": 674,
           "sink": "emit"
         }
       ]
@@ -18186,7 +18186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 851,
+          "line": 879,
           "sink": "ValueError"
         }
       ]
@@ -38871,7 +38871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 141,
+          "line": 146,
           "sink": "setToolTip"
         }
       ]
@@ -40331,7 +40331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 706,
+          "line": 734,
           "sink": "emit"
         }
       ]
@@ -42861,7 +42861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 593,
+          "line": 621,
           "sink": "emit"
         }
       ]
@@ -44486,7 +44486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 197,
+          "line": 202,
           "sink": "setVerticalHeaderLabels"
         }
       ]
@@ -48201,7 +48201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 143,
+          "line": 148,
           "sink": "addRow"
         }
       ]
@@ -52606,7 +52606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 133,
+          "line": 138,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -54376,22 +54376,22 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 254,
+          "line": 302,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 268,
+          "line": 316,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 277,
+          "line": 325,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 296,
+          "line": 344,
           "sink": "raise_if_cancelled"
         },
         {
@@ -55811,7 +55811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 867,
+          "line": 895,
           "sink": "ValueError"
         }
       ]
@@ -57168,6 +57168,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 619,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "No shipped equipment carries {value_0}, so there is no value to go by; whatever you type here is a guess.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 297,
+          "sink": "set_note"
         }
       ]
     },
@@ -59196,7 +59206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 317,
+          "line": 340,
           "sink": "emit"
         }
       ]
@@ -65836,7 +65846,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 804,
+          "line": 845,
           "sink": "log"
         }
       ]
@@ -69136,7 +69146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 133,
+          "line": 138,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -70286,12 +70296,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 495,
+          "line": 523,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 813,
+          "line": 841,
           "sink": "emit"
         }
       ]
@@ -70541,7 +70551,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 255,
+          "line": 303,
           "sink": "log"
         }
       ]
@@ -70551,7 +70561,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 278,
+          "line": 326,
           "sink": "log"
         }
       ]
@@ -70561,7 +70571,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 269,
+          "line": 317,
           "sink": "log"
         }
       ]
@@ -70756,7 +70766,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 297,
+          "line": 345,
           "sink": "log"
         }
       ]
@@ -70821,7 +70831,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 322,
+          "line": 370,
           "sink": "log"
         }
       ]
@@ -70861,7 +70871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 650,
+          "line": 678,
           "sink": "log"
         }
       ]
@@ -84337,6 +84347,16 @@
       ]
     },
     {
+      "key": "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)).",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 300,
+          "sink": "set_note"
+        }
+      ]
+    },
+    {
       "key": "Ships as: {value_0}",
       "origins": [
         {
@@ -86681,7 +86701,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 327,
+          "line": 375,
           "sink": "log"
         }
       ]
@@ -89296,7 +89316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 886,
+          "line": 914,
           "sink": "emit"
         }
       ]
@@ -91321,12 +91341,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 208,
+          "line": 213,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 219,
+          "line": 224,
           "sink": "setToolTip"
         },
         {
@@ -93166,7 +93186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 747,
+          "line": 775,
           "sink": "emit"
         }
       ]
@@ -93536,7 +93556,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 511,
+          "line": 539,
           "sink": "emit"
         }
       ]
@@ -93566,7 +93586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 460,
+          "line": 488,
           "sink": "emit"
         }
       ]
@@ -93711,7 +93731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 856,
+          "line": 884,
           "sink": "ValueError"
         }
       ]
@@ -93741,7 +93761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 134,
+          "line": 139,
           "sink": "setToolTip"
         }
       ]
@@ -93866,7 +93886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 668,
+          "line": 696,
           "sink": "emit"
         }
       ]
@@ -93896,7 +93916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 655,
+          "line": 683,
           "sink": "emit"
         }
       ]
@@ -93956,7 +93976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 723,
+          "line": 751,
           "sink": "emit"
         }
       ]
@@ -94016,7 +94036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 842,
+          "line": 870,
           "sink": "emit"
         }
       ]
@@ -94341,7 +94361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 756,
+          "line": 784,
           "sink": "emit"
         }
       ]
@@ -94481,7 +94501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 206,
+          "line": 211,
           "sink": "setToolTip"
         }
       ]
@@ -94491,7 +94511,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 326,
+          "line": 374,
           "sink": "log"
         }
       ]
@@ -95336,7 +95356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 191,
+          "line": 196,
           "sink": "setText"
         }
       ]
@@ -108486,7 +108506,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 631,
+          "line": 672,
           "sink": "add"
         }
       ]
@@ -108531,7 +108551,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 636,
+          "line": 677,
           "sink": "add"
         }
       ]
@@ -111176,7 +111196,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 701,
+          "line": 742,
           "sink": "add"
         }
       ]
@@ -116731,7 +116751,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 641,
+          "line": 682,
           "sink": "add"
         }
       ]
@@ -194071,7 +194091,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 540,
+          "line": 581,
           "sink": "add"
         }
       ]
@@ -195396,7 +195416,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 531,
+          "line": 572,
           "sink": "add"
         }
       ]
@@ -197926,8 +197946,18 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 273,
+          "line": 278,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}  (no shipped item carries it: unproven)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 313,
+          "sink": "python-return:_perk_label"
         }
       ]
     },
@@ -198293,6 +198323,11 @@
           "path": "cdmw/ui/archive_browser/reference_preview.py",
           "line": 285,
           "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 313,
+          "sink": "python-return:_perk_label"
         },
         {
           "path": "cdmw/ui/new_item/panels_identity.py",
@@ -201666,12 +201701,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 522,
+          "line": 563,
           "sink": "add"
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 531,
+          "line": 572,
           "sink": "add"
         },
         {
@@ -201961,7 +201996,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 522,
+          "line": 563,
           "sink": "add"
         },
         {
