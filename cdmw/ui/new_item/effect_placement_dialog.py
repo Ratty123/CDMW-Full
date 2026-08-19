@@ -17,6 +17,7 @@ from typing import Callable, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QThread, Qt, QTimer
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
@@ -97,9 +98,9 @@ class EffectPlacementDialog(QDialog):
         layout = QVBoxLayout(self)
         intro = QLabel(
             f"{effect_label or 'The effect'} on the item. The wire is the item as the game holds it: its origin is the hand, the blade runs "
-            "toward -z, the pommel toward +z. The orange box is the effect's own reach (its bounding box) at this scale and offset, and the "
-            "particles inside are an approximate reading of it. Move or scale the box with the gizmo or the numbers on the right; the effect "
-            "follows the box, and the numbers go into the plan when you accept."
+            "toward -z, the pommel toward +z. The particles are an approximate reading of the effect, where it will be at this scale and "
+            "offset. Move or scale it with the gizmo or the numbers on the right; the numbers go into the plan when you accept. "
+            "Tick Show the effect's box to see its bounding box (the reach the game reserves for it)."
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
@@ -156,6 +157,11 @@ class EffectPlacementDialog(QDialog):
             form.addRow(axis, spin)
             self.offset_spins.append(spin)
         side.addLayout(form)
+        self.show_box = QCheckBox("Show the effect's box")
+        self.show_box.setToolTip("The effect's bounding box at this scale and offset, drawn as a wire box. Off by default: the particles show where the effect is, and the box only gets in the way of the item.")
+        self.show_box.setChecked(False)
+        self.show_box.toggled.connect(lambda _checked: self._apply_box_visibility())
+        side.addWidget(self.show_box)
         width, height, depth = (high - low for low, high in zip(*self._box))
         self.size_label = QLabel("")
         self.size_label.setWordWrap(True)
@@ -234,6 +240,7 @@ class EffectPlacementDialog(QDialog):
             self.host.set_display_mode("overlay")
             self.host.set_alignment_state(enabled=True, source_submesh_indices=(self._preview.box_submesh_index,))
             self._sync_host()
+            self._apply_box_visibility()
             sentences = ["Drag the gizmo on the box. Move: offset along the item's axes. Scale: a uniform scale on the effect."]
             if self._preview.preview_file is not None:
                 if self._host_draws_particles():
@@ -245,6 +252,20 @@ class EffectPlacementDialog(QDialog):
             self.status.setText(" ".join(sentences))
         elif str(state) == "error":
             self.status.setText(str(message or "The viewport reported an error."))
+
+    def _apply_box_visibility(self) -> None:
+        """Show or hide the box's edges: its faces are fully transparent in the package, so
+        the box is only visible as the wire the viewport draws in its wire display mode.
+        The gizmo, the frame the particles follow and the numbers do not depend on it."""
+
+        if self.host is None or self._preview is None:
+            return
+        setter = getattr(self.host, "set_viewport_display_mode", None)
+        if callable(setter):
+            try:
+                setter("untextured_wire" if self.show_box.isChecked() else "untextured_faces")
+            except Exception:  # noqa: BLE001 - a host without display modes keeps whatever it draws
+                pass
 
     def _host_draws_particles(self) -> bool:
         """Whether the resident helper announced the particle layer (`effect_particle_preview_v1`)."""

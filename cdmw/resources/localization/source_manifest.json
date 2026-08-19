@@ -27311,7 +27311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 245,
+          "line": 252,
           "sink": "setText"
         }
       ]
@@ -28821,7 +28821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 272,
+          "line": 293,
           "sink": "setText"
         }
       ]
@@ -45821,7 +45821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 226,
+          "line": 232,
           "sink": "setText"
         },
         {
@@ -52656,7 +52656,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 130,
+          "line": 131,
           "sink": "QPushButton"
         },
         {
@@ -64926,7 +64926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 82,
+          "line": 83,
           "sink": "setWindowTitle"
         }
       ]
@@ -67206,7 +67206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 168,
+          "line": 174,
           "sink": "QLabel"
         },
         {
@@ -78486,12 +78486,12 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 133,
+          "line": 134,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 147,
+          "line": 148,
           "sink": "addRow"
         },
         {
@@ -84803,6 +84803,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 323,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Show the effect's box",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 160,
+          "sink": "QCheckBox"
         }
       ]
     },
@@ -93247,11 +93257,21 @@
       ]
     },
     {
+      "key": "The effect's bounding box at this scale and offset, drawn as a wire box. Off by default: the particles show where the effect is, and the box only gets in the way of the item.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 161,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "The effect's particle description is in the package; the viewport draws it once its particle layer lands, the box until then.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 245,
+          "line": 252,
           "sink": "setText"
         }
       ]
@@ -93561,7 +93581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 245,
+          "line": 252,
           "sink": "setText"
         }
       ]
@@ -93581,7 +93601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 206,
+          "line": 212,
           "sink": "setText"
         }
       ]
@@ -93771,7 +93791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 123,
+          "line": 124,
           "sink": "QLabel"
         }
       ]
@@ -93781,7 +93801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 228,
+          "line": 234,
           "sink": "setText"
         }
       ]
@@ -199627,11 +199647,11 @@
       ]
     },
     {
-      "key": "{value_0} on the item. The wire is the item as the game holds it: its origin is the hand, the blade runs toward -z, the pommel toward +z. The orange box is the effect's own reach (its bounding box) at this scale and offset, and the particles inside are an approximate reading of it. Move or scale the box with the gizmo or the numbers on the right; the effect follows the box, and the numbers go into the plan when you accept.",
+      "key": "{value_0} on the item. The wire is the item as the game holds it: its origin is the hand, the blade runs toward -z, the pommel toward +z. The particles are an approximate reading of the effect, where it will be at this scale and offset. Move or scale it with the gizmo or the numbers on the right; the numbers go into the plan when you accept. Tick Show the effect's box to see its bounding box (the reach the game reserves for it).",
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 98,
+          "line": 99,
           "sink": "QLabel"
         }
       ]
@@ -200076,7 +200096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 245,
+          "line": 252,
           "sink": "setText"
         }
       ]
