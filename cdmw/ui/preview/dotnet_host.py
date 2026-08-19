@@ -688,8 +688,16 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
     def capture_replacement_icon_image(self) -> QImage:
         return self._last_capture_image.copy() if not self._last_capture_image.isNull() else QImage()
 
-    def capture_replacement_icon(self, output_path: Path) -> bool:
-        return self.controller.request_capture(output_path, width=512, height=512)
+    def capture_replacement_icon(self, output_path: Path, *, width: int = 512, height: int = 512) -> bool:
+        """Capture the replacement at `width` x `height`.
+
+        The capture camera keeps the visible camera's yaw, pitch, pan and zoom, and scales
+        the zoom by how the capture's size compares with the viewport's, so a capture at
+        the viewport's own size is exactly what is on screen; a smaller square shows more
+        around it. Callers that want "what I am looking at" pass the viewport's size.
+        """
+
+        return self.controller.request_capture(output_path, width=int(width), height=int(height))
 
     def set_grid_visible(self, visible: bool) -> bool:
         """Draw or hide the ground grid (the Mesh Editor's Grid toggle)."""

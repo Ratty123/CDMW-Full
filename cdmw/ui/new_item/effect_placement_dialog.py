@@ -17,6 +17,7 @@ from typing import Callable, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QThread, Qt, QTimer
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
@@ -98,7 +99,8 @@ class EffectPlacementDialog(QDialog):
         layout = QVBoxLayout(self)
         intro = QLabel(
             f"{effect_label or 'The effect'} on the item: drag the orange anchor with the gizmo (Move / Scale) or type the numbers. "
-            "The wire is the item as the game holds it (origin = the hand, blade toward -z); the particles are an approximate reading of the effect."
+            "The wire is the item as the game holds it (origin = the hand, blade toward -z), the frame is how far the effect reaches, "
+            "and the particles are an approximate reading of it."
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
@@ -156,9 +158,21 @@ class EffectPlacementDialog(QDialog):
             self.offset_spins.append(spin)
         side.addLayout(form)
         width, height, depth = (high - low for low, high in zip(*self._box))
+        self._box_size = (width, height, depth)
+        reach_row = QHBoxLayout()
+        self.show_reach = QCheckBox("Show the reach")
+        self.show_reach.setToolTip("The effect's own bounding box as a thin frame, at this scale and offset: how far it can throw particles.")
+        self.show_reach.setChecked(True)
+        self.show_reach.toggled.connect(lambda _checked: self._apply_reach_visibility())
+        reach_row.addWidget(self.show_reach)
+        self.fit_button = QPushButton("Fit the reach to the item")
+        self.fit_button.setToolTip("Set the scale so the effect's reach is about as long as the item; the offset is left alone.")
+        self.fit_button.clicked.connect(self._fit_reach_to_item)
+        reach_row.addWidget(self.fit_button)
+        reach_row.addStretch(1)
+        side.addLayout(reach_row)
         self.size_label = QLabel("")
         self.size_label.setWordWrap(True)
-        self._box_size = (width, height, depth)
         side.addWidget(self.size_label)
         self.emitters_toggle = DetailsToggle(describe_effect_preview(effect_preview), title="What the effect is made of")
         self.emitters_label = self.emitters_toggle.body
@@ -240,6 +254,7 @@ class EffectPlacementDialog(QDialog):
                 low, high = self._item_bounds()
                 remember(low, high)
             self._sync_host()
+            self._apply_reach_visibility()
             reset = getattr(self.host, "reset_view", None)
             if callable(reset):
                 reset()
@@ -251,6 +266,31 @@ class EffectPlacementDialog(QDialog):
             self.status.setText(" ".join(sentences))
         elif str(state) == "error":
             self.status.setText(str(message or "The viewport reported an error."))
+
+    def _apply_reach_visibility(self) -> None:
+        """Show or hide the reach frame; the anchor and the particles do not depend on it."""
+
+        if self.host is None or self._preview is None:
+            return
+        setter = getattr(self.host, "set_hidden_source_submeshes", None)
+        if callable(setter):
+            hidden = () if self.show_reach.isChecked() else (self._preview.reach_submesh_index,)
+            try:
+                setter(hidden)
+            except Exception:  # noqa: BLE001 - a host without the call keeps what it draws
+                pass
+
+    def _fit_reach_to_item(self) -> None:
+        """A scale that makes the effect's reach about the item's own length: a starting
+        point for effects whose reach is tens of metres around a one-metre weapon."""
+
+        low, high = self._item_bounds()
+        item = max(high[axis] - low[axis] for axis in range(3))
+        reach = max(self._box_size) or 1.0
+        if item <= 0 or reach <= 0:
+            return
+        self._set_numbers(self.offset, item / reach)
+        self._sync_host()
 
     def _item_bounds(self) -> Tuple[Vec3, Vec3]:
         mesh = self._item_mesh
@@ -283,8 +323,13 @@ class EffectPlacementDialog(QDialog):
 
     def _refresh_size_label(self) -> None:
         width, height, depth = self._box_size
+        low, high = self._item_bounds()
+        item = max(high[axis] - low[axis] for axis in range(3))
+        reach = max(width, height, depth) * self.scale
+        times = f"{reach / item:.1f}x the item" if item > 0 else "unknown against the item"
         self.size_label.setText(
-            f"Reach at scale {self.scale:.2f}: {width * self.scale:.2f} x {height * self.scale:.2f} x {depth * self.scale:.2f} m (the effect's own {width:.2f} x {height:.2f} x {depth:.2f} m)."
+            f"Reach at scale {self.scale:.2f}: {width * self.scale:.2f} x {height * self.scale:.2f} x {depth * self.scale:.2f} m, "
+            f"{times} ({item:.2f} m). The effect's own reach is {width:.2f} x {height:.2f} x {depth:.2f} m."
         )
 
     def _set_numbers(self, offset: Vec3, scale: float) -> None:

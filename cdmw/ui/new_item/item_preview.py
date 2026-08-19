@@ -517,13 +517,18 @@ class ItemPreviewFrame(QWidget):
     # ------------------------------------------------------------------ capture
 
     def capture(self, path: Optional[Path] = None) -> bool:
-        """Take the frame at 512 x 512; `captured` fires with the PNG when it lands."""
+        """Take the view as it is: the frame at the viewport's own size, so what is on
+        screen is what lands (the grid and the gizmo are hidden for it). `captured` fires
+        with the PNG when it arrives; the caller crops it to the icon it wants."""
 
         if self.host is None or not self.is_ready:
             return False
         self._output_root.mkdir(parents=True, exist_ok=True)
         target = Path(path) if path is not None else self._output_root / f"icon_capture_{time.time_ns()}.png"
-        if not self.host.capture_replacement_icon(target):
+        size = self.host.size()
+        width = max(64, min(2048, int(size.width()) or 512))
+        height = max(64, min(2048, int(size.height()) or 512))
+        if not self.host.capture_replacement_icon(target, width=width, height=height):
             self.status_changed.emit("The viewport rejected the capture request.")
             return False
         self._pending_capture = target
@@ -533,6 +538,9 @@ class ItemPreviewFrame(QWidget):
     def _capture_completed(self, payload: object) -> None:
         if self._closed:
             return
+        if self._loaded_is_placement and self.host is not None:
+            # the capture hides the grid and the gizmo; a placement scene wants them back
+            QTimer.singleShot(0, self._restore_after_capture)
         pending, self._pending_capture = self._pending_capture, None
         status = str(payload.get("status", "") or "") if isinstance(payload, dict) else ""
         path = pending
@@ -547,6 +555,12 @@ class ItemPreviewFrame(QWidget):
             return
         self.status_changed.emit(f"Captured {image.width()} x {image.height()}.")
         self.captured.emit(path, image)
+
+    def _restore_after_capture(self) -> None:
+        if self._closed or self.host is None or not self._loaded_is_placement:
+            return
+        self.host.set_icon_capture_mode(False)
+        self._apply_placement_presentation()
 
     # ------------------------------------------------------------------ lifecycle
 
