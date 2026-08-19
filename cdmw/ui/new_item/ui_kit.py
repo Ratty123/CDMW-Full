@@ -23,8 +23,11 @@ __all__ = [
     "NoteLabel",
     "STEP_STYLE",
     "compact_table_height",
+    "elided",
     "intro_label",
+    "muted_color",
     "note",
+    "step_style",
     "tinted",
     "tone_color",
 ]
@@ -45,14 +48,50 @@ _COLORS = {
     EDIT: "#3d7bd9",
 }
 
-#: the step pages: a bold title on the group box, room around the content
+#: the step pages: a bold title on the group box, room around the content; the muted
+#: colour is filled in per palette by :func:`step_style` (a fixed "dark" role is invisible
+#: on the app's dark theme)
 STEP_STYLE = (
     "QGroupBox#new_item_step { font-weight: bold; margin-top: 14px; }"
     "QGroupBox#new_item_step::title { subcontrol-origin: margin; left: 4px; padding: 0 4px; font-size: 11pt; }"
     "QGroupBox#new_item_step QGroupBox { font-weight: normal; }"
-    "QLabel#new_item_intro { color: palette(dark); }"
-    "QLabel#new_item_details { color: palette(dark); }"
+    "QLabel#new_item_intro { color: %(muted)s; }"
+    "QLabel#new_item_details { color: %(muted)s; }"
 )
+
+
+def muted_color(palette) -> str:
+    """A secondary-text colour readable on this palette: the text colour pulled part of the
+    way toward the window colour, so it is grey on light and light grey on dark."""
+
+    from PySide6.QtGui import QPalette
+
+    text = palette.color(QPalette.ColorRole.WindowText)
+    window = palette.color(QPalette.ColorRole.Window)
+    mix = 0.62
+    return "#%02x%02x%02x" % (
+        int(text.red() * mix + window.red() * (1 - mix)),
+        int(text.green() * mix + window.green() * (1 - mix)),
+        int(text.blue() * mix + window.blue() * (1 - mix)),
+    )
+
+
+def step_style(palette) -> str:
+    """`STEP_STYLE` with the muted colour for this palette."""
+
+    return STEP_STYLE % {"muted": muted_color(palette)}
+
+
+def elided(text: str, max_chars: int) -> str:
+    """`text` shortened in the middle to `max_chars` characters (an ellipsis in the gap)."""
+
+    text = str(text)
+    limit = max(12, int(max_chars))
+    if len(text) <= limit:
+        return text
+    head = (limit - 1) * 2 // 3
+    tail = limit - 1 - head
+    return text[:head] + "…" + text[-tail:]
 
 
 def note(text: str, tone: Optional[str] = None) -> Tuple[str, Optional[str]]:
@@ -103,10 +142,22 @@ class NoteLabel(QLabel):
         self.setText(tinted(self._plain, tone) if self._plain else "")
         self.setVisible(bool(self._plain))
 
-    def set_lines(self, lines) -> None:
-        """Several (text, tone) lines, one per row."""
+    def set_lines(self, lines, *, line_chars: int = 0) -> None:
+        """Several (text, tone) lines, one per row. A text of the form "Label: value" is
+        drawn with the label bold and, with `line_chars`, the value shortened in the
+        middle so label and value fit that many characters on the line."""
 
-        rows = [tinted(text, tone) for text, tone in lines if str(text or "")]
+        rows = []
+        for text, tone in lines:
+            text = str(text or "")
+            if not text:
+                continue
+            label, sep, value = text.partition(": ")
+            if sep and len(label) < 24:
+                shown = elided(value, line_chars - len(label) - 2) if line_chars else value
+                rows.append(tinted(label + ":", tone, bold=True) + " " + tinted(shown, tone))
+            else:
+                rows.append(tinted(text, tone))
         self._plain = "\n".join(str(text) for text, _tone in lines)
         self.setText("<br>".join(rows))
         self.setVisible(bool(rows))

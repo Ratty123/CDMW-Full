@@ -38,7 +38,12 @@ from cdmw.ui.new_item.panels_perks import PerksPanel
 from cdmw.ui.new_item.panels_placement import PlacementPanel
 from cdmw.ui.new_item.panels_stats import StatsPanel
 from cdmw.ui.new_item.panels_template import TemplatePanel
-from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, STEP_STYLE, WARN, NoteLabel, note, tinted
+from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, NoteLabel, note, step_style, tinted
+
+
+#: the left rail: the step list and the item so far, and how many characters one of its lines holds
+RAIL_WIDTH = 300
+RAIL_CHARS = 40
 
 
 def _window_package_root(window: object) -> str:
@@ -79,6 +84,7 @@ class NewItemStudioTab(QWidget):
             self.controller.effect_cache_path = Path(cache_root) / "index" / "effect_catalogue_v1.json"
         self._pending_template: Optional[int] = None
         self._panels_built = False
+        self._refreshing_checks = False
 
         self._status = QLabel("New Item Studio reads the item, string, store, group and language tables once, then plans a new item against them.")
         self._status.setWordWrap(True)
@@ -172,10 +178,10 @@ class NewItemStudioTab(QWidget):
         # one step at a time: a step list on the left (as tall as its seven lines), under it
         # the item so far, one tinted line per step; the step's panel fills the right;
         # Back/Next along the bottom
-        self.setStyleSheet(STEP_STYLE)
+        self.setStyleSheet(step_style(self.palette()))
         self.steps = QListWidget()
         self.steps.setObjectName("new_item_steps")
-        self.steps.setFixedWidth(230)
+        self.steps.setFixedWidth(RAIL_WIDTH)
         self.steps.setSpacing(2)
         self.steps.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.pages = QStackedWidget()
@@ -221,7 +227,7 @@ class NewItemStudioTab(QWidget):
         rail.addWidget(self.summary_box, 1)
         rail_widget = QWidget()
         rail_widget.setLayout(rail)
-        rail_widget.setFixedWidth(230)
+        rail_widget.setFixedWidth(RAIL_WIDTH)
 
         columns = QHBoxLayout()
         columns.setContentsMargins(0, 0, 0, 0)
@@ -254,7 +260,8 @@ class NewItemStudioTab(QWidget):
         self.identity_panel.display_name.textChanged.connect(self._refresh_summary)
         for radio in (self.placement_panel.no_store, self.placement_panel.swap, self.placement_panel.insert):
             radio.toggled.connect(self._refresh_summary)
-        self.placement_panel.store.currentTextChanged.connect(self._refresh_summary)
+        self.placement_panel.store.currentIndexChanged.connect(self._refresh_summary)
+        self.placement_panel.old_item.currentIndexChanged.connect(self._refresh_summary)
         self.perks_panel.use_effect.toggled.connect(self._refresh_summary)
         self.perks_panel.effect.currentIndexChanged.connect(self._refresh_summary)
         self.perks_panel.own_perks.toggled.connect(self._refresh_summary)
@@ -288,9 +295,16 @@ class NewItemStudioTab(QWidget):
             self.steps.setCurrentRow(int(index))
 
     def _refresh_summary(self, *_args) -> None:
-        """The rail's "item so far": one line per step, tinted by what it still needs."""
+        """The rail's "item so far": one line per step, tinted by what it still needs; the
+        Checks on step 2 read the same draft, so they follow every change too."""
 
         controller = self.controller
+        if self._panels_built and not self._refreshing_checks:
+            self._refreshing_checks = True
+            try:
+                self.identity_panel.refresh_issues()
+            finally:
+                self._refreshing_checks = False
         draft = controller.draft
         lines = []
         template = controller.template_name()
@@ -306,11 +320,8 @@ class NewItemStudioTab(QWidget):
         lines.append(note("Model: imported", EDIT) if controller.model_result is not None else note("Model: the template's", OK))
         edits = len(draft.grid_values) + len(draft.price_values) + int(draft.extra_levels) + (1 if draft.max_stack_count is not None else 0)
         lines.append(note(f"Stats and prices: {edits} edit(s)", EDIT) if edits else note("Stats and prices: as the template", OK))
-        if draft.socket_items is not None or draft.effect_stem:
-            perks = "own perks" if draft.socket_items is not None else "the template's perks"
-            lines.append(note(f"Perks: {perks}, effect {draft.effect_stem}", EDIT) if draft.effect_stem else note(f"Perks: {perks}", EDIT))
-        else:
-            lines.append(note("Perks: the template's, no effect", OK))
+        lines.append(note("Perks: chosen here", EDIT) if draft.socket_items is not None else note("Perks: the template's", OK))
+        lines.append(note(f"Effect: {draft.effect_stem}", EDIT) if draft.effect_stem else note("Effect: none", OK))
         if draft.placement_kind.value != "none" and draft.store_name:
             lines.append(note(f"Shop: {draft.store_name}", OK))
         else:
@@ -319,7 +330,7 @@ class NewItemStudioTab(QWidget):
             lines.append(note(f"Plan: ready, item {controller.plan.spec.item_key}", OK))
         else:
             lines.append(note("Plan: not built yet", WARN))
-        self.summary.set_lines(lines)
+        self.summary.set_lines(lines, line_chars=RAIL_CHARS)
 
     # ------------------------------------------------------------------ entry points
 
