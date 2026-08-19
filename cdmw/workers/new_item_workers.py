@@ -143,4 +143,19 @@ def install_task(
     return run
 
 
-__all__ = ["export_task", "install_task", "plan_task", "snapshot_task"]
+def install_overlay_task(
+    plan: NewItemPlan,
+    *,
+    service: NewItemService,
+    mutation_service,
+    confirmed: bool,
+) -> Callable[[LogSink, threading.Event], object]:
+    """Install as an archive directory of the item's own, mounted ahead of the shipped ones."""
+
+    def run(log: LogSink, stop_event: threading.Event) -> object:
+        return service.install_overlay(plan, mutation_service=mutation_service, confirmed=confirmed, on_log=log, stop_event=stop_event)
+
+    return run
+
+
+__all__ = ["export_task", "install_overlay_task", "install_task", "plan_task", "snapshot_task"]

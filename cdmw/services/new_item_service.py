@@ -299,6 +299,60 @@ class NewItemService:
         mutation_service.validate_patch(mutation_plan, stop_event=stop_event)
         return mutation_service.apply_patch(mutation_plan, on_log=on_log, stop_event=stop_event)
 
+    def install_overlay(
+        self,
+        plan: NewItemPlan,
+        *,
+        mutation_service,
+        confirmed: bool = False,
+        on_log: Optional[Callable[[str], None]] = None,
+        stop_event: Optional[threading.Event] = None,
+        game_running: Optional[Callable[[], bool]] = None,
+    ):
+        """Write the plan as its own archive directory, mounted ahead of the shipped ones.
+
+        The shipped archives are not opened for writing at all: what changes is a new
+        directory beside them, `meta/0.papgt` naming it first, and the texture registry.
+        The backup is those two files and whatever the workbench's own overlay held
+        before, so an install is kilobytes of backup instead of gigabytes.
+        """
+
+        from cdmw.services.archive_overlay_install import install_overlay as write_overlay
+
+        if not confirmed:
+            raise NewItemInstallRefused("Installing a new item into the game archives requires explicit confirmation.")
+        running = game_running if game_running is not None else game_is_running
+        if running():
+            raise NewItemInstallRefused(f"{GAME_EXECUTABLE} is running; close the game before installing, its archives are open.")
+        if not plan.patches and not plan.additions:
+            raise NewItemInstallRefused("The plan changes nothing.")
+        package_root = _package_root_of(plan)
+        description = f"New item {plan.spec.internal_name} ({plan.spec.item_key}) as an overlay"
+
+        def backup(paths, label):
+            return mutation_service.backup_files(paths, description=f"{description}: {label}", on_log=on_log)
+
+        return write_overlay(
+            plan.patches,
+            plan.additions,
+            package_root=package_root,
+            meta_files=[(write.path, write.payload) for write in plan.meta_files],
+            backup=backup if hasattr(mutation_service, "backup_files") else None,
+            on_log=on_log,
+            stop_event=stop_event,
+        )
+
+
+def _package_root_of(plan: NewItemPlan) -> Path:
+    """The install this plan was built against: the folder that holds `meta/0.papgt`."""
+
+    for request in plan.patches:
+        pamt_path = Path(request.entry.pamt_path)
+        return pamt_path.parent.parent
+    for addition in plan.additions:
+        return Path(addition.pamt_path).parent.parent
+    raise NewItemInstallRefused("The plan names no archive to install into.")
+
 
 __all__ = [
     "GAME_EXECUTABLE",

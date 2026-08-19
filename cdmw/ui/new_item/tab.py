@@ -175,6 +175,7 @@ class NewItemStudioTab(QWidget):
         controller.model_import_changed.connect(self._refresh_summary)
         controller.model_placement_changed.connect(self._refresh_summary)
         self.output_panel.install_requested.connect(self._install)
+        self.output_panel.install_overlay_requested.connect(self._install_overlay)
         controller.template_changed.connect(lambda _key: self.identity_panel.refresh_issues())
         controller.model_changed.connect(lambda _result: self.identity_panel.refresh_issues())
 
@@ -389,6 +390,33 @@ class NewItemStudioTab(QWidget):
         if confirmation != QMessageBox.Yes:
             return
         self.controller.start_install(mutations())
+
+    def _install_overlay(self) -> None:
+        plan = self.controller.plan
+        if plan is None:
+            return
+        services = getattr(getattr(self._window, "app_context", None), "services", None)
+        mutations = getattr(services, "require_archive_mutations", None)
+        if not callable(mutations):
+            QMessageBox.warning(self, "Install as an overlay", "The archive mutation service is not available in this window.")
+            return
+        touched = "\n".join(f"- {path}" for path in plan.touched_paths[:14])
+        more = f"\n- ... {len(plan.touched_paths) - 14} more" if len(plan.touched_paths) > 14 else ""
+        confirmation = QMessageBox.question(
+            self,
+            "Install as an overlay",
+            (
+                f"Install {plan.spec.internal_name} (item {plan.spec.item_key}) as an archive directory of its own?\n\n"
+                f"{len(plan.patches) + len(plan.additions)} file(s) go into the new directory:\n{touched}{more}\n\n"
+                "The archives the game shipped are not written to. The mount list and the texture registry are backed "
+                "up first, and the game must not be running."
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirmation != QMessageBox.Yes:
+            return
+        self.controller.start_install_overlay(mutations())
 
     # ------------------------------------------------------------------ lifecycle
 

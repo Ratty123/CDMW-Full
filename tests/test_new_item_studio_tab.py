@@ -598,6 +598,47 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_the_overlay_button_asks_first_and_leaves_the_shipped_archives_alone(self) -> None:
+        """The second install route: the same plan into a directory of its own, mounted
+        ahead of the shipped ones. Declining the question writes nothing, and accepting it
+        writes no shipped payload file."""
+
+        from types import SimpleNamespace
+
+        from PySide6.QtWidgets import QMessageBox
+
+        from cdmw.core.papgt_format import parse_papgt
+        from cdmw.services.archive_mutation_service import ArchiveMutationService
+
+        mutations = ArchiveMutationService()
+        window = SimpleNamespace(app_context=SimpleNamespace(services=SimpleNamespace(require_archive_mutations=lambda: mutations)))
+        tab = self._tab(window=window)
+        tab.prefill_template(TEMPLATE)
+        tab.identity_panel.internal_name.setText("Ziane_Overlay_OneHandSword")
+        tab.identity_panel.display_name.setText("Wolf's Fang (Overlay)")
+        tab.output_panel.build_button.click()
+        self.assertIsNotNone(tab.controller.plan)
+        shipped = {path: path.read_bytes() for path in sorted(self.root.glob("0009/*.paz"))}
+        mount_before = (self.root / "meta" / "0.papgt").read_bytes()
+
+        with patch("cdmw.ui.new_item.tab.QMessageBox.question", return_value=QMessageBox.No):
+            tab.output_panel.install_overlay_button.click()
+        self.assertEqual((self.root / "meta" / "0.papgt").read_bytes(), mount_before, "declining writes nothing")
+
+        with patch("cdmw.ui.new_item.tab.QMessageBox.question", return_value=QMessageBox.Yes), \
+                patch("cdmw.services.new_item_service.game_is_running", lambda: False), \
+                patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
+            tab.output_panel.install_overlay_button.click()
+
+        for path, before in shipped.items():
+            self.assertEqual(path.read_bytes(), before, f"{path.name} was rewritten by an overlay install")
+        mounted = parse_papgt((self.root / "meta" / "0.papgt").read_bytes())
+        self.assertNotEqual(mounted[0].name, "0009", "the overlay is mounted ahead of the shipped directory")
+        overlay = self.root / mounted[0].name
+        self.assertTrue((overlay / "0.pamt").is_file() and (overlay / "0.paz").is_file())
+        tab.close()
+        tab.deleteLater()
+
     def test_a_model_file_is_placed_in_the_studio(self) -> None:
         """Import a model file on step 3: the studio reads it itself (no Builder, no Mesh
         Editor), shows it over the template with a first fit, takes the placement from

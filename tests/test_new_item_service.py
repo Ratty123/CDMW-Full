@@ -274,8 +274,12 @@ def build_package(root: Path, files: dict[str, bytes]) -> Path:
     struct.pack_into("<I", pamt, 0, pamt_crc)
     pamt_path = group / "0.pamt"
     pamt_path.write_bytes(bytes(pamt))
-    papgt = bytearray(24)
-    struct.pack_into("<I", papgt, 20, pamt_crc)
+    # the mount list, in the shape the game ships: a header, one record per directory,
+    # the size of the string table, and the names the records point into
+    table = b"0009" + bytes(1)
+    papgt = bytearray(12)
+    papgt += struct.pack("<III", 0x007FFF00, 0, pamt_crc)
+    papgt += struct.pack("<I", len(table)) + table
     struct.pack_into("<I", papgt, 4, calculate_pa_checksum(bytes(papgt[12:])))
     (meta / "0.papgt").write_bytes(bytes(papgt))
     return pamt_path
@@ -704,6 +708,49 @@ class WriteTests(_PackageCase):
         self.assertEqual(family.owned_stems, ("cd_phm_01_sword_9109_r", "cd_phm_01_sword_9109_r_in", "cd_phm_01_sword_9109_l"), "the installed item owns its sheathed part too")
         self.assertEqual(family.missing_files, ())
         self.assertEqual([s for s in again.stores if s.name == "Store_Camp_Equipment"][0].entries[0].item_key, 1990000)
+
+    def test_installing_as_an_overlay_leaves_the_shipped_archives_alone(self) -> None:
+        """The same plan, written as a directory of its own and mounted first. What the
+        game reads changes; what the game shipped does not, so the backup is the mount
+        list and the registry rather than every payload file the plan touches."""
+
+        from cdmw.core.papgt_format import parse_papgt
+        from cdmw.core.archive_scan_cache import discover_pamt_files
+
+        plan = self._plan()
+        mutations = ArchiveMutationService()
+        shipped = {path: path.read_bytes() for path in sorted(self.root.glob("0009/*.paz"))}
+        with self.assertRaisesRegex(NewItemInstallRefused, "confirmation"):
+            self.service.install_overlay(plan, mutation_service=mutations, confirmed=False, game_running=lambda: False)
+        logs: list[str] = []
+        with patch("cdmw.services.new_item_service.game_is_running", lambda: False):
+            result = self.service.install_overlay(plan, mutation_service=mutations, confirmed=True, on_log=logs.append)
+
+        self.assertTrue((result.directory / "0.pamt").is_file())
+        self.assertTrue((result.directory / "0.paz").is_file())
+        self.assertGreaterEqual(result.file_count, len(plan.patches) + len(plan.additions))
+        for path, before in shipped.items():
+            self.assertEqual(path.read_bytes(), before, f"{path.name} was rewritten by an overlay install")
+
+        mounted = parse_papgt((self.root / "meta" / "0.papgt").read_bytes())
+        self.assertEqual(mounted[0].name, result.directory.name)
+        self.assertEqual(mounted[0].pamt_checksum, result.pamt_checksum)
+        self.assertEqual(discover_pamt_files(self.root)[0].parent.name, result.directory.name)
+
+        # the item resolves out of the overlay, through the same snapshot the studio builds
+        entries: dict[str, object] = {}
+        for pamt in discover_pamt_files(self.root):
+            for entry in parse_archive_pamt(pamt):
+                entries.setdefault(entry.path, entry)
+        again = self.service.build_snapshot(tuple(entries.values()), read_entry=_read)
+        self.assertIn(1990000, again.rows)
+        self.assertEqual(again.rows[1990000].string_key, "Ziane_Clone_OneHandSword")
+        family = again.family(1990000)
+        self.assertEqual(family.model_stem, "cd_phm_01_sword_9109")
+        self.assertEqual(family.missing_files, ())
+        if result.backup_dir is not None:
+            names = sorted(path.name for path in result.backup_dir.iterdir())
+            self.assertNotIn("0009_0.paz", names, "no shipped payload file is in the backup")
 
     def test_export_writes_a_loose_mod_with_new_paths(self) -> None:
         plan = self._plan()

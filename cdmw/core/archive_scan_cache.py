@@ -100,7 +100,40 @@ def discover_pamt_files(package_root: Path) -> List[Path]:
             continue
         files.append(path)
     files.sort()
-    return files
+    return _in_mount_order(root, files)
+
+
+def _in_mount_order(root: Path, files: List[Path]) -> List[Path]:
+    """`files` in the order `meta/0.papgt` mounts their directories.
+
+    The game walks the mount list and takes the first directory that holds a path, so a
+    mod's own directory listed ahead of the shipped ones overrides them. Every reader here
+    that keeps the first entry for a path has to walk the archives the same way, or the
+    workbench would show and plan against a shipped table while the game reads the mod's.
+    Directories the list does not name keep their sorted place at the end, and a mount list
+    that will not parse leaves the order alone.
+    """
+
+    papgt = root / "meta" / "0.papgt"
+    if not papgt.is_file():
+        return files
+    try:
+        from cdmw.core.papgt_format import parse_papgt
+
+        order = {item.name.lower(): index for index, item in enumerate(parse_papgt(papgt.read_bytes()))}
+    except Exception:  # noqa: BLE001 - an unreadable mount list is not a reason to refuse a scan
+        return files
+    if not order:
+        return files
+
+    def rank(path: Path) -> tuple[int, str]:
+        try:
+            group = path.relative_to(root).parts[0].lower()
+        except (IndexError, ValueError):
+            group = ""
+        return (order.get(group, len(order)), str(path).lower())
+
+    return sorted(files, key=rank)
 
 
 def resolve_archive_scan_cache_path(package_root: Path, cache_root: Path) -> Path:
