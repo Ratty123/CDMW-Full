@@ -7043,7 +7043,7 @@
     "Shininess max": "Блеск макс.",
     "Shininess min": "Блеск мин.",
     "Shipped effects named for weapons and elements (fire, lightning, frost...) with a starting scale, as a place to begin; the list below has every shipped effect.": "Эффекты из игры, названные по оружию и стихиям (огонь, молния, мороз...) со стартовым масштабом, как отправная точка; список ниже содержит все эффекты из игры.",
-    "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)).": "В снаряжении игры {value_0} встречается от {value_1} до {value_2} (медиана {value_3}, записей: {value_4}).",
+    "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)). A value far outside that range has crashed the game when the item is bought.": "В снаряжении игры {value_0} встречается от {value_1} до {value_2} (медиана {value_3}, записей: {value_4}). Значение далеко за этими пределами приводило к вылету игры при покупке предмета.",
     "Ships as: {value_0}": "Отправляется как: {value_0}",
     "Shop": "Магазин",
     "Shop and item groups": "Магазин и группы предметов",

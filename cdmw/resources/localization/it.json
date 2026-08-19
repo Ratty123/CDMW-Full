@@ -7043,7 +7043,7 @@
     "Shininess max": "Lucentezza max",
     "Shininess min": "Lucentezza min",
     "Shipped effects named for weapons and elements (fire, lightning, frost...) with a starting scale, as a place to begin; the list below has every shipped effect.": "Effetti del gioco con nomi di armi ed elementi (fuoco, fulmine, gelo...) con una scala iniziale, come punto di partenza; l'elenco sotto ha ogni effetto del gioco.",
-    "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)).": "L'equipaggiamento del gioco porta {value_0} tra {value_1} e {value_2} (mediana {value_3}, {value_4} voce/voci).",
+    "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)). A value far outside that range has crashed the game when the item is bought.": "L'equipaggiamento del gioco porta {value_0} tra {value_1} e {value_2} (mediana {value_3}, {value_4} voce/voci). Un valore molto fuori da quell'intervallo ha fatto crashare il gioco all'acquisto dell'oggetto.",
     "Ships as: {value_0}": "Spedito come: {value_0}",
     "Shop": "Negozio",
     "Shop and item groups": "Negozio e gruppi di oggetti",

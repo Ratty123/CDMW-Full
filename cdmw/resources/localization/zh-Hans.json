@@ -7043,7 +7043,7 @@
     "Shininess max": "最大光泽度",
     "Shininess min": "光泽度最小值",
     "Shipped effects named for weapons and elements (fire, lightning, frost...) with a starting scale, as a place to begin; the list below has every shipped effect.": "按武器和元素命名的原版效果（火、雷、霜……）带起始缩放，作为起点；下方列表包含所有原版效果。",
-    "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)).": "游戏自带装备的 {value_0} 在 {value_1} 到 {value_2} 之间（中位数 {value_3}，共 {value_4} 条）。",
+    "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)). A value far outside that range has crashed the game when the item is bought.": "游戏自带装备的 {value_0} 在 {value_1} 到 {value_2} 之间（中位数 {value_3}，共 {value_4} 条）。远超该范围的数值曾在购买该物品时导致游戏崩溃。",
     "Ships as: {value_0}": "发货方式：{value_0}",
     "Shop": "商店",
     "Shop and item groups": "商店与物品组",

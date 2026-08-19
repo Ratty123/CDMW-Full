@@ -54,7 +54,8 @@ def _price(item: int, price: int) -> bytes:
 def _level(level: int, stats, buy, level_stat_keys=(), buffs=()) -> bytes:
     out = struct.pack("<I", level) + b"\x00" * 6
     out += struct.pack("<I", len(stats)) + b"".join(struct.pack("<Iii", k, v, 0) for k, v in stats)
-    out += struct.pack("<I", len(level_stat_keys)) + b"".join(struct.pack("<I", k) + b"\x00" * 21 for k in level_stat_keys)
+    # a `_statList_DataDefinedStaticLevel` record is a StatusInfo key and a byte
+    out += struct.pack("<I", len(level_stat_keys)) + b"".join(struct.pack("<I", k) + b"\x00" for k in level_stat_keys)
     out += struct.pack("<I", len(buy)) + b"".join(_price(i, p) for i, p in buy)
     out += struct.pack("<I", len(buffs)) + b"".join(struct.pack("<II", b, 0) for b in buffs)
     out += struct.pack("<I", 0)
@@ -156,6 +157,35 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(row.enchant_levels[0].level_stat_keys, (1000007,))
         self.assertEqual(row.enchant_levels[0].equip_buffs, (1000009,))
         self.assertEqual([(p.item_key, p.price) for p in row.enchant_levels[0].buy_prices], [(COPPER, 4100)])
+
+    def test_a_level_stat_entry_does_not_eat_the_first_buy_price(self) -> None:
+        """A `_statList_DataDefinedStaticLevel` record is five bytes. Reading it as
+        twenty-five put the cursor exactly one price entry late, and the tail of that
+        entry reads as a count of one with the second entry behind it, so the level came
+        back with a single price and the first -- copper, on every row the shop charges in
+        -- was invisible. The studio then priced the camp currency at one copper and left
+        the copper price alone: in game the item still cost what the template cost."""
+
+        rich = _level(
+            0,
+            [(DPV, 2000)],
+            [(COPPER, 4100), (CAMP_WEAPON, 60)],
+            level_stat_keys=(1000007,),
+            buffs=(1000009,),
+        )
+        raw = build_row(levels=[([(DPV, 2000)], [(COPPER, 1)])], equip="helm", item_type=442)
+        raw = raw.replace(_level(0, [(DPV, 2000)], [(COPPER, 1)]), rich)
+        row = parse_iteminfo_row(raw)
+        level = row.enchant_levels[0]
+        self.assertEqual(level.level_stat_keys, (1000007,))
+        self.assertEqual([len(entry) for entry in level.level_stat_entries], [5])
+        self.assertEqual(
+            [(p.item_key, p.price) for p in level.buy_prices],
+            [(COPPER, 4100), (CAMP_WEAPON, 60)],
+            "both prices survive a level that carries a static-level stat",
+        )
+        rebuilt = rebuild_stat_block(row, levels=list(row.enchant_levels), price_list=row.price_list)
+        self.assertEqual(rebuilt, row.raw, "and the block still round-trips byte for byte")
 
     def test_a_row_without_a_stat_block_still_parses(self) -> None:
         raw = build_row()
@@ -365,7 +395,7 @@ class RebuildTests(unittest.TestCase):
             price_list_with(row.price_list, COPPER, 2**32)
         with self.assertRaisesRegex(ItemInfoRowError, "six header bytes"):
             encode_enchant_level(EnchantLevel(level=0, stats=(), buy_prices=(), header_bytes=b"\x00"))
-        with self.assertRaisesRegex(ItemInfoRowError, "25 bytes"):
+        with self.assertRaisesRegex(ItemInfoRowError, "5 bytes"):
             encode_enchant_level(EnchantLevel(level=0, stats=(), buy_prices=(), level_stat_keys=(1,), level_stat_entries=(b"\x00",)))
         no_block = parse_iteminfo_row(build_row().replace(bytes([0x11, 0x01, 0x01]), bytes([0x12, 0x01, 0x01])))
         with self.assertRaisesRegex(ItemInfoRowError, "no decoded stat block"):

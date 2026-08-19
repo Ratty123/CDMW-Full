@@ -59216,7 +59216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 340,
+          "line": 344,
           "sink": "emit"
         }
       ]
@@ -65856,7 +65856,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 845,
+          "line": 846,
           "sink": "log"
         }
       ]
@@ -84357,7 +84357,7 @@
       ]
     },
     {
-      "key": "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)).",
+      "key": "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)). A value far outside that range has crashed the game when the item is bought.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
@@ -108516,7 +108516,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 672,
+          "line": 673,
           "sink": "add"
         }
       ]
@@ -108561,7 +108561,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 677,
+          "line": 678,
           "sink": "add"
         }
       ]
@@ -111206,7 +111206,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 742,
+          "line": 743,
           "sink": "add"
         }
       ]
@@ -116761,7 +116761,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 682,
+          "line": 683,
           "sink": "add"
         }
       ]
@@ -194101,7 +194101,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 581,
+          "line": 582,
           "sink": "add"
         }
       ]
@@ -195426,7 +195426,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 572,
+          "line": 573,
           "sink": "add"
         }
       ]
@@ -201711,12 +201711,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 563,
+          "line": 564,
           "sink": "add"
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 572,
+          "line": 573,
           "sink": "add"
         },
         {
@@ -202006,7 +202006,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 563,
+          "line": 564,
           "sink": "add"
         },
         {

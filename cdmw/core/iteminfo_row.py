@@ -29,7 +29,14 @@ gap the caller can see. What is modelled, and how it was established:
   every row with a socket slot, 0 on the 5,110 without), then **`_enchantDataList`** (u32 count, then one
   `EnchantData` per level: u32 level 0..n-1, six bytes, `_statList_DataDefinedStatic`
   as u32 count + 12-byte {u32 StatusInfo key, i32 value, u32}, `_statList_
-  DataDefinedStaticLevel` as u32 count + 25-byte {u32 StatusInfo key, 21 bytes},
+  DataDefinedStaticLevel` as u32 count + 5-byte {u32 StatusInfo key, u8}, established
+  2026-08-19 against the shipped table: the reader used to take 25 bytes there, which on
+  the 51 rows in 800 that carry such an entry swallowed the level's own buy-price count and
+  its first price entry, so those levels read as one price (the camp currency) where the
+  row holds two (copper first). The 20-byte slip is self-consistent -- the tail of the
+  first price entry reads as a count of 1 and the second entry parses -- which is why it
+  survived the corpus checks; the tell is that every one of those rows carries copper in
+  `_priceList` and appeared to lack it in every level,
   `_buyPriceList` as u32 count + 20-byte {u32 item key, u32 price, u32, u32, u32 item
   key again}, `_equipBuffs` as u32 count + 8-byte {u32 key, u32}, u32 0), then
   **`_priceList`** in the same 20-byte entry shape. On the shipped table this decodes
@@ -53,6 +60,9 @@ from typing import Iterable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.archive_format import hashlittle
 from cdmw.core.structured_binary_editor import parse_pabgh_table
+
+#: One `_statList_DataDefinedStaticLevel` record: a StatusInfo key and a byte.
+LEVEL_STAT_ENTRY_BYTES = 5
 
 STATUSINFO_HASH_INIT = 0xC5EDE
 NAME_TAG = b"\x07\x70\x00\x00\x00"
@@ -106,7 +116,7 @@ class EnchantLevel:
     equip_buffs: Tuple[int, ...] = ()
     #: The six bytes after the level number (two empty lists on every shipped row).
     header_bytes: bytes = b"\x00" * 6
-    #: The 25-byte `_statList_DataDefinedStaticLevel` records, verbatim.
+    #: The 5-byte `_statList_DataDefinedStaticLevel` records, verbatim.
     level_stat_entries: Tuple[bytes, ...] = ()
     #: The u32 beside each `_equipBuffs` key.
     equip_buff_extras: Tuple[int, ...] = ()
@@ -249,14 +259,14 @@ def _read_enchant_level(raw: bytes, offset: int, level: int) -> Optional[Enchant
         return None
     level_stat_count = _u32(raw, cursor)
     cursor += 4
-    if level_stat_count > 16 or cursor + 25 * level_stat_count > limit:
+    if level_stat_count > 16 or cursor + LEVEL_STAT_ENTRY_BYTES * level_stat_count > limit:
         return None
     level_stats = []
     level_stat_entries = []
     for _ in range(level_stat_count):
         level_stats.append(_u32(raw, cursor))
-        level_stat_entries.append(bytes(raw[cursor : cursor + 25]))
-        cursor += 25
+        level_stat_entries.append(bytes(raw[cursor : cursor + LEVEL_STAT_ENTRY_BYTES]))
+        cursor += LEVEL_STAT_ENTRY_BYTES
     prices = _read_price_list(raw, cursor)
     if prices is None:
         return None
@@ -599,8 +609,8 @@ def encode_enchant_level(level: EnchantLevel) -> bytes:
 
     if len(level.header_bytes) != 6:
         raise ItemInfoRowError("an enchant level carries six header bytes")
-    if len(level.level_stat_keys) != len(level.level_stat_entries) or any(len(entry) != 25 for entry in level.level_stat_entries):
-        raise ItemInfoRowError("static-level entries are 25 bytes each, one per key")
+    if len(level.level_stat_keys) != len(level.level_stat_entries) or any(len(entry) != LEVEL_STAT_ENTRY_BYTES for entry in level.level_stat_entries):
+        raise ItemInfoRowError(f"static-level entries are {LEVEL_STAT_ENTRY_BYTES} bytes each, one per key")
     if len(level.equip_buffs) != len(level.equip_buff_extras):
         raise ItemInfoRowError("every equip buff key carries one extra u32")
     out = bytearray(struct.pack("<I", level.level)) + level.header_bytes
