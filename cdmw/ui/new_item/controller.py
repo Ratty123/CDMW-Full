@@ -18,6 +18,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
 from cdmw.models import ArchiveEntry
+from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, build_placed_import, fitted_placement, load_model_import_source, mesh_bounds, mesh_centroid
 from cdmw.services.effect_catalogue import EffectCatalogue, EffectFacts, build_effect_catalogue, catalogue_signature, load_effect_catalogue, save_effect_catalogue
 from cdmw.services.new_item_baseline import baseline_facts, baseline_lines
 from cdmw.services.new_item_planning import NewItemPlan, NewItemPlanError
@@ -40,6 +41,10 @@ class NewItemStudioController(QObject):
     export_finished = Signal(object)
     install_finished = Signal(object)
     model_changed = Signal(object)
+    #: a model file was read for the studio (a ModelImportSource), or discarded (None)
+    model_import_changed = Signal(object)
+    #: the imported model's placement over the template moved (a ModelPlacement)
+    model_placement_changed = Signal(object)
     effect_catalogue_ready = Signal()
 
     def __init__(
@@ -60,6 +65,9 @@ class NewItemStudioController(QObject):
         self.model_result: object | None = None
         self.model_entry: Optional[ArchiveEntry] = None
         self.model_scene: object | None = None
+        #: the model file read for the studio's own placement, and where it sits
+        self.model_import: Optional[ModelImportSource] = None
+        self.model_placement: ModelPlacement = ModelPlacement()
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
         self._lane: str = ""
@@ -322,6 +330,20 @@ class NewItemStudioController(QObject):
         when the decode will not go, the bare `ParsedMesh` of `item_mesh_for_preview`.
         `token` names the source, so a view already showing it is left alone."""
 
+        source = self.model_import
+        if source is not None:
+            template = self._template_preview_build()
+            if template is None:
+                return None
+            template_token, template_build = template
+            model = source.preview_model
+
+            def build_scene(stop_event):
+                from cdmw.ui.new_item.item_preview import PlacementScene
+
+                return PlacementScene(template=template_build(stop_event), model=model)
+
+            return (("placement", id(source), template_token), build_scene)
         result = self.model_result
         model = getattr(result, "preview_model", None)
         if result is not None and model is not None and getattr(model, "meshes", None):
@@ -329,6 +351,12 @@ class NewItemStudioController(QObject):
         if result is not None:
             mesh = self.item_mesh_for_preview()
             return (("imported-bare", id(result)), lambda _stop_event: mesh) if mesh is not None else None
+        return self._template_preview_build()
+
+    def _template_preview_build(self):
+        """`(token, build)` for the template's own mesh: the archive decode with its
+        textures, else the bare parse; None without a template."""
+
         snapshot = self.snapshot
         if snapshot is None or self.draft.template_key is None:
             return None
@@ -505,7 +533,14 @@ class NewItemStudioController(QObject):
             spec = self.current_spec()
         except ValueError:
             return ()
-        return self.service.validate(spec, self.snapshot)
+        issues = tuple(self.service.validate(spec, self.snapshot))
+        if self.model_import is not None and self.model_result is None:
+            issues += (ValidationIssue(
+                code="model_placement_not_applied",
+                field="model",
+                message=f"{self.model_import.label} is imported but its placement is not applied yet: step 3, Apply the placement.",
+            ),)
+        return issues
 
     # ------------------------------------------------------------------ edits
 
@@ -518,7 +553,12 @@ class NewItemStudioController(QObject):
         self.model_result = None
         self.model_entry = None
         self.model_scene = None
+        had_import = self.model_import is not None
+        self.model_import = None
+        self.model_placement = ModelPlacement()
         self.template_changed.emit(template_key)
+        if had_import:
+            self.model_import_changed.emit(None)
 
     def set_imported_model(self, entry: Optional[ArchiveEntry], result: object | None, scene: object | None = None) -> None:
         """Take a Builder result for the template's mesh; None clears it. `scene` is the
@@ -528,9 +568,119 @@ class NewItemStudioController(QObject):
         self.model_result = result
         self.model_entry = entry
         self.model_scene = scene if result is not None else None
-        self.draft.model_source = ModelSource.IMPORTED if result is not None else ModelSource.TEMPLATE
+        self.draft.model_source = ModelSource.IMPORTED if (result is not None or self.model_import is not None) else ModelSource.TEMPLATE
         self.plan = None
         self.model_changed.emit(result)
+
+    # ------------------------------------------------------------------ the studio's own import
+
+    def template_bounds(self):
+        """The template mesh's bounds in the game's frame, for the first fit; None without one."""
+
+        return mesh_bounds(self._template_mesh())
+
+    def template_centroid(self):
+        return mesh_centroid(self._template_mesh())
+
+    def _fitted_placement(self, source: ModelImportSource) -> ModelPlacement:
+        return fitted_placement(source.bounds, self.template_bounds(), source_centroid=source.centroid, template_centroid=self.template_centroid())
+
+    def _template_mesh(self):
+        saved, self.model_result = self.model_result, None
+        try:
+            return self.item_mesh_for_preview()
+        finally:
+            self.model_result = saved
+
+    def start_model_import(self, path: Path) -> bool:
+        """Read a model file (or a zip holding one) for the studio's own placement: the
+        scene import and the source's textures, off the UI thread. On success the model
+        shows over the template at a first fit; a result built before is dropped."""
+
+        chosen = Path(path)
+        if self.snapshot is None or self.draft.template_key is None:
+            self.status_message.emit("Choose a template first; the model is placed over its mesh.", True)
+            return False
+
+        def task(log, stop_event):
+            log(f"Reading {chosen.name}...")
+            return load_model_import_source(chosen, stop_event=stop_event)
+
+        def done(result: object) -> None:
+            if not isinstance(result, ModelImportSource):
+                self.status_message.emit("The model import finished with an unexpected result.", True)
+                return
+            self.model_import = result
+            self.model_placement = self._fitted_placement(result)
+            if self.model_result is not None:
+                self.set_imported_model(None, None)
+            self.draft.model_source = ModelSource.IMPORTED
+            self.plan = None
+            self.model_import_changed.emit(result)
+            self.model_placement_changed.emit(self.model_placement)
+
+        def failed(message: str) -> None:
+            self.status_message.emit(f"The model could not be read: {message}", True)
+
+        return self._run("model_import", task, done, failed)
+
+    def set_model_placement(self, placement: ModelPlacement) -> None:
+        """Move the imported model (the gizmo, the numbers, a fit, a reset). A result
+        built at another placement is dropped: it no longer says where the model sits."""
+
+        self.model_placement = placement
+        source = self.model_import
+        if self.model_result is not None and source is not None and source.applied != placement:
+            self.set_imported_model(None, None)
+        self.plan = None
+        self.model_placement_changed.emit(placement)
+
+    def fit_model_placement(self) -> None:
+        source = self.model_import
+        if source is None:
+            return
+        self.set_model_placement(self._fitted_placement(source))
+
+    def start_model_apply(self) -> bool:
+        """Build the item's mesh from the imported model at its placement: the Builder's
+        import over the template's mesh, headless, off the UI thread. The result is what
+        the plan writes (the rebuilt mesh and its side files)."""
+
+        source = self.model_import
+        entries = self.template_entries()
+        if source is None or not entries:
+            self.status_message.emit("Import a model first; there is nothing to place.", True)
+            return False
+        entry = entries[0]
+        placement = self.model_placement
+        context = self.import_dependency_context()
+        by_path = getattr(context, "entries_by_normalized_path", None)
+        by_basename = getattr(context, "entries_by_basename", None)
+
+        def task(log, stop_event):
+            log(f"Building {entry.basename} from {source.label} at its placement...")
+            return build_placed_import(entry, source, placement, entries_by_normalized_path=by_path, entries_by_basename=by_basename, stop_event=stop_event)
+
+        def done(result: object) -> None:
+            source.applied = placement
+            self.set_imported_model(entry, result, source.scene)
+
+        def failed(message: str) -> None:
+            self.status_message.emit(f"The placement could not be built: {message}", True)
+
+        return self._run("model_apply", task, done, failed)
+
+    def discard_model(self) -> None:
+        """Drop the imported model, its placement and any result: back to the template's model."""
+
+        self.model_import = None
+        self.model_placement = ModelPlacement()
+        if self.model_result is not None:
+            self.set_imported_model(None, None)
+        else:
+            self.draft.model_source = ModelSource.TEMPLATE
+            self.plan = None
+        self.model_import_changed.emit(None)
 
     # ------------------------------------------------------------------ tasks
 

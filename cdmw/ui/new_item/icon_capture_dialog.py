@@ -53,6 +53,7 @@ class IconCaptureDialog(QDialog):
         item_mesh: Optional[ParsedMesh] = None,
         item_source: object = None,
         item_token: object = None,
+        item_placement: object = None,
         item_label: str = "",
         output_root: Optional[Path] = None,
         host_factory: Optional[Callable[[QWidget], object]] = None,
@@ -69,6 +70,8 @@ class IconCaptureDialog(QDialog):
         self._item_mesh = item_mesh
         self._item_source = item_source
         self._item_token = item_token
+        #: where an imported model sits over the template (a ModelPlacement), when the source is a placement scene
+        self._item_placement = item_placement
         self._output_root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_new_item_icons"
         self._package_dir: Optional[Path] = None
         self._thread: Optional[QThread] = None
@@ -184,6 +187,12 @@ class IconCaptureDialog(QDialog):
         if str(state) == "ready" and self._package_dir is not None:
             self.host.set_display_mode("replacement_only")
             self.host.set_icon_capture_mode(True)
+            placement = self._item_placement
+            if placement is not None:
+                self.host.set_alignment_preview_transform(
+                    translation=tuple(placement.offset), rotation_degrees=tuple(placement.rotation), scale_xyz=tuple(placement.scale),
+                )
+                self.host.reset_view()
             self.capture_button.setEnabled(True)
             self.status.setText("Orbit with the mouse, zoom with the wheel, then Capture. Capture again until you like it.")
         elif str(state) == "error":

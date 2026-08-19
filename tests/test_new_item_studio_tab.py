@@ -206,13 +206,12 @@ class TabTests(unittest.TestCase):
         tab.deleteLater()
 
     def test_the_import_brings_its_own_dependency_context(self) -> None:
-        """The Builder's flow asks the window for a dependency context; the studio builds a
-        bounded one from its own listing (family files, the family folder, stem-named
-        files), so the Archive Browser's selection plays no part in an import."""
+        """The headless build over the template's mesh takes the archive maps the
+        Builder's import wants; the studio builds them from its own listing (the whole
+        listing behind the path and basename maps, the family files as the bounded member
+        list), so the Archive Browser's selection plays no part in an import."""
 
-        from types import SimpleNamespace
-
-        from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext, archive_workflow_dependency_context
+        from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
 
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
@@ -223,10 +222,10 @@ class TabTests(unittest.TestCase):
         self.assertEqual(context.selected_entry.path, entries[0].path)
         self.assertIsNotNone(context.entry_for_path(entries[0].path))
         self.assertFalse(context.remote)
-        owner = SimpleNamespace(_new_item_dependency_context=context, archive_remote_bridge=SimpleNamespace(displays_v2=True))
-        resolved = archive_workflow_dependency_context(owner, entries[0])
-        self.assertEqual(resolved.selected_entry.path, entries[0].path, "the override answers for the template's mesh")
-        self.assertIn(entries[0].path.rsplit("/", 1)[-1].lower(), {k.lower() for k in resolved.entries_by_basename})
+        self.assertIn(entries[0].path.rsplit("/", 1)[-1].lower(), {k.lower() for k in context.entries_by_basename})
+        by_path, by_basename = tab.controller.snapshot.archive_index_maps()
+        self.assertIs(context.entries_by_normalized_path, by_path, "the whole listing, built once")
+        self.assertIs(context.entries_by_basename, by_basename)
         tab.close()
         tab.deleteLater()
 
@@ -516,16 +515,104 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
-    def test_imported_model_and_missing_import_hook(self) -> None:
+    def test_a_model_file_is_placed_in_the_studio(self) -> None:
+        """Import a model file on step 3: the studio reads it itself (no Builder, no Mesh
+        Editor), shows it over the template with a first fit, takes the placement from
+        the numbers or the gizmo, and Apply builds the item's mesh headlessly; moving it
+        again drops that build; discarding returns to the template's model."""
+
+        from types import SimpleNamespace
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.item_preview import PlacementScene
+        from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        panel = tab.model_panel
+        self.assertFalse(panel.placement_group.isVisibleTo(panel), "no model, no placement controls")
+        # a source: a 10 m long box along x, with one texture
+        box = ParsedMesh(path="box.gltf", format="gltf", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0), (10, 0, 0), (10, 2, 2), (0, 2, 2)], faces=[(0, 1, 2), (0, 2, 3)])])
+        box.total_vertices = 4
+        source = ModelImportSource(
+            chosen_path=Path(r"E:/models/box.zip"), model_path=Path(r"E:/models/box/scene.gltf"), scene=SimpleNamespace(mesh=box, diagnostics=()),
+            preview_model=SimpleNamespace(meshes=[object()]), bounds=((0.0, 0.0, 0.0), (10.0, 2.0, 2.0)), texture_count=1,
+        )
+        seen = {}
+        template_box = ((-0.1, -0.1, -1.0), (0.1, 0.1, 0.2))  # the test snapshot's pac is not a real mesh
+        bounds_patch = patch.object(type(tab.controller), "template_bounds", lambda self_: template_box)
+        bounds_patch.start()
+        self.addCleanup(bounds_patch.stop)
+        with patch("cdmw.ui.new_item.controller.load_model_import_source", lambda path, **kw: seen.setdefault("path", path) and source),              patch("cdmw.ui.new_item.panels_model.QFileDialog.getOpenFileName", return_value=(r"E:/models/box.zip", "")):
+            panel.import_button.click()
+        self.assertEqual(seen["path"], Path(r"E:/models/box.zip"))
+        self.assertIs(tab.controller.model_import, source)
+        self.assertEqual(tab.controller.draft.model_source, ModelSource.IMPORTED)
+        self.assertTrue(panel.placement_group.isVisibleTo(panel))
+        self.assertTrue(panel.import_model.isChecked())
+        fitted = tab.controller.model_placement
+        self.assertNotEqual(fitted.scale, (1.0, 1.0, 1.0), "a first fit scales the box to the template")
+        self.assertAlmostEqual(panel.scale_spins[0].value(), fitted.scale[0], places=4)
+        self.assertIn("placement not applied", tab.summary.plain_text())
+        self.assertTrue(any(issue.code == "model_placement_not_applied" for issue in tab.controller.validate()), "the plan is blocked until the placement is applied")
+        # the viewport gets the placement scene: the template's decode plus the source's preview
+        token, build = tab.controller.item_preview_source()
+        self.assertEqual(token[0], "placement")
+        import threading
+
+        blade = ParsedMesh(path="blade", format="pac", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)])])
+        with patch("cdmw.core.archive_preview_result_builder.build_archive_preview_result", lambda entry, **kwargs: SimpleNamespace(preferred_view="details", preview_model=None)),              patch.object(type(tab.controller), "item_mesh_for_preview", lambda self_: blade):
+            scene = build(threading.Event())
+        self.assertIsInstance(scene, PlacementScene)
+        self.assertIs(scene.model, source.preview_model)
+        self.assertIs(scene.template, blade, "no decode: the bare template mesh is the reference")
+        # the numbers move the placement
+        panel.offset_spins[2].setValue(-0.25)
+        self.assertAlmostEqual(tab.controller.model_placement.offset[2], -0.25, places=6)
+        # apply: the headless build, the result is what the plan writes
+        fake_result = SimpleNamespace(rebuilt_data=b"PAC placed", supplemental_file_specs=(), summary_lines=("one",), preview_model=None)
+        with patch("cdmw.ui.new_item.controller.build_placed_import", lambda entry, src, placement, **kw: seen.setdefault("built", (entry, src, placement)) and fake_result):
+            panel.apply_button.click()
+        self.assertIs(tab.controller.model_result, fake_result)
+        self.assertEqual(seen["built"][2], tab.controller.model_placement)
+        self.assertIs(source.applied, tab.controller.model_placement)
+        self.assertTrue(all(issue.code != "model_placement_not_applied" for issue in tab.controller.validate()))
+        self.assertIn("placed", tab.summary.plain_text())
+        # the gizmo moves it again: the build is dropped until the next apply
+        panel._gizmo_moved(tab.controller.model_placement.with_values(offset=(0.1, 0.0, -0.25)), True)
+        self.assertIsNone(tab.controller.model_result, "a moved model has no build yet")
+        self.assertAlmostEqual(panel.offset_spins[0].value(), 0.1, places=6)
+        # the transform the build gets is the placement, manual mode
+        transform = tab.controller.model_placement.build_transform()
+        self.assertEqual(transform.alignment_mode, "manual")
+        self.assertFalse(transform.scale_to_original_length)
+        self.assertEqual(transform.offset_xyz, (0.1, 0.0, -0.25))
+        # a fit and a reset
+        panel.reset_placement_button.click()
+        self.assertEqual(tab.controller.model_placement, ModelPlacement())
+        panel.fit_button.click()
+        self.assertEqual(tab.controller.model_placement, fitted)
+        # discard: the template's model again
+        panel.clear_button.click()
+        self.assertIsNone(tab.controller.model_import)
+        self.assertEqual(tab.controller.draft.model_source, ModelSource.TEMPLATE)
+        self.assertFalse(panel.placement_group.isVisibleTo(panel))
+        tab.close()
+        tab.deleteLater()
+
+    def test_a_builder_result_handed_in_directly_and_the_material_route(self) -> None:
+        """`receive_imported_model` takes a ready Builder result (code can hand one in);
+        the material route and the sheath are an imported model's questions."""
+
         from types import SimpleNamespace
 
         from cdmw.services.new_item_planning import ModelFiles
 
         tab = self._tab(window=SimpleNamespace())
         tab.prefill_template(TEMPLATE)
-        with patch("cdmw.ui.new_item.tab.QMessageBox.information", return_value=None) as info:
+        with patch("cdmw.ui.new_item.panels_model.QFileDialog.getOpenFileName", return_value=("", "")):
             tab.model_panel.import_button.click()
-        self.assertTrue(info.called, "without a shell hook the tab says how to reach the Builder")
+        self.assertIsNone(tab.controller.model_import, "cancelling the file dialog imports nothing")
         entry = tab.controller.template_entries()[0]
         self.assertFalse(tab.model_panel.plain_pbr.isEnabled(), "the material route is an imported model's question")
         tab.receive_imported_model(entry, ModelFiles(pac_data=b"PAC imported"), scene=None)
