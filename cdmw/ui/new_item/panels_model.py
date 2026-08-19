@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from pathlib import Path
+
+from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
+    QDoubleSpinBox,
     QFileDialog,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -18,21 +23,37 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.new_item.spec import IconSource, MaterialRoute, ModelSource, SheathedModel
 from cdmw.ui.new_item.controller import NewItemStudioController
-from cdmw.ui.new_item.item_preview import ItemPreviewFrame
-from cdmw.ui.new_item.ui_kit import OK, DetailsToggle, NoteLabel, intro_label, note
+from cdmw.ui.new_item.item_preview import GIZMO_TOOLS, ItemPreviewFrame
+from cdmw.ui.new_item.model_import import ModelPlacement
+from cdmw.ui.new_item.ui_kit import EDIT, OK, WARN, DetailsToggle, NoteLabel, intro_label, note
+
+IMPORT_FILE_FILTER = "Model files (*.gltf *.glb *.obj *.dae *.zip);;glTF / GLB (*.gltf *.glb);;Wavefront OBJ (*.obj);;Collada DAE (*.dae);;Zip with a model inside (*.zip);;All files (*)"
+IMPORT_DIR_SETTING = "ui/new_item_import_dir"
+
+
+def _spin(minimum: float, maximum: float, step: float, decimals: int, suffix: str = "") -> QDoubleSpinBox:
+    spin = QDoubleSpinBox()
+    spin.setRange(minimum, maximum)
+    spin.setSingleStep(step)
+    spin.setDecimals(decimals)
+    if suffix:
+        spin.setSuffix(suffix)
+    spin.setKeyboardTracking(False)
+    spin.setMinimumWidth(88)
+    return spin
 
 
 class ModelPanel(QGroupBox):
-    """Keep the template's model or take a Builder result; keep the icon or generate one."""
-
-    #: The tab starts the Builder over the template's mesh when this fires.
-    import_requested = Signal()
+    """Keep the template's model or import one and place it over the template here, in
+    the step's own viewport (the gizmo, the numbers); keep the icon or generate one."""
 
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("3. Model and icon", parent)
         self._controller = controller
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label("What the item looks like: the template's model or one you import, and the icon the inventory shows."))
+        layout.addWidget(intro_label("What the item looks like: the template's model or one you import and place here, and the icon the inventory shows."))
+        self.preview = ItemPreviewFrame(self)
+        self._syncing_numbers = False
 
         model = QGroupBox("Model")
         model_layout = QVBoxLayout(model)
@@ -45,23 +66,22 @@ class ModelPanel(QGroupBox):
         row = QHBoxLayout()
         self.import_button = QPushButton("Import a model file...")
         self.import_button.setToolTip(
-            "Pick a glTF, GLB, OBJ or DAE file, or a zip with one inside, from anywhere on disk; the Builder then opens over the "
-            "template's mesh with it (the Archive Browser selects that mesh first, which takes a moment). The Builder's result is "
-            "kept here instead of being written over the template."
+            "Pick a glTF, GLB, OBJ or DAE file, or a zip with one inside, from anywhere on disk. It is read the way the Model "
+            "Library reads it (its own textures too) and shown over the template below, where you place it."
         )
-        self.import_button.clicked.connect(self.import_requested.emit)
+        self.import_button.clicked.connect(self._pick_model_file)
         row.addWidget(self.import_button)
         self.clear_button = QPushButton("Discard imported model")
-        self.clear_button.clicked.connect(lambda: self._controller.set_imported_model(None, None))
+        self.clear_button.clicked.connect(self._controller.discard_model)
         row.addWidget(self.clear_button)
         row.addStretch(1)
         model_layout.addLayout(row)
         self.model_status = NoteLabel("No imported model.", None)
         model_layout.addWidget(self.model_status)
         model_layout.addWidget(intro_label(
-            "Hand placement: the Builder opens over the template's mesh and shows it as a wire under your model; align yours to it "
-            "with the gizmo (grip at the origin, blade toward -z, the same size as the original) and the game holds the new item exactly "
-            "as it holds the template."
+            "Hand placement: the game holds the new item exactly as it holds the template (grip at the origin, blade toward -z), "
+            "so your model is placed over the template's mesh below, with the gizmo or the numbers, and the placement is applied "
+            "before the plan is built."
         ))
         self.plain_pbr = QCheckBox("Use the game's plain PBR shaders for the imported textures (recommended)")
         self.plain_pbr.setChecked(True)
@@ -82,28 +102,94 @@ class ModelPanel(QGroupBox):
         self.own_sheath.toggled.connect(self._sheath_changed)
         model_layout.addWidget(self.own_sheath)
         model_layout.addWidget(DetailsToggle(
-            "Import tips. glTF, GLB and OBJ sources: tick Flip V in the Builder's texture setup, or the textures draw mirrored along "
-            "the model (the game samples V from the top of the image). "
-            "Head cover and placement come from the template: an imported model inherits the template's part prefabs (which "
-            "character parts it occupies, and any mesh drawn beside it, such as a helm's helmet hair), so pick a helm template for "
-            "the look it gives in game (the Northern Fighter's Plate Helm keeps the face drawn; the Unyielding Warrior's and Canta "
-            "helms hide the head). Where the model sits is the Builder's placement review: on the shipped swords the guard's "
-            "handle-side edge is 0.10 m in front of the hand (offset z, + toward the pommel), and a helm wants manual placement "
-            "(a source in centimetres: scale 0.01, no rotation, origin at the head, about y 1.745, z -0.03).",
+            "Import tips. Head cover and placement come from the template: an imported model inherits the template's part prefabs "
+            "(which character parts it occupies, and any mesh drawn beside it, such as a helm's helmet hair), so pick a helm template "
+            "for the look it gives in game (the Northern Fighter's Plate Helm keeps the face drawn; the Unyielding Warrior's and Canta "
+            "helms hide the head). Where the model sits: on the shipped swords the guard's handle-side edge is 0.10 m in front of the "
+            "hand (offset z, + toward the pommel), and a helm wants manual placement (a source in centimetres: scale 0.01, no "
+            "rotation, origin at the head, about y 1.745, z -0.03). Fit to the template gives a first guess; the gizmo does the rest.",
             title="Import tips",
         ))
         layout.addWidget(model)
 
+        # ---- placement: the model over the template, in the viewport below
+        self.placement_group = QGroupBox("Place the model over the template")
+        placement_layout = QVBoxLayout(self.placement_group)
+        placement_layout.addWidget(intro_label(
+            "Your model is the solid one, the template the reference drawn under it. Drag the gizmo in the viewport (move, rotate, "
+            "scale) or type the numbers: scale first, then rotation, then offset, all about the origin. Apply the placement to build "
+            "the item's mesh from it; move it again and the build is dropped until you apply once more."
+        ))
+        view_row = QHBoxLayout()
+        view_row.addWidget(QLabel("View:"))
+        self.view_mode = QComboBox()
+        self.view_mode.addItem("Overlay", "overlay")
+        self.view_mode.addItem("Side by side", "side_by_side")
+        self.view_mode.addItem("Your model only", "replacement_only")
+        self.view_mode.addItem("Template only", "original_only")
+        self.view_mode.setToolTip("Overlay: your model over the template. Side by side: the template left, your model right. Or one of them alone.")
+        self.view_mode.currentIndexChanged.connect(lambda _i: self.preview.set_view_mode(str(self.view_mode.currentData() or "overlay")))
+        view_row.addWidget(self.view_mode)
+        self.grid_visible = QCheckBox("Grid")
+        self.grid_visible.setChecked(True)
+        self.grid_visible.toggled.connect(self.preview.set_grid_visible)
+        view_row.addWidget(self.grid_visible)
+        view_row.addSpacing(12)
+        view_row.addWidget(QLabel("Gizmo:"))
+        self.gizmo_buttons = {"move": QRadioButton("Move"), "rotate": QRadioButton("Rotate"), "scale": QRadioButton("Scale")}
+        for tool in GIZMO_TOOLS:
+            button = self.gizmo_buttons[tool]
+            button.toggled.connect(lambda checked, t=tool: self.preview.set_gizmo_tool(t) if checked else None)
+            view_row.addWidget(button)
+        self.gizmo_buttons["move"].setChecked(True)
+        view_row.addSpacing(12)
+        self.frame_view_button = QPushButton("Frame the model")
+        self.frame_view_button.setToolTip("Bring the camera back onto the model where it sits now.")
+        self.frame_view_button.clicked.connect(self.preview.fit_view)
+        view_row.addWidget(self.frame_view_button)
+        view_row.addStretch(1)
+        placement_layout.addLayout(view_row)
+        numbers = QGridLayout()
+        numbers.setHorizontalSpacing(8)
+        self.offset_spins = tuple(_spin(-50.0, 50.0, 0.01, 3, " m") for _ in range(3))
+        self.rotation_spins = tuple(_spin(-360.0, 360.0, 1.0, 1, "\u00b0") for _ in range(3))
+        self.scale_spins = tuple(_spin(0.0001, 1000.0, 0.01, 4) for _ in range(3))
+        for row, (title, spins) in enumerate((("Offset x / y / z (m):", self.offset_spins), ("Rotation x / y / z (\u00b0):", self.rotation_spins), ("Scale x / y / z:", self.scale_spins))):
+            numbers.addWidget(QLabel(title), row, 0)
+            for axis, spin in enumerate(spins):
+                spin.valueChanged.connect(self._numbers_changed)
+                numbers.addWidget(spin, row, 1 + axis)
+        numbers.setColumnStretch(4, 1)
+        placement_layout.addLayout(numbers)
+        action_row = QHBoxLayout()
+        self.fit_button = QPushButton("Fit to the template")
+        self.fit_button.setToolTip("A first guess: the model scaled to the template's length, turned onto its long axis, centred on it.")
+        self.fit_button.clicked.connect(self._fit_to_template)
+        action_row.addWidget(self.fit_button)
+        self.reset_placement_button = QPushButton("Reset")
+        self.reset_placement_button.setToolTip("Back to the model as it came: no offset, no rotation, scale 1.")
+        self.reset_placement_button.clicked.connect(lambda: self._controller.set_model_placement(ModelPlacement()))
+        action_row.addWidget(self.reset_placement_button)
+        self.apply_button = QPushButton("Apply the placement")
+        self.apply_button.setToolTip("Build the item's mesh from the model at this placement (the Builder's import over the template's mesh, a few seconds).")
+        self.apply_button.clicked.connect(self._controller.start_model_apply)
+        action_row.addWidget(self.apply_button)
+        self.apply_status = NoteLabel("", None)
+        action_row.addWidget(self.apply_status, 1)
+        placement_layout.addLayout(action_row)
+        self.placement_group.setVisible(False)
+        layout.addWidget(self.placement_group)
+
         preview = QGroupBox("Preview: the item as it will be")
         preview_layout = QVBoxLayout(preview)
         preview_layout.addWidget(intro_label(
-            "The imported model with its textures when there is one, else the template's own mesh and textures from the archives, "
-            "in the same viewport the Model Library uses. Orbit and zoom to check it; take the icon from the view you like."
+            "The imported model with its own textures over the template when there is one, else the template's mesh and textures "
+            "from the archives, in the same viewport the Model Library uses. Orbit and zoom to check it; take the icon from the view you like."
         ))
-        self.preview = ItemPreviewFrame(self)
-        self.preview.setMinimumHeight(320)
+        self.preview.setMinimumHeight(360)
         self.preview.status_changed.connect(self._preview_status)
         self.preview.captured.connect(self._inline_capture_done)
+        self.preview.placement_changed.connect(self._gizmo_moved)
         preview_layout.addWidget(self.preview, 1)
         preview_row = QHBoxLayout()
         self.capture_inline_button = QPushButton("Capture the icon from this view")
@@ -155,6 +241,10 @@ class ModelPanel(QGroupBox):
 
         controller.model_changed.connect(self._show_model)
         controller.model_changed.connect(lambda _result: self.refresh_preview())
+        controller.model_import_changed.connect(lambda _source: self._show_model(controller.model_result))
+        controller.model_import_changed.connect(lambda _source: self.refresh_preview())
+        controller.model_placement_changed.connect(self._placement_changed)
+        controller.busy_changed.connect(self._busy_changed)
         layout.addStretch(1)
         controller.template_changed.connect(lambda _key: self._show_model(controller.model_result))
         controller.template_changed.connect(lambda _key: self.refresh_preview())
@@ -179,21 +269,37 @@ class ModelPanel(QGroupBox):
         self._controller.plan = None
 
     def _show_model(self, result: object) -> None:
-        if result is None:
+        source = self._controller.model_import
+        self.placement_group.setVisible(source is not None)
+        if result is None and source is None:
             self.keep_model.setChecked(True)
             self.model_status.set_note("No imported model.", None)
             self.plain_pbr.setEnabled(False)
             self.own_sheath.setEnabled(False)
+            self.apply_status.set_note("", None)
             return
         self.import_model.setChecked(True)
         self.plain_pbr.setEnabled(True)
         self.own_sheath.setEnabled(True)
-        lines = list(getattr(result, "summary_lines", ()) or ())[:4]
-        entry = self._controller.model_entry
-        head = f"Imported model for {entry.basename}" if entry is not None else "Imported model"
-        size = len(getattr(result, "rebuilt_data", b"") or b"")
-        extras = len(tuple(getattr(result, "supplemental_file_specs", ()) or ()))
-        self.model_status.set_lines([note(f"{head}: {size:,} bytes, {extras} side file(s)", OK)] + [note(line, None) for line in lines])
+        lines = []
+        if source is not None:
+            mesh = getattr(source.scene, "mesh", None)
+            vertices = int(getattr(mesh, "total_vertices", 0) or 0)
+            parts = len(tuple(getattr(mesh, "submeshes", ()) or ()))
+            textures = f"{source.texture_count} texture(s) of its own" if source.texture_count else "no textures of its own found beside it"
+            lines.append(note(f"{source.label}: {vertices:,} vertices, {parts} part(s), {textures}", OK))
+            lines.extend(note(text, None) for text in source.notes[:2])
+        if result is not None:
+            entry = self._controller.model_entry
+            head = f"Placed over {entry.basename}" if entry is not None else "Placed"
+            size = len(getattr(result, "rebuilt_data", b"") or b"")
+            extras = len(tuple(getattr(result, "supplemental_file_specs", ()) or ()))
+            lines.append(note(f"{head}: the rebuilt mesh is {size:,} bytes, {extras} side file(s)", OK))
+            self.apply_status.set_note("Applied: the plan will write this mesh.", OK)
+        elif source is not None:
+            self.apply_status.set_note("Not applied yet: the plan needs Apply the placement.", WARN)
+        self.model_status.set_lines(lines)
+        self._sync_placement_numbers(self._controller.model_placement)
 
     def _icon_source_changed(self, keep: bool) -> None:
         self._controller.draft.icon = IconSource.TEMPLATE if keep else IconSource.GENERATED
@@ -221,11 +327,83 @@ class ModelPanel(QGroupBox):
             self._preview_mesh_token = None
             return
         token, build = source
+        imported = self._controller.model_import
+        if imported is not None:
+            # the placement scene: the same token only takes the new placement
+            count = len(tuple(getattr(getattr(imported, "scene", None), "mesh", None).submeshes or ())) if getattr(getattr(imported, "scene", None), "mesh", None) is not None else 0
+            if token != self._preview_mesh_token:
+                self.capture_inline_button.setEnabled(False)
+            self._preview_mesh_token = token
+            self.preview.show_placement(build, token=token, placement=self._controller.model_placement, model_submesh_count=count)
+            return
         if token == self._preview_mesh_token and self.preview.is_ready:
             return
         self._preview_mesh_token = token
         self.capture_inline_button.setEnabled(False)
         self.preview.show(build, token=token)
+
+    # ------------------------------------------------------------------ the import and its placement
+
+    def _pick_model_file(self) -> None:
+        settings = QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench")
+        start_dir = str(settings.value(IMPORT_DIR_SETTING, "") or "")
+        if not start_dir or not Path(start_dir).is_dir():
+            start_dir = str(Path.home())
+        path, _selected = QFileDialog.getOpenFileName(self, "Import a model file", start_dir, IMPORT_FILE_FILTER)
+        if not path:
+            return
+        settings.setValue(IMPORT_DIR_SETTING, str(Path(path).parent))
+        self.import_model.setChecked(True)
+        self._controller.start_model_import(Path(path))
+
+    def _fit_to_template(self) -> None:
+        self._controller.fit_model_placement()
+        self.preview.fit_view()
+
+    def _placement_changed(self, placement: object) -> None:
+        if isinstance(placement, ModelPlacement):
+            self._sync_placement_numbers(placement)
+            if self._controller.model_import is not None:
+                self.preview.set_placement(placement)
+                self.refresh_preview()
+
+    def _sync_placement_numbers(self, placement: ModelPlacement) -> None:
+        self._syncing_numbers = True
+        try:
+            for spins, values in ((self.offset_spins, placement.offset), (self.rotation_spins, placement.rotation), (self.scale_spins, placement.scale)):
+                for spin, value in zip(spins, values):
+                    if abs(spin.value() - float(value)) > 0.5 * 10 ** (-spin.decimals()):
+                        spin.setValue(float(value))
+        finally:
+            self._syncing_numbers = False
+
+    def _numbers_changed(self, _value: float) -> None:
+        if self._syncing_numbers or self._controller.model_import is None:
+            return
+        self._controller.set_model_placement(ModelPlacement(
+            offset=tuple(spin.value() for spin in self.offset_spins),
+            rotation=tuple(spin.value() for spin in self.rotation_spins),
+            scale=tuple(spin.value() for spin in self.scale_spins),
+        ))
+
+    def _gizmo_moved(self, placement: object, finished: bool) -> None:
+        """The gizmo moved the model: the numbers follow every tick; the controller
+        takes the placement when the drag ends (it drops a build made elsewhere)."""
+
+        if not isinstance(placement, ModelPlacement):
+            return
+        self._sync_placement_numbers(placement)
+        if finished:
+            self._controller.set_model_placement(placement)
+
+    def _busy_changed(self, busy: bool) -> None:
+        lane = getattr(self._controller, "_lane", "")
+        for widget in (self.import_button, self.apply_button, self.fit_button, self.reset_placement_button):
+            widget.setEnabled(not busy)
+        if busy and lane == "model_import":
+            self.model_status.set_note("Reading the model file...", EDIT)
+        elif busy and lane == "model_apply":
+            self.apply_status.set_note("Building the item's mesh at this placement...", EDIT)
 
     def _preview_status(self, text: str) -> None:
         self.preview_status.setText(str(text or ""))
@@ -259,7 +437,9 @@ class ModelPanel(QGroupBox):
             return
         token, build = source
         dialog = self.icon_capture_dialog_factory(
-            self, item_source=build, item_token=token, item_label=self._controller.draft.internal_name or self._controller.template_name(),
+            self, item_source=build, item_token=token,
+            item_placement=self._controller.model_placement if self._controller.model_import is not None else None,
+            item_label=self._controller.draft.internal_name or self._controller.template_name(),
         )
         if dialog.exec() != QDialog.Accepted or dialog.captured_path is None:
             return

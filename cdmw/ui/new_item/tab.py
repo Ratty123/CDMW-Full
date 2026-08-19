@@ -170,7 +170,9 @@ class NewItemStudioTab(QWidget):
         self.perks_panel = PerksPanel(controller)
         self.placement_panel = PlacementPanel(controller)
         self.output_panel = OutputPanel(controller)
-        self.model_panel.import_requested.connect(self._start_model_import)
+        controller.model_import_changed.connect(lambda _source: self.identity_panel.refresh_issues())
+        controller.model_import_changed.connect(self._refresh_summary)
+        controller.model_placement_changed.connect(self._refresh_summary)
         self.output_panel.install_requested.connect(self._install)
         controller.template_changed.connect(lambda _key: self.identity_panel.refresh_issues())
         controller.model_changed.connect(lambda _result: self.identity_panel.refresh_issues())
@@ -317,7 +319,13 @@ class NewItemStudioTab(QWidget):
         blocked = [issue for issue in controller.validate() if issue.is_error] if controller.ready else []
         if blocked:
             lines.append(note(f"{len(blocked)} thing(s) block the plan (see step 2)", BLOCK))
-        lines.append(note("Model: imported", EDIT) if controller.model_result is not None else note("Model: the template's", OK))
+        imported = controller.model_import
+        if imported is not None and controller.model_result is None:
+            lines.append(note(f"Model: {imported.label}, placement not applied", WARN))
+        elif imported is not None or controller.model_result is not None:
+            lines.append(note(f"Model: {imported.label if imported is not None else 'imported'}, placed", EDIT))
+        else:
+            lines.append(note("Model: the template's", OK))
         edits = len(draft.grid_values) + len(draft.price_values) + int(draft.extra_levels) + (1 if draft.max_stack_count is not None else 0)
         lines.append(note(f"Stats and prices: {edits} edit(s)", EDIT) if edits else note("Stats and prices: as the template", OK))
         lines.append(note("Perks: chosen here", EDIT) if draft.socket_items is not None else note("Perks: the template's", OK))
@@ -351,24 +359,6 @@ class NewItemStudioTab(QWidget):
         self.controller.set_imported_model(entry, result, scene)
         if self._panels_built:
             self.identity_panel.refresh_issues()
-
-    def _start_model_import(self) -> None:
-        entries = self.controller.template_entries()
-        if not entries:
-            QMessageBox.information(self, "Import a model file", "Choose a template whose model files are in the archives first.")
-            return
-        starter = getattr(self._window, "start_new_item_model_import", None)
-        if not callable(starter):
-            QMessageBox.information(
-                self, "Import a model file",
-                "Import Mesh is not reachable from here in this window. Build the model through Archive Browser's Import Mesh, "
-                "then use Build as new item... in the Builder.",
-            )
-            return
-        try:
-            starter(entries[0], self.receive_imported_model, self.controller.import_dependency_context())
-        except TypeError:
-            starter(entries[0], self.receive_imported_model)
 
     def _install(self) -> None:
         plan = self.controller.plan

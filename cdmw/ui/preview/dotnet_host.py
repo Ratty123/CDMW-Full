@@ -691,6 +691,14 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
     def capture_replacement_icon(self, output_path: Path) -> bool:
         return self.controller.request_capture(output_path, width=512, height=512)
 
+    def set_grid_visible(self, visible: bool) -> bool:
+        """Draw or hide the ground grid (the Mesh Editor's Grid toggle)."""
+
+        display = dict(self._presentation_state.get("display", {}))
+        display["grid_visible"] = bool(visible)
+        self._presentation_state["display"] = display
+        return self._remember_presentation_state({"display": {"grid_visible": bool(visible)}})
+
     def set_alignment_state(
         self,
         *,

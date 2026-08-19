@@ -94,14 +94,6 @@ def _mesh_patch_dependencies(
         dependencies = archive_workflow_dependency_context(owner, entry)
     except ArchiveWorkflowDependenciesUnavailable as exc:
         owner.set_status_message(f"Mesh replacement is unavailable: {exc}", error=True)
-        if getattr(owner, "_new_item_model_sink", None):
-            # the New Item Studio is waiting on this; a status line alone reads as "nothing happened"
-            QMessageBox.information(
-                owner if isinstance(owner, QWidget) else None,
-                "Import a model file",
-                f"Import Mesh could not start: {exc}\n\nSelect the template's mesh in the Archive Browser, wait for its preview, "
-                "and try again from the studio, or run Import Mesh on it there; the result comes back to the studio.",
-            )
         return None, None
     return dependencies, dependencies.selected_entry
 
@@ -174,43 +166,14 @@ class ArchiveMeshPatchFlowMixin:
             materials_and_textures_only=True,
         )
 
-    def _preview_diverted_or_invalid(
-        self,
-        entry: ArchiveEntry,
-        result: object,
-        finish: Callable[[str, bool], None],
-    ) -> bool:
-        """True when the preview result is not one, or was handed to the New Item Studio.
-
-        The studio arms `_new_item_model_sink` through `start_new_item_model_import`;
-        it is matched on the entry's path and consumed once, so an unrelated later
-        import is never captured. The preview is still shown so the reader sees what
-        was handed over, and the Builder is told nothing was written over the template.
-        The scene import the build ran from goes along (`_new_item_model_scene`, kept
-        by `_start_archive_mesh_patch` while the sink is armed) so the studio can read
-        the source's own textures.
-        """
+    @staticmethod
+    def _preview_invalid(result: object, finish: Callable[[str, bool], None]) -> bool:
+        """True when the preview result is not one (the build stops with a message)."""
 
         if not isinstance(result, MeshImportPreviewResult):
             finish("Mesh import preview finished with an unexpected result payload.", False)
             return True
-        armed = getattr(self, "_new_item_model_sink", None)
-        if not armed:
-            return False
-        wanted, on_result = armed
-        if str(entry.path or "").replace("\\", "/").casefold() != wanted:
-            return False
-        self._new_item_model_sink = None
-        self._new_item_dependency_context = None
-        scene = getattr(self, "_new_item_model_scene", None)
-        self._new_item_model_scene = None
-        self._show_archive_import_preview(entry, result, patched=False)
-        on_result(entry, result, scene)
-        activate = getattr(self, "_activate_tool_key", None)
-        if callable(activate):
-            activate("new_item_studio")
-        finish("Model handed to New Item Studio; nothing was written over the template.", True)
-        return True
+        return False
 
     def _start_archive_mesh_patch(
         self,
@@ -244,9 +207,6 @@ class ArchiveMeshPatchFlowMixin:
             return
         scene_path_obj = setup.scene_path
         import_mode = setup.import_mode
-        armed_sink = getattr(self, "_new_item_model_sink", None)
-        if armed_sink and str(entry.path or "").replace("\\", "/").casefold() == armed_sink[0]:
-            self._new_item_model_scene = setup.scene_import_result
         setup_title_key = f"{setup.placement_review_title} {setup.source_label}".casefold()
         mesh_editor_mode = (
             "modify_original"
@@ -886,7 +846,7 @@ class ArchiveMeshPatchFlowMixin:
                 )
 
             def _handle_preview_complete(result: object) -> None:
-                if self._preview_diverted_or_invalid(build_entry, result, _finish_builder_status):
+                if self._preview_invalid(result, _finish_builder_status):
                     return
                 if static_replacement_options is None:
                     self._show_archive_import_preview(build_entry, result, patched=False)

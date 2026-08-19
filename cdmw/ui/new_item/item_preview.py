@@ -4,10 +4,12 @@
 resident .NET viewport the Model Library uses, textured the way that library and the
 Builder show it: orbit, zoom, and a capture of the frame at 512 x 512 with the grid and
 gizmo hidden (the icon route). It takes a `ModelPreviewData` (the archive or import
-preview decode, textures resolved), a bare `ParsedMesh`, or a callable that produces
-either off the UI thread; starts the viewport only when first asked to show something,
-rebuilds its package when the source changes, and is what the Model and icon step embeds
-and the icon capture dialog wraps.
+preview decode, textures resolved), a bare `ParsedMesh`, a `PlacementScene` (the template
+as the reference and a model of the user's own as the editable role, with the gizmo and
+the view modes the Mesh Editor has: overlay, side by side, one or the other), or a
+callable that produces any of those off the UI thread; starts the viewport only when
+first asked to show something, rebuilds its package when the source changes, and is what
+the Model and icon step embeds and the icon capture dialog wraps.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ import shutil
 import tempfile
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Hashable, Optional
 
@@ -24,21 +27,60 @@ from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.ui.new_item.model_import import ModelPlacement
 from cdmw.workers.utility_workers import UtilityWorker
 
-__all__ = ["ItemPreviewFrame", "build_item_preview_package", "default_host_factory", "package_cleanup_root"]
+__all__ = [
+    "GIZMO_TOOLS",
+    "ItemPreviewFrame",
+    "PLACEMENT_VIEW_MODES",
+    "PlacementScene",
+    "build_item_preview_package",
+    "default_host_factory",
+    "package_cleanup_root",
+]
+
+#: the viewport's display modes for a placement scene (the host's display-mode keys)
+PLACEMENT_VIEW_MODES = ("overlay", "side_by_side", "replacement_only", "original_only")
+GIZMO_TOOLS = ("move", "rotate", "scale")
+
+
+@dataclass
+class PlacementScene:
+    """Two roles for the viewport: `template` (the reference, drawn as the Mesh Editor
+    draws the original) and `model` (the editable role the gizmo moves), each a
+    `ModelPreviewData` or a `ParsedMesh`."""
+
+    template: Any
+    model: Any
+
+
+def _as_parsed_mesh(item: Any) -> ParsedMesh:
+    if getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
+        from cdmw.services.mesh_dotnet_preview_package import parsed_mesh_from_model_preview
+
+        return parsed_mesh_from_model_preview(item)
+    return item
 
 
 def build_item_preview_package(source: Any, *, token: Hashable, output_root: Path, stop_event: threading.Event) -> Path:
     """Build the viewport package for `source` off the UI thread and return its directory.
     `source` is a `ModelPreviewData` (the archive or import preview decode, textures
     resolved: it goes the Model Library's route and comes out textured), a bare
-    `ParsedMesh`, or a callable `(stop_event) -> one of those`."""
+    `ParsedMesh`, a `PlacementScene`, or a callable `(stop_event) -> one of those`."""
 
     item = source(stop_event) if callable(source) else source
     if item is None:
         raise ValueError("there is nothing to show")
-    if getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
+    if isinstance(item, PlacementScene):
+        from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
+
+        package = build_mesh_dotnet_experiment_package(
+            _as_parsed_mesh(item.model), output_root=output_root,
+            reference_mesh=_as_parsed_mesh(item.template) if item.template is not None else None,
+            comparison_mode="overlay", interaction_mode="placement", cancelled=stop_event.is_set,
+        )
+    elif getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
         from cdmw.services.mesh_dotnet_preview_package import build_or_lookup_dotnet_preview_package_from_model
 
         output_root.mkdir(parents=True, exist_ok=True)
@@ -82,6 +124,8 @@ class ItemPreviewFrame(QWidget):
     captured = Signal(object, object)
     #: something to say next to the view
     status_changed = Signal(str)
+    #: the gizmo moved the model: the placement now (a ModelPlacement), and whether the drag ended
+    placement_changed = Signal(object, bool)
 
     def __init__(self, parent: Optional[QWidget] = None, *, output_root: Optional[Path] = None, host_factory: Optional[Callable[[QWidget], object]] = None) -> None:
         super().__init__(parent)
@@ -98,6 +142,18 @@ class ItemPreviewFrame(QWidget):
         self._pending_capture: Optional[Path] = None
         self._loaded = False
         self.is_ready = False
+        #: the placement scene's state: None outside a placement
+        self._placement: Optional[ModelPlacement] = None
+        self._placement_base: Optional[ModelPlacement] = None
+        self._gizmo_tool = "move"
+        self._gizmo_enabled = True
+        self._view_mode = "overlay"
+        self._grid_visible = True
+        self._model_submesh_count = 0
+        self._push_timer = QTimer(self)
+        self._push_timer.setSingleShot(True)
+        self._push_timer.setInterval(40)
+        self._push_timer.timeout.connect(self._push_placement)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
@@ -106,11 +162,7 @@ class ItemPreviewFrame(QWidget):
         self.placeholder.setWordWrap(True)
         self.placeholder.setMinimumHeight(240)
         layout.addWidget(self.placeholder, 1)
-        self.hint = QLabel("Orbit: left-drag  |  Pan: Shift + left-drag, or middle / right-drag  |  Zoom: wheel")
-        self.hint.setObjectName("new_item_intro")
-        self.hint.setWordWrap(True)
-        layout.addWidget(self.hint)
-        self.hint.setVisible(False)
+        # the host draws its own orbit / pan / zoom line; the frame adds none
 
     # ------------------------------------------------------------------ host
 
@@ -128,9 +180,15 @@ class ItemPreviewFrame(QWidget):
         self.host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.layout().insertWidget(0, self.host, 1)
         self.placeholder.setVisible(False)
-        self.hint.setVisible(True)
         self.host.controller.state_changed.connect(self._host_state)
         self.host.controller.capture_completed.connect(self._capture_completed)
+        self.host.alignment_drag_started.connect(self._drag_started)
+        self.host.alignment_drag_changed.connect(lambda x, y, z: self._drag_delta("move", (x, y, z), False))
+        self.host.alignment_drag_finished.connect(lambda x, y, z: self._drag_delta("move", (x, y, z), True))
+        self.host.alignment_rotation_changed.connect(lambda x, y, z: self._drag_delta("rotate", (x, y, z), False))
+        self.host.alignment_rotation_finished.connect(lambda x, y, z: self._drag_delta("rotate", (x, y, z), True))
+        self.host.alignment_scale_changed.connect(lambda x, y, z: self._drag_delta("scale", (x, y, z), False))
+        self.host.alignment_scale_finished.connect(lambda x, y, z: self._drag_delta("scale", (x, y, z), True))
         return True
 
     def show_mesh(self, mesh: Optional[ParsedMesh]) -> None:
@@ -149,6 +207,7 @@ class ItemPreviewFrame(QWidget):
             return
         if source is None:
             self._pending = None
+            self._placement = None
             self.is_ready = False
             if self.host is None:
                 self.placeholder.setText("The viewport starts when there is a mesh to show.")
@@ -161,10 +220,128 @@ class ItemPreviewFrame(QWidget):
         if self._thread is None:
             self._start_package(self._pending)
 
+    def show_placement(
+        self,
+        source: Any,
+        *,
+        token: Hashable,
+        placement: ModelPlacement,
+        model_submesh_count: int = 0,
+        gizmo_enabled: bool = True,
+    ) -> None:
+        """Show a `PlacementScene` (or a callable producing one) with the model at
+        `placement`, the gizmo on its submeshes when `gizmo_enabled`. The same token
+        already showing only takes the new placement and gizmo state."""
+
+        same = self._pending is not None and self._pending[0] == token and (self._thread is not None or self.is_ready)
+        self._placement = placement
+        self._gizmo_enabled = bool(gizmo_enabled)
+        self._model_submesh_count = int(model_submesh_count)
+        if same:
+            if self.is_ready:
+                self._apply_placement_presentation()
+            return
+        self.show(source, token=token)
+
+    # ------------------------------------------------------------------ placement
+
+    @property
+    def placement(self) -> Optional[ModelPlacement]:
+        return self._placement
+
+    def set_placement(self, placement: ModelPlacement) -> None:
+        """Move the model to `placement` (the numbers typed, a fit, a reset)."""
+
+        self._placement = placement
+        self._placement_base = None
+        if self.is_ready and self.host is not None:
+            self._push_placement()
+
+    def set_gizmo_tool(self, tool: str) -> None:
+        tool = str(tool or "move").strip().lower()
+        if tool not in GIZMO_TOOLS:
+            return
+        self._gizmo_tool = tool
+        if self.is_ready and self.host is not None and self._placement is not None:
+            self.host.set_alignment_gizmo_tool(tool)
+
+    def set_gizmo_enabled(self, enabled: bool) -> None:
+        self._gizmo_enabled = bool(enabled)
+        if self.is_ready and self.host is not None and self._placement is not None:
+            self.host.set_alignment_state(enabled=self._gizmo_enabled, source_submesh_indices=tuple(range(self._model_submesh_count)))
+
+    def set_view_mode(self, mode: str) -> None:
+        """One of PLACEMENT_VIEW_MODES: overlay, side_by_side, replacement_only, original_only."""
+
+        mode = str(mode or "overlay").strip().lower()
+        if mode not in PLACEMENT_VIEW_MODES:
+            return
+        self._view_mode = mode
+        if self.is_ready and self.host is not None and self._placement is not None:
+            self.host.set_display_mode(mode)
+
+    def set_grid_visible(self, visible: bool) -> None:
+        self._grid_visible = bool(visible)
+        if self.is_ready and self.host is not None and self._placement is not None:
+            self.host.set_grid_visible(self._grid_visible)
+
+    def _apply_placement_presentation(self, *, fit_view: bool = False) -> None:
+        host = self.host
+        if host is None or self._placement is None:
+            return
+        host.set_display_mode(self._view_mode)
+        host.set_grid_visible(self._grid_visible)
+        host.set_alignment_state(enabled=self._gizmo_enabled, source_submesh_indices=tuple(range(self._model_submesh_count)))
+        host.set_alignment_gizmo_tool(self._gizmo_tool)
+        self._push_placement()
+        if fit_view:
+            self.fit_view()
+
+    def fit_view(self) -> None:
+        """Frame the camera on the model where it sits now (the helper keeps its frame
+        until asked, so a model scaled or moved far goes out of view otherwise)."""
+
+        if self.host is not None and self.is_ready:
+            self.host.reset_view()
+
+    def _push_placement(self) -> None:
+        host = self.host
+        placement = self._placement
+        if host is None or placement is None or not self.is_ready:
+            return
+        host.set_alignment_preview_transform(translation=placement.offset, rotation_degrees=placement.rotation, scale_xyz=placement.scale)
+
+    def _drag_started(self) -> None:
+        if self._placement is not None:
+            self._placement_base = self._placement
+
+    def _drag_delta(self, tool: str, delta: tuple, finished: bool) -> None:
+        """The host reports the gizmo's total delta since the drag began; the new value
+        is the placement at the drag's start plus that delta, per axis (scale too)."""
+
+        base = self._placement_base if self._placement_base is not None else self._placement
+        if base is None:
+            return
+        if tool == "move":
+            new = base.with_values(offset=tuple(base.offset[i] + float(delta[i]) for i in range(3)))
+        elif tool == "rotate":
+            new = base.with_values(rotation=tuple(base.rotation[i] + float(delta[i]) for i in range(3)))
+        else:
+            new = base.with_values(scale=tuple(max(1e-4, base.scale[i] + float(delta[i])) for i in range(3)))
+        self._placement = new
+        if finished:
+            self._placement_base = None
+            self._push_timer.stop()
+            self._push_placement()
+        elif not self._push_timer.isActive():
+            self._push_timer.start()
+        self.placement_changed.emit(new, bool(finished))
+
     def _start_package(self, request: tuple[Hashable, Any]) -> None:
         root = self._output_root
         token, source = request
         self.is_ready = False
+        self._placement_base = None
         self.status_changed.emit("Preparing the viewport...")
 
         def task(_log, stop_event: threading.Event) -> Path:
@@ -210,9 +387,13 @@ class ItemPreviewFrame(QWidget):
         if self._closed or self.host is None:
             return
         if str(state) == "ready" and self._package_dir is not None:
-            self.host.set_display_mode("replacement_only")
-            self.host.set_icon_capture_mode(True)
             self.is_ready = True
+            if self._placement is not None:
+                self.host.set_icon_capture_mode(False)
+                self._apply_placement_presentation(fit_view=True)
+            else:
+                self.host.set_display_mode("replacement_only")
+                self.host.set_icon_capture_mode(True)
             self.status_changed.emit("")
             self.ready.emit()
         elif str(state) == "error":
