@@ -424,8 +424,9 @@ class _Planner:
             name = self.snapshot.status_names.get(key, str(key))
             self.warnings.append(
                 f"{name} is written as {value:,}; shipped equipment carries it between {low:,} and {high:,}. "
-                "A value that far outside the game's own range is unproven, and an item can behave strangely in play "
-                "while its tables read fine."
+                "A value that far outside the game's own range has crashed the game on purchase (an item carrying "
+                "AttackSpeedRate at 10,000, where the game's own rows hold 30 to 90 million, 2026-08-19). The tables "
+                "read fine either way, so nothing shows until the item is bought."
             )
 
     def plan_item_groups(self) -> None:

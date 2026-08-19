@@ -297,7 +297,11 @@ class StatsPanel(QGroupBox):
             self.stat_range_note.set_note(f"No shipped equipment carries {label}, so there is no value to go by; whatever you type here is a guess.", WARN)
             return
         entries, low, middle, high = measured
-        self.stat_range_note.set_note(f"Shipped equipment carries {label} between {low:,} and {high:,} (median {middle:,}, {entries:,} entrie(s)).", None)
+        self.stat_range_note.set_note(
+            f"Shipped equipment carries {label} between {low:,} and {high:,} (median {middle:,}, {entries:,} entrie(s)). "
+            "A value far outside that range has crashed the game when the item is bought.",
+            None,
+        )
         if not self.new_stat_value.hasFocus():
             self.new_stat_value.setValue(int(middle))
 

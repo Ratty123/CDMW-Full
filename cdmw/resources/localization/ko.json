@@ -7043,7 +7043,7 @@
     "Shininess max": "광택 최대",
     "Shininess min": "광택 최소",
     "Shipped effects named for weapons and elements (fire, lightning, frost...) with a starting scale, as a place to begin; the list below has every shipped effect.": "무기와 속성으로 이름 붙은 출하 이펙트(불, 번개, 서리...)에 시작 배율을 더한 출발점. 아래 목록에는 모든 출하 이펙트가 있습니다.",
-    "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)).": "기본 장비는 {value_0}을(를) {value_1}에서 {value_2} 사이로 지닙니다(중앙값 {value_3}, 항목 {value_4}개).",
+    "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)). A value far outside that range has crashed the game when the item is bought.": "기본 장비는 {value_0}을(를) {value_1}에서 {value_2} 사이로 지닙니다(중앙값 {value_3}, 항목 {value_4}개). 이 범위에서 크게 벗어난 값은 아이템 구매 시 게임을 종료시킨 적이 있습니다.",
     "Ships as: {value_0}": "배송: {value_0}",
     "Shop": "상점",
     "Shop and item groups": "상점과 아이템 그룹",

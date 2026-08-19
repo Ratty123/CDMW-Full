@@ -7043,7 +7043,7 @@
     "Shininess max": "Brillo máximo",
     "Shininess min": "Brillo mínimo",
     "Shipped effects named for weapons and elements (fire, lightning, frost...) with a starting scale, as a place to begin; the list below has every shipped effect.": "Efectos del juego con nombre de armas y elementos (fuego, rayo, escarcha...) con una escala inicial, como punto de partida; la lista de abajo tiene todos los efectos del juego.",
-    "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)).": "El equipo del juego lleva {value_0} entre {value_1} y {value_2} (mediana {value_3}, {value_4} entrada(s)).",
+    "Shipped equipment carries {value_0} between {value_1} and {value_2} (median {value_3}, {value_4} entrie(s)). A value far outside that range has crashed the game when the item is bought.": "El equipo del juego lleva {value_0} entre {value_1} y {value_2} (mediana {value_3}, {value_4} entrada(s)). Un valor muy fuera de ese rango ha hecho que el juego se cierre al comprar el objeto.",
     "Ships as: {value_0}": "Se envía como: {value_0}",
     "Shop": "Tienda",
     "Shop and item groups": "Tienda y grupos de objetos",
