@@ -25,6 +25,14 @@ internal sealed partial class NetSceneState
     public int ReferenceSubmeshCount { get; private set; }
     public string ComparisonMode { get; private set; } = "replacement_only";
     public string InteractionMode { get; private set; } = "placement";
+    /// <summary>
+    /// Draw the reference role as itself in overlay comparison instead of as the wire
+    /// ghost. Overlay exists so a replacement can be read against the original, and the
+    /// original is a wire so the replacement shows through it; a scene whose reference is
+    /// the subject -- the item a weapon effect is being placed on -- asks for solid, or
+    /// the thing the placement is judged against never appears.
+    /// </summary>
+    public bool ReferenceDrawsSolid { get; private set; }
     public bool GridVisible { get; private set; } = true;
     public Vector3 GridOrigin { get; private set; }
     public float GridSpacing { get; private set; } = 1.0f;
@@ -113,6 +121,10 @@ internal sealed partial class NetSceneState
         ComparisonMode = EffectiveComparisonMode(
             JsonText(root, "comparison_mode", ComparisonMode),
             InteractionMode);
+        ReferenceDrawsSolid = string.Equals(
+            JsonText(root, "reference_draw", ReferenceDrawsSolid ? "solid" : "wire"),
+            "solid",
+            StringComparison.OrdinalIgnoreCase);
         if (root.TryGetProperty("grid", out var grid) && grid.ValueKind == JsonValueKind.Object)
         {
             GridVisible = JsonBool(grid, "visible", GridVisible);
@@ -280,6 +292,10 @@ internal sealed partial class NetSceneState
         ComparisonMode = EffectiveComparisonMode(
             JsonText(root, "comparison_mode", ComparisonMode),
             InteractionMode);
+        ReferenceDrawsSolid = string.Equals(
+            JsonText(root, "reference_draw", ReferenceDrawsSolid ? "solid" : "wire"),
+            "solid",
+            StringComparison.OrdinalIgnoreCase);
         if (root.TryGetProperty("gizmo", out var gizmo) && gizmo.ValueKind == JsonValueKind.Object)
         {
             GizmoTool = NormalizeGizmo(JsonText(gizmo, "tool", GizmoTool));

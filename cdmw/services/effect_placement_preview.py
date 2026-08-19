@@ -171,12 +171,20 @@ def next_scale(current: float, delta: Sequence[float]) -> float:
 ANCHOR_TINT = (1.0, 0.45, 0.1)
 #: the reach cage's colour: the same family, dimmer, so it reads as a frame around the effect
 REACH_TINT = (0.55, 0.3, 0.1)
+#: the item's colour: a light neutral, because the package builder leaves its materials
+#: without a texture or a base colour and the renderer draws that as a black body
+ITEM_TINT = (0.62, 0.64, 0.67)
 
 
 def _tint_anchor_material(materials_path: Path) -> None:
-    """Make the anchor submesh orange in the package's .NET materials (the package builder
-    gives every submesh an opaque neutral material). Best effort: a package whose
-    materials file is missing or unreadable keeps the neutral anchor."""
+    """Colour the package's materials: the anchor orange, the reach cage a dimmer orange,
+    and the item itself a light neutral grey.
+
+    The item's own materials come out of the package builder with no texture and no base
+    colour, which the renderer draws as a black body: on the viewport's dark background
+    that is an invisible sword with a rim of specular. Best effort: a package whose
+    materials file is missing or unreadable keeps what the builder wrote.
+    """
 
     import json
 
@@ -191,14 +199,17 @@ def _tint_anchor_material(materials_path: Path) -> None:
         if not isinstance(item, dict):
             continue
         material = str(item.get("material", ""))
-        if material not in (EFFECT_ANCHOR_MATERIAL, EFFECT_REACH_MATERIAL):
-            continue
         item["alpha_mode"] = "opaque"
         item["opacity_factor"] = 1.0
-        item["double_sided"] = True
         parameters = dict(item.get("parameters", {}) or {})
-        tint = ANCHOR_TINT if material == EFFECT_ANCHOR_MATERIAL else REACH_TINT
-        parameters.update({"base_tint_color": list(tint), "base_tint_strength": 1.0, "roughness": 0.6, "metalness": 0.0})
+        if material == EFFECT_ANCHOR_MATERIAL:
+            item["double_sided"] = True
+            parameters.update({"base_tint_color": list(ANCHOR_TINT), "base_tint_strength": 1.0, "roughness": 0.6, "metalness": 0.0})
+        elif material == EFFECT_REACH_MATERIAL:
+            item["double_sided"] = True
+            parameters.update({"base_tint_color": list(REACH_TINT), "base_tint_strength": 1.0, "roughness": 0.6, "metalness": 0.0})
+        else:
+            parameters.update({"base_tint_color": list(ITEM_TINT), "base_tint_strength": 1.0, "roughness": 0.55, "metalness": 0.0})
         item["parameters"] = parameters
         changed = True
     if changed:
@@ -289,6 +300,9 @@ def build_effect_placement_package(
         anchor,
         reference_mesh=item_mesh,
         comparison_mode="overlay",
+        # the item is what the effect is placed on, not a before-and-after against the
+        # anchor, so it is drawn as itself rather than as the overlay's wire ghost
+        reference_draw="solid",
         interaction_mode="placement",
         output_root=output_root,
         cancelled=cancelled,

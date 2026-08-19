@@ -39,10 +39,52 @@ internal sealed partial class D3D11MaterialViewport
             out error,
             out _);
 
+    /// <summary>
+    /// The whole scene as the viewport draws it -- both roles, overlays and all -- into a
+    /// PNG. <see cref="TryCaptureReplacementPng(string, int, int, out string, out string)"/>
+    /// exists to make an item icon, so it renders the replacement alone with the grid and
+    /// the gizmo left out; that is the wrong picture for anyone asking what the viewport
+    /// is showing, which is what a check of a placement scene needs.
+    /// </summary>
+    public bool TryCaptureScenePng(
+        string outputPath,
+        int requestedWidth,
+        int requestedHeight,
+        out string sha256,
+        out string error) =>
+        TryCaptureViewportPng(
+            outputPath,
+            requestedWidth,
+            requestedHeight,
+            replacementOnly: false,
+            includeOverlays: true,
+            out sha256,
+            out error,
+            out _);
+
     public bool TryCaptureReplacementPng(
         string outputPath,
         int requestedWidth,
         int requestedHeight,
+        out string sha256,
+        out string error,
+        out D3D11RenderedCameraEvidence renderedCamera) =>
+        TryCaptureViewportPng(
+            outputPath,
+            requestedWidth,
+            requestedHeight,
+            replacementOnly: true,
+            includeOverlays: false,
+            out sha256,
+            out error,
+            out renderedCamera);
+
+    private bool TryCaptureViewportPng(
+        string outputPath,
+        int requestedWidth,
+        int requestedHeight,
+        bool replacementOnly,
+        bool includeOverlays,
         out string sha256,
         out string error,
         out D3D11RenderedCameraEvidence renderedCamera)
@@ -107,7 +149,7 @@ internal sealed partial class D3D11MaterialViewport
             _renderWidth = width;
             _renderHeight = height;
             _camera = cameraForCapture;
-            _ = RenderFrame(present: false, includeOverlays: false, replacementOnly: true);
+            _ = RenderFrame(present: false, includeOverlays: includeOverlays, replacementOnly: replacementOnly);
             _context.OMSetRenderTargets((ID3D11RenderTargetView?)null, null);
             ID3D11Texture2D captureSource = targetTexture;
             if (multisampled)
