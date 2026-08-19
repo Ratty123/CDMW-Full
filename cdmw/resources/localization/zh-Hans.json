@@ -70,6 +70,7 @@
     " Auto-preview was skipped because the result set is very large.": " 由于结果集非常大，因此跳过了自动预览。",
     " Decrypted {value_0} archive file(s) during search.": " 在搜索过程中解密了 {value_0} 存档文件。",
     " Evaluation: {value_0}": " 评估：{value_0}",
+    " Its frame starts hidden because it is far larger than the item; tick Show the reach to see it.": " 它的方框比物品大得多，因此一开始隐藏；勾选“显示范围”即可看到。",
     " Placement workspace has {value_0} prefab/socket chain(s).": " 放置工作区具有 {value_0} 预制件/套接字链。",
     " Related runtime mesh candidate(s) found: {value_0}{value_1}. Modify Original keeps the selected PAC as the export target; open a candidate directly to edit that asset.": " 找到相关的运行时网格候选：{value_0}{value_1}。Modify Original 会将所选 PAC 保留为导出目标；要编辑该资产，请直接打开候选项。",
     " deg": " 度",

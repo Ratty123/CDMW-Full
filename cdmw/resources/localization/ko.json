@@ -70,6 +70,7 @@
     " Auto-preview was skipped because the result set is very large.": " 결과 집합이 매우 크기 때문에 자동 미리보기를 건너뛰었습니다.",
     " Decrypted {value_0} archive file(s) during search.": " 검색 중에 {value_0} 아카이브 파일을 해독했습니다.",
     " Evaluation: {value_0}": " 평가: {value_0}",
+    " Its frame starts hidden because it is far larger than the item; tick Show the reach to see it.": " 그 틀은 아이템보다 훨씬 커서 처음에는 숨겨져 있습니다. 보려면 범위 표시를 체크하세요.",
     " Placement workspace has {value_0} prefab/socket chain(s).": " 배치 작업 공간에 {value_0} 프리팹/소켓이 있습니다. 체인.",
     " Related runtime mesh candidate(s) found: {value_0}{value_1}. Modify Original keeps the selected PAC as the export target; open a candidate directly to edit that asset.": " 관련 런타임 메시 후보를 찾았습니다: {value_0}{value_1}. Modify Original은 선택한 PAC을 내보내기 대상으로 유지합니다. 해당 애셋을 편집하려면 후보를 직접 여세요.",
     " deg": " deg",

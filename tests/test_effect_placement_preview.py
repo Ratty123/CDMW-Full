@@ -231,6 +231,33 @@ class DialogTests(unittest.TestCase):
 
         cls.app = QApplication.instance() or QApplication([])
 
+    def test_a_reach_that_dwarfs_the_item_starts_hidden(self) -> None:
+        """A frame around a one-metre sword helps; a frame twenty metres across is a pair
+        of columns crossing the view with the item a speck between them. Effects built for
+        bosses reach that far, so their frame starts hidden and the label says why."""
+
+        from cdmw.ui.new_item.effect_placement_dialog import EffectPlacementDialog
+
+        near = EffectPlacementDialog(
+            None, item_mesh=_blade(), box_min=(-0.5, -0.5, -0.5), box_max=(0.5, 0.5, 0.5),
+            scale=1.0, effect_label="fx_small", host_factory=lambda parent: None,
+        )
+        try:
+            self.assertTrue(near.show_reach.isChecked(), "a sword-sized reach is worth drawing")
+            self.assertNotIn("starts hidden", near.size_label.text())
+        finally:
+            near.close()
+        far = EffectPlacementDialog(
+            None, item_mesh=_blade(), box_min=(-10.8, -9.6, -10.8), box_max=(9.8, 17.0, 10.4),
+            scale=1.0, effect_label="fx_boss", host_factory=lambda parent: None,
+        )
+        try:
+            self.assertFalse(far.show_reach.isChecked())
+            self.assertIn("24.2x the item", far.size_label.text())
+            self.assertIn("starts hidden", far.size_label.text())
+        finally:
+            far.close()
+
     def test_without_a_viewport_the_numbers_and_deltas_still_work(self) -> None:
         from cdmw.ui.new_item.effect_placement_dialog import EffectPlacementDialog
 

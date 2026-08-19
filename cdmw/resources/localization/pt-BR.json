@@ -70,6 +70,7 @@
     " Auto-preview was skipped because the result set is very large.": " A visualização automática foi ignorada porque o conjunto de resultados é muito grande.",
     " Decrypted {value_0} archive file(s) during search.": " Arquivos compactados {value_0} descriptografados durante a pesquisa.",
     " Evaluation: {value_0}": " Avaliação: {value_0}",
+    " Its frame starts hidden because it is far larger than the item; tick Show the reach to see it.": " O quadro dele começa oculto porque é bem maior que o item; marque Mostrar o alcance para vê-lo.",
     " Placement workspace has {value_0} prefab/socket chain(s).": " O espaço de trabalho do canal tem cadeia(s) pré-fabricada/de soquete {value_0}.",
     " Related runtime mesh candidate(s) found: {value_0}{value_1}. Modify Original keeps the selected PAC as the export target; open a candidate directly to edit that asset.": " Candidato(s) de malha de runtime relacionados encontrados: {value_0}{value_1}. Modify Original mantém o PAC selecionado como alvo de exportação; abra um candidato diretamente para editar esse recurso.",
     " deg": " deg",

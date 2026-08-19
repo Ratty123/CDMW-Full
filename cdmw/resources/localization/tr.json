@@ -70,6 +70,7 @@
     " Auto-preview was skipped because the result set is very large.": " Sonuç kümesi çok büyük olduğundan otomatik önizleme atlandı.",
     " Decrypted {value_0} archive file(s) during search.": " Arama sırasında {value_0} arşiv dosyalarının şifresi çözüldü.",
     " Evaluation: {value_0}": " Değerlendirme: {value_0}",
+    " Its frame starts hidden because it is far larger than the item; tick Show the reach to see it.": " Çerçevesi başlangıçta gizli, çünkü öğeden çok daha büyük; görmek için Erişimi göster kutusunu işaretleyin.",
     " Placement workspace has {value_0} prefab/socket chain(s).": " Yerleşim çalışma alanında {value_0} prefabrik/soket var zincir(ler).",
     " Related runtime mesh candidate(s) found: {value_0}{value_1}. Modify Original keeps the selected PAC as the export target; open a candidate directly to edit that asset.": " İlgili çalışma zamanı mesh adayları bulundu: {value_0}{value_1}. Modify Original, seçili PAC'ı dışa aktarma hedefi olarak tutar; o varlığı düzenlemek için bir adayı doğrudan açın.",
     " deg": " deg",
