@@ -30,6 +30,9 @@ __all__ = [
     "EFFECT_ANCHOR_MATERIAL",
     "EFFECT_ANCHOR_RADIUS",
     "EFFECT_ANCHOR_SUBMESH",
+    "EFFECT_REACH_MATERIAL",
+    "EFFECT_REACH_SUBMESH",
+    "reach_cage_mesh",
     "EFFECT_PREVIEW_FILE",
     "EFFECT_TEXTURE_DIR",
     "EffectPlacementPreview",
@@ -44,6 +47,72 @@ EFFECT_ANCHOR_SUBMESH = "effect_anchor"
 EFFECT_ANCHOR_MATERIAL = "effect_anchor"
 #: half the anchor's width, metres: a marker, small enough never to hide the item
 EFFECT_ANCHOR_RADIUS = 0.015
+
+
+EFFECT_REACH_SUBMESH = "effect_reach"
+EFFECT_REACH_MATERIAL = "effect_reach"
+#: a floor on the reach's extent, so an effect that reports none still shows a frame
+_MIN_EXTENT = 0.05
+
+
+def _bar(low: Vec3, high: Vec3, vertices: list, normals: list, uvs: list, faces: list) -> None:
+    """One axis-aligned box between `low` and `high`, appended to the buffers."""
+
+    x0, y0, z0 = low
+    x1, y1, z1 = high
+    corners = [
+        (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
+        (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
+    ]
+    sides = (
+        ((0, 1, 2, 3), (0.0, 0.0, -1.0)), ((5, 4, 7, 6), (0.0, 0.0, 1.0)),
+        ((4, 0, 3, 7), (-1.0, 0.0, 0.0)), ((1, 5, 6, 2), (1.0, 0.0, 0.0)),
+        ((4, 5, 1, 0), (0.0, -1.0, 0.0)), ((3, 2, 6, 7), (0.0, 1.0, 0.0)),
+    )
+    for quad, normal in sides:
+        base = len(vertices)
+        for corner in quad:
+            vertices.append(corners[corner])
+            normals.append(normal)
+        uvs.extend([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+        faces.append((base, base + 1, base + 2))
+        faces.append((base, base + 2, base + 3))
+
+
+def reach_cage_mesh(box_min: Vec3, box_max: Vec3, *, name: str = EFFECT_REACH_SUBMESH) -> ParsedMesh:
+    """The effect's reach as twelve thin bars along the edges of its bounding box: an
+    outline the reader can see through, drawn at scale 1.0 in the effect's own frame, so
+    the placement transform moves and scales it with the anchor. A solid box would hide
+    the item; a wire display mode would flatten everything else to wire."""
+
+    low = [float(v) for v in box_min]
+    high = [float(v) for v in box_max]
+    for axis in range(3):
+        if high[axis] - low[axis] < _MIN_EXTENT:
+            centre = (high[axis] + low[axis]) / 2.0
+            low[axis], high[axis] = centre - _MIN_EXTENT / 2.0, centre + _MIN_EXTENT / 2.0
+    span = max(high[axis] - low[axis] for axis in range(3))
+    thickness = max(0.004, span * 0.004)
+    vertices: list[Vec3] = []
+    normals: list[Vec3] = []
+    uvs: list[Tuple[float, float]] = []
+    faces: list[Tuple[int, int, int]] = []
+    for axis in range(3):
+        other = [index for index in range(3) if index != axis]
+        for first in (low[other[0]], high[other[0]]):
+            for second in (low[other[1]], high[other[1]]):
+                bar_low = [0.0, 0.0, 0.0]
+                bar_high = [0.0, 0.0, 0.0]
+                bar_low[axis], bar_high[axis] = low[axis], high[axis]
+                bar_low[other[0]], bar_high[other[0]] = first - thickness, first + thickness
+                bar_low[other[1]], bar_high[other[1]] = second - thickness, second + thickness
+                _bar(tuple(bar_low), tuple(bar_high), vertices, normals, uvs, faces)  # type: ignore[arg-type]
+    submesh = SubMesh(
+        name=name, material=EFFECT_REACH_MATERIAL, vertices=vertices, uvs=uvs, normals=normals, faces=faces,
+        vertex_count=len(vertices), face_count=len(faces),
+    )
+    return ParsedMesh(path=f"{name}.reach", format="reach", submeshes=[submesh], bbox_min=tuple(low), bbox_max=tuple(high),  # type: ignore[arg-type]
+                      total_vertices=len(vertices), total_faces=len(faces), has_uvs=True, has_bones=False)
 
 
 def anchor_mesh(radius: float = EFFECT_ANCHOR_RADIUS, *, name: str = EFFECT_ANCHOR_SUBMESH) -> ParsedMesh:
@@ -100,6 +169,8 @@ def next_scale(current: float, delta: Sequence[float]) -> float:
 
 #: the anchor's colour: orange, opaque, so it reads as a handle and not as part of the item
 ANCHOR_TINT = (1.0, 0.45, 0.1)
+#: the reach cage's colour: the same family, dimmer, so it reads as a frame around the effect
+REACH_TINT = (0.55, 0.3, 0.1)
 
 
 def _tint_anchor_material(materials_path: Path) -> None:
@@ -117,13 +188,17 @@ def _tint_anchor_material(materials_path: Path) -> None:
         return
     changed = False
     for item in payload.get("submeshes", ()):
-        if not isinstance(item, dict) or str(item.get("material", "")) != EFFECT_ANCHOR_MATERIAL:
+        if not isinstance(item, dict):
+            continue
+        material = str(item.get("material", ""))
+        if material not in (EFFECT_ANCHOR_MATERIAL, EFFECT_REACH_MATERIAL):
             continue
         item["alpha_mode"] = "opaque"
         item["opacity_factor"] = 1.0
         item["double_sided"] = True
         parameters = dict(item.get("parameters", {}) or {})
-        parameters.update({"base_tint_color": list(ANCHOR_TINT), "base_tint_strength": 1.0, "roughness": 0.6, "metalness": 0.0})
+        tint = ANCHOR_TINT if material == EFFECT_ANCHOR_MATERIAL else REACH_TINT
+        parameters.update({"base_tint_color": list(tint), "base_tint_strength": 1.0, "roughness": 0.6, "metalness": 0.0})
         item["parameters"] = parameters
         changed = True
     if changed:
@@ -132,14 +207,17 @@ def _tint_anchor_material(materials_path: Path) -> None:
 
 @dataclass(frozen=True, slots=True)
 class EffectPlacementPreview:
-    """A built package: where it is, which submesh is the anchor, the item's frame, and
-    the effect's reach (`box_min`/`box_max`, effect-local metres at scale 1.0)."""
+    """A built package: where it is, which submesh is the anchor, which is the reach cage,
+    the item's frame, and the effect's reach (`box_min`/`box_max`, effect-local metres at
+    scale 1.0)."""
 
     package_dir: Path
     box_submesh_index: int
     item_submesh_count: int
     box_min: Vec3
     box_max: Vec3
+    #: the submesh the reach cage is (the editable role's second part)
+    reach_submesh_index: int = 1
     #: `effect_preview.json` in the package when the caller gave an effect preview, else None
     preview_file: Optional[Path] = None
     #: archive texture paths the package could not carry (no reader, or the reader had none)
@@ -204,6 +282,9 @@ def build_effect_placement_package(
     from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
 
     anchor = anchor_mesh()
+    anchor.submeshes.extend(reach_cage_mesh(box_min, box_max).submeshes)
+    anchor.total_vertices = sum(len(submesh.vertices) for submesh in anchor.submeshes)
+    anchor.total_faces = sum(len(submesh.faces) for submesh in anchor.submeshes)
     package = build_mesh_dotnet_experiment_package(
         anchor,
         reference_mesh=item_mesh,

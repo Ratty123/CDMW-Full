@@ -143,13 +143,95 @@ class TabTests(unittest.TestCase):
         with patch.object(type(model.preview), "capture", lambda self_, path=None: asked.append(path) or True):
             model._capture_inline()
         self.assertEqual(len(asked), 1, "the inline viewport is asked once")
-        model.preview.captured.emit(captured, QImage(str(captured)))
+        # the captured frame goes through the region picker: the rectangle the user drags
+        # becomes the 512 x 512 icon
+        frame = QImage(64, 48, QImage.Format_ARGB32)
+        frame.fill(0xFF203040)
+        frame.save(str(captured))
+
+        class FakeRegionDialog:
+            def __init__(self, parent, image):
+                self.image = image
+
+            def exec(self):
+                from PySide6.QtWidgets import QDialog
+
+                return QDialog.Accepted
+
+            def selected_source_rect(self):
+                return (8, 8, 32, 24)
+
+        with patch.object(type(model), "icon_region_dialog_factory", staticmethod(FakeRegionDialog)):
+            model.preview.captured.emit(captured, frame)
         self.assertTrue(model.generate_icon.isChecked())
-        self.assertEqual(tab.controller.draft.icon_source_path, str(captured))
+        written = Path(tab.controller.draft.icon_source_path)
+        self.assertTrue(written.is_file(), written)
+        self.assertNotEqual(written, captured, "the icon is the selected region, not the raw frame")
+        self.assertEqual(QImage(str(written)).size().width(), 512)
         self.assertTrue(model.icon_thumbnail.isVisibleTo(model))
+        # a cancelled selection leaves the icon alone
+        model.icon_source.setText("")
+        class CancelDialog(FakeRegionDialog):
+            def exec(self):
+                from PySide6.QtWidgets import QDialog
+
+                return QDialog.Rejected
+
+        with patch.object(type(model), "icon_region_dialog_factory", staticmethod(CancelDialog)):
+            model.preview.captured.emit(captured, frame)
+        self.assertEqual(model.icon_source.text(), "")
         with patch.object(type(model.preview), "capture", lambda self_, path=None: False):
             model._capture_inline()
         self.assertIn("not showing the item yet", model.preview_status.text())
+        tab.close()
+        tab.deleteLater()
+
+    def test_an_untouched_step_carries_no_empty_boxes(self) -> None:
+        """The optional blocks are hidden, not merely greyed: a step whose answer is "the
+        template's" is a few lines, and no page scrolls sideways at a 1280-wide window."""
+
+        from PySide6.QtWidgets import QCheckBox, QRadioButton, QScrollArea
+
+        tab = self._tab()
+        tab.resize(1280, 620)
+        tab.show()
+        tab.start_snapshot()
+        self.app.processEvents()
+        model, perks, groups = tab.model_panel, tab.perks_panel, tab.placement_panel
+        self.assertFalse(model.clear_button.isVisibleTo(model), "nothing to discard until a model is imported")
+        for widget in model._import_widgets:
+            self.assertFalse(widget.isVisibleTo(model), "the import's controls wait for the import radio")
+        model.import_model.setChecked(True)
+        for widget in model._import_widgets:
+            self.assertTrue(widget.isVisibleTo(model))
+        self.assertFalse(perks.catalogue.isVisibleTo(perks), "the perk catalogue waits to be asked for")
+        perks.own_perks.setChecked(True)
+        self.assertTrue(perks.catalogue.isVisibleTo(perks))
+        for row in perks._effect_rows:
+            self.assertFalse(row.isVisibleTo(perks), "the effect's rows wait for the effect")
+        perks.use_effect.setChecked(True)
+        for row in perks._effect_rows:
+            self.assertTrue(row.isVisibleTo(perks))
+        self.assertFalse(groups.group_list.isVisibleTo(groups), "the item groups wait to be chosen by hand")
+        self.assertFalse(groups.store.isVisibleTo(groups), "no shop, no shop picker")
+        groups.explicit.setChecked(True)
+        groups.swap.setChecked(True)
+        self.assertTrue(groups.group_list.isVisibleTo(groups))
+        self.assertTrue(groups.store.isVisibleTo(groups))
+        for index in range(tab.steps.count()):
+            tab.show_step(index)
+            self.app.processEvents()
+            self.assertIsInstance(tab.pages.currentWidget(), QScrollArea, "each step is its own scroll area")
+        # a tick's own text never wraps, so a long one sets the whole step's minimum width
+        # and the page scrolls sideways; the rest of the sentence belongs in the tooltip
+        for kind in (QCheckBox, QRadioButton):
+            for widget in tab.findChildren(kind):
+                self.assertLessEqual(
+                    len(widget.text()), 100,
+                    f"this one would push the step wider than the window: {widget.text()!r}",
+                )
+        tab.request_shutdown()
+        tab.shutdown()
         tab.close()
         tab.deleteLater()
 

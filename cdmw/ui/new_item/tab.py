@@ -196,17 +196,13 @@ class NewItemStudioTab(QWidget):
             panel.setObjectName("new_item_step")
             # the panel takes the height its content needs and sits at the top; the page
             # below it is plain background, not an empty frame
-            holder = QWidget()
-            holder_layout = QVBoxLayout(holder)
-            holder_layout.setContentsMargins(0, 0, 0, 0)
-            fills = panel in (self.template_panel, self.model_panel, self.output_panel)
-            holder_layout.addWidget(panel, 1 if fills else 0)
-            if not fills:
-                holder_layout.addStretch(1)
+            # The panel goes into the scroll area itself: with a holder widget in between,
+            # the area sized that holder to the viewport and left it shorter than the
+            # panel's own minimum, so the widgets under a grown table were drawn over it.
             page = QScrollArea()
             page.setWidgetResizable(True)
             page.setFrameShape(QScrollArea.NoFrame)
-            page.setWidget(holder)
+            page.setWidget(panel)
             self.pages.addWidget(page)
         self.steps.currentRowChanged.connect(self._show_step)
         rows_height = sum(self.steps.sizeHintForRow(i) + 2 * self.steps.spacing() for i in range(self.steps.count()))

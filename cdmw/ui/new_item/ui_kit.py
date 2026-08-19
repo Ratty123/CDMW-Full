@@ -30,6 +30,7 @@ __all__ = [
     "step_style",
     "tinted",
     "tone_color",
+    "wrap_for_height",
 ]
 
 #: settled / done
@@ -117,13 +118,28 @@ def tinted(text: str, tone: Optional[str] = None, *, bold: bool = False) -> str:
     return f'<span style="color:{colour}">{body}</span>' if colour else body
 
 
+def wrap_for_height(label: QLabel) -> QLabel:
+    """Let a word-wrapped label ask its layout for the height its text really needs.
+
+    A wrapped QLabel reports a one-line minimum unless its size policy says the height
+    depends on the width. Without this the panels reserve one line for a sentence that
+    draws three, the deficit adds up down the panel, and the widgets at the bottom are
+    drawn over the table above them.
+    """
+
+    policy = label.sizePolicy()
+    policy.setHeightForWidth(True)
+    label.setSizePolicy(policy)
+    return label
+
+
 def intro_label(text: str) -> QLabel:
     """The one plain sentence under a step's title: what this step decides."""
 
     label = QLabel(text)
     label.setObjectName("new_item_intro")
     label.setWordWrap(True)
-    return label
+    return wrap_for_height(label)
 
 
 class NoteLabel(QLabel):
@@ -134,11 +150,15 @@ class NoteLabel(QLabel):
         self.setWordWrap(True)
         self.setTextFormat(Qt.RichText)
         self.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        policy = self.sizePolicy()
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
         self.set_note(text, tone)
 
     def set_note(self, text: str, tone: Optional[str] = None) -> None:
         self._plain = str(text or "")
         self._tone = tone
+        self.updateGeometry()
         self.setText(tinted(self._plain, tone) if self._plain else "")
         self.setVisible(bool(self._plain))
 
@@ -186,6 +206,7 @@ class DetailsToggle(QWidget):
         self.body = QLabel(text)
         self.body.setObjectName("new_item_details")
         self.body.setWordWrap(True)
+        wrap_for_height(self.body)
         self.body.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.body.setVisible(False)
         layout.addWidget(self.body)
@@ -210,5 +231,16 @@ def compact_table_height(table: QTableWidget, rows: int, *, minimum_rows: int = 
     if table.horizontalScrollBar().isVisible():
         height += table.horizontalScrollBar().height()
     table.setMinimumHeight(height)
-    table.setMaximumHeight(height + (0 if rows > maximum_rows else 0))
+    table.setMaximumHeight(height)
     table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    # A table that grows a row or a column changes its fixed height after the layout has
+    # settled. Without telling the parents, they keep the geometry they had and the
+    # widgets under the table are drawn over it -- which is what an added stat column did.
+    table.updateGeometry()
+    parent = table.parentWidget()
+    while parent is not None:
+        layout = parent.layout()
+        if layout is not None:
+            layout.invalidate()
+            layout.activate()
+        parent = parent.parentWidget()

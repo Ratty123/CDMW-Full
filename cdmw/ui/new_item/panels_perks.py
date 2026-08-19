@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QPushButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from cdmw.domain.new_item.effects import presets_for
@@ -114,7 +115,9 @@ class PerksPanel(QGroupBox):
         self.index_button.clicked.connect(self._index_effects)
         effect_row.addWidget(self.index_button)
         choose.addRow("Or any shipped effect:", effect_row)
-        effect_layout.addLayout(choose)
+        choose_holder = QWidget()
+        choose_holder.setLayout(choose)
+        effect_layout.addWidget(choose_holder)
         self.effect_facts = QLabel("")
         self.effect_facts.setObjectName("new_item_intro")
         self.effect_facts.setWordWrap(True)
@@ -143,7 +146,9 @@ class PerksPanel(QGroupBox):
             placement_row.addWidget(box)
             self.effect_offset.append(box)
         placement_row.addStretch(1)
-        effect_layout.addLayout(placement_row)
+        placement_holder = QWidget()
+        placement_holder.setLayout(placement_row)
+        effect_layout.addWidget(placement_holder)
         self.place_button = QPushButton("Place in viewport...")
         self.place_button.setToolTip(
             "Open the resident viewport with the item's mesh and the effect's box at the current scale and offset; "
@@ -161,7 +166,11 @@ class PerksPanel(QGroupBox):
         self.color_reset.setToolTip("Back to the shipped colour.")
         self.color_reset.clicked.connect(self._reset_color)
         look_row.addWidget(self.color_reset)
-        look_row.addSpacing(12)
+        look_row.addStretch(1)
+        # the four factors go on their own row: eight widgets beside the colour buttons set a
+        # minimum width the step could not be read at
+        factor_row = QHBoxLayout()
+        factor_row.addSpacing(24)
         self.look_factors: dict[str, QDoubleSpinBox] = {}
         for key, label, tip in (
             ("intensity", "brightness x", "Multiplies the emitters' emissive brightness (and the temperature ramp's brightness)."),
@@ -169,7 +178,7 @@ class PerksPanel(QGroupBox):
             ("rate", "spawn rate x", "Multiplies the spawn counts and the particle cap."),
             ("lifetime", "lifetime x", "Multiplies the particle lifetimes."),
         ):
-            look_row.addWidget(QLabel(label))
+            factor_row.addWidget(QLabel(label))
             box = QDoubleSpinBox()
             box.setRange(0.05, 20.0)
             box.setDecimals(2)
@@ -177,10 +186,15 @@ class PerksPanel(QGroupBox):
             box.setValue(1.0)
             box.setToolTip(tip)
             box.valueChanged.connect(self._look_changed)
-            look_row.addWidget(box)
+            factor_row.addWidget(box)
             self.look_factors[key] = box
-        look_row.addStretch(1)
-        effect_layout.addLayout(look_row)
+        factor_row.addStretch(1)
+        look_holder = QWidget()
+        look_column = QVBoxLayout(look_holder)
+        look_column.setContentsMargins(0, 0, 0, 0)
+        look_column.addLayout(look_row)
+        look_column.addLayout(factor_row)
+        effect_layout.addWidget(look_holder)
         self.effect_note = DetailsToggle(
             "The effect is drawn at the weapon's own origin, as the shipped thrown lightning spear draws its aura. Effects made for "
             "other weapons may sit or scale oddly; the scale and offset above move them, the presets carry a starting scale, and "
@@ -190,6 +204,11 @@ class PerksPanel(QGroupBox):
             title="How the effect and its look work",
         )
         effect_layout.addWidget(self.effect_note)
+        #: everything below the "give it an effect" tick: hidden while it is off, so the
+        #: step is one line when the answer is no
+        self._effect_rows = (choose_holder, self.effect_facts, placement_holder, look_holder, self.effect_note)
+        for row in self._effect_rows:
+            row.setVisible(False)
         layout.addWidget(effect)
 
         self._own_perks_changed(False)
@@ -225,8 +244,11 @@ class PerksPanel(QGroupBox):
             draft.socket_items = list(self._controller.template_socket_items())
         elif not checked:
             draft.socket_items = None
+        # hidden rather than greyed: an empty list box the height of the panel is dead
+        # space on a step whose usual answer is "the template's"
         for widget in (self.chosen, self.remove_button, self.reset_button, self.perk_filter, self.catalogue, self.add_button):
             widget.setEnabled(bool(checked))
+            widget.setVisible(bool(checked))
         self._controller.plan = None
         self._refresh_chosen()
 
@@ -282,6 +304,8 @@ class PerksPanel(QGroupBox):
     def _use_effect_changed(self, checked: bool) -> None:
         for widget in (self.effect_filter, self.effect, self.effect_preset, self.effect_scale, self.index_button, self.place_button, self.color_button, self.color_reset, *self.effect_offset, *self.look_factors.values()):
             widget.setEnabled(bool(checked))
+        for row in self._effect_rows:
+            row.setVisible(bool(checked))
         self._effect_changed(self.effect.currentIndex())
 
     def _effect_transform_changed(self, *_args) -> None:

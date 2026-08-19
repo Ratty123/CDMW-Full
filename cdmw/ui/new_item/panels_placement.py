@@ -54,10 +54,13 @@ class PlacementPanel(QGroupBox):
         self.old_item_label = QLabel("Entry to replace:")
         form.addRow(self.old_item_label, self.old_item)
         shop_layout.addLayout(form)
-        self.keep_requirement = QCheckBox("Keep the shop line's unlock requirement (a collection's knowledge; the shop shows Knowledge until the buyer has it)")
+        # a checkbox's text does not wrap; the rest of each sentence is in the tooltip
+        self.keep_requirement = QCheckBox("Keep the shop line's unlock requirement")
+        self.keep_requirement.setToolTip("The replaced line's own unlock, a collection's knowledge: until the buyer has it the shop shows Knowledge instead of the item. Off: the new line sells from the start.")
         self.keep_requirement.toggled.connect(self._keep_requirement_changed)
         shop_layout.addWidget(self.keep_requirement)
-        self.unlimited_stock = QCheckBox("Unlimited stock (off: the line's own count, 1 on most equipment lines, so it sells once and then shows 0 in stock)")
+        self.unlimited_stock = QCheckBox("Unlimited stock")
+        self.unlimited_stock.setToolTip("Off: the line keeps its own count, 1 on most equipment lines, so the item sells once and the shop then shows 0 in stock.")
         self.unlimited_stock.setChecked(bool(controller.draft.unlimited_stock))
         self.unlimited_stock.toggled.connect(self._unlimited_stock_changed)
         shop_layout.addWidget(self.unlimited_stock)
@@ -130,13 +133,16 @@ class PlacementPanel(QGroupBox):
         enabled = draft.placement_kind is not PlacementKind.NONE
         swapping = draft.placement_kind is PlacementKind.SWAP
         self.store.setEnabled(enabled)
+        self.store.setVisible(enabled)
         self.store_label.setEnabled(enabled)
+        self.store_label.setVisible(enabled)
         self.old_item.setEnabled(swapping)
         self.old_item.setVisible(swapping)
         self.old_item_label.setVisible(swapping)
         self.keep_requirement.setEnabled(swapping)
         self.keep_requirement.setVisible(swapping)
         self.unlimited_stock.setEnabled(enabled)
+        self.unlimited_stock.setVisible(enabled)
         self._controller.plan = None
         self._refresh_requirement_note()
 
@@ -194,8 +200,11 @@ class PlacementPanel(QGroupBox):
 
     def _explicit_changed(self, checked: bool) -> None:
         self._controller.draft.item_groups = ItemGroupsChoice.EXPLICIT if checked else ItemGroupsChoice.TEMPLATE
-        self.group_filter.setEnabled(bool(checked))
-        self.group_list.setEnabled(bool(checked))
+        # hidden rather than greyed: the group list is tall, and the template's groups are
+        # the usual answer, so an unticked step 6 is three lines instead of half a page
+        for widget in (self.group_filter, self.group_list):
+            widget.setEnabled(bool(checked))
+            widget.setVisible(bool(checked))
         self._controller.plan = None
 
     def _refresh_groups(self, *_args) -> None:

@@ -7,7 +7,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
     QGroupBox,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
@@ -54,25 +53,24 @@ class IdentityPanel(QGroupBox):
         layout.addLayout(form)
 
         names = QGroupBox("Names and descriptions")
-        names_layout = QVBoxLayout(names)
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Language:"))
+        # one form, so the name and the description carry labels like the fields above them
+        names_layout = QFormLayout(names)
+        names_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.language = QComboBox()
         for code in LOCALIZATION_LANGUAGES:
             self.language.addItem(f"{LANGUAGE_LABELS.get(code, code)} ({code})", code)
         self.language.currentIndexChanged.connect(self._switch_language)
-        row.addWidget(self.language, 1)
-        names_layout.addLayout(row)
+        names_layout.addRow("Language:", self.language)
         self.display_name = QLineEdit()
         self.display_name.setPlaceholderText("Shown in game; English is required, other languages fall back to it")
         self.display_name.textChanged.connect(self._store_display_name)
-        names_layout.addWidget(self.display_name)
+        names_layout.addRow("Name:", self.display_name)
         self.description = QPlainTextEdit()
         self.description.setPlaceholderText("Description shown in game; empty keeps the template's description in this language")
-        self.description.setMinimumHeight(96)
-        self.description.setMaximumHeight(160)
+        self.description.setMinimumHeight(72)
+        self.description.setMaximumHeight(120)
         self.description.textChanged.connect(self._store_description)
-        names_layout.addWidget(self.description)
+        names_layout.addRow("Description:", self.description)
         layout.addWidget(names)
 
         checks = QGroupBox("Checks")

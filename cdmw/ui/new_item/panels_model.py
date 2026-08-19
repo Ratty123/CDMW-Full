@@ -60,6 +60,7 @@ class ModelPanel(QGroupBox):
         outer.addLayout(columns, 1)
         left = QWidget()
         left.setMaximumWidth(640)
+        left.setMinimumWidth(420)
         layout = QVBoxLayout(left)
         layout.setContentsMargins(0, 0, 0, 0)
         columns.addWidget(left, 0)
@@ -86,7 +87,9 @@ class ModelPanel(QGroupBox):
         self.clear_button.clicked.connect(self._controller.discard_model)
         row.addWidget(self.clear_button)
         row.addStretch(1)
-        model_layout.addLayout(row)
+        import_row = QWidget()
+        import_row.setLayout(row)
+        model_layout.addWidget(import_row)
         self.model_status = NoteLabel("No imported model.", None)
         model_layout.addWidget(self.model_status)
         self.busy_bar = QProgressBar()
@@ -122,7 +125,7 @@ class ModelPanel(QGroupBox):
         self.flip_texture_v.setVisible(False)
         self.flip_texture_v.toggled.connect(self._flip_texture_v_changed)
         model_layout.addWidget(self.flip_texture_v)
-        model_layout.addWidget(DetailsToggle(
+        import_tips = DetailsToggle(
             "Import tips. Head cover and placement come from the template: an imported model inherits the template's part prefabs "
             "(which character parts it occupies, and any mesh drawn beside it, such as a helm's helmet hair), so pick a helm template "
             "for the look it gives in game (the Northern Fighter's Plate Helm keeps the face drawn; the Unyielding Warrior's and Canta "
@@ -130,7 +133,11 @@ class ModelPanel(QGroupBox):
             "hand (offset z, + toward the pommel), and a helm wants manual placement (a source in centimetres: scale 0.01, no "
             "rotation, origin at the head, about y 1.745, z -0.03). Fit to the template gives a first guess; the gizmo does the rest.",
             title="Import tips",
-        ))
+        )
+        model_layout.addWidget(import_tips)
+        #: the import's own controls: shown once a model of your own is asked for, so the
+        #: step is two radio buttons while the template's model is kept
+        self._import_widgets = (import_row, self.model_status, self.plain_pbr, self.own_sheath, import_tips)
         layout.addWidget(model)
 
         # ---- placement: the model over the template, in the viewport below
@@ -205,8 +212,8 @@ class ModelPanel(QGroupBox):
         self.preview.placement_changed.connect(self._gizmo_moved)
         preview_layout.addWidget(self.preview, 1)
         preview_row = QHBoxLayout()
-        self.capture_inline_button = QPushButton("Capture the icon from this view")
-        self.capture_inline_button.setToolTip("The view as it is, at 512 x 512, grid and gizmo hidden, as the item's icon.")
+        self.capture_inline_button = QPushButton("Take the icon from this view...")
+        self.capture_inline_button.setToolTip("Takes the view as it is (grid and gizmo hidden), then you drag the rectangle that becomes the 512 x 512 icon.")
         self.capture_inline_button.clicked.connect(self._capture_inline)
         self.capture_inline_button.setEnabled(False)
         preview_row.addWidget(self.capture_inline_button)
@@ -263,13 +270,23 @@ class ModelPanel(QGroupBox):
         self._icon_source_changed(True)
         self.plain_pbr.setEnabled(False)
         self.own_sheath.setEnabled(False)
+        self._refresh_import_widgets()
 
     def _model_source_changed(self, keep: bool) -> None:
         draft = self._controller.draft
         draft.model_source = ModelSource.TEMPLATE if keep else ModelSource.IMPORTED
         self.plain_pbr.setEnabled(not keep)
         self.own_sheath.setEnabled(not keep)
+        self._refresh_import_widgets()
         self._controller.plan = None
+
+    def _refresh_import_widgets(self) -> None:
+        keep = self.keep_model.isChecked()
+        for widget in self._import_widgets:
+            widget.setVisible(not keep)
+        self.clear_button.setVisible(self._controller.model_import is not None)
+        if keep:
+            self.flip_texture_v.setVisible(False)
 
     def _material_route_changed(self, plain: bool) -> None:
         self._controller.draft.material_route = MaterialRoute.PLAIN_PBR if plain else MaterialRoute.BUILDER
@@ -294,6 +311,7 @@ class ModelPanel(QGroupBox):
         source = self._controller.model_import
         self.placement_group.setVisible(source is not None)
         self.flip_texture_v.setVisible(source is not None)
+        self.clear_button.setVisible(source is not None)
         if source is not None and self.flip_texture_v.isChecked() != bool(source.flip_texture_v):
             self.flip_texture_v.blockSignals(True)
             self.flip_texture_v.setChecked(bool(source.flip_texture_v))
@@ -303,11 +321,13 @@ class ModelPanel(QGroupBox):
             self.model_status.set_note("No imported model.", None)
             self.plain_pbr.setEnabled(False)
             self.own_sheath.setEnabled(False)
+            self._refresh_import_widgets()
             self.apply_status.set_note("", None)
             return
         self.import_model.setChecked(True)
         self.plain_pbr.setEnabled(True)
         self.own_sheath.setEnabled(True)
+        self._refresh_import_widgets()
         lines = []
         if source is not None:
             mesh = getattr(source.scene, "mesh", None)
@@ -465,13 +485,44 @@ class ModelPanel(QGroupBox):
         if not self.preview.capture():
             self.preview_status.setText("The viewport is not showing the item yet; wait for it, then capture.")
 
+    @staticmethod
+    def icon_region_dialog_factory(parent, image):
+        from cdmw.ui.archive_browser.static_replacement_icon_selection import AlignmentIconSelectionDialog
+
+        return AlignmentIconSelectionDialog(image, parent)
+
     def _inline_capture_done(self, path: object, image: object) -> None:
+        """The viewport handed back the view as it is: let the user drag the rectangle that
+        becomes the icon (the Builder's own picker), fit it into 512 x 512 and keep it."""
+
+        from PySide6.QtGui import QImage
+        from PySide6.QtWidgets import QDialog
+
+        from cdmw.ui.archive_browser.static_replacement_custom_icon import custom_item_icon_selected_preview_image
+
+        captured = image if isinstance(image, QImage) and not image.isNull() else QImage(str(path))
+        if captured.isNull():
+            self.preview_status.setText("The capture came back empty.")
+            return
+        dialog = self.icon_region_dialog_factory(self, captured)
+        if dialog.exec() != QDialog.Accepted:
+            self.preview_status.setText("Capture dropped; the icon is unchanged.")
+            return
+        try:
+            icon = custom_item_icon_selected_preview_image(captured, dialog.selected_source_rect(), size=512)
+            target = Path(str(path)).with_name(f"icon_{Path(str(path)).stem}_selected.png")
+            if not icon.save(str(target)):
+                raise ValueError(f"the icon could not be written to {target}")
+        except Exception as exc:  # noqa: BLE001 - a bad selection is the user's to see, not a crash
+            self.preview_status.setText(f"The icon could not be made from that selection: {exc}")
+            return
         self.generate_icon.setChecked(True)
-        self.icon_source.setText(str(path))
+        self.icon_source.setText(str(target))
+        self.preview_status.setText(f"Icon taken from the view: {icon.width()} x {icon.height()}.")
         try:
             from PySide6.QtGui import QPixmap
 
-            self.icon_thumbnail.setPixmap(QPixmap.fromImage(image).scaled(self.icon_thumbnail.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self.icon_thumbnail.setPixmap(QPixmap.fromImage(icon).scaled(self.icon_thumbnail.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
             self.icon_thumbnail.setVisible(True)
         except Exception:  # noqa: BLE001
             pass
