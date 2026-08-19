@@ -81,6 +81,11 @@ class OverlayArchiveTests(unittest.TestCase):
             payload = built.paz_bytes[record.paz_offset : record.paz_offset + record.comp_size]
             self.assertEqual(payload, by_path[record.full_path].payload)
             self.assertEqual(record.orig_size, by_path[record.full_path].orig_size)
+        # every shipped .paz is a whole number of sixteen-byte blocks, tail included, and
+        # the pamt's own paz table carries that length and the checksum of it
+        self.assertEqual(len(built.paz_bytes) % PAZ_ALIGNMENT, 0, "the payload file is padded out like the shipped ones")
+        last = max(record.paz_offset + record.comp_size for record in document.files)
+        self.assertLess(len(built.paz_bytes) - last, PAZ_ALIGNMENT, "the padding is the tail of the last payload, no more")
 
     def test_the_app_reads_a_written_overlay_directory(self) -> None:
         built = build_overlay_archive(_files())

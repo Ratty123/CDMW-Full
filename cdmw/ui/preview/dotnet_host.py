@@ -707,6 +707,16 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
         self._presentation_state["display"] = display
         return self._remember_presentation_state({"display": {"grid_visible": bool(visible)}})
 
+    def set_effect_particles_visible(self, visible: bool) -> bool:
+        """Draw or hide the effect particle layer. An effect's own fire is a wall of
+        additive sprites, and a placement judged against the item under it needs the item
+        without the fire on top for a moment."""
+
+        display = dict(self._presentation_state.get("display", {}))
+        display["effect_particles_visible"] = bool(visible)
+        self._presentation_state["display"] = display
+        return self._remember_presentation_state({"display": {"effect_particles_visible": bool(visible)}})
+
     def set_alignment_state(
         self,
         *,

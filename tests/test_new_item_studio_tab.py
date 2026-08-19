@@ -866,5 +866,50 @@ class TabTests(unittest.TestCase):
         tab.deleteLater()
 
 
+class InstallReportTests(unittest.TestCase):
+    """Step 7's four buttons all report through one signal, and they hand back four
+    different kinds of result. Before this, three of them said "Installed 0 archive
+    entr(ies)", which reads like a failure after a button that did its work."""
+
+    def test_each_route_says_what_it_did(self) -> None:
+        from cdmw.services.archive_overlay_install import OverlayInstallResult
+        from cdmw.services.archive_overlay_migration import MigrationPlan, MigrationResult, RemovalResult
+        from cdmw.ui.new_item.panels_output import install_result_report
+
+        title, message = install_result_report(
+            OverlayInstallResult(Path("g/0036"), 1, 27, 113_457_995, 4, Path("b/1"), ())
+        )
+        self.assertEqual(title, "Install as an overlay")
+        self.assertIn("0036", message)
+        self.assertIn("27 file(s)", message)
+        self.assertIn("4 of them carried forward", message)
+        self.assertIn("were not written to", message)
+
+        title, message = install_result_report(MigrationResult(Path("g/0036"), 12, (Path("a"), Path("b")), Path("b/2"), 5_000))
+        self.assertEqual(title, "Move installed items into the overlay")
+        self.assertIn("Moved 12 file(s)", message)
+        self.assertIn("2 archive file(s)", message)
+
+        title, message = install_result_report(MigrationPlan((), (), ()))
+        self.assertEqual(title, "Move installed items into the overlay")
+        self.assertIn("Nothing to move", message)
+
+        title, message = install_result_report(RemovalResult(Path("g/0036"), True, 2, Path("b/3")))
+        self.assertEqual(title, "Remove the overlay")
+        self.assertIn("Removed the overlay 0036", message)
+        self.assertIn("gone from the game", message)
+
+        title, message = install_result_report(RemovalResult(None, False, 0, None))
+        self.assertIn("no overlay to remove", message)
+
+        class _Patched:
+            changed_paths = ("a", "b", "c")
+            backup_dir = Path("b/4")
+
+        title, message = install_result_report(_Patched())
+        self.assertEqual(title, "Install into the game archives")
+        self.assertIn("Installed 3 archive entr(ies)", message)
+
+
 if __name__ == "__main__":
     unittest.main()

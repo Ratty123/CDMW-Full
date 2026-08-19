@@ -36,6 +36,69 @@ CHECKLIST = (
 )
 
 
+def install_result_report(result: object) -> tuple:
+    """What to tell the reader after one of step 7's four buttons finishes.
+
+    All four report through the same signal, and they did not all report the same kind of
+    result: an overlay install, a move into the overlay and a removal have no
+    `changed_paths` between them, so each of them said "Installed 0 archive entr(ies)",
+    which reads like a failure after a button that worked.
+    """
+
+    backup = getattr(result, "backup_dir", "") or ""
+    directory = getattr(result, "directory", None)
+    name = getattr(directory, "name", "") if directory is not None else ""
+
+    if hasattr(result, "removed_files"):  # the overlay taken away
+        if not getattr(result, "unmounted", False):
+            return ("Remove the overlay", "There was no overlay to remove: the mount list names none.")
+        return (
+            "Remove the overlay",
+            f"Removed the overlay {name} and unmounted it.\n\nAnything that lived only in the overlay is gone from the game "
+            f"with it; anything installed into the shipped archives is untouched.\n\nBackup: {backup}",
+        )
+    if hasattr(result, "moved"):  # items carried out of the shipped archives
+        moved = int(getattr(result, "moved", 0) or 0)
+        restored = len(getattr(result, "restored", ()) or ())
+        size = int(getattr(result, "payload_bytes", 0) or 0)
+        return (
+            "Move installed items into the overlay",
+            f"Moved {moved} file(s) ({size:,} bytes) into the overlay {name} and put {restored} archive file(s) back to their "
+            f"oldest backup.\n\nThe game reads the same thing it did; the files it shipped are its own again."
+            f"\n\nBackup: {backup}",
+        )
+    if hasattr(result, "entries") and hasattr(result, "restore"):  # a move that found nothing
+        return (
+            "Move installed items into the overlay",
+            "Nothing to move: no archive file differs from the oldest backup of it, so the shipped archives carry no "
+            "installed item.",
+        )
+    if hasattr(result, "file_count"):  # installed as an overlay
+        count = int(getattr(result, "file_count", 0) or 0)
+        carried = int(getattr(result, "carried_forward", 0) or 0)
+        size = int(getattr(result, "payload_bytes", 0) or 0)
+        # the two are whole sentences rather than one with a clause slotted into it: a
+        # fragment interpolated into a message is a fragment the translator never sees
+        if carried:
+            return (
+                "Install as an overlay",
+                f"Installed as the archive directory {name}: {count} file(s), {size:,} bytes, mounted ahead of the shipped "
+                f"archives, {carried} of them carried forward from what the overlay already held.\n\nThe archives the game "
+                f"shipped were not written to.\n\nBackup: {backup}\n\nStart the game and go through the checklist.",
+            )
+        return (
+            "Install as an overlay",
+            f"Installed as the archive directory {name}: {count} file(s), {size:,} bytes, mounted ahead of the shipped "
+            f"archives.\n\nThe archives the game shipped were not written to."
+            f"\n\nBackup: {backup}\n\nStart the game and go through the checklist.",
+        )
+    changed = len(getattr(result, "changed_paths", ()) or ())
+    return (
+        "Install into the game archives",
+        f"Installed {changed} archive entr(ies).\n\nBackup: {backup}\n\nStart the game and go through the checklist.",
+    )
+
+
 class OutputPanel(QGroupBox):
     #: The tab asks the shell for confirmation and the mutation service, then installs.
     install_requested = Signal()
@@ -238,13 +301,9 @@ class OutputPanel(QGroupBox):
         QMessageBox.information(self, "Write loose mod", f"Written to {root}\n\n{count} file(s), {new} of them new.")
 
     def _install_finished(self, result: object) -> None:
-        backup = getattr(result, "backup_dir", "")
-        changed = len(getattr(result, "changed_paths", ()) or ())
-        self.append_log(f"Installed: {changed} archive entr(ies) written. Backup: {backup}")
-        QMessageBox.information(
-            self, "Install into the game archives",
-            f"Installed {changed} archive entr(ies).\n\nBackup: {backup}\n\nStart the game and go through the checklist.",
-        )
+        title, message = install_result_report(result)
+        self.append_log(message.replace("\n\n", " "))
+        QMessageBox.information(self, title, message)
 
     def _busy_changed(self, busy: bool) -> None:
         lane = str(getattr(self._controller, "_lane", "") or "")
@@ -268,4 +327,4 @@ class OutputPanel(QGroupBox):
         self.install_button.setEnabled(has_plan and not busy)
 
 
-__all__ = ["CHECKLIST", "OutputPanel"]
+__all__ = ["CHECKLIST", "OutputPanel", "install_result_report"]

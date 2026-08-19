@@ -336,7 +336,7 @@ class NewItemService:
             plan.patches,
             plan.additions,
             package_root=package_root,
-            meta_files=[(write.path, write.payload) for write in plan.meta_files],
+            meta_files=[(write.path, write.payload_data) for write in plan.meta_files],
             backup=backup if hasattr(mutation_service, "backup_files") else None,
             on_log=on_log,
             stop_event=stop_event,

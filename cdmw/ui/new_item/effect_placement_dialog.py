@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.effect_placement_preview import (
     ANCHOR_TINT,
+    framing_bounds_for,
     BODY_TINT,
     ITEM_TINT,
     REACH_TINT,
@@ -249,6 +250,11 @@ class EffectPlacementDialog(QDialog):
         reach_row.addWidget(self.fit_button)
         reach_row.addStretch(1)
         side.addLayout(reach_row)
+        self.show_particles = QCheckBox("Show the particles")
+        self.show_particles.setToolTip("The effect's own fire, drawn approximately. Turn it off to see the item under it.")
+        self.show_particles.setChecked(True)
+        self.show_particles.toggled.connect(lambda checked: self._show_particles(bool(checked)))
+        side.addWidget(self.show_particles)
         self.show_character = QCheckBox("Show the character")
         self.show_character.setToolTip("A figure 1.75 m tall holding the item, so the effect's size reads against something known.")
         self.show_character.setChecked(True)
@@ -404,6 +410,18 @@ class EffectPlacementDialog(QDialog):
         column.addWidget(label)
         self.legend_rows[key] = label
 
+    def _show_particles(self, visible: bool) -> None:
+        """Draw or hide the particle layer; the anchor and the reach do not depend on it."""
+
+        self._refresh_legend()
+        host = self.host
+        setter = getattr(host, "set_effect_particles_visible", None) if host is not None else None
+        if callable(setter):
+            try:
+                setter(bool(visible))
+            except Exception:  # noqa: BLE001 - a host without the call keeps what it draws
+                pass
+
     def _refresh_legend(self) -> None:
         """The legend says what is on screen, so the two rows that can be turned off
         follow their checkboxes."""
@@ -413,19 +431,52 @@ class EffectPlacementDialog(QDialog):
             return
         rows["body"].setVisible(self.show_character.isChecked())
         rows["reach"].setVisible(self.show_reach.isChecked())
+        rows["particles"].setVisible(self.show_particles.isChecked())
 
     def _look_from(self, yaw: float, pitch: float) -> None:
-        """Turn the camera to one of the standing views and fit the item in it again."""
+        """Turn the camera to one of the standing views and fit the subject in it again."""
+
+        self._point_camera(yaw=float(yaw), pitch=float(pitch))
+
+    def _point_camera(self, *, yaw: Optional[float] = None, pitch: Optional[float] = None) -> None:
+        """Send the camera, at the zoom the subject needs. The view fits the item and the
+        character; with the reach frame shown it has to hold that instead, which for a
+        boss effect is twenty times as wide."""
 
         host = self.host
-        if host is None:
+        setter = getattr(host, "set_view", None) if host is not None else None
+        if not callable(setter):
             return
-        setter = getattr(host, "set_view", None)
-        if callable(setter):
-            try:
-                setter(yaw=float(yaw), pitch=float(pitch), zoom_factor=1.0, fit_to_view=True)
-            except Exception:  # noqa: BLE001 - a host without the call keeps the view it has
-                pass
+        if yaw is None or pitch is None:
+            state = {}
+            snapshot = getattr(host, "view_state_snapshot", None)
+            if callable(snapshot):
+                try:
+                    state = snapshot() or {}
+                except Exception:  # noqa: BLE001 - the angles fall back to the opening view
+                    state = {}
+            yaw = float(state.get("yaw", STANDING_VIEW_ANGLES[-1][0])) if yaw is None else yaw
+            pitch = float(state.get("pitch", STANDING_VIEW_ANGLES[-1][1])) if pitch is None else pitch
+        try:
+            setter(yaw=float(yaw), pitch=float(pitch), zoom_factor=self._zoom_for_the_subject(), fit_to_view=True)
+        except Exception:  # noqa: BLE001 - a host without the call keeps the view it has
+            pass
+
+    def _zoom_for_the_subject(self) -> float:
+        """1.0 frames what the package framed on; less zooms out to hold the reach frame.
+
+        A frame shown but out of view is worse than no frame: the reader ticks the box,
+        nothing changes on screen, and the twenty metres the effect claims stay abstract.
+        """
+
+        if not self.show_reach.isChecked():
+            return 1.0
+        low, high = framing_bounds_for(self._item_mesh)
+        subject = max(high[axis] - low[axis] for axis in range(3))
+        reach = max(self._box_size) * self.scale
+        if subject <= 0 or reach <= subject:
+            return 1.0
+        return max(0.1, min(1.0, subject / reach))
 
     def _put_it_at(self, where: str) -> None:
         """Move the effect's origin to a named place on the item: the hand it is held by
@@ -453,6 +504,7 @@ class EffectPlacementDialog(QDialog):
     def _reach_toggled(self) -> None:
         self._apply_scene_visibility()
         self._refresh_size_label()
+        self._point_camera()
 
     def _fit_reach_to_item(self) -> None:
         """A scale that makes the effect's reach about the item's own length: a starting
