@@ -49,6 +49,21 @@ def archive_workflow_dependency_context(
 
     if not isinstance(entry, ArchiveEntry):
         raise ArchiveWorkflowDependenciesUnavailable("The archive workflow has no valid selected entry.")
+    # The New Item Studio hands the flow a bounded context it built itself from its own
+    # archive listing (the template's model family and what sits beside it), so an
+    # import over the template's mesh does not need the browser's selected row or the
+    # worker's prepared set. It answers only for the entries it carries.
+    override = getattr(owner, "_new_item_dependency_context", None)
+    if isinstance(override, ArchiveWorkflowDependencyContext):
+        selected = override.entry_matching(entry)
+        if selected is not None:
+            return ArchiveWorkflowDependencyContext(
+                selected_entry=selected,
+                entries=override.entries,
+                entries_by_normalized_path=override.entries_by_normalized_path,
+                entries_by_basename=override.entries_by_basename,
+                remote=False,
+            )
     remote_bridge = getattr(owner, "archive_remote_bridge", None)
     if remote_bridge is not None and bool(getattr(remote_bridge, "displays_v2", False)):
         resolver = getattr(remote_bridge, "prepared_dependencies_for", None)

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from PySide6.QtCore import QObject, QThread, Signal
 
@@ -389,6 +389,50 @@ class NewItemStudioController(QObject):
                 self.effect_catalogue_ready.emit()
 
         return self._run("effects", task, done, lambda message: self.status_message.emit(message, True))
+
+    def import_dependency_context(self):
+        """A bounded dependency context for importing a model over the template's mesh:
+        the template's family files, everything under the family's model folder, and
+        every entry whose basename starts with the family's model stem (its textures
+        and sidecars), indexed the way the archive workflows expect. Built from the
+        studio's own listing, so the Archive Browser's selection plays no part."""
+
+        from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
+
+        if self.snapshot is None or self.draft.template_key is None:
+            return None
+        try:
+            family = self.snapshot.family(self.draft.template_key)
+        except Exception:  # noqa: BLE001
+            return None
+        folder = str(family.model_folder or "").replace("\\", "/").strip("/").lower()
+        stem = str(family.model_stem or "").lower()
+        chosen: Dict[str, ArchiveEntry] = {}
+        for item in family.files:
+            if item.exists:
+                key = str(item.path).replace("\\", "/").strip("/").lower()
+                entry = self.snapshot.entries.get(key)
+                if entry is not None:
+                    chosen[key] = entry
+        for key, entry in self.snapshot.entries.items():
+            basename = key.rsplit("/", 1)[-1]
+            if (folder and key.startswith(f"character/model/{folder}/")) or (stem and basename.startswith(stem)):
+                chosen[key] = entry
+        if not chosen:
+            return None
+        by_path: Dict[str, Tuple[ArchiveEntry, ...]] = {key: (entry,) for key, entry in chosen.items()}
+        by_basename: Dict[str, List[ArchiveEntry]] = {}
+        for key, entry in chosen.items():
+            by_basename.setdefault(key.rsplit("/", 1)[-1], []).append(entry)
+        primary = self.template_entries()
+        selected = primary[0] if primary else next(iter(chosen.values()))
+        return ArchiveWorkflowDependencyContext(
+            selected_entry=selected,
+            entries=tuple(chosen.values()),
+            entries_by_normalized_path=by_path,
+            entries_by_basename={name: tuple(items) for name, items in by_basename.items()},
+            remote=False,
+        )
 
     def template_entries(self) -> Tuple[ArchiveEntry, ...]:
         """The template's own model files, for the Builder to import over."""

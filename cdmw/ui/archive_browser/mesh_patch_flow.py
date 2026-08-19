@@ -201,6 +201,7 @@ class ArchiveMeshPatchFlowMixin:
         if str(entry.path or "").replace("\\", "/").casefold() != wanted:
             return False
         self._new_item_model_sink = None
+        self._new_item_dependency_context = None
         scene = getattr(self, "_new_item_model_scene", None)
         self._new_item_model_scene = None
         self._show_archive_import_preview(entry, result, patched=False)

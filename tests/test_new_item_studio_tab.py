@@ -157,6 +157,31 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_the_import_brings_its_own_dependency_context(self) -> None:
+        """The Builder's flow asks the window for a dependency context; the studio builds a
+        bounded one from its own listing (family files, the family folder, stem-named
+        files), so the Archive Browser's selection plays no part in an import."""
+
+        from types import SimpleNamespace
+
+        from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext, archive_workflow_dependency_context
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        context = tab.controller.import_dependency_context()
+        self.assertIsInstance(context, ArchiveWorkflowDependencyContext)
+        entries = tab.controller.template_entries()
+        self.assertTrue(entries)
+        self.assertEqual(context.selected_entry.path, entries[0].path)
+        self.assertIsNotNone(context.entry_for_path(entries[0].path))
+        self.assertFalse(context.remote)
+        owner = SimpleNamespace(_new_item_dependency_context=context, archive_remote_bridge=SimpleNamespace(displays_v2=True))
+        resolved = archive_workflow_dependency_context(owner, entries[0])
+        self.assertEqual(resolved.selected_entry.path, entries[0].path, "the override answers for the template's mesh")
+        self.assertIn(entries[0].path.rsplit("/", 1)[-1].lower(), {k.lower() for k in resolved.entries_by_basename})
+        tab.close()
+        tab.deleteLater()
+
     def test_one_copper_and_the_folded_advanced_controls(self) -> None:
         tab = self._tab()
         tab.prefill_template(TEMPLATE)

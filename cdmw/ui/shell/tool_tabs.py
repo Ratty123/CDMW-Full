@@ -374,7 +374,7 @@ class ShellToolTabsMixin:
         if template_key is not None and hasattr(widget, "prefill_template"):
             widget.prefill_template(int(template_key))
 
-    def start_new_item_model_import(self, entry: object, on_result: Callable[[object, object], None]) -> None:
+    def start_new_item_model_import(self, entry: object, on_result: Callable[[object, object], None], dependency_context: object = None) -> None:
         """Run Import Mesh over `entry` and hand the Builder's result to `on_result`.
 
         The mesh patch flow consumes the sink once, for that entry, instead of writing
@@ -415,6 +415,7 @@ class ShellToolTabsMixin:
         if settings is not None and hasattr(settings, "setValue"):
             settings.setValue("ui/new_item_import_dir", str(Path(scene_path).parent))
         self._new_item_model_sink = (str(getattr(entry, "path", "") or "").replace("\\", "/").casefold(), on_result)
+        self._new_item_dependency_context = dependency_context
         prepare = getattr(self, "_prepare_archive_mesh_import_setup_async", None)
 
         def launch() -> None:
@@ -428,7 +429,12 @@ class ShellToolTabsMixin:
             else:
                 starter(entry)
 
-        # 2. the template's mesh and its dependencies, prepared by the archive worker
+        # 2. the template's mesh and its dependencies: the studio's own bounded context
+        #    when it brought one (no browser selection needed), else the archive worker's
+        #    prepared set for the browser's selected row
+        if dependency_context is not None:
+            launch()
+            return
         bridge = getattr(self, "archive_remote_bridge", None)
         if bridge is not None and bool(getattr(bridge, "displays_v2", False)):
             prepared = getattr(bridge, "prepared_dependencies_for", None)
