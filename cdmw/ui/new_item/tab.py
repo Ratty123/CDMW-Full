@@ -176,6 +176,8 @@ class NewItemStudioTab(QWidget):
         controller.model_placement_changed.connect(self._refresh_summary)
         self.output_panel.install_requested.connect(self._install)
         self.output_panel.install_overlay_requested.connect(self._install_overlay)
+        self.output_panel.overlay_migration_requested.connect(self._migrate_overlay)
+        self.output_panel.overlay_removal_requested.connect(self._remove_overlay)
         controller.template_changed.connect(lambda _key: self.identity_panel.refresh_issues())
         controller.model_changed.connect(lambda _result: self.identity_panel.refresh_issues())
 
@@ -417,6 +419,75 @@ class NewItemStudioTab(QWidget):
         if confirmation != QMessageBox.Yes:
             return
         self.controller.start_install_overlay(mutations())
+
+    def _overlay_services(self, title: str):
+        """The mutation service (for the backup) and the package root, or None with a word."""
+
+        services = getattr(getattr(self._window, "app_context", None), "services", None)
+        mutations = getattr(services, "require_archive_mutations", None)
+        if not callable(mutations):
+            QMessageBox.warning(self, title, "The archive mutation service is not available in this window.")
+            return None
+        root = str(self._get_package_root() or "").strip()
+        if not root:
+            QMessageBox.warning(self, title, "Point the workbench at the game folder first.")
+            return None
+        return mutations(), Path(root)
+
+    def _migrate_overlay(self) -> None:
+        title = "Move installed items into the overlay"
+        found = self._overlay_services(title)
+        if found is None:
+            return
+        mutations, root = found
+        from cdmw.services.archive_overlay_migration import plan_migration
+
+        try:
+            preview = plan_migration(root)
+        except Exception as exc:  # noqa: BLE001 - the message is the answer
+            QMessageBox.warning(self, title, f"The archives could not be read: {exc}")
+            return
+        if preview.is_empty:
+            QMessageBox.information(self, title, "Nothing in the shipped archives differs from the oldest backup of it, so there is nothing to move.")
+            return
+        listed = "\n".join(f"- {item.path}" for item in preview.entries[:12])
+        more = f"\n- ... {len(preview.entries) - 12} more" if len(preview.entries) > 12 else ""
+        confirmation = QMessageBox.question(
+            self,
+            title,
+            (
+                f"Move {len(preview.entries)} archive entrie(s) into the overlay and put the shipped archives back?\n\n"
+                f"{listed}{more}\n\n"
+                f"{len(preview.restore)} archive file(s) go back to their oldest backup ({len(preview.backups)} backup(s) read). "
+                "The game must not be running."
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirmation != QMessageBox.Yes:
+            return
+        self.controller.start_overlay_migration(mutations, root)
+
+    def _remove_overlay(self) -> None:
+        title = "Remove the overlay"
+        found = self._overlay_services(title)
+        if found is None:
+            return
+        mutations, root = found
+        confirmation = QMessageBox.question(
+            self,
+            title,
+            (
+                "Unmount the overlay directory and delete it?\n\n"
+                "Every item that lives only in the overlay leaves the game with it. Items written into the shipped "
+                "archives stay where they are. The game must not be running."
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirmation != QMessageBox.Yes:
+            return
+        self.controller.start_overlay_removal(mutations, root)
 
     # ------------------------------------------------------------------ lifecycle
 

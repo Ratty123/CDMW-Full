@@ -25,7 +25,7 @@ from cdmw.services.new_item_planning import NewItemPlan, NewItemPlanError
 from cdmw.services.new_item_service import NewItemInstallRefused, NewItemService
 from cdmw.services.new_item_snapshot import NewItemSnapshot, NewItemSnapshotError
 from cdmw.ui.new_item.state import NewItemDraft, StatGrid, spec_from_draft, stat_grid_for, status_label, with_template
-from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, plan_task, snapshot_task
+from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, overlay_migration_task, overlay_removal_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
 
 
@@ -917,6 +917,18 @@ class NewItemStudioController(QObject):
             return False
         task = install_overlay_task(self.plan, service=self.service, mutation_service=mutation_service, confirmed=True)
         return self._run("install", task, self.install_finished.emit, lambda message: self.status_message.emit(message, True))
+
+    def start_overlay_migration(self, mutation_service, package_root) -> bool:
+        """Move what the shipped archives already carry into the overlay, off the UI thread."""
+
+        task = overlay_migration_task(package_root, mutation_service=mutation_service)
+        return self._run("overlay", task, self.install_finished.emit, lambda message: self.status_message.emit(message, True))
+
+    def start_overlay_removal(self, mutation_service, package_root) -> bool:
+        """Unmount the overlay and delete it, off the UI thread."""
+
+        task = overlay_removal_task(package_root, mutation_service=mutation_service)
+        return self._run("overlay", task, self.install_finished.emit, lambda message: self.status_message.emit(message, True))
 
     def _run(self, lane: str, task, on_done: Callable[[object], None], on_error: Callable[[str], None]) -> bool:
         if self.busy:

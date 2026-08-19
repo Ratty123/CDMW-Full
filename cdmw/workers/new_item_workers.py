@@ -158,4 +158,55 @@ def install_overlay_task(
     return run
 
 
-__all__ = ["export_task", "install_overlay_task", "install_task", "plan_task", "snapshot_task"]
+def overlay_migration_task(package_root, *, mutation_service) -> Callable[[LogSink, threading.Event], object]:
+    """Move what is already in the shipped archives out into the overlay, and put them back."""
+
+    def run(log: LogSink, stop_event: threading.Event) -> object:
+        from cdmw.services.archive_overlay_migration import migrate_into_overlay, plan_migration
+
+        found = plan_migration(package_root, stop_event=stop_event)
+        log(f"{len(found.entries)} archive entrie(s) differ from the oldest backup of them ({found.payload_bytes:,} bytes).")
+        if found.is_empty:
+            return found
+
+        def backup(paths, description):
+            return mutation_service.backup_files(paths, description=description, on_log=log)
+
+        return migrate_into_overlay(
+            package_root,
+            plan=found,
+            backup=backup if hasattr(mutation_service, "backup_files") else None,
+            on_log=log,
+            stop_event=stop_event,
+        )
+
+    return run
+
+
+def overlay_removal_task(package_root, *, mutation_service) -> Callable[[LogSink, threading.Event], object]:
+    """Unmount the overlay and delete it."""
+
+    def run(log: LogSink, stop_event: threading.Event) -> object:
+        from cdmw.services.archive_overlay_migration import remove_overlay
+
+        def backup(paths, description):
+            return mutation_service.backup_files(paths, description=description, on_log=log)
+
+        return remove_overlay(
+            package_root,
+            backup=backup if hasattr(mutation_service, "backup_files") else None,
+            on_log=log,
+        )
+
+    return run
+
+
+__all__ = [
+    "export_task",
+    "install_overlay_task",
+    "install_task",
+    "overlay_migration_task",
+    "overlay_removal_task",
+    "plan_task",
+    "snapshot_task",
+]
