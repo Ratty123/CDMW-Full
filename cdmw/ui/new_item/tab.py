@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Iterable, Optional
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -170,6 +170,7 @@ class NewItemStudioTab(QWidget):
         self.perks_panel = PerksPanel(controller)
         self.placement_panel = PlacementPanel(controller)
         self.output_panel = OutputPanel(controller)
+        controller.install_finished.connect(lambda _result: QTimer.singleShot(0, self._reread_after_install))
         controller.model_import_changed.connect(lambda _source: self.identity_panel.refresh_issues())
         controller.model_import_changed.connect(self._refresh_summary)
         controller.model_placement_changed.connect(self._refresh_summary)
@@ -350,6 +351,13 @@ class NewItemStudioTab(QWidget):
             self.start_snapshot()
             return
         self.template_panel.prefill(int(template_key))
+
+    def _reread_after_install(self) -> None:
+        """After an install the archives hold the new item: read them again, so the next
+        item is allocated its own key and stem instead of the one just written."""
+
+        self.output_panel.append_log("Reading the archives again so the next item gets its own key and stem...")
+        self.start_snapshot()
 
     def receive_imported_model(self, entry: Optional[ArchiveEntry], result: object, scene: object | None = None) -> None:
         """Take a Builder result for the current template's mesh, with the scene import

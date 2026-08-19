@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
+    QProgressBar,
     QPushButton,
     QVBoxLayout,
 )
@@ -22,7 +23,7 @@ from PySide6.QtWidgets import (
 from cdmw.services.new_item_planning import NewItemPlan
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import MANAGERS
-from cdmw.ui.new_item.ui_kit import BLOCK, OK, WARN, DetailsToggle, NoteLabel, intro_label
+from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, DetailsToggle, NoteLabel, intro_label
 
 CHECKLIST = (
     "In game: the item shows in the shop you chose (or in the inventory when given by other means).",
@@ -44,6 +45,15 @@ class OutputPanel(QGroupBox):
         self._controller = controller
         layout = QVBoxLayout(self)
         layout.addWidget(intro_label("Build the plan (nothing is written yet), read what it changes, then write a mod folder or install into the game."))
+
+        self.busy_bar = QProgressBar()
+        self.busy_bar.setRange(0, 0)
+        self.busy_bar.setTextVisible(False)
+        self.busy_bar.setFixedHeight(6)
+        self.busy_bar.setVisible(False)
+        layout.addWidget(self.busy_bar)
+        self.busy_state = NoteLabel("", None)
+        layout.addWidget(self.busy_state)
 
         build = QGroupBox("1. Build the plan")
         build_layout = QHBoxLayout(build)
@@ -201,6 +211,21 @@ class OutputPanel(QGroupBox):
         )
 
     def _busy_changed(self, busy: bool) -> None:
+        lane = str(getattr(self._controller, "_lane", "") or "")
+        working = bool(busy) and lane in {"plan", "export", "install", "snapshot"}
+        self.busy_bar.setVisible(working)
+        if not working:
+            self.busy_state.set_note("", None)
+        elif lane == "plan":
+            self.busy_state.set_note("Building the plan; the window stays usable while it runs.", EDIT)
+        elif lane == "export":
+            self.busy_state.set_note("Writing the mod folder...", EDIT)
+        elif lane == "install":
+            self.busy_state.set_note("Installing into the game archives: backing up, validating, writing.", EDIT)
+        elif lane == "snapshot":
+            self.busy_state.set_note("Reading the archives...", EDIT)
+        else:
+            self.busy_state.set_note("Working...", EDIT)
         self.build_button.setEnabled(not busy)
         has_plan = self._controller.plan is not None
         self.export_button.setEnabled(has_plan and not busy)

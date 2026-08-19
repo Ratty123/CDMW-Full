@@ -113,6 +113,15 @@ class ModelPanel(QGroupBox):
         )
         self.own_sheath.toggled.connect(self._sheath_changed)
         model_layout.addWidget(self.own_sheath)
+        self.flip_texture_v = QCheckBox("Flip the imported textures vertically (V)")
+        self.flip_texture_v.setToolTip(
+            "glTF, GLB, OBJ and DAE put V's origin at the bottom and the game samples it from the top, so their textures need the "
+            "flip or they draw mirrored along the model. Ticked for those formats; untick it if your source is already in the "
+            "game's convention (a mesh taken from the archives)."
+        )
+        self.flip_texture_v.setVisible(False)
+        self.flip_texture_v.toggled.connect(self._flip_texture_v_changed)
+        model_layout.addWidget(self.flip_texture_v)
         model_layout.addWidget(DetailsToggle(
             "Import tips. Head cover and placement come from the template: an imported model inherits the template's part prefabs "
             "(which character parts it occupies, and any mesh drawn beside it, such as a helm's helmet hair), so pick a helm template "
@@ -266,6 +275,17 @@ class ModelPanel(QGroupBox):
         self._controller.draft.material_route = MaterialRoute.PLAIN_PBR if plain else MaterialRoute.BUILDER
         self._controller.plan = None
 
+    def _flip_texture_v_changed(self, flip: bool) -> None:
+        source = self._controller.model_import
+        if source is None or bool(source.flip_texture_v) == bool(flip):
+            return
+        source.flip_texture_v = bool(flip)
+        # the build differs, so a result from before this switch is no longer the item's
+        if self._controller.model_result is not None:
+            self._controller.set_imported_model(None, None)
+        self._controller.plan = None
+        self._refresh_apply_status()
+
     def _sheath_changed(self, own: bool) -> None:
         self._controller.draft.sheathed_model = SheathedModel.OWN_MODEL if own else SheathedModel.TEMPLATE
         self._controller.plan = None
@@ -273,6 +293,11 @@ class ModelPanel(QGroupBox):
     def _show_model(self, result: object) -> None:
         source = self._controller.model_import
         self.placement_group.setVisible(source is not None)
+        self.flip_texture_v.setVisible(source is not None)
+        if source is not None and self.flip_texture_v.isChecked() != bool(source.flip_texture_v):
+            self.flip_texture_v.blockSignals(True)
+            self.flip_texture_v.setChecked(bool(source.flip_texture_v))
+            self.flip_texture_v.blockSignals(False)
         if result is None and source is None:
             self.keep_model.setChecked(True)
             self.model_status.set_note("No imported model.", None)

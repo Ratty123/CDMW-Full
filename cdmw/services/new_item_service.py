@@ -99,15 +99,31 @@ class NewItemService:
             issues.extend(validate_against_context(spec, build_context(snapshot, spec.template_key)))
         return tuple(issues)
 
-    def allocate(self, spec: NewItemSpec, snapshot: NewItemSnapshot) -> NewItemSpec:
-        """The spec with item key, stem (when needed) and localisation keys filled in."""
+    def allocate(
+        self,
+        spec: NewItemSpec,
+        snapshot: NewItemSnapshot,
+        *,
+        reserved_keys: Iterable[int] = (),
+        reserved_stems: Iterable[str] = (),
+    ) -> NewItemSpec:
+        """The spec with item key, stem (when needed) and localisation keys filled in.
+
+        `reserved_keys` and `reserved_stems` are identities the caller has already handed
+        out but the snapshot cannot see yet: a plan built earlier in the session, or an
+        item written as a loose mod rather than installed. Without them a second item
+        would be allocated the first one's key and stem, and installing it would overwrite
+        the first.
+        """
 
         try:
-            item_key = allocate_item_key(snapshot.rows, preferred=spec.item_key)
+            used = set(snapshot.rows) | {int(value) for value in reserved_keys}
+            item_key = allocate_item_key(used, preferred=spec.item_key)
             stem = spec.stem
             if spec.needs_new_stem and stem is None:
                 family = snapshot.family(spec.template_key)
                 taken = set(snapshot.pappt.index()) | set(snapshot.stringinfo_texts.values()) | set(snapshot.model_stems)
+                taken |= {str(value) for value in reserved_stems if value}
                 stem = suggest_stem(family.model_stem, taken)
         except AllocationError as exc:
             raise NewItemPlanError(str(exc)) from exc
@@ -159,6 +175,8 @@ class NewItemService:
         scene: object | None = None,
         icon: Optional[NewItemIcon] = None,
         icon_source_path: Optional[Path] = None,
+        reserved_keys: Iterable[int] = (),
+        reserved_stems: Iterable[str] = (),
         on_log: Optional[Callable[[str], None]] = None,
         stop_event: Optional[threading.Event] = None,
     ) -> NewItemPlan:
@@ -177,7 +195,7 @@ class NewItemService:
         issues = self.validate(spec, snapshot)
         if has_errors(issues):
             raise NewItemPlanError("; ".join(issue.message for issue in issues if issue.is_error), issues)
-        allocated = self.allocate(spec, snapshot)
+        allocated = self.allocate(spec, snapshot, reserved_keys=reserved_keys, reserved_stems=reserved_stems)
         more = validate_against_context(allocated, build_context(snapshot, allocated.template_key))
         if has_errors(more):
             raise NewItemPlanError("; ".join(issue.message for issue in more if issue.is_error), more)

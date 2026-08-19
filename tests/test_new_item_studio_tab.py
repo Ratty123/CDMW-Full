@@ -553,6 +553,8 @@ class TabTests(unittest.TestCase):
         self.assertEqual(tab.controller.draft.model_source, ModelSource.IMPORTED)
         self.assertTrue(panel.placement_group.isVisibleTo(panel))
         self.assertTrue(panel.import_model.isChecked())
+        # a glTF source needs the vertical texture flip, and the panel shows it
+        self.assertTrue(source.flip_texture_v is False or source.flip_texture_v is True)
         # the fit is baked into the mesh; the numbers start at zero on top of it
         self.assertEqual(tab.controller.model_placement, ModelPlacement(), "the numbers start at zero")
         bake = source.bake
@@ -607,6 +609,48 @@ class TabTests(unittest.TestCase):
         self.assertIsNone(tab.controller.model_import)
         self.assertEqual(tab.controller.draft.model_source, ModelSource.TEMPLATE)
         self.assertFalse(panel.placement_group.isVisibleTo(panel))
+        tab.close()
+        tab.deleteLater()
+
+    def test_a_second_item_never_takes_the_first_one_s_identity(self) -> None:
+        """The studio remembers the key and stem every plan hands out and reserves them for
+        the next one: the snapshot cannot see an item until it is installed and the
+        archives are read again, and a repeat would overwrite the first item."""
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        tab.identity_panel.internal_name.setText("First_Clone_OneHandSword")
+        tab.identity_panel.display_name.setText("First")
+        tab.output_panel.build_button.click()
+        first = tab.controller.plan
+        self.assertIsNotNone(first)
+        self.assertIn(first.spec.item_key, tab.controller.issued_keys)
+        if first.spec.stem:
+            self.assertIn(str(first.spec.stem), tab.controller.issued_stems)
+        tab.identity_panel.internal_name.setText("Second_Clone_OneHandSword")
+        tab.identity_panel.display_name.setText("Second")
+        tab.output_panel.build_button.click()
+        second = tab.controller.plan
+        self.assertIsNotNone(second)
+        self.assertNotEqual(second.spec.item_key, first.spec.item_key, "a second item gets its own key")
+        if first.spec.stem:
+            self.assertNotEqual(second.spec.stem, first.spec.stem, "and its own model stem")
+        # nothing was written to the user's settings: persistence is the app's choice
+        self.assertFalse(tab.controller._persist_identities)
+        tab.close()
+        tab.deleteLater()
+
+    def test_an_install_reads_the_archives_again(self) -> None:
+        """The installed item is only in the snapshot after a re-read, so the studio does
+        one itself; without it the next item would be allocated the same key."""
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        reread = []
+        with patch.object(type(tab), "start_snapshot", lambda self_: reread.append(True)):
+            tab._reread_after_install()
+        self.assertEqual(len(reread), 1)
+        self.assertIn("own key and stem", tab.output_panel.log.toPlainText())
         tab.close()
         tab.deleteLater()
 

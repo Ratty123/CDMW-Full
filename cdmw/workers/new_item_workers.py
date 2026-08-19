@@ -91,13 +91,18 @@ def plan_task(
     scene: object | None = None,
     icon: Optional[NewItemIcon] = None,
     icon_source_path: Optional[Path] = None,
+    reserved_keys: Sequence[int] = (),
+    reserved_stems: Sequence[str] = (),
 ) -> Callable[[LogSink, threading.Event], NewItemPlan]:
     """Validate, allocate and compose the plan (fourteen language tables, an icon encode,
-    the material route's texture encodes)."""
+    the material route's texture encodes). `reserved_*` are identities already handed out
+    that the snapshot cannot see (an earlier plan this session, a loose mod not installed)."""
 
     def run(log: LogSink, stop_event: threading.Event) -> NewItemPlan:
         return service.plan(
-            spec, snapshot, model=model, scene=scene, icon=icon, icon_source_path=icon_source_path, on_log=log, stop_event=stop_event
+            spec, snapshot, model=model, scene=scene, icon=icon, icon_source_path=icon_source_path,
+            reserved_keys=tuple(reserved_keys), reserved_stems=tuple(reserved_stems),
+            on_log=log, stop_event=stop_event,
         )
 
     return run

@@ -357,6 +357,9 @@ class ShellToolTabsMixin:
         from cdmw.ui.new_item import NewItemStudioTab
 
         tab = NewItemStudioTab(window=self, service=self.app_context.services.new_items)
+        # the identities the studio hands out are remembered between sessions, so a second
+        # item never takes the first one's key and stem
+        tab.controller.persist_issued_identities()
         tab.setObjectName("new_item_studio")
         tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)
