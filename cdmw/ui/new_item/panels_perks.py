@@ -60,7 +60,6 @@ class PerksPanel(QGroupBox):
         perks_layout.addWidget(self.own_perks)
         chosen_row = QHBoxLayout()
         self.chosen = QListWidget()
-        self.chosen.setMaximumHeight(110)
         chosen_row.addWidget(self.chosen, 1)
         buttons = QVBoxLayout()
         self.remove_button = QPushButton("Remove")
@@ -258,6 +257,11 @@ class PerksPanel(QGroupBox):
             item = QListWidgetItem(self._controller.perk_label(key))
             item.setData(Qt.UserRole, int(key))
             self.chosen.addItem(item)
+        # the box is as tall as what it holds (two rows at the least, the eight-perk cap at
+        # the most), so two chosen perks do not sit in half a panel of empty list
+        rows = max(2, min(8, self.chosen.count()))
+        height = rows * max(18, self.chosen.sizeHintForRow(0) if self.chosen.count() else 18) + 2 * self.chosen.frameWidth() + 4
+        self.chosen.setFixedHeight(height)
 
     def _refresh_catalogue(self, *_args) -> None:
         current = self.catalogue.currentData()
