@@ -100,8 +100,16 @@ def status_label(name: str) -> str:
     return f"{friendly} ({name})" if friendly else str(name)
 
 
-def stat_grid_for(row: object, status_names: Mapping[int, str], item_names: Mapping[int, str]) -> StatGrid:
+def stat_grid_for(
+    row: object,
+    status_names: Mapping[int, str],
+    item_names: Mapping[int, str],
+    extra_status_keys: Sequence[int] = (),
+) -> StatGrid:
     """Columns in first-seen order across the ladder; a value where the level has one.
+    `extra_status_keys` are stats the reader added that the template's ladder lacks:
+    they follow the template's stat columns (before the prices) with no template value,
+    so every value typed into them is an addition the plan writes.
 
     `row` is a parsed ItemInfo row (the service's snapshot hands one over); only its
     `enchant_levels` and `price_list` are read, so the UI layer needs no core import.
@@ -115,6 +123,11 @@ def stat_grid_for(row: object, status_names: Mapping[int, str], item_names: Mapp
             if stat.status_key not in seen_stats:
                 seen_stats.append(stat.status_key)
                 columns.append(StatColumn(STAT_KIND, stat.status_key, status_label(status_names.get(stat.status_key, str(stat.status_key)))))
+    for key in extra_status_keys:
+        key = int(key)
+        if key not in seen_stats:
+            seen_stats.append(key)
+            columns.append(StatColumn(STAT_KIND, key, status_label(status_names.get(key, str(key)))))
     for level in row.enchant_levels:
         for price in level.buy_prices:
             if price.item_key not in seen_prices:
@@ -152,6 +165,8 @@ class NewItemDraft:
     #: level -> column index -> value; None means "as the template".
     grid_values: Dict[Tuple[int, int], Optional[int]] = field(default_factory=dict)
     extra_levels: int = 0
+    #: StatusInfo keys added as stat columns the template's ladder lacks, in the order added
+    extra_stat_keys: List[int] = field(default_factory=list)
     price_values: Dict[int, int] = field(default_factory=dict)
     max_stack_count: Optional[int] = None
     placement_kind: PlacementKind = PlacementKind.NONE
