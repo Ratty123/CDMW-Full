@@ -1242,6 +1242,8 @@
     "Building the global sidecar cache is intentionally optional because it can be expensive on large archives. It improves DDS related-file discovery, reverse references, mesh texture connections, and material-sidecar lookup. If you enable it, let the first run finish even when it takes a long time. Configure sidecar indexing and worker count in": "전역 사이드카 캐시 구축은 대규모 아카이브의 경우 비용이 많이 들 수 있으므로 의도적으로 선택 사항입니다. DDS 관련 파일 검색, 역참조, 메시 텍스처 연결 및 재질 사이드카 조회가 향상됩니다. 활성화하면 시간이 오래 걸리더라도 첫 번째 실행이 완료되도록 하세요.",
     "Building the item's mesh at this placement...": "이 배치로 아이템 메시를 만드는 중...",
     "Building the plan...": "계획 만드는 중...",
+    "Building the preview with your model...": "내 모델로 미리보기를 만드는 중...",
+    "Building the preview...": "미리보기를 만드는 중...",
     "Building universal 2H swords as 1H package...": "범용 2H 검을 1H 패키지로 구축...",
     "Building universal 2H swords as true 1H package...": "범용 2H 검을 진정한 1H 패키지로 구축...",
     "Building {value_0} from {value_1} at its placement...": "{value_1}에서 {value_0}을(를) 그 배치로 만드는 중...",

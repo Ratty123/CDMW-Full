@@ -167,16 +167,24 @@ class ItemPreviewFrameTests(unittest.TestCase):
             frame.show_placement(lambda _stop: PlacementScene(template=None, model=None), token="p", placement=start, model_bounds=((0, 0, 0), (1, 1, 1)))
         self.assertIs(frame.placement, start)
         host = frame.host
-        # the package is ready: the scene's presentation goes out, not the icon capture mode
+        # a ready while the newest build is still running belongs to the package before:
+        # the placement and the gizmo must not land on it
+        frame._host_state("ready", "")
+        self.assertFalse(frame.is_ready, "a stale ready is not this scene's")
+        self.assertNotIn("set_alignment_state", [c[0] for c in host.calls])
+        # the package lands: it is this request's, so the scene's presentation goes out
         frame._thread = None
+        host.calls.clear()
+        frame._package_ready(Path("pkg"), "p", True)
         frame._host_state("ready", "")
-        frame._package_dir = Path("x")
-        frame._host_state("ready", "")
+        self.assertTrue(frame.is_ready)
+        self.assertTrue(frame.showing_placement)
         names = [c[0] for c in host.calls]
         self.assertIn("set_alignment_state", names)
         self.assertIn("set_alignment_gizmo_tool", names)
         self.assertIn("set_alignment_preview_transform", names)
         self.assertIn(("set_icon_capture_mode", (False,), {}), host.calls)
+        self.assertNotIn(("set_icon_capture_mode", (True,), {}), host.calls, "a placement scene is not in icon-capture mode")
         self.assertIn("reset_view", names, "the camera is framed on the placed model once")
         state = next(c for c in host.calls if c[0] == "set_alignment_state")
         self.assertTrue(state[2]["enabled"])
@@ -220,9 +228,39 @@ class ItemPreviewFrameTests(unittest.TestCase):
         host.calls.clear()
         frame.show_placement(lambda _stop: None, token="p", placement=ModelPlacement())
         self.assertIn("set_alignment_preview_transform", [c[0] for c in host.calls])
+        # a new request takes the gizmo off the scene on screen at once
+        host.calls.clear()
+        with patch.object(ItemPreviewFrame, "_start_package", lambda self_, request: None):
+            frame.show_placement(lambda _stop: None, token="q", placement=ModelPlacement())
+        self.assertIn(("set_alignment_state", (), {"enabled": False}), host.calls, "the stale scene loses the gizmo")
         # leaving for a plain source forgets the placement
         frame.show(None)
         self.assertIsNone(frame.placement)
+        self.assertFalse(frame.showing_placement)
+        frame._closed = True
+
+    def test_the_finished_build_is_read_back_on_this_thread(self) -> None:
+        """`completed` is connected to a bound method of the frame, so Qt runs it on the
+        frame's thread: the viewport's process is created there and its protocol reaches
+        the host. A lambda would be run on the worker's thread instead, and the viewport
+        would launch but never report ready. The build in flight is therefore named on the
+        frame (`_building`), not captured in the connection."""
+
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+        from cdmw.ui.new_item.model_import import ModelPlacement
+
+        FakeHost = self._fake_host_class()
+        frame = ItemPreviewFrame(output_root=Path(tempfile.mkdtemp(prefix="cdmw_item_preview_")), host_factory=FakeHost)
+        frame._ensure_host()
+        started = []
+        with patch.object(ItemPreviewFrame, "_start_package", lambda self_, request: started.append(request)):
+            frame.show_placement(lambda _stop: None, token="p", placement=ModelPlacement())
+        self.assertEqual(started[0][0], "p")
+        # what _start_package records, and what _package_ready reads back without a token
+        frame._building = ("p", True)
+        frame._package_ready(Path("pkg"))
+        self.assertEqual(frame._loaded_token, "p")
+        self.assertTrue(frame._loaded_is_placement)
         frame._closed = True
 
     def test_a_hidden_frame_builds_the_package_and_loads_it_when_shown(self) -> None:
@@ -238,9 +276,9 @@ class ItemPreviewFrameTests(unittest.TestCase):
             frame.show(lambda _stop: None, token="t")
         self.assertEqual(started, ["t"], "the build starts while hidden")
         self.assertIsNone(frame.host, "no viewport until the frame shows")
-        frame._package_ready(Path("pkg"))
+        frame._package_ready(Path("pkg"), "t", False)
         self.assertIsNone(frame.host)
-        self.assertEqual(frame._deferred_package, Path("pkg"))
+        self.assertEqual(frame._deferred_package, (Path("pkg"), "t", False))
         with patch.object(ItemPreviewFrame, "isVisible", lambda self_: True):
             frame.showEvent(None)
         self.assertIsNotNone(frame.host, "the viewport starts on show")

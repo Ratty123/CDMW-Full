@@ -1242,6 +1242,8 @@
     "Building the global sidecar cache is intentionally optional because it can be expensive on large archives. It improves DDS related-file discovery, reverse references, mesh texture connections, and material-sidecar lookup. If you enable it, let the first run finish even when it takes a long time. Configure sidecar indexing and worker count in": "La création du cache side-car global est intentionnellement facultative car elle peut être coûteuse sur des archives volumineuses. Il améliore la découverte de fichiers liés au DDS, les références inversées, les connexions de textures de maillage et la recherche de matériaux side-car. Si vous l'activez, laissez la première exécution se terminer même si cela prend beaucoup de temps. Configurez l'indexation side-car et le nombre de travailleurs dans",
     "Building the item's mesh at this placement...": "Construction du maillage de l'objet à ce placement...",
     "Building the plan...": "Construction du plan...",
+    "Building the preview with your model...": "Construction de l'aperçu avec votre modèle...",
+    "Building the preview...": "Construction de l'aperçu...",
     "Building universal 2H swords as 1H package...": "Création d'épées 2H universelles en tant que package 1H...",
     "Building universal 2H swords as true 1H package...": "Création d'épées 2H universelles en tant que véritable package 1H...",
     "Building {value_0} from {value_1} at its placement...": "Construction de {value_0} à partir de {value_1} à son placement...",

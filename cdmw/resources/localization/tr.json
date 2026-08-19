@@ -1242,6 +1242,8 @@
     "Building the global sidecar cache is intentionally optional because it can be expensive on large archives. It improves DDS related-file discovery, reverse references, mesh texture connections, and material-sidecar lookup. If you enable it, let the first run finish even when it takes a long time. Configure sidecar indexing and worker count in": "Global sepet önbelleğinin oluşturulması, büyük arşivlerde pahalı olabileceğinden kasıtlı olarak isteğe bağlıdır. DDS ile ilgili dosya keşfini, ters referansları, ağ dokusu bağlantılarını ve malzeme sepetli aramayı geliştirir. Etkinleştirirseniz, uzun sürse bile ilk çalıştırmanın bitmesine izin verin. Sepet dizine eklemeyi ve çalışan sayısını yapılandırma",
     "Building the item's mesh at this placement...": "Öğenin örgüsü bu yerleşimde kuruluyor...",
     "Building the plan...": "Plan oluşturuluyor...",
+    "Building the preview with your model...": "Önizleme modelinizle kuruluyor...",
+    "Building the preview...": "Önizleme kuruluyor...",
     "Building universal 2H swords as 1H package...": "Evrensel 2H kılıçları 1H paketi olarak oluşturuluyor...",
     "Building universal 2H swords as true 1H package...": "Evrensel 2H kılıçları gerçek 1H paketi olarak oluşturuluyor...",
     "Building {value_0} from {value_1} at its placement...": "{value_0}, {value_1} kaynağından kendi yerleşiminde kuruluyor...",
