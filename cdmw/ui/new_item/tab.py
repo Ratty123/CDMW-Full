@@ -355,12 +355,12 @@ class NewItemStudioTab(QWidget):
     def _start_model_import(self) -> None:
         entries = self.controller.template_entries()
         if not entries:
-            QMessageBox.information(self, "Import through the Builder", "Choose a template whose model files are in the archives first.")
+            QMessageBox.information(self, "Import a model file", "Choose a template whose model files are in the archives first.")
             return
         starter = getattr(self._window, "start_new_item_model_import", None)
         if not callable(starter):
             QMessageBox.information(
-                self, "Import through the Builder",
+                self, "Import a model file",
                 "Import Mesh is not reachable from here in this window. Build the model through Archive Browser's Import Mesh, "
                 "then use Build as new item... in the Builder.",
             )

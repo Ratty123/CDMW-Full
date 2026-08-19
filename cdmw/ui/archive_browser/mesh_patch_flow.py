@@ -98,7 +98,7 @@ def _mesh_patch_dependencies(
             # the New Item Studio is waiting on this; a status line alone reads as "nothing happened"
             QMessageBox.information(
                 owner if isinstance(owner, QWidget) else None,
-                "Import through the Builder",
+                "Import a model file",
                 f"Import Mesh could not start: {exc}\n\nSelect the template's mesh in the Archive Browser, wait for its preview, "
                 "and try again from the studio, or run Import Mesh on it there; the result comes back to the studio.",
             )

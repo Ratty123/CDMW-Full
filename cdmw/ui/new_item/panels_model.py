@@ -39,12 +39,14 @@ class ModelPanel(QGroupBox):
         self.keep_model.setChecked(True)
         self.keep_model.toggled.connect(self._model_source_changed)
         model_layout.addWidget(self.keep_model)
-        self.import_model = QRadioButton("Use an imported model (glTF, GLB, OBJ through the Builder)")
+        self.import_model = QRadioButton("Use a model file of your own (glTF, GLB, OBJ, DAE, or a zip holding one)")
         model_layout.addWidget(self.import_model)
         row = QHBoxLayout()
-        self.import_button = QPushButton("Import through the Builder...")
+        self.import_button = QPushButton("Import a model file...")
         self.import_button.setToolTip(
-            "Opens Import Mesh over the template's mesh. The Builder's result is kept here instead of being written over the template."
+            "Pick a glTF, GLB, OBJ or DAE file, or a zip with one inside, from anywhere on disk; the Builder then opens over the "
+            "template's mesh with it (the Archive Browser selects that mesh first, which takes a moment). The Builder's result is "
+            "kept here instead of being written over the template."
         )
         self.import_button.clicked.connect(self.import_requested.emit)
         row.addWidget(self.import_button)

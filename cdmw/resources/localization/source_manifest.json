@@ -1732,7 +1732,7 @@
       ]
     },
     {
-      "key": ", which runs Import Mesh over the template's mesh and hands the result here instead of writing it over the template; it is re-pathed to the new item's own family. An imported model's materials are written for the game's plain PBR shaders by default (SkinnedMeshStandard: the source's albedo, normal and roughness/metal map, SkinnedMeshEmissive where the source glows), the way the shipped texture-driven weapons are; untick that to keep the Builder's layered sidecar as it came. The template is also the baseline the import inherits: its part prefabs decide which character parts the item occupies and what is drawn beside it (a helm's helmet hair), and the Template panel lists them; a helm imported over the Northern Fighter's Plate Helm keeps the face drawn, one over the Unyielding Warrior's or Canta helm hides the head. Where the model sits is the Builder's placement review: on the shipped swords the guard's handle-side edge is 0.10 m in front of the hand (offset z, + toward the pommel); a helm wants manual placement (scale, no rotation, origin at the head). Keep the template's icon or generate one from an image or a folder, fitted to the template icon's DDS format.",
+      "key": ", which asks for a glTF, GLB, OBJ, DAE or zip from anywhere on disk, runs Import Mesh over the template's mesh with it and hands the result here instead of writing it over the template; it is re-pathed to the new item's own family. An imported model's materials are written for the game's plain PBR shaders by default (SkinnedMeshStandard: the source's albedo, normal and roughness/metal map, SkinnedMeshEmissive where the source glows), the way the shipped texture-driven weapons are; untick that to keep the Builder's layered sidecar as it came. The template is also the baseline the import inherits: its part prefabs decide which character parts the item occupies and what is drawn beside it (a helm's helmet hair), and the Template panel lists them; a helm imported over the Northern Fighter's Plate Helm keeps the face drawn, one over the Unyielding Warrior's or Canta helm hides the head. Where the model sits is the Builder's placement review: on the shipped swords the guard's handle-side edge is 0.10 m in front of the hand (offset z, + toward the pommel); a helm wants manual placement (scale, no rotation, origin at the head). Keep the template's icon or generate one from an image or a folder, fitted to the template icon's DDS format.",
       "origins": [
         {
           "path": "cdmw/ui/shell/about_documentation_en.py",
@@ -3936,7 +3936,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 74,
+          "line": 76,
           "sink": "setToolTip"
         }
       ]
@@ -6026,7 +6026,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 189,
+          "line": 191,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -16036,7 +16036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 116,
+          "line": 118,
           "sink": "QPushButton"
         }
       ]
@@ -17826,7 +17826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 197,
+          "line": 199,
           "sink": "getExistingDirectory"
         }
       ]
@@ -17961,7 +17961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 171,
+          "line": 173,
           "sink": "emit"
         }
       ]
@@ -18086,7 +18086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 189,
+          "line": 191,
           "sink": "getOpenFileName"
         }
       ]
@@ -26631,7 +26631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 51,
+          "line": 53,
           "sink": "QPushButton"
         }
       ]
@@ -35371,7 +35371,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 112,
+          "line": 114,
           "sink": "QPushButton"
         },
         {
@@ -35701,7 +35701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 538,
+          "line": 579,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -36621,7 +36621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 100,
+          "line": 102,
           "sink": "QRadioButton"
         }
       ]
@@ -37801,7 +37801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 58,
+          "line": 60,
           "sink": "intro_label"
         }
       ]
@@ -38966,7 +38966,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 94,
+          "line": 96,
           "sink": "QGroupBox"
         }
       ]
@@ -39051,7 +39051,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 499,
+          "line": 540,
           "sink": "_add_lazy_shell_tool"
         },
         {
@@ -39561,7 +39561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 105,
+          "line": 107,
           "sink": "setPlaceholderText"
         }
       ]
@@ -39581,7 +39581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 108,
+          "line": 110,
           "sink": "QPushButton"
         }
       ]
@@ -39591,7 +39591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 189,
+          "line": 191,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -40187,6 +40187,46 @@
       ]
     },
     {
+      "key": "Import a model file",
+      "origins": [
+        {
+          "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
+          "line": 99,
+          "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 358,
+          "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 362,
+          "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/shell/tool_tabs.py",
+          "line": 465,
+          "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Import a model file...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 45,
+          "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/shell/about_documentation_en.py",
+          "line": 46,
+          "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
       "key": "Import a translated JSON language file. Custom languages are stored beside the app settings and can be selected here.",
       "origins": [
         {
@@ -40327,51 +40367,11 @@
       ]
     },
     {
-      "key": "Import through the Builder",
-      "origins": [
-        {
-          "path": "cdmw/ui/archive_browser/mesh_patch_flow.py",
-          "line": 99,
-          "sink": "information"
-        },
-        {
-          "path": "cdmw/ui/new_item/tab.py",
-          "line": 358,
-          "sink": "information"
-        },
-        {
-          "path": "cdmw/ui/new_item/tab.py",
-          "line": 362,
-          "sink": "information"
-        },
-        {
-          "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 424,
-          "sink": "information"
-        }
-      ]
-    },
-    {
-      "key": "Import through the Builder...",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 45,
-          "sink": "QPushButton"
-        },
-        {
-          "path": "cdmw/ui/shell/about_documentation_en.py",
-          "line": 46,
-          "sink": "python-return:_build_about_sections"
-        }
-      ]
-    },
-    {
       "key": "Import tips",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 81,
+          "line": 83,
           "sink": "DetailsToggle"
         }
       ]
@@ -40381,7 +40381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 81,
+          "line": 83,
           "sink": "DetailsToggle"
         }
       ]
@@ -43536,7 +43536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 96,
+          "line": 98,
           "sink": "QRadioButton"
         }
       ]
@@ -49156,7 +49156,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 489,
+          "line": 530,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -49908,6 +49908,26 @@
           "path": "cdmw/ui/archive_browser/mesh_import_export.py",
           "line": 741,
           "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Mesh Files",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/tool_tabs.py",
+          "line": 407,
+          "sink": "getOpenFileName:filter-label"
+        }
+      ]
+    },
+    {
+      "key": "Mesh Files (*.obj *.dae *.gltf *.glb *.zip *.pac *.pam *.pamlod)",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/tool_tabs.py",
+          "line": 407,
+          "sink": "getOpenFileName"
         }
       ]
     },
@@ -51601,7 +51621,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 496,
+          "line": 537,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -51893,6 +51913,16 @@
           "path": "cdmw/ui/texture_workflow/setup_panel.py",
           "line": 136,
           "sink": "_add_path_row"
+        }
+      ]
+    },
+    {
+      "key": "Model for the new item",
+      "origins": [
+        {
+          "path": "cdmw/ui/shell/tool_tabs.py",
+          "line": 407,
+          "sink": "getOpenFileName"
         }
       ]
     },
@@ -54131,7 +54161,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 502,
+          "line": 543,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -55776,12 +55806,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 56,
+          "line": 58,
           "sink": "NoteLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 148,
+          "line": 150,
           "sink": "set_note"
         }
       ]
@@ -60827,16 +60857,6 @@
       ]
     },
     {
-      "key": "Opens Import Mesh over the template's mesh. The Builder's result is kept here instead of being written over the template.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 46,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
       "key": "Opens an isolated, screen-aware editor that can be maximized. Parameters provides typed controls and undo/reset; Parameters and Connections column headings sort on click and reverse on a second click; Connections navigates current-index and Asset Family evidence without scanning or changing the browser selection; Source & Changes shows read-only, line-numbered XML with syntax colors and red/green unified diffs. For PAC XML, the approximate model preview omits skeleton/HKX overlay data by default; enable Show skeleton overlay only when rig context is useful. Export writes a mod-ready package while preserving the source encoding and untouched XML bytes.",
       "origins": [
         {
@@ -64692,6 +64712,16 @@
       ]
     },
     {
+      "key": "Pick a glTF, GLB, OBJ or DAE file, or a zip with one inside, from anywhere on disk; the Builder then opens over the template's mesh with it (the Archive Browser selects that mesh first, which takes a moment). The Builder's result is kept here instead of being written over the template.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 46,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "Pick a language and load it.",
       "origins": [
         {
@@ -64786,7 +64816,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 113,
+          "line": 115,
           "sink": "setToolTip"
         }
       ]
@@ -64936,7 +64966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 531,
+          "line": 572,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -67146,7 +67176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 463,
+          "line": 504,
           "sink": "pump_startup_splash"
         }
       ]
@@ -73361,7 +73391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 488,
+          "line": 529,
           "sink": "pump_startup_splash"
         }
       ]
@@ -74656,7 +74686,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 550,
+          "line": 591,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -83566,7 +83596,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 485,
+          "line": 526,
           "sink": "addTab"
         },
         {
@@ -84801,7 +84831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 117,
+          "line": 119,
           "sink": "setToolTip"
         }
       ]
@@ -85981,7 +86011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 65,
+          "line": 67,
           "sink": "setToolTip"
         }
       ]
@@ -90111,7 +90141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 109,
+          "line": 111,
           "sink": "setToolTip"
         }
       ]
@@ -91096,7 +91126,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 553,
+          "line": 594,
           "sink": "_add_lazy_shell_tool"
         },
         {
@@ -91316,7 +91346,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 517,
+          "line": 558,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -91716,7 +91746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 511,
+          "line": 552,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -91766,7 +91796,7 @@
         },
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 505,
+          "line": 546,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -92621,7 +92651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 445,
+          "line": 486,
           "sink": "give_up"
         }
       ]
@@ -92891,7 +92921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 454,
+          "line": 495,
           "sink": "give_up"
         }
       ]
@@ -93336,7 +93366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 101,
+          "line": 103,
           "sink": "setToolTip"
         }
       ]
@@ -95666,7 +95696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 544,
+          "line": 585,
           "sink": "_add_lazy_shell_tool"
         }
       ]
@@ -97842,6 +97872,16 @@
       ]
     },
     {
+      "key": "Use a model file of your own (glTF, GLB, OBJ, DAE, or a zip holding one)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 42,
+          "sink": "QRadioButton"
+        }
+      ]
+    },
+    {
       "key": "Use a model preview that was already loaded before this HKX editor opened. Hidden unless one is available.",
       "origins": [
         {
@@ -97858,16 +97898,6 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 46,
           "sink": "python-return:_build_about_sections"
-        }
-      ]
-    },
-    {
-      "key": "Use an imported model (glTF, GLB, OBJ through the Builder)",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 42,
-          "sink": "QRadioButton"
         }
       ]
     },
@@ -98261,7 +98291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 63,
+          "line": 65,
           "sink": "QCheckBox"
         }
       ]
@@ -101126,7 +101156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 72,
+          "line": 74,
           "sink": "QCheckBox"
         }
       ]
@@ -197001,7 +197031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/shell/tool_tabs.py",
-          "line": 424,
+          "line": 465,
           "sink": "information"
         }
       ]
@@ -201726,7 +201756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 160,
+          "line": 162,
           "sink": "note"
         }
       ]

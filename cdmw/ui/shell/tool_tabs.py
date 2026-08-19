@@ -379,22 +379,63 @@ class ShellToolTabsMixin:
 
         The mesh patch flow consumes the sink once, for that entry, instead of writing
         the result over the template; the studio then re-paths it to the new family.
-        With the catalogue backend the flow needs the archive worker's prepared
-        dependencies for the selected row, so the template's mesh is selected in the
-        Archive Browser first and Import Mesh starts once they are ready.
+        The source file is asked for first (any model file or a zip with one inside,
+        from anywhere on disk; the folder is remembered). With the catalogue backend
+        the flow then needs the archive worker's prepared dependencies for the selected
+        row, so the template's mesh is selected in the Archive Browser and the Builder
+        opens over it with that source once they are ready.
         """
 
-        self._new_item_model_sink = (str(getattr(entry, "path", "") or "").replace("\\", "/").casefold(), on_result)
+        from pathlib import Path
+
+        from PySide6.QtWidgets import QFileDialog
+
+        from cdmw.domain.mesh.session import MeshImportSetupSelection
+        from cdmw.ui.archive_browser.mesh_import_setup_state import mesh_import_setup_dialog_title
+
         starter = getattr(self, "_start_archive_mesh_patch", None)
         if not callable(starter):
             return
+        # 1. the source model, from anywhere on disk: a glTF/GLB/OBJ/DAE, a game mesh,
+        #    or a zip with one inside (the importer resolves the member); the folder is
+        #    remembered between sessions
+        settings = getattr(self, "settings", None)
+        start_dir = str(settings.value("ui/new_item_import_dir", "") or "") if settings is not None and hasattr(settings, "value") else ""
+        if not start_dir or not Path(start_dir).is_dir():
+            start_dir = str(Path.home())
+        file_filter = getattr(self, "_archive_mesh_import_file_filter", None)
+        scene_path, _selected = QFileDialog.getOpenFileName(
+            self,
+            "Model for the new item",
+            start_dir,
+            file_filter() if callable(file_filter) else "Mesh Files (*.obj *.dae *.gltf *.glb *.zip *.pac *.pam *.pamlod)",
+        )
+        if not scene_path:
+            return
+        if settings is not None and hasattr(settings, "setValue"):
+            settings.setValue("ui/new_item_import_dir", str(Path(scene_path).parent))
+        self._new_item_model_sink = (str(getattr(entry, "path", "") or "").replace("\\", "/").casefold(), on_result)
+        prepare = getattr(self, "_prepare_archive_mesh_import_setup_async", None)
+
+        def launch() -> None:
+            if callable(prepare):
+                prepare(
+                    entry,
+                    Path(scene_path),
+                    title=mesh_import_setup_dialog_title(),
+                    on_complete=lambda setup: starter(entry, preset_setup=setup) if isinstance(setup, MeshImportSetupSelection) else None,
+                )
+            else:
+                starter(entry)
+
+        # 2. the template's mesh and its dependencies, prepared by the archive worker
         bridge = getattr(self, "archive_remote_bridge", None)
         if bridge is not None and bool(getattr(bridge, "displays_v2", False)):
             prepared = getattr(bridge, "prepared_dependencies_for", None)
             if callable(prepared) and prepared(entry) is None:
-                self._select_archive_entry_then(entry, lambda: starter(entry))
+                self._select_archive_entry_then(entry, launch)
                 return
-        starter(entry)
+        launch()
 
     def _select_archive_entry_then(self, entry: object, then: Callable[[], None]) -> None:
         """Select `entry` in the Archive Browser (filtering the tree to it when it is
@@ -423,7 +464,7 @@ class ShellToolTabsMixin:
         def give_up(reason: str) -> None:
             QMessageBox.information(
                 self,
-                "Import through the Builder",
+                "Import a model file",
                 f"{reason}\n\nSelect this file in the Archive Browser yourself and run Import Mesh on it; "
                 f"the result comes back to the New Item Studio:\n\n{path}",
             )
