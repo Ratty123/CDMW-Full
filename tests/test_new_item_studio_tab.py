@@ -639,6 +639,53 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_the_overlay_can_be_moved_into_and_taken_away_from_the_step(self) -> None:
+        """The two housekeeping buttons: one carries an install that went into the shipped
+        archives out into the overlay, the other unmounts and deletes it. Neither needs a
+        plan, both ask first, and both leave the shipped archives as they found them."""
+
+        from types import SimpleNamespace
+
+        from PySide6.QtWidgets import QMessageBox
+
+        from cdmw.core.papgt_format import parse_papgt
+        from cdmw.services.archive_mutation_service import ArchiveMutationService
+
+        mutations = ArchiveMutationService()
+        window = SimpleNamespace(app_context=SimpleNamespace(services=SimpleNamespace(require_archive_mutations=lambda: mutations)))
+        tab = self._tab(window=window)
+        tab._get_package_root = lambda: str(self.root)
+        tab.prefill_template(TEMPLATE)
+
+        # nothing has been installed the old way, so there is nothing to move
+        with patch("cdmw.ui.new_item.tab.QMessageBox.information", return_value=None) as told:
+            tab.output_panel.overlay_migration_button.click()
+        self.assertTrue(told.called, "the step says there is nothing to move rather than writing")
+
+        # install through the overlay, then take it away again
+        tab.identity_panel.internal_name.setText("Ziane_Overlay_Housekeeping")
+        tab.identity_panel.display_name.setText("Wolf's Fang (Housekeeping)")
+        tab.output_panel.build_button.click()
+        with patch("cdmw.ui.new_item.tab.QMessageBox.question", return_value=QMessageBox.Yes), \
+                patch("cdmw.services.new_item_service.game_is_running", lambda: False), \
+                patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
+            tab.output_panel.install_overlay_button.click()
+        mounted = [item.name for item in parse_papgt((self.root / "meta" / "0.papgt").read_bytes())]
+        overlay = self.root / mounted[0]
+        self.assertTrue((overlay / "0.pamt").is_file())
+
+        with patch("cdmw.ui.new_item.tab.QMessageBox.question", return_value=QMessageBox.No):
+            tab.output_panel.overlay_removal_button.click()
+        self.assertTrue((overlay / "0.pamt").is_file(), "declining leaves it alone")
+
+        with patch("cdmw.ui.new_item.tab.QMessageBox.question", return_value=QMessageBox.Yes), \
+                patch("cdmw.ui.new_item.panels_output.QMessageBox.information", return_value=None):
+            tab.output_panel.overlay_removal_button.click()
+        self.assertFalse(overlay.exists(), "and accepting deletes it")
+        self.assertNotIn(overlay.name, [item.name for item in parse_papgt((self.root / "meta" / "0.papgt").read_bytes())])
+        tab.close()
+        tab.deleteLater()
+
     def test_a_model_file_is_placed_in_the_studio(self) -> None:
         """Import a model file on step 3: the studio reads it itself (no Builder, no Mesh
         Editor), shows it over the template with a first fit, takes the placement from

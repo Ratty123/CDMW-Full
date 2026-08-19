@@ -41,6 +41,9 @@ class OutputPanel(QGroupBox):
     install_requested = Signal()
     #: The overlay route: the same plan as an archive directory of its own.
     install_overlay_requested = Signal()
+    #: Housekeeping for that directory, neither of which needs a plan.
+    overlay_migration_requested = Signal()
+    overlay_removal_requested = Signal()
 
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("7. Output", parent)
@@ -118,6 +121,24 @@ class OutputPanel(QGroupBox):
             "writes a directory of its own instead and leaves them alone; it is the faster and more easily undone of the "
             "two, and the newer."
         ))
+        overlay_row = QHBoxLayout()
+        self.overlay_migration_button = QPushButton("Move installed items into the overlay...")
+        self.overlay_migration_button.setToolTip(
+            "For items already written into the shipped archives. Every archive entry that differs from the oldest "
+            "backup of it is carried into the overlay directory, and the archives themselves go back to that backup, "
+            "so the game reads the same thing while the files it shipped are its own again."
+        )
+        self.overlay_migration_button.clicked.connect(self.overlay_migration_requested.emit)
+        overlay_row.addWidget(self.overlay_migration_button)
+        self.overlay_removal_button = QPushButton("Remove the overlay...")
+        self.overlay_removal_button.setToolTip(
+            "Unmount the overlay directory and delete it. Everything it holds leaves the game with it; anything "
+            "installed into the shipped archives stays where it is."
+        )
+        self.overlay_removal_button.clicked.connect(self.overlay_removal_requested.emit)
+        overlay_row.addWidget(self.overlay_removal_button)
+        overlay_row.addStretch(1)
+        write_layout.addLayout(overlay_row)
         self.checklist = DetailsToggle(
             "\n".join(f"- {line}" for line in CHECKLIST),
             title="After installing, check in game",

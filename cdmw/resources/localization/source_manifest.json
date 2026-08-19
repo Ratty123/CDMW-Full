@@ -1881,17 +1881,17 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 121,
+          "line": 142,
           "sink": "DetailsToggle"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 202,
+          "line": 223,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 202,
+          "line": 223,
           "sink": "setPlainText"
         },
         {
@@ -1971,7 +1971,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 209,
+          "line": 230,
           "sink": "setPlainText"
         },
         {
@@ -2141,7 +2141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 60,
+          "line": 63,
           "sink": "QGroupBox"
         }
       ]
@@ -2261,7 +2261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 70,
+          "line": 73,
           "sink": "QGroupBox"
         }
       ]
@@ -2356,7 +2356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 79,
+          "line": 82,
           "sink": "QGroupBox"
         }
       ]
@@ -5756,7 +5756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 121,
+          "line": 142,
           "sink": "DetailsToggle"
         }
       ]
@@ -11891,7 +11891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 243,
+          "line": 245,
           "sink": "QPushButton"
         },
         {
@@ -12132,6 +12132,16 @@
         {
           "path": "cdmw/services/archive_overlay_install.py",
           "line": 167,
+          "sink": "on_log"
+        },
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 230,
+          "sink": "on_log"
+        },
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 282,
           "sink": "on_log"
         }
       ]
@@ -12716,7 +12726,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 210,
+          "line": 231,
           "sink": "set_note"
         }
       ]
@@ -13986,7 +13996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 62,
+          "line": 65,
           "sink": "QPushButton"
         },
         {
@@ -14051,7 +14061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 49,
+          "line": 52,
           "sink": "intro_label"
         }
       ]
@@ -14076,7 +14086,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 163,
+          "line": 184,
           "sink": "information"
         }
       ]
@@ -14506,7 +14516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 146,
+          "line": 167,
           "sink": "setPlainText"
         }
       ]
@@ -14516,7 +14526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 235,
+          "line": 256,
           "sink": "set_note"
         }
       ]
@@ -14581,7 +14591,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 147,
+          "line": 168,
           "sink": "set_note"
         }
       ]
@@ -18541,7 +18551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 160,
+          "line": 181,
           "sink": "information"
         }
       ]
@@ -18561,7 +18571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 153,
+          "line": 174,
           "sink": "getExistingDirectory"
         }
       ]
@@ -21141,7 +21151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 102,
+          "line": 105,
           "sink": "setToolTip"
         }
       ]
@@ -25512,6 +25522,16 @@
       ]
     },
     {
+      "key": "Deleted {value_0} ({value_1} file(s)).",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 295,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
       "key": "Deleted {value_0} {value_1}(s) from disk.",
       "origins": [
         {
@@ -29006,7 +29026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 330,
+          "line": 332,
           "sink": "note"
         }
       ]
@@ -29016,7 +29036,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 330,
+          "line": 332,
           "sink": "note"
         }
       ]
@@ -35521,7 +35541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 89,
+          "line": 92,
           "sink": "setPlaceholderText"
         }
       ]
@@ -35561,7 +35581,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 92,
+          "line": 95,
           "sink": "QPushButton"
         }
       ]
@@ -35718,6 +35738,16 @@
           "path": "cdmw/ui/shell/about_documentation_en.py",
           "line": 46,
           "sink": "python-return:_build_about_sections"
+        }
+      ]
+    },
+    {
+      "key": "For items already written into the shipped archives. Every archive entry that differs from the oldest backup of it is carried into the overlay directory, and the archives themselves go back to that backup, so the game reads the same thing while the files it shipped are its own again.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 126,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -42056,12 +42086,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 401,
+          "line": 403,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 405,
+          "line": 407,
           "sink": "question"
         }
       ]
@@ -42071,7 +42101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 105,
+          "line": 108,
           "sink": "QPushButton"
         }
       ]
@@ -42081,17 +42111,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 223,
+          "line": 244,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 375,
+          "line": 377,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 379,
+          "line": 381,
           "sink": "question"
         }
       ]
@@ -42101,7 +42131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 101,
+          "line": 104,
           "sink": "QPushButton"
         },
         {
@@ -42116,7 +42146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 405,
+          "line": 407,
           "sink": "question"
         }
       ]
@@ -42126,7 +42156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 379,
+          "line": 381,
           "sink": "question"
         }
       ]
@@ -42136,7 +42166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 223,
+          "line": 244,
           "sink": "information"
         }
       ]
@@ -42146,7 +42176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 222,
+          "line": 243,
           "sink": "append_log"
         }
       ]
@@ -42156,7 +42186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 239,
+          "line": 260,
           "sink": "set_note"
         }
       ]
@@ -42166,7 +42196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 116,
+          "line": 119,
           "sink": "intro_label"
         }
       ]
@@ -42981,7 +43011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 202,
+          "line": 223,
           "sink": "setPlainText"
         }
       ]
@@ -46621,7 +46651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 216,
+          "line": 237,
           "sink": "append_log"
         }
       ]
@@ -51521,7 +51551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 82,
+          "line": 85,
           "sink": "QLabel"
         }
       ]
@@ -52311,7 +52341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 202,
+          "line": 223,
           "sink": "setPlainText"
         }
       ]
@@ -52331,7 +52361,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 326,
+          "line": 328,
           "sink": "note"
         }
       ]
@@ -52351,7 +52381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 324,
+          "line": 326,
           "sink": "note"
         }
       ]
@@ -52361,7 +52391,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 322,
+          "line": 324,
           "sink": "note"
         }
       ]
@@ -52967,6 +52997,41 @@
       ]
     },
     {
+      "key": "Move installed items into the overlay",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 439,
+          "sink": "_overlay_services"
+        },
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 448,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 451,
+          "sink": "information"
+        },
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 455,
+          "sink": "question"
+        }
+      ]
+    },
+    {
+      "key": "Move installed items into the overlay...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 125,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Move it to:",
       "origins": [
         {
@@ -53077,6 +53142,16 @@
       ]
     },
     {
+      "key": "Move {value_0} archive entrie(s) into the overlay and put the shipped archives back?\n\n{value_1}{value_2}\n\n{value_3} archive file(s) go back to their oldest backup ({value_4} backup(s) read). The game must not be running.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 455,
+          "sink": "question"
+        }
+      ]
+    },
+    {
       "key": "Move {value_0}, replace {value_1} animations",
       "origins": [
         {
@@ -53103,6 +53178,16 @@
           "path": "tools/placement_studio/window_carry.py",
           "line": 510,
           "sink": "setWindowTitle"
+        }
+      ]
+    },
+    {
+      "key": "Moved {value_0} entrie(s) into {value_1}: {value_2} bytes, mounted first.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 245,
+          "sink": "on_log"
         }
       ]
     },
@@ -53606,7 +53691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 316,
+          "line": 318,
           "sink": "note"
         }
       ]
@@ -53616,7 +53701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 314,
+          "line": 316,
           "sink": "note"
         }
       ]
@@ -53626,7 +53711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 314,
+          "line": 316,
           "sink": "note"
         }
       ]
@@ -54556,7 +54641,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 245,
+          "line": 247,
           "sink": "QPushButton"
         },
         {
@@ -58196,12 +58281,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 66,
+          "line": 69,
           "sink": "NoteLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 178,
+          "line": 199,
           "sink": "set_note"
         }
       ]
@@ -58336,7 +58421,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 202,
+          "line": 223,
           "sink": "setPlainText"
         }
       ]
@@ -58473,6 +58558,26 @@
           "path": "tools/placement_studio/constraints.py",
           "line": 416,
           "sink": "Guide"
+        }
+      ]
+    },
+    {
+      "key": "Nothing in the shipped archives differs from the oldest backup of it, so there is nothing to move.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 451,
+          "sink": "information"
+        }
+      ]
+    },
+    {
+      "key": "Nothing in the shipped archives differs from the oldest backup of it.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 210,
+          "sink": "ValueError"
         }
       ]
     },
@@ -64861,7 +64966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 329,
+          "line": 331,
           "sink": "note"
         }
       ]
@@ -64871,7 +64976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 329,
+          "line": 331,
           "sink": "note"
         }
       ]
@@ -65761,7 +65866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 338,
+          "line": 340,
           "sink": "note"
         }
       ]
@@ -65771,7 +65876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 336,
+          "line": 338,
           "sink": "note"
         }
       ]
@@ -66133,6 +66238,16 @@
           "path": "tools/placement_studio/window_animation.py",
           "line": 57,
           "sink": "QGroupBox"
+        }
+      ]
+    },
+    {
+      "key": "Point the workbench at the game folder first.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 433,
+          "sink": "warning"
         }
       ]
     },
@@ -70931,7 +71046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 356,
+          "line": 358,
           "sink": "append_log"
         }
       ]
@@ -70952,11 +71067,26 @@
       ]
     },
     {
+      "key": "Reading the archives was cancelled.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 143,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 160,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
       "key": "Reading the archives...",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 241,
+          "line": 262,
           "sink": "set_note"
         }
       ]
@@ -71346,7 +71476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 181,
+          "line": 202,
           "sink": "set_note"
         }
       ]
@@ -74172,6 +74302,31 @@
       ]
     },
     {
+      "key": "Remove the overlay",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 473,
+          "sink": "_overlay_services"
+        },
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 477,
+          "sink": "question"
+        }
+      ]
+    },
+    {
+      "key": "Remove the overlay...",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 133,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Remove the selected operation wherever it sits in the history. The others are replayed without it, so nothing of it is left behind.",
       "origins": [
         {
@@ -76338,6 +76493,16 @@
           "path": "cdmw/ui/texture_workflow/editor_handoff.py",
           "line": 254,
           "sink": "append_log"
+        }
+      ]
+    },
+    {
+      "key": "Restored {value_0}/{value_1} from the oldest backup of it.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 238,
+          "sink": "on_log"
         }
       ]
     },
@@ -84556,7 +84721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 334,
+          "line": 336,
           "sink": "note"
         }
       ]
@@ -84566,7 +84731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 332,
+          "line": 334,
           "sink": "note"
         }
       ]
@@ -89181,7 +89346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 328,
+          "line": 330,
           "sink": "note"
         }
       ]
@@ -89191,7 +89356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 328,
+          "line": 330,
           "sink": "note"
         }
       ]
@@ -89416,7 +89581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 283,
+          "line": 285,
           "sink": "setText"
         }
       ]
@@ -89471,7 +89636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 923,
+          "line": 935,
           "sink": "emit"
         }
       ]
@@ -91486,7 +91651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 311,
+          "line": 313,
           "sink": "note"
         }
       ]
@@ -91506,7 +91671,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 311,
+          "line": 313,
           "sink": "note"
         }
       ]
@@ -93351,12 +93516,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 375,
+          "line": 377,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 401,
+          "line": 403,
+          "sink": "warning"
+        },
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 429,
           "sink": "warning"
         }
       ]
@@ -93518,6 +93688,16 @@
           "path": "cdmw/ui/new_item/tab.py",
           "line": 145,
           "sink": "setText"
+        }
+      ]
+    },
+    {
+      "key": "The archives could not be read: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 448,
+          "sink": "warning"
         }
       ]
     },
@@ -94016,7 +94196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 85,
+          "line": 88,
           "sink": "setToolTip"
         }
       ]
@@ -94088,6 +94268,26 @@
           "path": "cdmw/ui/new_item/panels_model.py",
           "line": 146,
           "sink": "intro_label"
+        }
+      ]
+    },
+    {
+      "key": "The move was cancelled before anything was written.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 222,
+          "sink": "raise_if_cancelled"
+        }
+      ]
+    },
+    {
+      "key": "The move was cancelled while restoring.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 234,
+          "sink": "raise_if_cancelled"
         }
       ]
     },
@@ -94176,7 +94376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 209,
+          "line": 230,
           "sink": "setPlainText"
         }
       ]
@@ -94186,7 +94386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 149,
+          "line": 170,
           "sink": "set_note"
         }
       ]
@@ -94216,7 +94416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 74,
+          "line": 77,
           "sink": "setPlaceholderText"
         }
       ]
@@ -97432,6 +97632,36 @@
       ]
     },
     {
+      "key": "Unmount the overlay directory and delete it. Everything it holds leaves the game with it; anything installed into the shipped archives stays where it is.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 134,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Unmount the overlay directory and delete it?\n\nEvery item that lives only in the overlay leaves the game with it. Items written into the shipped archives stay where they are. The game must not be running.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/tab.py",
+          "line": 477,
+          "sink": "question"
+        }
+      ]
+    },
+    {
+      "key": "Unmounted {value_0} from meta/0.papgt; {value_1} directories left.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 289,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
       "key": "Unresolved",
       "origins": [
         {
@@ -99261,7 +99491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 63,
+          "line": 66,
           "sink": "setToolTip"
         }
       ]
@@ -100861,7 +101091,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 202,
+          "line": 223,
           "sink": "setPlainText"
         },
         {
@@ -101456,7 +101686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 130,
+          "line": 151,
           "sink": "setPlaceholderText"
         }
       ]
@@ -102481,7 +102711,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 243,
+          "line": 264,
           "sink": "set_note"
         },
         {
@@ -102891,17 +103121,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 160,
+          "line": 181,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 163,
+          "line": 184,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 217,
+          "line": 238,
           "sink": "information"
         },
         {
@@ -102916,7 +103146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 95,
+          "line": 98,
           "sink": "QPushButton"
         }
       ]
@@ -102981,7 +103211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 106,
+          "line": 109,
           "sink": "setToolTip"
         }
       ]
@@ -103001,7 +103231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 96,
+          "line": 99,
           "sink": "setToolTip"
         }
       ]
@@ -103186,7 +103416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 237,
+          "line": 258,
           "sink": "set_note"
         }
       ]
@@ -103256,7 +103486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 217,
+          "line": 238,
           "sink": "information"
         }
       ]
@@ -103971,7 +104201,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 212,
+          "line": 214,
           "sink": "QGroupBox"
         }
       ]
@@ -104591,7 +104821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 217,
+          "line": 219,
           "sink": "tinted"
         }
       ]
@@ -105371,7 +105601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 217,
+          "line": 219,
           "sink": "tinted"
         },
         {
@@ -111006,7 +111236,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 217,
+          "line": 219,
           "sink": "tinted"
         },
         {
@@ -118071,7 +118301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 217,
+          "line": 219,
           "sink": "tinted"
         },
         {
@@ -199317,6 +199547,16 @@
       ]
     },
     {
+      "key": "{value_0} archive entrie(s) differ from the oldest backup of them ({value_1} bytes).",
+      "origins": [
+        {
+          "path": "cdmw/workers/new_item_workers.py",
+          "line": 168,
+          "sink": "log"
+        }
+      ]
+    },
+    {
       "key": "{value_0} archive file(s) available from the current Archive Browser view.",
       "origins": [
         {
@@ -200746,7 +200986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 218,
+          "line": 220,
           "sink": "QLabel"
         }
       ]
@@ -200856,7 +201096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 202,
+          "line": 223,
           "sink": "setPlainText"
         }
       ]
@@ -200916,7 +201156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 319,
+          "line": 321,
           "sink": "note"
         }
       ]
