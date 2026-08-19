@@ -147,12 +147,32 @@ class NewItemSnapshot:
         return maps
 
     def payload(self, path: str) -> bytes:
-        """The bytes of an archive entry, read once and kept."""
+        """The bytes of an archive entry, read once and kept.
+
+        A read that fails is checked against the archive as it is now: another program
+        rewriting the game's archives -- a mod manager mounting or unmounting, a game
+        update -- moves every payload, and the entries this snapshot was built from then
+        point at the wrong bytes. What comes back is not the file, so decompression or
+        decryption refuses it, and the crypto message that surfaces says nothing about the
+        cause. When the archive's own index disagrees with what this snapshot holds, that
+        is the cause, and the answer is to read the archives again.
+        """
 
         key = str(path or "").replace("\\", "/").strip("/").lower()
         cached = self._payloads.get(key)
         if cached is None:
-            cached = bytes(self.read_entry(self.entry(path)))
+            entry = self.entry(path)
+            try:
+                cached = bytes(self.read_entry(entry))
+            except Exception as exc:  # noqa: BLE001 - re-raised either way, with the cause when there is one
+                moved = _entry_moved_on_disk(entry)
+                if moved:
+                    raise NewItemSnapshotError(
+                        f"{entry.path} is not where the workbench last saw it ({moved}). The game's archives have been "
+                        "rewritten since they were read -- a mod manager mounting or unmounting them will do that -- so "
+                        "read the archives again before building."
+                    ) from exc
+                raise
             self._payloads[key] = cached
         return cached
 
@@ -246,6 +266,28 @@ class NewItemSnapshot:
                 if numbers
             }
         return self._status_ranges
+
+
+def _entry_moved_on_disk(entry: ArchiveEntry) -> str:
+    """How the archive's index now describes `entry`, when that differs from the entry
+    itself; an empty string when it agrees or cannot be read."""
+
+    try:
+        from cdmw.core.archive_format import parse_archive_pamt
+
+        wanted = str(entry.path).replace("\\", "/").strip("/").lower()
+        for candidate in parse_archive_pamt(Path(entry.pamt_path)):
+            if str(candidate.path).replace("\\", "/").strip("/").lower() != wanted:
+                continue
+            if int(candidate.offset) == int(entry.offset) and int(candidate.comp_size) == int(entry.comp_size):
+                return ""
+            return (
+                f"the archive now holds it at offset {int(candidate.offset):,} over {int(candidate.comp_size):,} bytes, "
+                f"the workbench read it at {int(entry.offset):,} over {int(entry.comp_size):,}"
+            )
+        return "the archive no longer lists it at all"
+    except Exception:  # noqa: BLE001 - the original error is the one that matters
+        return ""
 
 
 # --------------------------------------------------------------------------- building

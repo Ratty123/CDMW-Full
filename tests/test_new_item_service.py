@@ -752,6 +752,36 @@ class WriteTests(_PackageCase):
             names = sorted(path.name for path in result.backup_dir.iterdir())
             self.assertNotIn("0009_0.paz", names, "no shipped payload file is in the backup")
 
+    def test_a_read_that_fails_after_the_archives_moved_says_so(self) -> None:
+        """Another program rewriting the archives -- a mod manager mounting or unmounting
+        them -- moves every payload, and the entries a snapshot was built from then point
+        at the wrong bytes. The read fails somewhere deep in decompression or decryption,
+        and the message that surfaces has to name the cause rather than the symptom."""
+
+        from cdmw.core.archive_patching import patch_archive_entries
+        from cdmw.domain.archives.mutation import ArchivePatchRequest
+        from cdmw.services.new_item_snapshot import NewItemSnapshotError
+
+        snapshot = self.snapshot
+        path = f"{BIN}/stringinfo.pabgb"
+        entry = snapshot.entry(path)
+
+        # the same file, written again: the payload moves to the end of the PAZ, so the
+        # entry this snapshot holds now points at bytes that are not the file
+        patch_archive_entries((ArchivePatchRequest(entry, b"a rewritten table"),))
+
+        def refuse(_entry):
+            raise ValueError(f"ChaCha20 decryption validation failed for {path}")
+
+        snapshot._payloads.pop(path.lower(), None)
+        object.__setattr__(snapshot, "read_entry", refuse)
+        with self.assertRaises(NewItemSnapshotError) as caught:
+            snapshot.payload(path)
+        message = str(caught.exception)
+        self.assertIn("not where the workbench last saw it", message)
+        self.assertIn("read the archives again", message)
+        self.assertIn(path, message)
+
     def test_export_writes_a_loose_mod_with_new_paths(self) -> None:
         plan = self._plan()
         out = self.root / "export"

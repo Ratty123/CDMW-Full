@@ -54581,22 +54581,22 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 302,
-          "sink": "raise_if_cancelled"
-        },
-        {
-          "path": "cdmw/services/new_item_snapshot.py",
-          "line": 316,
-          "sink": "raise_if_cancelled"
-        },
-        {
-          "path": "cdmw/services/new_item_snapshot.py",
-          "line": 325,
-          "sink": "raise_if_cancelled"
-        },
-        {
-          "path": "cdmw/services/new_item_snapshot.py",
           "line": 344,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 358,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 367,
+          "sink": "raise_if_cancelled"
+        },
+        {
+          "path": "cdmw/services/new_item_snapshot.py",
+          "line": 386,
           "sink": "raise_if_cancelled"
         },
         {
@@ -70821,7 +70821,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 303,
+          "line": 345,
           "sink": "log"
         }
       ]
@@ -70831,7 +70831,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 326,
+          "line": 368,
           "sink": "log"
         }
       ]
@@ -70841,7 +70841,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 317,
+          "line": 359,
           "sink": "log"
         }
       ]
@@ -71036,7 +71036,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 345,
+          "line": 387,
           "sink": "log"
         }
       ]
@@ -71116,7 +71116,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 370,
+          "line": 412,
           "sink": "log"
         }
       ]
@@ -87021,7 +87021,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 375,
+          "line": 417,
           "sink": "log"
         }
       ]
@@ -94871,7 +94871,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 374,
+          "line": 416,
           "sink": "log"
         }
       ]
