@@ -136,6 +136,25 @@ class NewItemStudioController(QObject):
     def store_names(self) -> Tuple[str, ...]:
         return tuple(sorted(store.name for store in self.snapshot.stores)) if self.snapshot else ()
 
+    def store_choices(self) -> Tuple[Tuple[str, str, int, bool], ...]:
+        """Every store as (name, label, buyable line count, is the player's camp), the camp
+        first, then the rest by name; a label reads "Store_Del_Equipment  (Equipment, 41 lines)"."""
+
+        if self.snapshot is None:
+            return ()
+        out = []
+        for store in self.snapshot.stores:
+            name = str(store.name)
+            parts = name.split("_")
+            camp = len(parts) > 1 and parts[1].lower() == "camp"
+            kind = parts[-1] if len(parts) > 2 else (parts[1] if len(parts) > 1 else name)
+            count = len(store.buyable_entries)
+            place = "your camp (base)" if camp else (parts[1] if len(parts) > 2 else "")
+            lines = f"{count} line(s)" if count else "no lines yet"
+            label = f"{name}  ({', '.join(item for item in (place, kind) if item)}, {lines})"
+            out.append((name, label, count, camp))
+        return tuple(sorted(out, key=lambda item: (not item[3], item[0].casefold())))
+
     def store_stock(self, store_name: str) -> Tuple[Tuple[int, str, str], ...]:
         """(item key, internal name, unlock requirement item name or "") per buyable line."""
 
