@@ -39,6 +39,8 @@ CHECKLIST = (
 class OutputPanel(QGroupBox):
     #: The tab asks the shell for confirmation and the mutation service, then installs.
     install_requested = Signal()
+    #: The overlay route: the same plan as an archive directory of its own.
+    install_overlay_requested = Signal()
 
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("7. Output", parent)
@@ -100,9 +102,22 @@ class OutputPanel(QGroupBox):
         self.install_button.setToolTip("Confirmed first, backed up, restorable. Refused while the game is running.")
         self.install_button.clicked.connect(self.install_requested.emit)
         install.addWidget(self.install_button)
-        install.addWidget(QLabel("or write it straight into the game (asks first, keeps a backup)."))
+        self.install_overlay_button = QPushButton("Install as an overlay...")
+        self.install_overlay_button.setToolTip(
+            "Write the item into an archive directory of its own and name that directory first in the game's mount "
+            "list, which is where the game looks first. The archives the game shipped are not written to at all, so "
+            "the backup is the mount list rather than a gigabyte of payload files, and removing the mod is deleting "
+            "the directory. New in this build and not yet confirmed in game."
+        )
+        self.install_overlay_button.clicked.connect(self.install_overlay_requested.emit)
+        install.addWidget(self.install_overlay_button)
         install.addStretch(1)
         write_layout.addLayout(install)
+        write_layout.addWidget(intro_label(
+            "Installing writes into the archives the game shipped, backs them up first, and can be restored. An overlay "
+            "writes a directory of its own instead and leaves them alone; it is the faster and more easily undone of the "
+            "two, and the newer."
+        ))
         self.checklist = DetailsToggle(
             "\n".join(f"- {line}" for line in CHECKLIST),
             title="After installing, check in game",

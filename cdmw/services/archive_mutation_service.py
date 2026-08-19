@@ -124,6 +124,25 @@ class ArchiveMutationService:
             on_log=on_log,
         )
 
+    def backup_files(
+        self,
+        paths: Iterable[Path],
+        *,
+        description: str = "",
+        on_log: Optional[Callable[[str], None]] = None,
+    ) -> Path:
+        """Copy `paths` into a new backup folder and return it.
+
+        The overlay route knows exactly which files it is about to overwrite -- the mount
+        list, the texture registry, and its own previous overlay -- so it hands them here
+        rather than going through a patch plan that would work out the shipped archives.
+        """
+
+        targets = sorted({Path(path).resolve() for path in paths})
+        if not targets:
+            raise ValueError("A backup needs at least one file.")
+        return _archive_patching()._create_backup(targets, description=str(description or "Archive backup"), on_log=on_log)
+
     def apply_patch(
         self,
         plan: ArchiveMutationPlan,

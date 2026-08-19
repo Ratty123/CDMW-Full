@@ -25,7 +25,7 @@ from cdmw.services.new_item_planning import NewItemPlan, NewItemPlanError
 from cdmw.services.new_item_service import NewItemInstallRefused, NewItemService
 from cdmw.services.new_item_snapshot import NewItemSnapshot, NewItemSnapshotError
 from cdmw.ui.new_item.state import NewItemDraft, StatGrid, spec_from_draft, stat_grid_for, status_label, with_template
-from cdmw.workers.new_item_workers import export_task, install_task, plan_task, snapshot_task
+from cdmw.workers.new_item_workers import export_task, install_overlay_task, install_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
 
 
@@ -907,6 +907,15 @@ class NewItemStudioController(QObject):
             self.status_message.emit("Build the plan first.", True)
             return False
         task = install_task(self.plan, service=self.service, mutation_service=mutation_service, confirmed=True)
+        return self._run("install", task, self.install_finished.emit, lambda message: self.status_message.emit(message, True))
+
+    def start_install_overlay(self, mutation_service) -> bool:
+        """Install the plan as its own archive directory instead of into the shipped ones."""
+
+        if self.plan is None:
+            self.status_message.emit("Build the plan first.", True)
+            return False
+        task = install_overlay_task(self.plan, service=self.service, mutation_service=mutation_service, confirmed=True)
         return self._run("install", task, self.install_finished.emit, lambda message: self.status_message.emit(message, True))
 
     def _run(self, lane: str, task, on_done: Callable[[object], None], on_error: Callable[[str], None]) -> bool:
