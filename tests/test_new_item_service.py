@@ -752,6 +752,53 @@ class WriteTests(_PackageCase):
             names = sorted(path.name for path in result.backup_dir.iterdir())
             self.assertNotIn("0009_0.paz", names, "no shipped payload file is in the backup")
 
+    def test_an_item_installed_the_old_way_on_top_of_an_overlay(self) -> None:
+        """Both install buttons stay on the step, so the two routes meet: an overlay is
+        mounted first, the studio re-reads and the next plan's entries are the overlay's,
+        and Install then patches an archive this workbench wrote rather than one the game
+        shipped. Both items have to survive that, and the overlay has to stay readable."""
+
+        from cdmw.core.archive_scan_cache import discover_pamt_files
+
+        first = self._plan()
+        mutations = ArchiveMutationService()
+        with patch("cdmw.services.new_item_service.game_is_running", lambda: False):
+            overlay = self.service.install_overlay(first, mutation_service=mutations, confirmed=True)
+
+        # what the studio does after an install: read the archives again, in mount order
+        entries: dict[str, object] = {}
+        for pamt in discover_pamt_files(self.root):
+            for entry in parse_archive_pamt(pamt):
+                entries.setdefault(entry.path, entry)
+        snapshot = self.service.build_snapshot(tuple(entries.values()), read_entry=_read)
+        self.assertEqual(
+            Path(snapshot.entry(f"{BIN}/iteminfo.pabgb").pamt_path).parent.name,
+            overlay.directory.name,
+            "the next plan is built against the overlay's copy of the table",
+        )
+
+        second = self.service.plan(
+            NewItemSpec(
+                template_key=TEMPLATE, internal_name="Ziane_Second_OneHandSword", display_names={"eng": "Second"},
+                model_source=ModelSource.IMPORTED,
+            ),
+            snapshot,
+            model=ModelFiles(pac_data=b"PAC a second mesh"),
+        )
+        self.assertNotEqual(second.spec.item_key, first.spec.item_key, "the key after the one in the overlay")
+        with patch("cdmw.services.new_item_service.game_is_running", lambda: False):
+            self.service.install(second, mutation_service=mutations, confirmed=True)
+
+        after: dict[str, object] = {}
+        for pamt in discover_pamt_files(self.root):
+            for entry in parse_archive_pamt(pamt):
+                after.setdefault(entry.path, entry)
+        again = self.service.build_snapshot(tuple(after.values()), read_entry=_read)
+        self.assertIn(first.spec.item_key, again.rows, "the item the overlay carries")
+        self.assertIn(second.spec.item_key, again.rows, "the item patched on top of it")
+        self.assertEqual(again.family(first.spec.item_key).missing_files, ())
+        self.assertEqual(again.family(second.spec.item_key).missing_files, ())
+
     def test_a_read_that_fails_after_the_archives_moved_says_so(self) -> None:
         """Another program rewriting the archives -- a mod manager mounting or unmounting
         them -- moves every payload, and the entries a snapshot was built from then point
@@ -877,6 +924,33 @@ class TextureRegistryTests(_PackageCase):
         plan = self.service.plan(spec, snapshot, model=ModelFiles(pac_data=b"PAC", side_files={f"character/texture/1_pc/{STEM}_d.dds": _fake_dds(4, 4)}))
         self.assertEqual(plan.meta_files, ())
         self.assertTrue(any("meta/0.pathc" in w for w in plan.warnings), plan.warnings)
+
+    def test_an_overlay_install_writes_the_registry_beside_the_overlay(self) -> None:
+        """An item with a texture of its own carries a rewritten `meta/0.pathc`, and the
+        overlay route has to write it exactly as the patching route does: the registry is
+        a loose file beside the archives, not an entry inside one, so an overlay that
+        skipped it would mount a texture the game cannot look up."""
+
+        from cdmw.core.papgt_format import parse_papgt
+
+        plan = self._plan()
+        self.assertEqual([m.path for m in plan.meta_files], ["meta/0.pathc"])
+        mutations = ArchiveMutationService()
+        shipped = {path: path.read_bytes() for path in sorted(self.root.glob("0009/*.paz"))}
+        with patch("cdmw.services.new_item_service.game_is_running", lambda: False):
+            result = self.service.install_overlay(plan, mutation_service=mutations, confirmed=True)
+
+        self.assertEqual(self.pathc_path.read_bytes(), plan.meta_files[0].payload_data, "the registry the plan built")
+        self.assertNotEqual(self.pathc_path.read_bytes(), self.pathc_before)
+        for path, before in shipped.items():
+            self.assertEqual(path.read_bytes(), before, f"{path.name} was rewritten by an overlay install")
+        self.assertEqual(parse_papgt((self.root / "meta" / "0.papgt").read_bytes())[0].name, result.directory.name)
+        # the registry is in the backup, so removing the overlay puts it back
+        manifest = json.loads((result.backup_dir / "backup_manifest.json").read_text(encoding="utf-8"))
+        originals = {Path(item["original_path"]).resolve() for item in manifest["files"]}
+        self.assertIn(self.pathc_path.resolve(), originals)
+        mutations.restore_backup(result.backup_dir, confirmed=True)
+        self.assertEqual(self.pathc_path.read_bytes(), self.pathc_before, "restoring the backup restores the registry too")
 
     def test_install_writes_the_registry_under_the_backup(self) -> None:
         plan = self._plan()

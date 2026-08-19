@@ -58,11 +58,22 @@ class _Host(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.views: list = []
+        self.zooms: list = []
         self.hidden: tuple = ()
+        self.particles: list = []
         self.controller = _Controller(self)
 
     def set_view(self, *, yaw, pitch, zoom_factor=None, fit_to_view=None, **_rest) -> bool:
         self.views.append((float(yaw), float(pitch), fit_to_view))
+        self.zooms.append(None if zoom_factor is None else round(float(zoom_factor), 4))
+        return True
+
+    def view_state_snapshot(self) -> dict:
+        yaw, pitch, _fit = self.views[-1] if self.views else (-35.0, 20.0, True)
+        return {"yaw": yaw, "pitch": pitch}
+
+    def set_effect_particles_visible(self, visible: bool) -> bool:
+        self.particles.append(bool(visible))
         return True
 
     def set_hidden_source_submeshes(self, indices) -> bool:
@@ -143,6 +154,38 @@ class DialogTests(unittest.TestCase):
         dialog.show_reach.setChecked(False)
         self.assertEqual(dialog.host.hidden, (1, 3))
         self.assertTrue(dialog.legend_rows["body"].isHidden(), "the legend follows what is drawn")
+
+    def test_the_particles_can_be_taken_off_the_item(self) -> None:
+        """An effect's fire is a wall of additive sprites, and a placement judged against
+        the blade under it needs the blade without the fire on top for a moment."""
+
+        dialog = self._dialog()
+        self.assertTrue(dialog.show_particles.isChecked())
+        dialog.show_particles.setChecked(False)
+        self.assertEqual(dialog.host.particles, [False])
+        self.assertTrue(dialog.legend_rows["particles"].isHidden(), "the legend follows what is drawn")
+        dialog.show_particles.setChecked(True)
+        self.assertEqual(dialog.host.particles, [False, True])
+        self.assertFalse(dialog.legend_rows["particles"].isHidden())
+
+    def test_showing_the_reach_zooms_out_far_enough_to_see_it(self) -> None:
+        """The frame of an effect made for a boss is twenty metres across a one-metre
+        sword: shown at the item's own zoom it is off every edge of the view, so ticking
+        the box changed nothing anyone could see."""
+
+        dialog = self._dialog()
+        dialog.show_reach.setChecked(True)
+        self.assertTrue(dialog.host.zooms, "the camera was sent")
+        zoomed = dialog.host.zooms[-1]
+        self.assertLess(zoomed, 0.2, "the view holds a reach twenty times the item")
+        self.assertGreaterEqual(zoomed, 0.1, "and no further than the host allows")
+        dialog.show_reach.setChecked(False)
+        self.assertEqual(dialog.host.zooms[-1], 1.0, "back to the item")
+        # a standing view keeps whatever the subject needs
+        dialog.show_reach.setChecked(True)
+        dialog.view_buttons[1].click()
+        self.assertEqual(dialog.host.views[-1][:2], (90.0, 8.0))
+        self.assertLess(dialog.host.zooms[-1], 0.2)
 
     def test_a_reach_far_larger_than_the_item_starts_hidden(self) -> None:
         dialog = self._dialog()

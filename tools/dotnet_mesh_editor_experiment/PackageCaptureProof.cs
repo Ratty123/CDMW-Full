@@ -95,6 +95,11 @@ internal static class PackageCaptureProof
                     .Select(part => int.TryParse(part, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var index) ? index : -1));
             }
             viewport.LoadEffectParticlePreview(packageDirectory);
+            if (HasFlag(args, "--capture-hide-particles"))
+            {
+                // what the dialog's Show the particles box does: the item without the fire
+                viewport.SetEffectParticlesEnabled(false);
+            }
             // frame the whole scene the way a freshly opened viewport does: the camera the
             // capture builds is the one on screen, so it has to be pointed first
             var bounds = document.Bounds();
@@ -194,6 +199,11 @@ internal static class PackageCaptureProof
             Console.Error.WriteLine(exception.ToString());
             return 5;
         }
+    }
+
+    private static bool HasFlag(string[] args, string name)
+    {
+        return args.Any(argument => string.Equals(argument, name, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string ValueFor(string[] args, string name)

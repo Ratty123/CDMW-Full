@@ -134,6 +134,13 @@ def build_overlay_archive(
             entries.append((item.path, offset, len(item.payload), int(item.orig_size)))
         folder_records.append((hashlittle(folder.encode("utf-8"), FOLDER_HASH_SEED), folder, start, len(file_records) - start))
 
+    # every shipped .paz is a whole number of sixteen-byte blocks: the payloads are aligned
+    # to that between themselves and the file is padded out to it at the end. The entries
+    # name their own sizes, so the tail is never read; it is there to look like what the
+    # game ships rather than like something else.
+    if len(paz) % PAZ_ALIGNMENT:
+        paz += bytes(PAZ_ALIGNMENT - (len(paz) % PAZ_ALIGNMENT))
+
     dir_block, dir_offsets = _trie_block([folder for _hash, folder, _start, _count in folder_records if folder])
     name_block, name_offsets = _trie_block([name for name, *_rest in file_records])
 

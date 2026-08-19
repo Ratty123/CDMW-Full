@@ -1046,7 +1046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 510,
+          "line": 562,
           "sink": "setText"
         }
       ]
@@ -1881,17 +1881,17 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 142,
+          "line": 205,
           "sink": "DetailsToggle"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 223,
+          "line": 286,
           "sink": "setPlainText"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 223,
+          "line": 286,
           "sink": "setPlainText"
         },
         {
@@ -1971,7 +1971,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 230,
+          "line": 293,
           "sink": "setPlainText"
         },
         {
@@ -2141,7 +2141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 63,
+          "line": 126,
           "sink": "QGroupBox"
         }
       ]
@@ -2261,7 +2261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 73,
+          "line": 136,
           "sink": "QGroupBox"
         }
       ]
@@ -2356,7 +2356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 82,
+          "line": 145,
           "sink": "QGroupBox"
         }
       ]
@@ -3701,7 +3701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 253,
+          "line": 259,
           "sink": "setToolTip"
         }
       ]
@@ -5766,7 +5766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 142,
+          "line": 205,
           "sink": "DetailsToggle"
         }
       ]
@@ -6851,7 +6851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 177,
+          "line": 178,
           "sink": "_add_view_button"
         }
       ]
@@ -12746,7 +12746,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 231,
+          "line": 294,
           "sink": "set_note"
         }
       ]
@@ -14016,7 +14016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 65,
+          "line": 128,
           "sink": "QPushButton"
         },
         {
@@ -14081,7 +14081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 52,
+          "line": 115,
           "sink": "intro_label"
         }
       ]
@@ -14106,7 +14106,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 184,
+          "line": 247,
           "sink": "information"
         }
       ]
@@ -14536,7 +14536,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 167,
+          "line": 230,
           "sink": "setPlainText"
         }
       ]
@@ -14546,7 +14546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 256,
+          "line": 315,
           "sink": "set_note"
         }
       ]
@@ -14611,7 +14611,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 168,
+          "line": 231,
           "sink": "set_note"
         }
       ]
@@ -18571,7 +18571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 181,
+          "line": 244,
           "sink": "information"
         }
       ]
@@ -18591,7 +18591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 174,
+          "line": 237,
           "sink": "getExistingDirectory"
         }
       ]
@@ -21171,7 +21171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 105,
+          "line": 168,
           "sink": "setToolTip"
         }
       ]
@@ -35026,7 +35026,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 246,
+          "line": 247,
           "sink": "QPushButton"
         }
       ]
@@ -35561,7 +35561,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 92,
+          "line": 155,
           "sink": "setPlaceholderText"
         }
       ]
@@ -35601,7 +35601,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 95,
+          "line": 158,
           "sink": "QPushButton"
         }
       ]
@@ -35766,7 +35766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 126,
+          "line": 189,
           "sink": "setToolTip"
         }
       ]
@@ -36121,7 +36121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 176,
+          "line": 177,
           "sink": "_add_view_button"
         }
       ]
@@ -36131,7 +36131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 175,
+          "line": 176,
           "sink": "_add_view_button"
         }
       ]
@@ -36141,7 +36141,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 174,
+          "line": 175,
           "sink": "_add_view_button"
         },
         {
@@ -38086,7 +38086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 227,
+          "line": 228,
           "sink": "_add_place_button"
         }
       ]
@@ -42140,6 +42140,16 @@
       "key": "Install as an overlay",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 83,
+          "sink": "python-return:install_result_report"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 89,
+          "sink": "python-return:install_result_report"
+        },
+        {
           "path": "cdmw/ui/new_item/tab.py",
           "line": 403,
           "sink": "warning"
@@ -42156,7 +42166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 108,
+          "line": 171,
           "sink": "QPushButton"
         }
       ]
@@ -42166,8 +42176,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 244,
-          "sink": "information"
+          "line": 96,
+          "sink": "python-return:install_result_report"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
@@ -42186,7 +42196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 104,
+          "line": 167,
           "sink": "QPushButton"
         },
         {
@@ -42217,22 +42227,32 @@
       ]
     },
     {
-      "key": "Installed {value_0} archive entr(ies).\n\nBackup: {value_1}\n\nStart the game and go through the checklist.",
+      "key": "Installed as the archive directory {value_0}: {value_1} file(s), {value_2} bytes, mounted ahead of the shipped archives, {value_3} of them carried forward from what the overlay already held.\n\nThe archives the game shipped were not written to.\n\nBackup: {value_4}\n\nStart the game and go through the checklist.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 244,
-          "sink": "information"
+          "line": 83,
+          "sink": "python-return:install_result_report"
         }
       ]
     },
     {
-      "key": "Installed: {value_0} archive entr(ies) written. Backup: {value_1}",
+      "key": "Installed as the archive directory {value_0}: {value_1} file(s), {value_2} bytes, mounted ahead of the shipped archives.\n\nThe archives the game shipped were not written to.\n\nBackup: {value_3}\n\nStart the game and go through the checklist.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 243,
-          "sink": "append_log"
+          "line": 89,
+          "sink": "python-return:install_result_report"
+        }
+      ]
+    },
+    {
+      "key": "Installed {value_0} archive entr(ies).\n\nBackup: {value_1}\n\nStart the game and go through the checklist.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 96,
+          "sink": "python-return:install_result_report"
         }
       ]
     },
@@ -42241,7 +42261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 260,
+          "line": 319,
           "sink": "set_note"
         }
       ]
@@ -42251,7 +42271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 119,
+          "line": 182,
           "sink": "intro_label"
         }
       ]
@@ -43066,7 +43086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 223,
+          "line": 286,
           "sink": "setPlainText"
         }
       ]
@@ -46136,7 +46156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 331,
+          "line": 337,
           "sink": "setText"
         },
         {
@@ -46501,7 +46521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 174,
+          "line": 175,
           "sink": "_add_view_button"
         }
       ]
@@ -46716,7 +46736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 237,
+          "line": 300,
           "sink": "append_log"
         }
       ]
@@ -51166,7 +51186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 228,
+          "line": 229,
           "sink": "_add_place_button"
         }
       ]
@@ -51626,7 +51646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 85,
+          "line": 148,
           "sink": "QLabel"
         }
       ]
@@ -52416,7 +52436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 223,
+          "line": 286,
           "sink": "setPlainText"
         }
       ]
@@ -52981,7 +53001,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 194,
+          "line": 195,
           "sink": "QPushButton"
         },
         {
@@ -53075,6 +53095,16 @@
       "key": "Move installed items into the overlay",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 64,
+          "sink": "python-return:install_result_report"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 71,
+          "sink": "python-return:install_result_report"
+        },
+        {
           "path": "cdmw/ui/new_item/tab.py",
           "line": 439,
           "sink": "_overlay_services"
@@ -53101,7 +53131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 125,
+          "line": 188,
           "sink": "QPushButton"
         }
       ]
@@ -53263,6 +53293,16 @@
           "path": "cdmw/services/archive_overlay_migration.py",
           "line": 245,
           "sink": "on_log"
+        }
+      ]
+    },
+    {
+      "key": "Moved {value_0} file(s) ({value_1} bytes) into the overlay {value_2} and put {value_3} archive file(s) back to their oldest backup.\n\nThe game reads the same thing it did; the files it shipped are its own again.\n\nBackup: {value_4}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 64,
+          "sink": "python-return:install_result_report"
         }
       ]
     },
@@ -58356,12 +58396,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 69,
+          "line": 132,
           "sink": "NoteLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 199,
+          "line": 262,
           "sink": "set_note"
         }
       ]
@@ -58496,7 +58536,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 223,
+          "line": 286,
           "sink": "setPlainText"
         }
       ]
@@ -58738,6 +58778,16 @@
           "path": "tools/placement_studio/window_constraints.py",
           "line": 526,
           "sink": "python-return:export_constraint_mod"
+        }
+      ]
+    },
+    {
+      "key": "Nothing to move: no archive file differs from the oldest backup of it, so the shipped archives carry no installed item.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 71,
+          "sink": "python-return:install_result_report"
         }
       ]
     },
@@ -65431,7 +65481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 117,
+          "line": 118,
           "sink": "setWindowTitle"
         }
       ]
@@ -67731,7 +67781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 273,
+          "line": 279,
           "sink": "QLabel"
         }
       ]
@@ -70126,7 +70176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 226,
+          "line": 227,
           "sink": "QLabel"
         }
       ]
@@ -70136,7 +70186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 229,
+          "line": 230,
           "sink": "_add_place_button"
         }
       ]
@@ -70146,7 +70196,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 228,
+          "line": 229,
           "sink": "_add_place_button"
         }
       ]
@@ -70156,7 +70206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 227,
+          "line": 228,
           "sink": "_add_place_button"
         }
       ]
@@ -70581,7 +70631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 510,
+          "line": 562,
           "sink": "setText"
         }
       ]
@@ -71201,7 +71251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 262,
+          "line": 321,
           "sink": "set_note"
         }
       ]
@@ -71591,7 +71641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 202,
+          "line": 265,
           "sink": "set_note"
         }
       ]
@@ -74420,6 +74470,16 @@
       "key": "Remove the overlay",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 54,
+          "sink": "python-return:install_result_report"
+        },
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 55,
+          "sink": "python-return:install_result_report"
+        },
+        {
           "path": "cdmw/ui/new_item/tab.py",
           "line": 473,
           "sink": "_overlay_services"
@@ -74436,7 +74496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 133,
+          "line": 196,
           "sink": "QPushButton"
         }
       ]
@@ -74518,6 +74578,16 @@
           "path": "cdmw/ui/archive_browser/static_replacement_part_items.py",
           "line": 116,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Removed the overlay {value_0} and unmounted it.\n\nAnything that lived only in the overlay is gone from the game with it; anything installed into the shipped archives is untouched.\n\nBackup: {value_1}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 55,
+          "sink": "python-return:install_result_report"
         }
       ]
     },
@@ -79171,12 +79241,12 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 197,
+          "line": 198,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 211,
+          "line": 212,
           "sink": "addRow"
         },
         {
@@ -84216,7 +84286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 247,
+          "line": 248,
           "sink": "setToolTip"
         }
       ]
@@ -85511,7 +85581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 252,
+          "line": 258,
           "sink": "QCheckBox"
         }
       ]
@@ -85567,6 +85637,16 @@
       ]
     },
     {
+      "key": "Show the particles",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 253,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Show the preview at 100% zoom.",
       "origins": [
         {
@@ -85606,7 +85686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 233,
+          "line": 234,
           "sink": "QCheckBox"
         }
       ]
@@ -85731,7 +85811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 148,
+          "line": 149,
           "sink": "setText"
         }
       ]
@@ -85741,7 +85821,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 146,
+          "line": 147,
           "sink": "setText"
         }
       ]
@@ -85751,7 +85831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 144,
+          "line": 145,
           "sink": "setText"
         }
       ]
@@ -85971,7 +86051,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 175,
+          "line": 176,
           "sink": "_add_view_button"
         }
       ]
@@ -94066,7 +94146,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 234,
+          "line": 235,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "The effect's own fire, drawn approximately. Turn it off to see the item under it.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 254,
           "sink": "setToolTip"
         }
       ]
@@ -94326,7 +94416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 88,
+          "line": 151,
           "sink": "setToolTip"
         }
       ]
@@ -94486,7 +94576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 311,
+          "line": 317,
           "sink": "setText"
         }
       ]
@@ -94506,7 +94596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 230,
+          "line": 293,
           "sink": "setPlainText"
         }
       ]
@@ -94516,7 +94606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 170,
+          "line": 233,
           "sink": "set_note"
         }
       ]
@@ -94546,7 +94636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 77,
+          "line": 140,
           "sink": "setPlaceholderText"
         }
       ]
@@ -94686,7 +94776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 182,
+          "line": 183,
           "sink": "QLabel"
         }
       ]
@@ -94696,7 +94786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 333,
+          "line": 339,
           "sink": "setText"
         }
       ]
@@ -95011,7 +95101,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 177,
+          "line": 178,
           "sink": "_add_view_button"
         }
       ]
@@ -95158,6 +95248,16 @@
           "path": "cdmw/ui/text_search/export_actions.py",
           "line": 40,
           "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "There was no overlay to remove: the mount list names none.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 54,
+          "sink": "python-return:install_result_report"
         }
       ]
     },
@@ -95896,7 +95996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 358,
+          "line": 364,
           "sink": "setText"
         }
       ]
@@ -96011,7 +96111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 229,
+          "line": 230,
           "sink": "_add_place_button"
         }
       ]
@@ -96251,7 +96351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 176,
+          "line": 177,
           "sink": "_add_view_button"
         },
         {
@@ -97791,7 +97891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 134,
+          "line": 197,
           "sink": "setToolTip"
         }
       ]
@@ -99646,7 +99746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 66,
+          "line": 129,
           "sink": "setToolTip"
         }
       ]
@@ -100296,7 +100396,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 173,
+          "line": 174,
           "sink": "QLabel"
         },
         {
@@ -101251,7 +101351,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 223,
+          "line": 286,
           "sink": "setPlainText"
         },
         {
@@ -101846,7 +101946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 151,
+          "line": 214,
           "sink": "setPlaceholderText"
         }
       ]
@@ -101941,7 +102041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 269,
+          "line": 275,
           "sink": "DetailsToggle"
         }
       ]
@@ -102871,7 +102971,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 264,
+          "line": 323,
           "sink": "set_note"
         },
         {
@@ -103281,17 +103381,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 181,
+          "line": 244,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 184,
+          "line": 247,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 238,
+          "line": 301,
           "sink": "information"
         },
         {
@@ -103306,7 +103406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 98,
+          "line": 161,
           "sink": "QPushButton"
         }
       ]
@@ -103371,7 +103471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 109,
+          "line": 172,
           "sink": "setToolTip"
         }
       ]
@@ -103391,7 +103491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 99,
+          "line": 162,
           "sink": "setToolTip"
         }
       ]
@@ -103576,7 +103676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 258,
+          "line": 317,
           "sink": "set_note"
         }
       ]
@@ -103646,7 +103746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 238,
+          "line": 301,
           "sink": "information"
         }
       ]
@@ -104731,7 +104831,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 265,
+          "line": 271,
           "sink": "_add_legend_row"
         }
       ]
@@ -111786,7 +111886,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 266,
+          "line": 272,
           "sink": "_add_legend_row"
         }
       ]
@@ -196056,7 +196156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 263,
+          "line": 269,
           "sink": "_add_legend_row"
         }
       ]
@@ -196146,7 +196246,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 267,
+          "line": 273,
           "sink": "_add_legend_row"
         }
       ]
@@ -198051,7 +198151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 264,
+          "line": 270,
           "sink": "_add_legend_row"
         }
       ]
@@ -200821,7 +200921,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 133,
+          "line": 134,
           "sink": "QLabel"
         }
       ]
@@ -201266,7 +201366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 358,
+          "line": 364,
           "sink": "setText"
         }
       ]
@@ -201306,7 +201406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 223,
+          "line": 286,
           "sink": "setPlainText"
         }
       ]

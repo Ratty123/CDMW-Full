@@ -1845,6 +1845,26 @@ def test_preview_host_changes_viewport_display_mode_through_resident_presentatio
     controller.shutdown()
 
 
+def test_preview_host_turns_the_effect_particle_layer_off_and_on(tmp_path: Path) -> None:
+    """The effect placement dialog draws an approximate reading of the effect over the
+    item; an effect's fire is a wall of additive sprites, so the dialog can take it off to
+    look at what is under it. The switch travels in the display block the grid uses."""
+
+    controller, _process, package = _start_controller(tmp_path)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    assert host.load_package(package)
+
+    assert host.set_effect_particles_visible(False)
+    event, payload = controller._resident_state["presentation"]  # noqa: SLF001
+    assert event == "presentation_state_update"
+    assert payload["display"]["effect_particles_visible"] is False
+
+    assert host.set_effect_particles_visible(True)
+    _event, payload = controller._resident_state["presentation"]  # noqa: SLF001
+    assert payload["display"]["effect_particles_visible"] is True
+    controller.shutdown()
+
+
 def test_preview_host_new_package_reset_replaces_stale_camera_replay(tmp_path: Path) -> None:
     controller, _process, first = _start_controller(tmp_path)
     host = DotNetPreviewHostFrame(profile="preview", controller=controller)
