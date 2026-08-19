@@ -18,7 +18,7 @@ import shutil
 import tempfile
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Hashable, Optional
 
@@ -49,10 +49,15 @@ GIZMO_TOOLS = ("move", "rotate", "scale")
 class PlacementScene:
     """Two roles for the viewport: `template` (the reference, drawn as the Mesh Editor
     draws the original) and `model` (the editable role the gizmo moves), each a
-    `ModelPreviewData` or a `ParsedMesh`."""
+    `ModelPreviewData` or a `ParsedMesh`; `placement` is where the model sits when the
+    package is written (baked into the scene frame, so the helper's placement numbers,
+    its gizmo pivot and the model matrix start out consistent); `model_bounds` the
+    model's bounds in its own space, for the host's placement fallback."""
 
     template: Any
     model: Any
+    placement: ModelPlacement = field(default_factory=ModelPlacement)
+    model_bounds: Any = None
 
 
 def _as_parsed_mesh(item: Any) -> ParsedMesh:
@@ -79,6 +84,7 @@ def build_item_preview_package(source: Any, *, token: Hashable, output_root: Pat
             _as_parsed_mesh(item.model), output_root=output_root,
             reference_mesh=_as_parsed_mesh(item.template) if item.template is not None else None,
             comparison_mode="overlay", interaction_mode="placement", cancelled=stop_event.is_set,
+            scene_transform=item.placement.build_transform(),
         )
     elif getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
         from cdmw.services.mesh_dotnet_preview_package import build_or_lookup_dotnet_preview_package_from_model
@@ -149,11 +155,7 @@ class ItemPreviewFrame(QWidget):
         self._gizmo_enabled = True
         self._view_mode = "overlay"
         self._grid_visible = True
-        self._model_submesh_count = 0
-        self._push_timer = QTimer(self)
-        self._push_timer.setSingleShot(True)
-        self._push_timer.setInterval(40)
-        self._push_timer.timeout.connect(self._push_placement)
+        self._model_bounds: Any = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
@@ -226,17 +228,18 @@ class ItemPreviewFrame(QWidget):
         *,
         token: Hashable,
         placement: ModelPlacement,
-        model_submesh_count: int = 0,
+        model_bounds: Any = None,
         gizmo_enabled: bool = True,
     ) -> None:
         """Show a `PlacementScene` (or a callable producing one) with the model at
-        `placement`, the gizmo on its submeshes when `gizmo_enabled`. The same token
-        already showing only takes the new placement and gizmo state."""
+        `placement` (`model_bounds`: the model's own-space bounds, for the host's
+        placement fallback), the gizmo on when `gizmo_enabled`. The same token already
+        showing only takes the new placement and gizmo state."""
 
         same = self._pending is not None and self._pending[0] == token and (self._thread is not None or self.is_ready)
         self._placement = placement
         self._gizmo_enabled = bool(gizmo_enabled)
-        self._model_submesh_count = int(model_submesh_count)
+        self._model_bounds = model_bounds
         if same:
             if self.is_ready:
                 self._apply_placement_presentation()
@@ -268,7 +271,7 @@ class ItemPreviewFrame(QWidget):
     def set_gizmo_enabled(self, enabled: bool) -> None:
         self._gizmo_enabled = bool(enabled)
         if self.is_ready and self.host is not None and self._placement is not None:
-            self.host.set_alignment_state(enabled=self._gizmo_enabled, source_submesh_indices=tuple(range(self._model_submesh_count)))
+            self.host.set_alignment_state(enabled=self._gizmo_enabled)
 
     def set_view_mode(self, mode: str) -> None:
         """One of PLACEMENT_VIEW_MODES: overlay, side_by_side, replacement_only, original_only."""
@@ -291,8 +294,12 @@ class ItemPreviewFrame(QWidget):
             return
         host.set_display_mode(self._view_mode)
         host.set_grid_visible(self._grid_visible)
-        host.set_alignment_state(enabled=self._gizmo_enabled, source_submesh_indices=tuple(range(self._model_submesh_count)))
+        # no source highlight: the model draws as itself (textured), not as the Builder's yellow wire
+        host.set_alignment_state(enabled=self._gizmo_enabled)
         host.set_alignment_gizmo_tool(self._gizmo_tool)
+        bounds = self._model_bounds
+        if bounds is not None and hasattr(host, "remember_editable_local_bounds"):
+            host.remember_editable_local_bounds(bounds[0], bounds[1])
         self._push_placement()
         if fit_view:
             self.fit_view()
@@ -317,7 +324,11 @@ class ItemPreviewFrame(QWidget):
 
     def _drag_delta(self, tool: str, delta: tuple, finished: bool) -> None:
         """The host reports the gizmo's total delta since the drag began; the new value
-        is the placement at the drag's start plus that delta, per axis (scale too)."""
+        is the placement at the drag's start plus that delta, per axis (scale too).
+        Nothing is pushed to the helper while the drag runs: it draws the provisional
+        placement itself, and a push mid-drag re-bases that on a stale frame (the model
+        snaps back to the pivot and jumps at the end). The finished placement is pushed
+        once, and the helper takes it as the next authoritative frame."""
 
         base = self._placement_base if self._placement_base is not None else self._placement
         if base is None:
@@ -331,10 +342,7 @@ class ItemPreviewFrame(QWidget):
         self._placement = new
         if finished:
             self._placement_base = None
-            self._push_timer.stop()
             self._push_placement()
-        elif not self._push_timer.isActive():
-            self._push_timer.start()
         self.placement_changed.emit(new, bool(finished))
 
     def _start_package(self, request: tuple[Hashable, Any]) -> None:

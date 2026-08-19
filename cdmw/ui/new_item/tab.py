@@ -198,7 +198,7 @@ class NewItemStudioTab(QWidget):
             holder = QWidget()
             holder_layout = QVBoxLayout(holder)
             holder_layout.setContentsMargins(0, 0, 0, 0)
-            fills = panel in (self.template_panel, self.output_panel)
+            fills = panel in (self.template_panel, self.model_panel, self.output_panel)
             holder_layout.addWidget(panel, 1 if fills else 0)
             if not fills:
                 holder_layout.addStretch(1)

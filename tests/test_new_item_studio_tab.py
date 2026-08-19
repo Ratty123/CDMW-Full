@@ -566,6 +566,8 @@ class TabTests(unittest.TestCase):
         self.assertIsInstance(scene, PlacementScene)
         self.assertIs(scene.model, source.preview_model)
         self.assertIs(scene.template, blade, "no decode: the bare template mesh is the reference")
+        self.assertEqual(scene.placement, tab.controller.model_placement, "the scene is written at the placement")
+        self.assertEqual(scene.model_bounds, source.bounds)
         # the numbers move the placement
         panel.offset_spins[2].setValue(-0.25)
         self.assertAlmostEqual(tab.controller.model_placement.offset[2], -0.25, places=6)

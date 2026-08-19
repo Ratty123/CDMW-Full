@@ -27,6 +27,7 @@ class ItemPreviewPackageTests(unittest.TestCase):
 
         def fake_from_mesh(mesh, **kwargs):
             seen["mesh"] = (mesh, kwargs)
+            seen.setdefault("mesh_calls", []).append((mesh, kwargs))
             return SimpleNamespace(package_dir=root / "mesh_pkg")
 
         model = SimpleNamespace(meshes=[object()])
@@ -42,10 +43,64 @@ class ItemPreviewPackageTests(unittest.TestCase):
             self.assertIs(seen["mesh"][0], mesh)
             with self.assertRaises(ValueError):
                 item_preview.build_item_preview_package(lambda _stop: None, token=3, output_root=root, stop_event=threading.Event())
+            # a placement scene: the model is the editable role, the template the reference, the
+            # placement baked into the scene frame as the pipeline's own transform
+            from cdmw.ui.new_item.model_import import ModelPlacement
+
+            scene = item_preview.PlacementScene(template=mesh, model=mesh, placement=ModelPlacement(offset=(0.0, 0.0, -0.3), rotation=(90.0, 0.0, 0.0), scale=(2.0, 2.0, 2.0)))
+            item_preview.build_item_preview_package(scene, token=4, output_root=root, stop_event=threading.Event())
+            _mesh, kwargs = seen["mesh_calls"][-1]
+            self.assertIs(kwargs["reference_mesh"], mesh)
+            self.assertEqual(kwargs["comparison_mode"], "overlay")
+            transform = kwargs["scene_transform"]
+            self.assertEqual(transform.alignment_mode, "manual")
+            self.assertEqual(transform.offset_xyz, (0.0, 0.0, -0.3))
+            self.assertEqual(transform.rotate_xyz_degrees, (90.0, 0.0, 0.0))
+            self.assertEqual(transform.scale_xyz, (2.0, 2.0, 2.0))
         # cleanup removes the transient parent for the model route, the package itself otherwise
         self.assertEqual(item_preview.package_cleanup_root(root / "cdmw_dotnet_preview_x" / "package", root), root / "cdmw_dotnet_preview_x")
         self.assertEqual(item_preview.package_cleanup_root(root / "mesh_pkg", root), root / "mesh_pkg")
         self.assertEqual(item_preview.package_cleanup_root(root / "other" / "package", root), root / "other" / "package")
+
+
+class PlacementConventionTests(unittest.TestCase):
+    def test_the_host_matrix_is_the_pipeline_transform_and_the_pivot_follows(self) -> None:
+        """One convention: the host's fallback matrix (what the helper draws and what its
+        own gizmo drag rebuilds) equals the static replacement pipeline's transform for the
+        same numbers, and the placement pivot (where the gizmo sits) is the source anchor
+        under the placement, so it rides along with the model."""
+
+        import random
+
+        from cdmw.modding.static_mesh_geometry import _rotate_xyz
+        from cdmw.ui.new_item.model_import import ModelPlacement
+        from cdmw.ui.preview.dotnet_host import _apply_placement_to_editable_role
+
+        random.seed(7)
+        for _ in range(50):
+            rotation = tuple(random.uniform(-180.0, 180.0) for _ in range(3))
+            placement = ModelPlacement(offset=(0.3, -0.2, 1.1), rotation=rotation, scale=(0.5, 2.0, 1.5))
+            point = tuple(random.uniform(-2.0, 2.0) for _ in range(3))
+            shown = placement.apply(point)
+            rotated = _rotate_xyz((point[0] * 0.5, point[1] * 2.0, point[2] * 1.5), rotation)
+            built = (rotated[0] + 0.3, rotated[1] - 0.2, rotated[2] + 1.1)
+            for axis in range(3):
+                self.assertAlmostEqual(shown[axis], built[axis], places=9)
+        # the build transform carries the numbers as they are
+        transform = ModelPlacement(offset=(1, 2, 3), rotation=(10, 20, 30), scale=(2, 2, 2)).build_transform()
+        self.assertEqual(transform.rotate_xyz_degrees, (10.0, 20.0, 30.0))
+        self.assertEqual(transform.offset_xyz, (1.0, 2.0, 3.0))
+        self.assertEqual(transform.scale_xyz, (2.0, 2.0, 2.0))
+        self.assertEqual(transform.alignment_mode, "manual")
+        # the pivot: the anchor under the placement (the model's origin with no anchor)
+        state = {"roles": {"editable": {"model_matrix": [1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0], "world_bounds": {"min": [0, 0, 0], "max": [1, 1, 1]}}}}
+        _apply_placement_to_editable_role(state, {"translation": (0.25, 0.0, -0.4), "rotation_degrees": (0.0, 90.0, 0.0), "scale": (2.0, 2.0, 2.0)})
+        self.assertEqual([round(v, 6) for v in state["placement_pivot"]], [0.25, 0.0, -0.4])
+        state["automatic_alignment"] = {"source_anchor": [0.0, 0.0, 1.0]}
+        _apply_placement_to_editable_role(state, {"translation": (0.25, 0.0, -0.4), "rotation_degrees": (0.0, 90.0, 0.0), "scale": (2.0, 2.0, 2.0)})
+        # (0, 0, 1) scaled by 2 and turned 90 degrees about y lands on +x: (2, 0, 0), then the offset
+        self.assertEqual([round(v, 6) for v in state["placement_pivot"]], [2.25, 0.0, -0.4])
+        self.assertEqual([round(v, 6) for v in state["roles"]["editable"]["world_bounds"]["min"]], [0.25, 0.0, -2.4])
 
 
 class ItemPreviewFrameTests(unittest.TestCase):
@@ -88,7 +143,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
                 self.calls = []
 
             def __getattr__(self, name):
-                if name.startswith("set_") or name in {"load_package", "capture_replacement_icon", "reset_view"}:
+                if name.startswith("set_") or name in {"load_package", "capture_replacement_icon", "reset_view", "remember_editable_local_bounds"}:
                     def record(*args, **kwargs):
                         self.calls.append((name, args, kwargs))
                         return True
@@ -108,7 +163,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
         frame.placement_changed.connect(lambda p, done: moves.append((p, done)))
         start = ModelPlacement(offset=(0.0, 0.0, -0.2), scale=(0.5, 0.5, 0.5))
         with patch.object(ItemPreviewFrame, "_start_package", lambda self_, request: setattr(self_, "_thread", object())):
-            frame.show_placement(lambda _stop: PlacementScene(template=None, model=None), token="p", placement=start, model_submesh_count=3)
+            frame.show_placement(lambda _stop: PlacementScene(template=None, model=None), token="p", placement=start, model_bounds=((0, 0, 0), (1, 1, 1)))
         self.assertIs(frame.placement, start)
         host = frame.host
         # the package is ready: the scene's presentation goes out, not the icon capture mode
@@ -124,15 +179,20 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertIn("reset_view", names, "the camera is framed on the placed model once")
         state = next(c for c in host.calls if c[0] == "set_alignment_state")
         self.assertTrue(state[2]["enabled"])
-        self.assertEqual(tuple(state[2]["source_submesh_indices"]), (0, 1, 2))
+        self.assertNotIn("source_submesh_indices", state[2], "no source highlight: the model draws as itself")
+        self.assertIn(("remember_editable_local_bounds", ((0, 0, 0), (1, 1, 1)), {}), host.calls)
         pushed = next(c for c in host.calls if c[0] == "set_alignment_preview_transform")
         self.assertEqual(pushed[2]["translation"], (0.0, 0.0, -0.2))
         self.assertEqual(pushed[2]["scale_xyz"], (0.5, 0.5, 0.5))
-        # a move drag: deltas are totals since the drag began, added to the base
+        # a move drag: deltas are totals since the drag began, added to the base; nothing
+        # is pushed to the helper until the drag ends (it draws the provisional itself)
+        host.calls.clear()
         host.alignment_drag_started.emit()
         host.alignment_drag_changed.emit(0.1, 0.0, 0.0)
         host.alignment_drag_changed.emit(0.2, 0.0, 0.0)
+        self.assertFalse([c for c in host.calls if c[0] == "set_alignment_preview_transform"], "no push mid-drag")
         host.alignment_drag_finished.emit(0.25, 0.0, 0.05)
+        self.assertEqual(len([c for c in host.calls if c[0] == "set_alignment_preview_transform"]), 1, "one push, at the end")
         self.assertEqual(tuple(round(v, 9) for v in moves[-1][0].offset), (0.25, 0.0, -0.15))
         self.assertTrue(moves[-1][1])
         self.assertEqual(moves[0][0].offset, (0.1, 0.0, -0.2))
@@ -157,7 +217,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertFalse(next(c for c in reversed(host.calls) if c[0] == "set_alignment_state")[2]["enabled"])
         # the same token with a new placement only re-presents
         host.calls.clear()
-        frame.show_placement(lambda _stop: None, token="p", placement=ModelPlacement(), model_submesh_count=3)
+        frame.show_placement(lambda _stop: None, token="p", placement=ModelPlacement())
         self.assertIn("set_alignment_preview_transform", [c[0] for c in host.calls])
         # leaving for a plain source forgets the placement
         frame.show(None)

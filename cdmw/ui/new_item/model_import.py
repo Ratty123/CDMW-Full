@@ -3,12 +3,13 @@
 The Model and icon step takes a model file (glTF, GLB, OBJ, DAE, or a zip holding one),
 reads it the way the Model Library does (the scene import, the source's own textures), and
 shows it in the step's viewport over the template's mesh, where the gizmo and the numbers
-place it. The placement is the viewport's own convention (scale, then rotate, then offset,
-about the origin; the helper's yaw/pitch/roll), and `ModelPlacement.build_transform()` turns
-it into the static replacement pipeline's transform exactly (the rotation matrix is the
-same; only the Euler order differs, so the angles are re-expressed). Applying the placement
-runs the Builder's import headlessly (`build_placed_import`), and what comes back is what
-the Builder's dialog would have handed over: the rebuilt mesh and its side files.
+place it. The placement is one convention everywhere: scale, then the rotations about x, y
+and z, then the offset, all about the model's origin; the helper composes a gizmo drag that
+way (`ManualLinearMatrix`), the host's fallback matrix does, and so does the static
+replacement pipeline (`_rotate_xyz`), so `ModelPlacement.build_transform()` hands the
+numbers over as they are. Applying the placement runs the Builder's import headlessly
+(`build_placed_import`), and what comes back is what the Builder's dialog would have handed
+over: the rebuilt mesh and its side files.
 """
 
 from __future__ import annotations
@@ -32,7 +33,6 @@ __all__ = [
     "load_model_import_source",
     "mesh_bounds",
     "mesh_centroid",
-    "xyz_degrees_from_viewport_rotation",
 ]
 
 Vec3 = Tuple[float, float, float]
@@ -53,9 +53,8 @@ def _vec(values: Sequence[float], fallback: Vec3) -> Vec3:
 @dataclass(frozen=True)
 class ModelPlacement:
     """Where the imported model sits over the template: offset in metres, rotation in
-    degrees in the viewport's order (x pitch, y yaw, z roll, applied roll, pitch, yaw),
-    scale per axis. Scale first, then rotate, then offset, all about the origin (the
-    hand, for a weapon)."""
+    degrees about x, then y, then z, scale per axis. Scale first, then the rotations,
+    then the offset, all about the model's origin (the hand, for a weapon)."""
 
     offset: Vec3 = (0.0, 0.0, 0.0)
     rotation: Vec3 = (0.0, 0.0, 0.0)
@@ -89,11 +88,10 @@ class ModelPlacement:
 
     def build_transform(self) -> StaticReplacementTransform:
         """The static replacement pipeline's transform for this placement: manual mode
-        (no anchor, no auto scale, no fit), the same scale and offset, and the rotation
-        re-expressed in the pipeline's x-then-y-then-z order."""
+        (no anchor, no auto scale, no fit), the same scale, rotation and offset."""
 
         return StaticReplacementTransform(
-            rotate_xyz_degrees=xyz_degrees_from_viewport_rotation(self.rotation),
+            rotate_xyz_degrees=tuple(float(v) for v in self.rotation),
             scale=1.0,
             scale_xyz=tuple(float(v) for v in self.scale),
             offset_xyz=tuple(float(v) for v in self.offset),
@@ -105,31 +103,6 @@ class ModelPlacement:
     @property
     def is_identity(self) -> bool:
         return all(abs(v) < 1e-9 for v in self.offset) and all(abs(v) < 1e-9 for v in self.rotation) and all(abs(v - 1.0) < 1e-9 for v in self.scale)
-
-
-def xyz_degrees_from_viewport_rotation(rotation: Sequence[float]) -> Vec3:
-    """The viewport composes its rotation as roll (z), then pitch (x), then yaw (y); the
-    static replacement pipeline rotates about x, then y, then z. Same matrix, different
-    Euler angles: this returns the pipeline's (x, y, z) for the viewport's (x, y, z)."""
-
-    from cdmw.ui.preview.dotnet_host import _placement_matrix
-
-    m = _placement_matrix((0.0, 0.0, 0.0), _vec(rotation, (0.0, 0.0, 0.0)), (1.0, 1.0, 1.0))
-    # row-vector R = Rx(a) Ry(b) Rz(c):
-    #   row0 = (cb cc, cb sc, -sb); row1 = (.., .., sa cb); row2 = (.., .., ca cb)
-    r00, r01, r02 = m[0], m[1], m[2]
-    r10, r11, r12 = m[4], m[5], m[6]
-    r22 = m[10]
-    sb = max(-1.0, min(1.0, -r02))
-    b = math.asin(sb)
-    if abs(math.cos(b)) > 1e-7:
-        a = math.atan2(r12, r22)
-        c = math.atan2(r01, r00)
-    else:
-        # gimbal lock: the yaw column is gone; put everything on x
-        c = 0.0
-        a = math.atan2(r10 * sb, r11)
-    return (math.degrees(a), math.degrees(b), math.degrees(c))
 
 
 # ------------------------------------------------------------------ bounds and the fit
