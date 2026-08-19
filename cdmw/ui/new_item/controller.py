@@ -68,6 +68,9 @@ class NewItemStudioController(QObject):
         #: the model file read for the studio's own placement, and where it sits
         self.model_import: Optional[ModelImportSource] = None
         self.model_placement: ModelPlacement = ModelPlacement()
+        #: the template's decoded preview (textures resolved), kept for the current template so
+        #: a re-fit or an import does not decode it again (the worker fills it)
+        self._template_models: Dict[tuple, object] = {}
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
         self._lane: str = ""
@@ -336,16 +339,15 @@ class NewItemStudioController(QObject):
             if template is None:
                 return None
             template_token, template_build = template
-            model = source.preview_model
             placement = self.model_placement
-            bounds = source.bounds
 
             def build_scene(stop_event):
                 from cdmw.ui.new_item.item_preview import PlacementScene
 
-                return PlacementScene(template=template_build(stop_event), model=model, placement=placement, model_bounds=bounds)
+                model = source.baked_preview_mesh()
+                return PlacementScene(template=template_build(stop_event), model=model, placement=placement, model_bounds=source.baked_bounds())
 
-            return (("placement", id(source), template_token), build_scene)
+            return (("placement", id(source), source.bake_generation, template_token), build_scene)
         result = self.model_result
         model = getattr(result, "preview_model", None)
         if result is not None and model is not None and getattr(model, "meshes", None):
@@ -372,10 +374,15 @@ class NewItemStudioController(QObject):
         stem = family.model_stem.lower()
         entry = next((item for item in entries if item.path.lower().rsplit("/", 1)[-1] == f"{stem}.pac"), entries[0])
         controller = self
+        cache_key = (id(snapshot), entry.path)
+        cache = self._template_models
 
         def build(stop_event):
             from cdmw.core.archive_preview_result_builder import build_archive_preview_result
 
+            cached = cache.get(cache_key)
+            if cached is not None:
+                return cached
             by_path, by_basename = snapshot.archive_index_maps()
             try:
                 decoded = build_archive_preview_result(
@@ -389,6 +396,8 @@ class NewItemStudioController(QObject):
                 decoded = None
             model = getattr(decoded, "preview_model", None) if decoded is not None else None
             if model is not None and getattr(decoded, "preferred_view", "") == "model" and getattr(model, "meshes", None):
+                cache.clear()
+                cache[cache_key] = model
                 return model
             return controller.item_mesh_for_preview()
 
@@ -613,7 +622,8 @@ class NewItemStudioController(QObject):
                 self.status_message.emit("The model import finished with an unexpected result.", True)
                 return
             self.model_import = result
-            self.model_placement = self._fitted_placement(result)
+            result.set_bake(self._fitted_placement(result))
+            self.model_placement = ModelPlacement()
             if self.model_result is not None:
                 self.set_imported_model(None, None)
             self.draft.model_source = ModelSource.IMPORTED
@@ -632,16 +642,25 @@ class NewItemStudioController(QObject):
 
         self.model_placement = placement
         source = self.model_import
-        if self.model_result is not None and source is not None and source.applied != placement:
+        if self.model_result is not None and source is not None and source.applied != (source.bake, placement):
             self.set_imported_model(None, None)
         self.plan = None
         self.model_placement_changed.emit(placement)
 
     def fit_model_placement(self) -> None:
+        """Re-fit the model to the template: the fit is baked into the mesh the viewport
+        and the build see, and the numbers go back to zero on top of it."""
+
         source = self.model_import
         if source is None:
             return
-        self.set_model_placement(self._fitted_placement(source))
+        source.set_bake(self._fitted_placement(source))
+        if self.model_result is not None:
+            self.set_imported_model(None, None)
+        self.model_placement = ModelPlacement()
+        self.plan = None
+        self.model_import_changed.emit(source)
+        self.model_placement_changed.emit(self.model_placement)
 
     def start_model_apply(self) -> bool:
         """Build the item's mesh from the imported model at its placement: the Builder's
@@ -664,7 +683,7 @@ class NewItemStudioController(QObject):
             return build_placed_import(entry, source, placement, entries_by_normalized_path=by_path, entries_by_basename=by_basename, stop_event=stop_event)
 
         def done(result: object) -> None:
-            source.applied = placement
+            source.applied = (source.bake, placement)
             self.set_imported_model(entry, result, source.scene)
 
         def failed(message: str) -> None:

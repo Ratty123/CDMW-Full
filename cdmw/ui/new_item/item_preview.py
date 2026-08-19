@@ -205,8 +205,14 @@ class ItemPreviewFrame(QWidget):
         callable `(stop_event) -> one of those` run off the UI thread. None clears the
         view. `token` names the source; the same token while a build of it is running or
         shown asks for nothing new. A build already running for something else is
-        superseded when it finishes."""
+        superseded when it finishes. A plain source carries no placement: the gizmo goes,
+        and the last placement is forgotten (it belonged to the scene before)."""
 
+        self._placement = None
+        self._placement_base = None
+        self._show(source, token=token)
+
+    def _show(self, source: Any, *, token: Hashable = None) -> None:
         if self._closed:
             return
         if source is None:
@@ -254,7 +260,7 @@ class ItemPreviewFrame(QWidget):
         placement fallback), the gizmo on when `gizmo_enabled`. The same token already
         showing only takes the new placement and gizmo state."""
 
-        same = self._pending is not None and self._pending[0] == token and (self._thread is not None or self.is_ready)
+        same = self._pending is not None and self._pending[0] == token and (self._thread is not None or self.is_ready or self._deferred_package is not None)
         self._placement = placement
         self._gizmo_enabled = bool(gizmo_enabled)
         self._model_bounds = model_bounds
@@ -262,7 +268,7 @@ class ItemPreviewFrame(QWidget):
             if self.is_ready:
                 self._apply_placement_presentation()
             return
-        self.show(source, token=token)
+        self._show(source, token=token)
 
     # ------------------------------------------------------------------ placement
 
@@ -427,6 +433,7 @@ class ItemPreviewFrame(QWidget):
                 self._apply_placement_presentation(fit_view=True)
             else:
                 self.host.set_display_mode("replacement_only")
+                self.host.set_alignment_state(enabled=False)
                 self.host.set_icon_capture_mode(True)
             self.status_changed.emit("")
             self.ready.emit()

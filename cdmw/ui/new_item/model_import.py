@@ -3,13 +3,17 @@
 The Model and icon step takes a model file (glTF, GLB, OBJ, DAE, or a zip holding one),
 reads it the way the Model Library does (the scene import, the source's own textures), and
 shows it in the step's viewport over the template's mesh, where the gizmo and the numbers
-place it. The placement is one convention everywhere: scale, then the rotations about x, y
-and z, then the offset, all about the model's origin; the helper composes a gizmo drag that
-way (`ManualLinearMatrix`), the host's fallback matrix does, and so does the static
+place it. Two layers: the *fit* (`fitted_placement`: scaled to the template's length, turned
+onto its axes, centred on it) is baked into the mesh itself (`bake_mesh`), so the numbers
+the user sees and the gizmo moves start at zero and a ring drag turns the model about a
+world axis, the way the Mesh Editor's does; the *placement* on top is one convention
+everywhere: scale, then the rotations about x, y and z, then the offset, all about the
+baked model's origin (the hand, for a weapon). The helper composes a gizmo drag that way
+(`ManualLinearMatrix`), the host's fallback matrix does, and so does the static
 replacement pipeline (`_rotate_xyz`), so `ModelPlacement.build_transform()` hands the
-numbers over as they are. Applying the placement runs the Builder's import headlessly
-(`build_placed_import`), and what comes back is what the Builder's dialog would have handed
-over: the rebuilt mesh and its side files.
+numbers over as they are. Applying the placement runs the Builder's import headlessly over
+the baked mesh (`build_placed_import`), and what comes back is what the Builder's dialog
+would have handed over: the rebuilt mesh and its side files.
 """
 
 from __future__ import annotations
@@ -28,6 +32,7 @@ __all__ = [
     "ModelImportSource",
     "ModelPlacement",
     "Vec3",
+    "bake_mesh",
     "build_placed_import",
     "fitted_placement",
     "load_model_import_source",
@@ -214,6 +219,45 @@ def fitted_placement(
     return placement.with_values(offset=tuple(t_centre[i] - moved[i] for i in range(3)))
 
 
+def bake_mesh(mesh: object, placement: ModelPlacement) -> object:
+    """A copy of `mesh` (a ParsedMesh) with `placement` applied to its vertices, and its
+    normals and tangents turned with it (scale leaves directions alone, up to a renormalise).
+    The copy keeps everything else: uvs, faces, bones, the preview texture attributes."""
+
+    from cdmw.modding.mesh_deformer import clone_mesh_for_editing
+
+    baked = clone_mesh_for_editing(mesh)
+    m = placement.matrix()
+
+    def point(v):
+        x, y, z = (float(c) for c in v[:3])
+        return (x * m[0] + y * m[4] + z * m[8] + m[12], x * m[1] + y * m[5] + z * m[9] + m[13], x * m[2] + y * m[6] + z * m[10] + m[14])
+
+    def direction(v):
+        x, y, z = (float(c) for c in v[:3])
+        out = (x * m[0] + y * m[4] + z * m[8], x * m[1] + y * m[5] + z * m[9], x * m[2] + y * m[6] + z * m[10])
+        length = (out[0] * out[0] + out[1] * out[1] + out[2] * out[2]) ** 0.5
+        return tuple(c / length for c in out) if length > 1e-12 else (0.0, 0.0, 1.0)
+
+    lo = [math.inf] * 3
+    hi = [-math.inf] * 3
+    for submesh in baked.submeshes:
+        submesh.vertices = [point(v) for v in submesh.vertices]
+        submesh.normals = [direction(n) if len(n) >= 3 else n for n in submesh.normals]
+        submesh.tangents = [
+            (*direction(t), *t[3:]) if len(t) >= 3 else t
+            for t in submesh.tangents
+        ]
+        for v in submesh.vertices:
+            for axis in range(3):
+                lo[axis] = min(lo[axis], v[axis])
+                hi[axis] = max(hi[axis], v[axis])
+    if lo[0] is not math.inf:
+        baked.bbox_min = tuple(lo)
+        baked.bbox_max = tuple(hi)
+    return baked
+
+
 # ------------------------------------------------------------------ the source
 
 
@@ -234,12 +278,49 @@ class ModelImportSource:
     extract_root: Optional[Path] = None
     #: the mean vertex, for the fit's sense of which end is the heavy one
     centroid: Optional[Vec3] = None
-    #: the placement the studio applied last, when a result was built from this source
-    applied: Optional[ModelPlacement] = field(default=None)
+    #: the fit baked into the mesh the viewport and the build see; the numbers start at zero on top
+    bake: ModelPlacement = field(default_factory=ModelPlacement)
+    #: how many times the bake changed, for the viewport's token
+    bake_generation: int = 0
+    #: the (bake, placement) the studio applied last, when a result was built from this source
+    applied: Optional[Tuple[ModelPlacement, ModelPlacement]] = field(default=None)
 
     @property
     def label(self) -> str:
         return self.chosen_path.name
+
+    def set_bake(self, bake: ModelPlacement) -> None:
+        """Take a new fit: the meshes are re-baked on the next read, the token moves on."""
+
+        if bake == self.bake and self.bake_generation:
+            return
+        self.bake = bake
+        self.bake_generation += 1
+        self._baked_scene_mesh = None
+        self._baked_preview_mesh = None
+
+    _baked_scene_mesh: object = field(default=None, repr=False)
+    _baked_preview_mesh: object = field(default=None, repr=False)
+
+    def baked_scene_mesh(self) -> object:
+        """The scene import's mesh with the bake applied (what the build rebuilds from)."""
+
+        if self._baked_scene_mesh is None:
+            self._baked_scene_mesh = bake_mesh(self.scene.mesh, self.bake)
+        return self._baked_scene_mesh
+
+    def baked_preview_mesh(self) -> object:
+        """The textured preview mesh with the bake applied (what the viewport shows)."""
+
+        if self._baked_preview_mesh is None:
+            from cdmw.services.mesh_dotnet_preview_package import parsed_mesh_from_model_preview
+
+            self._baked_preview_mesh = bake_mesh(parsed_mesh_from_model_preview(self.preview_model), self.bake)
+        return self._baked_preview_mesh
+
+    def baked_bounds(self) -> Optional[Bounds]:
+        mesh = self.baked_scene_mesh()
+        return (tuple(mesh.bbox_min), tuple(mesh.bbox_max)) if mesh is not None and mesh.bbox_min is not None else None
 
 
 def load_model_import_source(chosen_path: Path, *, extract_root: Optional[Path] = None, stop_event: Optional[threading.Event] = None) -> ModelImportSource:
@@ -296,9 +377,10 @@ def build_placed_import(
     """The Builder's import over the template's mesh `entry`, headless: the Full Import
     Model Replacement (the imported model owns the visible mesh, the generated textures
     and the material sidecar; the studio's plain-PBR route rewrites that sidecar's
-    wrappers to the plain shaders afterwards), at exactly `placement` (the preset's own
-    automatic alignment is replaced by the manual transform). Returns the
-    `MeshImportPreviewResult` the Builder's dialog would have handed over."""
+    wrappers to the plain shaders afterwards) of the source's baked mesh at exactly
+    `placement` (the preset's own automatic alignment is replaced by the manual
+    transform). Returns the `MeshImportPreviewResult` the Builder's dialog would have
+    handed over."""
 
     from dataclasses import replace as dc_replace
 
@@ -306,12 +388,13 @@ def build_placed_import(
     from cdmw.modding.full_import_model_replacement import apply_full_import_model_replacement_preset
 
     options = dc_replace(apply_full_import_model_replacement_preset(), transform=placement.build_transform())
+    scene = dc_replace(source.scene, mesh=bake_mesh(source.scene.mesh, source.bake))
     return build_mesh_import_preview(
         entry,
         Path(source.model_path),
         import_mode="static_replacement",
         static_replacement_options=options,
-        scene_import_result=source.scene,
+        scene_import_result=scene,
         source_display_label=source.label,
         archive_entries_by_normalized_path=entries_by_normalized_path,
         texture_entries_by_normalized_path=entries_by_normalized_path,
