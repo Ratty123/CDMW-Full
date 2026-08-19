@@ -97,8 +97,8 @@ class ModelPanel(QGroupBox):
         preview = QGroupBox("Preview: the item as it will be")
         preview_layout = QVBoxLayout(preview)
         preview_layout.addWidget(intro_label(
-            "The imported model when there is one, else the template's own, in the same viewport the Model Library uses. "
-            "Orbit and zoom to check it; take the icon from the view you like."
+            "The imported model with its textures when there is one, else the template's own mesh and textures from the archives, "
+            "in the same viewport the Model Library uses. Orbit and zoom to check it; take the icon from the view you like."
         ))
         self.preview = ItemPreviewFrame(self)
         self.preview.setMinimumHeight(320)
@@ -208,22 +208,24 @@ class ModelPanel(QGroupBox):
         QTimer.singleShot(0, self.refresh_preview)
 
     def refresh_preview(self) -> None:
-        """Show the item's current mesh in the inline viewport, when the step is on screen."""
+        """Show the item as it will be in the inline viewport, textured, when the step is
+        on screen: the imported model's own preview, else the template's mesh decoded
+        from the archives with its textures (the decode runs off the UI thread)."""
 
         if not self.isVisible():
             return
-        mesh = self._controller.item_mesh_for_preview()
-        token = (self._controller.draft.template_key, id(self._controller.model_result))
-        if mesh is None:
-            self.preview.show_mesh(None)
+        source = self._controller.item_preview_source()
+        if source is None:
+            self.preview.show(None)
             self.capture_inline_button.setEnabled(False)
             self._preview_mesh_token = None
             return
+        token, build = source
         if token == self._preview_mesh_token and self.preview.is_ready:
             return
         self._preview_mesh_token = token
         self.capture_inline_button.setEnabled(False)
-        self.preview.show_mesh(mesh)
+        self.preview.show(build, token=token)
 
     def _preview_status(self, text: str) -> None:
         self.preview_status.setText(str(text or ""))
@@ -251,11 +253,14 @@ class ModelPanel(QGroupBox):
             pass
 
     def _capture_icon(self) -> None:
-        mesh = self._controller.item_mesh_for_preview()
-        if mesh is None:
+        source = self._controller.item_preview_source()
+        if source is None:
             self._controller.status_message.emit("Choose a template (or import a model) first; there is no mesh to show.", True)
             return
-        dialog = self.icon_capture_dialog_factory(self, item_mesh=mesh, item_label=self._controller.draft.internal_name or self._controller.template_name())
+        token, build = source
+        dialog = self.icon_capture_dialog_factory(
+            self, item_source=build, item_token=token, item_label=self._controller.draft.internal_name or self._controller.template_name(),
+        )
         if dialog.exec() != QDialog.Accepted or dialog.captured_path is None:
             return
         self.generate_icon.setChecked(True)

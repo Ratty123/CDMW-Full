@@ -313,6 +313,57 @@ class NewItemStudioController(QObject):
         except Exception:  # noqa: BLE001
             return None
 
+    def item_preview_source(self):
+        """What the Model and icon step's viewport shows, textured the way the Model
+        Library and the Builder show it: a `(token, build)` pair, or None when there
+        is nothing to show. `build(stop_event)` runs off the UI thread and returns a
+        `ModelPreviewData` (the imported model's own preview, textures and all; else
+        the template's mesh decoded from the archives with its textures resolved) or,
+        when the decode will not go, the bare `ParsedMesh` of `item_mesh_for_preview`.
+        `token` names the source, so a view already showing it is left alone."""
+
+        result = self.model_result
+        model = getattr(result, "preview_model", None)
+        if result is not None and model is not None and getattr(model, "meshes", None):
+            return (("imported", id(result)), lambda _stop_event: model)
+        if result is not None:
+            mesh = self.item_mesh_for_preview()
+            return (("imported-bare", id(result)), lambda _stop_event: mesh) if mesh is not None else None
+        snapshot = self.snapshot
+        if snapshot is None or self.draft.template_key is None:
+            return None
+        entries = self.template_entries()
+        if not entries:
+            return None
+        try:
+            family = snapshot.family(self.draft.template_key)
+        except Exception:  # noqa: BLE001
+            return None
+        stem = family.model_stem.lower()
+        entry = next((item for item in entries if item.path.lower().rsplit("/", 1)[-1] == f"{stem}.pac"), entries[0])
+        controller = self
+
+        def build(stop_event):
+            from cdmw.core.archive_preview_result_builder import build_archive_preview_result
+
+            by_path, by_basename = snapshot.archive_index_maps()
+            try:
+                decoded = build_archive_preview_result(
+                    entry,
+                    texture_entries_by_normalized_path=by_path,
+                    texture_entries_by_basename=by_basename,
+                    enable_hkx_visual_preview=False,
+                    stop_event=stop_event,
+                )
+            except Exception:  # noqa: BLE001 - the bare mesh still shows
+                decoded = None
+            model = getattr(decoded, "preview_model", None) if decoded is not None else None
+            if model is not None and getattr(decoded, "preferred_view", "") == "model" and getattr(model, "meshes", None):
+                return model
+            return controller.item_mesh_for_preview()
+
+        return (("template", self.draft.template_key, entry.path), build)
+
     def effect_preview_for_placement(self, stem: str = ""):
         """The chosen effect's simulation description with the draft's look applied, and a
         reader for its sprite textures, for the placement dialog's viewport; (None, None)
@@ -391,11 +442,13 @@ class NewItemStudioController(QObject):
         return self._run("effects", task, done, lambda message: self.status_message.emit(message, True))
 
     def import_dependency_context(self):
-        """A bounded dependency context for importing a model over the template's mesh:
-        the template's family files, everything under the family's model folder, and
-        every entry whose basename starts with the family's model stem (its textures
-        and sidecars), indexed the way the archive workflows expect. Built from the
-        studio's own listing, so the Archive Browser's selection plays no part."""
+        """A dependency context for importing a model over the template's mesh: the
+        template's family files, everything under the family's model folder, and every
+        entry whose basename starts with the family's model stem as the bounded member
+        list, with the whole listing behind the path and basename maps (the texture
+        resolver walks those, and a weapon's textures sit under `character/texture/`).
+        Built from the studio's own listing, so the Archive Browser's selection plays
+        no part."""
 
         from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
 
@@ -420,17 +473,14 @@ class NewItemStudioController(QObject):
                 chosen[key] = entry
         if not chosen:
             return None
-        by_path: Dict[str, Tuple[ArchiveEntry, ...]] = {key: (entry,) for key, entry in chosen.items()}
-        by_basename: Dict[str, List[ArchiveEntry]] = {}
-        for key, entry in chosen.items():
-            by_basename.setdefault(key.rsplit("/", 1)[-1], []).append(entry)
+        by_path, by_basename = self.snapshot.archive_index_maps()
         primary = self.template_entries()
         selected = primary[0] if primary else next(iter(chosen.values()))
         return ArchiveWorkflowDependencyContext(
             selected_entry=selected,
             entries=tuple(chosen.values()),
             entries_by_normalized_path=by_path,
-            entries_by_basename={name: tuple(items) for name, items in by_basename.items()},
+            entries_by_basename=by_basename,
             remote=False,
         )
 

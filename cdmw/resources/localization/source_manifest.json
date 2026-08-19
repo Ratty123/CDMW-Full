@@ -6026,7 +6026,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 274,
+          "line": 279,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -13951,12 +13951,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 564,
+          "line": 614,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 571,
+          "line": 621,
           "sink": "emit"
         },
         {
@@ -16021,7 +16021,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 100,
+          "line": 110,
           "sink": "QPushButton"
         }
       ]
@@ -16046,7 +16046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 59,
+          "line": 65,
           "sink": "setWindowTitle"
         }
       ]
@@ -16076,7 +16076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 204,
+          "line": 252,
           "sink": "emit"
         }
       ]
@@ -16086,7 +16086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 216,
+          "line": 225,
           "sink": "setText"
         }
       ]
@@ -16106,12 +16106,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 195,
+          "line": 204,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 186,
+          "line": 234,
           "sink": "emit"
         }
       ]
@@ -17851,7 +17851,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 282,
+          "line": 287,
           "sink": "getExistingDirectory"
         }
       ]
@@ -17986,7 +17986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 256,
+          "line": 258,
           "sink": "emit"
         }
       ]
@@ -18111,7 +18111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 274,
+          "line": 279,
           "sink": "getOpenFileName"
         }
       ]
@@ -18121,7 +18121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 543,
+          "line": 593,
           "sink": "ValueError"
         }
       ]
@@ -39187,6 +39187,16 @@
       ]
     },
     {
+      "key": "IconCaptureDialog needs item_source or item_mesh",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
+          "line": 68,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "Icons",
       "origins": [
         {
@@ -39616,7 +39626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 274,
+          "line": 279,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -42766,7 +42776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 464,
+          "line": 514,
           "sink": "emit"
         }
       ]
@@ -45851,12 +45861,12 @@
         },
         {
           "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 168,
+          "line": 177,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 157,
+          "line": 205,
           "sink": "emit"
         }
       ]
@@ -54296,22 +54306,22 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 234,
+          "line": 254,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 248,
+          "line": 268,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 257,
+          "line": 277,
           "sink": "raise_if_cancelled"
         },
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 276,
+          "line": 296,
           "sink": "raise_if_cancelled"
         },
         {
@@ -55731,7 +55741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 559,
+          "line": 609,
           "sink": "ValueError"
         }
       ]
@@ -61251,7 +61261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 179,
+          "line": 188,
           "sink": "setText"
         }
       ]
@@ -61261,7 +61271,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 68,
+          "line": 109,
           "sink": "QLabel"
         }
       ]
@@ -67251,12 +67261,12 @@
         },
         {
           "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 109,
+          "line": 119,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 115,
+          "line": 168,
           "sink": "emit"
         }
       ]
@@ -70156,12 +70166,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 372,
+          "line": 423,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 509,
+          "line": 559,
           "sink": "emit"
         }
       ]
@@ -70411,7 +70421,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 235,
+          "line": 255,
           "sink": "log"
         }
       ]
@@ -70421,7 +70431,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 258,
+          "line": 278,
           "sink": "log"
         }
       ]
@@ -70431,7 +70441,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 249,
+          "line": 269,
           "sink": "log"
         }
       ]
@@ -70626,7 +70636,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 277,
+          "line": 297,
           "sink": "log"
         }
       ]
@@ -70661,7 +70671,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 302,
+          "line": 322,
           "sink": "log"
         }
       ]
@@ -86431,7 +86441,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 307,
+          "line": 327,
           "sink": "log"
         }
       ]
@@ -89046,7 +89056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 578,
+          "line": 628,
           "sink": "emit"
         }
       ]
@@ -92906,7 +92916,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 493,
+          "line": 543,
           "sink": "emit"
         }
       ]
@@ -93156,12 +93166,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 211,
+          "line": 220,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 202,
+          "line": 250,
           "sink": "emit"
         }
       ]
@@ -93281,7 +93291,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 388,
+          "line": 439,
           "sink": "emit"
         }
       ]
@@ -93311,7 +93321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 337,
+          "line": 388,
           "sink": "emit"
         }
       ]
@@ -93456,13 +93466,13 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 548,
+          "line": 598,
           "sink": "ValueError"
         }
       ]
     },
     {
-      "key": "The imported model when there is one, else the template's own, in the same viewport the Model Library uses. Orbit and zoom to check it; take the icon from the view you like.",
+      "key": "The imported model with its textures when there is one, else the template's own mesh and textures from the archives, in the same viewport the Model Library uses. Orbit and zoom to check it; take the icon from the view you like.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
@@ -93711,7 +93721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 534,
+          "line": 584,
           "sink": "emit"
         }
       ]
@@ -93771,12 +93781,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 148,
+          "line": 157,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 131,
+          "line": 178,
           "sink": "emit"
         }
       ]
@@ -93856,7 +93866,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 84,
+          "line": 125,
           "sink": "setText"
         }
       ]
@@ -93866,7 +93876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 94,
+          "line": 104,
           "sink": "QLabel"
         }
       ]
@@ -93896,12 +93906,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 170,
+          "line": 179,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 159,
+          "line": 207,
           "sink": "emit"
         }
       ]
@@ -94056,7 +94066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 502,
+          "line": 552,
           "sink": "emit"
         }
       ]
@@ -94206,7 +94216,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_snapshot.py",
-          "line": 306,
+          "line": 326,
           "sink": "log"
         }
       ]
@@ -94246,12 +94256,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 191,
+          "line": 200,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 183,
+          "line": 231,
           "sink": "emit"
         }
       ]
@@ -94261,12 +94271,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 63,
+          "line": 104,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 104,
+          "line": 154,
           "sink": "setText"
         }
       ]
@@ -195147,6 +195157,16 @@
       ]
     },
     {
+      "key": "there is nothing to show",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/item_preview.py",
+          "line": 40,
+          "sink": "ValueError"
+        }
+      ]
+    },
+    {
       "key": "there so config, cache, tools, and workspace folders stay together.",
       "origins": [
         {
@@ -199311,7 +199331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 71,
+          "line": 81,
           "sink": "QLabel"
         }
       ]

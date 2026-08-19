@@ -1,10 +1,13 @@
 """New Item Studio: the item as it will be, in the resident viewport, inline.
 
-`ItemPreviewFrame` shows a mesh (the imported model, else the template's own) in the
-resident .NET viewport the Model Library uses: orbit, zoom, and a capture of the frame at
-512 x 512 with the grid and gizmo hidden (the icon route). It starts the viewport only
-when first asked to show something, rebuilds its package when the mesh changes, and is
-what the Model and icon step embeds and the icon capture dialog wraps.
+`ItemPreviewFrame` shows the item (the imported model, else the template's own) in the
+resident .NET viewport the Model Library uses, textured the way that library and the
+Builder show it: orbit, zoom, and a capture of the frame at 512 x 512 with the grid and
+gizmo hidden (the icon route). It takes a `ModelPreviewData` (the archive or import
+preview decode, textures resolved), a bare `ParsedMesh`, or a callable that produces
+either off the UI thread; starts the viewport only when first asked to show something,
+rebuilds its package when the source changes, and is what the Model and icon step embeds
+and the icon capture dialog wraps.
 """
 
 from __future__ import annotations
@@ -14,7 +17,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Hashable, Optional
 
 from PySide6.QtCore import QThread, Qt, QTimer, Signal
 from PySide6.QtGui import QImage
@@ -23,7 +26,44 @@ from PySide6.QtWidgets import QLabel, QSizePolicy, QVBoxLayout, QWidget
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.workers.utility_workers import UtilityWorker
 
-__all__ = ["ItemPreviewFrame", "default_host_factory"]
+__all__ = ["ItemPreviewFrame", "build_item_preview_package", "default_host_factory", "package_cleanup_root"]
+
+
+def build_item_preview_package(source: Any, *, token: Hashable, output_root: Path, stop_event: threading.Event) -> Path:
+    """Build the viewport package for `source` off the UI thread and return its directory.
+    `source` is a `ModelPreviewData` (the archive or import preview decode, textures
+    resolved: it goes the Model Library's route and comes out textured), a bare
+    `ParsedMesh`, or a callable `(stop_event) -> one of those`."""
+
+    item = source(stop_event) if callable(source) else source
+    if item is None:
+        raise ValueError("there is nothing to show")
+    if getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
+        from cdmw.services.mesh_dotnet_preview_package import build_or_lookup_dotnet_preview_package_from_model
+
+        output_root.mkdir(parents=True, exist_ok=True)
+        package = build_or_lookup_dotnet_preview_package_from_model(
+            item, cache_root=output_root, archive_identity=f"new_item_preview:{token!r}", cache_mode="off",
+            cancelled=stop_event.is_set,
+        )
+    else:
+        from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
+
+        package = build_mesh_dotnet_experiment_package(
+            item, output_root=output_root, reference_mesh=None, comparison_mode="side_by_side", interaction_mode="placement",
+            cancelled=stop_event.is_set,
+        )
+    return Path(package.package_dir)
+
+
+def package_cleanup_root(package_dir: Path, output_root: Path) -> Path:
+    """The directory to remove for a package under `output_root`: the model route writes
+    `<root>/cdmw_dotnet_preview_*/package`, the mesh route `<root>/<package>`."""
+
+    parent = package_dir.parent
+    if parent != output_root and parent.parent == output_root and parent.name.startswith("cdmw_dotnet_preview_"):
+        return parent
+    return package_dir
 
 
 def default_host_factory(parent: QWidget):
@@ -53,7 +93,8 @@ class ItemPreviewFrame(QWidget):
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
         self._closed = False
-        self._pending_mesh: Optional[ParsedMesh] = None
+        #: (token, source) of the newest request; the build in flight may be older
+        self._pending: Optional[tuple[Hashable, Any]] = None
         self._pending_capture: Optional[Path] = None
         self._loaded = False
         self.is_ready = False
@@ -93,35 +134,41 @@ class ItemPreviewFrame(QWidget):
         return True
 
     def show_mesh(self, mesh: Optional[ParsedMesh]) -> None:
-        """Show `mesh` (None clears the view); a build already running is superseded."""
+        """Show the bare `mesh` (None clears the view); a build already running is superseded."""
+
+        self.show(mesh, token=id(mesh) if mesh is not None else None)
+
+    def show(self, source: Any, *, token: Hashable = None) -> None:
+        """Show `source`: a `ModelPreviewData` (textures resolved), a `ParsedMesh`, or a
+        callable `(stop_event) -> one of those` run off the UI thread. None clears the
+        view. `token` names the source; the same token while a build of it is running or
+        shown asks for nothing new. A build already running for something else is
+        superseded when it finishes."""
 
         if self._closed:
             return
-        if mesh is None:
-            self._pending_mesh = None
+        if source is None:
+            self._pending = None
             self.is_ready = False
             if self.host is None:
                 self.placeholder.setText("The viewport starts when there is a mesh to show.")
             return
         if not self._ensure_host():
             return
-        self._pending_mesh = mesh
+        if self._pending is not None and self._pending[0] == token and (self._thread is not None or self.is_ready):
+            return
+        self._pending = (token, source)
         if self._thread is None:
-            self._start_package(mesh)
+            self._start_package(self._pending)
 
-    def _start_package(self, mesh: ParsedMesh) -> None:
+    def _start_package(self, request: tuple[Hashable, Any]) -> None:
         root = self._output_root
+        token, source = request
         self.is_ready = False
         self.status_changed.emit("Preparing the viewport...")
 
         def task(_log, stop_event: threading.Event) -> Path:
-            from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
-
-            package = build_mesh_dotnet_experiment_package(
-                mesh, output_root=root, reference_mesh=None, comparison_mode="side_by_side", interaction_mode="placement",
-                cancelled=stop_event.is_set,
-            )
-            return Path(package.package_dir)
+            return build_item_preview_package(source, token=token, output_root=root, stop_event=stop_event)
 
         worker = UtilityWorker(task, task_accepts_cancel=True)
         thread = QThread(self)
@@ -137,9 +184,10 @@ class ItemPreviewFrame(QWidget):
             thread.wait(5000)
             worker.deleteLater()
             thread.deleteLater()
-            # a newer mesh arrived while this one was building
-            if self._pending_mesh is not None and self._pending_mesh is not mesh and not self._closed:
-                QTimer.singleShot(0, lambda: self._start_package(self._pending_mesh))
+            # a newer source arrived while this one was building
+            newer = self._pending
+            if newer is not None and newer[0] != token and not self._closed:
+                QTimer.singleShot(0, lambda: self._start_package(newer))
 
         worker.finished.connect(finish)
         thread.started.connect(worker.run)
@@ -150,7 +198,7 @@ class ItemPreviewFrame(QWidget):
             return
         previous, self._package_dir = self._package_dir, result
         if previous is not None and previous != result:
-            shutil.rmtree(previous, ignore_errors=True)
+            shutil.rmtree(self._package_cleanup_root(previous), ignore_errors=True)
         if self.host.load_package(result, reset_view=True):
             self._loaded = True
             self.host.set_display_mode("replacement_only")
@@ -222,5 +270,8 @@ class ItemPreviewFrame(QWidget):
             except Exception:  # noqa: BLE001
                 pass
         if self._package_dir is not None:
-            shutil.rmtree(self._package_dir, ignore_errors=True)
+            shutil.rmtree(self._package_cleanup_root(self._package_dir), ignore_errors=True)
             self._package_dir = None
+
+    def _package_cleanup_root(self, package_dir: Path) -> Path:
+        return package_cleanup_root(package_dir, self._output_root)

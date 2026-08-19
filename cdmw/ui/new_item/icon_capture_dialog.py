@@ -50,15 +50,25 @@ class IconCaptureDialog(QDialog):
         self,
         parent: Optional[QWidget] = None,
         *,
-        item_mesh: ParsedMesh,
+        item_mesh: Optional[ParsedMesh] = None,
+        item_source: object = None,
+        item_token: object = None,
         item_label: str = "",
         output_root: Optional[Path] = None,
         host_factory: Optional[Callable[[QWidget], object]] = None,
     ) -> None:
+        """`item_source` (with `item_token`) is the textured route: what the controller's
+        `item_preview_source` hands out; `item_mesh` is the bare mesh when there is no
+        such source. One of the two is needed."""
+
         super().__init__(parent)
         self.setWindowTitle("Capture the icon from the viewport")
         self.resize(960, 640)
+        if item_mesh is None and item_source is None:
+            raise ValueError("IconCaptureDialog needs item_source or item_mesh")
         self._item_mesh = item_mesh
+        self._item_source = item_source
+        self._item_token = item_token
         self._output_root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_new_item_icons"
         self._package_dir: Optional[Path] = None
         self._thread: Optional[QThread] = None
@@ -131,14 +141,13 @@ class IconCaptureDialog(QDialog):
         mesh = self._item_mesh
         root = self._output_root
 
-        def task(_log, stop_event: threading.Event) -> Path:
-            from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
+        source = self._item_source if self._item_source is not None else mesh
+        token = self._item_token if self._item_source is not None else id(mesh)
 
-            package = build_mesh_dotnet_experiment_package(
-                mesh, output_root=root, reference_mesh=None, comparison_mode="side_by_side", interaction_mode="placement",
-                cancelled=stop_event.is_set,
-            )
-            return Path(package.package_dir)
+        def task(_log, stop_event: threading.Event) -> Path:
+            from cdmw.ui.new_item.item_preview import build_item_preview_package
+
+            return build_item_preview_package(source, token=token, output_root=root, stop_event=stop_event)
 
         worker = UtilityWorker(task, task_accepts_cancel=True)
         thread = QThread(self)
@@ -233,5 +242,7 @@ class IconCaptureDialog(QDialog):
             except Exception:  # noqa: BLE001
                 pass
         if self._package_dir is not None:
-            shutil.rmtree(self._package_dir, ignore_errors=True)
+            from cdmw.ui.new_item.item_preview import package_cleanup_root
+
+            shutil.rmtree(package_cleanup_root(self._package_dir, self._output_root), ignore_errors=True)
         super().done(result)
