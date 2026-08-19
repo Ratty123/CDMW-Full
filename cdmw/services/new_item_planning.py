@@ -52,7 +52,7 @@ from cdmw.core.stringinfo_table import append_stringinfo_strings, stringinfo_key
 from cdmw.core.structured_binary_editor import append_table_rows
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest, MetaFileWrite
 from cdmw.domain.cancellation import raise_if_cancelled
-from cdmw.domain.new_item.rules import ValidationIssue
+from cdmw.domain.new_item.rules import MAX_SHIPPED_SOCKET_SLOTS, ValidationIssue
 from cdmw.domain.new_item.spec import UNLIMITED_STOCK, EnhancementRows, IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind, SheathedModel
 from cdmw.models import ArchiveEntry
 from cdmw.services.new_item_snapshot import EFFECT_DIR, EFFECT_DONOR_PATH, EFFECT_DONOR_PREFAB, NewItemSnapshot, NewItemSnapshotError
@@ -346,6 +346,7 @@ class _Planner:
             if not had and int(edit.status_key) not in added_stats:
                 added_stats.append(int(edit.status_key))
             levels[edit.level] = level_with_stat(levels[edit.level], int(edit.status_key), int(edit.value))
+        self._check_stat_values_against_the_corpus()
         if added_stats:
             names = [self.snapshot.status_names.get(key, str(key)) for key in added_stats]
             self.summary.append(f"stats added to the row: {', '.join(names)}")
@@ -371,6 +372,11 @@ class _Planner:
         if slots is not None:
             self.summary.append(f"socket slots: grown from {len(row.add_socket_materials)} to {len(slots)} so every socket item has a slot")
             self.manifest["socket_slots"] = [list(item) for item in slots]
+            if len(slots) > MAX_SHIPPED_SOCKET_SLOTS:
+                self.warnings.append(
+                    f"The row carries {len(slots)} socket slots; no shipped item carries more than {MAX_SHIPPED_SOCKET_SLOTS}, "
+                    "so a list that long is unproven in game."
+                )
         if len(levels) > len(row.enchant_levels):
             self.warnings.append(
                 f"The row carries {len(levels) - len(row.enchant_levels)} enchant level(s) the template lacks; "
@@ -382,10 +388,45 @@ class _Planner:
             self.manifest["socket_items"] = list(sockets)
             if len(sockets) > 4:
                 self.warnings.append(f"The row carries {len(sockets)} socket items; no shipped item carries more than 4, so that many is unproven in game.")
+            users = self.snapshot.socket_item_users()
+            unshipped = [item for item in sockets if not users.get(int(item))]
+            if unshipped:
+                labels = [self.snapshot.rows[item].string_key if item in self.snapshot.rows else str(item) for item in unshipped]
+                self.warnings.append(
+                    f"{len(unshipped)} of the chosen perks are carried by no shipped item ({', '.join(labels[:4])}"
+                    f"{', ...' if len(labels) > 4 else ''}); whether an equipment row may hold them is unproven in game."
+                )
         self.summary.append(
             f"stats: {len(spec.stat_edits)} stat, {len(spec.buy_price_edits)} buy-price and {len(spec.price_edits)} price edit(s)"
         )
         return rebuilt
+
+    def _check_stat_values_against_the_corpus(self) -> None:
+        """Warn when a stat edit sits far outside what shipped equipment carries for it.
+
+        A stat the game only ever sees in the tens of millions, written as a few thousand,
+        is not a small mistake: it is a value the game has never been asked to read on
+        that stat, and it is where an item goes wrong in play rather than in the tables.
+        """
+
+        ranges = self.snapshot.status_value_ranges()
+        reported: set = set()
+        for edit in self.spec.stat_edits:
+            key = int(edit.status_key)
+            measured = ranges.get(key)
+            if measured is None or key in reported:
+                continue
+            _entries, low, _median, high = measured
+            value = int(edit.value)
+            if low <= value <= high or (low / 10 <= value <= high * 10 if low > 0 else value <= high * 10):
+                continue
+            reported.add(key)
+            name = self.snapshot.status_names.get(key, str(key))
+            self.warnings.append(
+                f"{name} is written as {value:,}; shipped equipment carries it between {low:,} and {high:,}. "
+                "A value that far outside the game's own range is unproven, and an item can behave strangely in play "
+                "while its tables read fine."
+            )
 
     def plan_item_groups(self) -> None:
         template_key = int(self.spec.template_key)
