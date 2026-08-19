@@ -128,8 +128,8 @@ class ModelPanel(QGroupBox):
         self.placement_group = QGroupBox("Place the model over the template")
         placement_layout = QVBoxLayout(self.placement_group)
         placement_layout.addWidget(intro_label(
-            "Drag the gizmo in the viewport or type the numbers. The game holds the item as it holds the template: origin = the hand, "
-            "blade toward -z. Apply the placement builds the item's mesh from it."
+            "The model starts at its fit to the template; the gizmo and the numbers move it from there (origin = the hand, "
+            "blade toward -z). Apply the placement builds the item's mesh from it."
         ))
         view_row = QHBoxLayout()
         view_row.addWidget(QLabel("View:"))
@@ -174,13 +174,9 @@ class ModelPanel(QGroupBox):
         placement_layout.addLayout(numbers)
         action_row = QHBoxLayout()
         self.fit_button = QPushButton("Fit to the template")
-        self.fit_button.setToolTip("A first guess: the model scaled to the template's length, turned onto its long axis, centred on it.")
+        self.fit_button.setToolTip("Back to the first guess: the model scaled to the template's length, turned onto its axes, centred on it; the numbers go back to zero.")
         self.fit_button.clicked.connect(self._fit_to_template)
         action_row.addWidget(self.fit_button)
-        self.reset_placement_button = QPushButton("Reset")
-        self.reset_placement_button.setToolTip("Back to the model as it came: no offset, no rotation, scale 1.")
-        self.reset_placement_button.clicked.connect(lambda: self._controller.set_model_placement(ModelPlacement()))
-        action_row.addWidget(self.reset_placement_button)
         self.apply_button = QPushButton("Apply the placement")
         self.apply_button.setToolTip("Build the item's mesh from the model at this placement (the Builder's import over the template's mesh, a few seconds).")
         self.apply_button.clicked.connect(self._controller.start_model_apply)
@@ -365,7 +361,6 @@ class ModelPanel(QGroupBox):
 
     def _fit_to_template(self) -> None:
         self._controller.fit_model_placement()
-        self.preview.fit_view()
 
     def _placement_changed(self, placement: object) -> None:
         if isinstance(placement, ModelPlacement):
@@ -405,7 +400,7 @@ class ModelPanel(QGroupBox):
 
     def _busy_changed(self, busy: bool) -> None:
         lane = getattr(self._controller, "_lane", "")
-        for widget in (self.import_button, self.apply_button, self.fit_button, self.reset_placement_button):
+        for widget in (self.import_button, self.apply_button, self.fit_button):
             widget.setEnabled(not busy)
         self.busy_bar.setVisible(bool(busy) and lane in {"model_import", "model_apply"})
         if busy and lane == "model_import":

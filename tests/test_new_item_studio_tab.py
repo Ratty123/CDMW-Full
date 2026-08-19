@@ -188,6 +188,12 @@ class TabTests(unittest.TestCase):
         self.assertEqual(seen["entry"].path, token[2])
         self.assertIs(seen["kwargs"]["texture_entries_by_basename"], by_basename)
         self.assertFalse(seen["kwargs"]["enable_hkx_visual_preview"])
+        # the decode is kept for the template: a second build does not decode again
+        seen.clear()
+        with patch("cdmw.core.archive_preview_result_builder.build_archive_preview_result", fake_decode):
+            self.assertIs(build(threading.Event()), decoded.preview_model)
+        self.assertNotIn("entry", seen, "the cached decode answers")
+        tab.controller._template_models.clear()
         blade = ParsedMesh(path="blade", format="pac", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)])])
         with patch("cdmw.core.archive_preview_result_builder.build_archive_preview_result", lambda entry, **kwargs: SimpleNamespace(preferred_view="details", preview_model=None)),              patch.object(type(tab.controller), "item_mesh_for_preview", lambda self_: blade):
             self.assertIs(build(threading.Event()), blade, "no model from the decode: the bare mesh")
@@ -529,9 +535,11 @@ class TabTests(unittest.TestCase):
         # a source: a 10 m long box along x, with one texture
         box = ParsedMesh(path="box.gltf", format="gltf", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0), (10, 0, 0), (10, 2, 2), (0, 2, 2)], faces=[(0, 1, 2), (0, 2, 3)])])
         box.total_vertices = 4
+        from cdmw.core.archive_modding import parsed_mesh_to_preview_model
+
         source = ModelImportSource(
             chosen_path=Path(r"E:/models/box.zip"), model_path=Path(r"E:/models/box/scene.gltf"), scene=SimpleNamespace(mesh=box, diagnostics=()),
-            preview_model=SimpleNamespace(meshes=[object()]), bounds=((0.0, 0.0, 0.0), (10.0, 2.0, 2.0)), texture_count=1,
+            preview_model=parsed_mesh_to_preview_model(box), bounds=((0.0, 0.0, 0.0), (10.0, 2.0, 2.0)), texture_count=1,
         )
         seen = {}
         template_box = ((-0.1, -0.1, -1.0), (0.1, 0.1, 0.2))  # the test snapshot's pac is not a real mesh
@@ -545,9 +553,14 @@ class TabTests(unittest.TestCase):
         self.assertEqual(tab.controller.draft.model_source, ModelSource.IMPORTED)
         self.assertTrue(panel.placement_group.isVisibleTo(panel))
         self.assertTrue(panel.import_model.isChecked())
-        fitted = tab.controller.model_placement
-        self.assertNotEqual(fitted.scale, (1.0, 1.0, 1.0), "a first fit scales the box to the template")
-        self.assertAlmostEqual(panel.scale_spins[0].value(), fitted.scale[0], places=4)
+        # the fit is baked into the mesh; the numbers start at zero on top of it
+        self.assertEqual(tab.controller.model_placement, ModelPlacement(), "the numbers start at zero")
+        bake = source.bake
+        self.assertNotEqual(bake.scale, (1.0, 1.0, 1.0), "the fit scales the box to the template")
+        self.assertEqual(source.bake_generation, 1)
+        self.assertAlmostEqual(panel.scale_spins[0].value(), 1.0, places=4)
+        baked_lo, baked_hi = source.baked_bounds()
+        self.assertAlmostEqual(baked_hi[2] - baked_lo[2], 1.2, places=3, msg="the baked box is the template's length along z")
         self.assertIn("placement not applied", tab.summary.plain_text())
         self.assertTrue(any(issue.code == "model_placement_not_applied" for issue in tab.controller.validate()), "the plan is blocked until the placement is applied")
         # the viewport gets the placement scene: the template's decode plus the source's preview
@@ -559,10 +572,10 @@ class TabTests(unittest.TestCase):
         with patch("cdmw.core.archive_preview_result_builder.build_archive_preview_result", lambda entry, **kwargs: SimpleNamespace(preferred_view="details", preview_model=None)),              patch.object(type(tab.controller), "item_mesh_for_preview", lambda self_: blade):
             scene = build(threading.Event())
         self.assertIsInstance(scene, PlacementScene)
-        self.assertIs(scene.model, source.preview_model)
         self.assertIs(scene.template, blade, "no decode: the bare template mesh is the reference")
         self.assertEqual(scene.placement, tab.controller.model_placement, "the scene is written at the placement")
-        self.assertEqual(scene.model_bounds, source.bounds)
+        self.assertEqual(scene.model_bounds, source.baked_bounds())
+        self.assertEqual(token[2], source.bake_generation, "the token moves with the bake")
         # the numbers move the placement
         panel.offset_spins[2].setValue(-0.25)
         self.assertAlmostEqual(tab.controller.model_placement.offset[2], -0.25, places=6)
@@ -572,7 +585,7 @@ class TabTests(unittest.TestCase):
             panel.apply_button.click()
         self.assertIs(tab.controller.model_result, fake_result)
         self.assertEqual(seen["built"][2], tab.controller.model_placement)
-        self.assertIs(source.applied, tab.controller.model_placement)
+        self.assertEqual(source.applied, (source.bake, tab.controller.model_placement))
         self.assertTrue(all(issue.code != "model_placement_not_applied" for issue in tab.controller.validate()))
         self.assertIn("placed", tab.summary.plain_text())
         # the gizmo moves it again: the build is dropped until the next apply
@@ -584,11 +597,11 @@ class TabTests(unittest.TestCase):
         self.assertEqual(transform.alignment_mode, "manual")
         self.assertFalse(transform.scale_to_original_length)
         self.assertEqual(transform.offset_xyz, (0.1, 0.0, -0.25))
-        # a fit and a reset
-        panel.reset_placement_button.click()
-        self.assertEqual(tab.controller.model_placement, ModelPlacement())
+        # the fit again: the bake is redone (a new generation), the numbers go back to zero
         panel.fit_button.click()
-        self.assertEqual(tab.controller.model_placement, fitted)
+        self.assertEqual(tab.controller.model_placement, ModelPlacement())
+        self.assertEqual(source.bake, bake)
+        self.assertGreaterEqual(source.bake_generation, 1)
         # discard: the template's model again
         panel.clear_button.click()
         self.assertIsNone(tab.controller.model_import)
