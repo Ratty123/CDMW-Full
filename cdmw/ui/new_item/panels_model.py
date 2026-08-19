@@ -249,6 +249,8 @@ class ModelPanel(QGroupBox):
         controller.template_changed.connect(lambda _key: self._show_model(controller.model_result))
         controller.template_changed.connect(lambda _key: self.refresh_preview())
         self.preview.ready.connect(lambda: self.capture_inline_button.setEnabled(True))
+        self.preview.ready.connect(self._refresh_placement_enabled)
+        self.preview.ready.connect(self._refresh_apply_status)
         self._icon_source_changed(True)
         self.plain_pbr.setEnabled(False)
         self.own_sheath.setEnabled(False)
@@ -337,7 +339,8 @@ class ModelPanel(QGroupBox):
             if token != self._preview_mesh_token:
                 self.capture_inline_button.setEnabled(False)
             self._preview_mesh_token = token
-            self.preview.show_placement(build, token=token, placement=self._controller.model_placement, model_bounds=imported.bounds)
+            self.preview.show_placement(build, token=token, placement=self._controller.model_placement, model_bounds=imported.baked_bounds())
+            self._refresh_placement_enabled()
             return
         if token == self._preview_mesh_token and self.preview.is_ready:
             return
@@ -358,6 +361,14 @@ class ModelPanel(QGroupBox):
         settings.setValue(IMPORT_DIR_SETTING, str(Path(path).parent))
         self.import_model.setChecked(True)
         self._controller.start_model_import(Path(path))
+
+    def _refresh_apply_status(self) -> None:
+        if self._controller.model_import is None:
+            return
+        if self._controller.model_result is not None:
+            self.apply_status.set_note("Applied: the plan will write this mesh.", OK)
+        else:
+            self.apply_status.set_note("Not applied yet: the plan needs Apply the placement.", WARN)
 
     def _fit_to_template(self) -> None:
         self._controller.fit_model_placement()
@@ -410,6 +421,20 @@ class ModelPanel(QGroupBox):
 
     def _preview_status(self, text: str) -> None:
         self.preview_status.setText(str(text or ""))
+        self._refresh_placement_enabled()
+
+    def _refresh_placement_enabled(self) -> None:
+        """The placement controls answer only while the viewport is showing the model:
+        during a build the scene on screen is the one before, and nothing there is the
+        item's to move."""
+
+        ready = bool(getattr(self.preview, "showing_placement", False))
+        for widget in (*self.offset_spins, *self.rotation_spins, *self.scale_spins, *self.gizmo_buttons.values(), self.view_mode, self.grid_visible, self.frame_view_button):
+            widget.setEnabled(ready)
+        building = self._controller.model_import is not None and not ready
+        self.busy_bar.setVisible(building or self.busy_bar.isVisible() and self._controller.busy)
+        if building and not self._controller.busy:
+            self.apply_status.set_note("Building the preview with your model...", EDIT)
 
     def _capture_inline(self) -> None:
         if not self.preview.capture():

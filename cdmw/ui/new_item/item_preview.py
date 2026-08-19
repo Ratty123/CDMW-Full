@@ -30,6 +30,9 @@ from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.ui.new_item.model_import import ModelPlacement
 from cdmw.workers.utility_workers import UtilityWorker
 
+#: "no token given": `_package_ready` then reads the build in flight
+_UNSET = object()
+
 __all__ = [
     "GIZMO_TOOLS",
     "ItemPreviewFrame",
@@ -145,6 +148,13 @@ class ItemPreviewFrame(QWidget):
         self._closed = False
         #: (token, source) of the newest request; the build in flight may be older
         self._pending: Optional[tuple[Hashable, Any]] = None
+        #: whether the newest request is a placement scene (the gizmo moves its model)
+        self._pending_is_placement = False
+        #: what the viewport is actually showing: the token of the loaded package, and
+        #: whether that package is a placement scene. A "ready" for anything else is a
+        #: stale echo of the package before, and must not take the placement or the gizmo.
+        self._loaded_token: Hashable = None
+        self._loaded_is_placement = False
         self._pending_capture: Optional[Path] = None
         self._loaded = False
         self.is_ready = False
@@ -156,8 +166,10 @@ class ItemPreviewFrame(QWidget):
         self._view_mode = "overlay"
         self._grid_visible = True
         self._model_bounds: Any = None
-        #: a package built while the frame was hidden, waiting for the viewport to start
-        self._deferred_package: Optional[Path] = None
+        #: (path, token, is_placement) built while the frame was hidden, waiting for the viewport
+        self._deferred_package: Optional[tuple[Path, Hashable, bool]] = None
+        #: (token, is_placement) of the build in flight
+        self._building: Optional[tuple[Hashable, bool]] = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
@@ -210,18 +222,17 @@ class ItemPreviewFrame(QWidget):
 
         self._placement = None
         self._placement_base = None
-        self._show(source, token=token)
+        self._show(source, token=token, is_placement=False)
 
-    def _show(self, source: Any, *, token: Hashable = None) -> None:
+    def _show(self, source: Any, *, token: Hashable = None, is_placement: bool = False) -> None:
         if self._closed:
             return
         if source is None:
             self._pending = None
+            self._pending_is_placement = False
             self._placement = None
             self.is_ready = False
-            if self._deferred_package is not None:
-                shutil.rmtree(self._package_cleanup_root(self._deferred_package), ignore_errors=True)
-                self._deferred_package = None
+            self._drop_deferred_package()
             if self.host is None:
                 self.placeholder.setText("The viewport starts when there is a mesh to show.")
             return
@@ -233,9 +244,16 @@ class ItemPreviewFrame(QWidget):
         if self._pending is not None and self._pending[0] == token and (self._thread is not None or self.is_ready or self._deferred_package is not None):
             return
         self._pending = (token, source)
-        if self._deferred_package is not None:
-            shutil.rmtree(self._package_cleanup_root(self._deferred_package), ignore_errors=True)
-            self._deferred_package = None
+        self._pending_is_placement = bool(is_placement)
+        self._drop_deferred_package()
+        self.is_ready = False
+        # the scene on screen is the package before this request: take the gizmo off it at
+        # once, so nothing there can be dragged while it is stale
+        if self.host is not None and self._loaded_token is not None and self._loaded_token != token:
+            try:
+                self.host.set_alignment_state(enabled=False)
+            except Exception:  # noqa: BLE001 - a host without the call keeps its gizmo
+                pass
         if self._thread is None:
             self._start_package(self._pending)
 
@@ -244,7 +262,13 @@ class ItemPreviewFrame(QWidget):
         deferred = self._deferred_package
         if deferred is not None and not self._closed and self._ensure_host():
             self._deferred_package = None
-            self._package_ready(deferred)
+            self._package_ready(deferred[0], deferred[1], deferred[2])
+
+    def _drop_deferred_package(self) -> None:
+        deferred = self._deferred_package
+        if deferred is not None:
+            shutil.rmtree(self._package_cleanup_root(deferred[0]), ignore_errors=True)
+            self._deferred_package = None
 
     def show_placement(
         self,
@@ -268,7 +292,7 @@ class ItemPreviewFrame(QWidget):
             if self.is_ready:
                 self._apply_placement_presentation()
             return
-        self._show(source, token=token)
+        self._show(source, token=token, is_placement=True)
 
     # ------------------------------------------------------------------ placement
 
@@ -369,12 +393,24 @@ class ItemPreviewFrame(QWidget):
             self._push_placement()
         self.placement_changed.emit(new, bool(finished))
 
+    @property
+    def showing_placement(self) -> bool:
+        """The viewport is showing the placement scene this frame was last given: only
+        then does the gizmo move the imported model, and only then may it be dragged."""
+
+        return bool(self.is_ready and self._loaded_is_placement and self._placement is not None)
+
     def _start_package(self, request: tuple[Hashable, Any]) -> None:
         root = self._output_root
         token, source = request
+        # What this build is for, read back by `_package_ready`. It is kept here rather
+        # than captured in a lambda on `completed`: a lambda is not a bound method of this
+        # QObject, so Qt runs it on the worker's thread, and the viewport's process would
+        # then be created off the UI thread and never deliver its protocol.
+        self._building = (token, bool(self._pending_is_placement))
         self.is_ready = False
         self._placement_base = None
-        self.status_changed.emit("Preparing the viewport...")
+        self.status_changed.emit("Building the preview...")
 
         def task(_log, stop_event: threading.Event) -> Path:
             return build_item_preview_package(source, token=token, output_root=root, stop_event=stop_event)
@@ -402,7 +438,12 @@ class ItemPreviewFrame(QWidget):
         thread.started.connect(worker.run)
         thread.start()
 
-    def _package_ready(self, result: object) -> None:
+    def _package_ready(self, result: object, token: Hashable = _UNSET, is_placement: bool = False) -> None:
+        """The package for the build in flight (`self._building`, unless a token is given
+        outright, as the deferred path does) has landed: load it and remember what it is."""
+
+        if token is _UNSET:
+            token, is_placement = self._building if self._building is not None else (None, False)
         if self._closed or not isinstance(result, Path):
             return
         if self.host is None:
@@ -410,7 +451,7 @@ class ItemPreviewFrame(QWidget):
                 pass
             else:
                 # built ahead of the step: loaded the moment the frame shows
-                self._deferred_package = result
+                self._deferred_package = (result, token, is_placement)
                 self.status_changed.emit("")
                 return
         previous, self._package_dir = self._package_dir, result
@@ -418,6 +459,8 @@ class ItemPreviewFrame(QWidget):
             shutil.rmtree(self._package_cleanup_root(previous), ignore_errors=True)
         if self.host.load_package(result, reset_view=True):
             self._loaded = True
+            self._loaded_token = token
+            self._loaded_is_placement = bool(is_placement)
             self.host.set_display_mode("replacement_only")
             self.status_changed.emit("Loading the viewport...")
         else:
@@ -427,8 +470,12 @@ class ItemPreviewFrame(QWidget):
         if self._closed or self.host is None:
             return
         if str(state) == "ready" and self._package_dir is not None:
+            if self._pending is not None and self._loaded_token != self._pending[0]:
+                # a ready for the package before this request: the newest build is still
+                # running, so the scene on screen is not the one the placement belongs to
+                return
             self.is_ready = True
-            if self._placement is not None:
+            if self._loaded_is_placement and self._placement is not None:
                 self.host.set_icon_capture_mode(False)
                 self._apply_placement_presentation(fit_view=True)
             else:
@@ -494,9 +541,7 @@ class ItemPreviewFrame(QWidget):
         if self._package_dir is not None:
             shutil.rmtree(self._package_cleanup_root(self._package_dir), ignore_errors=True)
             self._package_dir = None
-        if self._deferred_package is not None:
-            shutil.rmtree(self._package_cleanup_root(self._deferred_package), ignore_errors=True)
-            self._deferred_package = None
+        self._drop_deferred_package()
 
     def _package_cleanup_root(self, package_dir: Path) -> Path:
         return package_cleanup_root(package_dir, self._output_root)

@@ -1242,6 +1242,8 @@
     "Building the global sidecar cache is intentionally optional because it can be expensive on large archives. It improves DDS related-file discovery, reverse references, mesh texture connections, and material-sidecar lookup. If you enable it, let the first run finish even when it takes a long time. Configure sidecar indexing and worker count in": "Budowanie globalnej pamięci podręcznej przyczepki jest celowo opcjonalne, ponieważ w przypadku dużych archiwów może być kosztowne. Poprawia wykrywanie plików związanych z DDS, odwrotne odniesienia, połączenia tekstur siatki i wyszukiwanie materiałów pomocniczych. Jeśli to włączysz, pozwól, aby pierwsze uruchomienie zakończyło się, nawet jeśli zajmie to dużo czasu. Skonfiguruj indeksowanie wózka bocznego i liczbę pracowników",
     "Building the item's mesh at this placement...": "Budowanie siatki przedmiotu w tym ułożeniu...",
     "Building the plan...": "Budowanie planu...",
+    "Building the preview with your model...": "Budowanie podglądu z twoim modelem...",
+    "Building the preview...": "Budowanie podglądu...",
     "Building universal 2H swords as 1H package...": "Tworzenie uniwersalnych mieczy 2H jako pakietu 1H...",
     "Building universal 2H swords as true 1H package...": "Tworzenie uniwersalnych mieczy 2H jako prawdziwego pakietu 1H...",
     "Building {value_0} from {value_1} at its placement...": "Budowanie {value_0} z {value_1} w jego ułożeniu...",

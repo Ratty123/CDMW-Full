@@ -1242,6 +1242,8 @@
     "Building the global sidecar cache is intentionally optional because it can be expensive on large archives. It improves DDS related-file discovery, reverse references, mesh texture connections, and material-sidecar lookup. If you enable it, let the first run finish even when it takes a long time. Configure sidecar indexing and worker count in": "建構全域 ​​sidecar 快取是刻意選擇的，因為對於大型存檔而言，它的成本可能很高。它改進了 DDS 相關文件發現、反向引用、網格紋理連接和材質邊車查找。如果啟用它，即使第一次運行需要很長時間，也能讓它完成。配置 sidecar 索引和工作線程數",
     "Building the item's mesh at this placement...": "正在依此放置建置物品網格...",
     "Building the plan...": "正在產生計畫...",
+    "Building the preview with your model...": "正在用你的模型建置預覽...",
+    "Building the preview...": "正在建置預覽...",
     "Building universal 2H swords as 1H package...": "將通用 2H 劍建構成 1H 套件...",
     "Building universal 2H swords as true 1H package...": "將通用 2H 劍建構成真正的 1H 套件...",
     "Building {value_0} from {value_1} at its placement...": "正在從 {value_1} 依其放置建置 {value_0}...",
