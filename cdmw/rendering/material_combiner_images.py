@@ -11,6 +11,7 @@ from PySide6.QtCore import QFile, QIODevice, QSize, QUrl, Qt
 from PySide6.QtGui import QColor, QImage, QImageReader
 
 from cdmw.domain.cancellation import RunCancelled
+from cdmw.rendering.material_combiner_pixels import image_to_rgba_array, mask_alpha_array, numpy_module, rgba_array_to_image, to_byte_array
 from cdmw.models import PreviewMaterialTextureInput
 from cdmw.rendering.material_combiner_decode import (
     _apply_external_material_factors,
@@ -154,6 +155,9 @@ def _initialize_synthesized_albedo_target(
             Qt.IgnoreAspectRatio,
             Qt.SmoothTransformation,
         )
+    seeded = _seed_target_from_layer(first_image, tint, target_format=target_format, preserve_base_alpha=preserve_base_alpha)
+    if seeded is not None:
+        return seeded, width, height, 0 if color_seed_available else 1
     for y in range(height):
         _raise_if_material_combiner_cancelled(cancelled)
         for x in range(width):
@@ -174,6 +178,20 @@ def _initialize_synthesized_albedo_target(
                 ),
             )
     return target, width, height, 0 if color_seed_available else 1
+
+
+def _seed_target_from_layer(first_image, tint, *, target_format, preserve_base_alpha: bool):
+    """The first visible layer, tinted, as the target image; None without NumPy."""
+
+    numpy = numpy_module()
+    array = image_to_rgba_array(first_image) if numpy is not None else None
+    if array is None:
+        return None
+    red, green, blue = array[:, :, 0], array[:, :, 1], array[:, :, 2]
+    if tint:
+        red, green, blue = red * float(tint[0]), green * float(tint[1]), blue * float(tint[2])
+    alpha = to_byte_array(array[:, :, 3]) if preserve_base_alpha else numpy.full(red.shape, 255, dtype=numpy.uint8)
+    return rgba_array_to_image(red, green, blue, alpha, target_format=target_format)
 
 
 def _generate_synthesized_albedo_map(
@@ -222,6 +240,7 @@ def _generate_synthesized_albedo_map(
     if prepared_base.isNull() and not source_layers and color_blending_mask.isNull():
         return "", ""
 
+    target_format = QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888
     target, width, height, layer_start = _initialize_synthesized_albedo_target(
         prepared_base,
         source_layers,
@@ -240,34 +259,41 @@ def _generate_synthesized_albedo_map(
                 Qt.IgnoreAspectRatio,
                 Qt.SmoothTransformation,
             )
-        for y in range(height):
-            _raise_if_material_combiner_cancelled(cancelled)
-            for x in range(width):
-                selector = color_blending_mask.pixelColor(x, y)
-                weights = (selector.redF(), selector.greenF(), selector.blueF())
-                total = sum(weights)
-                if total <= 0.001:
-                    continue
-                normalized = tuple(weight / total for weight in weights)
-                seeded = tuple(
-                    sum(
-                        float(color_blending_tints[channel][component]) * normalized[channel]
-                        for channel in range(3)
+        blended = _blend_selector_tints(
+            target, color_blending_mask, color_blending_tints,
+            target_format=target_format, preserve_base_alpha=preserve_base_alpha,
+        )
+        if blended is not None:
+            target = blended
+        else:
+            for y in range(height):
+                _raise_if_material_combiner_cancelled(cancelled)
+                for x in range(width):
+                    selector = color_blending_mask.pixelColor(x, y)
+                    weights = (selector.redF(), selector.greenF(), selector.blueF())
+                    total = sum(weights)
+                    if total <= 0.001:
+                        continue
+                    normalized = tuple(weight / total for weight in weights)
+                    seeded = tuple(
+                        sum(
+                            float(color_blending_tints[channel][component]) * normalized[channel]
+                            for channel in range(3)
+                        )
+                        for component in range(3)
                     )
-                    for component in range(3)
-                )
-                coverage = _clamp(total)
-                base = target.pixelColor(x, y)
-                target.setPixelColor(
-                    x,
-                    y,
-                    QColor(
-                        _byte((base.redF() * (1.0 - coverage)) + (seeded[0] * coverage)),
-                        _byte((base.greenF() * (1.0 - coverage)) + (seeded[1] * coverage)),
-                        _byte((base.blueF() * (1.0 - coverage)) + (seeded[2] * coverage)),
-                        base.alpha() if preserve_base_alpha else 255,
-                    ),
-                )
+                    coverage = _clamp(total)
+                    base = target.pixelColor(x, y)
+                    target.setPixelColor(
+                        x,
+                        y,
+                        QColor(
+                            _byte((base.redF() * (1.0 - coverage)) + (seeded[0] * coverage)),
+                            _byte((base.greenF() * (1.0 - coverage)) + (seeded[1] * coverage)),
+                            _byte((base.blueF() * (1.0 - coverage)) + (seeded[2] * coverage)),
+                            base.alpha() if preserve_base_alpha else 255,
+                        ),
+                    )
         color_blending_seed_applied = True
 
     prepared_masks: dict[str, QImage] = {}
@@ -302,6 +328,18 @@ def _generate_synthesized_albedo_map(
         if weight <= 0.001:
             continue
         tint = _layer_tint(item)
+        composed = _compose_albedo_layer(
+            target, layer, mask, channel=channel, weight=weight, tint=tint, role=role,
+            color_blending_seed_applied=color_blending_seed_applied,
+            target_format=target_format, preserve_base_alpha=preserve_base_alpha,
+        )
+        if composed is not None:
+            target, layer_tinted_detail = composed
+            masked_detail_dye_tint_applied = masked_detail_dye_tint_applied or layer_tinted_detail
+            role_label = role if not channel else f"{role}:{channel}"
+            if role_label not in roles_used:
+                roles_used.append(role_label)
+            continue
         for y in range(height):
             _raise_if_material_combiner_cancelled(cancelled)
             for x in range(width):
@@ -374,6 +412,92 @@ def _generate_synthesized_albedo_map(
     if prepared_base.isNull():
         note += "; no reliable base DDS; no_reliable_full_base_albedo"
     return _local_file_url(output_path), note
+
+
+def _blend_selector_tints(target, selector_mask, tints, *, target_format, preserve_base_alpha: bool):
+    """Seed the surface from the PAC RGB selector and its three tints, whole-image."""
+
+    numpy = numpy_module()
+    base = image_to_rgba_array(target) if numpy is not None else None
+    selector = image_to_rgba_array(selector_mask) if base is not None else None
+    if base is None or selector is None or selector.shape[:2] != base.shape[:2]:
+        return None
+    weights = selector[:, :, :3]
+    # summed and combined left to right, the order the per-pixel loop uses: a pairwise
+    # sum lands a few texels the other side of a rounding boundary
+    total = weights[:, :, 0] + weights[:, :, 1] + weights[:, :, 2]
+    live = total > 0.001
+    safe = numpy.where(live, total, 1.0)
+    normalized = weights / safe[:, :, None]
+    seeded = numpy.empty_like(normalized)
+    for component in range(3):
+        seeded[:, :, component] = (
+            (float(tints[0][component]) * normalized[:, :, 0])
+            + (float(tints[1][component]) * normalized[:, :, 1])
+            + (float(tints[2][component]) * normalized[:, :, 2])
+        )
+    coverage = numpy.clip(total, 0.0, 1.0)[:, :, None]
+    mixed = (base[:, :, :3] * (1.0 - coverage)) + (seeded * coverage)
+    out = numpy.where(live[:, :, None], mixed, base[:, :, :3])
+    alpha = to_byte_array(base[:, :, 3]) if preserve_base_alpha else numpy.full(out.shape[:2], 255, dtype=numpy.uint8)
+    return rgba_array_to_image(out[:, :, 0], out[:, :, 1], out[:, :, 2], alpha, target_format=target_format)
+
+
+def _compose_albedo_layer(
+    target,
+    layer,
+    mask,
+    *,
+    channel: str,
+    weight: float,
+    tint,
+    role: str,
+    color_blending_seed_applied: bool,
+    target_format,
+    preserve_base_alpha: bool,
+):
+    """One albedo layer over the target, whole-image; `(image, tinted_detail)` or None.
+
+    The three branches are the ones the per-pixel loop below takes, in the same order:
+    a channel-local detail dye, a modulation behind the RGB selector, and the plain
+    tinted blend.
+    """
+
+    numpy = numpy_module()
+    base = image_to_rgba_array(target) if numpy is not None else None
+    if base is None:
+        return None
+    over = image_to_rgba_array(layer)
+    if over is None or over.shape[:2] != base.shape[:2]:
+        return None
+    height, width = base.shape[:2]
+    mask_alpha = mask_alpha_array(mask, channel=channel, width=width, height=height)
+    if mask_alpha is None:
+        return None
+    alpha = numpy.clip(float(weight) * mask_alpha, 0.0, 1.0)[:, :, None]
+    red, green, blue = over[:, :, 0], over[:, :, 1], over[:, :, 2]
+    tinted_detail = False
+    if color_blending_seed_applied and role == "detail" and tint:
+        luma = numpy.clip((0.299 * red) + (0.587 * green) + (0.114 * blue), 0.0, 1.0)
+        modulation = (0.82 + (0.36 * luma))[:, :, None]
+        dye = numpy.clip(numpy.array([float(value) for value in tint[:3]], dtype=numpy.float64) * modulation, 0.0, 1.0)
+        out = (base[:, :, :3] * (1.0 - alpha)) + (dye * alpha)
+        tinted_detail = True
+    elif color_blending_seed_applied and role in {"detail", "grime", "layer", "damage"}:
+        luma = numpy.clip((0.299 * red) + (0.587 * green) + (0.114 * blue), 0.0, 1.0)
+        modulation = (0.82 + (0.36 * luma))[:, :, None]
+        factor = (1.0 - alpha) + (modulation * alpha)
+        out = numpy.clip(base[:, :, :3] * factor, 0.0, 1.0)
+    else:
+        overlay = numpy.stack((red, green, blue), axis=2)
+        if tint:
+            overlay = overlay * numpy.array([float(value) for value in tint[:3]], dtype=numpy.float64)
+        out = (base[:, :, :3] * (1.0 - alpha)) + (numpy.clip(overlay, 0.0, 1.0) * alpha)
+    alpha_out = to_byte_array(base[:, :, 3]) if preserve_base_alpha else numpy.full((height, width), 255, dtype=numpy.uint8)
+    image = rgba_array_to_image(out[:, :, 0], out[:, :, 1], out[:, :, 2], alpha_out, target_format=target_format)
+    if image is None:
+        return None
+    return image, tinted_detail
 
 
 def _generate_spec_gloss_preview_albedo_map(

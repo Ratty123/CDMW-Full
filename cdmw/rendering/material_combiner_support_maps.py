@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Callable, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage
@@ -24,6 +24,7 @@ from cdmw.rendering.material_combiner_images import (
     _read_generated_map,
     _support_source_image,
 )
+from cdmw.rendering.material_combiner_pixels import image_to_rgba_array, mask_alpha_array, numpy_module, rgba_array_to_image
 from cdmw.rendering.material_combiner_rules import (
     _clamp,
     _layer_channel,
@@ -345,15 +346,19 @@ def _generate_synthesized_normal_map(
                 Qt.IgnoreAspectRatio,
                 Qt.SmoothTransformation,
             )
-        for y in range(height):
-            _raise_if_material_combiner_cancelled(cancelled)
-            for x in range(width):
-                color = base_image.pixelColor(x, y)
-                target.setPixelColor(
-                    x,
-                    y,
-                    QColor(color.red(), 255 - color.green(), color.blue(), 255),
-                )
+        flipped = _flip_normal_green(base_image)
+        if flipped is not None:
+            target = flipped
+        else:
+            for y in range(height):
+                _raise_if_material_combiner_cancelled(cancelled)
+                for x in range(width):
+                    color = base_image.pixelColor(x, y)
+                    target.setPixelColor(
+                        x,
+                        y,
+                        QColor(color.red(), 255 - color.green(), color.blue(), 255),
+                    )
 
     for role, image in tuple(prepared_masks.items()):
         if int(image.width()) != width or int(image.height()) != height:
@@ -385,6 +390,14 @@ def _generate_synthesized_normal_map(
         if weight <= 0.001:
             continue
         layer_applied = False
+        composed = _compose_normal_layer(target, layer, mask, channel=channel, weight=weight)
+        if composed is not None:
+            target, layer_applied = composed
+            if layer_applied:
+                role_label = role if not channel else f"{role}:{channel}"
+                if role_label not in roles_used:
+                    roles_used.append(role_label)
+            continue
         for y in range(height):
             _raise_if_material_combiner_cancelled(cancelled)
             for x in range(width):
@@ -425,17 +438,19 @@ def _generate_synthesized_normal_map(
             if role_label not in roles_used:
                 roles_used.append(role_label)
 
-    strength_total = 0.0
-    sample_count = 0
-    for y in range(height):
-        _raise_if_material_combiner_cancelled(cancelled)
-        for x in range(width):
-            color = target.pixelColor(x, y)
-            nx = (color.redF() * 2.0) - 1.0
-            ny = (color.greenF() * 2.0) - 1.0
-            strength_total += min(1.0, math.sqrt((nx * nx) + (ny * ny)))
-            sample_count += 1
-    average_strength = strength_total / float(max(1, sample_count))
+    average_strength = _average_normal_strength(target)
+    if average_strength is None:
+        strength_total = 0.0
+        sample_count = 0
+        for y in range(height):
+            _raise_if_material_combiner_cancelled(cancelled)
+            for x in range(width):
+                color = target.pixelColor(x, y)
+                nx = (color.redF() * 2.0) - 1.0
+                ny = (color.greenF() * 2.0) - 1.0
+                strength_total += min(1.0, math.sqrt((nx * nx) + (ny * ny)))
+                sample_count += 1
+        average_strength = strength_total / float(max(1, sample_count))
     if average_strength <= 0.012 or not roles_used:
         return "", 0.0, (), tuple(unreadable_inputs)
 
@@ -450,6 +465,79 @@ def _generate_synthesized_normal_map(
         tuple(roles_used),
         tuple(unreadable_inputs),
     )
+
+
+def _flip_normal_green(base_image: QImage) -> Optional[QImage]:
+    """The macro normal with its green channel flipped, whole-image; None without NumPy."""
+
+    numpy = numpy_module()
+    array = image_to_rgba_array(base_image) if numpy is not None else None
+    if array is None:
+        return None
+    height, width = array.shape[:2]
+    opaque = numpy.full((height, width), 255, dtype=numpy.uint8)
+    return rgba_array_to_image(
+        array[:, :, 0], 1.0 - array[:, :, 1], array[:, :, 2], opaque,
+        target_format=QImage.Format.Format_RGBA8888,
+    )
+
+
+def _compose_normal_layer(target: QImage, layer: QImage, mask: QImage, *, channel: str, weight: float):
+    """Whiteout-compose one detail normal behind its mask, whole-image.
+
+    `(image, applied)` where `applied` says whether any texel had a live alpha, the way
+    the per-pixel loop's `layer_applied` flag does; None when NumPy cannot take it.
+    """
+
+    numpy = numpy_module()
+    base = image_to_rgba_array(target) if numpy is not None else None
+    if base is None:
+        return None
+    over = image_to_rgba_array(layer)
+    if over is None or over.shape[:2] != base.shape[:2]:
+        return None
+    height, width = base.shape[:2]
+    mask_alpha = mask_alpha_array(mask, channel=channel, width=width, height=height)
+    if mask_alpha is None:
+        return None
+    alpha = numpy.clip(float(weight) * mask_alpha, 0.0, 1.0)
+    live = alpha > 0.001
+    if not bool(live.any()):
+        return target, False
+    base_x = (base[:, :, 0] * 2.0) - 1.0
+    base_y = (base[:, :, 1] * 2.0) - 1.0
+    base_z = numpy.sqrt(numpy.maximum(0.0, 1.0 - (base_x * base_x) - (base_y * base_y)))
+    layer_x = (over[:, :, 0] * 2.0) - 1.0
+    # the loop reads the green byte back out and flips it there, not the float
+    green_byte = numpy.rint(over[:, :, 1] * 255.0)
+    layer_y = (((255.0 - green_byte) / 255.0) * 2.0) - 1.0
+    layer_z = numpy.sqrt(numpy.maximum(0.0, 1.0 - (layer_x * layer_x) - (layer_y * layer_y)))
+    detail_z = (1.0 - alpha) + (layer_z * alpha)
+    out_x = base_x + (layer_x * alpha)
+    out_y = base_y + (layer_y * alpha)
+    out_z = base_z * detail_z
+    length = numpy.maximum(0.001, numpy.sqrt((out_x * out_x) + (out_y * out_y) + (out_z * out_z)))
+    red = numpy.where(live, ((out_x / length) * 0.5) + 0.5, base[:, :, 0])
+    green = numpy.where(live, ((out_y / length) * 0.5) + 0.5, base[:, :, 1])
+    blue = numpy.where(live, ((out_z / length) * 0.5) + 0.5, base[:, :, 2])
+    opaque = numpy.full((height, width), 255, dtype=numpy.uint8)
+    image = rgba_array_to_image(red, green, blue, opaque, target_format=QImage.Format.Format_RGBA8888)
+    if image is None:
+        return None
+    return image, True
+
+
+def _average_normal_strength(target: QImage) -> Optional[float]:
+    """The mean xy length of the composed normal, whole-image; None without NumPy."""
+
+    numpy = numpy_module()
+    array = image_to_rgba_array(target) if numpy is not None else None
+    if array is None:
+        return None
+    nx = (array[:, :, 0] * 2.0) - 1.0
+    ny = (array[:, :, 1] * 2.0) - 1.0
+    lengths = numpy.minimum(1.0, numpy.sqrt((nx * nx) + (ny * ny)))
+    return float(lengths.sum() / float(max(1, lengths.size)))
 
 
 def _generate_height_map(

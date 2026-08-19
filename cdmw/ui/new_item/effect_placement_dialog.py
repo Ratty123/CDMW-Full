@@ -75,6 +75,7 @@ class EffectPlacementDialog(QDialog):
         offset: Vec3 = (0.0, 0.0, 0.0),
         scale: float = 1.0,
         effect_label: str = "",
+        item_label: str = "",  # "placed", "applied", "template", or "" for no line
         output_root: Optional[Path] = None,
         host_factory=None,
         effect_preview: Optional[EffectPreview] = None,
@@ -104,6 +105,20 @@ class EffectPlacementDialog(QDialog):
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
+        # which mesh the wire is: the studio only builds the imported model into the item
+        # once Apply the placement has run, and before that the effect was judged against
+        # the template's blade without saying so
+        showing = QLabel("")
+        if item_label == "placed":
+            showing.setText("Showing your imported model, at the placement set on step 3.")
+        elif item_label == "applied":
+            showing.setText("Showing your imported model, as applied.")
+        elif item_label == "template":
+            showing.setText("Showing the template's model; import one on step 3 to place the effect on your own.")
+        showing.setWordWrap(True)
+        showing.setVisible(bool(showing.text()))
+        layout.addWidget(showing)
+        self.showing_label = showing
         body = QHBoxLayout()
         layout.addLayout(body, 1)
 

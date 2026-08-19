@@ -450,13 +450,17 @@ def _apply_rebuild(
         )
         touched_paz_indices.add(plan.target_paz_index)
 
-    for paz_index in sorted(touched_paz_indices):
+    ordered = sorted(touched_paz_indices)
+    paz_paths = []
+    for paz_index in ordered:
         paz_path = pamt_path.parent / f"{paz_index}.paz"
         if not paz_path.is_file():
             raise FileNotFoundError(f"Could not find archive payload file {paz_path}.")
-        _patching._safe_log(on_log, f"Recalculating checksum for {paz_path.name}...")
-        paz_data = paz_path.read_bytes()
-        document.set_paz_record(paz_index, checksum=calculate_pa_checksum(paz_data), size=len(paz_data))
+        paz_paths.append(paz_path)
+    sums = _patching.paz_checksums(paz_paths, on_log=on_log)
+    for paz_index, paz_path in zip(ordered, paz_paths):
+        checksum, size = sums[paz_path]
+        document.set_paz_record(paz_index, checksum=checksum, size=size)
 
     rebuilt = document.serialize()
     verify_rebuilt_document(original, rebuilt, replaced=replaced, added=added, name=label)

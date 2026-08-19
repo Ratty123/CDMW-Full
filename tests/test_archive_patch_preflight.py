@@ -116,6 +116,37 @@ class ArchivePatchPreflightTests(unittest.TestCase):
             self.assertEqual(changed.orig_size, len(b"new-payload"))
             _verify_crc_chain(root / "meta" / "0.papgt", (entry.pamt_path,))
 
+    def test_the_checksum_helper_agrees_with_the_python_hash(self) -> None:
+        """The accelerator hashes the archives out of process at about 1 GB/s where Python
+        manages about 6 MiB/s; whichever answers, the number has to be the same one, tails
+        and empty files included, or the PAMT it goes into stops matching the PAZ."""
+
+        from cdmw.core.archive_patching import paz_checksums
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            paths = []
+            for size in (0, 1, 11, 12, 13, 25, 1_000_003):
+                path = root / f"sample_{size}.paz"
+                path.write_bytes(bytes((index * 7 + 11) & 0xFF for index in range(size)))
+                paths.append(path)
+            measured = paz_checksums(paths)
+            self.assertEqual(set(measured), set(paths))
+            for path in paths:
+                data = path.read_bytes()
+                self.assertEqual(measured[path], (_calculate_pa_checksum(data), len(data)), f"{path.name} disagrees")
+
+    def test_the_checksum_helper_falls_back_when_the_accelerator_is_gone(self) -> None:
+        from cdmw.core import archive_patching
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "sample.paz"
+            path.write_bytes(b"payload bytes for the fallback path")
+            with patch("cdmw.core.archive_accelerator.checksum_files_native", lambda *args, **kwargs: None):
+                measured = archive_patching.paz_checksums([path])
+            data = path.read_bytes()
+            self.assertEqual(measured[path], (_calculate_pa_checksum(data), len(data)))
+
     def test_missing_target_entry_fails_before_backup_or_write(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

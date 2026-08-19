@@ -124,3 +124,75 @@ def test_vectorized_slot_compositor_remains_cancellable_between_row_chunks(
 
     assert state == {"armed": True, "polls": 2}
     assert not (tmp_path / "cancelled").exists()
+
+
+def _texture_input(path: Path, **fields):
+    from cdmw.models import PreviewMaterialTextureInput
+
+    values = {"texture_name": path.stem, "preview_texture_path": str(path)}
+    values.update(fields)
+    known = {name for name in PreviewMaterialTextureInput.__dataclass_fields__}
+    return PreviewMaterialTextureInput(**{name: value for name, value in values.items() if name in known})
+
+
+def test_synthesized_albedo_arrays_match_the_per_pixel_loops(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The whole-image albedo pass replaced six million pixelColor calls per import; it
+    has to land on the same bytes, including the single-precision channel conversion Qt
+    does in QColor.redF()."""
+
+    pytest.importorskip("numpy")
+    from cdmw.rendering import material_combiner_pixels
+
+    base = QImage(str(_pattern(tmp_path / "albedo_base.png", 37, 29, 3)))
+    layers = [
+        _texture_input(_pattern(tmp_path / "albedo_detail.png", 37, 29, 11), layer_role="detail", layer_channel="r"),
+        _texture_input(_pattern(tmp_path / "albedo_grime.png", 37, 29, 23), layer_role="grime", layer_channel="g"),
+    ]
+    masks = {"color": _texture_input(_pattern(tmp_path / "albedo_mask.png", 37, 29, 31))}
+
+    def run(folder: str) -> str:
+        url, _note = material_combiner_images._generate_synthesized_albedo_map(
+            base, layers, masks, tmp_path / folder, "surface",
+            flip_vertical=False, max_dimension=512,
+            color_blending_mask_input=masks["color"],
+            color_blending_tints=((0.9, 0.2, 0.1), (0.1, 0.8, 0.3), (0.2, 0.3, 0.95)),
+        )
+        return url
+
+    arrays = run("arrays")
+    monkeypatch.setattr(material_combiner_pixels, "numpy_module", lambda: None)
+    loops = run("loops")
+    assert arrays and loops
+    assert _image_bytes(arrays, "RGB") == _image_bytes(loops, "RGB")
+
+
+def test_synthesized_normal_arrays_match_the_per_pixel_loops(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("numpy")
+    from cdmw.rendering import material_combiner_pixels
+
+    normals = [
+        _texture_input(_pattern(tmp_path / "normal_base.png", 33, 27, 7)),
+        _texture_input(_pattern(tmp_path / "normal_detail.png", 33, 27, 19), layer_role="detail", layer_channel="r"),
+    ]
+    masks = {"color": _texture_input(_pattern(tmp_path / "normal_mask.png", 33, 27, 13))}
+
+    def run(folder: str):
+        url, strength, roles, _unreadable = material_combiner_support_maps._generate_synthesized_normal_map(
+            normals, masks, tmp_path / folder, "surface", flip_vertical=False, max_dimension=512,
+        )
+        return url, strength, roles
+
+    array_url, array_strength, array_roles = run("arrays")
+    monkeypatch.setattr(material_combiner_pixels, "numpy_module", lambda: None)
+    loop_url, loop_strength, loop_roles = run("loops")
+    assert array_roles == loop_roles
+    if not array_url and not loop_url:
+        pytest.skip("this pattern carries no layer normal the pass keeps")
+    assert _image_bytes(array_url, "RGB") == _image_bytes(loop_url, "RGB")
+    assert array_strength == pytest.approx(loop_strength, abs=1e-9)

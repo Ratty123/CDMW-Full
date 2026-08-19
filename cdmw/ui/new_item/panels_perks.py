@@ -368,7 +368,7 @@ class PerksPanel(QGroupBox):
         if not stem:
             self._controller.status_message.emit("Choose an effect first.", True)
             return
-        mesh = self._controller.item_mesh_for_preview()
+        mesh, item_label = self._controller.item_mesh_as_planned()
         if mesh is None:
             self._controller.status_message.emit("Choose a template (or import a model) first; there is no mesh to place the effect on.", True)
             return
@@ -378,7 +378,7 @@ class PerksPanel(QGroupBox):
             # not indexed yet: the effect's own bounding box, read from its binary, not the metre cube
             box_min, box_max = effect_preview.box_min, effect_preview.box_max
         dialog = self.placement_dialog_factory(
-            self, item_mesh=mesh, box_min=box_min, box_max=box_max,
+            self, item_mesh=mesh, box_min=box_min, box_max=box_max, item_label=item_label,
             offset=tuple(float(box.value()) for box in self.effect_offset), scale=float(self.effect_scale.value()), effect_label=stem,
             effect_preview=effect_preview, texture_reader=texture_reader,
         )
