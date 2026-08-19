@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.new_item.spec import ItemGroupsChoice, PlacementKind
 from cdmw.ui.new_item.controller import NewItemStudioController
+from cdmw.ui.new_item.ui_kit import OK, WARN, NoteLabel, intro_label
 
 
 class PlacementPanel(QGroupBox):
@@ -25,14 +26,17 @@ class PlacementPanel(QGroupBox):
         super().__init__("6. Shop and item groups", parent)
         self._controller = controller
         layout = QVBoxLayout(self)
+        layout.addWidget(intro_label("How players get the item: a shop line that sells it (recommended; without one nothing in the game hands it out), and the item groups it belongs to."))
 
+        shop = QGroupBox("Shop")
+        shop_layout = QVBoxLayout(shop)
         self.no_store = QRadioButton("Not sold in a shop")
         self.no_store.setChecked(True)
         self.swap = QRadioButton("Replace one shop entry with the new item")
         self.insert = QRadioButton("Add a new shop entry")
         for radio in (self.no_store, self.swap, self.insert):
             radio.toggled.connect(self._placement_changed)
-            layout.addWidget(radio)
+            shop_layout.addWidget(radio)
         row = QHBoxLayout()
         row.addWidget(QLabel("Shop:"))
         self.store = QComboBox()
@@ -43,17 +47,17 @@ class PlacementPanel(QGroupBox):
         self.old_item = QComboBox()
         self.old_item.currentIndexChanged.connect(self._old_item_changed)
         row.addWidget(self.old_item, 1)
-        layout.addLayout(row)
+        shop_layout.addLayout(row)
         self.keep_requirement = QCheckBox("Keep the shop line's unlock requirement (a collection's knowledge; the shop shows Knowledge until the buyer has it)")
         self.keep_requirement.toggled.connect(self._keep_requirement_changed)
-        layout.addWidget(self.keep_requirement)
+        shop_layout.addWidget(self.keep_requirement)
         self.unlimited_stock = QCheckBox("Unlimited stock (off: the line's own count, 1 on most equipment lines, so it sells once and then shows 0 in stock)")
         self.unlimited_stock.setChecked(bool(controller.draft.unlimited_stock))
         self.unlimited_stock.toggled.connect(self._unlimited_stock_changed)
-        layout.addWidget(self.unlimited_stock)
-        self.requirement_note = QLabel("")
-        self.requirement_note.setWordWrap(True)
-        layout.addWidget(self.requirement_note)
+        shop_layout.addWidget(self.unlimited_stock)
+        self.requirement_note = NoteLabel("")
+        shop_layout.addWidget(self.requirement_note)
+        layout.addWidget(shop)
 
         groups = QGroupBox("Item groups")
         groups_layout = QVBoxLayout(groups)
@@ -69,10 +73,13 @@ class PlacementPanel(QGroupBox):
         groups_layout.addWidget(self.group_filter)
         self.group_list = QListWidget()
         self.group_list.setMinimumHeight(120)
+        self.group_list.setMaximumHeight(260)
         self.group_list.itemChanged.connect(self._group_toggled)
         groups_layout.addWidget(self.group_list)
         layout.addWidget(groups)
+        layout.addStretch(1)
         self._explicit_changed(False)
+        self._placement_changed(True)
         controller.snapshot_ready.connect(self._refresh_stores)
         controller.template_changed.connect(self._template_changed)
 
@@ -96,7 +103,10 @@ class PlacementPanel(QGroupBox):
         enabled = draft.placement_kind is not PlacementKind.NONE
         self.store.setEnabled(enabled)
         self.old_item.setEnabled(draft.placement_kind is PlacementKind.SWAP)
+        self.keep_requirement.setEnabled(draft.placement_kind is PlacementKind.SWAP)
+        self.unlimited_stock.setEnabled(enabled)
         self._controller.plan = None
+        self._refresh_requirement_note()
 
     def _store_changed(self, name: str) -> None:
         self._controller.draft.store_name = str(name or "").strip()
@@ -127,12 +137,14 @@ class PlacementPanel(QGroupBox):
 
     def _refresh_requirement_note(self) -> None:
         requirement = self._controller.line_requirement(self._controller.draft.store_name, self._controller.draft.old_item_name)
-        if not requirement:
-            self.requirement_note.setText("This shop line sells freely.")
+        if self._controller.draft.placement_kind is PlacementKind.NONE:
+            self.requirement_note.set_note("Not sold anywhere: the item will exist, but nothing in the game hands it out.", WARN)
+        elif not requirement:
+            self.requirement_note.set_note("This shop line sells freely.", OK)
         elif self.keep_requirement.isChecked():
-            self.requirement_note.setText(f"Kept: the buyer needs the knowledge of {requirement} first.")
+            self.requirement_note.set_note(f"Kept: the buyer needs the knowledge of {requirement} first.", WARN)
         else:
-            self.requirement_note.setText(f"This line normally needs the knowledge of {requirement}; the new item will sell freely instead.")
+            self.requirement_note.set_note(f"This line normally needs the knowledge of {requirement}; the new item will sell freely instead.", OK)
 
     # ------------------------------------------------------------------ groups
 

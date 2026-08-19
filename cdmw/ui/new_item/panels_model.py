@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.new_item.spec import IconSource, MaterialRoute, ModelSource, SheathedModel
 from cdmw.ui.new_item.controller import NewItemStudioController
+from cdmw.ui.new_item.ui_kit import OK, DetailsToggle, NoteLabel, intro_label, note
 
 
 class ModelPanel(QGroupBox):
@@ -30,13 +31,16 @@ class ModelPanel(QGroupBox):
         super().__init__("3. Model and icon", parent)
         self._controller = controller
         layout = QVBoxLayout(self)
+        layout.addWidget(intro_label("What the item looks like: the template's model or one you import, and the icon the inventory shows."))
 
+        model = QGroupBox("Model")
+        model_layout = QVBoxLayout(model)
         self.keep_model = QRadioButton("Keep the template's model (no new model files)")
         self.keep_model.setChecked(True)
         self.keep_model.toggled.connect(self._model_source_changed)
-        layout.addWidget(self.keep_model)
-        self.import_model = QRadioButton("Use an imported model, re-pathed to the new item's own family")
-        layout.addWidget(self.import_model)
+        model_layout.addWidget(self.keep_model)
+        self.import_model = QRadioButton("Use an imported model (glTF, GLB, OBJ through the Builder)")
+        model_layout.addWidget(self.import_model)
         row = QHBoxLayout()
         self.import_button = QPushButton("Import through the Builder...")
         self.import_button.setToolTip(
@@ -48,46 +52,39 @@ class ModelPanel(QGroupBox):
         self.clear_button.clicked.connect(lambda: self._controller.set_imported_model(None, None))
         row.addWidget(self.clear_button)
         row.addStretch(1)
-        layout.addLayout(row)
-        self.model_status = QLabel("No imported model.")
-        self.model_status.setWordWrap(True)
-        layout.addWidget(self.model_status)
-        flip_note = QLabel(
-            "glTF, GLB and OBJ sources: tick Flip V in the Builder's texture setup. The importer stores their texture V as 1-v, "
-            "and the game samples a mesh's V from the top of the image, the way the file has it, so without the flip the textures "
-            "draw mirrored along the model (seen in game 2026-08-18)."
-        )
-        flip_note.setWordWrap(True)
-        layout.addWidget(flip_note)
-        baseline_note = QLabel(
-            "Head cover and placement come from the template. An imported model inherits the template's part prefabs (which "
-            "character parts it occupies, and any mesh drawn beside it, such as a helm's helmet hair; the Template panel lists "
-            "them), so pick a helm template for the look it gives in game: the Northern Fighter's Plate Helm keeps the face drawn, "
-            "the Unyielding Warrior's and Canta helms hide the head. Where the model sits is the Builder's placement review: on the "
-            "shipped swords the guard's handle-side edge is 0.10 m in front of the hand (offset z, + toward the pommel), and a helm "
-            "wants manual placement (a source in centimetres: scale 0.01, no rotation, origin at the head, about y 1.745, z -0.03)."
-        )
-        baseline_note.setWordWrap(True)
-        layout.addWidget(baseline_note)
-        self.plain_pbr = QCheckBox("Write the imported materials for the game's plain PBR shaders (SkinnedMeshStandard: base colour, normal, roughness/metal)")
+        model_layout.addLayout(row)
+        self.model_status = NoteLabel("No imported model.", None)
+        model_layout.addWidget(self.model_status)
+        self.plain_pbr = QCheckBox("Use the game's plain PBR shaders for the imported textures (recommended)")
         self.plain_pbr.setChecked(True)
         self.plain_pbr.setToolTip(
-            "The Builder keeps the template's layered material and fits the imported textures into it, and the game draws "
-            "its own detail layers over them. Checked, the wrappers the import owns are rewritten to the shaders the shipped "
-            "texture-driven weapons use, with a real _sp roughness/metal map from the source. Unchecked, the Builder's sidecar "
-            "goes in as it came (Material Authority)."
+            "SkinnedMeshStandard: base colour, normal, roughness/metal, the shaders the shipped texture-driven weapons use, "
+            "with a real _sp map from the source. Off: the Builder's layered material goes in as it came, and the game draws "
+            "its own detail layers over the imported textures."
         )
         self.plain_pbr.toggled.connect(self._material_route_changed)
-        layout.addWidget(self.plain_pbr)
-        self.own_sheath = QCheckBox("Sheathed on the back, draw the imported model itself (instead of the template's borrowed scabbard part)")
+        model_layout.addWidget(self.plain_pbr)
+        self.own_sheath = QCheckBox("When sheathed on the back, draw the imported model (not the template's borrowed scabbard)")
         self.own_sheath.setChecked(True)
         self.own_sheath.setToolTip(
-            "A weapon's sheathed look is a part of its own (the _IN stems), usually borrowed from another item: Reckleeman's greatsword "
-            "borrows the shipped sword-in-scabbard model, so an imported sword shows that scabbard beside it. Checked, the borrowed "
-            "record is cloned under the item's stem and its prefab re-pathed to the imported mesh. Unchecked, the template's stays borrowed."
+            "A weapon's sheathed look is a part of its own (the _IN stems), usually borrowed from another item, so an imported "
+            "sword would show that scabbard beside it. On: the borrowed record is cloned under the item's stem and pointed at the "
+            "imported mesh. Off: the template's stays borrowed."
         )
         self.own_sheath.toggled.connect(self._sheath_changed)
-        layout.addWidget(self.own_sheath)
+        model_layout.addWidget(self.own_sheath)
+        model_layout.addWidget(DetailsToggle(
+            "Import tips. glTF, GLB and OBJ sources: tick Flip V in the Builder's texture setup, or the textures draw mirrored along "
+            "the model (the game samples V from the top of the image). "
+            "Head cover and placement come from the template: an imported model inherits the template's part prefabs (which "
+            "character parts it occupies, and any mesh drawn beside it, such as a helm's helmet hair), so pick a helm template for "
+            "the look it gives in game (the Northern Fighter's Plate Helm keeps the face drawn; the Unyielding Warrior's and Canta "
+            "helms hide the head). Where the model sits is the Builder's placement review: on the shipped swords the guard's "
+            "handle-side edge is 0.10 m in front of the hand (offset z, + toward the pommel), and a helm wants manual placement "
+            "(a source in centimetres: scale 0.01, no rotation, origin at the head, about y 1.745, z -0.03).",
+            title="Import tips",
+        ))
+        layout.addWidget(model)
 
         icon = QGroupBox("Icon")
         icon_layout = QVBoxLayout(icon)
@@ -95,7 +92,8 @@ class ModelPanel(QGroupBox):
         self.keep_icon.setChecked(True)
         self.keep_icon.toggled.connect(self._icon_source_changed)
         icon_layout.addWidget(self.keep_icon)
-        self.generate_icon = QRadioButton("Generate an icon at the new item's own path (unproven in game until the first check)")
+        self.generate_icon = QRadioButton("Give the item its own icon (from a picture, or captured in the viewport)")
+        self.generate_icon.setToolTip("The icon is fitted and encoded against the template icon's DDS format, the way the Builder's Generate Icon does. Unproven in game until the first check.")
         icon_layout.addWidget(self.generate_icon)
         source_row = QHBoxLayout()
         self.icon_source = QLineEdit()
@@ -103,9 +101,11 @@ class ModelPanel(QGroupBox):
         self.icon_source.textChanged.connect(self._store_icon_source)
         source_row.addWidget(self.icon_source, 1)
         self.icon_file_button = QPushButton("Image...")
+        self.icon_file_button.setToolTip("Take a picture you already have.")
         self.icon_file_button.clicked.connect(self._pick_icon_file)
         source_row.addWidget(self.icon_file_button)
         self.icon_folder_button = QPushButton("Folder...")
+        self.icon_folder_button.setToolTip("Pick the best-matching image out of a folder.")
         self.icon_folder_button.clicked.connect(self._pick_icon_folder)
         source_row.addWidget(self.icon_folder_button)
         self.icon_capture_button = QPushButton("Capture from viewport...")
@@ -113,13 +113,6 @@ class ModelPanel(QGroupBox):
         self.icon_capture_button.clicked.connect(self._capture_icon)
         source_row.addWidget(self.icon_capture_button)
         icon_layout.addLayout(source_row)
-        note = QLabel(
-            "The icon is fitted and encoded against the template icon's DDS format, the way the Builder's "
-            "Generate Icon does. Capture from viewport takes it from the resident preview at the angle you choose; "
-            "Image and Folder take a picture you already have."
-        )
-        note.setWordWrap(True)
-        icon_layout.addWidget(note)
         layout.addWidget(icon)
 
         controller.model_changed.connect(self._show_model)
@@ -147,7 +140,7 @@ class ModelPanel(QGroupBox):
     def _show_model(self, result: object) -> None:
         if result is None:
             self.keep_model.setChecked(True)
-            self.model_status.setText("No imported model.")
+            self.model_status.set_note("No imported model.", None)
             self.plain_pbr.setEnabled(False)
             self.own_sheath.setEnabled(False)
             return
@@ -159,7 +152,7 @@ class ModelPanel(QGroupBox):
         head = f"Imported model for {entry.basename}" if entry is not None else "Imported model"
         size = len(getattr(result, "rebuilt_data", b"") or b"")
         extras = len(tuple(getattr(result, "supplemental_file_specs", ()) or ()))
-        self.model_status.setText("\n".join([f"{head}: {size:,} bytes, {extras} side file(s)"] + lines))
+        self.model_status.set_lines([note(f"{head}: {size:,} bytes, {extras} side file(s)", OK)] + [note(line, None) for line in lines])
 
     def _icon_source_changed(self, keep: bool) -> None:
         self._controller.draft.icon = IconSource.TEMPLATE if keep else IconSource.GENERATED

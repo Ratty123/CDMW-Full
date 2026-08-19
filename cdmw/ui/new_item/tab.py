@@ -14,6 +14,7 @@ from typing import Callable, Iterable, Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -37,6 +38,7 @@ from cdmw.ui.new_item.panels_perks import PerksPanel
 from cdmw.ui.new_item.panels_placement import PlacementPanel
 from cdmw.ui.new_item.panels_stats import StatsPanel
 from cdmw.ui.new_item.panels_template import TemplatePanel
+from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, STEP_STYLE, WARN, NoteLabel, note, tinted
 
 
 def _window_package_root(window: object) -> str:
@@ -167,28 +169,64 @@ class NewItemStudioTab(QWidget):
         controller.template_changed.connect(lambda _key: self.identity_panel.refresh_issues())
         controller.model_changed.connect(lambda _result: self.identity_panel.refresh_issues())
 
-        # one step at a time: a step list on the left, the step's panel filling the right,
-        # Back/Next and a one-line summary of the item so far along the bottom
+        # one step at a time: a step list on the left (as tall as its seven lines), under it
+        # the item so far, one tinted line per step; the step's panel fills the right;
+        # Back/Next along the bottom
+        self.setStyleSheet(STEP_STYLE)
         self.steps = QListWidget()
         self.steps.setObjectName("new_item_steps")
-        self.steps.setFixedWidth(210)
+        self.steps.setFixedWidth(230)
         self.steps.setSpacing(2)
+        self.steps.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.pages = QStackedWidget()
         self._panels = (self.template_panel, self.identity_panel, self.model_panel, self.stats_panel, self.perks_panel, self.placement_panel, self.output_panel)
         for panel in self._panels:
             item = QListWidgetItem(panel.title())
             item.setToolTip(panel.toolTip())
             self.steps.addItem(item)
+            panel.setObjectName("new_item_step")
+            # the panel takes the height its content needs and sits at the top; the page
+            # below it is plain background, not an empty frame
+            holder = QWidget()
+            holder_layout = QVBoxLayout(holder)
+            holder_layout.setContentsMargins(0, 0, 0, 0)
+            fills = panel in (self.template_panel, self.output_panel)
+            holder_layout.addWidget(panel, 1 if fills else 0)
+            if not fills:
+                holder_layout.addStretch(1)
             page = QScrollArea()
             page.setWidgetResizable(True)
             page.setFrameShape(QScrollArea.NoFrame)
-            page.setWidget(panel)
+            page.setWidget(holder)
             self.pages.addWidget(page)
         self.steps.currentRowChanged.connect(self._show_step)
+        rows_height = sum(self.steps.sizeHintForRow(i) + 2 * self.steps.spacing() for i in range(self.steps.count()))
+        self.steps.setFixedHeight(rows_height + 2 * self.steps.frameWidth() + 6)
+
+        self.summary_box = QGroupBox("Your item so far")
+        summary_layout = QVBoxLayout(self.summary_box)
+        self.summary = NoteLabel("")
+        self.summary.setObjectName("new_item_summary")
+        summary_layout.addWidget(self.summary)
+        green, amber, red, blue = tinted("green", OK), tinted("amber", WARN), tinted("red", BLOCK), tinted("blue", EDIT)
+        self.legend = QLabel(f"{green} settled, {amber} wants a decision or an in-game check, {red} blocks the plan, {blue} differs from the template.")
+        self.legend.setObjectName("new_item_intro")
+        self.legend.setWordWrap(True)
+        summary_layout.addWidget(self.legend)
+        summary_layout.addStretch(1)
+        rail = QVBoxLayout()
+        rail.setContentsMargins(0, 0, 0, 0)
+        rail.setSpacing(8)
+        rail.addWidget(self.steps)
+        rail.addWidget(self.summary_box, 1)
+        rail_widget = QWidget()
+        rail_widget.setLayout(rail)
+        rail_widget.setFixedWidth(230)
+
         columns = QHBoxLayout()
         columns.setContentsMargins(0, 0, 0, 0)
-        columns.setSpacing(8)
-        columns.addWidget(self.steps)
+        columns.setSpacing(10)
+        columns.addWidget(rail_widget)
         columns.addWidget(self.pages, 1)
         body = QWidget()
         body_layout = QVBoxLayout(body)
@@ -202,17 +240,26 @@ class NewItemStudioTab(QWidget):
         self.next_button.clicked.connect(lambda: self._step_by(+1))
         footer.addWidget(self.back_button)
         footer.addWidget(self.next_button)
-        self.summary = QLabel("")
-        self.summary.setObjectName("new_item_summary")
-        self.summary.setWordWrap(False)
+        self.step_hint = QLabel("")
+        self.step_hint.setObjectName("new_item_intro")
         footer.addSpacing(16)
-        footer.addWidget(self.summary, 1)
+        footer.addWidget(self.step_hint, 1)
         body_layout.addLayout(footer)
         self._layout.addWidget(body, 1)
         controller.template_changed.connect(self._refresh_summary)
         controller.model_changed.connect(self._refresh_summary)
         controller.plan_ready.connect(self._refresh_summary)
+        controller.plan_failed.connect(self._refresh_summary)
         self.identity_panel.internal_name.textChanged.connect(self._refresh_summary)
+        self.identity_panel.display_name.textChanged.connect(self._refresh_summary)
+        for radio in (self.placement_panel.no_store, self.placement_panel.swap, self.placement_panel.insert):
+            radio.toggled.connect(self._refresh_summary)
+        self.placement_panel.store.currentTextChanged.connect(self._refresh_summary)
+        self.perks_panel.use_effect.toggled.connect(self._refresh_summary)
+        self.perks_panel.effect.currentIndexChanged.connect(self._refresh_summary)
+        self.perks_panel.own_perks.toggled.connect(self._refresh_summary)
+        self.stats_panel.table.itemChanged.connect(self._refresh_summary)
+        self.stats_panel.price_table.itemChanged.connect(self._refresh_summary)
         self.steps.setCurrentRow(0)
         self._refresh_summary()
         self.template_panel._refresh_matches()
@@ -226,6 +273,7 @@ class NewItemStudioTab(QWidget):
         self.pages.setCurrentIndex(row)
         self.back_button.setEnabled(row > 0)
         self.next_button.setEnabled(row < self.pages.count() - 1)
+        self.step_hint.setText(f"Step {row + 1} of {self.pages.count()}" + ("" if row < self.pages.count() - 1 else ": build the plan, then write or install it"))
 
     def _step_by(self, delta: int) -> None:
         row = self.steps.currentRow() + int(delta)
@@ -240,20 +288,38 @@ class NewItemStudioTab(QWidget):
             self.steps.setCurrentRow(int(index))
 
     def _refresh_summary(self, *_args) -> None:
+        """The rail's "item so far": one line per step, tinted by what it still needs."""
+
         controller = self.controller
         draft = controller.draft
-        parts = []
+        lines = []
         template = controller.template_name()
-        if template:
-            parts.append(f"from {template}")
+        lines.append(note(f"Template: {template}", OK) if template else note("Template: choose one", WARN))
         if draft.internal_name:
-            parts.append(draft.internal_name)
-        parts.append("imported model" if controller.model_result is not None else "template's model")
+            english = (draft.display_names or {}).get("eng", "")
+            lines.append(note(f"Name: {draft.internal_name} ({english})", OK) if english else note(f"Name: {draft.internal_name}, no English display name yet", WARN))
+        else:
+            lines.append(note("Name: not set", WARN))
+        blocked = [issue for issue in controller.validate() if issue.is_error] if controller.ready else []
+        if blocked:
+            lines.append(note(f"{len(blocked)} thing(s) block the plan (see step 2)", BLOCK))
+        lines.append(note("Model: imported", EDIT) if controller.model_result is not None else note("Model: the template's", OK))
+        edits = len(draft.grid_values) + len(draft.price_values) + int(draft.extra_levels) + (1 if draft.max_stack_count is not None else 0)
+        lines.append(note(f"Stats and prices: {edits} edit(s)", EDIT) if edits else note("Stats and prices: as the template", OK))
+        if draft.socket_items is not None or draft.effect_stem:
+            perks = "own perks" if draft.socket_items is not None else "the template's perks"
+            lines.append(note(f"Perks: {perks}, effect {draft.effect_stem}", EDIT) if draft.effect_stem else note(f"Perks: {perks}", EDIT))
+        else:
+            lines.append(note("Perks: the template's, no effect", OK))
         if draft.placement_kind.value != "none" and draft.store_name:
-            parts.append(f"sold in {draft.store_name}")
+            lines.append(note(f"Shop: {draft.store_name}", OK))
+        else:
+            lines.append(note("Shop: not sold anywhere (nothing hands the item out)", WARN))
         if controller.plan is not None:
-            parts.append(f"plan ready: item {controller.plan.spec.item_key}")
-        self.summary.setText("  ·  ".join(parts))
+            lines.append(note(f"Plan: ready, item {controller.plan.spec.item_key}", OK))
+        else:
+            lines.append(note("Plan: not built yet", WARN))
+        self.summary.set_lines(lines)
 
     # ------------------------------------------------------------------ entry points
 

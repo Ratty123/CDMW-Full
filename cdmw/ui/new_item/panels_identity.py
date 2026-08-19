@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.new_item.rules import LOCALIZATION_LANGUAGES
 from cdmw.ui.new_item.controller import NewItemStudioController
+from cdmw.ui.new_item.ui_kit import BLOCK, OK, WARN, NoteLabel, intro_label, note, tinted
 
 LANGUAGE_LABELS = {
     "eng": "English", "kor": "Korean", "jpn": "Japanese", "rus": "Russian", "tur": "Turkish",
@@ -32,6 +33,7 @@ class IdentityPanel(QGroupBox):
         self._controller = controller
         self._language = "eng"
         layout = QVBoxLayout(self)
+        layout.addWidget(intro_label("What the item is called: its internal name for the tables, and the name and description players read, per language."))
         form = QFormLayout()
         self.internal_name = QLineEdit()
         self.internal_name.setPlaceholderText("ASCII letters, digits and underscores; unique, e.g. Ziane_Clone_OneHandSword")
@@ -66,15 +68,19 @@ class IdentityPanel(QGroupBox):
         names_layout.addWidget(self.display_name)
         self.description = QPlainTextEdit()
         self.description.setPlaceholderText("Description shown in game; empty keeps the template's description in this language")
-        self.description.setMaximumHeight(72)
+        self.description.setMinimumHeight(96)
+        self.description.setMaximumHeight(160)
         self.description.textChanged.connect(self._store_description)
         names_layout.addWidget(self.description)
         layout.addWidget(names)
 
-        self.issues = QLabel("")
-        self.issues.setWordWrap(True)
-        self.issues.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        layout.addWidget(self.issues)
+        checks = QGroupBox("Checks")
+        checks_layout = QVBoxLayout(checks)
+        self.issues = NoteLabel("")
+        checks_layout.addWidget(self.issues)
+        self.issues_ok = QLabel(tinted("Nothing blocks the plan.", OK))
+        checks_layout.addWidget(self.issues_ok)
+        layout.addWidget(checks)
         layout.addStretch(1)
         controller.template_changed.connect(self._template_changed)
 
@@ -125,13 +131,15 @@ class IdentityPanel(QGroupBox):
 
     def refresh_issues(self) -> None:
         issues = self._controller.validate()
+        blocked = [issue for issue in issues if issue.is_error]
+        self.issues_ok.setVisible(not blocked)
         if not issues:
-            self.issues.setText("")
+            self.issues.set_lines([])
             return
-        lines = [f"{'Blocked' if issue.is_error else 'Note'}: {issue.message}" for issue in issues[:8]]
+        lines = [note(f"Blocked: {issue.message}", BLOCK) if issue.is_error else note(f"Note: {issue.message}", WARN) for issue in issues[:8]]
         if len(issues) > 8:
-            lines.append(f"... {len(issues) - 8} more")
-        self.issues.setText("\n".join(lines))
+            lines.append(note(f"... {len(issues) - 8} more", None))
+        self.issues.set_lines(lines)
 
     def set_stem_enabled(self, enabled: bool) -> None:
         self.stem.setEnabled(bool(enabled))

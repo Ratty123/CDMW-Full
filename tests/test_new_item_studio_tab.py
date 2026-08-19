@@ -170,14 +170,29 @@ class TabTests(unittest.TestCase):
         self.assertTrue(stats.advanced.isVisibleTo(stats))
         stats.reset_button.click()
         self.assertEqual(tab.controller.current_spec().price_edits, ())
-        # the step navigator: one page at a time, Back/Next, the summary names the template
+        # the step navigator: one page at a time, Back/Next, the rail's "item so far" names
+        # the template and tints what still wants a decision
         self.assertEqual(tab.steps.count(), 7)
         self.assertEqual(tab.pages.currentIndex(), 0)
         tab.next_button.click()
         self.assertEqual(tab.pages.currentIndex(), 1)
         tab.show_step(3)
         self.assertEqual(tab.steps.currentRow(), 3)
+        self.assertIn("Step 4 of 7", tab.step_hint.text())
         self.assertIn("Ziane_OneHandSword", tab.summary.text())
+        from cdmw.ui.new_item.ui_kit import OK, WARN, tone_color
+
+        self.assertIn(tone_color(WARN), tab.summary.text(), "no name yet: an amber line")
+        self.assertIn(tone_color(OK), tab.summary.text(), "the template: a green line")
+        self.assertIn("Plan: not built yet", tab.summary.plain_text())
+        # the step list is as tall as its lines, not a page-high blank
+        self.assertLess(tab.steps.height(), 260)
+        # the identity checks: nothing blocks with a name in place
+        tab.identity_panel.internal_name.setText("Wolf_Fang_OneHandSword")
+        tab.identity_panel.display_name.setText("Wolf's Fang")
+        self.assertTrue(tab.identity_panel.issues_ok.isVisibleTo(tab.identity_panel))
+        # the placement note is amber while nothing sells the item
+        self.assertIn("Not sold anywhere", tab.placement_panel.requirement_note.plain_text())
         tab.close()
         tab.deleteLater()
 

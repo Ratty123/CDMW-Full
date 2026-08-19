@@ -279,6 +279,13 @@ _PYTHON_SINKS = {
     "translate_active_ui_text",
     "_write_crash_report",
     "warning",
+    # New Item Studio's tinted vocabulary (cdmw/ui/new_item/ui_kit.py): the text is the first argument
+    "DetailsToggle",
+    "NoteLabel",
+    "intro_label",
+    "note",
+    "set_note",
+    "tinted",
 }
 _FILE_DIALOG_SINKS = {
     "getExistingDirectory",

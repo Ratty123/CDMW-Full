@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from cdmw.services.new_item_planning import NewItemPlan
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import MANAGERS
+from cdmw.ui.new_item.ui_kit import BLOCK, OK, WARN, DetailsToggle, NoteLabel, intro_label
 
 CHECKLIST = (
     "In game: the item shows in the shop you chose (or in the inventory when given by other means).",
@@ -42,53 +43,67 @@ class OutputPanel(QGroupBox):
         super().__init__("7. Output", parent)
         self._controller = controller
         layout = QVBoxLayout(self)
+        layout.addWidget(intro_label("Three moves: build the plan (nothing is written), read what it will change, then write it as a mod folder or install it into the game."))
 
-        row = QHBoxLayout()
+        build = QGroupBox("1. Build the plan")
+        build_layout = QHBoxLayout(build)
         self.build_button = QPushButton("Build plan")
         self.build_button.setToolTip("Validate the draft, allocate its key and stem, and compose every table change and file. Nothing is written yet.")
         self.build_button.clicked.connect(self._build)
-        row.addWidget(self.build_button)
-        row.addStretch(1)
-        layout.addLayout(row)
+        build_layout.addWidget(self.build_button)
+        self.plan_state = NoteLabel("Not built yet. Every change on the other steps clears the plan, so build it last.", WARN)
+        build_layout.addWidget(self.plan_state, 1)
+        layout.addWidget(build)
+
+        review = QGroupBox("2. What the plan will change")
+        review_layout = QVBoxLayout(review)
         self.summary = QPlainTextEdit()
         self.summary.setReadOnly(True)
         self.summary.setPlaceholderText("The plan's summary, warnings and touched files appear here.")
-        self.summary.setMinimumHeight(120)
-        layout.addWidget(self.summary)
+        self.summary.setMinimumHeight(160)
+        review_layout.addWidget(self.summary)
+        layout.addWidget(review, 1)
 
+        write = QGroupBox("3. Write it")
+        write_layout = QVBoxLayout(write)
         export = QHBoxLayout()
-        export.addWidget(QLabel("Loose mod:"))
+        export.addWidget(QLabel("Mod folder for:"))
         self.manager = QComboBox()
         self.manager.addItems(list(MANAGERS))
+        self.manager.setToolTip("The mod manager whose folder layout the loose mod is written in.")
         self.manager.currentTextChanged.connect(lambda text: setattr(self._controller.draft, "manager", str(text)))
         export.addWidget(self.manager)
         self.export_root = QLineEdit()
-        self.export_root.setPlaceholderText("Folder the package is written into")
+        self.export_root.setPlaceholderText("Folder the mod is written into")
         self.export_root.textChanged.connect(lambda text: setattr(self._controller.draft, "export_root", str(text)))
         export.addWidget(self.export_root, 1)
         self.browse_button = QPushButton("Folder...")
         self.browse_button.clicked.connect(self._pick_root)
         export.addWidget(self.browse_button)
-        self.export_button = QPushButton("Write loose mod")
+        self.export_button = QPushButton("Write mod folder")
+        self.export_button.setToolTip("Write the plan as a loose mod folder for the manager chosen on the left; the game is not touched.")
         self.export_button.clicked.connect(self._export)
         export.addWidget(self.export_button)
-        layout.addLayout(export)
-
+        write_layout.addLayout(export)
         install = QHBoxLayout()
         self.install_button = QPushButton("Install into the game archives...")
-        self.install_button.setToolTip("Confirmed, backed up, restorable. Refused while the game is running.")
+        self.install_button.setToolTip("Confirmed first, backed up, restorable. Refused while the game is running.")
         self.install_button.clicked.connect(self.install_requested.emit)
         install.addWidget(self.install_button)
+        install.addWidget(QLabel("or write it straight into the game (asks first, keeps a backup)."))
         install.addStretch(1)
-        layout.addLayout(install)
-
-        self.checklist = QLabel("After installing, check in game:\n" + "\n".join(f"- {line}" for line in CHECKLIST))
-        self.checklist.setWordWrap(True)
-        layout.addWidget(self.checklist)
+        write_layout.addLayout(install)
+        self.checklist = DetailsToggle(
+            "\n".join(f"- {line}" for line in CHECKLIST),
+            title="After installing, check in game",
+        )
+        write_layout.addWidget(self.checklist)
+        layout.addWidget(write)
 
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
-        self.log.setMaximumHeight(110)
+        self.log.setPlaceholderText("What happened: exports, installs, messages.")
+        self.log.setMaximumHeight(90)
         layout.addWidget(self.log)
 
         controller.log_message.connect(self.append_log)
@@ -104,7 +119,9 @@ class OutputPanel(QGroupBox):
 
     def _build(self) -> None:
         self.summary.setPlainText("Building the plan...")
+        self.plan_state.set_note("Building...", None)
         if not self._controller.start_plan():
+            self.plan_state.set_note("The plan could not start; see the message above.", BLOCK)
             return
 
     def _pick_root(self) -> None:
@@ -133,7 +150,14 @@ class OutputPanel(QGroupBox):
         self.install_button.setEnabled(enabled and not self._controller.busy)
         if plan is None:
             self.summary.setPlainText("")
+            self.plan_state.set_note("Not built yet. Every change on the other steps clears the plan, so build it last.", WARN)
             return
+        warnings = len(plan.warnings)
+        self.plan_state.set_note(
+            f"Ready: item {plan.spec.item_key}, {len(plan.patches)} table file(s) replaced, {len(plan.additions)} new file(s)"
+            + (f", {warnings} warning(s) below" if warnings else ""),
+            WARN if warnings else OK,
+        )
         lines = [f"Item {plan.spec.item_key} {plan.spec.internal_name} from template {plan.spec.template_key}"]
         if plan.spec.stem:
             lines.append(f"Model stem: {plan.spec.stem}")
@@ -156,9 +180,9 @@ class OutputPanel(QGroupBox):
         lines = [f"The plan could not be built: {message}"]
         for issue in tuple(issues or ())[:12]:
             lines.append(f"- {issue.field}: {issue.message}")
-        self.summary.setPlainText("\n".join(lines))
         self._show_plan(None)
         self.summary.setPlainText("\n".join(lines))
+        self.plan_state.set_note(f"Blocked: {message}", BLOCK)
 
     def _export_finished(self, result: object) -> None:
         root = getattr(result, "package_root", "")

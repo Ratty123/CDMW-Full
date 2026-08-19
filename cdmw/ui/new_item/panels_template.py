@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout
 
 from cdmw.ui.new_item.controller import NewItemStudioController
+from cdmw.ui.new_item.ui_kit import intro_label
 
 
 class TemplatePanel(QGroupBox):
@@ -18,12 +19,10 @@ class TemplatePanel(QGroupBox):
         self._controller = controller
         self._syncing = False
         layout = QVBoxLayout(self)
-        intro = QLabel(
-            "The template fixes what the new item is: its equip type, item type, sockets, animations, "
-            "sheath and stat shape. Only equipment can be cloned."
-        )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
+        layout.addWidget(intro_label(
+            "Every new item is a copy of a shipped one. The template fixes what it is (equip slot, item type, sockets, "
+            "animations, sheath, stat shape); everything after this step changes the copy. Only equipment can be cloned."
+        ))
         row = QHBoxLayout()
         row.addWidget(QLabel("Find:"))
         self.filter_edit = QLineEdit()
@@ -34,11 +33,14 @@ class TemplatePanel(QGroupBox):
         self.matches = QListWidget()
         self.matches.setMinimumHeight(160)
         self.matches.currentItemChanged.connect(self._pick)
-        layout.addWidget(self.matches)
+        layout.addWidget(self.matches, 1)
+        chosen = QGroupBox("The chosen template")
+        chosen_layout = QVBoxLayout(chosen)
         self.summary = QLabel("Choose a template item.")
         self.summary.setWordWrap(True)
         self.summary.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        layout.addWidget(self.summary)
+        chosen_layout.addWidget(self.summary)
+        layout.addWidget(chosen)
         controller.snapshot_ready.connect(self._refresh_matches)
         controller.template_changed.connect(self._show_template)
 

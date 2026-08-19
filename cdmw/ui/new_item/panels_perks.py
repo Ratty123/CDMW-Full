@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDoubleSpinBox,
+    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -35,6 +36,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.new_item.effects import presets_for
 from cdmw.ui.new_item.controller import NewItemStudioController
+from cdmw.ui.new_item.ui_kit import DetailsToggle, intro_label
 
 MAX_PERKS = 8
 SUGGESTED_EFFECT_TERMS = ("fire", "lightning", "ice", "aura", "sword", "weapon")
@@ -45,8 +47,9 @@ class PerksPanel(QGroupBox):
         super().__init__("5. Perks and effect", parent)
         self._controller = controller
         layout = QVBoxLayout(self)
+        layout.addWidget(intro_label("What the item does beyond its stats: the perks it comes with, and a visual effect on the drawn weapon (optional)."))
 
-        perks = QGroupBox("Perks (socket items embedded by default)")
+        perks = QGroupBox("Perks (the socket items embedded in the item)")
         perks_layout = QVBoxLayout(perks)
         self.template_perks = QLabel("The clone carries the template's own perks.")
         self.template_perks.setWordWrap(True)
@@ -82,41 +85,43 @@ class PerksPanel(QGroupBox):
         perks_layout.addLayout(add_row)
         layout.addWidget(perks)
 
-        effect = QGroupBox("Weapon effect")
+        effect = QGroupBox("Weapon effect (optional)")
         effect_layout = QVBoxLayout(effect)
-        self.use_effect = QCheckBox("Give the weapon a persistent effect (grafted into its own prefabs; fire proven in game)")
+        self.use_effect = QCheckBox("Give the weapon a visual effect while it is drawn (fire proven in game)")
+        self.use_effect.setToolTip("The effect is grafted into the item's own prefabs, so the shipped items keep theirs.")
         self.use_effect.toggled.connect(self._use_effect_changed)
         effect_layout.addWidget(self.use_effect)
-        preset_row = QHBoxLayout()
-        preset_row.addWidget(QLabel("Element preset:"))
+        choose = QFormLayout()
+        choose.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.effect_preset = QComboBox()
-        self.effect_preset.setToolTip("Shipped effects named for weapons and elements, as a place to start; the list below has every shipped effect.")
+        self.effect_preset.setToolTip("Shipped effects named for weapons and elements (fire, lightning, frost...) with a starting scale, as a place to begin; the list below has every shipped effect.")
         self.effect_preset.currentIndexChanged.connect(self._preset_chosen)
-        preset_row.addWidget(self.effect_preset, 1)
-        effect_layout.addLayout(preset_row)
+        choose.addRow("Start from a preset:", self.effect_preset)
         effect_row = QHBoxLayout()
         self.effect_filter = QLineEdit()
-        self.effect_filter.setPlaceholderText("Filter effects (fire, lightning, aura, sword...)")
+        self.effect_filter.setPlaceholderText("Filter (fire, lightning, aura, sword...)")
         self.effect_filter.textChanged.connect(self._refresh_effects)
         effect_row.addWidget(self.effect_filter, 1)
         self.effect = QComboBox()
         self.effect.setMinimumWidth(260)
         self.effect.currentIndexChanged.connect(self._effect_changed)
         effect_row.addWidget(self.effect, 2)
-        self.index_button = QPushButton("Index effects")
+        self.index_button = QPushButton("Index effects (once, about a minute)")
         self.index_button.setToolTip(
-            "Read every shipped effect once (about a minute, kept on disk): the filter then also matches the emitters, "
+            "Read every shipped effect once and keep the index on disk: the filter then also matches the emitters, "
             "textures and meshes an effect is made of, and the line below says what the chosen effect draws and how big it is."
         )
         self.index_button.clicked.connect(self._index_effects)
         effect_row.addWidget(self.index_button)
-        effect_layout.addLayout(effect_row)
+        choose.addRow("Or any shipped effect:", effect_row)
+        effect_layout.addLayout(choose)
         self.effect_facts = QLabel("")
+        self.effect_facts.setObjectName("new_item_intro")
         self.effect_facts.setWordWrap(True)
         self.effect_facts.setTextInteractionFlags(Qt.TextSelectableByMouse)
         effect_layout.addWidget(self.effect_facts)
         placement_row = QHBoxLayout()
-        placement_row.addWidget(QLabel("Scale:"))
+        placement_row.addWidget(QLabel("Where it sits:  scale"))
         self.effect_scale = QDoubleSpinBox()
         self.effect_scale.setRange(0.01, 10.0)
         self.effect_scale.setSingleStep(0.1)
@@ -125,7 +130,7 @@ class PerksPanel(QGroupBox):
         self.effect_scale.setToolTip("A uniform scale on the grafted effect. Effects made for bigger weapons (the titan's lightning, the fire sweep) reach past a sword at 1.0; the shipped spear carries 0.7.")
         self.effect_scale.valueChanged.connect(self._effect_transform_changed)
         placement_row.addWidget(self.effect_scale)
-        placement_row.addWidget(QLabel("Offset x y z (m):"))
+        placement_row.addWidget(QLabel("offset x, y, z (m):"))
         self.effect_offset = []
         for _axis in range(3):
             box = QDoubleSpinBox()
@@ -147,21 +152,22 @@ class PerksPanel(QGroupBox):
         self.place_button.clicked.connect(self._place_in_viewport)
         placement_row.addWidget(self.place_button)
         look_row = QHBoxLayout()
-        look_row.addWidget(QLabel("Look:"))
+        look_row.addWidget(QLabel("How it looks:  colour"))
         self.color_button = QPushButton("Colour: as shipped")
-        self.color_button.setToolTip("Recolour the effect: its emitters' emissive and particle colours take this hue at their own brightness. The effect and its emitters are cloned under the item's own stems; the shipped ones stay as they are.")
+        self.color_button.setToolTip("Recolour the effect (a fire's colour curve and temperature ramp; proven blue in game). The effect and its emitters are cloned under the item's own stems; the shipped ones stay as they are.")
         self.color_button.clicked.connect(self._pick_color)
         look_row.addWidget(self.color_button)
-        self.color_reset = QPushButton("As shipped")
-        self.color_reset.setToolTip("Drop the colour edit.")
+        self.color_reset = QPushButton("Drop the colour")
+        self.color_reset.setToolTip("Back to the shipped colour.")
         self.color_reset.clicked.connect(self._reset_color)
         look_row.addWidget(self.color_reset)
+        look_row.addSpacing(12)
         self.look_factors: dict[str, QDoubleSpinBox] = {}
         for key, label, tip in (
-            ("intensity", "Brightness x", "Multiplies the emitters' emissive brightness."),
-            ("size", "Particle size x", "Multiplies the particle scale (and the effect's bounding boxes)."),
-            ("rate", "Spawn rate x", "Multiplies the spawn counts and the particle cap."),
-            ("lifetime", "Lifetime x", "Multiplies the particle lifetimes."),
+            ("intensity", "brightness x", "Multiplies the emitters' emissive brightness (and the temperature ramp's brightness)."),
+            ("size", "particle size x", "Multiplies the particle scale (and the effect's bounding boxes)."),
+            ("rate", "spawn rate x", "Multiplies the spawn counts and the particle cap."),
+            ("lifetime", "lifetime x", "Multiplies the particle lifetimes."),
         ):
             look_row.addWidget(QLabel(label))
             box = QDoubleSpinBox()
@@ -173,9 +179,16 @@ class PerksPanel(QGroupBox):
             box.valueChanged.connect(self._look_changed)
             look_row.addWidget(box)
             self.look_factors[key] = box
+        look_row.addStretch(1)
         effect_layout.addLayout(look_row)
-        self.effect_note = QLabel("The effect is drawn at the weapon's own origin, as the shipped thrown lightning spear draws its aura. Effects made for other weapons may sit or scale oddly; the scale and offset above move them, and the presets carry a starting scale.")
-        self.effect_note.setWordWrap(True)
+        self.effect_note = DetailsToggle(
+            "The effect is drawn at the weapon's own origin, as the shipped thrown lightning spear draws its aura. Effects made for "
+            "other weapons may sit or scale oddly; the scale and offset above move them, the presets carry a starting scale, and "
+            "Place in viewport shows the effect's box (and its particles, approximately) on the item. A colour edit recolours the "
+            "effect's colour curve and temperature ramp on a clone of the effect; the factors multiply the emitters' brightness, "
+            "particle size, spawn rate and lifetime.",
+            title="How the effect and its look work",
+        )
         effect_layout.addWidget(self.effect_note)
         layout.addWidget(effect)
 
