@@ -29,7 +29,7 @@ internal static class PackageCaptureProof
     {
         var packageDirectory = ValueFor(args, "--capture-package");
         var outputPath = ValueFor(args, "--capture-out");
-        var size = int.TryParse(ValueFor(args, "--capture-size"), out var requested) ? Math.Clamp(requested, 64, 4096) : 900;
+        var size = int.TryParse(ValueFor(args, "--capture-size"), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var requested) ? Math.Clamp(requested, 64, 4096) : 900;
         var mode = ValueFor(args, "--capture-mode");
         if (string.IsNullOrWhiteSpace(packageDirectory) || string.IsNullOrWhiteSpace(outputPath))
         {
@@ -86,6 +86,14 @@ internal static class PackageCaptureProof
                 viewport.ShowSolid = display.Solid;
                 viewport.TexturesEnabled = display.Textures;
             }
+            var hidden = ValueFor(args, "--capture-hide-submeshes");
+            if (!string.IsNullOrWhiteSpace(hidden))
+            {
+                // what the dialog does when a control hides part of the scene
+                scene.SetPresentationHiddenSubmeshes(hidden
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(part => int.TryParse(part, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var index) ? index : -1));
+            }
             viewport.LoadEffectParticlePreview(packageDirectory);
             // frame the whole scene the way a freshly opened viewport does: the camera the
             // capture builds is the one on screen, so it has to be pointed first
@@ -119,15 +127,26 @@ internal static class PackageCaptureProof
                 (bounds.Min.X + bounds.Max.X) * 0.5f,
                 (bounds.Min.Y + bounds.Max.Y) * 0.5f,
                 (bounds.Min.Z + bounds.Max.Z) * 0.5f);
-            var yaw = float.TryParse(ValueFor(args, "--capture-yaw"), out var requestedYaw) ? requestedYaw : 0.62f;
-            var pitch = float.TryParse(ValueFor(args, "--capture-pitch"), out var requestedPitch) ? requestedPitch : 0.22f;
+            var yaw = float.TryParse(ValueFor(args, "--capture-yaw"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var requestedYaw) ? requestedYaw : 0.62f;
+            var pitch = float.TryParse(ValueFor(args, "--capture-pitch"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var requestedPitch) ? requestedPitch : 0.22f;
             viewport.UpdateCamera(NetViewportCamera.Create(center, bounds, yaw, pitch, 48.0f, 0.0f, 0.0f, size, size));
-            for (var frame = 0; frame < 6; frame++)
+            // The particle simulation steps by the real time between frames, so a burst of
+            // frames back to back is a few microseconds of fire and nothing has spawned
+            // yet. Let real time pass between them when a caller asks to see particles.
+            var warmupSeconds = float.TryParse(ValueFor(args, "--capture-warmup-seconds"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var requestedWarmup)
+                ? Math.Clamp(requestedWarmup, 0.0f, 30.0f)
+                : 0.0f;
+            var frames = warmupSeconds > 0.0f ? (int)Math.Ceiling(warmupSeconds / 0.033f) : 6;
+            for (var frame = 0; frame < frames; frame++)
             {
                 _ = viewport.TryRunHeadlessFrame(out _, out _, out var frameError);
                 if (!string.IsNullOrEmpty(frameError))
                 {
                     Console.Error.WriteLine($"frame {frame}: {frameError}");
+                }
+                if (warmupSeconds > 0.0f)
+                {
+                    System.Threading.Thread.Sleep(33);
                 }
             }
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputPath)) ?? ".");

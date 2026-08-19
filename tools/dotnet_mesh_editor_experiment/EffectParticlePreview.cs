@@ -198,6 +198,18 @@ internal sealed class EffectParticlePreview
             peak = MathF.Max(emitter.EmissiveColor.X, MathF.Max(emitter.EmissiveColor.Y, emitter.EmissiveColor.Z));
         }
         emitter.ColorPeak = peak > 1e-4f ? peak : 1.0f;
+        // An emitter whose colour curve and emissive colour are both black multiplies its
+        // sprite to nothing, which for an additive blend is an emitter that draws
+        // absolutely nothing. That happens when the emitter's own file was not read and
+        // only the effect's overrides describe it (the reader says so in its notes), and
+        // "the preview shows nothing" is a worse answer than "the preview shows the
+        // sprite as it is", so the texture is drawn on its own colours.
+        if (peak <= 1e-4f)
+        {
+            emitter.ColorOverLife = Array.Empty<Vector3>();
+            emitter.EmissiveColor = Vector3.One;
+            emitter.ColorPeak = 1.0f;
+        }
         return emitter;
     }
 
@@ -339,16 +351,28 @@ internal sealed class EffectEmitterSimulation
         {
             return;
         }
+        var previousClock = _clock;
         _clock += dt;
         var spawning = true;
+        var windowOpened = previousClock <= 0.0f;
         if (!e.Loop)
         {
             var window = e.SpawnTime > 0.0f ? e.SpawnTime : 0.25f;
             var period = window + e.LifeMax + ReplayPause;
-            spawning = _clock % period < window;
+            var phase = _clock % period;
+            spawning = phase < window;
+            // A short window and a modest rate never meet: a tenth of a second at ten
+            // bursts a second reaches an accumulator of 0.99 by the last frame inside the
+            // window and spawns nothing, every period, for ever. A burst emitter bursts
+            // when its window opens, so the window opening fires one.
+            windowOpened = windowOpened || (spawning && previousClock % period >= window);
         }
         if (spawning)
         {
+            if (windowOpened)
+            {
+                _spawnAccumulator = MathF.Max(_spawnAccumulator, 1.0f);
+            }
             _spawnAccumulator += e.BurstsPerSecond * dt;
             var bursts = 0;
             while (_spawnAccumulator >= 1.0f && bursts < 8)

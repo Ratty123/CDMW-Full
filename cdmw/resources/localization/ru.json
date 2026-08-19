@@ -70,6 +70,7 @@
     " Auto-preview was skipped because the result set is very large.": " Автоматический предварительный просмотр был пропущен, поскольку набор результатов очень велик.",
     " Decrypted {value_0} archive file(s) during search.": " Расшифрованы архивные файлы {value_0} во время поиска.",
     " Evaluation: {value_0}": " Оценка: {value_0}",
+    " Its frame starts hidden because it is far larger than the item; tick Show the reach to see it.": " Его рамка сначала скрыта, потому что она намного больше предмета; отметьте «Показывать охват», чтобы увидеть её.",
     " Placement workspace has {value_0} prefab/socket chain(s).": " Рабочая область размещения имеет префаб/сокет {value_0} цепочка(и).",
     " Related runtime mesh candidate(s) found: {value_0}{value_1}. Modify Original keeps the selected PAC as the export target; open a candidate directly to edit that asset.": " Найдены связанные кандидаты runtime-меша: {value_0}{value_1}. Modify Original сохраняет выбранный PAC как цель экспорта; чтобы редактировать этот ассет, откройте кандидата напрямую.",
     " deg": " deg",

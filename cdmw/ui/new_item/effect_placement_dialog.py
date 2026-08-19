@@ -62,6 +62,10 @@ def describe_effect_preview(preview: Optional[EffectPreview]) -> str:
     return "\n".join(lines)
 
 
+#: how many times the item's own length a reach may be before its frame starts hidden
+REACH_HIDDEN_ABOVE = 6.0
+
+
 class EffectPlacementDialog(QDialog):
     """Move and scale the effect's box on the item; read `offset` and `scale` after accept."""
 
@@ -177,7 +181,15 @@ class EffectPlacementDialog(QDialog):
         reach_row = QHBoxLayout()
         self.show_reach = QCheckBox("Show the reach")
         self.show_reach.setToolTip("The effect's own bounding box as a thin frame, at this scale and offset: how far it can throw particles.")
-        self.show_reach.setChecked(True)
+        # A frame around a one-metre sword is worth seeing; a frame twenty metres across is
+        # a pair of orange columns crossing the view with the item a speck between them, and
+        # the camera opens on the frame rather than on the thing being placed. Effects made
+        # for bosses and set pieces reach that far, so their frame starts hidden.
+        low, high = self._item_bounds()
+        item_length = max(high[axis] - low[axis] for axis in range(3))
+        reach_length = max(width, height, depth) * self.scale
+        self._reach_dwarfs_the_item = bool(item_length > 0 and reach_length > item_length * REACH_HIDDEN_ABOVE)
+        self.show_reach.setChecked(not self._reach_dwarfs_the_item)
         self.show_reach.toggled.connect(lambda _checked: self._apply_reach_visibility())
         reach_row.addWidget(self.show_reach)
         self.fit_button = QPushButton("Fit the reach to the item")
@@ -342,10 +354,13 @@ class EffectPlacementDialog(QDialog):
         item = max(high[axis] - low[axis] for axis in range(3))
         reach = max(width, height, depth) * self.scale
         times = f"{reach / item:.1f}x the item" if item > 0 else "unknown against the item"
-        self.size_label.setText(
+        text = (
             f"Reach at scale {self.scale:.2f}: {width * self.scale:.2f} x {height * self.scale:.2f} x {depth * self.scale:.2f} m, "
             f"{times} ({item:.2f} m). The effect's own reach is {width:.2f} x {height:.2f} x {depth:.2f} m."
         )
+        if getattr(self, "_reach_dwarfs_the_item", False) and not self.show_reach.isChecked():
+            text += " Its frame starts hidden because it is far larger than the item; tick Show the reach to see it."
+        self.size_label.setText(text)
 
     def _set_numbers(self, offset: Vec3, scale: float) -> None:
         self.offset = tuple(round(float(v), 4) for v in offset)  # type: ignore[assignment]
