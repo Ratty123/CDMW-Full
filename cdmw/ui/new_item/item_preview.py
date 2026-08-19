@@ -170,6 +170,8 @@ class ItemPreviewFrame(QWidget):
         self._deferred_package: Optional[tuple[Path, Hashable, bool]] = None
         #: (token, is_placement) of the build in flight
         self._building: Optional[tuple[Hashable, bool]] = None
+        #: the build in flight was stopped for a newer request; its error is not the user's
+        self._superseded = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
@@ -256,6 +258,12 @@ class ItemPreviewFrame(QWidget):
                 pass
         if self._thread is None:
             self._start_package(self._pending)
+        elif self._worker is not None:
+            # a build for something else is running: stop it rather than wait it out (a
+            # template preview started a moment before an import would otherwise cost the
+            # user ten seconds for a scene they never see). `_build_finished` starts this one.
+            self._superseded = True
+            self._worker.stop()
 
     def showEvent(self, event) -> None:  # noqa: N802 - Qt virtual
         super().showEvent(event)
@@ -419,24 +427,43 @@ class ItemPreviewFrame(QWidget):
         thread = QThread(self)
         worker.moveToThread(thread)
         self._thread, self._worker = thread, worker
+        # Every one of these is a bound method of this QObject, so Qt runs it on this
+        # frame's thread. A plain function or a lambda is run on the worker's thread
+        # instead: the viewport's process would be created there (and never report
+        # ready), and a timer started there would never fire, because the worker's
+        # event loop is quitting -- which is how a newer source could be left waiting
+        # for a build that never started.
         worker.completed.connect(self._package_ready)
-        worker.error.connect(lambda message: self.status_changed.emit(f"The preview could not be built: {message}"))
-
-        def finish() -> None:
-            self._thread = None
-            self._worker = None
-            thread.quit()
-            thread.wait(5000)
-            worker.deleteLater()
-            thread.deleteLater()
-            # a newer source arrived while this one was building
-            newer = self._pending
-            if newer is not None and newer[0] != token and not self._closed:
-                QTimer.singleShot(0, lambda: self._start_package(newer))
-
-        worker.finished.connect(finish)
+        worker.error.connect(self._package_failed)
+        worker.finished.connect(self._build_finished)
         thread.started.connect(worker.run)
         thread.start()
+
+    def _package_failed(self, message: object) -> None:
+        if self._superseded:
+            return
+        self.status_changed.emit(f"The preview could not be built: {message}")
+
+    def _build_finished(self) -> None:
+        """The build in flight has ended (landed or failed): tear its thread down and
+        start the newest request when it superseded this one."""
+
+        thread, worker = self._thread, self._worker
+        self._thread = None
+        self._worker = None
+        if thread is not None:
+            thread.quit()
+            thread.wait(5000)
+        if worker is not None:
+            worker.deleteLater()
+        if thread is not None:
+            thread.deleteLater()
+        done_token = self._building[0] if self._building is not None else None
+        self._building = None
+        self._superseded = False
+        newer = self._pending
+        if newer is not None and newer[0] != done_token and not self._closed:
+            self._start_package(newer)
 
     def _package_ready(self, result: object, token: Hashable = _UNSET, is_placement: bool = False) -> None:
         """The package for the build in flight (`self._building`, unless a token is given

@@ -103,6 +103,53 @@ class PlacementConventionTests(unittest.TestCase):
         self.assertEqual([round(v, 6) for v in state["roles"]["editable"]["world_bounds"]["min"]], [0.25, 0.0, -2.4])
 
 
+class ModelImportBuildTests(unittest.TestCase):
+    def test_a_scene_source_flips_v_and_the_build_carries_it(self) -> None:
+        """glTF, GLB, OBJ and DAE put V's origin at the bottom while the game samples from
+        the top, so the studio reads those sources with the flip on and the build applies
+        it per material -- the Builder's own Flip V, which these mods needed by hand."""
+
+        from types import SimpleNamespace
+
+        from cdmw.core.model_preview_orientation import scene_import_normalizes_texture_v
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, build_placed_import, flip_v_transforms
+
+        self.assertTrue(scene_import_normalizes_texture_v("gltf", "a.gltf"))
+        self.assertFalse(scene_import_normalizes_texture_v("pac", "a.pac"))
+        mesh = ParsedMesh(path="a.gltf", format="gltf", submeshes=[
+            SubMesh(name="part_0", material="lambert1", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)]),
+            SubMesh(name="part_1", material="lambert1", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)]),
+        ])
+        transforms = flip_v_transforms(mesh)
+        self.assertEqual({t.source_material_name for t in transforms}, {"lambert1", "part_0", "part_1"})
+        self.assertTrue(all(t.flip_v and not t.flip_u for t in transforms))
+        from cdmw.modding.scene_import_result_ops import SceneImportResult
+
+        source = ModelImportSource(
+            chosen_path=Path("a.gltf"), model_path=Path("a.gltf"), scene=SceneImportResult(mesh=mesh),
+            preview_model=None, bounds=((0, 0, 0), (1, 1, 1)), flip_texture_v=True,
+        )
+        seen = {}
+
+        def fake_build(entry, obj_path, **kwargs):
+            seen.update(kwargs)
+            return "result"
+
+        with patch("cdmw.core.archive_mesh_import_build.build_mesh_import_preview", fake_build):
+            self.assertEqual(build_placed_import(SimpleNamespace(path="x.pac"), source, ModelPlacement()), "result")
+        options = seen["static_replacement_options"]
+        self.assertTrue(options.texture_uv_transforms, "the flip goes into the build")
+        self.assertTrue(all(t.flip_v for t in options.texture_uv_transforms))
+        self.assertTrue(options.full_import_model_replacement, "the imported model owns the materials")
+        # off: no UV transforms at all
+        source.flip_texture_v = False
+        seen.clear()
+        with patch("cdmw.core.archive_mesh_import_build.build_mesh_import_preview", fake_build):
+            build_placed_import(SimpleNamespace(path="x.pac"), source, ModelPlacement())
+        self.assertEqual(list(seen["static_replacement_options"].texture_uv_transforms), [])
+
+
 class ItemPreviewFrameTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

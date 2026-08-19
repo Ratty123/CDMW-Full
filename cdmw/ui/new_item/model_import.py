@@ -26,7 +26,8 @@ from pathlib import Path
 from typing import Iterable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.models import ArchiveEntry
-from cdmw.modding.static_mesh_types import StaticMeshReplacementOptions, StaticReplacementTransform
+from cdmw.core.model_preview_orientation import scene_import_normalizes_texture_v
+from cdmw.modding.static_mesh_types import StaticMeshReplacementOptions, StaticReplacementTransform, StaticTextureUvTransform
 
 __all__ = [
     "ModelImportSource",
@@ -34,6 +35,7 @@ __all__ = [
     "Vec3",
     "bake_mesh",
     "build_placed_import",
+    "flip_v_transforms",
     "fitted_placement",
     "load_model_import_source",
     "mesh_bounds",
@@ -219,6 +221,23 @@ def fitted_placement(
     return placement.with_values(offset=tuple(t_centre[i] - moved[i] for i in range(3)))
 
 
+def flip_v_transforms(mesh: object) -> Tuple[StaticTextureUvTransform, ...]:
+    """A vertical UV flip for every material the mesh names: the build's equivalent of the
+    Builder's Flip V, which a glTF, GLB, OBJ or DAE source needs (their V origin is the
+    bottom, the game samples from the top). Keyed by material and by submesh name, the two
+    keys the replacement pipeline matches on."""
+
+    keys: list[str] = []
+    seen: set[str] = set()
+    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+        for value in (getattr(submesh, "material", ""), getattr(submesh, "name", "")):
+            key = str(value or "").strip()
+            if key and key.casefold() not in seen:
+                seen.add(key.casefold())
+                keys.append(key)
+    return tuple(StaticTextureUvTransform(source_material_name=key, flip_v=True) for key in keys)
+
+
 def bake_mesh(mesh: object, placement: ModelPlacement) -> object:
     """A copy of `mesh` (a ParsedMesh) with `placement` applied to its vertices, and its
     normals and tangents turned with it (scale leaves directions alone, up to a renormalise).
@@ -280,6 +299,11 @@ class ModelImportSource:
     centroid: Optional[Vec3] = None
     #: the fit baked into the mesh the viewport and the build see; the numbers start at zero on top
     bake: ModelPlacement = field(default_factory=ModelPlacement)
+    #: flip the source's textures vertically in the build. glTF, GLB, OBJ and DAE put V's
+    #: origin at the bottom and the game samples it from the top, so a source in those
+    #: formats needs the flip or its textures come out mirrored along the model. The
+    #: Builder's own Flip V checkbox is the same switch.
+    flip_texture_v: bool = False
     #: how many times the bake changed, for the viewport's token
     bake_generation: int = 0
     #: the (bake, placement) the studio applied last, when a result was built from this source
@@ -349,7 +373,9 @@ def load_model_import_source(chosen_path: Path, *, extract_root: Optional[Path] 
         preview_model, scene_import_normalizes_texture_v(getattr(scene.mesh, "format", ""), getattr(scene.mesh, "path", "") or str(model_path)),
     )
     notes = tuple(str(line) for line in tuple(getattr(scene, "diagnostics", ()) or ())[:6])
+    flip_v = scene_import_normalizes_texture_v(getattr(scene.mesh, "format", ""), getattr(scene.mesh, "path", "") or str(model_path))
     return ModelImportSource(
+        flip_texture_v=bool(flip_v),
         chosen_path=chosen,
         model_path=Path(model_path),
         scene=scene,
@@ -387,7 +413,11 @@ def build_placed_import(
     from cdmw.core.archive_mesh_import_build import build_mesh_import_preview
     from cdmw.modding.full_import_model_replacement import apply_full_import_model_replacement_preset
 
-    options = dc_replace(apply_full_import_model_replacement_preset(), transform=placement.build_transform())
+    options = dc_replace(
+        apply_full_import_model_replacement_preset(),
+        transform=placement.build_transform(),
+        texture_uv_transforms=list(flip_v_transforms(source.scene.mesh) if source.flip_texture_v else ()),
+    )
     scene = dc_replace(source.scene, mesh=bake_mesh(source.scene.mesh, source.bake))
     return build_mesh_import_preview(
         entry,

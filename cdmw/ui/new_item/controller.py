@@ -78,6 +78,15 @@ class NewItemStudioController(QObject):
         self.effect_catalogue: Optional[EffectCatalogue] = None
         #: Where the catalogue cache lives; None keeps it in memory only.
         self.effect_cache_path: Optional[Path] = None
+        #: Identities this studio has already handed out but the snapshot may not see: a
+        #: plan built earlier, or an item written as a loose mod rather than installed.
+        #: Without them a second item would take the first one's key and stem, and
+        #: installing it would overwrite the first. Kept across sessions in the settings.
+        self.issued_keys: set = set()
+        self.issued_stems: set = set()
+        #: whether those identities are kept across sessions; the app turns it on, so a
+        #: test never reads or writes the user's settings
+        self._persist_identities = False
 
     # ------------------------------------------------------------------ facts
 
@@ -724,6 +733,56 @@ class NewItemStudioController(QObject):
 
         return self._run("snapshot", task, done, self.snapshot_failed.emit)
 
+    # ------------------------------------------------------------------ issued identities
+
+    _ISSUED_SETTING = "ui/new_item_issued_identities"
+
+    def _settings(self):
+        from PySide6.QtCore import QSettings
+
+        return QSettings("CrimsonDesertModWorkbench", "CrimsonDesertModWorkbench")
+
+    def persist_issued_identities(self) -> None:
+        """Keep the identities this studio hands out in the user's settings, and take up
+        the ones it kept before. The app calls this; tests leave it off."""
+
+        self._persist_identities = True
+        self._load_issued_identities()
+
+    def _load_issued_identities(self) -> None:
+        import json
+
+        try:
+            raw = str(self._settings().value(self._ISSUED_SETTING, "") or "")
+            for item in (json.loads(raw) if raw else []):
+                key = int(item.get("key", 0) or 0)
+                stem = str(item.get("stem", "") or "")
+                if key:
+                    self.issued_keys.add(key)
+                if stem:
+                    self.issued_stems.add(stem)
+        except Exception:  # noqa: BLE001 - unreadable settings cost nothing here
+            pass
+
+    def remember_issued_identity(self, item_key: int, stem: str = "") -> None:
+        """Record an identity a plan handed out, so the next item takes another one."""
+
+        import json
+
+        key = int(item_key or 0)
+        if key:
+            self.issued_keys.add(key)
+        if stem:
+            self.issued_stems.add(str(stem))
+        if not self._persist_identities:
+            return
+        try:
+            payload = [{"key": value, "stem": ""} for value in sorted(self.issued_keys)[-200:]]
+            payload += [{"key": 0, "stem": value} for value in sorted(self.issued_stems)[-200:]]
+            self._settings().setValue(self._ISSUED_SETTING, json.dumps(payload))
+        except Exception:  # noqa: BLE001 - remembering is best effort; this session's set still holds
+            pass
+
     def start_plan(self) -> bool:
         self.plan = None
         if self.snapshot is None:
@@ -745,11 +804,15 @@ class NewItemStudioController(QObject):
             except ValueError as exc:
                 self.plan_failed.emit(str(exc), ())
                 return False
-        task = plan_task(spec, self.snapshot, service=self.service, model=self.model_result, scene=self.model_scene, icon_source_path=icon_source)
+        task = plan_task(
+            spec, self.snapshot, service=self.service, model=self.model_result, scene=self.model_scene,
+            icon_source_path=icon_source, reserved_keys=tuple(self.issued_keys), reserved_stems=tuple(self.issued_stems),
+        )
 
         def done(result: object) -> None:
             if isinstance(result, NewItemPlan):
                 self.plan = result
+                self.remember_issued_identity(result.spec.item_key, str(result.spec.stem or ""))
                 self.plan_ready.emit(result)
             else:
                 self.plan_failed.emit("The plan finished with an unexpected result.", ())
