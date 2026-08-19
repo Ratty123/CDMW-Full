@@ -8,10 +8,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QLabel,
     QPushButton,
     QSpinBox,
     QTableWidget,
@@ -103,6 +105,26 @@ class StatsPanel(QGroupBox):
         self.own_rows.toggled.connect(self._own_rows_changed)
         self.own_rows.setVisible(False)
         ladder_layout.addWidget(self.own_rows)
+        add_row = QHBoxLayout()
+        add_row.addWidget(QLabel("Add a stat the row lacks:"))
+        self.new_stat = QComboBox()
+        self.new_stat.setMinimumWidth(260)
+        self.new_stat.setToolTip("Every status entry the game has. The ones some shipped weapon or armour carries come first; the rest are marked unproven, since no shipped equipment row carries them.")
+        add_row.addWidget(self.new_stat, 1)
+        add_row.addWidget(QLabel("at every level:"))
+        self.new_stat_value = QSpinBox()
+        self.new_stat_value.setRange(-2_000_000_000, 2_000_000_000)
+        self.new_stat_value.setValue(1000)
+        add_row.addWidget(self.new_stat_value)
+        self.add_stat_button = QPushButton("Add stat column")
+        self.add_stat_button.setToolTip("A new column with that value on every level; edit the cells afterwards. The plan adds the stat to the row's stat block.")
+        self.add_stat_button.clicked.connect(self._add_stat_column)
+        add_row.addWidget(self.add_stat_button)
+        self.remove_stat_button = QPushButton("Remove selected added column")
+        self.remove_stat_button.setToolTip("Drops the added stat column the selected cell is in (a column the template carries cannot be removed, only edited).")
+        self.remove_stat_button.clicked.connect(self._remove_stat_column)
+        add_row.addWidget(self.remove_stat_button)
+        ladder_layout.addLayout(add_row)
         layout.addWidget(ladder)
 
         base = QGroupBox("Base price and stack")
@@ -161,11 +183,14 @@ class StatsPanel(QGroupBox):
                 self.carries.setText("")
                 return
             grid = self._grid
-            stat_labels = [column.label for column in grid.columns if column.kind == STAT_KIND]
-            self.carries.setText(
-                f"This template's row carries {', '.join(stat_labels) or 'no stat'} per level, plus the shop price per level. "
-                "That is all a weapon or armour row holds; attack speed, critical hits and the like come from perks and the character, not from the item."
-            )
+            template_stats = [column.label for column in grid.columns if column.kind == STAT_KIND and column.key not in draft.extra_stat_keys]
+            added_stats = [column.label for column in grid.columns if column.kind == STAT_KIND and column.key in draft.extra_stat_keys]
+            sentences = [f"This template's row carries {', '.join(template_stats) or 'no stat'} per level, plus the shop price per level; every cell can be changed."]
+            if added_stats:
+                sentences.append(f"Added here: {', '.join(added_stats)} (written into the row when the plan is built).")
+            sentences.append("Any of the game's status entries can be added as a column below; ones no shipped equipment carries are unproven in game.")
+            self.carries.setText(" ".join(sentences))
+            self._refresh_status_choices()
             self.table.setColumnCount(len(grid.columns))
             self.table.setHorizontalHeaderLabels([column.label for column in grid.columns])
             rows = grid.level_count + draft.extra_levels
@@ -237,6 +262,71 @@ class StatsPanel(QGroupBox):
         self._controller.draft.price_values[key] = value
         self._controller.plan = None
 
+    def _refresh_status_choices(self) -> None:
+        present = {column.key for column in (self._grid.columns if self._grid else ()) if column.kind == STAT_KIND}
+        current = self.new_stat.currentData()
+        self.new_stat.blockSignals(True)
+        try:
+            self.new_stat.clear()
+            for key, label, carried in self._controller.status_choices():
+                if key in present:
+                    continue
+                self.new_stat.addItem(label if carried else f"{label}  (no shipped equipment carries it: unproven)", key)
+            index = self.new_stat.findData(current) if current is not None else -1
+            self.new_stat.setCurrentIndex(max(0, index))
+        finally:
+            self.new_stat.blockSignals(False)
+        self.add_stat_button.setEnabled(self.new_stat.count() > 0 and self._grid is not None)
+        self.remove_stat_button.setEnabled(bool(self._controller.draft.extra_stat_keys))
+
+    def _add_stat_column(self) -> None:
+        """A new stat column after the template's stat columns, with the value on every
+        level; the draft's cell values shift right past the insertion so nothing moves."""
+
+        grid = self._grid
+        key = self.new_stat.currentData()
+        if grid is None or key is None:
+            return
+        key = int(key)
+        draft = self._controller.draft
+        if key in draft.extra_stat_keys or any(column.key == key and column.kind == STAT_KIND for column in grid.columns):
+            return
+        insert_at = sum(1 for column in grid.columns if column.kind == STAT_KIND)
+        shifted = {}
+        for (level, column_index), value in draft.grid_values.items():
+            shifted[(level, column_index + 1 if column_index >= insert_at else column_index)] = value
+        draft.grid_values = shifted
+        draft.extra_stat_keys.append(key)
+        rows = grid.level_count + draft.extra_levels
+        for level in range(rows):
+            draft.grid_values[(level, insert_at)] = int(self.new_stat_value.value())
+        self._controller.plan = None
+        self.rebuild()
+
+    def _remove_stat_column(self) -> None:
+        grid = self._grid
+        if grid is None:
+            return
+        draft = self._controller.draft
+        column_index = self.table.currentColumn()
+        if column_index < 0 or column_index >= len(grid.columns):
+            column_index = next((i for i, column in enumerate(grid.columns) if column.kind == STAT_KIND and column.key in draft.extra_stat_keys), -1)
+        if column_index < 0:
+            return
+        column = grid.columns[column_index]
+        if column.kind != STAT_KIND or column.key not in draft.extra_stat_keys:
+            self._controller.status_message.emit("Only a stat column added here can be removed; the template's own stats can be edited, not dropped.", True)
+            return
+        draft.extra_stat_keys.remove(column.key)
+        kept = {}
+        for (level, index), value in draft.grid_values.items():
+            if index == column_index:
+                continue
+            kept[(level, index - 1 if index > column_index else index)] = value
+        draft.grid_values = kept
+        self._controller.plan = None
+        self.rebuild()
+
     def _own_rows_changed(self, checked: bool) -> None:
         self._controller.draft.own_enhancement_rows = bool(checked)
         self._controller.plan = None
@@ -282,6 +372,7 @@ class StatsPanel(QGroupBox):
         draft.grid_values.clear()
         draft.price_values.clear()
         draft.extra_levels = 0
+        draft.extra_stat_keys.clear()
         draft.max_stack_count = None
         self._controller.plan = None
         self.rebuild()

@@ -223,6 +223,23 @@ class TabTests(unittest.TestCase):
         self.assertEqual(stats.table.item(2, 0).text(), "14000", "the new level copies the one below")
         stats.price_table.item(0, 1).setText("999")
         stats.max_stack.setValue(3)
+        # a stat the template lacks: CriticalRate is a StatusInfo entry no ladder here carries
+        self.assertEqual(stats.table.columnCount(), 3)
+        choices = [stats.new_stat.itemData(i) for i in range(stats.new_stat.count())]
+        self.assertIn(1000007, choices, "CriticalRate is offered")
+        self.assertNotIn(DDD, choices, "a stat the ladder already carries is not offered twice")
+        crit_index = choices.index(1000007)
+        self.assertIn("unproven", stats.new_stat.itemText(crit_index), "no shipped equipment carries it, and the list says so")
+        stats.new_stat.setCurrentIndex(crit_index)
+        stats.new_stat_value.setValue(250)
+        stats.add_stat_button.click()
+        self.assertEqual(stats.table.columnCount(), 4)
+        self.assertEqual(stats.table.horizontalHeaderItem(1).text(), "Critical rate (CriticalRate)", "added after the template's stats, before the prices")
+        self.assertEqual(stats.table.item(0, 1).text(), "250")
+        self.assertEqual(stats.table.item(0, 0).text(), "20000", "the earlier edit stayed on its column")
+        self.assertEqual(stats.table.item(0, 2).text(), "348", "the price column moved right with its values")
+        self.assertIn("Added here: Critical rate", stats.carries.text())
+        self.assertEqual(tab.controller.draft.extra_stat_keys, [1000007])
         # placement: swap the Cigar out of the camp store
         placement = tab.placement_panel
         placement.swap.setChecked(True)
@@ -371,6 +388,9 @@ class TabTests(unittest.TestCase):
         self.assertEqual(plan.manifest["socket_items"], [1002812, 1002793])
         self.assertIsNone(plan.spec.effect)
         self.assertEqual([(e.level, e.value) for e in plan.spec.stat_edits if e.status_key == DDD], [(0, 20000), (2, 14000)])
+        self.assertEqual([(e.level, e.value) for e in plan.spec.stat_edits if e.status_key == 1000007], [(0, 250), (1, 250), (2, 250)], "the added stat on every level")
+        self.assertEqual(plan.manifest.get("added_stats"), [1000007])
+        self.assertTrue(any("CriticalRate" in warning and "unproven" in warning for warning in plan.warnings), plan.warnings)
         self.assertEqual([(e.item_key, e.price) for e in plan.spec.price_edits], [(COPPER, 999)])
         self.assertEqual(plan.spec.max_stack_count, 3)
         self.assertEqual(plan.spec.placement.old_item_name, "Cigar_OneHandSword")

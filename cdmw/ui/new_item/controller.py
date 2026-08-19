@@ -23,7 +23,7 @@ from cdmw.services.new_item_baseline import baseline_facts, baseline_lines
 from cdmw.services.new_item_planning import NewItemPlan, NewItemPlanError
 from cdmw.services.new_item_service import NewItemInstallRefused, NewItemService
 from cdmw.services.new_item_snapshot import NewItemSnapshot, NewItemSnapshotError
-from cdmw.ui.new_item.state import NewItemDraft, StatGrid, spec_from_draft, stat_grid_for, with_template
+from cdmw.ui.new_item.state import NewItemDraft, StatGrid, spec_from_draft, stat_grid_for, status_label, with_template
 from cdmw.workers.new_item_workers import export_task, install_task, plan_task, snapshot_task
 from cdmw.workers.utility_workers import UtilityWorker
 
@@ -144,7 +144,32 @@ class NewItemStudioController(QObject):
         if self.snapshot is None or self.draft.template_key is None:
             return None
         row = self.snapshot.row(self.draft.template_key)
-        return stat_grid_for(row, self.snapshot.status_names, {key: r.string_key for key, r in self.snapshot.rows.items()})
+        return stat_grid_for(row, self.snapshot.status_names, {key: r.string_key for key, r in self.snapshot.rows.items()}, self.draft.extra_stat_keys)
+
+    def status_choices(self) -> Tuple[Tuple[int, str, bool], ...]:
+        """Every StatusInfo entry as (key, label, carried by shipped equipment): the ones
+        some shipped weapon or armour ladder carries first, then the rest by name."""
+
+        if self.snapshot is None:
+            return ()
+        carried = self._equipment_status_keys()
+        out = [(int(key), status_label(name), int(key) in carried) for key, name in self.snapshot.status_names.items()]
+        return tuple(sorted(out, key=lambda item: (not item[2], item[1].casefold())))
+
+    def _equipment_status_keys(self) -> frozenset:
+        cached = getattr(self, "_equipment_status_cache", None)
+        if cached is not None:
+            return cached
+        keys = set()
+        if self.snapshot is not None:
+            for row in self.snapshot.rows.values():
+                if not self.snapshot.equip_type_name(row):
+                    continue
+                for level in row.enchant_levels:
+                    for stat in level.stats:
+                        keys.add(int(stat.status_key))
+        self._equipment_status_cache = frozenset(keys)
+        return self._equipment_status_cache
 
     def store_names(self) -> Tuple[str, ...]:
         return tuple(sorted(store.name for store in self.snapshot.stores)) if self.snapshot else ()

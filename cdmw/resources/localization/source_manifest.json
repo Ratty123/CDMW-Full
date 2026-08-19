@@ -3757,6 +3757,16 @@
       ]
     },
     {
+      "key": "A new column with that value on every level; edit the cells afterwards. The plan adds the stat to the row's stat block.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 120,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
       "key": "A new line in {value_0}: the item sells there freely, next to what the shop already has.",
       "origins": [
         {
@@ -4916,7 +4926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 95,
+          "line": 97,
           "sink": "QPushButton"
         }
       ]
@@ -4958,6 +4968,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
           "line": 69,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Add a stat the row lacks:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 109,
+          "sink": "QLabel"
         }
       ]
     },
@@ -5022,6 +5042,16 @@
       ]
     },
     {
+      "key": "Add stat column",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 119,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Add texture folder...",
       "origins": [],
       "manual": true
@@ -5053,6 +5083,16 @@
           "path": "cdmw/ui/item_icons/workers.py",
           "line": 682,
           "sink": "_emit_status"
+        }
+      ]
+    },
+    {
+      "key": "Added here: {value_0} (written into the row when the plan is built).",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 192,
+          "sink": "setText"
         }
       ]
     },
@@ -7153,6 +7193,16 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 162,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Any of the game's status entries can be added as a column below; ones no shipped equipment carries are unproven in game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 192,
+          "sink": "setText"
         }
       ]
     },
@@ -11826,7 +11876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 58,
+          "line": 60,
           "sink": "QPushButton"
         }
       ]
@@ -12281,7 +12331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 108,
+          "line": 130,
           "sink": "QGroupBox"
         }
       ]
@@ -13901,12 +13951,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 495,
+          "line": 520,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 502,
+          "line": 527,
           "sink": "emit"
         },
         {
@@ -17921,7 +17971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/state.py",
-          "line": 241,
+          "line": 256,
           "sink": "ValueError"
         }
       ]
@@ -18046,7 +18096,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 474,
+          "line": 499,
           "sink": "ValueError"
         }
       ]
@@ -27446,7 +27496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 59,
+          "line": 61,
           "sink": "setToolTip"
         }
       ]
@@ -27498,6 +27548,16 @@
           "path": "tools/placement_studio/window_carry.py",
           "line": 757,
           "sink": "_after"
+        }
+      ]
+    },
+    {
+      "key": "Drops the added stat column the selected cell is in (a column the template carries cannot be removed, only edited).",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 124,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -29626,7 +29686,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 55,
+          "line": 57,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "Every status entry the game has. The ones some shipped weapon or armour carries come first; the rest are marked unproven, since no shipped equipment row carries them.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 112,
           "sink": "setToolTip"
         }
       ]
@@ -36541,7 +36611,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 102,
+          "line": 104,
           "sink": "QCheckBox"
         }
       ]
@@ -38666,7 +38736,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 119,
+          "line": 141,
           "sink": "setToolTip"
         }
       ]
@@ -42671,7 +42741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 395,
+          "line": 420,
           "sink": "emit"
         }
       ]
@@ -44296,7 +44366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 173,
+          "line": 198,
           "sink": "setVerticalHeaderLabels"
         }
       ]
@@ -48011,7 +48081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 121,
+          "line": 143,
           "sink": "addRow"
         }
       ]
@@ -52406,7 +52476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 111,
+          "line": 133,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -52446,7 +52516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 63,
+          "line": 65,
           "sink": "setText"
         }
       ]
@@ -52921,7 +52991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 83,
+          "line": 85,
           "sink": "setToolTip"
         }
       ]
@@ -55601,7 +55671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 490,
+          "line": 515,
           "sink": "ValueError"
         }
       ]
@@ -58901,7 +58971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 96,
+          "line": 98,
           "sink": "setToolTip"
         }
       ]
@@ -58932,6 +59002,16 @@
         {
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 1011,
+          "sink": "emit"
+        }
+      ]
+    },
+    {
+      "key": "Only a stat column added here can be removed; the template's own stats can be edited, not dropped.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 318,
           "sink": "emit"
         }
       ]
@@ -65556,7 +65636,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 792,
+          "line": 804,
           "sink": "log"
         }
       ]
@@ -68851,7 +68931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 111,
+          "line": 133,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -69991,12 +70071,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 347,
+          "line": 372,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 440,
+          "line": 465,
           "sink": "emit"
         }
       ]
@@ -73657,6 +73737,16 @@
         {
           "path": "cdmw/ui/replace_assistant_tab.py",
           "line": 229,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
+      "key": "Remove selected added column",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 123,
           "sink": "QPushButton"
         }
       ]
@@ -78451,7 +78541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 82,
+          "line": 84,
           "sink": "QPushButton"
         }
       ]
@@ -82996,7 +83086,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 54,
+          "line": 56,
           "sink": "QPushButton"
         }
       ]
@@ -83321,7 +83411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 91,
+          "line": 93,
           "sink": "QPushButton"
         }
       ]
@@ -88361,7 +88451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 50,
+          "line": 52,
           "sink": "setToolTip"
         }
       ]
@@ -88601,7 +88691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 47,
+          "line": 49,
           "sink": "QGroupBox"
         }
       ]
@@ -88871,7 +88961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 509,
+          "line": 534,
           "sink": "emit"
         }
       ]
@@ -90866,12 +90956,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 184,
+          "line": 209,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 195,
+          "line": 220,
           "sink": "setToolTip"
         },
         {
@@ -92721,7 +92811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 424,
+          "line": 449,
           "sink": "emit"
         }
       ]
@@ -93091,7 +93181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 363,
+          "line": 388,
           "sink": "emit"
         }
       ]
@@ -93121,7 +93211,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 312,
+          "line": 337,
           "sink": "emit"
         }
       ]
@@ -93256,7 +93346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 479,
+          "line": 504,
           "sink": "ValueError"
         }
       ]
@@ -93266,7 +93356,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 40,
+          "line": 42,
           "sink": "intro_label"
         }
       ]
@@ -93276,7 +93366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 112,
+          "line": 134,
           "sink": "setToolTip"
         }
       ]
@@ -93501,7 +93591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 465,
+          "line": 490,
           "sink": "emit"
         }
       ]
@@ -93816,7 +93906,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 433,
+          "line": 458,
           "sink": "emit"
         }
       ]
@@ -93956,7 +94046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 182,
+          "line": 207,
           "sink": "setToolTip"
         }
       ]
@@ -94782,11 +94872,11 @@
       ]
     },
     {
-      "key": "This template's row carries {value_0} per level, plus the shop price per level. That is all a weapon or armour row holds; attack speed, critical hits and the like come from perks and the character, not from the item.",
+      "key": "This template's row carries {value_0} per level, plus the shop price per level; every cell can be changed.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 165,
+          "line": 192,
           "sink": "setText"
         }
       ]
@@ -104212,6 +104302,16 @@
       ]
     },
     {
+      "key": "at every level:",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 114,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
       "key": "atomic resident material state commit is unavailable",
       "origins": [
         {
@@ -107876,7 +107976,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 619,
+          "line": 631,
           "sink": "add"
         }
       ]
@@ -107921,7 +108021,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 624,
+          "line": 636,
           "sink": "add"
         }
       ]
@@ -110546,7 +110646,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 689,
+          "line": 701,
           "sink": "add"
         }
       ]
@@ -116096,7 +116196,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 629,
+          "line": 641,
           "sink": "add"
         }
       ]
@@ -193436,7 +193536,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 528,
+          "line": 540,
           "sink": "add"
         }
       ]
@@ -194761,7 +194861,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 519,
+          "line": 531,
           "sink": "add"
         }
       ]
@@ -196631,7 +196731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 80,
+          "line": 82,
           "sink": "setPrefix"
         }
       ]
@@ -197273,6 +197373,16 @@
           "path": "cdmw/ui/archive_browser/prefab_inspector_dialog.py",
           "line": 783,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "{value_0}  (no shipped equipment carries it: unproven)",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_stats.py",
+          "line": 274,
+          "sink": "addItem"
         }
       ]
     },
@@ -201011,12 +201121,12 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 510,
+          "line": 522,
           "sink": "add"
         },
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 519,
+          "line": 531,
           "sink": "add"
         },
         {
@@ -201296,7 +201406,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_planning.py",
-          "line": 510,
+          "line": 522,
           "sink": "add"
         },
         {

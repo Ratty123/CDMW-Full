@@ -339,9 +339,21 @@ class _Planner:
         if row.stat_block_offset is None:
             raise NewItemPlanError(f"{self.template.string_key} has no decoded stat block; stats, prices and socket items cannot be edited")
         levels: List[EnchantLevel] = list(row.enchant_levels)
+        added_stats: List[int] = []
         for edit in spec.stat_edits:
             levels = _grow_levels(levels, edit.level, what=f"stat {edit.status_key}")
+            had = any(int(stat.status_key) == int(edit.status_key) for stat in levels[edit.level].stats)
+            if not had and int(edit.status_key) not in added_stats:
+                added_stats.append(int(edit.status_key))
             levels[edit.level] = level_with_stat(levels[edit.level], int(edit.status_key), int(edit.value))
+        if added_stats:
+            names = [self.snapshot.status_names.get(key, str(key)) for key in added_stats]
+            self.summary.append(f"stats added to the row: {', '.join(names)}")
+            self.manifest["added_stats"] = list(added_stats)
+            self.warnings.append(
+                f"The row carries {len(added_stats)} stat(s) the template lacks ({', '.join(names)}); the game reads the stat block "
+                "as a list, so it should take them, but a rebuilt list is unproven in game until the first check."
+            )
         for edit in spec.buy_price_edits:
             levels = _grow_levels(levels, edit.level, what=f"buy price in item {edit.item_key}")
             levels[edit.level] = level_with_buy_price(levels[edit.level], int(edit.item_key), int(edit.price))
