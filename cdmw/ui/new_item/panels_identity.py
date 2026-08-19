@@ -32,6 +32,7 @@ class IdentityPanel(QGroupBox):
         super().__init__("2. Identity", parent)
         self._controller = controller
         self._language = "eng"
+        self._suggested_name = ""
         layout = QVBoxLayout(self)
         layout.addWidget(intro_label("What the item is called: its internal name for the tables, and the name and description players read, per language."))
         form = QFormLayout()
@@ -127,6 +128,14 @@ class IdentityPanel(QGroupBox):
         finally:
             self.stem.blockSignals(False)
             self.item_key.blockSignals(False)
+        # a name to start from: the template's with a suffix no item has, so the first
+        # thing the reader sees is not "already exists"
+        current = self.internal_name.text().strip()
+        if not current or current == self._suggested_name or current == self._controller.template_name():
+            suggestion = self._controller.suggest_internal_name()
+            if suggestion:
+                self._suggested_name = suggestion
+                self.internal_name.setText(suggestion)
         self.refresh_issues()
 
     def refresh_issues(self) -> None:
@@ -136,7 +145,8 @@ class IdentityPanel(QGroupBox):
         if not issues:
             self.issues.set_lines([])
             return
-        lines = [note(f"Blocked: {issue.message}", BLOCK) if issue.is_error else note(f"Note: {issue.message}", WARN) for issue in issues[:8]]
+        ordered = sorted(issues, key=lambda issue: 0 if issue.is_error else 1)
+        lines = [note(f"Blocked: {issue.message}", BLOCK) if issue.is_error else note(f"Note: {issue.message}", WARN) for issue in ordered[:8]]
         if len(issues) > 8:
             lines.append(note(f"... {len(issues) - 8} more", None))
         self.issues.set_lines(lines)

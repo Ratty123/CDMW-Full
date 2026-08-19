@@ -7,6 +7,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -38,19 +39,21 @@ class PlacementPanel(QGroupBox):
         for radio in (self.no_store, self.swap, self.insert):
             radio.toggled.connect(self._placement_changed)
             shop_layout.addWidget(radio)
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Shop:"))
+        form = QFormLayout()
+        form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.store = QComboBox()
         self.store.setEditable(False)
         self.store.setMaxVisibleItems(24)
         self.store.setToolTip("Every shop in the game's tables: your camp's shops first (Store_Camp_Equipment is the camp's equipment merchant), then the rest by name, each with its kind and how many lines it sells. Type to jump.")
         self.store.currentIndexChanged.connect(self._store_index_changed)
-        row.addWidget(self.store, 1)
-        row.addWidget(QLabel("Entry to replace:"))
+        self.store_label = QLabel("Shop:")
+        form.addRow(self.store_label, self.store)
         self.old_item = QComboBox()
+        self.old_item.setToolTip("The line of that shop the new item takes over; the old item leaves the shop.")
         self.old_item.currentIndexChanged.connect(self._old_item_changed)
-        row.addWidget(self.old_item, 1)
-        shop_layout.addLayout(row)
+        self.old_item_label = QLabel("Entry to replace:")
+        form.addRow(self.old_item_label, self.old_item)
+        shop_layout.addLayout(form)
         self.keep_requirement = QCheckBox("Keep the shop line's unlock requirement (a collection's knowledge; the shop shows Knowledge until the buyer has it)")
         self.keep_requirement.toggled.connect(self._keep_requirement_changed)
         shop_layout.addWidget(self.keep_requirement)
@@ -125,9 +128,14 @@ class PlacementPanel(QGroupBox):
         draft = self._controller.draft
         draft.placement_kind = PlacementKind.SWAP if self.swap.isChecked() else PlacementKind.INSERT if self.insert.isChecked() else PlacementKind.NONE
         enabled = draft.placement_kind is not PlacementKind.NONE
+        swapping = draft.placement_kind is PlacementKind.SWAP
         self.store.setEnabled(enabled)
-        self.old_item.setEnabled(draft.placement_kind is PlacementKind.SWAP)
-        self.keep_requirement.setEnabled(draft.placement_kind is PlacementKind.SWAP)
+        self.store_label.setEnabled(enabled)
+        self.old_item.setEnabled(swapping)
+        self.old_item.setVisible(swapping)
+        self.old_item_label.setVisible(swapping)
+        self.keep_requirement.setEnabled(swapping)
+        self.keep_requirement.setVisible(swapping)
         self.unlimited_stock.setEnabled(enabled)
         self._controller.plan = None
         self._refresh_requirement_note()
@@ -160,9 +168,12 @@ class PlacementPanel(QGroupBox):
         self._controller.plan = None
 
     def _refresh_requirement_note(self) -> None:
-        requirement = self._controller.line_requirement(self._controller.draft.store_name, self._controller.draft.old_item_name)
-        if self._controller.draft.placement_kind is PlacementKind.NONE:
+        draft = self._controller.draft
+        requirement = self._controller.line_requirement(draft.store_name, draft.old_item_name)
+        if draft.placement_kind is PlacementKind.NONE:
             self.requirement_note.set_note("Not sold anywhere: the item will exist, but nothing in the game hands it out.", WARN)
+        elif draft.placement_kind is PlacementKind.INSERT:
+            self.requirement_note.set_note(f"A new line in {draft.store_name or 'the chosen shop'}: the item sells there freely, next to what the shop already has.", OK)
         elif not requirement:
             self.requirement_note.set_note("This shop line sells freely.", OK)
         elif self.keep_requirement.isChecked():

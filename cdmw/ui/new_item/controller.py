@@ -105,6 +105,19 @@ class NewItemStudioController(QObject):
         row = self.snapshot.rows.get(int(self.draft.template_key))
         return row.string_key if row is not None else ""
 
+    def suggest_internal_name(self) -> str:
+        """`<Template>_New`, or `_New2`, `_New3`... until no shipped item has the name."""
+
+        template = self.template_name()
+        if not template or self.snapshot is None:
+            return ""
+        taken = {row.string_key.casefold() for row in self.snapshot.rows.values()}
+        for index in range(1, 100):
+            candidate = f"{template}_New" if index == 1 else f"{template}_New{index}"
+            if candidate.casefold() not in taken:
+                return candidate
+        return ""
+
     def template_summary(self) -> Tuple[str, ...]:
         if self.snapshot is None or self.draft.template_key is None:
             return ()
