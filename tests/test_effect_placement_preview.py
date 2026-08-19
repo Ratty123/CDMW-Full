@@ -11,8 +11,10 @@ from pathlib import Path
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services.effect_placement_preview import (
     ANCHOR_TINT,
+    BODY_TINT,
     EFFECT_ANCHOR_MATERIAL,
     EFFECT_ANCHOR_RADIUS,
+    EFFECT_BODY_MATERIAL,
     EFFECT_REACH_MATERIAL,
     ITEM_TINT,
     REACH_TINT,
@@ -100,7 +102,11 @@ class PackageTests(unittest.TestCase):
             }
             self.assertEqual(tints.get(EFFECT_ANCHOR_MATERIAL), ANCHOR_TINT)
             self.assertEqual(tints.get(EFFECT_REACH_MATERIAL), REACH_TINT)
-            item_materials = [name for name in tints if name not in (EFFECT_ANCHOR_MATERIAL, EFFECT_REACH_MATERIAL)]
+            self.assertEqual(tints.get(EFFECT_BODY_MATERIAL), BODY_TINT)
+            item_materials = [
+                name for name in tints
+                if name not in (EFFECT_ANCHOR_MATERIAL, EFFECT_REACH_MATERIAL, EFFECT_BODY_MATERIAL)
+            ]
             self.assertTrue(item_materials, "the item's own materials are in the package")
             for name in item_materials:
                 self.assertEqual(tints[name], ITEM_TINT, f"{name} would draw black")
@@ -118,7 +124,8 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(scene["interaction_mode"], "placement")
             self.assertEqual(scene["roles"]["replacement"], [0, 1], "the anchor and the reach cage move together")
             self.assertEqual(preview.reach_submesh_index, 1)
-            self.assertEqual(scene["roles"]["original_reference"], [2], "the item follows the anchor and the cage")
+            self.assertEqual(scene["roles"]["original_reference"], [2, 3], "the item and the character follow the anchor and the cage")
+            self.assertEqual(preview.body_submesh_index, 3)
             self.assertTrue(scene["gizmo"]["visible"])
             materials = json.loads((preview.package_dir / "net_materials.json").read_text(encoding="utf-8"))
             anchor = next(item for item in materials["submeshes"] if item["material"] == EFFECT_ANCHOR_MATERIAL)
@@ -126,6 +133,42 @@ class PackageTests(unittest.TestCase):
             # the scene frames the item, not the anchor: the anchor is tiny inside the item's bounds
             bounds = scene["bounds"]
             self.assertLess(bounds["min"][2], -0.8)
+
+    def test_the_character_can_be_left_out(self) -> None:
+        if os.environ.get("CDMW_SKIP_DOTNET_PACKAGE_TESTS") == "1":
+            self.skipTest("dotnet package tests skipped by request")
+        with tempfile.TemporaryDirectory() as folder:
+            preview = build_effect_placement_package(
+                _blade(), (-0.5, -0.5, -0.5), (0.5, 0.5, 0.5), output_root=Path(folder), include_body=False,
+            )
+            scene = json.loads((preview.package_dir / "dotnet_scene.json").read_text(encoding="utf-8-sig"))
+            self.assertEqual(scene["roles"]["original_reference"], [2])
+            self.assertEqual(preview.body_submesh_index, -1)
+
+    def test_a_reach_of_twenty_metres_does_not_become_the_size_of_the_world(self) -> None:
+        """The builder frames on everything it is given, and the reach cage is one of the
+        things it is given. An effect made for a boss reaches tens of metres, and the
+        viewport reads the scene's extent as the size of the world: the camera opened on
+        an empty box, the ground grid drew squares two metres wide, and the placement
+        gizmo -- a fifth of the scene across -- put its handles off the edges of the view.
+        The item and the character standing behind it are the subject whatever the effect
+        does around them."""
+
+        if os.environ.get("CDMW_SKIP_DOTNET_PACKAGE_TESTS") == "1":
+            self.skipTest("dotnet package tests skipped by request")
+        with tempfile.TemporaryDirectory() as folder:
+            preview = build_effect_placement_package(
+                _blade(), (-11.0, -10.0, -11.0), (11.0, 17.0, 11.0), output_root=Path(folder),
+            )
+            scene = json.loads((preview.package_dir / "dotnet_scene.json").read_text(encoding="utf-8-sig"))
+            bounds = scene["bounds"]
+            extent = max(bounds["max"][axis] - bounds["min"][axis] for axis in range(3))
+            self.assertLess(extent, 3.0, "the frame holds the character and the item, not the reach")
+            self.assertGreater(extent, 1.0, "the character is 1.75 m tall and stands in frame")
+            self.assertAlmostEqual(scene["framing"]["extent"], extent, places=5)
+            self.assertAlmostEqual(scene["grid"]["spacing"], extent / 10.0, places=5)
+            # the reach itself still travels, as the numbers the dialog reads
+            self.assertEqual(preview.box_max, (11.0, 17.0, 11.0))
 
 
 def _fire_preview():

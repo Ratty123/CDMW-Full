@@ -31,7 +31,15 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.modding.mesh_parser import ParsedMesh
-from cdmw.services.effect_placement_preview import EffectPlacementPreview, build_effect_placement_package, next_scale
+from cdmw.services.effect_placement_preview import (
+    ANCHOR_TINT,
+    BODY_TINT,
+    ITEM_TINT,
+    REACH_TINT,
+    EffectPlacementPreview,
+    build_effect_placement_package,
+    next_scale,
+)
 from cdmw.services.effect_preview_model import EffectPreview
 from cdmw.ui.new_item.ui_kit import DetailsToggle
 from cdmw.workers.utility_workers import UtilityWorker
@@ -64,6 +72,26 @@ def describe_effect_preview(preview: Optional[EffectPreview]) -> str:
 
 #: how many times the item's own length a reach may be before its frame starts hidden
 REACH_HIDDEN_ABOVE = 6.0
+
+#: The standing views, as the camera angles (yaw, pitch) in degrees the host takes, in
+#: the order the buttons appear. The game holds a weapon at the origin with the blade
+#: toward -z and the character facing the same way, so yaw 0 looks the character in the
+#: face and yaw 90 stands to its side, which is the view that shows a blade end to end.
+#: The titles and what each one is for live at the buttons, where the localizer finds them.
+STANDING_VIEW_ANGLES: tuple = ((0.0, 8.0), (90.0, 8.0), (0.0, -80.0), (-35.0, 20.0))
+
+
+#: the swatch for the particles themselves, which have no one colour: the warm orange
+#: most of the shipped weapon effects land on
+PARTICLE_TINT = (0.75, 0.25, 0.05)
+
+
+def _swatch(tint: Sequence[float]) -> str:
+    """One of the scene's own colours as a small square of HTML, so the legend cannot
+    drift from what the viewport draws."""
+
+    red, green, blue = (max(0, min(255, int(round(255 * float(channel) ** (1 / 2.2))))) for channel in tuple(tint)[:3])
+    return f'<span style="color:#{red:02x}{green:02x}{blue:02x}">&#9632;</span>'
 
 
 class EffectPlacementDialog(QDialog):
@@ -104,8 +132,7 @@ class EffectPlacementDialog(QDialog):
         layout = QVBoxLayout(self)
         intro = QLabel(
             f"{effect_label or 'The effect'} on the item: drag the orange anchor with the gizmo (Move / Scale) or type the numbers. "
-            "The wire is the item as the game holds it (origin = the hand, blade toward -z), the frame is how far the effect reaches, "
-            "and the particles are an approximate reading of it."
+            "The character behind the item is there for scale, and the buttons under the viewport turn it to the standing views."
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
@@ -135,17 +162,34 @@ class EffectPlacementDialog(QDialog):
             self._host_error = str(exc)
         else:
             self._host_error = ""
+        self.view_buttons: list[QPushButton] = []
         if self.host is not None:
             self.host.setMinimumSize(560, 420)
             self.host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-            body.addWidget(self.host, 1)
+            viewport_column = QVBoxLayout()
+            viewport_column.setContentsMargins(0, 0, 0, 0)
+            viewport_column.addWidget(self.host, 1)
+            views = QHBoxLayout()
+            views.addWidget(QLabel("View"))
+            self._add_view_button(views, "Front", "Looking the character in the face, with the blade pointing at you.")
+            self._add_view_button(views, "Side", "From the character's side: the blade end to end, and how far up it the effect sits.")
+            self._add_view_button(views, "Top", "From above: how far in front of or behind the item the effect sits.")
+            self._add_view_button(views, "Angled", "The three-quarter view the dialog opens on.")
+            views.addStretch(1)
+            viewport_column.addLayout(views)
+            body.addLayout(viewport_column, 1)
         else:
             missing = QLabel("The resident viewport is not available here; set the numbers by hand." + (f" ({self._host_error})" if self._host_error else ""))
             missing.setWordWrap(True)
             body.addWidget(missing, 1)
 
-        side = QVBoxLayout()
-        body.addLayout(side)
+        # the panel keeps to its own width: left to itself it takes half the dialog and
+        # the viewport -- the thing being looked at -- gets what is left
+        side_panel = QWidget()
+        side_panel.setMaximumWidth(360)
+        side = QVBoxLayout(side_panel)
+        side.setContentsMargins(0, 0, 0, 0)
+        body.addWidget(side_panel)
         tools = QHBoxLayout()
         self.move_button = QPushButton("Move")
         self.move_button.setCheckable(True)
@@ -178,6 +222,13 @@ class EffectPlacementDialog(QDialog):
         side.addLayout(form)
         width, height, depth = (high - low for low, high in zip(*self._box))
         self._box_size = (width, height, depth)
+        places = QHBoxLayout()
+        places.addWidget(QLabel("Put it at"))
+        self._add_place_button(places, "Hand", "hand", "Put the effect's origin back at the hand the item is held by.")
+        self._add_place_button(places, "Middle", "middle", "Put the effect's origin at the middle of the item.")
+        self._add_place_button(places, "Tip", "tip", "Put the effect's origin at the far end of the item: a blade's point.")
+        places.addStretch(1)
+        side.addLayout(places)
         reach_row = QHBoxLayout()
         self.show_reach = QCheckBox("Show the reach")
         self.show_reach.setToolTip("The effect's own bounding box as a thin frame, at this scale and offset: how far it can throw particles.")
@@ -190,17 +241,31 @@ class EffectPlacementDialog(QDialog):
         reach_length = max(width, height, depth) * self.scale
         self._reach_dwarfs_the_item = bool(item_length > 0 and reach_length > item_length * REACH_HIDDEN_ABOVE)
         self.show_reach.setChecked(not self._reach_dwarfs_the_item)
-        self.show_reach.toggled.connect(lambda _checked: self._apply_reach_visibility())
+        self.show_reach.toggled.connect(lambda _checked: self._reach_toggled())
         reach_row.addWidget(self.show_reach)
-        self.fit_button = QPushButton("Fit the reach to the item")
+        self.fit_button = QPushButton("Fit it to the item")
         self.fit_button.setToolTip("Set the scale so the effect's reach is about as long as the item; the offset is left alone.")
         self.fit_button.clicked.connect(self._fit_reach_to_item)
         reach_row.addWidget(self.fit_button)
         reach_row.addStretch(1)
         side.addLayout(reach_row)
+        self.show_character = QCheckBox("Show the character")
+        self.show_character.setToolTip("A figure 1.75 m tall holding the item, so the effect's size reads against something known.")
+        self.show_character.setChecked(True)
+        self.show_character.toggled.connect(lambda _checked: self._apply_scene_visibility())
+        side.addWidget(self.show_character)
         self.size_label = QLabel("")
         self.size_label.setWordWrap(True)
         side.addWidget(self.size_label)
+        # what each thing in the viewport is, in the colour it is drawn: the question a
+        # reader asks first, and one the numbers beside the viewport cannot answer
+        self.legend_rows: dict = {}
+        self._add_legend_row(side, "anchor", ANCHOR_TINT, "the effect's origin - drag this one")
+        self._add_legend_row(side, "item", ITEM_TINT, "your item")
+        self._add_legend_row(side, "body", BODY_TINT, "a character, 1.75 m tall, for scale")
+        self._add_legend_row(side, "reach", REACH_TINT, "how far the effect can throw particles")
+        self._add_legend_row(side, "particles", PARTICLE_TINT, "the particles, read approximately")
+        self._refresh_legend()
         self.emitters_toggle = DetailsToggle(describe_effect_preview(effect_preview), title="What the effect is made of")
         self.emitters_label = self.emitters_toggle.body
         self.emitters_toggle.setVisible(effect_preview is not None)
@@ -281,7 +346,7 @@ class EffectPlacementDialog(QDialog):
                 low, high = self._item_bounds()
                 remember(low, high)
             self._sync_host()
-            self._apply_reach_visibility()
+            self._apply_scene_visibility()
             reset = getattr(self.host, "reset_view", None)
             if callable(reset):
                 reset()
@@ -294,18 +359,100 @@ class EffectPlacementDialog(QDialog):
         elif str(state) == "error":
             self.status.setText(str(message or "The viewport reported an error."))
 
-    def _apply_reach_visibility(self) -> None:
-        """Show or hide the reach frame; the anchor and the particles do not depend on it."""
+    def _apply_scene_visibility(self) -> None:
+        """Show or hide the reach frame and the character; the item, the anchor and the
+        particles are always drawn."""
 
+        self._refresh_legend()
         if self.host is None or self._preview is None:
             return
+        hidden = []
+        if not self.show_reach.isChecked():
+            hidden.append(self._preview.reach_submesh_index)
+        if not self.show_character.isChecked() and self._preview.body_submesh_index >= 0:
+            hidden.append(self._preview.body_submesh_index)
         setter = getattr(self.host, "set_hidden_source_submeshes", None)
         if callable(setter):
-            hidden = () if self.show_reach.isChecked() else (self._preview.reach_submesh_index,)
             try:
-                setter(hidden)
+                setter(tuple(hidden))
             except Exception:  # noqa: BLE001 - a host without the call keeps what it draws
                 pass
+
+    def _add_view_button(self, row: QHBoxLayout, title: str, explanation: str) -> None:
+        """One standing view, at the angles `STANDING_VIEW_ANGLES` holds for it."""
+
+        yaw, pitch = STANDING_VIEW_ANGLES[len(self.view_buttons)]
+        button = QPushButton(title)
+        button.setToolTip(explanation)
+        button.clicked.connect(lambda _checked=False, y=yaw, p=pitch: self._look_from(y, p))
+        row.addWidget(button)
+        self.view_buttons.append(button)
+
+    def _add_place_button(self, row: QHBoxLayout, title: str, where: str, explanation: str) -> None:
+        button = QPushButton(title)
+        button.setToolTip(explanation)
+        button.clicked.connect(lambda _checked=False, target=where: self._put_it_at(target))
+        row.addWidget(button)
+
+    def _add_legend_row(self, column: QVBoxLayout, key: str, tint: Sequence[float], text: str) -> None:
+        """One line of the legend: the scene's own colour, and what is drawn in it."""
+
+        label = QLabel()
+        label.setTextFormat(Qt.TextFormat.RichText)
+        label.setWordWrap(True)
+        label.setText(f"{_swatch(tint)} {text}")
+        column.addWidget(label)
+        self.legend_rows[key] = label
+
+    def _refresh_legend(self) -> None:
+        """The legend says what is on screen, so the two rows that can be turned off
+        follow their checkboxes."""
+
+        rows = getattr(self, "legend_rows", None)
+        if not rows:
+            return
+        rows["body"].setVisible(self.show_character.isChecked())
+        rows["reach"].setVisible(self.show_reach.isChecked())
+
+    def _look_from(self, yaw: float, pitch: float) -> None:
+        """Turn the camera to one of the standing views and fit the item in it again."""
+
+        host = self.host
+        if host is None:
+            return
+        setter = getattr(host, "set_view", None)
+        if callable(setter):
+            try:
+                setter(yaw=float(yaw), pitch=float(pitch), zoom_factor=1.0, fit_to_view=True)
+            except Exception:  # noqa: BLE001 - a host without the call keeps the view it has
+                pass
+
+    def _put_it_at(self, where: str) -> None:
+        """Move the effect's origin to a named place on the item: the hand it is held by
+        (the item's own origin), the middle of the item, or its far end. Three spin boxes
+        and a mesh whose long axis is not obvious make that a guessing game otherwise."""
+
+        low, high = self._item_bounds()
+        if where == "hand":
+            self._set_numbers((0.0, 0.0, 0.0), self.scale)
+            self._sync_host()
+            return
+        centre = tuple((low[axis] + high[axis]) / 2.0 for axis in range(3))
+        if where == "middle":
+            self._set_numbers(centre, self.scale)
+            self._sync_host()
+            return
+        # the tip: the far end of the longest axis, the other two held at the middle
+        longest = max(range(3), key=lambda axis: high[axis] - low[axis])
+        far = high[longest] if abs(high[longest]) >= abs(low[longest]) else low[longest]
+        offset = list(centre)
+        offset[longest] = far * 0.92
+        self._set_numbers(tuple(offset), self.scale)  # type: ignore[arg-type]
+        self._sync_host()
+
+    def _reach_toggled(self) -> None:
+        self._apply_scene_visibility()
+        self._refresh_size_label()
 
     def _fit_reach_to_item(self) -> None:
         """A scale that makes the effect's reach about the item's own length: a starting

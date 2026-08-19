@@ -219,10 +219,17 @@ internal sealed partial class D3D11MaterialViewport
         ID3D11ShaderResourceView? view = null;
         try
         {
-            using var bitmap = NetTextureSet.DecodeDdsFileToBitmap(path);
-            if (bitmap is not null)
+            // the compressed blocks first: the CPU decoder has no case for BC7, and the
+            // sprites of half the shipped effects are BC7, which left those emitters
+            // drawing as flat untextured quads
+            view = CreateEffectParticleSrvFromNative(NetTextureSet.DecodeDdsFileToNative(path));
+            if (view is null)
             {
-                view = CreateEffectParticleSrv(bitmap);
+                using var bitmap = NetTextureSet.DecodeDdsFileToBitmap(path);
+                if (bitmap is not null)
+                {
+                    view = CreateEffectParticleSrv(bitmap);
+                }
             }
         }
         catch (Exception exception)
@@ -232,6 +239,69 @@ internal sealed partial class D3D11MaterialViewport
         }
         _effectParticleTextures[path] = view;
         return view;
+    }
+
+    /// <summary>
+    /// A sprite uploaded as it sits in the file, blocks and mips untouched, and sampled
+    /// as sRGB. The sheets are authored that way, and read as though they were linear
+    /// every sprite's dark surround is lifted to a grey the additive pass adds on top:
+    /// the fire arrives as a grid of visible rectangles with flames inside them.
+    /// </summary>
+    private unsafe ID3D11ShaderResourceView? CreateEffectParticleSrvFromNative(NetDdsNativeTextureData? nativeDds)
+    {
+        if (_device is null || nativeDds is null || nativeDds.Data.Length == 0 || nativeDds.Subresources.Count == 0)
+        {
+            return null;
+        }
+        ID3D11Texture2D? texture = null;
+        try
+        {
+            var (resourceFormat, viewFormat) = NativeDdsFormats(nativeDds.FormatKey, useSrgb: true);
+            var subresources = new SubresourceData[nativeDds.Subresources.Count];
+            fixed (byte* dataPointer = nativeDds.Data)
+            {
+                for (var index = 0; index < nativeDds.Subresources.Count; index++)
+                {
+                    var subresource = nativeDds.Subresources[index];
+                    subresources[index] = new SubresourceData(
+                        (IntPtr)(dataPointer + subresource.Offset),
+                        (uint)subresource.RowPitch,
+                        (uint)subresource.SlicePitch);
+                }
+                texture = _device.CreateTexture2D(
+                    new Texture2DDescription
+                    {
+                        Width = (uint)nativeDds.Width,
+                        Height = (uint)nativeDds.Height,
+                        MipLevels = (uint)nativeDds.Subresources.Count,
+                        ArraySize = 1,
+                        Format = resourceFormat,
+                        SampleDescription = new SampleDescription(1, 0),
+                        Usage = ResourceUsage.Immutable,
+                        BindFlags = BindFlags.ShaderResource,
+                    },
+                    subresources);
+            }
+            return _device.CreateShaderResourceView(
+                texture,
+                new ShaderResourceViewDescription(
+                    texture,
+                    ShaderResourceViewDimension.Texture2D,
+                    viewFormat,
+                    0,
+                    (uint)nativeDds.Subresources.Count,
+                    0,
+                    1));
+        }
+        catch (Exception)
+        {
+            // the bitmap route is asked next; its failure is the one worth reporting
+            return null;
+        }
+        finally
+        {
+            texture?.Dispose();
+        }
     }
 
     private ID3D11ShaderResourceView? CreateEffectParticleSrv(Bitmap source)
@@ -270,7 +340,10 @@ internal sealed partial class D3D11MaterialViewport
                 new ShaderResourceViewDescription(
                     texture,
                     ShaderResourceViewDimension.Texture2D,
-                    Format.B8G8R8A8_UNorm,
+                    // sRGB for the same reason the block-compressed road takes it: the
+                    // sheets are authored in it, and the dark surround of every sprite
+                    // reads as a grey rectangle without it
+                    Format.B8G8R8A8_UNorm_SRgb,
                     0,
                     (uint)mipCount,
                     0,

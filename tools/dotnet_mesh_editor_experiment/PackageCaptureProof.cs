@@ -98,7 +98,15 @@ internal static class PackageCaptureProof
             // frame the whole scene the way a freshly opened viewport does: the camera the
             // capture builds is the one on screen, so it has to be pointed first
             var bounds = document.Bounds();
-            if (string.Equals(ValueFor(args, "--capture-focus"), "reference", StringComparison.OrdinalIgnoreCase)
+            var focus = ValueFor(args, "--capture-focus");
+            if (string.Equals(focus, "framing", StringComparison.OrdinalIgnoreCase))
+            {
+                // what the dialog opens on: the framing bounds the package declares
+                bounds = (
+                    new Vec3(scene.FramingBoundsMinimum.X, scene.FramingBoundsMinimum.Y, scene.FramingBoundsMinimum.Z),
+                    new Vec3(scene.FramingBoundsMaximum.X, scene.FramingBoundsMaximum.Y, scene.FramingBoundsMaximum.Z));
+            }
+            else if (string.Equals(focus, "reference", StringComparison.OrdinalIgnoreCase)
                 && scene.ReferenceSubmeshCount > 0)
             {
                 // what the dialog frames on: the item, not the effect's reach around it
@@ -129,7 +137,13 @@ internal static class PackageCaptureProof
                 (bounds.Min.Z + bounds.Max.Z) * 0.5f);
             var yaw = float.TryParse(ValueFor(args, "--capture-yaw"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var requestedYaw) ? requestedYaw : 0.62f;
             var pitch = float.TryParse(ValueFor(args, "--capture-pitch"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var requestedPitch) ? requestedPitch : 0.22f;
-            viewport.UpdateCamera(NetViewportCamera.Create(center, bounds, yaw, pitch, 48.0f, 0.0f, 0.0f, size, size));
+            // zoom is pixels per world unit: a subject of extent E fills the frame at
+            // 0.8 * width / E, so a sword and a boss effect both arrive framed
+            var extent = MathF.Max(
+                bounds.Max.X - bounds.Min.X,
+                MathF.Max(bounds.Max.Y - bounds.Min.Y, bounds.Max.Z - bounds.Min.Z));
+            var zoom = extent > 0.0001f ? 0.8f * size / extent : 48.0f;
+            viewport.UpdateCamera(NetViewportCamera.Create(center, bounds, yaw, pitch, zoom, 0.0f, 0.0f, size, size));
             // The particle simulation steps by the real time between frames, so a burst of
             // frames back to back is a few microseconds of fire and nothing has spawned
             // yet. Let real time pass between them when a caller asks to see particles.
