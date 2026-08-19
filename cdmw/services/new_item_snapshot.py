@@ -16,7 +16,7 @@ import struct
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, FrozenSet, Iterable, Mapping, Optional, Tuple
+from typing import Callable, Dict, FrozenSet, Iterable, List, Mapping, Optional, Tuple
 
 from cdmw.core.archive_extraction import read_archive_entry_data
 from cdmw.core.item_model_family import ItemModelFamily, ItemModelFamilyError, discover_item_model_family
@@ -94,6 +94,7 @@ class NewItemSnapshot:
     effect_stems: FrozenSet[str] = frozenset()
     _families: Dict[int, ItemModelFamily] = field(default_factory=dict, repr=False)
     _payloads: Dict[str, bytes] = field(default_factory=dict, repr=False)
+    _index_maps: Optional[Tuple[Mapping[str, Tuple[ArchiveEntry, ...]], Mapping[str, Tuple[ArchiveEntry, ...]]]] = field(default=None, repr=False)
 
     # ------------------------------------------------------------------ lookups
 
@@ -122,6 +123,25 @@ class NewItemSnapshot:
 
     def has_entry(self, path: str) -> bool:
         return str(path or "").replace("\\", "/").strip("/").lower() in self.entries
+
+    def archive_index_maps(self) -> Tuple[Mapping[str, Tuple[ArchiveEntry, ...]], Mapping[str, Tuple[ArchiveEntry, ...]]]:
+        """The whole listing the way the archive workflows index it: by normalized path
+        and by basename, each to the entries that answer. The texture resolver walks these
+        (a weapon's textures sit under `character/texture/`, not beside its mesh), so
+        they cover every entry. Built once on first use (a second or two over a full
+        install) and kept; a race between two threads only builds it twice."""
+
+        cached = self._index_maps
+        if cached is not None:
+            return cached
+        by_path: Dict[str, Tuple[ArchiveEntry, ...]] = {}
+        grouped: Dict[str, List[ArchiveEntry]] = {}
+        for key, entry in self.entries.items():
+            by_path[key] = (entry,)
+            grouped.setdefault(key.rsplit("/", 1)[-1], []).append(entry)
+        maps = (by_path, {name: tuple(items) for name, items in grouped.items()})
+        self._index_maps = maps
+        return maps
 
     def payload(self, path: str) -> bytes:
         """The bytes of an archive entry, read once and kept."""

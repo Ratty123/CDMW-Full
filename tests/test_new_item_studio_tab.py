@@ -149,11 +149,59 @@ class TabTests(unittest.TestCase):
         model = tab.model_panel
         seen = {}
         blade = ParsedMesh(path="blade", format="pac", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)])])
-        with patch.object(type(tab.controller), "item_mesh_for_preview", lambda self_: blade),              patch.object(type(model), "icon_capture_dialog_factory", staticmethod(lambda parent, **kwargs: seen.setdefault("d", FakeDialog(parent, **kwargs)))):
+        with patch.object(type(tab.controller), "item_preview_source", lambda self_: (("blade",), lambda _stop: blade)),              patch.object(type(model), "icon_capture_dialog_factory", staticmethod(lambda parent, **kwargs: seen.setdefault("d", FakeDialog(parent, **kwargs)))):
             model._capture_icon()
-        self.assertIs(seen["d"].kwargs["item_mesh"], blade, "the item's mesh is what the dialog shows")
+        self.assertIs(seen["d"].kwargs["item_source"](None), blade, "the item's textured source is what the dialog shows")
+        self.assertEqual(seen["d"].kwargs["item_token"], ("blade",))
         self.assertTrue(model.generate_icon.isChecked())
         self.assertEqual(tab.controller.draft.icon_source_path, str(captured))
+        tab.close()
+        tab.deleteLater()
+
+    def test_the_preview_source_is_the_import_else_the_template_decoded_with_textures(self) -> None:
+        """Step 3's viewport shows the imported model's own preview decode (textures and
+        all) when there is one, else the template's mesh decoded from the archives with
+        its textures resolved; the bare mesh only when that decode will not go."""
+
+        from types import SimpleNamespace
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+
+        tab = self._tab()
+        self.assertIsNone(tab.controller.item_preview_source(), "no template, nothing to show")
+        tab.prefill_template(TEMPLATE)
+        token, build = tab.controller.item_preview_source()
+        self.assertEqual(token[0], "template")
+        self.assertEqual(token[1], TEMPLATE)
+        by_path, by_basename = tab.controller.snapshot.archive_index_maps()
+        self.assertIn(token[2].lower(), by_path)
+        self.assertIn(token[2].rsplit("/", 1)[-1].lower(), by_basename)
+        # the archive decode is asked with the whole listing's texture maps; a decode that
+        # yields a model wins, one that does not falls back to the bare mesh
+        decoded = SimpleNamespace(preferred_view="model", preview_model=SimpleNamespace(meshes=[object()]))
+        seen = {}
+
+        def fake_decode(entry, **kwargs):
+            seen["entry"] = entry
+            seen["kwargs"] = kwargs
+            return decoded
+
+        import threading
+
+        with patch("cdmw.core.archive_preview_result_builder.build_archive_preview_result", fake_decode):
+            self.assertIs(build(threading.Event()), decoded.preview_model)
+        self.assertEqual(seen["entry"].path, token[2])
+        self.assertIs(seen["kwargs"]["texture_entries_by_basename"], by_basename)
+        self.assertFalse(seen["kwargs"]["enable_hkx_visual_preview"])
+        blade = ParsedMesh(path="blade", format="pac", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)])])
+        with patch("cdmw.core.archive_preview_result_builder.build_archive_preview_result", lambda entry, **kwargs: SimpleNamespace(preferred_view="details", preview_model=None)),              patch.object(type(tab.controller), "item_mesh_for_preview", lambda self_: blade):
+            self.assertIs(build(threading.Event()), blade, "no model from the decode: the bare mesh")
+        # an import: its own preview model, already decoded by the Builder
+        imported = SimpleNamespace(rebuilt_data=b"x", preview_model=SimpleNamespace(meshes=[object()]))
+        tab.controller.set_imported_model(None, imported)
+        token, build = tab.controller.item_preview_source()
+        self.assertEqual(token, ("imported", id(imported)))
+        self.assertIs(build(threading.Event()), imported.preview_model)
         tab.close()
         tab.deleteLater()
 
