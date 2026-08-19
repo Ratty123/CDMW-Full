@@ -347,7 +347,7 @@ internal sealed partial class D3D11MaterialViewport
                     115),
                 _camera.WorldViewProjection);
         }
-        if (_scene.ComparisonMode == "overlay")
+        if (_scene.ComparisonMode == "overlay" && !_scene.ReferenceDrawsSolid)
         {
             var generation = OverlayGeometryGenerationKey();
             if (!_referenceOverlayValid || _referenceOverlayGeneration != generation)

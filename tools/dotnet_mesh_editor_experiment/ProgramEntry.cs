@@ -33,6 +33,11 @@ internal static class Program
             {
                 return MaterialResourcePolicyProbe.Run(args);
             }
+            if (PackageCaptureProof.Matches(args))
+            {
+                ApplicationConfiguration.Initialize();
+                return PackageCaptureProof.Run(args);
+            }
             if (EditMeshLayoutSmoke.IsRequested(args))
             {
                 ApplicationConfiguration.Initialize();
@@ -124,6 +129,7 @@ internal static class Program
                 || string.Equals(arg, "--headless-gpu-interaction-soak", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-sparse-soak", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-material-authority-parity", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(arg, "--capture-package", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--visual-audit-batch", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--material-resource-policy-report", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--helper-provenance-report", StringComparison.OrdinalIgnoreCase));

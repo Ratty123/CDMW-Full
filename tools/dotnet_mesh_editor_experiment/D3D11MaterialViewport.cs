@@ -789,7 +789,7 @@ internal sealed partial class D3D11MaterialViewport : Control
             {
                 if (!ActivePaneIncludes(batch.SubmeshIndex)
                     || (replacementOnly && _scene.IsReference(batch.SubmeshIndex))
-                    || (_scene.ComparisonMode == "overlay" && _scene.IsReference(batch.SubmeshIndex))
+                    || (_scene.ComparisonMode == "overlay" && !_scene.ReferenceDrawsSolid && _scene.IsReference(batch.SubmeshIndex))
                     || _materials.ParametersForSubmesh(batch.MaterialSubmeshIndex).Visible is false)
                 {
                     continue;

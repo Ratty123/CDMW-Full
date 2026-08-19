@@ -10,8 +10,12 @@ from pathlib import Path
 
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services.effect_placement_preview import (
+    ANCHOR_TINT,
     EFFECT_ANCHOR_MATERIAL,
     EFFECT_ANCHOR_RADIUS,
+    EFFECT_REACH_MATERIAL,
+    ITEM_TINT,
+    REACH_TINT,
     _tint_anchor_material,
     anchor_mesh,
     build_effect_placement_package,
@@ -74,6 +78,33 @@ class AnchorAndScaleTests(unittest.TestCase):
 
 
 class PackageTests(unittest.TestCase):
+    def test_the_item_is_drawn_as_itself_rather_than_as_the_overlay_wire(self) -> None:
+        """Overlay comparison exists so a replacement can be read against the original, so
+        the renderer skips the reference in the solid pass and draws it as a wire ghost.
+        Here the reference is the item the effect is being placed on, so that convention
+        left a sword nobody could see: the scene asks for it solid, and its materials
+        carry a tint because the package builder leaves them without a base colour, which
+        the renderer draws as a black body on a dark background."""
+
+        if os.environ.get("CDMW_SKIP_DOTNET_PACKAGE_TESTS") == "1":
+            self.skipTest("dotnet package tests skipped by request")
+        with tempfile.TemporaryDirectory() as folder:
+            preview = build_effect_placement_package(_blade(), (-0.5, -0.5, -0.5), (0.5, 0.5, 0.5), output_root=Path(folder))
+            scene = json.loads((preview.package_dir / "dotnet_scene.json").read_text(encoding="utf-8-sig"))
+            self.assertEqual(scene["comparison_mode"], "overlay")
+            self.assertEqual(scene["reference_draw"], "solid")
+            materials = json.loads((preview.package_dir / "net_materials.json").read_text(encoding="utf-8"))
+            tints = {
+                str(item.get("material")): tuple(item.get("parameters", {}).get("base_tint_color", ()))
+                for item in materials["submeshes"]
+            }
+            self.assertEqual(tints.get(EFFECT_ANCHOR_MATERIAL), ANCHOR_TINT)
+            self.assertEqual(tints.get(EFFECT_REACH_MATERIAL), REACH_TINT)
+            item_materials = [name for name in tints if name not in (EFFECT_ANCHOR_MATERIAL, EFFECT_REACH_MATERIAL)]
+            self.assertTrue(item_materials, "the item's own materials are in the package")
+            for name in item_materials:
+                self.assertEqual(tints[name], ITEM_TINT, f"{name} would draw black")
+
     def test_the_package_puts_the_anchor_first_and_the_item_as_reference(self) -> None:
         if os.environ.get("CDMW_SKIP_DOTNET_PACKAGE_TESTS") == "1":
             self.skipTest("dotnet package tests skipped by request")

@@ -118,6 +118,11 @@ class StaticMeshSceneFrame:
     framing_extent: float
     comparison_mode: str
     interaction_mode: str
+    #: How the reference role is drawn in overlay comparison: "wire" (the Mesh Editor's
+    #: convention, the original as a wire ghost over the replacement) or "solid". A scene
+    #: whose reference is the subject rather than the thing being replaced -- the item a
+    #: weapon effect is placed on -- wants it solid, or the item shows only as a wire.
+    reference_draw: str = "wire"
 
     def with_protocol_context(
         self,
@@ -210,6 +215,7 @@ class StaticMeshSceneFrame:
             "reference_world_bounds": reference_bounds,
             "comparison_mode": self.comparison_mode,
             "interaction_mode": self.interaction_mode,
+            "reference_draw": self.reference_draw,
             "gizmo": {"visible": True, "tool": "move", "space": "world"},
         }
 
@@ -469,6 +475,7 @@ def build_authoritative_static_scene_frame(
     scene_generation: int = 0,
     comparison_mode: str = "side_by_side",
     interaction_mode: str = "placement",
+    reference_draw: str = "wire",
     alignment_source_indices: set[int] | None = None,
     selection_pivot_source: Vec3 | None = None,
     cancelled: Callable[[], bool] | None = None,
@@ -533,6 +540,7 @@ def build_authoritative_static_scene_frame(
         framing_extent=max(0.01, framing_bounds.extent),
         comparison_mode=comparison,
         interaction_mode=_interaction_mode(interaction_mode),
+        reference_draw="solid" if str(reference_draw).strip().lower() == "solid" else "wire",
     )
 
 

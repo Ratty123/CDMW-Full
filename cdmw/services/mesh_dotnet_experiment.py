@@ -494,6 +494,7 @@ def build_mesh_dotnet_experiment_package(
     output_root: Path | str | None = None,
     reference_mesh: ParsedMesh | None = None,
     comparison_mode: str = "side_by_side",
+    reference_draw: str = "wire",
     interaction_mode: str = "placement",
     scene_transform: StaticReplacementTransform | None = None,
     scene_generation: int = 1,
@@ -601,6 +602,7 @@ def build_mesh_dotnet_experiment_package(
             scene_generation=scene_generation,
             comparison_mode=comparison_mode,
             interaction_mode=interaction_mode,
+            reference_draw=reference_draw,
             selection_pivot_source=selection_pivot_source,
             cancelled=cancelled,
         )
