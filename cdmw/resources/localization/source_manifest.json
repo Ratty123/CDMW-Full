@@ -1046,7 +1046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 363,
+          "line": 510,
           "sink": "setText"
         }
       ]
@@ -3692,6 +3692,16 @@
         {
           "path": "tools/placement_studio/move_weapon.py",
           "line": 390,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "A figure 1.75 m tall holding the item, so the effect's size reads against something known.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 253,
           "sink": "setToolTip"
         }
       ]
@@ -6833,6 +6843,16 @@
           "path": "tools/placement_studio/window_editing.py",
           "line": 170,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Angled",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 177,
+          "sink": "_add_view_button"
         }
       ]
     },
@@ -35002,6 +35022,16 @@
       "manual": true
     },
     {
+      "key": "Fit it to the item",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 246,
+          "sink": "QPushButton"
+        }
+      ]
+    },
+    {
       "key": "Fit the preview to the available space.",
       "origins": [
         {
@@ -35023,16 +35053,6 @@
           "path": "cdmw/ui/texture_workflow/compare_panel.py",
           "line": 150,
           "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "Fit the reach to the item",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 195,
-          "sink": "QPushButton"
         }
       ]
     },
@@ -36097,8 +36117,33 @@
       ]
     },
     {
+      "key": "From above: how far in front of or behind the item the effect sits.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 176,
+          "sink": "_add_view_button"
+        }
+      ]
+    },
+    {
+      "key": "From the character's side: the blade end to end, and how far up it the effect sits.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 175,
+          "sink": "_add_view_button"
+        }
+      ]
+    },
+    {
       "key": "Front",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 174,
+          "sink": "_add_view_button"
+        },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
           "line": 189,
@@ -38033,6 +38078,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 622,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "Hand",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 227,
+          "sink": "_add_place_button"
         }
       ]
     },
@@ -46081,7 +46136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 266,
+          "line": 331,
           "sink": "setText"
         },
         {
@@ -46438,6 +46493,16 @@
           "path": "tools/placement_studio/rig_behaviour.py",
           "line": 130,
           "sink": "Section"
+        }
+      ]
+    },
+    {
+      "key": "Looking the character in the face, with the blade pointing at you.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 174,
+          "sink": "_add_view_button"
         }
       ]
     },
@@ -51097,6 +51162,16 @@
       ]
     },
     {
+      "key": "Middle",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 228,
+          "sink": "_add_place_button"
+        }
+      ]
+    },
+    {
       "key": "Middle-drag (wheel held)",
       "origins": [
         {
@@ -52906,7 +52981,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 150,
+          "line": 194,
           "sink": "QPushButton"
         },
         {
@@ -65356,7 +65431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 89,
+          "line": 117,
           "sink": "setWindowTitle"
         }
       ]
@@ -67656,7 +67731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 208,
+          "line": 273,
           "sink": "QLabel"
         }
       ]
@@ -70047,6 +70122,46 @@
       ]
     },
     {
+      "key": "Put it at",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 226,
+          "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Put the effect's origin at the far end of the item: a blade's point.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 229,
+          "sink": "_add_place_button"
+        }
+      ]
+    },
+    {
+      "key": "Put the effect's origin at the middle of the item.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 228,
+          "sink": "_add_place_button"
+        }
+      ]
+    },
+    {
+      "key": "Put the effect's origin back at the hand the item is held by.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 227,
+          "sink": "_add_place_button"
+        }
+      ]
+    },
+    {
       "key": "Put the object list back to what the file holds.",
       "origins": [
         {
@@ -70466,7 +70581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 363,
+          "line": 510,
           "sink": "setText"
         }
       ]
@@ -79056,12 +79171,12 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 153,
+          "line": 197,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 167,
+          "line": 211,
           "sink": "addRow"
         },
         {
@@ -84101,7 +84216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 196,
+          "line": 247,
           "sink": "setToolTip"
         }
       ]
@@ -85392,6 +85507,16 @@
       ]
     },
     {
+      "key": "Show the character",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 252,
+          "sink": "QCheckBox"
+        }
+      ]
+    },
+    {
       "key": "Show the current per-texture processing plan before running Start.",
       "origins": [
         {
@@ -85481,7 +85606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 182,
+          "line": 233,
           "sink": "QCheckBox"
         }
       ]
@@ -85606,7 +85731,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 121,
+          "line": 148,
           "sink": "setText"
         }
       ]
@@ -85616,7 +85741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 119,
+          "line": 146,
           "sink": "setText"
         }
       ]
@@ -85626,7 +85751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 117,
+          "line": 144,
           "sink": "setText"
         }
       ]
@@ -85843,6 +85968,11 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 240,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 175,
+          "sink": "_add_view_button"
         }
       ]
     },
@@ -93936,7 +94066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 183,
+          "line": 234,
           "sink": "setToolTip"
         }
       ]
@@ -94356,7 +94486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 246,
+          "line": 311,
           "sink": "setText"
         }
       ]
@@ -94556,7 +94686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 143,
+          "line": 182,
           "sink": "QLabel"
         }
       ]
@@ -94566,7 +94696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 268,
+          "line": 333,
           "sink": "setText"
         }
       ]
@@ -94873,6 +95003,16 @@
           "path": "cdmw/services/new_item_snapshot.py",
           "line": 416,
           "sink": "log"
+        }
+      ]
+    },
+    {
+      "key": "The three-quarter view the dialog opens on.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 177,
+          "sink": "_add_view_button"
         }
       ]
     },
@@ -95756,7 +95896,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 293,
+          "line": 358,
           "sink": "setText"
         }
       ]
@@ -95863,6 +96003,16 @@
           "path": "cdmw/ui/archive_browser/mesh_setup_helpers.py",
           "line": 203,
           "sink": "python-return:_build_archive_static_placement_context_html"
+        }
+      ]
+    },
+    {
+      "key": "Tip",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 229,
+          "sink": "_add_place_button"
         }
       ]
     },
@@ -96099,6 +96249,11 @@
     {
       "key": "Top",
       "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 176,
+          "sink": "_add_view_button"
+        },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
           "line": 189,
@@ -100140,6 +100295,11 @@
           "sink": "QLabel"
         },
         {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 173,
+          "sink": "QLabel"
+        },
+        {
           "path": "cdmw/ui/research/tab_side_panel_builders.py",
           "line": 59,
           "sink": "QLabel"
@@ -101781,7 +101941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 204,
+          "line": 269,
           "sink": "DetailsToggle"
         }
       ]
@@ -104563,6 +104723,16 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_collision_part_01.py",
           "line": 192,
           "sink": "_add_collision_value_item"
+        }
+      ]
+    },
+    {
+      "key": "a character, 1.75 m tall, for scale",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 265,
+          "sink": "_add_legend_row"
         }
       ]
     },
@@ -111608,6 +111778,16 @@
           "path": "cdmw/ui/texture_editor_tab.py",
           "line": 765,
           "sink": "addItem"
+        }
+      ]
+    },
+    {
+      "key": "how far the effect can throw particles",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 266,
+          "sink": "_add_legend_row"
         }
       ]
     },
@@ -195872,6 +196052,16 @@
       ]
     },
     {
+      "key": "the effect's origin - drag this one",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 263,
+          "sink": "_add_legend_row"
+        }
+      ]
+    },
+    {
       "key": "the icon could not be written to {value_0}",
       "origins": [
         {
@@ -195948,6 +196138,16 @@
           "path": "tools/translation_studio/ai_provider.py",
           "line": 107,
           "sink": "ProviderPreset"
+        }
+      ]
+    },
+    {
+      "key": "the particles, read approximately",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 267,
+          "sink": "_add_legend_row"
         }
       ]
     },
@@ -197843,6 +198043,16 @@
           "path": "cdmw/ui/mesh_editor/workspace_reports.py",
           "line": 378,
           "sink": "QTreeWidgetItem"
+        }
+      ]
+    },
+    {
+      "key": "your item",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 264,
+          "sink": "_add_legend_row"
         }
       ]
     },
@@ -200101,7 +200311,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 366,
+          "line": 367,
           "sink": "ValueError"
         }
       ]
@@ -200607,11 +200817,11 @@
       ]
     },
     {
-      "key": "{value_0} on the item: drag the orange anchor with the gizmo (Move / Scale) or type the numbers. The wire is the item as the game holds it (origin = the hand, blade toward -z), the frame is how far the effect reaches, and the particles are an approximate reading of it.",
+      "key": "{value_0} on the item: drag the orange anchor with the gizmo (Move / Scale) or type the numbers. The character behind the item is there for scale, and the buttons under the viewport turn it to the standing views.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 105,
+          "line": 133,
           "sink": "QLabel"
         }
       ]
@@ -201056,7 +201266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 293,
+          "line": 358,
           "sink": "setText"
         }
       ]

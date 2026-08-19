@@ -162,7 +162,11 @@ def test_icon_capture_uses_deterministic_offscreen_d3d_target_without_visible_st
     assert "ResolveSubresource(" in capture
     assert "CopyResource(stagingTexture, captureSource)" in capture
     assert "_offscreenMultisampleResolveCount++;" in capture
-    assert "RenderFrame(present: false, includeOverlays: false, replacementOnly: true)" in capture
+    # The frame call is shared with the scene capture, which draws the whole viewport, so
+    # what the icon route asks for is named where it enters rather than at the call.
+    assert "RenderFrame(present: false, includeOverlays: includeOverlays, replacementOnly: replacementOnly)" in capture
+    assert "            replacementOnly: true," in capture
+    assert "            includeOverlays: false," in capture
     assert "CameraForCaptureViewport(visibleCamera, width, height)" in capture
     assert "Math.Min(width / sourceWidth, height / sourceHeight)" in capture
     assert "camera.Zoom * uniformScale" in capture

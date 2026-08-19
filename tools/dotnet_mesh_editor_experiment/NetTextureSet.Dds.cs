@@ -35,6 +35,17 @@ internal sealed partial class NetTextureSet
         return IsDdsPath(path) && File.Exists(path) ? DecodeDds(path).Bitmap : null;
     }
 
+    /// <summary>
+    /// A DDS file as the mip chain Direct3D takes directly, or null when it does not read.
+    /// For sprites outside the material set, where the CPU decoder above is the slower and
+    /// narrower of the two roads: it has no case for BC7, and half the shipped effect
+    /// sprites are BC7.
+    /// </summary>
+    internal static NetDdsNativeTextureData? DecodeDdsFileToNative(string path)
+    {
+        return IsDdsPath(path) && File.Exists(path) ? DecodeDds(path).NativeDds : null;
+    }
+
     private static (NetDdsTextureInfo? Info, Bitmap? Bitmap, NetDdsNativeTextureData? NativeDds) DecodeDds(string path)
     {
         try

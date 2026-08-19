@@ -352,7 +352,8 @@ def load_model_import_source(chosen_path: Path, *, extract_root: Optional[Path] 
     does: resolve the importable model, run the scene import, bind the source's textures
     to a preview model. Raises ValueError when the file holds no importable model."""
 
-    from cdmw.core.archive_modding import attach_scene_preview_textures, import_scene_mesh_with_report, parsed_mesh_to_preview_model
+    from cdmw.services.mesh_workflow_service import import_scene_mesh_with_report
+    from cdmw.services.preview_workflow_service import attach_scene_preview_textures, parsed_mesh_to_preview_model
     from cdmw.core.model_preview_orientation import scene_import_normalizes_texture_v
     from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.domain.library.models import IMPORTABLE_MODEL_EXTENSIONS
@@ -410,7 +411,7 @@ def build_placed_import(
 
     from dataclasses import replace as dc_replace
 
-    from cdmw.core.archive_mesh_import_build import build_mesh_import_preview
+    from cdmw.services.preview_workflow_service import build_mesh_import_preview
     from cdmw.modding.full_import_model_replacement import apply_full_import_model_replacement_preset
 
     options = dc_replace(

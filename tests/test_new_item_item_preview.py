@@ -136,7 +136,7 @@ class ModelImportBuildTests(unittest.TestCase):
             seen.update(kwargs)
             return "result"
 
-        with patch("cdmw.core.archive_mesh_import_build.build_mesh_import_preview", fake_build):
+        with patch("cdmw.services.preview_workflow_service.build_mesh_import_preview", fake_build):
             self.assertEqual(build_placed_import(SimpleNamespace(path="x.pac"), source, ModelPlacement()), "result")
         options = seen["static_replacement_options"]
         self.assertTrue(options.texture_uv_transforms, "the flip goes into the build")
@@ -145,7 +145,7 @@ class ModelImportBuildTests(unittest.TestCase):
         # off: no UV transforms at all
         source.flip_texture_v = False
         seen.clear()
-        with patch("cdmw.core.archive_mesh_import_build.build_mesh_import_preview", fake_build):
+        with patch("cdmw.services.preview_workflow_service.build_mesh_import_preview", fake_build):
             build_placed_import(SimpleNamespace(path="x.pac"), source, ModelPlacement())
         self.assertEqual(list(seen["static_replacement_options"].texture_uv_transforms), [])
 

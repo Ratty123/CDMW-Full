@@ -439,7 +439,7 @@ class NewItemStudioController(QObject):
         cache = self._template_models
 
         def build(stop_event):
-            from cdmw.core.archive_preview_result_builder import build_archive_preview_result
+            from cdmw.services.archive_preview_service import build_archive_preview_result
 
             cached = cache.get(cache_key)
             if cached is not None:
