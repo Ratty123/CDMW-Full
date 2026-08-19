@@ -379,12 +379,83 @@ class ShellToolTabsMixin:
 
         The mesh patch flow consumes the sink once, for that entry, instead of writing
         the result over the template; the studio then re-paths it to the new family.
+        With the catalogue backend the flow needs the archive worker's prepared
+        dependencies for the selected row, so the template's mesh is selected in the
+        Archive Browser first and Import Mesh starts once they are ready.
         """
 
         self._new_item_model_sink = (str(getattr(entry, "path", "") or "").replace("\\", "/").casefold(), on_result)
         starter = getattr(self, "_start_archive_mesh_patch", None)
-        if callable(starter):
-            starter(entry)
+        if not callable(starter):
+            return
+        bridge = getattr(self, "archive_remote_bridge", None)
+        if bridge is not None and bool(getattr(bridge, "displays_v2", False)):
+            prepared = getattr(bridge, "prepared_dependencies_for", None)
+            if callable(prepared) and prepared(entry) is None:
+                self._select_archive_entry_then(entry, lambda: starter(entry))
+                return
+        starter(entry)
+
+    def _select_archive_entry_then(self, entry: object, then: Callable[[], None]) -> None:
+        """Select `entry` in the Archive Browser (filtering the tree to it when it is
+        not on screen), wait for the worker's prepared dependencies, then `then()`.
+        Says so, and says what to do by hand, when either does not come."""
+
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import QMessageBox
+
+        bridge = getattr(self, "archive_remote_bridge", None)
+        tree = getattr(self, "archive_tree", None)
+        model = getattr(bridge, "model", None)
+        identity = getattr(entry, "identity", None)
+        path = str(getattr(entry, "path", "") or "").replace("\\", "/")
+        if bridge is None or tree is None or model is None or identity is None:
+            then()
+            return
+        activate = getattr(self, "_activate_tool_key", None)
+        if callable(activate):
+            activate("archive_browser")
+        state = {"ticks": 0, "filtered": False, "selected": False}
+        set_status = getattr(self, "set_status_message", None)
+        if callable(set_status):
+            set_status(f"Selecting {path.rsplit('/', 1)[-1]} in the Archive Browser; Import Mesh opens when its dependencies are prepared...")
+
+        def give_up(reason: str) -> None:
+            QMessageBox.information(
+                self,
+                "Import through the Builder",
+                f"{reason}\n\nSelect this file in the Archive Browser yourself and run Import Mesh on it; "
+                f"the result comes back to the New Item Studio:\n\n{path}",
+            )
+
+        def tick() -> None:
+            state["ticks"] += 1
+            if not state["selected"]:
+                index = model.find_cached_index_for_identity(identity)
+                if index.isValid():
+                    tree.setCurrentIndex(index)
+                    tree.scrollTo(index)
+                    state["selected"] = True
+                elif not state["filtered"]:
+                    edit = getattr(self, "archive_filter_edit", None)
+                    if edit is not None:
+                        edit.setText(path.rsplit("/", 1)[-1])
+                    state["filtered"] = True
+                elif state["ticks"] > 60:
+                    give_up("The Archive Browser did not show the template's mesh in time.")
+                    return
+                QTimer.singleShot(250, tick)
+                return
+            prepared = bridge.prepared_dependencies_for(entry)
+            if prepared is not None:
+                then()
+                return
+            if state["ticks"] > 160:
+                give_up("The archive worker did not prepare the template mesh's dependencies in time.")
+                return
+            QTimer.singleShot(250, tick)
+
+        QTimer.singleShot(0, tick)
 
     def _build_shell_tool_tabs(self, pump_startup_splash: Callable[[str], None]) -> None:
         from cdmw.ui.settings_tab import SettingsTab

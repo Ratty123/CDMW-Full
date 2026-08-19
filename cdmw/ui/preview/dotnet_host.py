@@ -736,6 +736,10 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
                 return bool(sender(placement=placement))
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 return False
+        # Without the mesh editor's scene sender the helper reads the editable role's
+        # authoritative model matrix, not the placement numbers: compose it here so a
+        # scale or offset typed into a host dialog moves what it draws.
+        _apply_placement_to_editable_role(self._scene_state, placement)
         self._scene_generation = max(
             self._scene_generation + 1,
             int(self._scene_state.get("scene_generation", 0) or 0) + 1,
@@ -1001,3 +1005,67 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
         self._sync_embedded_child_geometry()
 
 __all__ = ["DotNetPreviewHostFrame"]
+
+
+def _placement_matrix(translation, rotation_degrees, scale_xyz) -> list:
+    """S * R * T in the helper's row-vector convention (translation in the last row);
+    the rotation is yaw (y), pitch (x), roll (z) in degrees, applied as the helper's
+    CreateFromYawPitchRoll does."""
+
+    import math
+
+    sx, sy, sz = (float(v) for v in scale_xyz)
+    yaw, pitch, roll = (math.radians(float(v)) for v in (rotation_degrees[1], rotation_degrees[0], rotation_degrees[2]))
+    cy, sy_ = math.cos(yaw), math.sin(yaw)
+    cp, sp = math.cos(pitch), math.sin(pitch)
+    cr, sr = math.cos(roll), math.sin(roll)
+    # System.Numerics: CreateFromYawPitchRoll(yaw, pitch, roll) == Rz(roll) * Rx(pitch) * Ry(yaw) in row-vector order
+    rz = ((cr, sr, 0.0), (-sr, cr, 0.0), (0.0, 0.0, 1.0))
+    rx = ((1.0, 0.0, 0.0), (0.0, cp, sp), (0.0, -sp, cp))
+    ry = ((cy, 0.0, -sy_), (0.0, 1.0, 0.0), (sy_, 0.0, cy))
+
+    def mul(a, b):
+        return tuple(tuple(sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)) for i in range(3))
+
+    r = mul(mul(rz, rx), ry)
+    rows = [
+        [sx * r[0][0], sx * r[0][1], sx * r[0][2], 0.0],
+        [sy * r[1][0], sy * r[1][1], sy * r[1][2], 0.0],
+        [sz * r[2][0], sz * r[2][1], sz * r[2][2], 0.0],
+        [float(translation[0]), float(translation[1]), float(translation[2]), 1.0],
+    ]
+    return [value for row in rows for value in row]
+
+
+def _apply_placement_to_editable_role(scene_state: dict, placement: Mapping[str, Sequence[float]]) -> None:
+    """Write the placement into `roles.editable.model_matrix` (and its world bounds from
+    the local bounds remembered on the first call), when the scene state has that role."""
+
+    roles = scene_state.get("roles")
+    editable = roles.get("editable") if isinstance(roles, dict) else None
+    if not isinstance(editable, dict):
+        return
+    matrix = _placement_matrix(placement["translation"], placement["rotation_degrees"], placement["scale"])
+    local = scene_state.get("_editable_local_bounds")
+    if local is None:
+        bounds = editable.get("world_bounds")
+        current = editable.get("model_matrix")
+        identity = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        if isinstance(bounds, dict) and (not isinstance(current, list) or [round(float(v), 6) for v in current] == identity):
+            local = {"min": list(bounds.get("min", (0.0, 0.0, 0.0))), "max": list(bounds.get("max", (0.0, 0.0, 0.0)))}
+            scene_state["_editable_local_bounds"] = local
+    editable["model_matrix"] = matrix
+    if isinstance(local, dict):
+        lo, hi = local["min"], local["max"]
+        corners = [(x, y, z) for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
+        moved = []
+        for x, y, z in corners:
+            moved.append((
+                x * matrix[0] + y * matrix[4] + z * matrix[8] + matrix[12],
+                x * matrix[1] + y * matrix[5] + z * matrix[9] + matrix[13],
+                x * matrix[2] + y * matrix[6] + z * matrix[10] + matrix[14],
+            ))
+        editable["world_bounds"] = {
+            "min": [min(c[i] for c in moved) for i in range(3)],
+            "max": [max(c[i] for c in moved) for i in range(3)],
+        }

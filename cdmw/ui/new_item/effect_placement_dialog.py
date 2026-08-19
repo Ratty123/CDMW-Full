@@ -96,8 +96,10 @@ class EffectPlacementDialog(QDialog):
 
         layout = QVBoxLayout(self)
         intro = QLabel(
-            f"{effect_label or 'The effect'}: the orange box is where the effect spans at this scale and offset; the item is the wire. "
-            "Drag the gizmo to move it, switch to Scale to resize it; the numbers below follow, and go into the plan when you accept."
+            f"{effect_label or 'The effect'} on the item. The wire is the item as the game holds it: its origin is the hand, the blade runs "
+            "toward -z, the pommel toward +z. The orange box is the effect's own reach (its bounding box) at this scale and offset, and the "
+            "particles inside are an approximate reading of it. Move or scale the box with the gizmo or the numbers on the right; the effect "
+            "follows the box, and the numbers go into the plan when you accept."
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)

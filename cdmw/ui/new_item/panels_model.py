@@ -55,6 +55,11 @@ class ModelPanel(QGroupBox):
         model_layout.addLayout(row)
         self.model_status = NoteLabel("No imported model.", None)
         model_layout.addWidget(self.model_status)
+        model_layout.addWidget(intro_label(
+            "Hand placement: the Builder opens over the template's mesh and shows it as a wire under your model; align yours to it "
+            "with the gizmo (grip at the origin, blade toward -z, the same size as the original) and the game holds the new item exactly "
+            "as it holds the template."
+        ))
         self.plain_pbr = QCheckBox("Use the game's plain PBR shaders for the imported textures (recommended)")
         self.plain_pbr.setChecked(True)
         self.plain_pbr.setToolTip(
