@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.new_item.spec import IconSource, MaterialRoute, ModelSource, SheathedModel
 from cdmw.ui.new_item.controller import NewItemStudioController
+from cdmw.ui.new_item.item_preview import ItemPreviewFrame
 from cdmw.ui.new_item.ui_kit import OK, DetailsToggle, NoteLabel, intro_label, note
 
 
@@ -93,6 +94,36 @@ class ModelPanel(QGroupBox):
         ))
         layout.addWidget(model)
 
+        preview = QGroupBox("Preview: the item as it will be")
+        preview_layout = QVBoxLayout(preview)
+        preview_layout.addWidget(intro_label(
+            "The imported model when there is one, else the template's own, in the same viewport the Model Library uses. "
+            "Orbit and zoom to check it; take the icon from the view you like."
+        ))
+        self.preview = ItemPreviewFrame(self)
+        self.preview.setMinimumHeight(320)
+        self.preview.status_changed.connect(self._preview_status)
+        self.preview.captured.connect(self._inline_capture_done)
+        preview_layout.addWidget(self.preview, 1)
+        preview_row = QHBoxLayout()
+        self.capture_inline_button = QPushButton("Capture the icon from this view")
+        self.capture_inline_button.setToolTip("Takes the frame above at 512 x 512 with the grid and gizmo hidden and makes it the item's icon (ticks Give the item its own icon).")
+        self.capture_inline_button.clicked.connect(self._capture_inline)
+        self.capture_inline_button.setEnabled(False)
+        preview_row.addWidget(self.capture_inline_button)
+        self.preview_status = QLabel("")
+        self.preview_status.setObjectName("new_item_intro")
+        self.preview_status.setWordWrap(True)
+        preview_row.addWidget(self.preview_status, 1)
+        self.icon_thumbnail = QLabel("")
+        self.icon_thumbnail.setFixedSize(72, 72)
+        self.icon_thumbnail.setAlignment(Qt.AlignCenter)
+        self.icon_thumbnail.setVisible(False)
+        preview_row.addWidget(self.icon_thumbnail)
+        preview_layout.addLayout(preview_row)
+        layout.addWidget(preview)
+        self._preview_mesh_token: object = None
+
         icon = QGroupBox("Icon")
         icon_layout = QVBoxLayout(icon)
         self.keep_icon = QRadioButton("Keep the template's icon")
@@ -115,16 +146,19 @@ class ModelPanel(QGroupBox):
         self.icon_folder_button.setToolTip("Pick the best-matching image out of a folder.")
         self.icon_folder_button.clicked.connect(self._pick_icon_folder)
         source_row.addWidget(self.icon_folder_button)
-        self.icon_capture_button = QPushButton("Capture from viewport...")
-        self.icon_capture_button.setToolTip("Show the item's mesh (the imported model, else the template's) in the resident viewport, orbit it, and take the frame as the icon.")
+        self.icon_capture_button = QPushButton("Capture in a window...")
+        self.icon_capture_button.setToolTip("The same capture in its own window: the item's mesh in the resident viewport, orbit it, take the frame as the icon.")
         self.icon_capture_button.clicked.connect(self._capture_icon)
         source_row.addWidget(self.icon_capture_button)
         icon_layout.addLayout(source_row)
         layout.addWidget(icon)
 
         controller.model_changed.connect(self._show_model)
+        controller.model_changed.connect(lambda _result: self.refresh_preview())
         layout.addStretch(1)
         controller.template_changed.connect(lambda _key: self._show_model(controller.model_result))
+        controller.template_changed.connect(lambda _key: self.refresh_preview())
+        self.preview.ready.connect(lambda: self.capture_inline_button.setEnabled(True))
         self._icon_source_changed(True)
         self.plain_pbr.setEnabled(False)
         self.own_sheath.setEnabled(False)
@@ -166,6 +200,55 @@ class ModelPanel(QGroupBox):
         for widget in (self.icon_source, self.icon_file_button, self.icon_folder_button, self.icon_capture_button):
             widget.setEnabled(not keep)
         self._controller.plan = None
+
+    # ------------------------------------------------------------------ preview
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt virtual
+        super().showEvent(event)
+        QTimer.singleShot(0, self.refresh_preview)
+
+    def refresh_preview(self) -> None:
+        """Show the item's current mesh in the inline viewport, when the step is on screen."""
+
+        if not self.isVisible():
+            return
+        mesh = self._controller.item_mesh_for_preview()
+        token = (self._controller.draft.template_key, id(self._controller.model_result))
+        if mesh is None:
+            self.preview.show_mesh(None)
+            self.capture_inline_button.setEnabled(False)
+            self._preview_mesh_token = None
+            return
+        if token == self._preview_mesh_token and self.preview.is_ready:
+            return
+        self._preview_mesh_token = token
+        self.capture_inline_button.setEnabled(False)
+        self.preview.show_mesh(mesh)
+
+    def _preview_status(self, text: str) -> None:
+        self.preview_status.setText(str(text or ""))
+
+    def _capture_inline(self) -> None:
+        if not self.preview.capture():
+            # no live view: the dialog route still works
+            self._capture_icon()
+
+    def _inline_capture_done(self, path: object, image: object) -> None:
+        self.generate_icon.setChecked(True)
+        self.icon_source.setText(str(path))
+        try:
+            from PySide6.QtGui import QPixmap
+
+            self.icon_thumbnail.setPixmap(QPixmap.fromImage(image).scaled(self.icon_thumbnail.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self.icon_thumbnail.setVisible(True)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def shutdown_preview(self) -> None:
+        try:
+            self.preview.shutdown()
+        except Exception:  # noqa: BLE001
+            pass
 
     def _capture_icon(self) -> None:
         mesh = self._controller.item_mesh_for_preview()

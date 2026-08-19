@@ -365,7 +365,10 @@ class NewItemStudioTab(QWidget):
                 "then use Build as new item... in the Builder.",
             )
             return
-        starter(entries[0], self.receive_imported_model)
+        try:
+            starter(entries[0], self.receive_imported_model, self.controller.import_dependency_context())
+        except TypeError:
+            starter(entries[0], self.receive_imported_model)
 
     def _install(self) -> None:
         plan = self.controller.plan
@@ -402,6 +405,8 @@ class NewItemStudioTab(QWidget):
         self.controller.request_shutdown()
 
     def shutdown(self) -> None:
+        if self._panels_built:
+            self.model_panel.shutdown_preview()
         self.controller.shutdown()
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt virtual
