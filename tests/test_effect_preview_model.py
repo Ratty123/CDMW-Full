@@ -27,6 +27,46 @@ class CurveTests(unittest.TestCase):
         self.assertEqual(curve_samples(b"", 1), ())
 
 
+class TemperatureRampTests(unittest.TestCase):
+    """The colour curve's fourth channel is a temperature and the ramp is written over a
+    normalised one, but the corpus gives no single unit: across forty shipped effects the
+    channel tops out at 1.4 on one fire, 10 on an aura, 268 on another and 2039 on a third.
+    Reading it over a fixed 1000 put most curves at the bottom of their ramp, which is where
+    the ramp is nearly black."""
+
+    RAMP = (
+        ((0.0, 0.0), (1.0, 1.0)),
+        ((0.0, 0.0), (1.0, 0.2)),
+        ((0.0, 0.0), (1.0, 0.05)),
+        ((0.0, 0.0), (1.0, 1.0)),
+    )
+
+    def test_a_curve_that_never_reaches_a_thousand_still_reads_its_ramp(self) -> None:
+        from cdmw.services.effect_preview_model import _colors_over_life
+
+        curve = [(0.001, 0.0, 0.0, 0.5), (0.002, 0.0, 0.0, 1.4)]
+        colours = _colors_over_life(curve, self.RAMP, 1.0, (1.0, 1.0, 1.0))
+        hottest = colours[-1]
+        self.assertGreater(hottest[0], 0.9, "the hottest sample reads the top of its own ramp")
+        self.assertGreater(hottest[0], hottest[1] * 2.0, "and the ramp's own hue is warm")
+        self.assertGreater(hottest[1], hottest[2])
+        self.assertLess(colours[0][0], hottest[0], "a cooler sample stays lower on the ramp")
+
+    def test_a_flat_temperature_reads_the_top_rather_than_the_bottom(self) -> None:
+        from cdmw.services.effect_preview_model import _colors_over_life
+
+        curve = [(0.0, 0.0, 0.0, 10.0), (0.0, 0.0, 0.0, 10.0)]
+        colours = _colors_over_life(curve, self.RAMP, 1.0, (1.0, 1.0, 1.0))
+        self.assertTrue(all(sample[0] > 0.9 for sample in colours))
+
+    def test_without_a_temperature_the_emissive_colour_carries_the_hue(self) -> None:
+        from cdmw.services.effect_preview_model import _colors_over_life
+
+        curve = [(0.0, 0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 0.0)]
+        colours = _colors_over_life(curve, self.RAMP, 1.0, (0.3, 0.6, 0.9))
+        self.assertEqual(colours, ((0.3, 0.6, 0.9), (0.3, 0.6, 0.9)))
+
+
 class PreviewTests(unittest.TestCase):
     def _preview(self, effect_bytes: bytes, trail_bytes: bytes, *, with_preset: bool = True, preset_bytes: bytes = b""):
         document = decode_effect_binary(effect_bytes)
@@ -71,7 +111,7 @@ class PreviewTests(unittest.TestCase):
         self.assertGreater(trail.alpha_over_life[1], trail.alpha_over_life[-1], "alpha (curve 2) rises fast and fades")
         self.assertGreater(trail.scale_over_life[-1], trail.scale_over_life[0], "the trail grows over life (curve 5)")
         early = trail.color_over_life[2]
-        self.assertGreater(early[0], early[2], "the ramp read at temperature 1000 is orange: red over blue")
+        self.assertGreater(early[0], early[2], "the ramp read at this curve's hottest sample is orange: red over blue")
         self.assertGreater(early[0], 0.5)
         self.assertEqual(trail.sequence, (5, 5), "the sprite is a 5 x 5 flipbook")
         self.assertAlmostEqual(trail.spawn_time, 1.0, places=4, msg="the effect's override says 1.0 s over the emitter file's 0.2")

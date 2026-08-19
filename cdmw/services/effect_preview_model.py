@@ -456,23 +456,32 @@ def _bell(t: float) -> float:
     return max(0.0, math.sin(math.pi * max(0.0, min(1.0, t))))
 
 
-#: the colour curve's fourth channel is a temperature; the ramp's x is that temperature over this
-TEMPERATURE_SCALE = 1000.0
+#: The colour curve's fourth channel is a temperature and the ramp is written over a
+#: normalised one, but nothing in the binaries says what the temperature's units are, and
+#: the corpus does not agree with itself: across forty shipped effects the channel tops out
+#: at 1.4 on one fire, 10 on an artifact aura, 268 on another, and 2039 on a third. A fixed
+#: divisor therefore reads most curves at the very bottom of their ramp, which is where the
+#: ramp is nearly black -- the fire sweep drew in (0.004, 0, 0), a red so dark it read as
+#: soot. Each curve is normalised by its own hottest sample instead, so an emitter's hottest
+#: moment reads the top of its own ramp and the curve's shape still moves the hue over the
+#: particle's life. The fire sweep then lands on the ramp's (1.0, 0.12, 0.03), which is the
+#: same orange its own sibling emitter carries as an emissive colour.
 
 
 def _colors_over_life(color_curve: Sequence[Sequence[float]], ramp: Ramp, temperature_brightness: float, emissive: Vec3) -> Tuple[Vec3, ...]:
     """The colour curve's RGB plus the temperature ramp read at the sample's temperature
-    (fourth channel over `TEMPERATURE_SCALE`), times `_temperatureBrightness`; without a
-    colour curve, the emitter's `_emissiveColor` throughout. Not scaled by the emissive
-    brightness: the viewer normalises the peak so a dim HDR fire still shows."""
+    (the fourth channel over the curve's own hottest sample), times `_temperatureBrightness`;
+    without a colour curve, the emitter's `_emissiveColor` throughout. Not scaled by the
+    emissive brightness: the viewer normalises the peak so a dim HDR fire still shows."""
 
     if not color_curve:
         return tuple((max(0.0, emissive[0]), max(0.0, emissive[1]), max(0.0, emissive[2])) for _ in range(CURVE_SAMPLES))
+    hottest = max((float(sample[3]) for sample in color_curve if len(sample) > 3), default=0.0)
     out: List[Vec3] = []
     for sample in color_curve:
         rgb = [max(0.0, float(v)) for v in list(sample[:3]) + [0.0] * (3 - len(sample[:3]))]
-        if ramp and len(sample) > 3:
-            temperature = float(sample[3]) / TEMPERATURE_SCALE
+        if ramp and len(sample) > 3 and hottest > 0.0:
+            temperature = float(sample[3]) / hottest
             if temperature > 0.0:
                 warm = _ramp_color(ramp, temperature)
                 rgb = [rgb[i] + warm[i] * temperature_brightness for i in range(3)]
