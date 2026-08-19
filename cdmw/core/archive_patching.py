@@ -416,6 +416,34 @@ def _verify_crc_chain(papgt_path: Path, touched_pamt_paths: Iterable[Path]) -> N
             )
 
 
+def paz_checksums(paths: Sequence[Path], *, on_log: Optional[Callable[[str], None]] = None) -> Dict[Path, Tuple[int, int]]:
+    """`{path: (checksum, size)}` for whole archive payload files.
+
+    The native accelerator hashes them out of process at about 1 GB/s; without it the
+    same files go through the Python hash at about 6 MiB/s, which is where an install
+    used to spend most of its minutes.
+    """
+
+    wanted = [Path(path) for path in paths]
+    if not wanted:
+        return {}
+    try:
+        from cdmw.core.archive_accelerator import checksum_files_native
+
+        native = checksum_files_native(wanted)
+    except Exception:  # noqa: BLE001 - a missing or unhappy helper is not an error
+        native = None
+    if native is not None:
+        _safe_log(on_log, f"Checksums for {len(wanted)} archive file(s) read by the native accelerator.")
+        return dict(native)
+    out: Dict[Path, Tuple[int, int]] = {}
+    for path in wanted:
+        _safe_log(on_log, f"Recalculating checksum for {path.name} ({_format_progress_size(path.stat().st_size)})...")
+        data = path.read_bytes()
+        out[path] = (_calculate_pa_checksum(data), len(data))
+    return out
+
+
 def _create_backup(
     files: Sequence[Path],
     *,
@@ -626,16 +654,19 @@ def _apply_in_place_patches(
         struct.pack_into("<I", mutable.raw, mutable_record.record_offset + 12, len(request.payload_data))
         touched_paz_indices.add(int(mutable_record.paz_index))
 
-    for paz_index in sorted(touched_paz_indices):
-        paz_record = mutable.paz_records.get(paz_index)
-        if paz_record is None:
+    ordered = sorted(touched_paz_indices)
+    paz_paths: List[Path] = []
+    for paz_index in ordered:
+        if mutable.paz_records.get(paz_index) is None:
             raise ValueError(f"PAMT {pamt_path.name} is missing PAZ table entry {paz_index}.")
         paz_path = pamt_path.parent / f"{paz_index}.paz"
         if not paz_path.is_file():
             raise FileNotFoundError(f"Could not find archive payload file {paz_path}.")
-        _safe_log(on_log, f"Recalculating checksum for {paz_path.name}...")
-        paz_data = paz_path.read_bytes()
-        _write_paz_record(mutable.raw, paz_record.entry_offset, checksum=_calculate_pa_checksum(paz_data), size=len(paz_data))
+        paz_paths.append(paz_path)
+    sums = paz_checksums(paz_paths, on_log=on_log)
+    for paz_index, paz_path in zip(ordered, paz_paths):
+        checksum, size = sums[paz_path]
+        _write_paz_record(mutable.raw, mutable.paz_records[paz_index].entry_offset, checksum=checksum, size=size)
 
     _safe_log(on_log, f"Writing updated {pamt_path.name}...")
     pamt_crc = _calculate_pa_checksum(bytes(mutable.raw[12:]))

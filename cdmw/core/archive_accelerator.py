@@ -355,6 +355,81 @@ def read_archive_entry_data_native(
     return data, bool(report.get("decompressed", False)), str(report.get("note") or "NativeRaw")
 
 
+def checksum_files_native(
+    paths: Sequence[Path],
+    *,
+    stop_event: object = None,
+    timeout_seconds: float = 300.0,
+) -> Optional[dict[Path, tuple[int, int]]]:
+    """The PA checksum and size of each file, computed by the native accelerator.
+
+    Python hashes at about 6 MiB/s with the GIL held, which on the archives a single
+    new item touches is over a minute of a frozen window; the accelerator does the same
+    files at about 1 GB/s in a process of its own. None when the binary is missing or
+    anything about the run looks off, and the caller hashes in Python instead.
+    """
+
+    wanted = [Path(path) for path in paths]
+    if not wanted:
+        return {}
+    binary = find_native_archive_accelerator()
+    if not _native_archive_accelerator_ready(binary):
+        return None
+    assert binary is not None
+    raise_if_cancelled(stop_event)
+    with tempfile.TemporaryDirectory(prefix="cdmw_archive_accelerator_checksum_") as temp_dir:
+        temp_path = Path(temp_dir)
+        job_path = temp_path / "checksum_job.json"
+        report_path = temp_path / "checksum_report.json"
+        job_path.write_text(
+            json.dumps({"protocol": ARCHIVE_ACCELERATOR_PROTOCOL, "files": [str(path) for path in wanted]}, indent=2),
+            encoding="utf-8",
+        )
+        try:
+            completed = subprocess.run(
+                [str(binary), "checksum-job", str(job_path), str(report_path), *_native_diagnostic_args()],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=max(1.0, float(timeout_seconds)),
+                check=False,
+                **hidden_subprocess_kwargs(),
+            )
+        except (OSError, subprocess.SubprocessError, ValueError):
+            return None
+        raise_if_cancelled(stop_event)
+        if completed.returncode != 0 or not report_path.is_file():
+            return None
+        try:
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+    if not isinstance(report, Mapping) or report.get("status") != "ok":
+        return None
+    rows = report.get("files")
+    if not isinstance(rows, Sequence):
+        return None
+    by_key: dict[str, tuple[int, int]] = {}
+    for row in rows:
+        if not isinstance(row, Mapping):
+            return None
+        try:
+            by_key[str(row["path"]).replace("\\", "/").casefold()] = (int(row["checksum"]) & 0xFFFFFFFF, int(row["size"]))
+        except (KeyError, TypeError, ValueError):
+            return None
+    out: dict[Path, tuple[int, int]] = {}
+    for path in wanted:
+        found = by_key.get(str(path).replace("\\", "/").casefold())
+        if found is None:
+            return None
+        try:
+            if found[1] != path.stat().st_size:
+                return None
+        except OSError:
+            return None
+        out[path] = found
+    return out
+
+
 def _native_browser_state_block_reason(
     entries: Sequence[ArchiveEntry],
     *,

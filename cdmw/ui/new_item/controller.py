@@ -18,7 +18,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
 from cdmw.models import ArchiveEntry
-from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, build_placed_import, fitted_placement, load_model_import_source, mesh_bounds, mesh_centroid
+from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, bake_mesh, build_placed_import, fitted_placement, load_model_import_source, mesh_bounds, mesh_centroid
 from cdmw.services.effect_catalogue import EffectCatalogue, EffectFacts, build_effect_catalogue, catalogue_signature, load_effect_catalogue, save_effect_catalogue
 from cdmw.services.new_item_baseline import baseline_facts, baseline_lines
 from cdmw.services.new_item_planning import NewItemPlan, NewItemPlanError
@@ -73,6 +73,8 @@ class NewItemStudioController(QObject):
         self._template_models: Dict[tuple, object] = {}
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
+        self._on_done: Optional[Callable[[object], None]] = None
+        self._on_error: Optional[Callable[[str], None]] = None
         self._lane: str = ""
         #: What every shipped effect is made of, once indexed (a minute, cached on disk).
         self.effect_catalogue: Optional[EffectCatalogue] = None
@@ -306,6 +308,28 @@ class NewItemStudioController(QObject):
         if self.effect_catalogue is None:
             return None
         return self.effect_catalogue.get(stem)
+
+    def item_mesh_as_planned(self):
+        """The mesh a weapon effect will actually sit on, and a word for what it is:
+        the applied import, else the imported model at the placement set so far, else
+        the template's own. The effect dialog asks for this rather than
+        :meth:`item_mesh_for_preview`, whose imported model only appears once Apply
+        the placement has run, so an effect was judged against the template's blade.
+        Returns `(mesh, kind)` where kind is "placed", "applied" or "template"; the mesh
+        is None when there is nothing to parse."""
+
+        source = self.model_import
+        if self.model_result is None and source is not None:
+            try:
+                mesh = bake_mesh(source.baked_scene_mesh(), self.model_placement)
+            except Exception:  # noqa: BLE001 - fall back to whatever else there is
+                mesh = None
+            if mesh is not None:
+                return mesh, "placed"
+        mesh = self.item_mesh_for_preview()
+        if mesh is None:
+            return None, ""
+        return mesh, "applied" if self.model_result is not None else "template"
 
     def item_mesh_for_preview(self):
         """The item's mesh as it will be: the imported model, else the template's own.
@@ -873,25 +897,45 @@ class NewItemStudioController(QObject):
         thread = QThread(self)
         worker.moveToThread(thread)
         self._thread, self._worker, self._lane = thread, worker, lane
+        self._on_done, self._on_error = on_done, on_error
         self.busy_changed.emit(True)
         worker.log_message.connect(self.log_message.emit)
-
-        def finish() -> None:
-            self._thread = None
-            self._worker = None
-            self._lane = ""
-            thread.quit()
-            thread.wait(5000)
-            worker.deleteLater()
-            thread.deleteLater()
-            self.busy_changed.emit(False)
-
-        worker.completed.connect(on_done)
-        worker.error.connect(on_error)
-        worker.finished.connect(finish)
+        # Bound methods of this QObject, not closures: a plain function or lambda
+        # connected to a worker's signal runs on the worker's own thread, so the panels'
+        # slots (and everything they touch in Qt) ran off the UI thread for the whole of
+        # an install. Connecting the controller's own methods gives a queued call back
+        # onto the thread the controller lives on.
+        worker.completed.connect(self._task_completed)
+        worker.error.connect(self._task_failed)
+        worker.finished.connect(self._task_finished)
         thread.started.connect(worker.run)
         thread.start()
         return True
+
+    def _task_completed(self, result: object) -> None:
+        handler = self._on_done
+        if handler is not None:
+            handler(result)
+
+    def _task_failed(self, message: object) -> None:
+        handler = self._on_error
+        if handler is not None:
+            handler(str(message))
+
+    def _task_finished(self) -> None:
+        thread, worker = self._thread, self._worker
+        self._thread = None
+        self._worker = None
+        self._lane = ""
+        self._on_done = None
+        self._on_error = None
+        if thread is not None:
+            thread.quit()
+            thread.wait(5000)
+            thread.deleteLater()
+        if worker is not None:
+            worker.deleteLater()
+        self.busy_changed.emit(False)
 
     # ------------------------------------------------------------------ shutdown
 

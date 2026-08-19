@@ -203,6 +203,84 @@ std::uint32_t hashlittle_bytes(const std::string& text, std::uint32_t initval = 
     return c;
 }
 
+// Streaming hashlittle over a whole file, the PA checksum the PAMT stores for each
+// PAZ (seed 0xC5EDE, so a = b = c = length + 0xDEBA1DCD). Python computes this at
+// about 6 MiB/s, which on a 174 MB archive is half a minute of held GIL per file;
+// here it runs at memory speed in a process of its own.
+std::uint32_t hashlittle_file(const fs::path& path, std::uint64_t& size_out) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) throw std::runtime_error("could not open " + path.string());
+    const std::uint64_t length = static_cast<std::uint64_t>(fs::file_size(path));
+    size_out = length;
+    std::uint32_t a = 0xDEADBEEFu + static_cast<std::uint32_t>(length) + 0x000C5EDEu;
+    std::uint32_t b = a;
+    std::uint32_t c = a;
+    std::uint64_t remaining = length;
+    std::vector<unsigned char> buffer(1u << 20);
+    std::vector<unsigned char> carry;
+    carry.reserve(buffer.size() + 24);
+    auto read_u32_at = [](const unsigned char* p) -> std::uint32_t {
+        return static_cast<std::uint32_t>(p[0]) | (static_cast<std::uint32_t>(p[1]) << 8)
+             | (static_cast<std::uint32_t>(p[2]) << 16) | (static_cast<std::uint32_t>(p[3]) << 24);
+    };
+    auto mix_blocks = [&](const unsigned char* data, size_t blocks) {
+        for (size_t i = 0; i < blocks; ++i) {
+            const unsigned char* p = data + i * 12;
+            a += read_u32_at(p);
+            b += read_u32_at(p + 4);
+            c += read_u32_at(p + 8);
+            a -= c; a ^= rot32(c, 4); c += b;
+            b -= a; b ^= rot32(a, 6); a += c;
+            c -= b; c ^= rot32(b, 8); b += a;
+            a -= c; a ^= rot32(c, 16); c += b;
+            b -= a; b ^= rot32(a, 19); a += c;
+            c -= b; c ^= rot32(b, 4); b += a;
+        }
+    };
+    while (in) {
+        in.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(buffer.size()));
+        const std::streamsize got = in.gcount();
+        if (got <= 0) break;
+        carry.insert(carry.end(), buffer.begin(), buffer.begin() + static_cast<size_t>(got));
+        // leave at least 13 bytes behind: the loop runs while more than 12 remain, and
+        // the last 1..12 bytes take the tail path below
+        if (carry.size() > 12 + 12) {
+            const size_t usable = carry.size() - 13;
+            const size_t blocks = usable / 12;
+            if (blocks > 0) {
+                mix_blocks(carry.data(), blocks);
+                remaining -= static_cast<std::uint64_t>(blocks) * 12;
+                carry.erase(carry.begin(), carry.begin() + static_cast<std::ptrdiff_t>(blocks * 12));
+            }
+        }
+    }
+    size_t offset = 0;
+    while (remaining > 12) {
+        mix_blocks(carry.data() + offset, 1);
+        offset += 12;
+        remaining -= 12;
+    }
+    const unsigned char* tail = carry.data() + offset;
+    const size_t tail_size = static_cast<size_t>(remaining);
+    auto read_tail = [&](size_t pos) -> std::uint32_t {
+        std::uint32_t value = 0;
+        for (size_t i = 0; i < 4 && pos + i < tail_size; ++i) value |= static_cast<std::uint32_t>(tail[pos + i]) << (8 * i);
+        return value;
+    };
+    if (tail_size >= 9) c += read_tail(8);
+    if (tail_size >= 5) b += read_tail(4);
+    if (tail_size >= 1) a += read_tail(0);
+    if (tail_size == 0) return c;
+    c = (c ^ b) - rot32(b, 14);
+    a = (a ^ c) - rot32(c, 11);
+    b = (b ^ a) - rot32(a, 25);
+    c = (c ^ b) - rot32(b, 16);
+    a = (a ^ c) - rot32(c, 4);
+    b = (b ^ a) - rot32(a, 14);
+    c = (c ^ b) - rot32(b, 24);
+    return c;
+}
+
 class VfsPathResolver {
 public:
     explicit VfsPathResolver(std::vector<char> data, size_t max_cache_entries = 200000)
@@ -1701,6 +1779,53 @@ int run_item_index_job(
     }
 }
 
+int run_checksum_job(const fs::path& job_path, const fs::path& report_path) {
+    try {
+        const std::string job = read_text(job_path);
+        std::vector<std::string> files;
+        size_t pos = job.find("\"files\"");
+        if (pos != std::string::npos) {
+            pos = job.find('[', pos);
+            const size_t end = pos == std::string::npos ? std::string::npos : job.find(']', pos);
+            while (pos != std::string::npos && end != std::string::npos) {
+                const size_t open = job.find('"', pos + 1);
+                if (open == std::string::npos || open > end) break;
+                const size_t close = job.find('"', open + 1);
+                if (close == std::string::npos || close > end) break;
+                std::string value = job.substr(open + 1, close - open - 1);
+                std::string unescaped;
+                for (size_t i = 0; i < value.size(); ++i) {
+                    if (value[i] == '\\' && i + 1 < value.size()) {
+                        ++i;
+                        unescaped.push_back(value[i] == 'n' ? '\n' : value[i]);
+                    } else {
+                        unescaped.push_back(value[i]);
+                    }
+                }
+                files.push_back(unescaped);
+                pos = close;
+            }
+        }
+        std::ostringstream out;
+        out << "{\"status\":\"ok\",\"backend\":\"" << kBackend << "\",\"protocol\":" << kProtocol << ",\"files\":[";
+        for (size_t i = 0; i < files.size(); ++i) {
+            std::uint64_t size = 0;
+            const std::uint32_t checksum = hashlittle_file(fs::path(files[i]), size);
+            if (i) out << ",";
+            out << "{\"path\":\"" << json_escape(files[i]) << "\",\"checksum\":" << checksum << ",\"size\":" << size << "}";
+        }
+        out << "]}";
+        write_text(report_path, out.str());
+        return 0;
+    } catch (const std::exception& exc) {
+        std::ostringstream out;
+        out << "{\"status\":\"error\",\"backend\":\"" << kBackend << "\",\"protocol\":" << kProtocol
+            << ",\"error\":\"" << json_escape(exc.what()) << "\"}";
+        write_text(report_path, out.str());
+        return 2;
+    }
+}
+
 int run_entry_read_job(const fs::path& job_path, const fs::path& output_path, const fs::path& report_path) {
     try {
         const std::string job = read_text(job_path);
@@ -1771,10 +1896,13 @@ int main(int argc, char** argv) {
         if (argc >= 5 && std::string(argv[1]) == "item-name-map-job") {
             return run_item_index_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]), false);
         }
+        if (argc >= 4 && std::string(argv[1]) == "checksum-job") {
+            return run_checksum_job(fs::path(argv[2]), fs::path(argv[3]));
+        }
         if (argc >= 5 && std::string(argv[1]) == "entry-read-job") {
             return run_entry_read_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]));
         }
-        std::cerr << "usage: cdmw-archive-accelerator --version | scan-job <job.json> <report.json> [progress.json] | browser-state-job <job.json> <report.json> [progress.json] | derived-index-job <entries.tsv> <report.json> [progress.json] | item-index-job <entries.tsv> <work-dir> <report.json> | item-name-map-job <entries.tsv> <work-dir> <report.json> | entry-read-job <job.json> <output.bin> <report.json>\n";
+        std::cerr << "usage: cdmw-archive-accelerator --version | scan-job <job.json> <report.json> [progress.json] | browser-state-job <job.json> <report.json> [progress.json] | derived-index-job <entries.tsv> <report.json> [progress.json] | item-index-job <entries.tsv> <work-dir> <report.json> | item-name-map-job <entries.tsv> <work-dir> <report.json> | entry-read-job <job.json> <output.bin> <report.json> | checksum-job <job.json> <report.json>\n";
         return 1;
     } catch (const std::exception& exc) {
         std::cerr << exc.what() << "\n";
