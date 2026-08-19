@@ -128,33 +128,28 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
-    def test_the_icon_can_be_captured_from_the_viewport(self) -> None:
-        from PySide6.QtWidgets import QDialog
+    def test_the_icon_is_captured_from_the_inline_view(self) -> None:
+        """Capture the icon from this view asks the inline viewport for the frame; the
+        captured PNG becomes the item's icon source (Give the item its own icon ticks)."""
+
+        from PySide6.QtGui import QImage
 
         captured = Path(self.root) / "capture.png"
-        captured.write_bytes(bytes([0x89]) + b"PNG placeholder")
-
-        class FakeDialog:
-            def __init__(self, parent, **kwargs):
-                self.kwargs = kwargs
-                self.captured_path = captured
-
-            def exec(self):
-                return QDialog.Accepted
-
-        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
-
+        QImage(8, 8, QImage.Format_ARGB32).save(str(captured))
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
         model = tab.model_panel
-        seen = {}
-        blade = ParsedMesh(path="blade", format="pac", submeshes=[SubMesh(name="b", vertices=[(0, 0, 0)] * 3, faces=[(0, 1, 2)])])
-        with patch.object(type(tab.controller), "item_preview_source", lambda self_: (("blade",), lambda _stop: blade)),              patch.object(type(model), "icon_capture_dialog_factory", staticmethod(lambda parent, **kwargs: seen.setdefault("d", FakeDialog(parent, **kwargs)))):
-            model._capture_icon()
-        self.assertIs(seen["d"].kwargs["item_source"](None), blade, "the item's textured source is what the dialog shows")
-        self.assertEqual(seen["d"].kwargs["item_token"], ("blade",))
+        asked = []
+        with patch.object(type(model.preview), "capture", lambda self_, path=None: asked.append(path) or True):
+            model._capture_inline()
+        self.assertEqual(len(asked), 1, "the inline viewport is asked once")
+        model.preview.captured.emit(captured, QImage(str(captured)))
         self.assertTrue(model.generate_icon.isChecked())
         self.assertEqual(tab.controller.draft.icon_source_path, str(captured))
+        self.assertTrue(model.icon_thumbnail.isVisibleTo(model))
+        with patch.object(type(model.preview), "capture", lambda self_, path=None: False):
+            model._capture_inline()
+        self.assertIn("not showing the item yet", model.preview_status.text())
         tab.close()
         tab.deleteLater()
 

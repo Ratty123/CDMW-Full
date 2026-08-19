@@ -156,6 +156,8 @@ class ItemPreviewFrame(QWidget):
         self._view_mode = "overlay"
         self._grid_visible = True
         self._model_bounds: Any = None
+        #: a package built while the frame was hidden, waiting for the viewport to start
+        self._deferred_package: Optional[Path] = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
@@ -211,16 +213,32 @@ class ItemPreviewFrame(QWidget):
             self._pending = None
             self._placement = None
             self.is_ready = False
+            if self._deferred_package is not None:
+                shutil.rmtree(self._package_cleanup_root(self._deferred_package), ignore_errors=True)
+                self._deferred_package = None
             if self.host is None:
                 self.placeholder.setText("The viewport starts when there is a mesh to show.")
             return
-        if not self._ensure_host():
+        # the package builds at once, shown or not (so a step opens with the item there);
+        # the viewport itself starts only once this frame is on screen, since it embeds
+        # a native window that wants a realized parent
+        if (self.host is not None or self.isVisible()) and not self._ensure_host():
             return
-        if self._pending is not None and self._pending[0] == token and (self._thread is not None or self.is_ready):
+        if self._pending is not None and self._pending[0] == token and (self._thread is not None or self.is_ready or self._deferred_package is not None):
             return
         self._pending = (token, source)
+        if self._deferred_package is not None:
+            shutil.rmtree(self._package_cleanup_root(self._deferred_package), ignore_errors=True)
+            self._deferred_package = None
         if self._thread is None:
             self._start_package(self._pending)
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt virtual
+        super().showEvent(event)
+        deferred = self._deferred_package
+        if deferred is not None and not self._closed and self._ensure_host():
+            self._deferred_package = None
+            self._package_ready(deferred)
 
     def show_placement(
         self,
@@ -379,8 +397,16 @@ class ItemPreviewFrame(QWidget):
         thread.start()
 
     def _package_ready(self, result: object) -> None:
-        if self._closed or not isinstance(result, Path) or self.host is None:
+        if self._closed or not isinstance(result, Path):
             return
+        if self.host is None:
+            if self.isVisible() and self._ensure_host():
+                pass
+            else:
+                # built ahead of the step: loaded the moment the frame shows
+                self._deferred_package = result
+                self.status_changed.emit("")
+                return
         previous, self._package_dir = self._package_dir, result
         if previous is not None and previous != result:
             shutil.rmtree(self._package_cleanup_root(previous), ignore_errors=True)
@@ -461,6 +487,9 @@ class ItemPreviewFrame(QWidget):
         if self._package_dir is not None:
             shutil.rmtree(self._package_cleanup_root(self._package_dir), ignore_errors=True)
             self._package_dir = None
+        if self._deferred_package is not None:
+            shutil.rmtree(self._package_cleanup_root(self._deferred_package), ignore_errors=True)
+            self._deferred_package = None
 
     def _package_cleanup_root(self, package_dir: Path) -> Path:
         return package_cleanup_root(package_dir, self._output_root)

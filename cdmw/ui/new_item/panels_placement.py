@@ -28,7 +28,7 @@ class PlacementPanel(QGroupBox):
         super().__init__("6. Shop and item groups", parent)
         self._controller = controller
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label("How players get the item: a shop line that sells it (recommended; without one nothing in the game hands it out), and the item groups it belongs to."))
+        layout.addWidget(intro_label("Where players get the item: a shop line (recommended, else nothing hands it out) and its item groups."))
 
         shop = QGroupBox("Shop")
         shop_layout = QVBoxLayout(shop)

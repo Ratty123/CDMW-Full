@@ -159,6 +159,7 @@ class ItemPreviewFrameTests(unittest.TestCase):
 
         FakeHost = self._fake_host_class()
         frame = ItemPreviewFrame(output_root=Path(tempfile.mkdtemp(prefix="cdmw_item_preview_")), host_factory=FakeHost)
+        frame._ensure_host()  # as if the frame had been on screen: the viewport exists
         moves = []
         frame.placement_changed.connect(lambda p, done: moves.append((p, done)))
         start = ModelPlacement(offset=(0.0, 0.0, -0.2), scale=(0.5, 0.5, 0.5))
@@ -224,11 +225,35 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertIsNone(frame.placement)
         frame._closed = True
 
+    def test_a_hidden_frame_builds_the_package_and_loads_it_when_shown(self) -> None:
+        """The package builds ahead of the step (shown or not); the viewport starts, and the
+        package loads, when the frame comes on screen."""
+
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+
+        FakeHost = self._fake_host_class()
+        frame = ItemPreviewFrame(output_root=Path(tempfile.mkdtemp(prefix="cdmw_item_preview_")), host_factory=FakeHost)
+        started = []
+        with patch.object(ItemPreviewFrame, "_start_package", lambda self_, request: started.append(request[0])):
+            frame.show(lambda _stop: None, token="t")
+        self.assertEqual(started, ["t"], "the build starts while hidden")
+        self.assertIsNone(frame.host, "no viewport until the frame shows")
+        frame._package_ready(Path("pkg"))
+        self.assertIsNone(frame.host)
+        self.assertEqual(frame._deferred_package, Path("pkg"))
+        with patch.object(ItemPreviewFrame, "isVisible", lambda self_: True):
+            frame.showEvent(None)
+        self.assertIsNotNone(frame.host, "the viewport starts on show")
+        self.assertIsNone(frame._deferred_package)
+        self.assertIn("load_package", [c[0] for c in frame.host.calls])
+        frame._closed = True
+
     def test_the_same_token_is_not_rebuilt_and_a_newer_one_supersedes(self) -> None:
         from cdmw.ui.new_item.item_preview import ItemPreviewFrame
 
         FakeHost = self._fake_host_class()
         frame = ItemPreviewFrame(output_root=Path(tempfile.mkdtemp(prefix="cdmw_item_preview_")), host_factory=FakeHost)
+        frame._ensure_host()
         started = []
 
         def fake_start(self_, request):

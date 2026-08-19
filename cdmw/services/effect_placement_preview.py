@@ -1,18 +1,18 @@
-"""Place an effect on an item in the .NET viewport: the effect's box as a mesh the gizmo moves.
-
+"""Place an effect on an item in the .NET viewport: a small anchor mesh the gizmo moves.
 The game draws a grafted effect at the weapon's origin, transformed by the
-``_offsetTransform`` the studio writes (a uniform scale and an offset). What the
-effect *spans* is known from its binary (`EffectData._boundingBoxMin/Max`, see
-:mod:`cdmw.services.effect_catalogue`), so a box of that size, placed by the same
-scale and offset, is where the effect will be. This module builds that box as a
-:class:`ParsedMesh` and packages it for the resident .NET viewport with the item's
-own mesh as the reference: the viewport's placement gizmo then moves and scales the
-box, and every drag comes back as a delta the studio adds to its offset and scale.
-
+``_offsetTransform`` the studio writes (a uniform scale and an offset). This module
+packages a small anchor (an octahedron a few centimetres across, at the effect's
+origin) as the editable mesh for the resident .NET viewport, with the item's own
+mesh as the reference: the viewport's placement gizmo moves and scales the anchor,
+the particle layer draws the effect's approximate reading around it (see
+:mod:`cdmw.services.effect_preview_model`), and every drag comes back as a delta
+the studio adds to its offset and scale. What the effect *spans* (its reach, from
+`EffectData._boundingBoxMin/Max`) travels along as numbers for the dialog's text;
+it is not drawn, since a box the size of the reach hides the item.
 The scene is the item's frame: the weapon's origin is the hand, +z toward the
-pommel, the blade toward -z; a helm sits at head height. The box mesh is authored
-at scale 1.0 around the effect's own origin, so the placement transform the
-viewport applies is exactly the ``_offsetTransform`` the game will.
+pommel, the blade toward -z; a helm sits at head height. The anchor is authored at
+scale 1.0 at the effect's own origin, so the placement transform the viewport
+applies is exactly the ``_offsetTransform`` the game will.
 """
 
 from __future__ import annotations
@@ -27,65 +27,65 @@ if TYPE_CHECKING:
     from cdmw.services.effect_preview_model import EffectPreview
 
 __all__ = [
-    "EFFECT_BOX_MATERIAL",
-    "EFFECT_BOX_SUBMESH",
+    "EFFECT_ANCHOR_MATERIAL",
+    "EFFECT_ANCHOR_RADIUS",
+    "EFFECT_ANCHOR_SUBMESH",
     "EFFECT_PREVIEW_FILE",
     "EFFECT_TEXTURE_DIR",
     "EffectPlacementPreview",
-    "box_mesh",
+    "anchor_mesh",
     "build_effect_placement_package",
     "next_scale",
     "write_effect_preview",
 ]
 
 Vec3 = Tuple[float, float, float]
-EFFECT_BOX_SUBMESH = "effect_box"
-EFFECT_BOX_MATERIAL = "effect_box"
-_MIN_EXTENT = 0.05
+EFFECT_ANCHOR_SUBMESH = "effect_anchor"
+EFFECT_ANCHOR_MATERIAL = "effect_anchor"
+#: half the anchor's width, metres: a marker, small enough never to hide the item
+EFFECT_ANCHOR_RADIUS = 0.015
 
 
-def box_mesh(box_min: Vec3, box_max: Vec3, *, name: str = EFFECT_BOX_SUBMESH) -> ParsedMesh:
-    """A closed box between `box_min` and `box_max` (effect-local metres, scale 1.0),
-    with a floor of a few centimetres so an effect that reports no box still shows."""
+def anchor_mesh(radius: float = EFFECT_ANCHOR_RADIUS, *, name: str = EFFECT_ANCHOR_SUBMESH) -> ParsedMesh:
+    """A small octahedron at the origin (effect-local metres, scale 1.0): the editable
+    mesh the gizmo hangs on, with flat faces so it reads as a solid marker."""
 
-    low = list(float(v) for v in box_min)
-    high = list(float(v) for v in box_max)
-    for axis in range(3):
-        if high[axis] - low[axis] < _MIN_EXTENT:
-            centre = (high[axis] + low[axis]) / 2.0
-            low[axis], high[axis] = centre - _MIN_EXTENT / 2.0, centre + _MIN_EXTENT / 2.0
-    x0, y0, z0 = low
-    x1, y1, z1 = high
-    corners = [
-        (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
-        (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1),
-    ]
-    # each face its own four vertices, so the normals are flat and the box reads as a solid
-    faces_by_side = (
-        ((0, 1, 2, 3), (0.0, 0.0, -1.0)),
-        ((5, 4, 7, 6), (0.0, 0.0, 1.0)),
-        ((4, 0, 3, 7), (-1.0, 0.0, 0.0)),
-        ((1, 5, 6, 2), (1.0, 0.0, 0.0)),
-        ((4, 5, 1, 0), (0.0, -1.0, 0.0)),
-        ((3, 2, 6, 7), (0.0, 1.0, 0.0)),
-    )
+    r = max(0.001, float(radius))
+    tips = [(r, 0.0, 0.0), (-r, 0.0, 0.0), (0.0, r, 0.0), (0.0, -r, 0.0), (0.0, 0.0, r), (0.0, 0.0, -r)]
+    # each face its own three vertices: +x/-x with +y/-y with +z/-z corners, outward normals
+    triangles = []
+    for sx in (0, 1):
+        for sy in (2, 3):
+            for sz in (4, 5):
+                a, b, c = tips[sx], tips[sy], tips[sz]
+                # order so the normal points away from the origin
+                normal = (
+                    (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]),
+                    (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]),
+                    (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]),
+                )
+                centre = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
+                if sum(normal[i] * centre[i] for i in range(3)) < 0:
+                    b, c = c, b
+                    normal = tuple(-v for v in normal)
+                triangles.append(((a, b, c), normal))
     vertices: list[Vec3] = []
     normals: list[Vec3] = []
     uvs: list[Tuple[float, float]] = []
     faces: list[Tuple[int, int, int]] = []
-    for quad, normal in faces_by_side:
+    for (a, b, c), normal in triangles:
+        length = sum(v * v for v in normal) ** 0.5 or 1.0
+        unit = tuple(v / length for v in normal)
         base = len(vertices)
-        for corner in quad:
-            vertices.append(corners[corner])
-            normals.append(normal)
-        uvs.extend([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+        vertices.extend([a, b, c])
+        normals.extend([unit, unit, unit])
+        uvs.extend([(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)])
         faces.append((base, base + 1, base + 2))
-        faces.append((base, base + 2, base + 3))
     submesh = SubMesh(
-        name=name, material=EFFECT_BOX_MATERIAL, vertices=vertices, uvs=uvs, normals=normals, faces=faces,
+        name=name, material=EFFECT_ANCHOR_MATERIAL, vertices=vertices, uvs=uvs, normals=normals, faces=faces,
         vertex_count=len(vertices), face_count=len(faces),
     )
-    return ParsedMesh(path=f"{name}.box", format="box", submeshes=[submesh], bbox_min=tuple(low), bbox_max=tuple(high),  # type: ignore[arg-type]
+    return ParsedMesh(path=f"{name}.anchor", format="anchor", submeshes=[submesh], bbox_min=(-r, -r, -r), bbox_max=(r, r, r),
                       total_vertices=len(vertices), total_faces=len(faces), has_uvs=True, has_bones=False)
 
 
@@ -98,18 +98,14 @@ def next_scale(current: float, delta: Sequence[float]) -> float:
     return max(0.01, min(10.0, float(current) + mean))
 
 
-#: The box's faces are fully transparent: the box shows only as the wire the viewport draws in its wire display mode (the placement dialog's Show the effect's box), so it never hides the item or the particles.
-BOX_TINT = (1.0, 0.45, 0.1)
-BOX_OPACITY = 0.0
+#: the anchor's colour: orange, opaque, so it reads as a handle and not as part of the item
+ANCHOR_TINT = (1.0, 0.45, 0.1)
 
 
-def _tint_box_material(materials_path: Path) -> None:
-    """Make the box submesh translucent and orange in the package's .NET materials.
-
-    The package builder gives every submesh an opaque neutral material; the box has
-    to be seen through, or the item it surrounds is hidden. Best effort: a package
-    whose materials file is missing or unreadable keeps the opaque box.
-    """
+def _tint_anchor_material(materials_path: Path) -> None:
+    """Make the anchor submesh orange in the package's .NET materials (the package builder
+    gives every submesh an opaque neutral material). Best effort: a package whose
+    materials file is missing or unreadable keeps the neutral anchor."""
 
     import json
 
@@ -121,16 +117,13 @@ def _tint_box_material(materials_path: Path) -> None:
         return
     changed = False
     for item in payload.get("submeshes", ()):
-        if not isinstance(item, dict) or str(item.get("material", "")) != EFFECT_BOX_MATERIAL:
+        if not isinstance(item, dict) or str(item.get("material", "")) != EFFECT_ANCHOR_MATERIAL:
             continue
-        # cutout at opacity 0: every fragment of the faces is clipped, so the box is only
-        # ever the wire the viewport draws in its wire display mode (Show the effect's box)
-        item["alpha_mode"] = "cutout"
-        item["alpha_cutoff"] = 0.5
-        item["opacity_factor"] = BOX_OPACITY
+        item["alpha_mode"] = "opaque"
+        item["opacity_factor"] = 1.0
         item["double_sided"] = True
         parameters = dict(item.get("parameters", {}) or {})
-        parameters.update({"base_tint_color": list(BOX_TINT), "base_tint_strength": 1.0, "roughness": 0.9, "metalness": 0.0})
+        parameters.update({"base_tint_color": list(ANCHOR_TINT), "base_tint_strength": 1.0, "roughness": 0.6, "metalness": 0.0})
         item["parameters"] = parameters
         changed = True
     if changed:
@@ -139,7 +132,8 @@ def _tint_box_material(materials_path: Path) -> None:
 
 @dataclass(frozen=True, slots=True)
 class EffectPlacementPreview:
-    """A built package: where it is, which submesh is the box, and the item's frame."""
+    """A built package: where it is, which submesh is the anchor, the item's frame, and
+    the effect's reach (`box_min`/`box_max`, effect-local metres at scale 1.0)."""
 
     package_dir: Path
     box_submesh_index: int
@@ -201,16 +195,17 @@ def build_effect_placement_package(
     effect_preview: Optional["EffectPreview"] = None,
     texture_reader: Optional[Callable[[str], Optional[bytes]]] = None,
 ) -> EffectPlacementPreview:
-    """Package the item's mesh (reference, drawn as its wire) and the effect's box
+    """Package the item's mesh (reference, drawn as its wire) and the effect's anchor
     (the editable mesh the gizmo moves) for the resident .NET viewport; with
     `effect_preview`, the simulation description and its textures go in beside them
-    (see :func:`write_effect_preview`)."""
+    (see :func:`write_effect_preview`). `box_min`/`box_max` is the effect's reach,
+    carried as numbers."""
 
     from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
 
-    box = box_mesh(box_min, box_max)
+    anchor = anchor_mesh()
     package = build_mesh_dotnet_experiment_package(
-        box,
+        anchor,
         reference_mesh=item_mesh,
         comparison_mode="overlay",
         interaction_mode="placement",
@@ -218,7 +213,7 @@ def build_effect_placement_package(
         cancelled=cancelled,
         include_material_resources=False,
     )
-    _tint_box_material(Path(package.package_dir) / "net_materials.json")
+    _tint_anchor_material(Path(package.package_dir) / "net_materials.json")
     preview_file: Optional[Path] = None
     missing: Tuple[str, ...] = ()
     if effect_preview is not None:
@@ -227,8 +222,8 @@ def build_effect_placement_package(
         package_dir=Path(package.package_dir),
         box_submesh_index=0,
         item_submesh_count=len(item_mesh.submeshes),
-        box_min=tuple(box.bbox_min),  # type: ignore[arg-type]
-        box_max=tuple(box.bbox_max),  # type: ignore[arg-type]
+        box_min=tuple(float(v) for v in box_min),  # type: ignore[arg-type]
+        box_max=tuple(float(v) for v in box_max),  # type: ignore[arg-type]
         preview_file=preview_file,
         missing_textures=missing,
     )

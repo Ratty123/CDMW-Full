@@ -43,7 +43,7 @@ class OutputPanel(QGroupBox):
         super().__init__("7. Output", parent)
         self._controller = controller
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label("Three moves: build the plan (nothing is written), read what it will change, then write it as a mod folder or install it into the game."))
+        layout.addWidget(intro_label("Build the plan (nothing is written yet), read what it changes, then write a mod folder or install into the game."))
 
         build = QGroupBox("1. Build the plan")
         build_layout = QHBoxLayout(build)

@@ -39,10 +39,7 @@ class StatsPanel(QGroupBox):
         self._grid: Optional[StatGrid] = None
         self._syncing = False
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label(
-            "The item's numbers, starting as the template's. One row per enhancement level; edit a cell to change it. "
-            "Blue means it differs from the template (hover for the template's value)."
-        ))
+        layout.addWidget(intro_label("The item's numbers per enhancement level, starting as the template's. Edit a cell; blue differs from the template (hover for its value)."))
         self.carries = intro_label("")
         layout.addWidget(self.carries)
 

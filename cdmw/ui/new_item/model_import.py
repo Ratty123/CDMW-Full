@@ -293,14 +293,19 @@ def build_placed_import(
     entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     stop_event: Optional[threading.Event] = None,
 ):
-    """The Builder's import over the template's mesh `entry`, headless: a static
-    replacement of the source at `placement`, with the default material mapping (the
-    studio's plain-PBR route writes the source's materials itself). Returns the
+    """The Builder's import over the template's mesh `entry`, headless: the Full Import
+    Model Replacement (the imported model owns the visible mesh, the generated textures
+    and the material sidecar; the studio's plain-PBR route rewrites that sidecar's
+    wrappers to the plain shaders afterwards), at exactly `placement` (the preset's own
+    automatic alignment is replaced by the manual transform). Returns the
     `MeshImportPreviewResult` the Builder's dialog would have handed over."""
 
-    from cdmw.core.archive_mesh_import_build import build_mesh_import_preview
+    from dataclasses import replace as dc_replace
 
-    options = StaticMeshReplacementOptions(transform=placement.build_transform())
+    from cdmw.core.archive_mesh_import_build import build_mesh_import_preview
+    from cdmw.modding.full_import_model_replacement import apply_full_import_model_replacement_preset
+
+    options = dc_replace(apply_full_import_model_replacement_preset(), transform=placement.build_transform())
     return build_mesh_import_preview(
         entry,
         Path(source.model_path),

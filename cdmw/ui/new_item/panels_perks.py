@@ -47,7 +47,7 @@ class PerksPanel(QGroupBox):
         super().__init__("5. Perks and effect", parent)
         self._controller = controller
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label("What the item does beyond its stats: the perks it comes with, and a visual effect on the drawn weapon (optional)."))
+        layout.addWidget(intro_label("The perks the item comes with, and an optional effect on the drawn weapon."))
 
         perks = QGroupBox("Perks (the socket items embedded in the item)")
         perks_layout = QVBoxLayout(perks)

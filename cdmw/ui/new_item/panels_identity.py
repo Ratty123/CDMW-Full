@@ -34,7 +34,7 @@ class IdentityPanel(QGroupBox):
         self._language = "eng"
         self._suggested_name = ""
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label("What the item is called: its internal name for the tables, and the name and description players read, per language."))
+        layout.addWidget(intro_label("The internal name for the tables, and the name and description players read, per language."))
         form = QFormLayout()
         self.internal_name = QLineEdit()
         self.internal_name.setPlaceholderText("ASCII letters, digits and underscores; unique, e.g. Ziane_Clone_OneHandSword")

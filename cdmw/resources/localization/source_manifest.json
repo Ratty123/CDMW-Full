@@ -3781,7 +3781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 120,
+          "line": 117,
           "sink": "setToolTip"
         }
       ]
@@ -3956,7 +3956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 108,
+          "line": 109,
           "sink": "setToolTip"
         }
       ]
@@ -4946,7 +4946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 97,
+          "line": 94,
           "sink": "QPushButton"
         }
       ]
@@ -4996,7 +4996,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 109,
+          "line": 106,
           "sink": "QLabel"
         }
       ]
@@ -5066,7 +5066,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 119,
+          "line": 116,
           "sink": "QPushButton"
         }
       ]
@@ -5111,7 +5111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 192,
+          "line": 189,
           "sink": "setText"
         }
       ]
@@ -6046,12 +6046,12 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 362,
+          "line": 359,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 469,
+          "line": 444,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -7226,7 +7226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 192,
+          "line": 189,
           "sink": "setText"
         }
       ]
@@ -7501,7 +7501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 309,
+          "line": 302,
           "sink": "set_note"
         }
       ]
@@ -11931,7 +11931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 60,
+          "line": 57,
           "sink": "QPushButton"
         }
       ]
@@ -12386,7 +12386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 130,
+          "line": 127,
           "sink": "QGroupBox"
         }
       ]
@@ -14022,6 +14022,16 @@
       ]
     },
     {
+      "key": "Build the plan (nothing is written yet), read what it changes, then write a mod folder or install into the game.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_output.py",
+          "line": 46,
+          "sink": "intro_label"
+        }
+      ]
+    },
+    {
       "key": "Build the plan first.",
       "origins": [
         {
@@ -14456,7 +14466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 416,
+          "line": 414,
           "sink": "set_note"
         }
       ]
@@ -16112,46 +16122,16 @@
       ]
     },
     {
-      "key": "Capture",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 113,
-          "sink": "QPushButton"
-        }
-      ]
-    },
-    {
       "key": "Capture crash details to local report files on unhandled exceptions",
       "origins": [],
       "manual": true
-    },
-    {
-      "key": "Capture in a window...",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 246,
-          "sink": "QPushButton"
-        }
-      ]
-    },
-    {
-      "key": "Capture the icon from the viewport",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 66,
-          "sink": "setWindowTitle"
-        }
-      ]
     },
     {
       "key": "Capture the icon from this view",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 206,
+          "line": 203,
           "sink": "QPushButton"
         }
       ]
@@ -16171,18 +16151,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 441,
+          "line": 467,
           "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "Captured {value_0} x {value_1}. Capture again, or accept.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 234,
-          "sink": "setText"
         }
       ]
     },
@@ -16200,13 +16170,8 @@
       "key": "Capturing...",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 213,
-          "sink": "setText"
-        },
-        {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 423,
+          "line": 449,
           "sink": "emit"
         }
       ]
@@ -17946,7 +17911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 477,
+          "line": 452,
           "sink": "getExistingDirectory"
         }
       ]
@@ -18077,16 +18042,6 @@
       ]
     },
     {
-      "key": "Choose a template (or import a model) first; there is no mesh to show.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 446,
-          "sink": "emit"
-        }
-      ]
-    },
-    {
       "key": "Choose a template first; the model is placed over its mesh.",
       "origins": [
         {
@@ -18111,12 +18066,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 39,
+          "line": 36,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 74,
+          "line": 71,
           "sink": "setText"
         }
       ]
@@ -18206,7 +18161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 469,
+          "line": 444,
           "sink": "getOpenFileName"
         }
       ]
@@ -19806,7 +19761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 362,
+          "line": 359,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -27437,12 +27392,12 @@
       ]
     },
     {
-      "key": "Drag the gizmo on the box. Move: offset along the item's axes. Scale: a uniform scale on the effect.",
+      "key": "Drag the gizmo in the viewport or type the numbers. The game holds the item as it holds the template: origin = the hand, blade toward -z. Apply the placement builds the item's mesh from it.",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 252,
-          "sink": "setText"
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 130,
+          "sink": "intro_label"
         }
       ]
     },
@@ -27626,7 +27581,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 61,
+          "line": 58,
           "sink": "setToolTip"
         }
       ]
@@ -27686,7 +27641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 124,
+          "line": 121,
           "sink": "setToolTip"
         }
       ]
@@ -28947,16 +28902,6 @@
       ]
     },
     {
-      "key": "Effect box {value_0} x {value_1} x {value_2} m; at scale {value_3}: {value_4} x {value_5} x {value_6} m.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 293,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "Effect colour",
       "origins": [
         {
@@ -29782,7 +29727,7 @@
       ]
     },
     {
-      "key": "Every new item is a copy of a shipped one. The template fixes what it is (equip slot, item type, sockets, animations, sheath, stat shape); everything after this step changes the copy. Only equipment can be cloned.",
+      "key": "Every new item is a copy of a shipped one: the template sets what it is (slot, type, sockets, animations, sheath); everything after changes the copy. Equipment only.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
@@ -29816,7 +29761,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 57,
+          "line": 54,
           "sink": "setToolTip"
         }
       ]
@@ -29826,7 +29771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 112,
+          "line": 109,
           "sink": "setToolTip"
         }
       ]
@@ -34546,7 +34491,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 27,
+          "line": 24,
           "sink": "QLabel"
         }
       ]
@@ -35511,7 +35456,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 242,
+          "line": 239,
           "sink": "QPushButton"
         },
         {
@@ -36761,7 +36706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 104,
+          "line": 101,
           "sink": "QCheckBox"
         }
       ]
@@ -36771,7 +36716,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 230,
+          "line": 227,
           "sink": "QRadioButton"
         }
       ]
@@ -37962,16 +37907,6 @@
       ]
     },
     {
-      "key": "Hand placement: the game holds the new item exactly as it holds the template (grip at the origin, blade toward -z), so your model is placed over the template's mesh below, with the gizmo or the numbers, and the placement is applied before the plan is built.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 92,
-          "sink": "intro_label"
-        }
-      ]
-    },
-    {
       "key": "Handle size",
       "origins": [
         {
@@ -38901,7 +38836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 141,
+          "line": 138,
           "sink": "setToolTip"
         }
       ]
@@ -38933,16 +38868,6 @@
           "path": "tools/placement_studio/move_weapon.py",
           "line": 355,
           "sink": "QGroupBox"
-        }
-      ]
-    },
-    {
-      "key": "How players get the item: a shop line that sells it (recommended; without one nothing in the game hands it out), and the item groups it belongs to.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_placement.py",
-          "line": 31,
-          "sink": "intro_label"
         }
       ]
     },
@@ -39131,7 +39056,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 224,
+          "line": 221,
           "sink": "QGroupBox"
         }
       ]
@@ -39323,16 +39248,6 @@
           "path": "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py",
           "line": 2018,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "IconCaptureDialog needs item_source or item_mesh",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 69,
-          "sink": "ValueError"
         }
       ]
     },
@@ -39736,7 +39651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 235,
+          "line": 232,
           "sink": "setPlaceholderText"
         }
       ]
@@ -39756,7 +39671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 238,
+          "line": 235,
           "sink": "QPushButton"
         }
       ]
@@ -39766,7 +39681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 469,
+          "line": 444,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -40346,7 +40261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 362,
+          "line": 359,
           "sink": "getOpenFileName"
         }
       ]
@@ -40521,7 +40436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 115,
+          "line": 116,
           "sink": "DetailsToggle"
         }
       ]
@@ -40531,7 +40446,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 115,
+          "line": 116,
           "sink": "DetailsToggle"
         }
       ]
@@ -42126,7 +42041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 29,
+          "line": 26,
           "sink": "setPlaceholderText"
         }
       ]
@@ -43686,7 +43601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 226,
+          "line": 223,
           "sink": "QRadioButton"
         }
       ]
@@ -44516,7 +44431,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 198,
+          "line": 195,
           "sink": "setVerticalHeaderLabels"
         }
       ]
@@ -45971,17 +45886,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 232,
-          "sink": "setText"
-        },
-        {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 180,
+          "line": 225,
           "sink": "setText"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 390,
+          "line": 416,
           "sink": "emit"
         }
       ]
@@ -48236,7 +48146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 143,
+          "line": 140,
           "sink": "addRow"
         }
       ]
@@ -52041,7 +51951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 362,
+          "line": 359,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -52641,7 +52551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 133,
+          "line": 130,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -52681,7 +52591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 65,
+          "line": 62,
           "sink": "setText"
         }
       ]
@@ -52791,7 +52701,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 131,
+          "line": 129,
           "sink": "QPushButton"
         },
         {
@@ -53161,7 +53071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 85,
+          "line": 82,
           "sink": "setToolTip"
         }
       ]
@@ -55951,7 +55861,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 287,
+          "line": 280,
           "sink": "set_note"
         }
       ]
@@ -58081,7 +57991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 311,
+          "line": 304,
           "sink": "set_note"
         }
       ]
@@ -59161,7 +59071,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 98,
+          "line": 95,
           "sink": "setToolTip"
         }
       ]
@@ -59201,7 +59111,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 318,
+          "line": 315,
           "sink": "emit"
         }
       ]
@@ -61373,16 +61283,6 @@
           "path": "cdmw/ui/settings_tab.py",
           "line": 747,
           "sink": "addRow"
-        }
-      ]
-    },
-    {
-      "key": "Orbit with the mouse, zoom with the wheel, then Capture. Capture again until you like it.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 197,
-          "sink": "setText"
         }
       ]
     },
@@ -64991,7 +64891,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 243,
+          "line": 240,
           "sink": "setToolTip"
         }
       ]
@@ -65111,7 +65011,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 127,
+          "line": 128,
           "sink": "QGroupBox"
         }
       ]
@@ -67391,17 +67291,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 174,
-          "sink": "QLabel"
-        },
-        {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 122,
+          "line": 167,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 353,
+          "line": 371,
           "sink": "emit"
         }
       ]
@@ -69161,7 +69056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 133,
+          "line": 130,
           "sink": "setHorizontalHeaderLabels"
         }
       ]
@@ -70207,6 +70102,16 @@
       ]
     },
     {
+      "key": "Reach at scale {value_0}: {value_1} x {value_2} x {value_3} m (the effect's own {value_4} x {value_5} x {value_6} m).",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 286,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "Read",
       "origins": [
         {
@@ -70796,7 +70701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 414,
+          "line": 412,
           "sink": "set_note"
         }
       ]
@@ -73996,7 +73901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 123,
+          "line": 120,
           "sink": "QPushButton"
         }
       ]
@@ -78726,12 +78631,12 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 134,
+          "line": 132,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 148,
+          "line": 146,
           "sink": "addRow"
         },
         {
@@ -78816,7 +78721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 84,
+          "line": 81,
           "sink": "QPushButton"
         }
       ]
@@ -83371,7 +83276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 56,
+          "line": 53,
           "sink": "QPushButton"
         }
       ]
@@ -83696,7 +83601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 93,
+          "line": 90,
           "sink": "QPushButton"
         }
       ]
@@ -85062,16 +84967,6 @@
       ]
     },
     {
-      "key": "Show the effect's box",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 160,
-          "sink": "QCheckBox"
-        }
-      ]
-    },
-    {
       "key": "Show the fixed-size HKX value edits that would be written before creating a loose mod package.",
       "origins": [
         {
@@ -86276,7 +86171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 99,
+          "line": 100,
           "sink": "setToolTip"
         }
       ]
@@ -88746,7 +88641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 52,
+          "line": 49,
           "sink": "setToolTip"
         }
       ]
@@ -88986,7 +88881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 49,
+          "line": 46,
           "sink": "QGroupBox"
         }
       ]
@@ -90406,7 +90301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 239,
+          "line": 236,
           "sink": "setToolTip"
         }
       ]
@@ -90437,16 +90332,6 @@
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_structure.py",
           "line": 85,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "Takes the frame above at 512 x 512 with the grid and gizmo hidden and makes it the item's icon (ticks Give the item its own icon).",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 207,
           "sink": "setToolTip"
         }
       ]
@@ -91271,12 +91156,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 209,
+          "line": 206,
           "sink": "setToolTip"
         },
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 220,
+          "line": 217,
           "sink": "setToolTip"
         },
         {
@@ -93355,13 +93240,8 @@
       "key": "The capture failed: {value_0}",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 229,
-          "sink": "setText"
-        },
-        {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 439,
+          "line": 465,
           "sink": "emit"
         }
       ]
@@ -93371,7 +93251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 37,
+          "line": 34,
           "sink": "QGroupBox"
         }
       ]
@@ -93517,26 +93397,6 @@
       ]
     },
     {
-      "key": "The effect's bounding box at this scale and offset, drawn as a wire box. Off by default: the particles show where the effect is, and the box only gets in the way of the item.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 161,
-          "sink": "setToolTip"
-        }
-      ]
-    },
-    {
-      "key": "The effect's particle description is in the package; the viewport draws it once its particle layer lands, the box until then.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 252,
-          "sink": "setText"
-        }
-      ]
-    },
-    {
       "key": "The equipment row to move — a sword is a CD_MainWeapon or CD_TwoHandWeapon row.\n\nChanging this re-resolves the whole item: its case, its handedness, which animation families are its own, and which files may be written.",
       "origins": [
         {
@@ -93646,7 +93506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 231,
+          "line": 228,
           "sink": "setToolTip"
         }
       ]
@@ -93662,17 +93522,17 @@
       ]
     },
     {
-      "key": "The imported model with its own textures over the template when there is one, else the template's mesh and textures from the archives, in the same viewport the Model Library uses. Orbit and zoom to check it; take the icon from the view you like.",
+      "key": "The internal name for the tables, and the name and description players read, per language.",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 196,
+          "path": "cdmw/ui/new_item/panels_identity.py",
+          "line": 37,
           "sink": "intro_label"
         }
       ]
     },
     {
-      "key": "The item's numbers, starting as the template's. One row per enhancement level; edit a cell to change it. Blue means it differs from the template (hover for the template's value).",
+      "key": "The item's numbers per enhancement level, starting as the template's. Edit a cell; blue differs from the template (hover for its value).",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
@@ -93686,7 +93546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 134,
+          "line": 131,
           "sink": "setToolTip"
         }
       ]
@@ -93797,6 +93657,16 @@
       ]
     },
     {
+      "key": "The model (the template's, or one of your own placed over it) and the inventory icon.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 55,
+          "sink": "intro_label"
+        }
+      ]
+    },
+    {
       "key": "The model could not be read: {value_0}",
       "origins": [
         {
@@ -93867,12 +93737,12 @@
       ]
     },
     {
-      "key": "The particles are an approximate CPU reading of the effect's emitters (sprites, colours and motion from its binaries), not the game's own simulation; they follow the box.",
+      "key": "The perks the item comes with, and an optional effect on the drawn weapon.",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 252,
-          "sink": "setText"
+          "path": "cdmw/ui/new_item/panels_perks.py",
+          "line": 50,
+          "sink": "intro_label"
         }
       ]
     },
@@ -93901,7 +93771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 212,
+          "line": 205,
           "sink": "setText"
         }
       ]
@@ -94000,13 +93870,8 @@
       "key": "The preview could not be built: {value_0}",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 160,
-          "sink": "setText"
-        },
-        {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 363,
+          "line": 381,
           "sink": "emit"
         }
       ]
@@ -94086,18 +93951,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 179,
+          "line": 181,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "The resident viewport is not available here; pick an image file for the icon instead.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 107,
-          "sink": "QLabel"
         }
       ]
     },
@@ -94106,7 +93961,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 124,
+          "line": 122,
           "sink": "QLabel"
         }
       ]
@@ -94116,7 +93971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 234,
+          "line": 227,
           "sink": "setText"
         }
       ]
@@ -94125,24 +93980,9 @@
       "key": "The resident viewport rejected the preview package.",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 182,
-          "sink": "setText"
-        },
-        {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 392,
+          "line": 418,
           "sink": "emit"
-        }
-      ]
-    },
-    {
-      "key": "The same capture in its own window: the item's mesh in the resident viewport, orbit it, take the frame as the icon.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 247,
-          "sink": "setToolTip"
         }
       ]
     },
@@ -94426,7 +94266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 207,
+          "line": 204,
           "sink": "setToolTip"
         }
       ]
@@ -94472,16 +94312,31 @@
       ]
     },
     {
+      "key": "The view as it is, at 512 x 512, grid and gizmo hidden, as the item's icon.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 204,
+          "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "The viewport is not showing the item yet; wait for it, then capture.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 421,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "The viewport rejected the capture request.",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 209,
-          "sink": "setText"
-        },
-        {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 420,
+          "line": 446,
           "sink": "emit"
         }
       ]
@@ -94491,12 +94346,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 162,
+          "line": 164,
           "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/item_preview.py",
-          "line": 215,
+          "line": 220,
           "sink": "setText"
         }
       ]
@@ -95276,7 +95131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 192,
+          "line": 189,
           "sink": "setText"
         }
       ]
@@ -95312,22 +95167,22 @@
       ]
     },
     {
+      "key": "This viewport build draws no particles yet; the anchor shows where the effect sits.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 251,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "This will clear the configured workflow staging/output folders listed below.",
       "origins": [
         {
           "path": "cdmw/ui/shell/workspace_controller.py",
           "line": 136,
           "sink": "setText"
-        }
-      ]
-    },
-    {
-      "key": "Three moves: build the plan (nothing is written), read what it will change, then write it as a mod folder or install it into the game.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_output.py",
-          "line": 46,
-          "sink": "intro_label"
         }
       ]
     },
@@ -98661,7 +98516,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 97,
+          "line": 98,
           "sink": "QCheckBox"
         }
       ]
@@ -100676,7 +100531,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 362,
+          "line": 359,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -101307,32 +101162,12 @@
       ]
     },
     {
-      "key": "What the item does beyond its stats: the perks it comes with, and a visual effect on the drawn weapon (optional).",
+      "key": "What the effect is made of",
       "origins": [
         {
-          "path": "cdmw/ui/new_item/panels_perks.py",
-          "line": 50,
-          "sink": "intro_label"
-        }
-      ]
-    },
-    {
-      "key": "What the item is called: its internal name for the tables, and the name and description players read, per language.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_identity.py",
-          "line": 37,
-          "sink": "intro_label"
-        }
-      ]
-    },
-    {
-      "key": "What the item looks like: the template's model or one you import and place here, and the icon the inventory shows.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 55,
-          "sink": "intro_label"
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 163,
+          "sink": "DetailsToggle"
         }
       ]
     },
@@ -101541,7 +101376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 106,
+          "line": 107,
           "sink": "QCheckBox"
         }
       ]
@@ -101603,6 +101438,16 @@
           "path": "cdmw/ui/new_item/panels_perks.py",
           "line": 124,
           "sink": "QLabel"
+        }
+      ]
+    },
+    {
+      "key": "Where players get the item: a shop line (recommended, else nothing hands it out) and its item groups.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_placement.py",
+          "line": 31,
+          "sink": "intro_label"
         }
       ]
     },
@@ -103702,11 +103547,11 @@
       ]
     },
     {
-      "key": "Your model is the solid one, the template the reference drawn under it. Drag the gizmo in the viewport (move, rotate, scale) or type the numbers: scale first, then rotation, then offset, all about the origin. Apply the placement to build the item's mesh from it; move it again and the build is dropped until you apply once more.",
+      "key": "Your model (textured) over the template, or the template alone. Orbit and zoom; the icon is taken from this view.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 129,
+          "line": 196,
           "sink": "intro_label"
         }
       ]
@@ -103841,7 +103686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 362,
+          "line": 359,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -104751,7 +104596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 114,
+          "line": 111,
           "sink": "QLabel"
         }
       ]
@@ -106496,7 +106341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 943,
+          "line": 950,
           "sink": "_set_state"
         }
       ]
@@ -106801,7 +106646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1038,
+          "line": 1045,
           "sink": "_set_state"
         }
       ]
@@ -110571,7 +110416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 362,
+          "line": 359,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -111321,7 +111166,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1828,
+          "line": 1835,
           "sink": "_set_state"
         }
       ]
@@ -111951,7 +111796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1033,
+          "line": 1040,
           "sink": "_set_state"
         }
       ]
@@ -116621,12 +116466,12 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1448,
+          "line": 1455,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1634,
+          "line": 1641,
           "sink": "_set_state"
         }
       ]
@@ -116816,17 +116661,17 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1385,
+          "line": 1392,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1401,
+          "line": 1408,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1649,
+          "line": 1656,
           "sink": "_set_state"
         }
       ]
@@ -117596,7 +117441,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1214,
+          "line": 1221,
           "sink": "_set_state"
         }
       ]
@@ -118546,7 +118391,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1551,
+          "line": 1558,
           "sink": "_set_state"
         }
       ]
@@ -118566,7 +118411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1841,
+          "line": 1848,
           "sink": "_set_state"
         }
       ]
@@ -197201,7 +197046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 82,
+          "line": 79,
           "sink": "setPrefix"
         }
       ]
@@ -197841,7 +197686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_stats.py",
-          "line": 274,
+          "line": 271,
           "sink": "addItem"
         }
       ]
@@ -197876,7 +197721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_template.py",
-          "line": 52,
+          "line": 49,
           "sink": "QListWidgetItem"
         }
       ]
@@ -198776,7 +198621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1841,
+          "line": 1848,
           "sink": "_set_state"
         }
       ]
@@ -199607,16 +199452,6 @@
       ]
     },
     {
-      "key": "{value_0} in the resident viewport: orbit and zoom it until it looks like an icon, then Capture. The frame is taken at 512 x 512 with the grid and gizmo hidden and becomes the icon the studio encodes.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/icon_capture_dialog.py",
-          "line": 84,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
       "key": "{value_0} invalid rows | {value_1} unnormalized vertices",
       "origins": [
         {
@@ -200067,7 +199902,7 @@
       ]
     },
     {
-      "key": "{value_0} on the item. The wire is the item as the game holds it: its origin is the hand, the blade runs toward -z, the pommel toward +z. The particles are an approximate reading of the effect, where it will be at this scale and offset. Move or scale it with the gizmo or the numbers on the right; the numbers go into the plan when you accept. Tick Show the effect's box to see its bounding box (the reach the game reserves for it).",
+      "key": "{value_0} on the item: drag the orange anchor with the gizmo (Move / Scale) or type the numbers. The wire is the item as the game holds it (origin = the hand, blade toward -z); the particles are an approximate reading of the effect.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
@@ -200516,7 +200351,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 252,
+          "line": 251,
           "sink": "setText"
         }
       ]
@@ -201866,7 +201701,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 308,
+          "line": 301,
           "sink": "note"
         }
       ]
@@ -202256,7 +202091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 301,
+          "line": 294,
           "sink": "note"
         }
       ]
