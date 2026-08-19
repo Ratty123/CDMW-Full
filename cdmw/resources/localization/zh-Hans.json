@@ -2500,6 +2500,7 @@
     "Every file that will be replaced. Untick any you want left alone, or select one and press Watch to see the animation it would get.": "将被替换的每个文件。取消选中您想要保留的任何一个，或者选择一个并按“观看”以查看它将获得的动画。",
     "Every new item is a copy of a shipped one. The template fixes what it is (equip slot, item type, sockets, animations, sheath, stat shape); everything after this step changes the copy. Only equipment can be cloned.": "每个新物品都是某个原版物品的副本。模板决定它是什么（装备槽、物品类型、插槽、动画、鞘、属性形态）；此步之后的一切都是修改副本。只有装备可以复制。",
     "Every pending operation  (advanced)": "所有待处理操作（高级）",
+    "Every shop in the game's tables: your camp's shops first (Store_Camp_Equipment is the camp's equipment merchant), then the rest by name, each with its kind and how many lines it sells. Type to jump.": "游戏表中的所有商店：先是你营地的商店（Store_Camp_Equipment 是营地的装备商人），然后其余按名称排列，每个都带类型和出售条目数。输入以跳转。",
     "Every shop price at every level and every base price becomes 1: the item costs one copper in the shop.": "每个等级的每个商店价格和每个基础价格都变为 1：该物品在商店售价一枚铜币。",
     "Every tool can be detached: Texture Workflow, Texture Replacer, Recolor Variants, Texture Editor, Archive Browser, Mesh Editor, Model Library, Research, Text Search, Icon Creator, Retrofit/Repackage, and Settings. Each one can be restored from its placeholder or the Window menu.": "每个工具都可以分离：纹理工作流程、纹理替换器、重新着色变体、纹理编辑器、存档浏览器、网格编辑器、模型库、研究、文本搜索、图标创建器、改造/重新打包和设置。每一项都可以从其占位符或窗口菜单中恢复。",
     "Everything below, in one package. Read the list first: earlier experiments are in it.": "把下面全部放进一个封包。请先读列表：较早的实验也在其中。",

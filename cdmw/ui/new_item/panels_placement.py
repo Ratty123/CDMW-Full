@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -18,7 +19,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.new_item.spec import ItemGroupsChoice, PlacementKind
 from cdmw.ui.new_item.controller import NewItemStudioController
-from cdmw.ui.new_item.ui_kit import OK, WARN, NoteLabel, intro_label
+from cdmw.ui.new_item.ui_kit import OK, WARN, NoteLabel, intro_label, tone_color
 
 
 class PlacementPanel(QGroupBox):
@@ -40,8 +41,10 @@ class PlacementPanel(QGroupBox):
         row = QHBoxLayout()
         row.addWidget(QLabel("Shop:"))
         self.store = QComboBox()
-        self.store.setEditable(True)
-        self.store.currentTextChanged.connect(self._store_changed)
+        self.store.setEditable(False)
+        self.store.setMaxVisibleItems(24)
+        self.store.setToolTip("Every shop in the game's tables: your camp's shops first (Store_Camp_Equipment is the camp's equipment merchant), then the rest by name, each with its kind and how many lines it sells. Type to jump.")
+        self.store.currentIndexChanged.connect(self._store_index_changed)
         row.addWidget(self.store, 1)
         row.addWidget(QLabel("Entry to replace:"))
         self.old_item = QComboBox()
@@ -85,17 +88,38 @@ class PlacementPanel(QGroupBox):
 
     # ------------------------------------------------------------------ shop
 
+    #: the shop the studio starts on: the player's camp equipment merchant (Tranan), where every check so far went
+    DEFAULT_STORE = "Store_Camp_Equipment"
+
     def _refresh_stores(self) -> None:
-        current = self.store.currentText()
+        current = str(self.store.currentData() or self._controller.draft.store_name or "")
         self.store.blockSignals(True)
         try:
             self.store.clear()
-            self.store.addItems(list(self._controller.store_names()))
-            if current:
-                self.store.setEditText(current)
+            for name, label, _count, camp in self._controller.store_choices():
+                self.store.addItem(label, name)
+                if camp:
+                    self.store.setItemData(self.store.count() - 1, QColor(tone_color(OK)), Qt.ForegroundRole)
+            wanted = current or self.DEFAULT_STORE
+            index = self.store.findData(wanted)
+            if index < 0:
+                index = self.store.findData(self.DEFAULT_STORE)
+            self.store.setCurrentIndex(max(0, index))
         finally:
             self.store.blockSignals(False)
-        self._store_changed(self.store.currentText())
+        self._store_index_changed(self.store.currentIndex())
+
+    def choose_store(self, name: str) -> bool:
+        """Select a shop by its table name; False when the tables have no such shop."""
+
+        index = self.store.findData(str(name))
+        if index < 0:
+            return False
+        self.store.setCurrentIndex(index)
+        return True
+
+    def _store_index_changed(self, _index: int) -> None:
+        self._store_changed(str(self.store.currentData() or ""))
 
     def _placement_changed(self, _checked: bool) -> None:
         draft = self._controller.draft

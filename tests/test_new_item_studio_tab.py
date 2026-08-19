@@ -226,7 +226,11 @@ class TabTests(unittest.TestCase):
         # placement: swap the Cigar out of the camp store
         placement = tab.placement_panel
         placement.swap.setChecked(True)
-        placement.store.setCurrentText("Store_Camp_Equipment")
+        self.assertTrue(placement.choose_store("Store_Camp_Equipment"))
+        self.assertFalse(placement.choose_store("Store_Nowhere"), "the shop is a fixed list, not free text")
+        self.assertFalse(placement.store.isEditable())
+        self.assertIn("your camp (base)", placement.store.currentText())
+        self.assertIn("line(s)", placement.store.currentText())
         self.assertEqual([placement.old_item.itemData(i) for i in range(placement.old_item.count())], ["Cigar_OneHandSword", "50001"])
         placement.old_item.setCurrentIndex(0)
         self.assertEqual(tab.controller.draft.placement_kind, PlacementKind.SWAP)
