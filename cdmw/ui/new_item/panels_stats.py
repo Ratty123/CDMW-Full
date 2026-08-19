@@ -5,12 +5,13 @@ from __future__ import annotations
 from typing import Optional
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
     QDoubleSpinBox,
+    QFormLayout,
     QGroupBox,
     QHBoxLayout,
-    QLabel,
     QPushButton,
     QSpinBox,
     QTableWidget,
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import BUY_PRICE_KIND, StatGrid, flat_grid_values, scaled_grid_values
+from cdmw.ui.new_item.ui_kit import EDIT, compact_table_height, intro_label, tone_color
 
 _MAX_EXTRA_LEVELS = 8
 
@@ -35,34 +37,36 @@ class StatsPanel(QGroupBox):
         self._grid: Optional[StatGrid] = None
         self._syncing = False
         layout = QVBoxLayout(self)
-        intro = QLabel(
-            "One row per enhancement level (+0 at the top). The stat columns are the item's numbers at that level, "
-            "the price columns what the shop charges for it at that level. Everything starts as the template's; "
-            "edit a cell to change it."
-        )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
+        layout.addWidget(intro_label(
+            "The item's numbers, starting as the template's. One row per enhancement level; edit a cell to change it. "
+            "Blue means it differs from the template (hover for the template's value)."
+        ))
 
+        ladder = QGroupBox("Stats and shop prices per level")
+        ladder_layout = QVBoxLayout(ladder)
         self.table = QTableWidget(0, 0)
-        self.table.setMinimumHeight(140)
-        self.table.setToolTip("Stat columns are named after the game's status entries (DDD is the damage stat every weapon ladder carries). A blue value differs from the template's; hover it to see the template's.")
+        self.table.setToolTip("Stat columns are named after the game's status entries (DDD is the damage stat every weapon ladder carries); the price columns are what the shop charges at that level.")
         self.table.cellChanged.connect(self._cell_changed)
-        layout.addWidget(self.table)
-
+        ladder_layout.addWidget(self.table)
         quick = QHBoxLayout()
         self.one_copper_button = QPushButton("Sell for one copper")
         self.one_copper_button.setToolTip("Every shop price at every level and every base price becomes 1: the item costs one copper in the shop.")
         self.one_copper_button.clicked.connect(self._one_copper)
         quick.addWidget(self.one_copper_button)
+        self.reset_button = QPushButton("Back to the template's values")
+        self.reset_button.setToolTip("Drop every edit on this page: the ladder, the base prices, the added levels and the stack size.")
+        self.reset_button.clicked.connect(self._reset)
+        quick.addWidget(self.reset_button)
         self.advanced_toggle = QToolButton()
-        self.advanced_toggle.setText("Advanced: scale, set, add a level, reset")
+        self.advanced_toggle.setText("More: scale all, set all, add a level")
         self.advanced_toggle.setCheckable(True)
-        self.advanced_toggle.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.advanced_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.advanced_toggle.setArrowType(Qt.RightArrow)
+        self.advanced_toggle.setAutoRaise(True)
         self.advanced_toggle.toggled.connect(self._toggle_advanced)
         quick.addWidget(self.advanced_toggle)
         quick.addStretch(1)
-        layout.addLayout(quick)
+        ladder_layout.addLayout(quick)
 
         self.advanced = QWidget()
         presets = QHBoxLayout(self.advanced)
@@ -73,46 +77,49 @@ class StatsPanel(QGroupBox):
         self.scale.setValue(1.5)
         self.scale.setPrefix("x ")
         presets.addWidget(self.scale)
-        self.scale_button = QPushButton("Scale stats")
+        self.scale_button = QPushButton("Scale every stat")
         self.scale_button.setToolTip("Multiply every stat of the template's ladder (not the prices) by the factor.")
         self.scale_button.clicked.connect(self._apply_scale)
         presets.addWidget(self.scale_button)
+        presets.addSpacing(12)
         self.flat = QSpinBox()
         self.flat.setRange(-2_000_000_000, 2_000_000_000)
         self.flat.setValue(10000)
         presets.addWidget(self.flat)
-        self.flat_button = QPushButton("Set every stat to")
+        self.flat_button = QPushButton("Set every stat to this")
         self.flat_button.clicked.connect(self._apply_flat)
         presets.addWidget(self.flat_button)
+        presets.addSpacing(12)
         self.add_level_button = QPushButton("Add a level")
+        self.add_level_button.setToolTip("One more enhancement level, copying the last one; the least-proven part in game.")
         self.add_level_button.clicked.connect(self._add_level)
         presets.addWidget(self.add_level_button)
-        self.reset_button = QPushButton("Back to the template's values")
-        self.reset_button.clicked.connect(self._reset)
-        presets.addWidget(self.reset_button)
         presets.addStretch(1)
         self.advanced.setVisible(False)
-        layout.addWidget(self.advanced)
-
-        prices = QHBoxLayout()
-        base_label = QLabel("Base prices:")
-        base_label.setToolTip("The item's own price list, per money item; the shop's asking price is this plus the embedded perks' prices, before the level prices above.")
-        prices.addWidget(base_label)
-        self.price_table = QTableWidget(0, 2)
-        self.price_table.setHorizontalHeaderLabels(["Money item", "Price"])
-        self.price_table.setMaximumHeight(96)
-        self.price_table.cellChanged.connect(self._price_changed)
-        prices.addWidget(self.price_table, 1)
-        prices.addWidget(QLabel("Max stack:"))
-        self.max_stack = QSpinBox()
-        self.max_stack.setRange(1, 999_999)
-        self.max_stack.valueChanged.connect(self._stack_changed)
-        prices.addWidget(self.max_stack)
-        layout.addLayout(prices)
+        ladder_layout.addWidget(self.advanced)
         self.own_rows = QCheckBox("Give the item enhancement rows of its own (unproven in game; otherwise it enhances through the template's rows)")
         self.own_rows.toggled.connect(self._own_rows_changed)
         self.own_rows.setVisible(False)
-        layout.addWidget(self.own_rows)
+        ladder_layout.addWidget(self.own_rows)
+        layout.addWidget(ladder)
+
+        base = QGroupBox("Base price and stack")
+        base_layout = QHBoxLayout(base)
+        self.price_table = QTableWidget(0, 2)
+        self.price_table.setHorizontalHeaderLabels(["Money item", "Price"])
+        self.price_table.setToolTip("The item's own price list, per money item; the shop's asking price is this plus the embedded perks' prices, before the level prices above.")
+        self.price_table.setMaximumWidth(420)
+        self.price_table.cellChanged.connect(self._price_changed)
+        base_layout.addWidget(self.price_table, 1)
+        stack_form = QFormLayout()
+        self.max_stack = QSpinBox()
+        self.max_stack.setRange(1, 999_999)
+        self.max_stack.setToolTip("How many fit in one inventory slot; equipment is 1.")
+        self.max_stack.valueChanged.connect(self._stack_changed)
+        stack_form.addRow("Max stack:", self.max_stack)
+        base_layout.addLayout(stack_form)
+        base_layout.addStretch(1)
+        layout.addWidget(base)
         layout.addStretch(1)
         controller.template_changed.connect(self.rebuild)
 
@@ -167,7 +174,7 @@ class StatsPanel(QGroupBox):
                         item.setToolTip("The template has no value here; typing one adds it.")
                     elif value != template:
                         item.setToolTip(f"Template: {template}")
-                        item.setForeground(Qt.darkBlue)
+                        item.setForeground(QColor(tone_color(EDIT)))
                     self.table.setItem(level, column_index, item)
             self.price_table.setRowCount(len(grid.price_items))
             for index, (key, label, template_price) in enumerate(grid.price_items):
@@ -175,11 +182,19 @@ class StatsPanel(QGroupBox):
                 name.setFlags(name.flags() & ~Qt.ItemIsEditable)
                 self.price_table.setItem(index, 0, name)
                 price = draft.price_values.get(key, template_price)
-                self.price_table.setItem(index, 1, QTableWidgetItem(str(price)))
+                price_item = QTableWidgetItem(str(price))
+                if price != template_price:
+                    price_item.setToolTip(f"Template: {template_price}")
+                    price_item.setForeground(QColor(tone_color(EDIT)))
+                self.price_table.setItem(index, 1, price_item)
             row = self._controller.snapshot.row(draft.template_key) if self._controller.snapshot else None
             self.max_stack.blockSignals(True)
             self.max_stack.setValue(int(draft.max_stack_count if draft.max_stack_count is not None else (row.max_stack_count if row else 1)))
             self.max_stack.blockSignals(False)
+            self.table.resizeColumnsToContents()
+            compact_table_height(self.table, rows)
+            self.price_table.resizeColumnsToContents()
+            compact_table_height(self.price_table, len(grid.price_items), minimum_rows=1, maximum_rows=6)
         finally:
             self._syncing = False
 
