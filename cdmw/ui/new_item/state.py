@@ -55,6 +55,51 @@ class StatGrid:
         return len(self.template_values)
 
 
+#: The game's status entries as a reader knows them; the key stays in brackets so the
+#: table still names the row's own member. A reading of the names, not the exe's words.
+STATUS_LABELS = {
+    "DDD": "Attack",
+    "DPV": "Defence",
+    "DDV": "Evasion",
+    "GuardPVRate": "Guard rate",
+    "AttackSpeedRate": "Attack speed",
+    "AttackedDamageRate": "Damage taken",
+    "AttackedDamageReduction": "Damage reduction",
+    "CriticalRate": "Critical rate",
+    "CriticalDamage": "Critical damage",
+    "HitRate": "Accuracy",
+    "RangeHitRate": "Ranged accuracy",
+    "MaxDamageRate": "Max damage",
+    "MoveSpeedRate": "Move speed",
+    "ClimbSpeedRate": "Climb speed",
+    "SwimSpeedRate": "Swim speed",
+    "Hp": "HP",
+    "Mp": "MP",
+    "Stamina": "Stamina",
+    "Stamina_UseResourceDecreaseRate": "Stamina cost reduction",
+    "Mp_UseResourceDecreaseRate": "MP cost reduction",
+    "FireResistance": "Fire resistance",
+    "IceResistance": "Ice resistance",
+    "ElectricityResistance": "Lightning resistance",
+    "MoraleResistance": "Morale resistance",
+    "Strength": "Strength",
+    "Agility": "Agility",
+    "Pressure": "Pressure",
+    "Fatal": "Fatal",
+    "KnockOut": "Knock-out",
+    "KnockOutPVRate": "Knock-out defence",
+    "DPVRate": "Defence rate",
+    "DHIT": "Hit",
+}
+
+
+def status_label(name: str) -> str:
+    """`Attack (DDD)` for a status the reader has a word for, the bare name otherwise."""
+
+    friendly = STATUS_LABELS.get(str(name))
+    return f"{friendly} ({name})" if friendly else str(name)
+
+
 def stat_grid_for(row: object, status_names: Mapping[int, str], item_names: Mapping[int, str]) -> StatGrid:
     """Columns in first-seen order across the ladder; a value where the level has one.
 
@@ -69,7 +114,7 @@ def stat_grid_for(row: object, status_names: Mapping[int, str], item_names: Mapp
         for stat in level.stats:
             if stat.status_key not in seen_stats:
                 seen_stats.append(stat.status_key)
-                columns.append(StatColumn(STAT_KIND, stat.status_key, status_names.get(stat.status_key, str(stat.status_key))))
+                columns.append(StatColumn(STAT_KIND, stat.status_key, status_label(status_names.get(stat.status_key, str(stat.status_key)))))
     for level in row.enchant_levels:
         for price in level.buy_prices:
             if price.item_key not in seen_prices:

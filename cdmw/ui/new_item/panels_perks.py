@@ -346,6 +346,9 @@ class PerksPanel(QGroupBox):
             return
         box_min, box_max = self._controller.effect_box(stem)
         effect_preview, texture_reader = self._controller.effect_preview_for_placement(stem)
+        if effect_preview is not None and self._controller.effect_facts(stem) is None:
+            # not indexed yet: the effect's own bounding box, read from its binary, not the metre cube
+            box_min, box_max = effect_preview.box_min, effect_preview.box_max
         dialog = self.placement_dialog_factory(
             self, item_mesh=mesh, box_min=box_min, box_max=box_max,
             offset=tuple(float(box.value()) for box in self.effect_offset), scale=float(self.effect_scale.value()), effect_label=stem,

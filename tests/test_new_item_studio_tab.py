@@ -36,7 +36,7 @@ class StateTests(unittest.TestCase):
     def test_grid_edits_and_spec(self) -> None:
         row = __import__("cdmw.core.iteminfo_row", fromlist=["parse_iteminfo_row"]).parse_iteminfo_row(build_row())
         grid = stat_grid_for(row, {DDD: "DDD"}, {COPPER: "Copper", 15: "Token"})
-        self.assertEqual([c.label for c in grid.columns], ["DDD", "Price (Copper)", "Price (Token)"])
+        self.assertEqual([c.label for c in grid.columns], ["Attack (DDD)", "Price (Copper)", "Price (Token)"])
         self.assertEqual(grid.template_values, ((12000, 348, 17), (14000, 384, 19)))
         self.assertEqual(grid.price_items, ((COPPER, "Copper", 348), (15, "Token", 17)))
         draft = NewItemDraft(template_key=TEMPLATE, internal_name="Clone")

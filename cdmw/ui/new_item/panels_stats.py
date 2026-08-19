@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.new_item.controller import NewItemStudioController
-from cdmw.ui.new_item.state import BUY_PRICE_KIND, StatGrid, flat_grid_values, scaled_grid_values
+from cdmw.ui.new_item.state import BUY_PRICE_KIND, STAT_KIND, StatGrid, flat_grid_values, scaled_grid_values
 from cdmw.ui.new_item.ui_kit import EDIT, compact_table_height, intro_label, tone_color
 
 _MAX_EXTRA_LEVELS = 8
@@ -41,6 +41,8 @@ class StatsPanel(QGroupBox):
             "The item's numbers, starting as the template's. One row per enhancement level; edit a cell to change it. "
             "Blue means it differs from the template (hover for the template's value)."
         ))
+        self.carries = intro_label("")
+        layout.addWidget(self.carries)
 
         ladder = QGroupBox("Stats and shop prices per level")
         ladder_layout = QVBoxLayout(ladder)
@@ -156,8 +158,14 @@ class StatsPanel(QGroupBox):
                 self.table.setRowCount(0)
                 self.table.setColumnCount(0)
                 self.price_table.setRowCount(0)
+                self.carries.setText("")
                 return
             grid = self._grid
+            stat_labels = [column.label for column in grid.columns if column.kind == STAT_KIND]
+            self.carries.setText(
+                f"This template's row carries {', '.join(stat_labels) or 'no stat'} per level, plus the shop price per level. "
+                "That is all a weapon or armour row holds; attack speed, critical hits and the like come from perks and the character, not from the item."
+            )
             self.table.setColumnCount(len(grid.columns))
             self.table.setHorizontalHeaderLabels([column.label for column in grid.columns])
             rows = grid.level_count + draft.extra_levels

@@ -94,6 +94,14 @@ def _mesh_patch_dependencies(
         dependencies = archive_workflow_dependency_context(owner, entry)
     except ArchiveWorkflowDependenciesUnavailable as exc:
         owner.set_status_message(f"Mesh replacement is unavailable: {exc}", error=True)
+        if getattr(owner, "_new_item_model_sink", None):
+            # the New Item Studio is waiting on this; a status line alone reads as "nothing happened"
+            QMessageBox.information(
+                owner if isinstance(owner, QWidget) else None,
+                "Import through the Builder",
+                f"Import Mesh could not start: {exc}\n\nSelect the template's mesh in the Archive Browser, wait for its preview, "
+                "and try again from the studio, or run Import Mesh on it there; the result comes back to the studio.",
+            )
         return None, None
     return dependencies, dependencies.selected_entry
 

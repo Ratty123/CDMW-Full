@@ -169,6 +169,27 @@ class ViewerParticleLayerContractTests(unittest.TestCase):
         self.assertIn('["effect_preview"]', package_protocol)
 
 
+class HostPlacementMatrixTests(unittest.TestCase):
+    """The host's placement numbers reach the helper as the editable role's model matrix."""
+
+    def test_the_placement_composes_the_editable_model_matrix_and_bounds(self) -> None:
+        from cdmw.ui.preview.dotnet_host import _apply_placement_to_editable_role, _placement_matrix
+
+        matrix = _placement_matrix((1.0, 2.0, 3.0), (0.0, 0.0, 0.0), (0.2, 0.2, 0.2))
+        self.assertEqual([round(v, 6) for v in matrix], [0.2, 0, 0, 0, 0, 0.2, 0, 0, 0, 0, 0.2, 0, 1.0, 2.0, 3.0, 1.0])
+        scene = {"roles": {"editable": {"model_matrix": [1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0], "world_bounds": {"min": [-1, -1, -1], "max": [1, 1, 1]}}}}
+        _apply_placement_to_editable_role(scene, {"translation": (0.0, 0.0, 0.5), "rotation_degrees": (0.0, 0.0, 0.0), "scale": (0.5, 0.5, 0.5)})
+        editable = scene["roles"]["editable"]
+        self.assertEqual([round(v, 6) for v in editable["model_matrix"]][12:15], [0.0, 0.0, 0.5])
+        self.assertEqual([round(v, 6) for v in editable["world_bounds"]["min"]], [-0.5, -0.5, 0.0])
+        self.assertEqual([round(v, 6) for v in editable["world_bounds"]["max"]], [0.5, 0.5, 1.0])
+        # a second placement starts from the remembered local bounds, not the moved ones
+        _apply_placement_to_editable_role(scene, {"translation": (0.0, 0.0, 0.0), "rotation_degrees": (0.0, 0.0, 0.0), "scale": (1.0, 1.0, 1.0)})
+        self.assertEqual([round(v, 6) for v in scene["roles"]["editable"]["world_bounds"]["max"]], [1.0, 1.0, 1.0])
+        # a scene without the role is left alone
+        _apply_placement_to_editable_role({}, {"translation": (0, 0, 0), "rotation_degrees": (0, 0, 0), "scale": (1, 1, 1)})
+
+
 class DialogTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
