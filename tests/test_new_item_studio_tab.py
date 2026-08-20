@@ -913,6 +913,17 @@ class TabTests(unittest.TestCase):
         ) as reader:
             self.assertEqual(controller.material_parts(), (("cd_phm_02_sword_0040", "cd_phm_02_sword_0040"),))
         self.assertTrue(reader.called, "the parts are read before Apply, not after it")
+
+        # and the step fills its list when the file is read, not when Apply runs: the
+        # result only exists after Apply, so listening for that alone left it empty
+        panel = tab.model_panel
+        panel.glow_parts.clear()
+        controller.material_parts = lambda: (("cd_phm_02_sword_0040", "blade"),)  # type: ignore[method-assign]
+        controller.model_import_changed.emit(controller.model_import)
+        self.assertEqual(
+            [panel.glow_parts.item(row).text() for row in range(panel.glow_parts.count())], ["blade"],
+            "importing a model fills the parts list",
+        )
         tab.close()
         tab.deleteLater()
 
