@@ -175,6 +175,12 @@ class NewItemSpec:
     material_route: MaterialRoute = MaterialRoute.PLAIN_PBR
     #: Only read for an imported model.
     sheathed_model: SheathedModel = SheathedModel.OWN_MODEL
+    #: Copy the template's mesh physics (`character/bin__/meshphysics/<stem>.hkx`) onto the
+    #: item. That file binds cloth and collision to the *template's* own vertices, so on a
+    #: model of your own it drives whichever vertices those indices land on: a handle that
+    #: swings like cloth, a blade that sags. The game finds the file by the stem, so an item
+    #: written without one simply has no physics. Only read for an imported model.
+    keep_template_physics: bool = False
     icon: IconSource = IconSource.TEMPLATE
     stat_edits: Tuple[StatEdit, ...] = ()
     buy_price_edits: Tuple[BuyPriceEdit, ...] = ()

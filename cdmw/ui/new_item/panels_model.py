@@ -116,6 +116,15 @@ class ModelPanel(QGroupBox):
         )
         self.own_sheath.toggled.connect(self._sheath_changed)
         model_layout.addWidget(self.own_sheath)
+        self.keep_physics = QCheckBox("Give the imported model the template's cloth and physics")
+        self.keep_physics.setToolTip(
+            "A template's mesh physics file binds cloth and collision to that template's own vertices. On a model of your own "
+            "those indices land wherever they land, which is how a handle ends up swinging like a cape. Off, the item is written "
+            "without a physics file and the game gives it none. On for a template whose cloth you want and whose shape yours "
+            "follows closely."
+        )
+        self.keep_physics.toggled.connect(self._keep_physics_changed)
+        model_layout.addWidget(self.keep_physics)
         self.flip_texture_v = QCheckBox("Flip the imported textures vertically (V)")
         self.flip_texture_v.setToolTip(
             "glTF, GLB, OBJ and DAE put V's origin at the bottom and the game samples it from the top, so their textures need the "
@@ -290,6 +299,10 @@ class ModelPanel(QGroupBox):
 
     def _material_route_changed(self, plain: bool) -> None:
         self._controller.draft.material_route = MaterialRoute.PLAIN_PBR if plain else MaterialRoute.BUILDER
+        self._controller.plan = None
+
+    def _keep_physics_changed(self, keep: bool) -> None:
+        self._controller.draft.keep_template_physics = bool(keep)
         self._controller.plan = None
 
     def _flip_texture_v_changed(self, flip: bool) -> None:

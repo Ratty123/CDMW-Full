@@ -78,18 +78,36 @@ def _normalize(path: str) -> str:
 
 
 def _trie_block(strings: Sequence[str]) -> Tuple[bytes, Dict[str, int]]:
-    """A name block holding each string as one flat record, and where each one starts."""
+    """A name block: each string as `u32 parent, u8 length, bytes`, where the parent is the
+    record holding the longest prefix already written, and where each string's record
+    starts.
+
+    The block is a trie, not a list. `aiscript` is one record and `aiscript/bin__` is
+    `/bin__` hanging off it, which is how the shipped archives write it: writing the whole
+    path again under a root parent resolves to the same string when a reader walks the
+    parents, and this repository's reader does exactly that, but it tells the game that the
+    archive holds a root-level folder with slashes in its name rather than a tree it can
+    walk down. A directory of ours written flat mounted and then failed the game's own
+    check of its installation.
+    """
 
     block = bytearray()
     offsets: Dict[str, int] = {}
     for text in strings:
         if text in offsets:
             continue
-        encoded = text.encode("utf-8")
+        parent = _NO_PARENT
+        prefix = ""
+        for candidate in offsets:
+            if len(candidate) > len(prefix) and text.startswith(candidate):
+                prefix = candidate
+        if prefix:
+            parent = offsets[prefix]
+        encoded = text[len(prefix):].encode("utf-8")
         if len(encoded) > 255:
             raise ValueError(f"{text!r} is longer than a name record can hold (255 bytes)")
         offsets[text] = len(block)
-        block += struct.pack("<IB", _NO_PARENT, len(encoded)) + encoded
+        block += struct.pack("<IB", parent, len(encoded)) + encoded
     return bytes(block), offsets
 
 

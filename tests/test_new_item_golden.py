@@ -90,6 +90,10 @@ class GoldenReplayTests(unittest.TestCase):
             model_source=model,
             # the spike kept borrowing the template's sheathed (_IN) parts; the studio gives an imported model its own now
             sheathed_model=SheathedModel.TEMPLATE,
+            # the spike copied the template's mesh physics onto the imported model, which is
+            # what put cloth on a handle; the studio leaves it out unless asked, so the
+            # replay asks
+            keep_template_physics=True,
             # the spike swapped the item in place and kept the line's unlock requirement (a collection's knowledge);
             # the studio drops it by default now, so the replay says so explicitly
             placement=Placement(PlacementKind.SWAP, store, victim, keep_requirement=True),
