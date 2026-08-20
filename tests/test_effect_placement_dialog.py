@@ -63,6 +63,7 @@ class _Host(QWidget):
         self.particles: list = []
         self.transforms: list = []
         self.remembered: tuple = ()
+        self.loaded = None
         self.controller = _Controller(self)
 
     def set_view(self, *, yaw, pitch, zoom_factor=None, fit_to_view=None, **_rest) -> bool:
@@ -89,6 +90,13 @@ class _Host(QWidget):
     def remember_editable_local_bounds(self, low, high) -> None:
         self.remembered = (tuple(float(v) for v in low), tuple(float(v) for v in high))
 
+    def load_package(self, package_dir, reset_view: bool = False) -> bool:
+        self.loaded = Path(package_dir)
+        return True
+
+    def set_display_mode(self, mode: str) -> bool:
+        return True
+
 
 class DialogTests(unittest.TestCase):
     @classmethod
@@ -107,6 +115,16 @@ class DialogTests(unittest.TestCase):
         )
         self.addCleanup(dialog.deleteLater)
         return dialog
+
+    def _settle(self, done, timeout_ms: int = 20_000) -> None:
+        """Run the event loop until `done()` or the deadline; a worker thread is only
+        finished once the main thread has processed the signals that say so."""
+
+        from PySide6.QtCore import QDeadlineTimer, QEventLoop
+
+        deadline = QDeadlineTimer(timeout_ms)
+        while not done() and not deadline.hasExpired():
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 50)
 
     def _legend(self, dialog) -> list:
         return [key for key, label in dialog.legend_rows.items() if not label.isHidden()]
@@ -260,6 +278,48 @@ class DialogTests(unittest.TestCase):
         dialog.show_reach.setChecked(True)
         dialog.show_character.setChecked(False)
         self.assertEqual(dialog.host.hidden, (3, 4, 5, 6))
+
+    def test_the_dialog_builds_its_package_with_the_character_it_is_handed(self) -> None:
+        """The whole path in one go: the builder runs on the worker thread, its character
+        and rotation reach the package, and what comes back turns the dialog's frame and
+        the words that promised a stand-in."""
+
+        import tempfile
+        from types import SimpleNamespace
+
+        from cdmw.services.effect_character_reference import CHARACTER_SUBMESH_PREFIX
+
+        quarter = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0)
+        body = SubMesh(
+            name=f"{CHARACTER_SUBMESH_PREFIX}0", material=f"{CHARACTER_SUBMESH_PREFIX}body",
+            vertices=[(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 1.8, 0.0)], uvs=[(0.0, 0.0)] * 3,
+            normals=[(0.0, 0.0, 1.0)] * 3, faces=[(0, 1, 2)], vertex_count=3, face_count=1,
+        )
+        character = SimpleNamespace(
+            mesh=ParsedMesh(
+                path="body.pac", format="pac", submeshes=[body], bbox_min=(0.0, 0.0, 0.0),
+                bbox_max=(0.1, 1.8, 0.0), total_vertices=3, total_faces=1, has_uvs=True,
+            ),
+            item_rotation=quarter,
+        )
+        folder = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.addCleanup(folder.cleanup)
+        dialog = self._dialog(output_root=Path(folder.name), character_builder=lambda: character)
+        # the worker writes into that folder, so it has to be done with it before the
+        # folder goes: cleanups run last-registered-first, so this one runs first
+        self.addCleanup(lambda: self._settle(lambda: dialog._thread is None))
+        dialog._preview = None
+        self.assertIn("1.75 m", dialog.legend_rows["body"].text(), "the stand-in's words until one arrives")
+
+        dialog._start_package()
+        self._settle(lambda: dialog._preview is not None)
+        self.assertIsNotNone(dialog._preview, "the package was built")
+        self.assertEqual(dialog._preview.item_rotation, quarter, "the rotation went in and came back")
+        self.assertEqual(dialog._rotation, quarter, "and the dialog carries its numbers across it")
+        self.assertEqual(dialog._preview.body_submesh_count, 1)
+        self.assertIn("game's character", dialog.legend_rows["body"].text())
+        self.assertIn("the angle the game holds it", dialog.show_character.toolTip())
+        dialog._closed = True
 
     def test_a_reach_far_larger_than_the_item_starts_hidden(self) -> None:
         dialog = self._dialog()
