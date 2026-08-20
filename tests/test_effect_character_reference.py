@@ -172,11 +172,12 @@ class ChildFrameTests(unittest.TestCase):
         from cdmw.services.effect_character_reference import item_child_frame
 
         entries = self._archives()
-        matrix, socket, where = item_child_frame(
+        matrix, socket, where, sockets = item_child_frame(
             entries.keys(), self._read(entries), prefab_paths=[HELD_PREFAB],
             model_folder="1_pc/1_phm/weapon/1_onehandweapon",
         )
         self.assertEqual((socket, where), ("Basic_ChildSocket", "prefab"))
+        self.assertEqual(sockets, (("FX_Trail_00_Socket", (0.0, 0.02, -1.1)),), "the item's own trail comes with it")
         self.assertIsNotNone(matrix)
         # inverse of a quarter turn about y, so the item's z goes to the frame's x
         self.assertAlmostEqual(rotate_point((0.0, 0.0, 1.0), matrix[0:3] + matrix[4:7] + matrix[8:11])[0], -1.0, places=5)
@@ -189,7 +190,7 @@ class ChildFrameTests(unittest.TestCase):
 
         entries = self._archives()
         entries[OTHER_SOCKET_FILE] = SOCKETS_XML.replace(b"Basic_ChildSocket", b"Other_ChildSocket")
-        matrix, socket, where = item_child_frame(
+        matrix, socket, where, _sockets = item_child_frame(
             entries.keys(), self._read(entries), prefab_paths=[SHEATHED_PREFAB, HELD_PREFAB],
         )
         self.assertEqual((socket, where), ("Basic_ChildSocket", "prefab"))
@@ -199,11 +200,12 @@ class ChildFrameTests(unittest.TestCase):
         from cdmw.services.effect_character_reference import item_child_frame
 
         entries = self._archives()
-        matrix, socket, where = item_child_frame(
+        matrix, socket, where, sockets = item_child_frame(
             entries.keys(), self._read(entries), model_folder="1_pc/1_phm/weapon/1_onehandweapon",
         )
         self.assertEqual((socket, where), ("Basic_ChildSocket", "convention"))
         self.assertIsNotNone(matrix)
+        self.assertEqual(sockets, (), "a borrowed file's trail is another weapon's tip, so it is not offered")
 
     def test_archives_with_neither_give_nothing_rather_than_a_guess(self) -> None:
         from cdmw.services.effect_character_reference import item_child_frame
@@ -211,7 +213,7 @@ class ChildFrameTests(unittest.TestCase):
         entries = {"gamedata/binary__/client/bin/iteminfo.pabgb": b"\x00"}
         self.assertEqual(
             item_child_frame(entries.keys(), self._read(entries), model_folder="1_pc/1_phm/weapon/1_onehandweapon"),
-            (None, "", ""),
+            (None, "", "", ()),
         )
 
 
@@ -252,6 +254,19 @@ class HeldPoseTests(unittest.TestCase):
             tuple(round(v, 6) for v in held.item_rotation), (-1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0)
         )
         self.assertNotEqual(held.item_rotation, hold_the_item(self._reference(), None).item_rotation)
+
+    def test_the_trail_socket_rides_along_to_the_dialog(self) -> None:
+        """The button that puts the effect where the game hangs this weapon's trail needs
+        the point in the item's own frame, which is what a child socket's translation is."""
+
+        from cdmw.services.effect_character_reference import TRAIL_SOCKET, hold_the_item
+
+        held = hold_the_item(
+            self._reference(), None,
+            effect_sockets=[(TRAIL_SOCKET, (0.0, 0.02, -1.1)), ("FX_Muzzle_00_Socket", (0.0, 0.0, -0.4))],
+        )
+        self.assertEqual(dict(held.effect_sockets)[TRAIL_SOCKET], (0.0, 0.02, -1.1))
+        self.assertEqual(hold_the_item(self._reference(), None).effect_sockets, ())
 
     def test_the_seam_says_which_frame_held_it(self) -> None:
         """The line the studio logs. Three cases and three sentences, because "the item's

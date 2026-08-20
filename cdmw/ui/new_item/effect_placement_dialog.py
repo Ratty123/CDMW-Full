@@ -130,6 +130,8 @@ class EffectPlacementDialog(QDialog):
         self._effect_preview = effect_preview
         self._texture_reader = texture_reader
         self._character_builder = character_builder
+        #: `(name, point)` for the item's own FX sockets, once the character has been read
+        self._effect_sockets: tuple = ()
         # the scene is the character's frame when there is a character to stand in it, and
         # the item's own when there is not; the offsets are the item's either way
         self._rotation: Optional[Tuple[float, ...]] = None
@@ -235,6 +237,13 @@ class EffectPlacementDialog(QDialog):
         self._add_place_button(places, "Hand", "hand", "Put the effect's origin back at the hand the item is held by.")
         self._add_place_button(places, "Middle", "middle", "Put the effect's origin at the middle of the item.")
         self._add_place_button(places, "Tip", "tip", "Put the effect's origin at the far end of the item: a blade's point.")
+        # the game's own answer, when the item's socket file gave one: shown once the
+        # character has been read, because until then there is nothing behind it
+        self.trail_button = QPushButton("Trail")
+        self.trail_button.setToolTip("Put the effect's origin where the game hangs this weapon's own trail.")
+        self.trail_button.clicked.connect(lambda _checked=False: self._put_it_at("trail"))
+        self.trail_button.setVisible(False)
+        places.addWidget(self.trail_button)
         places.addStretch(1)
         side.addLayout(places)
         reach_row = QHBoxLayout()
@@ -335,6 +344,7 @@ class EffectPlacementDialog(QDialog):
                 if reference is not None:
                     character = getattr(reference, "mesh", None)
                     rotation = getattr(reference, "item_rotation", None)
+                    self._effect_sockets = tuple(getattr(reference, "effect_sockets", ()) or ())
             return build_effect_placement_package(
                 mesh, box[0], box[1], output_root=root, cancelled=stop_event.is_set,
                 character_mesh=character, item_rotation=rotation if character is not None else None,
@@ -367,6 +377,7 @@ class EffectPlacementDialog(QDialog):
         self._rotation = result.item_rotation
         if result.item_rotation is not None:
             self._say_the_character_is_the_game_s()
+        self._offer_the_trail_socket()
         if self.host.load_package(result.package_dir, reset_view=True):
             self.host.set_display_mode("overlay")
             self.status.setText("Loading the viewport...")
@@ -538,6 +549,13 @@ class EffectPlacementDialog(QDialog):
         (the item's own origin), the middle of the item, or its far end. Three spin boxes
         and a mesh whose long axis is not obvious make that a guessing game otherwise."""
 
+        if where == "trail":
+            point = self._trail_point()
+            if point is None:
+                return
+            self._set_numbers(point, self.scale)
+            self._sync_host()
+            return
         low, high = self._item_bounds()
         if where == "hand":
             self._set_numbers((0.0, 0.0, 0.0), self.scale)
@@ -606,6 +624,31 @@ class EffectPlacementDialog(QDialog):
             tuple(min(corner[axis] for corner in corners) for axis in range(3)),  # type: ignore[return-value]
             tuple(max(corner[axis] for corner in corners) for axis in range(3)),  # type: ignore[return-value]
         )
+
+    def _offer_the_trail_socket(self) -> None:
+        """Show the Trail button when the item's own socket file named one.
+
+        Only then: the socket files are shared between weapons and a borrowed one puts the
+        trail at another weapon's tip, which is a worse answer than not offering it.
+        """
+
+        point = self._trail_point()
+        self.trail_button.setVisible(point is not None)
+        if point is not None:
+            self.trail_button.setToolTip(
+                "Put the effect's origin where the game hangs this weapon's own trail "
+                f"({point[0]:.2f}, {point[1]:.2f}, {point[2]:.2f} m)."
+            )
+
+    def _trail_point(self):
+        """The item-space point of the item's trail socket, or None."""
+
+        from cdmw.services.effect_character_reference import TRAIL_SOCKET
+
+        for name, point in self._effect_sockets:
+            if str(name) == TRAIL_SOCKET:
+                return tuple(float(v) for v in point)
+        return None
 
     def _say_the_character_is_the_game_s(self) -> None:
         """The stand-in's wording is a promise the real character keeps better: say so
