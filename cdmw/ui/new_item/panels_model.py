@@ -313,8 +313,11 @@ class ModelPanel(QGroupBox):
         controller.template_changed.connect(lambda _key: self.refresh_preview())
         # the parts a glow is chosen by are the template's, so the list follows it
         controller.template_changed.connect(lambda _key: self.refresh_glow_parts())
-        # and the parts are the imported model's, so they follow it too
+        # and the parts are the imported model's, so they follow it too -- from the moment
+        # the file is read, not from Apply the placement. The result only exists after
+        # Apply, and listening for it alone left the list empty until then.
         controller.model_changed.connect(lambda _result: self.refresh_glow_parts())
+        controller.model_import_changed.connect(lambda _source: self.refresh_glow_parts())
         self.preview.ready.connect(lambda: self.capture_inline_button.setEnabled(True))
         self.preview.ready.connect(self._refresh_placement_enabled)
         self.preview.ready.connect(self._refresh_apply_status)
