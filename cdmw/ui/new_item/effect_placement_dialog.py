@@ -23,10 +23,12 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -178,8 +180,7 @@ class EffectPlacementDialog(QDialog):
 
         layout = QVBoxLayout(self)
         intro = QLabel(
-            f"{effect_label or 'The effect'} on the item: drag the orange anchor with the gizmo (Move / Scale) or type the numbers. "
-            "The character holds the item the way the game holds it, and the buttons under the viewport turn to the standing views."
+            f"{effect_label or 'The effect'}: drag the orange anchor, or type the numbers. The character holds the item the way the game does."
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
@@ -233,7 +234,9 @@ class EffectPlacementDialog(QDialog):
         # the panel keeps to its own width: left to itself it takes half the dialog and
         # the viewport -- the thing being looked at -- gets what is left
         side_panel = QWidget()
-        side_panel.setMaximumWidth(360)
+        # wide enough for the widest row -- "Put it at" and its four buttons -- plus the
+        # scroll bar beside it; narrower than that and the last button is clipped away
+        side_panel.setMaximumWidth(400)
         side = QVBoxLayout(side_panel)
         # Three groups and nothing loose. Fourteen controls, five legend rows and four
         # labels in one column read as a wall: what moves the effect, what is drawn, and
@@ -243,7 +246,20 @@ class EffectPlacementDialog(QDialog):
         view_box = QGroupBox("What is drawn")
         view = QVBoxLayout(view_box)
         side.setContentsMargins(0, 0, 0, 0)
-        body.addWidget(side_panel)
+        # The panel scrolls rather than being squeezed. Asked for less height than it
+        # needs, a column of layouts does not clip -- it compresses every child below its
+        # minimum, and a form's labels end up drawn on top of each other. A short dialog on
+        # a small screen is exactly that case.
+        side_scroll = QScrollArea()
+        side_scroll.setWidget(side_panel)
+        side_scroll.setWidgetResizable(True)
+        side_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        side_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        side_scroll.setMaximumWidth(424)
+        # and a floor: the viewport expands, so without one it takes the width and the
+        # panel is squeezed until its last button is clipped off the edge
+        side_scroll.setMinimumWidth(368)
+        body.addWidget(side_scroll)
         tools = QHBoxLayout()
         self.move_button = QPushButton("Move")
         self.move_button.setCheckable(True)
@@ -422,6 +438,9 @@ class EffectPlacementDialog(QDialog):
         root = self._output_root
         effect_preview, texture_reader = self._effect_preview, self._texture_reader
         builder = self._character_builder
+        # only when the mesh names any: the synthesis pass is seconds, and for a mesh with
+        # no textures to resolve it would be seconds spent on nothing
+        textured = any(str(getattr(part, "texture", "") or "").strip() for part in (getattr(mesh, "submeshes", ()) or ()))
 
         def task(_log, stop_event: threading.Event) -> EffectPlacementPreview:
             character, rotation = None, None
@@ -436,6 +455,7 @@ class EffectPlacementDialog(QDialog):
                     self._effect_sockets = tuple(getattr(reference, "effect_sockets", ()) or ())
             return build_effect_placement_package(
                 mesh, box[0], box[1], output_root=root, cancelled=stop_event.is_set,
+                include_item_textures=textured,
                 character_mesh=character, item_rotation=rotation if character is not None else None,
                 effect_preview=effect_preview, texture_reader=texture_reader,
             )
@@ -515,10 +535,13 @@ class EffectPlacementDialog(QDialog):
         if not spawn_meshes:
             self.caveat.setVisible(False)
             return
-        self.caveat.setText(
-            f"This effect spawns its particles on the surface of {spawn_meshes[0]}, which is not in the archives, so the "
-            "preview scatters them around the anchor instead. The anchor is where the effect starts either way, but the "
-            "shape around it is a stand-in: the game will draw its own."
+        # short by design: the detail is in the tooltip, and a paragraph here pushed the
+        # controls above it off the panel
+        self.caveat.setText(f"{spawn_meshes[0]} is not in the archives, so the particles scatter here. The game draws its own shape.")
+        self.caveat.setToolTip(
+            "An emitter can spawn its particles on the surface of a mesh. This effect names one the archives do not "
+            "carry, so the preview scatters them around the anchor instead: the anchor is where the effect starts "
+            "either way, but the shape around it is a stand-in."
         )
         self.caveat.setVisible(True)
 
@@ -815,13 +838,15 @@ class EffectPlacementDialog(QDialog):
         item = max(high[axis] - low[axis] for axis in range(3))
         reach = max(width, height, depth) * self.scale
         times = f"{reach / item:.1f}x the item" if item > 0 else "unknown against the item"
-        text = (
-            f"Reach at scale {self.scale:.2f}: {width * self.scale:.2f} x {height * self.scale:.2f} x {depth * self.scale:.2f} m, "
-            f"{times} ({item:.2f} m). The effect's own reach is {width:.2f} x {height:.2f} x {depth:.2f} m."
-        )
+        text = f"Reach at {self.scale:.2f}: {width * self.scale:.1f} x {height * self.scale:.1f} x {depth * self.scale:.1f} m, {times}."
         if getattr(self, "_reach_dwarfs_the_item", False) and not self.show_reach.isChecked():
-            text += " Its frame starts hidden because it is far larger than the item; tick Show the reach to see it."
+            text += " Its frame starts hidden: it dwarfs the item."
         self.size_label.setText(text)
+        # what the effect is before the scale, which matters when choosing one and is a
+        # line the panel does not need to carry
+        self.size_label.setToolTip(
+            f"The effect's own reach is {width:.2f} x {height:.2f} x {depth:.2f} m, and the item is {item:.2f} m long."
+        )
 
     def _set_numbers(self, offset: Vec3, scale: float) -> None:
         self.offset = tuple(round(float(v), 4) for v in offset)  # type: ignore[assignment]

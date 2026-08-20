@@ -371,10 +371,34 @@ class NewItemStudioController(QObject):
                 mesh = None
             if mesh is not None:
                 return mesh, "placed"
+        # the applied import's own preview decode, which carries its textures: the same
+        # thing the Model step draws, rather than the bare `.pac` geometry that names none
+        textured = self._textured_preview_mesh()
+        if textured is not None:
+            return textured, "applied"
         mesh = self.item_mesh_for_preview()
         if mesh is None:
             return None, ""
         return mesh, "applied" if self.model_result is not None else "template"
+
+    def _textured_preview_mesh(self):
+        """The applied import as a mesh that names its textures, or None.
+
+        In memory already -- the Builder decoded it for the Model step -- so this is a
+        conversion, not a read. The template's own textures are not here: those need an
+        archive decode, which does not belong on the thread that opens a dialog.
+        """
+
+        model = getattr(self.model_result, "preview_model", None)
+        if model is None or not getattr(model, "meshes", None):
+            return None
+        from cdmw.services.mesh_dotnet_preview_package import parsed_mesh_from_model_preview
+
+        try:
+            mesh = parsed_mesh_from_model_preview(model)
+        except Exception:  # noqa: BLE001 - the bare geometry still places an effect
+            return None
+        return mesh if any(str(getattr(part, "texture", "") or "").strip() for part in mesh.submeshes) else None
 
     def item_mesh_for_preview(self):
         """The item's mesh as it will be: the imported model, else the template's own.
@@ -563,27 +587,28 @@ class NewItemStudioController(QObject):
         self._held_character = (template, held)
         return held
 
-    def material_parts(self) -> Tuple[str, ...]:
-        """The names of the item's material parts, as its `.pac_xml` keys them.
+    def material_parts(self) -> Tuple[Tuple[str, str], ...]:
+        """The item's material parts as `(name, label)`, for choosing which ones glow.
 
-        These are what a glow is chosen by: a material wrapper is keyed by submesh name,
-        and the game's emissive is per material, not per triangle. Empty when there is no
-        template or its sidecar will not read.
+        `name` is what the `.pac_xml` keys the wrapper by; `label` is the imported model's
+        own material name, because the template's word for a part is not the reader's.
+        Empty without an imported model: the route that writes a glow runs only for one.
         """
 
         snapshot, template = self.snapshot, self.draft.template_key
-        if snapshot is None or template is None:
+        if snapshot is None or template is None or self.model_result is None:
             return ()
-        if self._material_parts and self._material_parts[0] == template:
+        stamp = (template, id(self.model_result))
+        if self._material_parts and self._material_parts[0] == stamp:
             return self._material_parts[1]
         from cdmw.services.new_item_materials import material_part_names
 
         try:
-            parts = material_part_names(snapshot, int(template))
+            parts = material_part_names(snapshot, int(template), result=self.model_result, scene=self.model_scene)
         except Exception as exc:  # noqa: BLE001 - no list is a smaller loss than no step
-            self.log_message.emit(f"The template's material parts could not be read: {exc}")
+            self.log_message.emit(f"The model's material parts could not be read: {exc}")
             parts = ()
-        self._material_parts = (template, parts)
+        self._material_parts = (stamp, parts)
         return parts
 
     def effect_box(self, stem: str = "") -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:

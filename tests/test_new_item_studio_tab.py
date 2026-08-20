@@ -879,18 +879,25 @@ class TabTests(unittest.TestCase):
         self.assertFalse(panel.glow_box.isChecked(), "nothing glows unless it is asked for")
         self.assertEqual(tab.controller.current_spec().glow, None)
 
-        # the list is the template's own material parts, as its .pac_xml keys them
-        parts = ("cd_phm_01_sword_0109", "cd_phm_01_sword_handle_0109")
+        # nothing to glow until a model is imported: the route that writes a glow runs
+        # only for one, so the group stays shut
+        self.assertFalse(panel.glow_box.isEnabled())
+        self.assertIn("Import a model", panel.glow_box.toolTip())
+
+        # the parts are the imported model's own materials, keyed by the wrapper name the
+        # file uses and labelled by the name the reader gave them
+        parts = (("cd_phm_01_sword_0109", "blade"), ("cd_phm_01_sword_handle_0109", "grip"))
         tab.controller.material_parts = lambda: parts  # type: ignore[method-assign]
         panel.refresh_glow_parts()
-        self.assertEqual([panel.glow_parts.item(row).text() for row in range(panel.glow_parts.count())], list(parts))
+        self.assertEqual([panel.glow_parts.item(row).text() for row in range(panel.glow_parts.count())], ["blade", "grip"])
+        self.assertTrue(panel.glow_box.isEnabled())
 
         panel.glow_box.setChecked(True)
         panel.glow_parts.item(0).setCheckState(Qt.CheckState.Checked)
         panel.glow_intensity.setValue(6.5)
         tab.controller.draft.glow_color = (0.0, 0.5, 1.0)
         glow = tab.controller.current_spec().glow
-        self.assertEqual(glow.parts, (parts[0],))
+        self.assertEqual(glow.parts, (parts[0][0],), "the plan is given the wrapper name, not the label")
         self.assertEqual(glow.intensity, 6.5)
         self.assertEqual(glow.hex_color(), "#0080FFFF")
 
