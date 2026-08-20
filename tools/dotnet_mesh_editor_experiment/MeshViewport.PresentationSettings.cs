@@ -230,6 +230,25 @@ internal sealed partial class MeshViewport
     /// The viewport's own clear and grid colours. Null clears an override and
     /// hands the field back to the host's presentation quality payload.
     /// </summary>
+    /// <summary>
+    /// The clear colour alone, leaving the grid override where it is. The host sets both
+    /// at startup from the reader's remembered preference, and that override outranks the
+    /// presentation payload's colour -- so a viewport that wants its own backdrop has to
+    /// set the override rather than the payload.
+    /// </summary>
+    internal void SetViewportBackgroundOverride(System.Drawing.Color? background)
+    {
+        _backgroundColorOverride = background is { } colour
+            ? new Vector3(
+                SrgbToLinear(colour.R / 255.0f),
+                SrgbToLinear(colour.G / 255.0f),
+                SrgbToLinear(colour.B / 255.0f))
+            : null;
+        ApplyViewportColorOverrides();
+        _d3d11Viewport?.ApplyPresentationSettings(_residentPresentationSettings);
+        Invalidate();
+    }
+
     internal void SetViewportColorOverrides(
         System.Drawing.Color? background,
         System.Drawing.Color? grid)
@@ -248,6 +267,13 @@ internal sealed partial class MeshViewport
         UpdateGpuViewport();
         Invalidate();
     }
+
+    /// <summary>
+    /// The clear colour the renderer would use, in linear space. A seam for the headless
+    /// gate: a payload that parses and a payload that reaches the clear colour are two
+    /// different things, and only the second one is the reader's backdrop.
+    /// </summary>
+    internal Vector3 ResidentBackgroundColor => _backgroundColorOverride ?? _residentPresentationSettings.BackgroundColor;
 
     private void ApplyViewportColorOverrides()
     {

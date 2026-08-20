@@ -503,7 +503,9 @@ internal static class HeadlessGpuInteractionSoak
         Visible = false,
     };
 
-    private static LaunchOptions SyntheticLaunchOptions()
+    /// <summary>Launch options for a viewport built with no files behind it; shared with
+    /// the layout gate, which builds one to prove a presentation payload reaches the renderer.</summary>
+    internal static LaunchOptions SyntheticLaunchOptions()
     {
         var root = Path.Combine(Path.GetTempPath(), "cdmw-mesh-interaction-soak");
         return new LaunchOptions(

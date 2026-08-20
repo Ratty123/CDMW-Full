@@ -365,10 +365,17 @@ class NewItemStudioController(QObject):
 
         source = self.model_import
         if self.model_result is None and source is not None:
-            try:
-                mesh = bake_mesh(source.baked_scene_mesh(), self.model_placement)
-            except Exception:  # noqa: BLE001 - fall back to whatever else there is
-                mesh = None
+            # the textured preview decode, not the bare scene mesh: a `.pac`'s geometry
+            # names no textures, and this is the same mesh the Model step draws
+            mesh = None
+            for candidate in (source.baked_preview_mesh, source.baked_scene_mesh):
+                try:
+                    baked = bake_mesh(candidate(), self.model_placement)
+                except Exception:  # noqa: BLE001 - fall back to whatever else there is
+                    continue
+                if baked is not None:
+                    mesh = baked
+                    break
             if mesh is not None:
                 return mesh, "placed"
         # the applied import's own preview decode, which carries its textures: the same
@@ -596,15 +603,21 @@ class NewItemStudioController(QObject):
         """
 
         snapshot, template = self.snapshot, self.draft.template_key
-        if snapshot is None or template is None or self.model_result is None:
+        # Before Apply the placement there is no Builder result, so nothing says which
+        # wrapper each of the reader's materials lands on -- but the parts are still
+        # there to tick, under the template's names for them until the result arrives.
+        model = self.model_result if self.model_result is not None else self.model_import
+        if snapshot is None or template is None or model is None:
             return ()
-        stamp = (template, id(self.model_result))
+        stamp = (template, id(model))
         if self._material_parts and self._material_parts[0] == stamp:
             return self._material_parts[1]
         from cdmw.services.new_item_materials import material_part_names
 
         try:
-            parts = material_part_names(snapshot, int(template), result=self.model_result, scene=self.model_scene)
+            parts = material_part_names(
+                snapshot, int(template), result=self.model_result, scene=self.model_scene
+            )
         except Exception as exc:  # noqa: BLE001 - no list is a smaller loss than no step
             self.log_message.emit(f"The model's material parts could not be read: {exc}")
             parts = ()
