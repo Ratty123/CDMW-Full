@@ -7956,6 +7956,7 @@
     "This dialog is read-only. Model paths and all editable backend or texture-policy controls remain in the main Texture Workflow panel.": "此对话框是只读的。模型路径和所有可编辑后端或纹理策略控件保留在主纹理工作流程面板中。",
     "This editor contains changes that have not been exported to a mod package. Discard them and close?": "此编辑器包含尚未导出到 mod 包的更改。丢弃它们并关闭？",
     "This editor uses the shared out-of-process .NET/Vortice Preview. Pick a recovered attach point, review the socket chain, optionally drag/tune offset/rotation, then build the same loose package copy plan.": "该编辑器使用共享的进程外 .NET/Vortice 预览。选择一个恢复的连接点，检查套接字链，可选择拖动/调整偏移/旋转，然后构建相同的松散包复制计划。",
+    "This effect spawns its particles on the surface of {value_0}, which is not in the archives, so the preview scatters them around the anchor instead. The anchor is where the effect starts either way, but the shape around it is a stand-in: the game will draw its own.": "该特效的粒子生成在 {value_0} 的表面，而存档里没有这个网格，因此预览改为把粒子撒在锚点周围。无论如何锚点都是特效的起点，但它周围的形状只是替代品：游戏会画出自己的形状。",
     "This file could not be read as a prefab: {value_0}": "该文件无法作为预制件读取：{value_0}",
     "This file is read-only because it was only partly read.": "此文件是只读的，因为仅部分读取。",
     "This image was opened as a loose external file, so Texture Workflow needs an explicit game-relative target path and the original DDS source.": "该图像作为松散的外部文件打开，因此 Texture Workflow 需要明确的游戏相关目标路径和原始 DDS 源。",
