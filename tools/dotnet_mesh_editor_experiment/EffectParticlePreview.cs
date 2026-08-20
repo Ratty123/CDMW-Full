@@ -305,7 +305,13 @@ internal struct EffectParticle
 }
 
 /// <summary>A sprite corner the renderer uploads: world position, colour, sprite UV.</summary>
-internal readonly record struct EffectParticleVertex(Vector3 Position, Vector4 Color, Vector2 TexCoord);
+/// <summary>
+/// One particle-quad corner. <paramref name="TexCoord"/> is where to read the sprite (a
+/// flipbook cell, so it is not the quad's own extent) and <paramref name="Corner"/> is
+/// where on the quad this is, 0..1 across and down. The shader needs both: the first to
+/// sample, the second to know where the quad's edge is so it can fade it out.
+/// </summary>
+internal readonly record struct EffectParticleVertex(Vector3 Position, Vector4 Color, Vector2 TexCoord, Vector2 Corner);
 
 /// <summary>
 /// The CPU simulation of one emitter: bursts by rate while the emitter spawns
@@ -549,12 +555,12 @@ internal sealed class EffectEmitterSimulation
             var b = centre + axisX - axisY;
             var c = centre + axisX + axisY;
             var d = centre - axisX + axisY;
-            output.Add(new EffectParticleVertex(a, rgba, new Vector2(u0, v1)));
-            output.Add(new EffectParticleVertex(b, rgba, new Vector2(u1, v1)));
-            output.Add(new EffectParticleVertex(c, rgba, new Vector2(u1, v0)));
-            output.Add(new EffectParticleVertex(a, rgba, new Vector2(u0, v1)));
-            output.Add(new EffectParticleVertex(c, rgba, new Vector2(u1, v0)));
-            output.Add(new EffectParticleVertex(d, rgba, new Vector2(u0, v0)));
+            output.Add(new EffectParticleVertex(a, rgba, new Vector2(u0, v1), new Vector2(0.0f, 1.0f)));
+            output.Add(new EffectParticleVertex(b, rgba, new Vector2(u1, v1), new Vector2(1.0f, 1.0f)));
+            output.Add(new EffectParticleVertex(c, rgba, new Vector2(u1, v0), new Vector2(1.0f, 0.0f)));
+            output.Add(new EffectParticleVertex(a, rgba, new Vector2(u0, v1), new Vector2(0.0f, 1.0f)));
+            output.Add(new EffectParticleVertex(c, rgba, new Vector2(u1, v0), new Vector2(1.0f, 0.0f)));
+            output.Add(new EffectParticleVertex(d, rgba, new Vector2(u0, v0), new Vector2(0.0f, 0.0f)));
             appended += 6;
         }
         return appended;
@@ -566,12 +572,12 @@ internal sealed class EffectEmitterSimulation
         var b = from + halfAcross;
         var c = to + halfAcross;
         var d = to - halfAcross;
-        output.Add(new EffectParticleVertex(a, rgba, new Vector2(0.0f, 1.0f)));
-        output.Add(new EffectParticleVertex(b, rgba, new Vector2(1.0f, 1.0f)));
-        output.Add(new EffectParticleVertex(c, rgba, new Vector2(1.0f, 0.0f)));
-        output.Add(new EffectParticleVertex(a, rgba, new Vector2(0.0f, 1.0f)));
-        output.Add(new EffectParticleVertex(c, rgba, new Vector2(1.0f, 0.0f)));
-        output.Add(new EffectParticleVertex(d, rgba, new Vector2(0.0f, 0.0f)));
+        output.Add(new EffectParticleVertex(a, rgba, new Vector2(0.0f, 1.0f), new Vector2(0.0f, 1.0f)));
+        output.Add(new EffectParticleVertex(b, rgba, new Vector2(1.0f, 1.0f), new Vector2(1.0f, 1.0f)));
+        output.Add(new EffectParticleVertex(c, rgba, new Vector2(1.0f, 0.0f), new Vector2(1.0f, 0.0f)));
+        output.Add(new EffectParticleVertex(a, rgba, new Vector2(0.0f, 1.0f), new Vector2(0.0f, 1.0f)));
+        output.Add(new EffectParticleVertex(c, rgba, new Vector2(1.0f, 0.0f), new Vector2(1.0f, 0.0f)));
+        output.Add(new EffectParticleVertex(d, rgba, new Vector2(0.0f, 0.0f), new Vector2(0.0f, 0.0f)));
         return 6;
     }
 

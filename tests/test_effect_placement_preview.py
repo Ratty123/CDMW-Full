@@ -245,6 +245,36 @@ class ViewerParticleLayerContractTests(unittest.TestCase):
         self.assertIn("LoadEffectParticlePreview(prepared.PackagePath)", package_protocol)
         self.assertIn('["effect_preview"]', package_protocol)
 
+    def test_a_particle_quad_knows_where_its_own_edge_is(self) -> None:
+        """A sprite's UV is its flipbook cell's, not the quad's, so the shader had no way
+        to know where the quad ended and faded nothing: an opaque smoke sheet drew as a
+        grey diamond with a knife edge, over the item it was being placed on. The corner
+        coordinate is that missing fact, and it has to travel the whole way."""
+
+        reader = (self.ROOT / "EffectParticlePreview.cs").read_text(encoding="utf-8")
+        renderer = (self.ROOT / "D3D11MaterialViewport.EffectParticles.cs").read_text(encoding="utf-8")
+        shaders = (self.ROOT / "D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
+
+        self.assertIn("Vector2 TexCoord, Vector2 Corner)", reader, "the CPU vertex carries it")
+        self.assertIn("Vector2 TexCoord, Vector2 Corner)", renderer, "and so does the GPU one")
+        self.assertIn('new InputElementDescription("TEXCOORD", 1, Format.R32G32_Float, 36, 0)', renderer)
+        self.assertIn("float2 Corner : TEXCOORD1;", shaders)
+        self.assertIn("output.Corner = input.Corner;", shaders)
+        # the border fade, and the sprite's own alpha taken at its word
+        self.assertIn("smoothstep(0.74f, 1.0f, max(fromCentre.x, fromCentre.y))", shaders)
+        self.assertIn("step(0.999f, sample.a)", shaders)
+        self.assertNotIn("max(sample.a, dot(sample.rgb", shaders, "luminance no longer overrides a real alpha channel")
+
+    def test_the_particles_sample_with_a_clamp_of_their_own(self) -> None:
+        """The mesh pass's sampler wraps, which lets one flipbook cell bleed into the next
+        at the seam; particles clamp instead, and filter linearly so a sprite blown up over
+        a sword is not a grid of texels."""
+
+        renderer = (self.ROOT / "D3D11MaterialViewport.EffectParticles.cs").read_text(encoding="utf-8")
+        self.assertIn("_effectParticleSamplerState", renderer)
+        self.assertIn("Filter.MinMagMipLinear, TextureAddressMode.Clamp", renderer)
+        self.assertIn("_effectParticleSamplerState?.Dispose();", renderer)
+
 
 class HostPlacementMatrixTests(unittest.TestCase):
     """The host's placement numbers reach the helper as the editable role's model matrix."""

@@ -1338,6 +1338,7 @@ struct ParticleVSInput
     float3 Position : POSITION;
     float4 Color : COLOR0;
     float2 TexCoord : TEXCOORD0;
+    float2 Corner : TEXCOORD1;
 };
 
 struct ParticleVSOutput
@@ -1345,6 +1346,7 @@ struct ParticleVSOutput
     float4 Position : SV_Position;
     float4 Color : COLOR0;
     float2 TexCoord : TEXCOORD0;
+    float2 Corner : TEXCOORD1;
 };
 
 ParticleVSOutput VSParticle(ParticleVSInput input)
@@ -1353,6 +1355,7 @@ ParticleVSOutput VSParticle(ParticleVSInput input)
     output.Position = mul(float4(input.Position, 1.0f), OverlayWorldViewProjection);
     output.Color = input.Color;
     output.TexCoord = input.TexCoord;
+    output.Corner = input.Corner;
     return output;
 }
 
@@ -1361,25 +1364,35 @@ float4 PSParticle(ParticleVSOutput input) : SV_Target
     // OverlayMarkerSettings.z: 1 when a sprite texture is bound, 0 for a shaped quad;
     // OverlayMarkerSettings.w: 1 for a beam ribbon, 0 for a soft disc.
     float4 colour = input.Color;
+    // How far out on the quad this pixel is, 0 at the middle and 1 at the border. The
+    // sprite's own UV cannot answer that: it is a flipbook cell's, not the quad's.
+    float2 fromCentre = abs(input.Corner * 2.0f - 1.0f);
     if (OverlayMarkerSettings.z > 0.5f)
     {
         float4 sample = ParticleTexture.Sample(MaterialSampler, input.TexCoord);
-        // Fire sprites are grey luminance masks with or without an alpha
-        // channel; take the stronger of the two so either kind reads.
-        float mask = max(sample.a, dot(sample.rgb, float3(0.299f, 0.587f, 0.114f)));
+        // Fire and smoke sprites come both ways: some carry their shape in an alpha
+        // channel, some are opaque sheets that carry it in luminance. A texel that is
+        // fully opaque is taken to be the second kind, so a grey smoke sheet fades out
+        // where it is dark instead of filling its whole cell.
+        // the strongest channel, not the luminance: a blue glow reads as bright as a
+        // white one, and luminance would make it a third of what the eye sees
+        float shape = max(sample.r, max(sample.g, sample.b));
+        float mask = sample.a * lerp(1.0f, shape, step(0.999f, sample.a));
         colour.rgb *= sample.rgb * 0.5f + 0.5f;
         colour.a *= mask;
+        // and the quad's own border, so a sprite never draws to a knife edge. The fade is
+        // over the outer quarter, which is small enough to leave a flipbook flame its
+        // shape and wide enough that the rectangle stops reading as a rectangle.
+        colour.a *= saturate(1.0f - smoothstep(0.74f, 1.0f, max(fromCentre.x, fromCentre.y)));
     }
     else if (OverlayMarkerSettings.w > 0.5f)
     {
         // a beam ribbon: soft across (u), constant along (v)
-        float across = abs(input.TexCoord.x * 2.0f - 1.0f);
-        colour.a *= saturate(1.0f - smoothstep(0.3f, 1.0f, across));
+        colour.a *= saturate(1.0f - smoothstep(0.3f, 1.0f, fromCentre.x));
     }
     else
     {
-        float2 centred = input.TexCoord * 2.0f - 1.0f;
-        float radius = length(centred);
+        float radius = length(input.Corner * 2.0f - 1.0f);
         colour.a *= saturate(1.0f - smoothstep(0.35f, 1.0f, radius));
     }
     if (colour.a <= 0.002f)

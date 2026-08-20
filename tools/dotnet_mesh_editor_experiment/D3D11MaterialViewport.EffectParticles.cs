@@ -33,6 +33,7 @@ internal sealed partial class D3D11MaterialViewport
     private ID3D11PixelShader? _effectParticlePixelShader;
     private ID3D11InputLayout? _effectParticleInputLayout;
     private ID3D11BlendState? _effectParticleAdditiveBlendState;
+    private ID3D11SamplerState? _effectParticleSamplerState;
     private System.Windows.Forms.Timer? _effectParticlePump;
     private long _effectParticleLastTimestamp;
     private bool _effectParticlesEnabled = true;
@@ -166,6 +167,8 @@ internal sealed partial class D3D11MaterialViewport
                 new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0),
                 new InputElementDescription("COLOR", 0, Format.R32G32B32A32_Float, 12, 0),
                 new InputElementDescription("TEXCOORD", 0, Format.R32G32_Float, 28, 0),
+                // where on the quad the corner is, so the shader can fade the quad's own edge
+                new InputElementDescription("TEXCOORD", 1, Format.R32G32_Float, 36, 0),
             },
             vertexBytecode);
     }
@@ -179,6 +182,9 @@ internal sealed partial class D3D11MaterialViewport
         _effectParticleAdditiveBlendState?.Dispose();
         _effectParticleAdditiveBlendState = _device.CreateBlendState(
             new BlendDescription(Blend.SourceAlpha, Blend.One, Blend.One, Blend.One));
+        _effectParticleSamplerState?.Dispose();
+        _effectParticleSamplerState = _device.CreateSamplerState(new SamplerDescription(
+            Filter.MinMagMipLinear, TextureAddressMode.Clamp, TextureAddressMode.Clamp, TextureAddressMode.Clamp));
     }
 
     private void DisposeEffectParticleDeviceResources()
@@ -189,6 +195,8 @@ internal sealed partial class D3D11MaterialViewport
         _effectParticleVertexCapacity = 0;
         _effectParticleAdditiveBlendState?.Dispose();
         _effectParticleAdditiveBlendState = null;
+        _effectParticleSamplerState?.Dispose();
+        _effectParticleSamplerState = null;
         _effectParticleInputLayout?.Dispose();
         _effectParticleInputLayout = null;
         _effectParticleVertexShader?.Dispose();
@@ -395,7 +403,7 @@ internal sealed partial class D3D11MaterialViewport
             for (var index = 0; index < vertices.Count; index++)
             {
                 var vertex = vertices[index];
-                destination[index] = new D3D11EffectParticleVertex(vertex.Position, vertex.Color, vertex.TexCoord);
+                destination[index] = new D3D11EffectParticleVertex(vertex.Position, vertex.Color, vertex.TexCoord, vertex.Corner);
             }
         }
         finally
@@ -511,9 +519,10 @@ internal sealed partial class D3D11MaterialViewport
         _context.PSSetShader(_effectParticlePixelShader);
         _context.VSSetConstantBuffer(1u, _overlayCameraBuffer);
         _context.PSSetConstantBuffer(1u, _overlayCameraBuffer);
-        if (_samplerState is not null)
+        var particleSampler = _effectParticleSamplerState ?? _samplerState;
+        if (particleSampler is not null)
         {
-            _context.PSSetSampler(0u, _samplerState);
+            _context.PSSetSampler(0u, particleSampler);
         }
         _context.RSSetState(_doubleSidedRasterizerState ?? _rasterizerState);
         _context.OMSetDepthStencilState(
@@ -545,4 +554,4 @@ internal sealed partial class D3D11MaterialViewport
 }
 
 [StructLayout(LayoutKind.Sequential)]
-internal readonly record struct D3D11EffectParticleVertex(Vector3 Position, Vector4 Color, Vector2 TexCoord);
+internal readonly record struct D3D11EffectParticleVertex(Vector3 Position, Vector4 Color, Vector2 TexCoord, Vector2 Corner);
