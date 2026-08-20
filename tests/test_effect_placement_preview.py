@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import tempfile
@@ -280,6 +281,30 @@ class ViewerParticleLayerContractTests(unittest.TestCase):
         self.assertIn('JsonBool(display, "effect_particles_paused"', presentation)
         self.assertIn("SetEffectParticlesPaused(particlesPaused)", presentation)
         self.assertIn('["effect_particles_paused"] = _presentationEffectParticlesPaused,', presentation)
+
+    def test_a_viewport_backdrop_is_an_override_not_a_quality_field(self) -> None:
+        """The host sets a colour override from the reader's remembered preference before
+        its first frame, and `_backgroundColorOverride ?? settings.BackgroundColor` means
+        that override wins. A backdrop sent in the quality payload changed nothing at all;
+        it has to arrive as an override too."""
+
+        presentation = (self.ROOT / "MeshViewport.Presentation.cs").read_text(encoding="utf-8")
+        settings = (self.ROOT / "MeshViewport.PresentationSettings.cs").read_text(encoding="utf-8")
+        gate = (self.ROOT / "EditMeshLayoutSmoke.cs").read_text(encoding="utf-8")
+
+        self.assertIn('JsonString(display, "viewport_background_color"', presentation)
+        self.assertIn("SetViewportBackgroundOverride(backdropColor)", presentation)
+        self.assertIn("internal void SetViewportBackgroundOverride(", settings)
+        self.assertIn("_backgroundColorOverride ?? _residentPresentationSettings.BackgroundColor", settings)
+        # and the headless gate proves it at the clear colour rather than at a field
+        self.assertIn("RequireViewportBackdropOverrideContract", gate)
+        self.assertIn("The backdrop did not reach the clear colour", gate)
+
+        from cdmw.ui.preview.dotnet_host import DotNetPreviewHostFrame
+
+        source = inspect.getsource(DotNetPreviewHostFrame.set_viewport_backdrop)
+        self.assertIn('display["viewport_background_color"]', source)
+        self.assertNotIn("d3d11_background_color", source, "the quality field is the one that did nothing")
 
     def test_the_particles_sample_with_a_clamp_of_their_own(self) -> None:
         """The mesh pass's sampler wraps, which lets one flipbook cell bleed into the next

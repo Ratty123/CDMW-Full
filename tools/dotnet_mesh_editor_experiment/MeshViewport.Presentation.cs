@@ -71,6 +71,7 @@ internal sealed partial class MeshViewport
     //: additive sprites, and there are placements it hides the thing being placed behind.
     private bool _presentationEffectParticlesVisible = true;
     private bool _presentationEffectParticlesPaused;
+    private string _presentationViewportBackdrop = string.Empty;
     private bool _presentationGizmoVisible = true;
     // Set once the host has named a display mode, so a package swap knows the
     // difference between "nobody has chosen yet" and "the host chose this".
@@ -286,6 +287,18 @@ internal sealed partial class MeshViewport
             MaterialDebugMode = Math.Clamp(JsonInt(display, "material_debug_mode", MaterialDebugMode), 0, 12);
             _presentationGridVisible = JsonBool(display, "grid_visible", _presentationGridVisible);
             _presentationGizmoVisible = JsonBool(display, "gizmo_visible", _presentationGizmoVisible);
+            // the viewport's own clear colour, which has to be the override rather than the
+            // quality payload: the host sets an override at startup and it wins over both
+            var backdrop = JsonString(display, "viewport_background_color", _presentationViewportBackdrop);
+            if (!string.Equals(backdrop, _presentationViewportBackdrop, StringComparison.OrdinalIgnoreCase))
+            {
+                _presentationViewportBackdrop = backdrop;
+                var backdropColor = GizmoAppearance.ParseColor(backdrop, System.Drawing.Color.Empty);
+                if (backdropColor != System.Drawing.Color.Empty)
+                {
+                    SetViewportBackgroundOverride(backdropColor);
+                }
+            }
             var particlesPaused = JsonBool(display, "effect_particles_paused", _presentationEffectParticlesPaused);
             if (particlesPaused != _presentationEffectParticlesPaused)
             {
@@ -480,6 +493,7 @@ internal sealed partial class MeshViewport
             ["grid_visible"] = _presentationGridVisible,
             ["effect_particles_visible"] = _presentationEffectParticlesVisible,
             ["effect_particles_paused"] = _presentationEffectParticlesPaused,
+            ["viewport_background_color"] = _presentationViewportBackdrop,
             ["gizmo_visible"] = _presentationGizmoVisible,
             ["hidden_submesh_indices"] = _presentationHiddenSubmeshes.OrderBy(index => index).ToArray(),
             ["highlighted_source_indices"] = _presentationHighlightedSources.OrderBy(index => index).ToArray(),

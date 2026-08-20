@@ -736,15 +736,15 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
         clear lets dark leather melt into it. An additive effect is the other problem: its
         fire competes with whatever is behind it, and measured against the same fire a
         backdrop of #101014 reads 173 shades above the background where the grey reads 131.
-        Merged into whatever quality the viewport already has, so nothing else moves.
+        Sent as the viewport's colour override rather than in the quality payload: the
+        helper sets an override from the reader's remembered preference before its first
+        frame, and that override wins over the payload's colour.
         """
 
         display = dict(self._presentation_state.get("display", {}))
-        quality = dict(display.get("quality", {}) or {})
-        quality["d3d11_background_color"] = str(color or "")
-        display["quality"] = quality
+        display["viewport_background_color"] = str(color or "")
         self._presentation_state["display"] = display
-        return self._remember_presentation_state({"display": {"quality": quality}})
+        return self._remember_presentation_state({"display": {"viewport_background_color": str(color or "")}})
 
     def set_alignment_state(
         self,

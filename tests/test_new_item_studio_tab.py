@@ -866,6 +866,56 @@ class TabTests(unittest.TestCase):
         tab.deleteLater()
 
 
+    def test_an_imported_model_is_textured_and_listed_before_it_is_applied(self) -> None:
+        """Both of these were wrong for the same reason: they waited for the Builder result,
+        which only exists once Apply the placement has run. Before that the studio still has
+        the import's own textured decode and its material wrappers."""
+
+        from types import SimpleNamespace
+
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+
+        def mesh(texture: str) -> ParsedMesh:
+            part = SubMesh(
+                name="blade", material="steel", texture=texture,
+                vertices=[(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0)],
+                uvs=[(0.0, 0.0)] * 3, normals=[(0.0, 1.0, 0.0)] * 3, faces=[(0, 1, 2)],
+                vertex_count=3, face_count=1,
+            )
+            return ParsedMesh(
+                path="import.pac", format="pac", submeshes=[part], bbox_min=(0.0, 0.0, 0.0),
+                bbox_max=(0.1, 0.1, 0.0), total_vertices=3, total_faces=1, has_uvs=True,
+            )
+
+        tab = self._tab(window=None)
+        tab.prefill_template(TEMPLATE)
+        controller = tab.controller
+        self.assertIsNone(controller.model_result, "nothing applied yet")
+
+        controller.model_import = SimpleNamespace(
+            baked_preview_mesh=lambda: mesh("frostmourne_basecolor.png"),
+            baked_scene_mesh=lambda: mesh(""),
+            baked_bounds=lambda: ((0.0, 0.0, 0.0), (0.1, 0.1, 0.0)),
+        )
+        planned, kind = controller.item_mesh_as_planned()
+        self.assertEqual(kind, "placed")
+        self.assertEqual(
+            planned.submeshes[0].texture, "frostmourne_basecolor.png",
+            "the effect viewport gets the textured decode, not the bare geometry",
+        )
+
+        # and the parts are read, under the template's names until the result can rename
+        # them. The synthetic family here carries no .pac_xml, so what is asserted is the
+        # gate that was wrong: it waited for the Builder result and listed nothing at all.
+        with patch(
+            "cdmw.services.new_item_materials.material_part_names",
+            return_value=(("cd_phm_02_sword_0040", "cd_phm_02_sword_0040"),),
+        ) as reader:
+            self.assertEqual(controller.material_parts(), (("cd_phm_02_sword_0040", "cd_phm_02_sword_0040"),))
+        self.assertTrue(reader.called, "the parts are read before Apply, not after it")
+        tab.close()
+        tab.deleteLater()
+
     def test_the_parts_that_glow_are_chosen_on_the_step(self) -> None:
         """A template's own emissive is not inherited -- its mask is cut for the template's
         mesh, and what the importer generates in its place is flat, so inheriting it lit a

@@ -275,6 +275,7 @@ internal static partial class EditMeshLayoutSmoke
         RequireBrushFalloffProfile();
         var morphWizard = RequireMorphAuthorWizardContract();
         var viewportColorPreferences = RequireViewportColorPreferenceContract();
+        var viewportBackdrop = RequireViewportBackdropOverrideContract();
         var overlayAppearance = RequireOverlayAppearanceContract();
 
         // The rail is one flat list: every armable tool is its own button, and
@@ -455,6 +456,7 @@ internal static partial class EditMeshLayoutSmoke
             },
             ["morph_profile_wizard"] = morphWizard,
             ["viewport_color_preferences"] = viewportColorPreferences,
+            ["viewport_backdrop_override"] = viewportBackdrop,
             ["overlay_appearance"] = overlayAppearance,
             ["tool_column_width"] = ToolColumnWidthReport(),
             ["tool_list_row_count"] = EditMeshToolListContract.RowOrder.Length,
@@ -733,6 +735,47 @@ internal static partial class EditMeshLayoutSmoke
             ["existing_profile_reloaded"] = true,
             ["existing_profile_scope_preserved"] = true,
             ["mesh_selection_preserved"] = true,
+        };
+    }
+
+    private static Dictionary<string, object?> RequireViewportBackdropOverrideContract()
+    {
+        // The effect dialog asks for its own backdrop, and the host has already set a
+        // colour override from the reader's remembered preference. That override wins over
+        // the presentation payload's quality colour, so the backdrop has to arrive as an
+        // override too -- which is a thing to prove at the clear colour, not at a field.
+        var document = HeadlessGpuSparseSoak.BuildSyntheticDocument(64);
+        var materials = NetMaterialSet.Empty;
+        using var textures = NetTextureSet.Load(materials);
+        var scene = NetSceneState.Load(string.Empty, document.Submeshes.Count);
+        using var viewport = new MeshViewport(document, materials, textures, scene, HeadlessGpuInteractionSoak.SyntheticLaunchOptions());
+        viewport.SetViewportColorOverrides(Color.FromArgb(0x3B, 0x3B, 0x3B), null);
+        var before = viewport.ResidentBackgroundColor;
+
+        var state = new Dictionary<string, object?>
+        {
+            ["active_view"] = "editable",
+            ["display"] = new Dictionary<string, object?> { ["viewport_background_color"] = "#101014" },
+        };
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(state));
+        Require(
+            viewport.TryApplyPresentationState(payload.RootElement, out var error),
+            $"A presentation state naming a backdrop was rejected: {error}");
+        var after = viewport.ResidentBackgroundColor;
+        static float ToLinear(float channel) =>
+            channel <= 0.04045f ? channel / 12.92f : MathF.Pow((channel + 0.055f) / 1.055f, 2.4f);
+        var expected = ToLinear(0x10 / 255.0f);
+        Require(
+            MathF.Abs(after.X - expected) < 0.0005f && MathF.Abs(after.Y - expected) < 0.0005f,
+            $"The backdrop did not reach the clear colour: {after.X:F4} rather than {expected:F4}.");
+        Require(
+            MathF.Abs(after.X - before.X) > 0.0005f,
+            "The clear colour did not move, so the payload changed nothing.");
+        return new Dictionary<string, object?>
+        {
+            ["before_linear"] = MathF.Round(before.X, 5),
+            ["after_linear"] = MathF.Round(after.X, 5),
+            ["expected_linear"] = MathF.Round(expected, 5),
         };
     }
 
