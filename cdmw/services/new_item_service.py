@@ -209,7 +209,7 @@ class NewItemService:
         elif model is not None:
             files = model_files_from_import(model, family=snapshot.family(allocated.template_key))
             raise_if_cancelled(stop_event, "New item plan cancelled.")
-            files = route_model_files(files, allocated.material_route, result=model, scene=scene, on_log=on_log)
+            files = route_model_files(files, allocated.material_route, result=model, scene=scene, glow=allocated.glow, on_log=on_log)
         built = icon
         if allocated.icon is IconSource.GENERATED and built is None:
             if icon_source_path is None:

@@ -223,6 +223,45 @@ def encode_emissive_from_png(png: Path, *, on_log: Optional[Callable[[str], None
         return produced.read_bytes(), color
 
 
+def _emi_path_for(base_path: str) -> str:
+    """`.../<stem>_<material>_basecolor.dds` -> `.../<stem>_<material>_emi.dds`, for a part
+    the reader asked to glow when the import generated no emissive slot for it."""
+
+    folder, _, name = base_path.replace("\\", "/").rpartition("/")
+    if _BASE_NAME_RE.search(name):
+        new_name = _BASE_NAME_RE.sub("_emi.dds", name, count=1)
+    else:
+        new_name = f"{name[:-4]}_emi.dds" if name.lower().endswith(".dds") else f"{name}_emi.dds"
+    return f"{folder}/{new_name}" if folder else new_name
+
+
+def encode_emissive_solid(*, on_log: Optional[Callable[[str], None]] = None) -> bytes:
+    """A solid intensity map (16x16, BC4, full mips): the whole part glows.
+
+    The game's emissive is a map times a colour times a number, so "this part glows" is a
+    map that is white everywhere; the colour and the number carry the rest. A part the
+    reader picked has no mask of its own to cut, and inventing one would be guessing at
+    which pixels they meant.
+    """
+
+    from PIL import Image
+
+    from cdmw.core.texture_native import encode_dds_with_directxtex
+    from cdmw.domain.textures.output import max_mips_for_size
+
+    with tempfile.TemporaryDirectory(prefix="cdmw_new_item_glow_") as temp:
+        prepared = Path(temp) / "glow_emi.png"
+        Image.new("L", (16, 16), 255).save(prepared)
+        produced = Path(temp) / "glow_emi.dds"
+        report = encode_dds_with_directxtex(
+            prepared, produced, dds_format="BC4_UNORM", width=16, height=16,
+            mip_count=max_mips_for_size(16, 16), on_log=on_log,
+        )
+        if not report or not produced.is_file() or produced.stat().st_size == 0:
+            raise NewItemPlanError("the DDS encoder produced nothing for the solid glow map")
+        return produced.read_bytes()
+
+
 def route_plain_pbr(
     files: ModelFiles,
     *,
@@ -230,6 +269,8 @@ def route_plain_pbr(
     encode: Callable[[Path], bytes] = encode_sp_from_png,
     encode_emissive: Callable[[Path], Tuple[bytes, str]] = encode_emissive_from_png,
     encode_factors: Callable[[float, float], bytes] = encode_sp_from_factors,
+    encode_glow: Callable[[], bytes] = encode_emissive_solid,
+    glow: object = None,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> PlainPbrRoute:
     """Rewrite the wrappers the import owns to the plain shaders; see the module doc.
@@ -238,12 +279,21 @@ def route_plain_pbr(
     Its base colour is the Builder's (`_baseColorTexture`, else `_overlayColorTexture`),
     its normal the Builder's `_normalTexture`; its `_sp` is encoded from
     `sources[submesh].material` when given, else the Builder's `_detailMaskTexture`
-    mask; its emissive is encoded from `sources[submesh].emissive` when given (the
-    colour read from the source), else the Builder's. Wrappers that share a base
-    texture share a source. Side files no wrapper names any more are dropped.
+    mask.
+
+    Glow is not inherited. Its emissive is encoded from `sources[submesh].emissive` when
+    the model brought one; else, for a submesh named in `glow.parts`, a solid map in
+    `glow`'s colour and strength; else nothing, and the wrapper goes back to the plain
+    shader. The template's own emissive rides on a mask cut for the template's mesh, and
+    what the importer generates in its place is flat, so inheriting it lights the whole
+    model. Wrappers that share a base texture share a source. Side files no wrapper names
+    any more are dropped.
     """
 
     sources = dict(sources or {})
+    glow_parts = {str(name).casefold() for name in tuple(getattr(glow, "parts", ()) or ())}
+    glow_color = str(getattr(glow, "hex_color", lambda: "#FFFFFFFF")() or "#FFFFFFFF")
+    glow_intensity = float(getattr(glow, "intensity", 1.0) or 1.0)
     xml_keys = [key for key in files.side_files if key.lower().endswith(".pac_xml")]
     if len(xml_keys) != 1:
         raise NewItemPlanError(f"the import carries {len(xml_keys)} .pac_xml sidecar(s), not one")
@@ -311,7 +361,33 @@ def route_plain_pbr(
             intensity = float(wrapper.value("_emissiveIntensity") or 1.0)
         except ValueError:
             intensity = 1.0
-        if emissive and source is not None and source.emissive is not None:
+        wants_glow = wrapper.submesh_name.casefold() in glow_parts
+        if wants_glow and (source is None or source.emissive is None):
+            # the reader asked for this part: a solid map, their colour, their strength
+            emissive = emissive or _emi_path_for(base)
+            key = emissive.replace("\\", "/").casefold()
+            if key not in emissive_done:
+                if on_log:
+                    on_log(f"Encoding a solid glow map for {wrapper.submesh_name} -> {emissive.rsplit('/', 1)[-1]} (BC4)")
+                new_files[emissive] = encode_glow()
+                encoded.append(emissive)
+                emissive_done[key] = (emissive, glow_color)
+            emissive = emissive_done[key][0]
+            color, intensity = glow_color, glow_intensity
+        elif emissive and (source is None or source.emissive is None):
+            # The template's material glows and the import brought nothing to glow with.
+            # The map the Builder generates for that slot is a flat mid-grey -- "glow at
+            # half strength everywhere" -- and the template's own intensity is up at 10 on
+            # a magic sword, so an imported blade came out lit like a torch, its albedo
+            # washed out under the colour the template glowed in. A model that did not ask
+            # to glow does not glow: dropping the binding takes the shader back to
+            # SkinnedMeshStandard and the flat map out of the payload with it.
+            warnings.append(
+                f"{wrapper.submesh_name}: the template's material glows and your model brought no emissive map, "
+                "so the glow is off. Choose the parts that glow on the Model step if you want it."
+            )
+            emissive, color, intensity = "", "#FFFFFFFF", 1.0
+        elif emissive and source is not None and source.emissive is not None:
             key = emissive.replace("\\", "/").casefold()
             if key not in emissive_done:
                 if on_log:
@@ -321,6 +397,10 @@ def route_plain_pbr(
                 encoded.append(emissive)
                 emissive_done[key] = (emissive, color)
             emissive, color = emissive_done[key]
+            if wants_glow:
+                # the source glows and the reader also said how: the map is the source's,
+                # the colour and the strength are theirs
+                color, intensity = glow_color, glow_intensity
         replacements[wrapper.submesh_name] = PlainMaterial(
             base=base, normal=normal, material=material,
             emissive_texture=emissive, emissive_color=color, emissive_intensity=intensity,
@@ -361,20 +441,44 @@ def route_plain_pbr(
     )
 
 
+def material_part_names(snapshot, item_key: int) -> Tuple[str, ...]:
+    """The material part names of an item's model, in file order.
+
+    A `.pac_xml` keys its material wrappers by submesh name, and the game's emissive is
+    per material, so these are the parts a glow can be chosen by. Reads the template's own
+    sidecar out of the archives; an item whose family has none has no parts to choose.
+    """
+
+    from cdmw.core.pac_xml_standard_material import find_material_wrappers
+
+    family = snapshot.family(int(item_key))
+    for file in tuple(getattr(family, "files", ()) or ()):
+        path = str(getattr(file, "path", "") or "")
+        if not path.lower().endswith(".pac_xml") or not getattr(file, "exists", False):
+            continue
+        text = snapshot.payload(path).decode("utf-8-sig", "replace")
+        names = tuple(w.submesh_name for w in find_material_wrappers(text) if w.submesh_name)
+        if names:
+            return names
+    return ()
+
+
 def route_model_files(
     files: ModelFiles,
     route: MaterialRoute,
     *,
     result: object = None,
     scene: object = None,
+    glow: object = None,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> ModelFiles:
     """`files` written the way `route` says: the Builder's as they are, or the plain-PBR
-    rewrite with the source textures found through `result` and `scene` when given."""
+    rewrite with the source textures found through `result` and `scene` when given, and
+    the parts `glow` names lit in its colour."""
 
     if route is MaterialRoute.PLAIN_PBR:
         sources = source_materials_from_import(result, scene) if result is not None and scene is not None else {}
-        return route_plain_pbr(files, sources=sources, on_log=on_log).files
+        return route_plain_pbr(files, sources=sources, glow=glow, on_log=on_log).files
     return ModelFiles(
         pac_data=files.pac_data, side_files=files.side_files, material_route=MaterialRoute.BUILDER.value,
         notes=("the Builder's material sidecar as it came (Material Authority)",), warnings=files.warnings,
@@ -383,6 +487,8 @@ def route_model_files(
 
 __all__ = [
     "PlainPbrRoute",
+    "encode_emissive_solid",
+    "material_part_names",
     "SourceMaterialTextures",
     "encode_emissive_from_png",
     "encode_sp_from_factors",

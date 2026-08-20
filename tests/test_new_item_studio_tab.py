@@ -866,6 +866,40 @@ class TabTests(unittest.TestCase):
         tab.deleteLater()
 
 
+    def test_the_parts_that_glow_are_chosen_on_the_step(self) -> None:
+        """A template's own emissive is not inherited -- its mask is cut for the template's
+        mesh, and what the importer generates in its place is flat, so inheriting it lit a
+        whole imported sword. A glow is asked for, part by part."""
+
+        from PySide6.QtCore import Qt
+
+        tab = self._tab(window=None)
+        tab.prefill_template(TEMPLATE)
+        panel = tab.model_panel
+        self.assertFalse(panel.glow_box.isChecked(), "nothing glows unless it is asked for")
+        self.assertEqual(tab.controller.current_spec().glow, None)
+
+        # the list is the template's own material parts, as its .pac_xml keys them
+        parts = ("cd_phm_01_sword_0109", "cd_phm_01_sword_handle_0109")
+        tab.controller.material_parts = lambda: parts  # type: ignore[method-assign]
+        panel.refresh_glow_parts()
+        self.assertEqual([panel.glow_parts.item(row).text() for row in range(panel.glow_parts.count())], list(parts))
+
+        panel.glow_box.setChecked(True)
+        panel.glow_parts.item(0).setCheckState(Qt.CheckState.Checked)
+        panel.glow_intensity.setValue(6.5)
+        tab.controller.draft.glow_color = (0.0, 0.5, 1.0)
+        glow = tab.controller.current_spec().glow
+        self.assertEqual(glow.parts, (parts[0],))
+        self.assertEqual(glow.intensity, 6.5)
+        self.assertEqual(glow.hex_color(), "#0080FFFF")
+
+        panel.glow_box.setChecked(False)
+        self.assertIsNone(tab.controller.current_spec().glow, "turned off, nothing glows again")
+        tab.close()
+        tab.deleteLater()
+
+
 class InstallReportTests(unittest.TestCase):
     """Step 7's four buttons all report through one signal, and they hand back four
     different kinds of result. Before this, three of them said "Installed 0 archive
