@@ -171,6 +171,47 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(route.files.side_files[GEM_EMI][84:88], b"BC4U", "the intensity map replaces the Builder's")
         self.assertTrue(any("factors (roughness 0.3, metalness 0.9)" in line for line in route.lines), route.lines)
 
+    def test_a_source_that_glows_by_factor_glows_without_a_map(self) -> None:
+        """A glTF material can glow with no emissive texture at all: `emissiveFactor` is a
+        colour. The Verdict axe's blue gems are exactly that (`emissiveFactor
+        [0, 0.805, 1]`, no map), and reading only the maps left them on their dark base
+        colour, which is black in game. The strength carries across as it stands: the
+        shipped weapons' own `_emissiveIntensity` is 1.00 at the median."""
+
+        sources = {
+            "cd_phm_02_sword_handle_0003": SourceMaterialTextures(
+                name="Inside", emissive_color="#00CDFFFF", emissive_intensity=1.0,
+            )
+        }
+        route = route_plain_pbr(
+            builder_files(), sources=sources, encode=self._encode, encode_emissive=self._encode_emissive,
+            encode_factors=self._encode_factors, encode_glow=lambda: dds(b"BC4U"),
+        )
+        gem = {w.submesh_name: w for w in find_material_wrappers(route.files.side_files[XML].decode("utf-8"))}["cd_phm_02_sword_handle_0003"]
+        self.assertEqual(gem.shader, EMISSIVE_SHADER)
+        self.assertEqual(gem.value("_emissiveColor"), "#00CDFFFF", "the colour the source glows in")
+        self.assertEqual(gem.value("_emissiveIntensity"), "1.000000")
+        self.assertTrue(gem.textures.get("_emissiveIntensityTexture"), "a solid map: the whole material glows")
+
+    def test_a_source_material_carries_its_factors_off_the_scene(self) -> None:
+        """The importer keeps a glTF's emissive factor as preview parameters beside the
+        roughness and metallic ones; the route read only the scalars and missed the glow."""
+
+        result = Result((Section("cd_phm_02_sword_0003", "Inside"),))
+        scene = Scene(
+            (Binding("Inside", submesh_index=0),),
+            Mesh((Submesh((
+                Parameter("_emissiveColor", "#00cdff"),
+                Parameter("_emissiveIntensity", "1.000000"),
+                Parameter("_roughnessFactor", "0.4"),
+            )),)),
+        )
+        sources = source_materials_from_import(result, scene)
+        source = sources["cd_phm_02_sword_0003"]
+        self.assertEqual(source.emissive_color, "#00CDFFFF", "six hex digits become the eight a .pac_xml writes")
+        self.assertEqual(source.emissive_intensity, 1.0)
+        self.assertAlmostEqual(source.roughness_factor, 0.4, places=6)
+
     def test_without_sources_the_builder_masks_stand_in(self) -> None:
         route = route_plain_pbr(builder_files(), encode=self._encode)
         self.assertEqual(self.encoded, [])

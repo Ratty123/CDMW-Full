@@ -2508,6 +2508,7 @@
     "Enables loose package output when the donor and target body family or armor slot do not match. Preview is still allowed without this.": "기증자와 대상 몸체 계열 또는 방어구 슬롯이 일치하지 않는 경우 느슨한 패키지 출력을 활성화합니다. 이것이 없어도 미리보기는 계속 허용됩니다.",
     "Encoding a solid _sp for {value_0} (roughness {value_1}, metalness {value_2}) -> {value_3}": "{value_0}의 단색 _sp 인코딩 중(거칠기 {value_1}, 금속성 {value_2}) -> {value_3}",
     "Encoding a solid glow map for {value_0} -> {value_1} (BC4)": "{value_0}의 균일한 발광 맵 인코딩 중 -> {value_1} (BC4)",
+    "Encoding a solid glow map for {value_0} -> {value_1} (BC4, {value_2} x{value_3} from the source's emissive factor)": "{value_0}의 균일한 발광 맵 인코딩 중 -> {value_1} (BC4, 소스의 emissive 팩터에서 {value_2} x{value_3})",
     "Encoding generated model preview icon...": "인코딩 생성된 모델 미리보기 아이콘...",
     "Encoding {value_0} -> {value_1} (BC1, G roughness, B metalness)": "{value_0} -> {value_1} 인코딩 중(BC1, G 거칠기, B 금속)",
     "Encoding {value_0} -> {value_1} (BC4 intensity, colour from the source)": "{value_0} -> {value_1} 인코딩 중(BC4 강도, 색은 원본에서)",

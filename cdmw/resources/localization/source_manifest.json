@@ -29646,7 +29646,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 347,
+          "line": 367,
           "sink": "on_log"
         }
       ]
@@ -29656,7 +29656,17 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 371,
+          "line": 410,
+          "sink": "on_log"
+        }
+      ]
+    },
+    {
+      "key": "Encoding a solid glow map for {value_0} -> {value_1} (BC4, {value_2} x{value_3} from the source's emissive factor)",
+      "origins": [
+        {
+          "path": "cdmw/services/new_item_materials.py",
+          "line": 397,
           "sink": "on_log"
         }
       ]
@@ -29681,7 +29691,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 337,
+          "line": 357,
           "sink": "on_log"
         }
       ]
@@ -29691,7 +29701,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 394,
+          "line": 433,
           "sink": "on_log"
         }
       ]

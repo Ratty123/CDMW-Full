@@ -2508,6 +2508,7 @@
     "Enables loose package output when the donor and target body family or armor slot do not match. Preview is still allowed without this.": "当供体和目标机体系列或装甲槽不匹配时启用松散包输出。如果没有这个，预览仍然是允许的。",
     "Encoding a solid _sp for {value_0} (roughness {value_1}, metalness {value_2}) -> {value_3}": "正在为 {value_0} 编码纯色 _sp（粗糙度 {value_1}，金属度 {value_2}）-> {value_3}",
     "Encoding a solid glow map for {value_0} -> {value_1} (BC4)": "正在为 {value_0} 编码纯色发光贴图 -> {value_1}（BC4）",
+    "Encoding a solid glow map for {value_0} -> {value_1} (BC4, {value_2} x{value_3} from the source's emissive factor)": "正在为 {value_0} 编码纯色发光贴图 -> {value_1}（BC4，取自源的 emissive 系数 {value_2} x{value_3}）",
     "Encoding generated model preview icon...": "对生成的模型预览图标进行编码...",
     "Encoding {value_0} -> {value_1} (BC1, G roughness, B metalness)": "正在编码 {value_0} -> {value_1}（BC1，G 粗糙度，B 金属度）",
     "Encoding {value_0} -> {value_1} (BC4 intensity, colour from the source)": "正在编码 {value_0} -> {value_1}（BC4 强度，颜色取自源）",

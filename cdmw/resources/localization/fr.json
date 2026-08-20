@@ -2508,6 +2508,7 @@
     "Enables loose package output when the donor and target body family or armor slot do not match. Preview is still allowed without this.": "Permet la sortie de paquets en vrac lorsque la famille de corps du donneur et la famille cible ou l'emplacement d'armure ne correspondent pas. L'aperçu est toujours autorisé sans cela.",
     "Encoding a solid _sp for {value_0} (roughness {value_1}, metalness {value_2}) -> {value_3}": "Encodage d'un _sp uni pour {value_0} (rugosité {value_1}, métallicité {value_2}) -> {value_3}",
     "Encoding a solid glow map for {value_0} -> {value_1} (BC4)": "Encodage d'une carte de lueur unie pour {value_0} -> {value_1} (BC4)",
+    "Encoding a solid glow map for {value_0} -> {value_1} (BC4, {value_2} x{value_3} from the source's emissive factor)": "Encodage d'une carte de lueur unie pour {value_0} -> {value_1} (BC4, {value_2} x{value_3} d'après le facteur émissif de la source)",
     "Encoding generated model preview icon...": "Encodage de l'icône d'aperçu du modèle généré...",
     "Encoding {value_0} -> {value_1} (BC1, G roughness, B metalness)": "Encodage de {value_0} -> {value_1} (BC1, G rugosité, B métal)",
     "Encoding {value_0} -> {value_1} (BC4 intensity, colour from the source)": "Encodage de {value_0} -> {value_1} (BC4 intensité, couleur de la source)",

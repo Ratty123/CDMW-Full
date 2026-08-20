@@ -44,6 +44,12 @@ class SourceMaterialTextures:
     #: the metallic/roughness map (glTF: G roughness, B metalness, the `_sp` layout)
     material: Optional[Path] = None
     emissive: Optional[Path] = None
+    #: `#RRGGBBAA` from a glTF `emissiveFactor`, for a material that glows with no map
+    emissive_color: str = ""
+    #: the glTF's emissive strength. The shipped weapons' own `_emissiveIntensity` is
+    #: 1.00 at the median (27 of the 32 that state one round to 1), so this carries across
+    #: as it stands rather than through a scale nobody measured.
+    emissive_intensity: float = 0.0
     #: glTF `roughnessFactor` / `metallicFactor` (1.0 when the source says nothing);
     #: without a metallic/roughness map they become a solid `_sp`
     roughness_factor: float = 1.0
@@ -81,14 +87,28 @@ def source_materials_from_import(result: object, scene: object) -> Dict[str, Sou
         if 0 <= index < len(submeshes):
             for parameter in tuple(getattr(submeshes[index], "preview_material_parameters", ()) or ()):
                 pname = str(getattr(parameter, "parameter_name", "") or "")
+                raw = str(getattr(parameter, "value", "") or "")
+                # A glTF material can glow with no map at all: an emissiveFactor is a
+                # colour and the importer keeps it here beside the scalar factors. The
+                # axe's blue gems are exactly that, and reading only the maps left them
+                # to fall back on their dark base colour -- black in game.
+                if pname == "_emissiveColor" and raw.startswith("#"):
+                    hexed = raw[1:]
+                    if len(hexed) == 6:
+                        slots["emissive_color"] = f"#{hexed.upper()}FF"
+                    elif len(hexed) == 8:
+                        slots["emissive_color"] = f"#{hexed.upper()}"
+                    continue
                 try:
-                    value = float(getattr(parameter, "value", ""))
+                    value = float(raw)
                 except (TypeError, ValueError):
                     continue
                 if pname == "_roughnessFactor":
                     slots["roughness_factor"] = max(0.0, min(1.0, value))
                 elif pname == "_metallicFactor":
                     slots["metallic_factor"] = max(0.0, min(1.0, value))
+                elif pname == "_emissiveIntensity":
+                    slots["emissive_intensity"] = max(0.0, value)
         for slot_kind, path in tuple(getattr(binding, "texture_slots", ()) or ()):
             kind = str(slot_kind or "").strip().lower()
             candidate = Path(str(path))
@@ -362,7 +382,26 @@ def route_plain_pbr(
         except ValueError:
             intensity = 1.0
         wants_glow = wrapper.submesh_name.casefold() in glow_parts
-        if wants_glow and (source is None or source.emissive is None):
+        factor_glow = (
+            source is not None and source.emissive is None
+            and bool(source.emissive_color) and source.emissive_intensity > 0.0
+        )
+        if factor_glow and not wants_glow:
+            # the model's own glow, stated as a factor rather than a map: a solid map is
+            # what "this whole material glows" means, and the colour and strength are the
+            # source's own
+            emissive = emissive or _emi_path_for(base)
+            key = emissive.replace("\\", "/").casefold()
+            if key not in emissive_done:
+                if on_log:
+                    on_log(f"Encoding a solid glow map for {source.name} -> {emissive.rsplit('/', 1)[-1]} "
+                           f"(BC4, {source.emissive_color} x{source.emissive_intensity:g} from the source's emissive factor)")
+                new_files[emissive] = encode_glow()
+                encoded.append(emissive)
+                emissive_done[key] = (emissive, source.emissive_color)
+            emissive = emissive_done[key][0]
+            color, intensity = source.emissive_color, source.emissive_intensity
+        elif wants_glow and (source is None or source.emissive is None):
             # the reader asked for this part: a solid map, their colour, their strength
             emissive = emissive or _emi_path_for(base)
             key = emissive.replace("\\", "/").casefold()
