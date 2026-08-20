@@ -72,6 +72,9 @@ class NewItemStudioController(QObject):
         #: The game's own character for the placement viewport, read once (None means the
         #: archives had no character; _NOT_READ means nobody has asked yet)
         self._character_reference: object = _NOT_READ
+        #: (template key, the character holding that template's item), so opening the
+        #: placement dialog again does not re-read the prefab
+        self._held_character: tuple = ()
         self.draft = NewItemDraft()
         self.plan: Optional[NewItemPlan] = None
         self.model_result: object | None = None
@@ -523,8 +526,40 @@ class NewItemStudioController(QObject):
         from cdmw.services.effect_character_reference import character_reference_from_snapshot
 
         self._character_reference, said = character_reference_from_snapshot(self.snapshot)
-        self.log_message.emit(said)
+        if said:
+            self.log_message.emit(said)
         return self._character_reference
+
+    def character_holding_the_item(self):
+        """The character with the current template's item in its hand, or None.
+
+        The body is read once; the frame the item mates by comes from the template's own
+        prefab and is read per template, because weapons share socket files and only the
+        prefab says which one an item uses. Call it off the UI thread.
+        """
+
+        reference = self.character_reference()
+        snapshot, template = self.snapshot, self.draft.template_key
+        if reference is None or snapshot is None:
+            return None
+        if self._held_character and self._held_character[0] == template:
+            return self._held_character[1]
+        from cdmw.services.effect_character_reference import held_character_from_snapshot
+
+        prefabs: tuple = ()
+        folder = ""
+        if template is not None:
+            try:
+                family = snapshot.family(int(template))
+                prefabs = tuple(part.prefab_path for part in family.parts if part.prefab_path)
+                folder = str(family.model_folder or "")
+            except Exception as exc:  # noqa: BLE001 - the convention frame stands in
+                self.log_message.emit(f"The template's prefabs could not be read for the placement viewport: {exc}")
+        held, said = held_character_from_snapshot(snapshot, reference, prefab_paths=prefabs, model_folder=folder)
+        if said:
+            self.log_message.emit(said)
+        self._held_character = (template, held)
+        return held
 
     def effect_box(self, stem: str = "") -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
         """The chosen effect's bounding box at scale 1.0, or a metre cube before indexing."""
@@ -811,6 +846,7 @@ class NewItemStudioController(QObject):
                 self.snapshot = result
                 # a different install can have a different character
                 self._character_reference = _NOT_READ
+                self._held_character = ()
                 self.snapshot_ready.emit()
             else:
                 self.snapshot_failed.emit("The snapshot finished with an unexpected result.")

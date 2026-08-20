@@ -14121,17 +14121,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 975,
+          "line": 1011,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 982,
+          "line": 1018,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 991,
+          "line": 1027,
           "sink": "emit"
         },
         {
@@ -14626,7 +14626,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 773,
+          "line": 808,
           "sink": "log"
         }
       ]
@@ -18176,7 +18176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 704,
+          "line": 739,
           "sink": "emit"
         }
       ]
@@ -18301,7 +18301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 954,
+          "line": 990,
           "sink": "ValueError"
         }
       ]
@@ -40521,7 +40521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 764,
+          "line": 799,
           "sink": "emit"
         }
       ]
@@ -43116,7 +43116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 651,
+          "line": 686,
           "sink": "emit"
         }
       ]
@@ -56171,7 +56171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 970,
+          "line": 1006,
           "sink": "ValueError"
         }
       ]
@@ -65992,12 +65992,32 @@
       ]
     },
     {
-      "key": "Placement viewport: the character is {value_0} held by {value_1}.",
+      "key": "Placement viewport: {value_0} holds the item at {value_1} with no mating frame, so the angle it is held at may be a quarter turn off.",
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 286,
-          "sink": "python-return:character_reference_from_snapshot"
+          "line": 489,
+          "sink": "python-return:held_character_from_snapshot"
+        }
+      ]
+    },
+    {
+      "key": "Placement viewport: {value_0} holds the item at {value_1}, mated by the item's own {value_2}.",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_character_reference.py",
+          "line": 483,
+          "sink": "python-return:held_character_from_snapshot"
+        }
+      ]
+    },
+    {
+      "key": "Placement viewport: {value_0} holds the item at {value_1}, mated by the {value_2} that most weapons of this kind use, because the item's own prefab named no socket file.",
+      "origins": [
+        {
+          "path": "cdmw/services/effect_character_reference.py",
+          "line": 485,
+          "sink": "python-return:held_character_from_snapshot"
         }
       ]
     },
@@ -70791,12 +70811,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 553,
+          "line": 588,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 909,
+          "line": 945,
           "sink": "emit"
         }
       ]
@@ -71381,7 +71401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 708,
+          "line": 743,
           "sink": "log"
         }
       ]
@@ -89921,7 +89941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1010,
+          "line": 1046,
           "sink": "emit"
         }
       ]
@@ -93791,7 +93811,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 805,
+          "line": 840,
           "sink": "emit"
         }
       ]
@@ -93971,7 +93991,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 285,
+          "line": 453,
           "sink": "python-return:character_reference_from_snapshot"
         }
       ]
@@ -94081,8 +94101,13 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 283,
+          "line": 451,
           "sink": "python-return:character_reference_from_snapshot"
+        },
+        {
+          "path": "cdmw/services/effect_character_reference.py",
+          "line": 480,
+          "sink": "python-return:held_character_from_snapshot"
         }
       ]
     },
@@ -94201,7 +94226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 569,
+          "line": 604,
           "sink": "emit"
         }
       ]
@@ -94231,7 +94256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 500,
+          "line": 503,
           "sink": "emit"
         }
       ]
@@ -94396,7 +94421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 959,
+          "line": 995,
           "sink": "ValueError"
         }
       ]
@@ -94521,7 +94546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 921,
+          "line": 957,
           "sink": "emit"
         }
       ]
@@ -94561,7 +94586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 726,
+          "line": 761,
           "sink": "emit"
         }
       ]
@@ -94591,7 +94616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 713,
+          "line": 748,
           "sink": "emit"
         }
       ]
@@ -94671,7 +94696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 781,
+          "line": 816,
           "sink": "emit"
         }
       ]
@@ -94741,7 +94766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 945,
+          "line": 981,
           "sink": "emit"
         }
       ]
@@ -95066,7 +95091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 816,
+          "line": 852,
           "sink": "emit"
         }
       ]
@@ -95208,6 +95233,16 @@
           "path": "cdmw/ui/new_item/panels_stats.py",
           "line": 211,
           "sink": "setToolTip"
+        }
+      ]
+    },
+    {
+      "key": "The template's prefabs could not be read for the placement viewport: {value_0}",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 557,
+          "sink": "emit"
         }
       ]
     },
@@ -105006,7 +105041,7 @@
       "origins": [
         {
           "path": "cdmw/services/effect_character_reference.py",
-          "line": 114,
+          "line": 153,
           "sink": "ValueError"
         }
       ]
@@ -198841,7 +198876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 325,
+          "line": 328,
           "sink": "python-return:_perk_label"
         }
       ]
@@ -199211,7 +199246,7 @@
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 325,
+          "line": 328,
           "sink": "python-return:_perk_label"
         },
         {
@@ -203636,7 +203671,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 152,
+          "line": 155,
           "sink": "python-return:suggest_internal_name"
         }
       ]
@@ -203646,7 +203681,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 152,
+          "line": 155,
           "sink": "python-return:suggest_internal_name"
         }
       ]
