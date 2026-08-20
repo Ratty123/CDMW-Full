@@ -171,8 +171,10 @@ def fitted_placement(
     template's, turned by right angles so its long axis lies along the template's long
     axis and its middle axis along the template's middle one (a blade's face the way the
     template's faces), pointing the way the template points when both centroids say
-    which end is the heavy one (a hilt), and moved so the two bounding-box centres
-    coincide. The user takes it from there."""
+    which end is the heavy one (a hilt), and moved so the grips meet: the two bounding
+    boxes are centred on each other across the short axes, and along the long one the end
+    away from the heavy end is matched instead, because that is the end a weapon is held
+    by. The user takes it from there."""
 
     if source_bounds is None or template_bounds is None:
         return ModelPlacement()
@@ -218,7 +220,31 @@ def fitted_placement(
                     best, best_score = candidate, candidate_score
     placement = ModelPlacement(rotation=best, scale=(scale, scale, scale))
     moved = placement.apply(s_centre)
-    return placement.with_values(offset=tuple(t_centre[i] - moved[i] for i in range(3)))
+    offset = [t_centre[i] - moved[i] for i in range(3)]
+
+    # Along the long axis, line the grips up rather than the centres. A weapon is held by
+    # its grip, and two weapons of the same length can carry their mass very differently:
+    # an axe whose head is most of it has its grip far from its middle, so matching middles
+    # leaves the handle half a weapon away from the hand and the reader drags it back by
+    # exactly that much. The grip is the end away from the heavy one, which is the same
+    # reading of the centroid the turn above already trusts.
+    axis = t_order[0]
+    turned_lean = placement.apply(s_lean) if s_lean is not None else None
+    if t_lean is not None and turned_lean is not None:
+        threshold = 0.02
+        theirs, ours = t_lean[axis], turned_lean[axis]
+        if abs(theirs) > threshold * t_ext[axis] and abs(ours) > threshold * t_ext[axis]:
+            corners = [
+                placement.apply((x, y, z))
+                for x in (s_lo[0], s_hi[0]) for y in (s_lo[1], s_hi[1]) for z in (s_lo[2], s_hi[2])
+            ]
+            source_low = min(corner[axis] for corner in corners)
+            source_high = max(corner[axis] for corner in corners)
+            # the grip end of each, then the move that brings them together
+            template_grip = t_lo[axis] if theirs > 0 else t_hi[axis]
+            source_grip = source_low if ours > 0 else source_high
+            offset[axis] = template_grip - source_grip
+    return placement.with_values(offset=tuple(offset))
 
 
 def flip_v_transforms(mesh: object) -> Tuple[StaticTextureUvTransform, ...]:

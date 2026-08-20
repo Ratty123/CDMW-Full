@@ -38,6 +38,7 @@ from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.effect_placement_preview import (
     ANCHOR_TINT,
     framing_bounds_for,
+    mesh_names_textures,
     BODY_TINT,
     ITEM_TINT,
     REACH_TINT,
@@ -440,7 +441,7 @@ class EffectPlacementDialog(QDialog):
         builder = self._character_builder
         # only when the mesh names any: the synthesis pass is seconds, and for a mesh with
         # no textures to resolve it would be seconds spent on nothing
-        textured = any(str(getattr(part, "texture", "") or "").strip() for part in (getattr(mesh, "submeshes", ()) or ()))
+        textured = mesh_names_textures(mesh)
 
         def task(_log, stop_event: threading.Event) -> EffectPlacementPreview:
             character, rotation = None, None

@@ -219,6 +219,31 @@ class EffectPreviewInPackageTests(unittest.TestCase):
         self.assertEqual(describe_effect_preview(None), "")
 
 
+class TextureNamingTests(unittest.TestCase):
+    """Whether an item draws with its own textures in the effect viewport turns on this,
+    and it read only the field a `.pac` family uses. An imported model binds its files
+    through the preview attributes instead, so the check found nothing and the item was
+    painted flat grey -- the thing the reader asked about twice."""
+
+    def test_every_place_a_submesh_can_name_a_texture_counts(self) -> None:
+        from types import SimpleNamespace
+
+        from cdmw.services.effect_placement_preview import mesh_names_textures
+
+        def mesh(**attributes):
+            return SimpleNamespace(submeshes=(SimpleNamespace(**attributes),))
+
+        self.assertFalse(mesh_names_textures(mesh(texture="")))
+        self.assertFalse(mesh_names_textures(SimpleNamespace(submeshes=())))
+        self.assertTrue(mesh_names_textures(mesh(texture="cd_phm_01_sword_0001_base")), "a .pac family's own name")
+        self.assertTrue(
+            mesh_names_textures(mesh(texture="", preview_texture_path="/imports/axe_baseColor.png")),
+            "an imported model binds a file, and leaves the name empty",
+        )
+        self.assertTrue(mesh_names_textures(mesh(texture="", preview_texture_dds_path="axe.dds")))
+        self.assertFalse(mesh_names_textures(mesh(texture="   ", preview_texture_path="  ")), "blank is not a name")
+
+
 class ViewerParticleLayerContractTests(unittest.TestCase):
     """The resident .NET viewer's particle layer, as source: it reads what the package writes."""
 
