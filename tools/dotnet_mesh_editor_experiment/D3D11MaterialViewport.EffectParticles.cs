@@ -36,6 +36,7 @@ internal sealed partial class D3D11MaterialViewport
     private ID3D11SamplerState? _effectParticleSamplerState;
     private System.Windows.Forms.Timer? _effectParticlePump;
     private long _effectParticleLastTimestamp;
+    private bool _effectParticlesPaused;
     private bool _effectParticlesEnabled = true;
     private int _effectParticleDrawnLastFrame;
     private long _effectParticleFrameCount;
@@ -85,6 +86,23 @@ internal sealed partial class D3D11MaterialViewport
         {
             _effectParticlePump.Stop();
         }
+    }
+
+    /// <summary>
+    /// Hold the simulation where it is, still drawn. Hiding the particles answers "what
+    /// is under the fire"; holding them answers "where exactly is this one", which a
+    /// moving cloud never lets you read.
+    /// </summary>
+    public void SetEffectParticlesPaused(bool paused)
+    {
+        if (_effectParticlesPaused == paused)
+        {
+            return;
+        }
+        _effectParticlesPaused = paused;
+        // resuming picks up from now, so a long pause is not a long step
+        _effectParticleLastTimestamp = Stopwatch.GetTimestamp();
+        Invalidate();
     }
 
     public void SetEffectParticlesEnabled(bool enabled)
@@ -463,7 +481,7 @@ internal sealed partial class D3D11MaterialViewport
         var ranges = new List<(int Start, int Count, string Texture, bool Additive, bool Beam)>();
         foreach (var simulation in _effectEmitterSimulations)
         {
-            simulation.Step(deltaSeconds);
+            simulation.Step(_effectParticlesPaused ? 0.0f : deltaSeconds);
             var start = _effectParticleVertices.Count;
             var count = simulation.AppendVertices(_effectParticleVertices, model, right, up, modelScale);
             if (count > 0)

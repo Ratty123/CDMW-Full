@@ -18,10 +18,12 @@ from typing import Callable, Optional, Sequence, Tuple
 from PySide6.QtCore import QThread, Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -80,6 +82,41 @@ REACH_HIDDEN_ABOVE = 6.0
 #: face and yaw 90 stands to its side, which is the view that shows a blade end to end.
 #: The titles and what each one is for live at the buttons, where the localizer finds them.
 STANDING_VIEW_ANGLES: tuple = ((0.0, 8.0), (90.0, 8.0), (0.0, -80.0), (-35.0, 20.0))
+
+
+#: What the viewport can clear to. An effect adds its light to what is behind it, so it
+#: reads best on a dark backdrop: measured on the same weapon fire, the effect stands 173
+#: shades above #101014 and 131 above the Mesh Editor's material grey. The grey is kept
+#: because judging the item's own textures is the other half of this dialog's job.
+BACKDROP_DARK = "#101014"
+BACKDROP_GREY = "#3B3B3B"
+BACKDROP_BLACK = "#06060A"
+#: in the order they are offered; the first is what a dialog opens on the first time
+BACKDROPS: tuple = (BACKDROP_DARK, BACKDROP_GREY, BACKDROP_BLACK)
+
+#: where the chosen backdrop is remembered between dialogs, in the scope the rest of the
+#: studio's own settings use
+_SETTINGS_SCOPE = "CrimsonDesertModWorkbench"
+_BACKDROP_SETTING = "new_item/effect_placement_backdrop"
+
+
+def _remembered_backdrop() -> str:
+    from PySide6.QtCore import QSettings
+
+    try:
+        value = QSettings(_SETTINGS_SCOPE, _SETTINGS_SCOPE).value(_BACKDROP_SETTING, BACKDROPS[0])
+    except Exception:  # noqa: BLE001 - a session without settings opens on the default
+        return BACKDROPS[0]
+    return str(value or BACKDROPS[0])
+
+
+def _remember_backdrop(colour: str) -> None:
+    from PySide6.QtCore import QSettings
+
+    try:
+        QSettings(_SETTINGS_SCOPE, _SETTINGS_SCOPE).setValue(_BACKDROP_SETTING, str(colour))
+    except Exception:  # noqa: BLE001 - not remembering is not worth an error
+        pass
 
 
 #: the swatch for the particles themselves, which have no one colour: the warm orange
@@ -198,6 +235,13 @@ class EffectPlacementDialog(QDialog):
         side_panel = QWidget()
         side_panel.setMaximumWidth(360)
         side = QVBoxLayout(side_panel)
+        # Three groups and nothing loose. Fourteen controls, five legend rows and four
+        # labels in one column read as a wall: what moves the effect, what is drawn, and
+        # what the effect is are three different questions and they now look like three.
+        place_box = QGroupBox("Place the effect")
+        place = QVBoxLayout(place_box)
+        view_box = QGroupBox("What is drawn")
+        view = QVBoxLayout(view_box)
         side.setContentsMargins(0, 0, 0, 0)
         body.addWidget(side_panel)
         tools = QHBoxLayout()
@@ -210,7 +254,7 @@ class EffectPlacementDialog(QDialog):
         self.scale_button.clicked.connect(lambda: self._choose_tool("scale"))
         tools.addWidget(self.move_button)
         tools.addWidget(self.scale_button)
-        side.addLayout(tools)
+        place.addLayout(tools)
         form = QFormLayout()
         self.scale_spin = QDoubleSpinBox()
         self.scale_spin.setRange(0.01, 10.0)
@@ -229,7 +273,7 @@ class EffectPlacementDialog(QDialog):
             spin.valueChanged.connect(self._numbers_edited)
             form.addRow(axis, spin)
             self.offset_spins.append(spin)
-        side.addLayout(form)
+        place.addLayout(form)
         width, height, depth = (high - low for low, high in zip(*self._box))
         self._box_size = (width, height, depth)
         places = QHBoxLayout()
@@ -245,7 +289,7 @@ class EffectPlacementDialog(QDialog):
         self.trail_button.setVisible(False)
         places.addWidget(self.trail_button)
         places.addStretch(1)
-        side.addLayout(places)
+        place.addLayout(places)
         reach_row = QHBoxLayout()
         self.show_reach = QCheckBox("Show the reach")
         self.show_reach.setToolTip("The effect's own bounding box as a thin frame, at this scale and offset: how far it can throw particles.")
@@ -261,7 +305,7 @@ class EffectPlacementDialog(QDialog):
         self.show_reach.toggled.connect(lambda _checked: self._reach_toggled())
         reach_row.addWidget(self.show_reach)
         reach_row.addStretch(1)
-        side.addLayout(reach_row)
+        view.addLayout(reach_row)
         # its own line: a checkbox and a button share a row well in English and in almost
         # no other language, and this panel keeps to 360 px
         fit_row = QHBoxLayout()
@@ -270,28 +314,73 @@ class EffectPlacementDialog(QDialog):
         self.fit_button.clicked.connect(self._fit_reach_to_item)
         fit_row.addWidget(self.fit_button)
         fit_row.addStretch(1)
-        side.addLayout(fit_row)
+        place.addLayout(fit_row)
         self.show_particles = QCheckBox("Show the particles")
         self.show_particles.setToolTip("The effect's own fire, drawn approximately. Turn it off to see the item under it.")
         self.show_particles.setChecked(True)
         self.show_particles.toggled.connect(lambda checked: self._show_particles(bool(checked)))
-        side.addWidget(self.show_particles)
+        particle_row = QHBoxLayout()
+        particle_row.addWidget(self.show_particles)
+        # Hiding the fire answers "what is under it". Holding it answers "where exactly is
+        # this one", which a cloud in motion never lets anyone read.
+        self.pause_button = QPushButton("Pause")
+        self.pause_button.setCheckable(True)
+        self.pause_button.setToolTip("Hold the particles where they are, still drawn, so a moving cloud can be read.")
+        self.pause_button.toggled.connect(lambda checked: self._pause_particles(bool(checked)))
+        particle_row.addWidget(self.pause_button)
+        particle_row.addStretch(1)
+        view.addLayout(particle_row)
         self.show_character = QCheckBox("Show the character")
         self.show_character.setToolTip("A figure 1.75 m tall holding the item, so the effect's size reads against something known.")
         self.show_character.setChecked(True)
+        backdrop_row = QHBoxLayout()
+        backdrop_row.addWidget(QLabel("Backdrop"))
+        self.backdrop_choice = QComboBox()
+        # named at the call site rather than in the table above, because a name in a
+        # module-level tuple never reaches the localizer
+        self.backdrop_choice.addItem("Dark", BACKDROP_DARK)
+        self.backdrop_choice.addItem("Grey", BACKDROP_GREY)
+        self.backdrop_choice.addItem("Black", BACKDROP_BLACK)
+        self.backdrop_choice.setToolTip(
+            "What the viewport clears to. An effect adds its light to whatever is behind it, so it reads best on a dark "
+            "backdrop; the grey is the one the Mesh Editor judges materials on, where a dark clear lets dark textures "
+            "melt into it."
+        )
+        remembered = _remembered_backdrop()
+        for index, value in enumerate(BACKDROPS):
+            if value.casefold() == remembered.casefold():
+                self.backdrop_choice.setCurrentIndex(index)
+                break
+        self.backdrop_choice.currentIndexChanged.connect(lambda _index: self._backdrop_changed())
+        backdrop_row.addWidget(self.backdrop_choice, 1)
         self.show_character.toggled.connect(lambda _checked: self._apply_scene_visibility())
-        side.addWidget(self.show_character)
+        view.addWidget(self.show_character)
+        view.addLayout(backdrop_row)
+        side.addWidget(place_box)
+        side.addWidget(view_box)
         self.size_label = QLabel("")
         self.size_label.setWordWrap(True)
         side.addWidget(self.size_label)
         # what each thing in the viewport is, in the colour it is drawn: the question a
         # reader asks first, and one the numbers beside the viewport cannot answer
+        # The legend answers a question asked once. It stays a click away rather than five
+        # rows of the panel for ever.
+        self.legend_toggle = DetailsToggle("", title="What the colours mean")
+        legend_column = QVBoxLayout()
+        legend_column.setContentsMargins(0, 0, 0, 0)
         self.legend_rows: dict = {}
-        self._add_legend_row(side, "anchor", ANCHOR_TINT, "the effect's origin - drag this one")
-        self._add_legend_row(side, "item", ITEM_TINT, "your item")
-        self._add_legend_row(side, "body", BODY_TINT, "a character, 1.75 m tall, for scale")
-        self._add_legend_row(side, "reach", REACH_TINT, "how far the effect can throw particles")
-        self._add_legend_row(side, "particles", PARTICLE_TINT, "the particles, read approximately")
+        self._add_legend_row(legend_column, "anchor", ANCHOR_TINT, "the effect's origin - drag this one")
+        self._add_legend_row(legend_column, "item", ITEM_TINT, "your item")
+        self._add_legend_row(legend_column, "body", BODY_TINT, "a character, 1.75 m tall, for scale")
+        self._add_legend_row(legend_column, "reach", REACH_TINT, "how far the effect can throw particles")
+        self._add_legend_row(legend_column, "particles", PARTICLE_TINT, "the particles, read approximately")
+        self.legend_toggle.body.setVisible(False)
+        legend_holder = QWidget()
+        legend_holder.setLayout(legend_column)
+        self.legend_toggle.layout().addWidget(legend_holder)
+        legend_holder.setVisible(False)
+        self.legend_toggle.toggle.toggled.connect(legend_holder.setVisible)
+        side.addWidget(self.legend_toggle)
         self._refresh_legend()
         self.emitters_toggle = DetailsToggle(describe_effect_preview(effect_preview), title="What the effect is made of")
         self.emitters_label = self.emitters_toggle.body
@@ -391,6 +480,8 @@ class EffectPlacementDialog(QDialog):
             self.host.set_display_mode("overlay")
             self.host.set_viewport_display_mode("textured")
             self.host.set_alignment_state(enabled=True)
+            # the backdrop the reader last chose, sent once the viewport can take it
+            self._backdrop_changed()
             # the camera frames the editable role's bounds; the anchor is a few centimetres,
             # so hand it the item's bounds instead and the view opens on the item
             remember = getattr(self.host, "remember_editable_local_bounds", None)
@@ -466,7 +557,7 @@ class EffectPlacementDialog(QDialog):
         button.clicked.connect(lambda _checked=False, target=where: self._put_it_at(target))
         row.addWidget(button)
 
-    def _add_legend_row(self, column: QVBoxLayout, key: str, tint: Sequence[float], text: str) -> None:
+    def _add_legend_row(self, column, key: str, tint: Sequence[float], text: str) -> None:
         """One line of the legend: the scene's own colour, and what is drawn in it."""
 
         label = QLabel()
@@ -475,6 +566,33 @@ class EffectPlacementDialog(QDialog):
         label.setText(f"{_swatch(tint)} {text}")
         column.addWidget(label)
         self.legend_rows[key] = label
+
+    def _pause_particles(self, paused: bool) -> None:
+        """Hold the simulation where it is, or let it run again."""
+
+        self.pause_button.setText("Paused" if paused else "Pause")
+        host = self.host
+        setter = getattr(host, "set_effect_particles_paused", None) if host is not None else None
+        if callable(setter):
+            try:
+                setter(bool(paused))
+            except Exception:  # noqa: BLE001 - a host without the call keeps running
+                pass
+
+    def _backdrop_changed(self) -> None:
+        """Send the chosen clear colour; remembered for the next time the dialog opens."""
+
+        colour = str(self.backdrop_choice.currentData() or "")
+        if not colour:
+            return
+        _remember_backdrop(colour)
+        host = self.host
+        setter = getattr(host, "set_viewport_backdrop", None) if host is not None else None
+        if callable(setter):
+            try:
+                setter(colour)
+            except Exception:  # noqa: BLE001 - a host without the call keeps its own
+                pass
 
     def _show_particles(self, visible: bool) -> None:
         """Draw or hide the particle layer; the anchor and the reach do not depend on it."""

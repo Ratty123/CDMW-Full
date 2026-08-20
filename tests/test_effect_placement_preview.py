@@ -266,6 +266,21 @@ class ViewerParticleLayerContractTests(unittest.TestCase):
         self.assertIn("step(0.999f, sample.a)", shaders)
         self.assertNotIn("max(sample.a, dot(sample.rgb", shaders, "luminance no longer overrides a real alpha channel")
 
+    def test_the_simulation_can_be_held_where_it_is(self) -> None:
+        """Pausing is not hiding: the particles stay drawn and stop moving, which is the
+        only way to read where one of them actually is."""
+
+        renderer = (self.ROOT / "D3D11MaterialViewport.EffectParticles.cs").read_text(encoding="utf-8")
+        presentation = (self.ROOT / "MeshViewport.Presentation.cs").read_text(encoding="utf-8")
+
+        self.assertIn("public void SetEffectParticlesPaused(bool paused)", renderer)
+        self.assertIn("simulation.Step(_effectParticlesPaused ? 0.0f : deltaSeconds);", renderer)
+        # resuming picks up from now rather than stepping the whole pause at once
+        self.assertIn("_effectParticleLastTimestamp = Stopwatch.GetTimestamp();", renderer)
+        self.assertIn('JsonBool(display, "effect_particles_paused"', presentation)
+        self.assertIn("SetEffectParticlesPaused(particlesPaused)", presentation)
+        self.assertIn('["effect_particles_paused"] = _presentationEffectParticlesPaused,', presentation)
+
     def test_the_particles_sample_with_a_clamp_of_their_own(self) -> None:
         """The mesh pass's sampler wraps, which lets one flipbook cell bleed into the next
         at the seam; particles clamp instead, and filter linearly so a sprite blown up over

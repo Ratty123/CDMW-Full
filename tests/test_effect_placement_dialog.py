@@ -62,6 +62,8 @@ class _Host(QWidget):
         self.hidden: tuple = ()
         self.particles: list = []
         self.transforms: list = []
+        self.paused: list = []
+        self.backdrops: list = []
         self.remembered: tuple = ()
         self.loaded = None
         self.controller = _Controller(self)
@@ -81,6 +83,14 @@ class _Host(QWidget):
 
     def set_hidden_source_submeshes(self, indices) -> bool:
         self.hidden = tuple(int(index) for index in indices)
+        return True
+
+    def set_effect_particles_paused(self, paused: bool) -> bool:
+        self.paused.append(bool(paused))
+        return True
+
+    def set_viewport_backdrop(self, color: str) -> bool:
+        self.backdrops.append(str(color))
         return True
 
     def set_alignment_preview_transform(self, **payload) -> bool:
@@ -342,6 +352,57 @@ class DialogTests(unittest.TestCase):
 
         dialog._put_it_at("trail")
         self.assertEqual(tuple(round(v, 6) for v in dialog.offset), (0.0, 0.02, -1.1))
+
+    def test_the_particles_can_be_held_where_they_are(self) -> None:
+        """Hiding the fire answers "what is under it". Holding it answers "where exactly is
+        this one", which a cloud in motion never lets anyone read."""
+
+        dialog = self._dialog()
+        self.assertFalse(dialog.pause_button.isChecked())
+        dialog.pause_button.setChecked(True)
+        self.assertEqual(dialog.host.paused, [True])
+        self.assertEqual(dialog.pause_button.text(), "Paused", "the button says which state it is in")
+        dialog.pause_button.setChecked(False)
+        self.assertEqual(dialog.host.paused, [True, False])
+        self.assertEqual(dialog.pause_button.text(), "Pause")
+        self.assertEqual(dialog.host.particles, [], "pausing is not hiding")
+
+    def test_the_backdrop_is_chosen_and_remembered(self) -> None:
+        """An effect adds its light to what is behind it, so it reads best on a dark
+        backdrop; the Mesh Editor's grey is there for judging the item's own textures,
+        which is the other half of what this dialog is for."""
+
+        from cdmw.ui.new_item.effect_placement_dialog import BACKDROPS, _remembered_backdrop
+
+        dialog = self._dialog()
+        self.assertEqual([dialog.backdrop_choice.itemData(row) for row in range(dialog.backdrop_choice.count())],
+                         list(BACKDROPS))
+        self.assertEqual(dialog.backdrop_choice.currentData(), _remembered_backdrop(), "it opens on the last one chosen")
+
+        grey = BACKDROPS.index("#3B3B3B")
+        dialog.backdrop_choice.setCurrentIndex(grey)
+        self.assertEqual(dialog.host.backdrops[-1], "#3B3B3B", "the viewport is told")
+        self.assertEqual(_remembered_backdrop(), "#3B3B3B", "and the next dialog opens on it")
+
+        dark = BACKDROPS.index("#101014")
+        dialog.backdrop_choice.setCurrentIndex(dark)
+        self.assertEqual(_remembered_backdrop(), "#101014")
+
+    def test_the_panel_is_grouped_and_the_legend_folds_away(self) -> None:
+        """Fourteen controls, five legend rows and four labels in one column read as a
+        wall. What moves the effect and what is drawn are two questions, and the legend
+        answers a third that is asked once."""
+
+        from PySide6.QtWidgets import QGroupBox
+
+        dialog = self._dialog()
+        groups = [box.title() for box in dialog.findChildren(QGroupBox)]
+        self.assertEqual(groups, ["Place the effect", "What is drawn"])
+        self.assertFalse(dialog.legend_toggle.toggle.isChecked(), "the legend starts folded")
+        for label in dialog.legend_rows.values():
+            self.assertFalse(label.isVisibleTo(dialog), "and its rows are not taking room")
+        dialog.legend_toggle.toggle.setChecked(True)
+        self.assertTrue(dialog.legend_rows["anchor"].isVisibleTo(dialog), "one click and it is there")
 
     def test_a_reach_far_larger_than_the_item_starts_hidden(self) -> None:
         dialog = self._dialog()
