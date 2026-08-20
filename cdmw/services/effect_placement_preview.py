@@ -167,6 +167,10 @@ def reach_cage_mesh(box_min: Vec3, box_max: Vec3, *, name: str = EFFECT_REACH_SU
                       total_vertices=len(vertices), total_faces=len(faces), has_uvs=True, has_bones=False)
 
 
+#: What a submesh cut from the game's own character is named, so the material pass tints
+#: it like the stand-in figure and the dialog can hide the whole body at once.
+CHARACTER_MATERIAL_PREFIX = "effect_character_"
+
 EFFECT_BODY_SUBMESH = "effect_body"
 EFFECT_BODY_MATERIAL = "effect_body"
 
@@ -319,7 +323,7 @@ def _tint_anchor_material(materials_path: Path) -> None:
         item["alpha_mode"] = "opaque"
         item["opacity_factor"] = 1.0
         parameters = dict(item.get("parameters", {}) or {})
-        if material == EFFECT_BODY_MATERIAL:
+        if material == EFFECT_BODY_MATERIAL or material.startswith(CHARACTER_MATERIAL_PREFIX):
             item["double_sided"] = True
             parameters.update({"base_tint_color": list(BODY_TINT), "base_tint_strength": 1.0, "roughness": 0.9, "metalness": 0.0})
         elif material == EFFECT_ANCHOR_MATERIAL:
@@ -372,7 +376,9 @@ def _frame_scene_on_the_item(scene_path: Path, low: Vec3, high: Vec3) -> None:
     scene_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def framing_bounds_for(item_mesh: ParsedMesh, *, include_body: bool = True) -> Tuple[Vec3, Vec3]:
+def framing_bounds_for(
+    item_mesh: ParsedMesh, *, include_body: bool = True, body_mesh: Optional[ParsedMesh] = None
+) -> Tuple[Vec3, Vec3]:
     """What the view opens on: the item, the character standing behind it when one is
     drawn, and the item's origin -- the hand, where the effect starts -- so the anchor is
     in frame even on an item modelled away from it. Not the effect's reach: that is the
@@ -385,7 +391,7 @@ def framing_bounds_for(item_mesh: ParsedMesh, *, include_body: bool = True) -> T
         low, high = (-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)
     corners = [low, high, (0.0, 0.0, 0.0)]
     if include_body:
-        body = character_reference_mesh()
+        body = body_mesh if body_mesh is not None else character_reference_mesh()
         corners.extend((body.bbox_min, body.bbox_max))
     return (
         tuple(min(float(corner[axis]) for corner in corners) for axis in range(3)),  # type: ignore[return-value]
@@ -406,12 +412,26 @@ class EffectPlacementPreview:
     box_max: Vec3
     #: the submesh the reach cage is (the editable role's second part)
     reach_submesh_index: int = 1
-    #: scene submesh of the body drawn for scale, or -1 when the package carries none
+    #: first scene submesh of the body drawn for scale, or -1 when the package carries none
     body_submesh_index: int = -1
+    #: how many submeshes the body is: one for the stand-in figure, several for the
+    #: game's own character, which is worn armour in pieces
+    body_submesh_count: int = 1
     #: `effect_preview.json` in the package when the caller gave an effect preview, else None
     preview_file: Optional[Path] = None
     #: archive texture paths the package could not carry (no reader, or the reader had none)
     missing_textures: Tuple[str, ...] = ()
+    #: the 3x3 the item was turned by to join the character, or None when the scene is the
+    #: item's own frame; an offset in the item's frame reaches the scene through it
+    item_rotation: Optional[Tuple[float, ...]] = None
+
+    @property
+    def body_submesh_indices(self) -> Tuple[int, ...]:
+        """Every scene submesh the body occupies, empty when the package carries none."""
+
+        if self.body_submesh_index < 0:
+            return ()
+        return tuple(range(self.body_submesh_index, self.body_submesh_index + max(1, self.body_submesh_count)))
 
 
 #: The simulation description the viewer's particle layer reads (schema 1), next to the mesh files.
@@ -475,6 +495,8 @@ def build_effect_placement_package(
     *,
     output_root: Path,
     include_body: bool = True,
+    character_mesh: Optional[ParsedMesh] = None,
+    item_rotation: Optional[Sequence[float]] = None,
     cancelled: Optional[Callable[[], bool]] = None,
     effect_preview: Optional["EffectPreview"] = None,
     texture_reader: Optional[Callable[[str], Optional[bytes]]] = None,
@@ -483,7 +505,14 @@ def build_effect_placement_package(
     (the editable mesh the gizmo moves) for the resident .NET viewport; with
     `effect_preview`, the simulation description and its textures go in beside them
     (see :func:`write_effect_preview`). `box_min`/`box_max` is the effect's reach,
-    carried as numbers."""
+    carried as numbers.
+
+    `character_mesh` is the body drawn for scale and pose: the game's own character from
+    :func:`cdmw.services.effect_character_reference.build_character_reference` when the
+    archives gave one, and the shipped stand-in otherwise. That character stands upright,
+    so with it comes `item_rotation`, the 3x3 that turns the item into the hand the way
+    the game holds it; the item and the anchor are baked into it and the dialog carries
+    its offsets across the same rotation."""
 
     from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
 
@@ -493,12 +522,22 @@ def build_effect_placement_package(
     anchor.submeshes.extend(reach_cage_mesh(box_min, box_max).submeshes)
     anchor.total_vertices = sum(len(submesh.vertices) for submesh in anchor.submeshes)
     anchor.total_faces = sum(len(submesh.faces) for submesh in anchor.submeshes)
+    rotation = tuple(float(v) for v in item_rotation) if item_rotation is not None else None
+    if rotation is not None:
+        from cdmw.services.effect_character_reference import rotate_mesh
+
+        # both the item and the editable role are measured in the item's frame, so both
+        # turn together; the gizmo's uniform scale commutes with a rotation, which is why
+        # baking it into the cage and rotating the offset is exact rather than nearly right
+        item_mesh = rotate_mesh(item_mesh, rotation)
+        anchor = rotate_mesh(anchor, rotation)
     reference = item_mesh
     body_index = -1
+    body_count = 0
     if include_body:
         # the body belongs with the item, not with the anchor: the gizmo moves the editable
         # role, and a scale reference that slid about with the effect would be no reference
-        body = character_reference_mesh()
+        body = character_mesh if character_mesh is not None else character_reference_mesh()
         submeshes = list(item_mesh.submeshes) + list(body.submeshes)
         reference = _dc_replace(
             item_mesh,
@@ -507,6 +546,7 @@ def build_effect_placement_package(
             total_faces=sum(len(submesh.faces) for submesh in submeshes),
         )
         body_index = len(anchor.submeshes) + len(item_mesh.submeshes)
+        body_count = len(body.submeshes)
     package = build_mesh_dotnet_experiment_package(
         anchor,
         reference_mesh=reference,
@@ -520,7 +560,9 @@ def build_effect_placement_package(
         include_material_resources=False,
     )
     _tint_anchor_material(Path(package.package_dir) / "net_materials.json")
-    frame_low, frame_high = framing_bounds_for(item_mesh, include_body=include_body)
+    frame_low, frame_high = framing_bounds_for(
+        item_mesh, include_body=include_body, body_mesh=character_mesh if include_body else None
+    )
     _frame_scene_on_the_item(Path(package.package_dir) / "dotnet_scene.json", frame_low, frame_high)
     preview_file: Optional[Path] = None
     missing: Tuple[str, ...] = ()
@@ -528,6 +570,8 @@ def build_effect_placement_package(
         preview_file, missing = write_effect_preview(Path(package.package_dir), effect_preview, texture_reader=texture_reader)
     return EffectPlacementPreview(
         body_submesh_index=body_index,
+        body_submesh_count=body_count,
+        item_rotation=rotation,
         package_dir=Path(package.package_dir),
         box_submesh_index=0,
         item_submesh_count=len(item_mesh.submeshes),

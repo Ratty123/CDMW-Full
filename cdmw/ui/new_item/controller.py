@@ -29,6 +29,11 @@ from cdmw.workers.new_item_workers import export_task, install_overlay_task, ins
 from cdmw.workers.utility_workers import UtilityWorker
 
 
+#: "not read yet", which None cannot say: an install with no character must not be
+#: re-read on every dialog.
+_NOT_READ = object()
+
+
 class NewItemStudioController(QObject):
     busy_changed = Signal(bool)
     log_message = Signal(str)
@@ -64,6 +69,9 @@ class NewItemStudioController(QObject):
         #: instead of replacing them. None plans against the archives.
         self.mod_base_folder: Optional[Path] = None
         self._mod_base_cache: tuple = ()
+        #: The game's own character for the placement viewport, read once (None means the
+        #: archives had no character; _NOT_READ means nobody has asked yet)
+        self._character_reference: object = _NOT_READ
         self.draft = NewItemDraft()
         self.plan: Optional[NewItemPlan] = None
         self.model_result: object | None = None
@@ -500,6 +508,24 @@ class NewItemStudioController(QObject):
 
         return preview, read_texture
 
+    def character_reference(self):
+        """The game's own character for the placement viewport, or None.
+
+        Read once and kept: a rig, a socket file and a body out of the archives is about a
+        second, and the dialog is opened again for every effect the reader tries. Call it
+        off the UI thread; the placement dialog does.
+        """
+
+        if self._character_reference is not _NOT_READ:
+            return self._character_reference
+        if self.snapshot is None:
+            return None  # not remembered: a snapshot arriving later deserves another go
+        from cdmw.services.effect_character_reference import character_reference_from_snapshot
+
+        self._character_reference, said = character_reference_from_snapshot(self.snapshot)
+        self.log_message.emit(said)
+        return self._character_reference
+
     def effect_box(self, stem: str = "") -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
         """The chosen effect's bounding box at scale 1.0, or a metre cube before indexing."""
 
@@ -783,6 +809,8 @@ class NewItemStudioController(QObject):
         def done(result: object) -> None:
             if isinstance(result, NewItemSnapshot):
                 self.snapshot = result
+                # a different install can have a different character
+                self._character_reference = _NOT_READ
                 self.snapshot_ready.emit()
             else:
                 self.snapshot_failed.emit("The snapshot finished with an unexpected result.")

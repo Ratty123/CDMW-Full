@@ -381,6 +381,7 @@ class PerksPanel(QGroupBox):
             self, item_mesh=mesh, box_min=box_min, box_max=box_max, item_label=item_label,
             offset=tuple(float(box.value()) for box in self.effect_offset), scale=float(self.effect_scale.value()), effect_label=stem,
             effect_preview=effect_preview, texture_reader=texture_reader,
+            character_builder=self._controller.character_reference,
         )
         if dialog.exec() != QDialog.Accepted:
             return

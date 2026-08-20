@@ -61,6 +61,8 @@ class _Host(QWidget):
         self.zooms: list = []
         self.hidden: tuple = ()
         self.particles: list = []
+        self.transforms: list = []
+        self.remembered: tuple = ()
         self.controller = _Controller(self)
 
     def set_view(self, *, yaw, pitch, zoom_factor=None, fit_to_view=None, **_rest) -> bool:
@@ -80,8 +82,12 @@ class _Host(QWidget):
         self.hidden = tuple(int(index) for index in indices)
         return True
 
-    def set_alignment_preview_transform(self, **_payload) -> bool:
+    def set_alignment_preview_transform(self, **payload) -> bool:
+        self.transforms.append(payload)
         return True
+
+    def remember_editable_local_bounds(self, low, high) -> None:
+        self.remembered = (tuple(float(v) for v in low), tuple(float(v) for v in high))
 
 
 class DialogTests(unittest.TestCase):
@@ -208,6 +214,52 @@ class DialogTests(unittest.TestCase):
         quiet = self._dialog(effect_preview=SimpleNamespace(emitters=(), notes=()))
         quiet._show_caveats()
         self.assertTrue(quiet.caveat.isHidden())
+
+    def test_the_numbers_stay_the_item_s_while_the_picture_is_the_character_s(self) -> None:
+        """The scene is the character standing upright, which is a turn away from the item's
+        own frame; the offsets are the item's, because that is what the game reads off the
+        weapon's prefab. So an offset goes out turned, and a drag comes back turned back."""
+
+        from cdmw.services.effect_character_reference import rotate_point
+
+        # a quarter turn about x: the item's +z, its blade, becomes the scene's -y
+        quarter = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0)
+        dialog = self._dialog()
+        dialog._preview = EffectPlacementPreview(
+            package_dir=Path("."), box_submesh_index=0, item_submesh_count=1,
+            box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
+            reach_submesh_index=1, body_submesh_index=3, item_rotation=quarter,
+        )
+        dialog._rotation = quarter
+        dialog._set_numbers((0.0, 0.0, 0.5), 1.0)
+        dialog._sync_host()
+        sent = dialog.host.transforms[-1]["translation"]
+        self.assertEqual(tuple(round(v, 6) for v in sent), tuple(round(v, 6) for v in rotate_point((0.0, 0.0, 0.5), quarter)))
+
+        # the reader drags a tenth of a metre up the screen; up is not the item's y
+        dialog._drag_finished(0.0, 0.1, 0.0)
+        self.assertEqual(tuple(round(v, 6) for v in dialog.offset), (0.0, 0.0, 0.4))
+
+        # and with no character the scene is the item's frame, untouched
+        plain = self._dialog()
+        plain._set_numbers((0.0, 0.0, 0.5), 1.0)
+        plain._sync_host()
+        self.assertEqual(tuple(plain.host.transforms[-1]["translation"]), (0.0, 0.0, 0.5))
+        plain._drag_finished(0.0, 0.1, 0.0)
+        self.assertEqual(tuple(round(v, 6) for v in plain.offset), (0.0, 0.1, 0.5))
+
+    def test_the_character_s_submeshes_all_hide_together(self) -> None:
+        """The game's character is several meshes; hiding one of them leaves the rest."""
+
+        dialog = self._dialog()
+        dialog._preview = EffectPlacementPreview(
+            package_dir=Path("."), box_submesh_index=0, item_submesh_count=1,
+            box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
+            reach_submesh_index=1, body_submesh_index=3, body_submesh_count=4,
+        )
+        dialog.show_reach.setChecked(True)
+        dialog.show_character.setChecked(False)
+        self.assertEqual(dialog.host.hidden, (3, 4, 5, 6))
 
     def test_a_reach_far_larger_than_the_item_starts_hidden(self) -> None:
         dialog = self._dialog()
