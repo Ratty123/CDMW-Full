@@ -230,6 +230,36 @@ def test_any_length_falls_back_to_same_length_on_a_short_walk() -> None:
     assert untouched.data == payload and untouched.edits == ()
 
 
+def test_a_same_length_swap_survives_a_pointee_the_file_does_not_pin_down() -> None:
+    """The relocating path refuses a pointee whose trailing length field the file leaves
+    ambiguous, rather than guess and corrupt it. A replacement of exactly the same byte
+    length moves nothing, so no length field is the answer to anything: the swap goes in
+    place instead of being refused.
+
+    This is what a cloned stem is (`cd_phm_01_sword_0054_04` becomes `..._9054_04`), and
+    without the fallback the Cigar family's two sheathed prefabs could not be retargeted
+    at all, which stopped that template being usable as a template.
+    """
+
+    from unittest.mock import patch
+
+    payload = _build()
+    same = "character/model/1_pc/weapon/blad3.pac"
+    assert len(same) == len(PATH)
+
+    refusal = PrefabEditError("The pointee at 0x690 has 2 possible length fields and the file does not say which")
+    with patch("cdmw.core.prefab_binary_edit.rewrite_prefab_paths", side_effect=refusal):
+        result = rewrite_prefab_paths_any_length(payload, {PATH: same})
+    assert result.byte_delta == 0
+    assert len(result.data) == len(payload)
+    assert [item.text for item in decode_prefab_binary(result.data).resource_strings()] == [same]
+
+    # a swap that changes the length has nowhere to go: the refusal stands
+    with patch("cdmw.core.prefab_binary_edit.rewrite_prefab_paths", side_effect=refusal):
+        with pytest.raises(PrefabEditError, match="possible length fields"):
+            rewrite_prefab_paths_any_length(payload, {PATH: "character/model/1_pc/weapon/a_longer_blade.pac"})
+
+
 def test_legacy_resize_refuses_rather_than_losing_a_pointer() -> None:
     """The old offset-candidate scan corrupts real prefabs; it must fail loudly.
 
