@@ -171,6 +171,31 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(route.files.side_files[GEM_EMI][84:88], b"BC4U", "the intensity map replaces the Builder's")
         self.assertTrue(any("factors (roughness 0.3, metalness 0.9)" in line for line in route.lines), route.lines)
 
+    def test_a_glow_is_chosen_by_the_reader_s_own_material_name(self) -> None:
+        """The step lists the model's materials -- `Inside`, not `cd_phm_02_hammer_sub_0002`
+        -- because those are the words the reader can act on. The route has to find the
+        wrapper that material draws through, which is the mapping it already builds."""
+
+        sources = {"cd_phm_02_sword_handle_0003": SourceMaterialTextures(name="Inside")}
+
+        class _Glow:
+            parts = ("Inside",)
+            intensity = 3.0
+
+            def hex_color(self) -> str:
+                return "#00CDFFFF"
+
+        route = route_plain_pbr(
+            builder_files(), sources=sources, glow=_Glow(), encode=self._encode,
+            encode_emissive=self._encode_emissive, encode_factors=self._encode_factors,
+            encode_glow=lambda: dds(b"BC4U"),
+        )
+        wrappers = {w.submesh_name: w for w in find_material_wrappers(route.files.side_files[XML].decode("utf-8"))}
+        gem = wrappers["cd_phm_02_sword_handle_0003"]
+        self.assertEqual(gem.shader, EMISSIVE_SHADER, "the wrapper that material draws through lights up")
+        self.assertEqual((gem.value("_emissiveColor"), gem.value("_emissiveIntensity")), ("#00CDFFFF", "3.000000"))
+        self.assertEqual(wrappers["cd_phm_02_sword_0003"].shader, STANDARD_SHADER, "and nothing else does")
+
     def test_a_source_that_glows_by_factor_glows_without_a_map(self) -> None:
         """A glTF material can glow with no emissive texture at all: `emissiveFactor` is a
         colour. The Verdict axe's blue gems are exactly that (`emissiveFactor
@@ -284,64 +309,6 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(gem.shader, EMISSIVE_SHADER)
         self.assertEqual((gem.value("_emissiveColor"), gem.value("_emissiveIntensity")), ("#3366FFFF", "6.000000"))
         self.assertTrue(gem.textures.get("_emissiveIntensityTexture"), "a solid map for the part that glows")
-
-
-class PartNameTests(unittest.TestCase):
-    """The parts a glow is chosen by: the submesh names the template's sidecar keys its
-    material wrappers with, which is the only thing the game's emissive is per."""
-
-    class _File:
-        def __init__(self, path: str, exists: bool = True) -> None:
-            self.path, self.exists = path, exists
-            self.role = "pac_xml"
-
-    class _Snapshot:
-        def __init__(self, files, payloads) -> None:
-            self._files, self._payloads = files, payloads
-
-        def family(self, item_key: int):
-            from types import SimpleNamespace
-
-            return SimpleNamespace(files=self._files)
-
-        def payload(self, path: str) -> bytes:
-            return self._payloads[path]
-
-    def test_the_wrappers_of_the_template_sidecar_are_the_parts(self) -> None:
-        from cdmw.services.new_item_materials import material_part_names
-
-        snapshot = self._Snapshot([self._File(XML)], {XML: SIDECAR.encode("utf-8")})
-        self.assertEqual(
-            material_part_names(snapshot, 1),
-            (
-                ("cd_phm_02_sword_0003", "cd_phm_02_sword_0003"),
-                ("cd_phm_02_sword_handle_0003", "cd_phm_02_sword_handle_0003"),
-                ("cd_phm_02_sword_guard_0003", "cd_phm_02_sword_guard_0003"),
-            ),
-            "with no import to name them, a part is its own label",
-        )
-
-    def test_an_import_names_the_parts_and_narrows_them_to_its_own(self) -> None:
-        """`cd_phm_02_sword_handle_0003` is the template's word for a part that is now the
-        reader's model. And a wrapper the import does not own is not theirs to light: the
-        route rewrites it for nobody, so ticking it would do nothing."""
-
-        from cdmw.services.new_item_materials import material_part_names
-
-        snapshot = self._Snapshot([self._File(XML)], {XML: SIDECAR.encode("utf-8")})
-        result = Result((Section("cd_phm_02_sword_0003", "lambert1"), Section("cd_phm_02_sword_handle_0003", "Gem")))
-        scene = Scene((Binding("lambert1"), Binding("Gem")), Mesh(()))
-        self.assertEqual(
-            material_part_names(snapshot, 1, result=result, scene=scene),
-            (("cd_phm_02_sword_0003", "lambert1"), ("cd_phm_02_sword_handle_0003", "Gem")),
-        )
-
-    def test_a_family_with_no_readable_sidecar_names_no_parts(self) -> None:
-        from cdmw.services.new_item_materials import material_part_names
-
-        self.assertEqual(material_part_names(self._Snapshot([], {}), 1), ())
-        missing = self._Snapshot([self._File(XML, exists=False)], {})
-        self.assertEqual(material_part_names(missing, 1), (), "a sidecar the family says is not there is not read")
 
 
 class EncoderTests(unittest.TestCase):
