@@ -31,6 +31,7 @@ import math
 import random
 import struct
 from dataclasses import asdict, dataclass
+from types import MappingProxyType
 from typing import Callable, Iterable, List, Mapping, Optional, Protocol, Sequence, Tuple
 
 from cdmw.core.effect_binary import EffectDocument, ReflectNode, half_floats
@@ -284,6 +285,11 @@ def _sample_surface(mesh_path: str, meshes: Mapping[str, Sequence[Vec3]], count:
 #: a count, because all 208 emitters that state it state -1 and none states anything else.
 #: Used only when the emitter file an effect names is missing, which is a third of them:
 #: with the file in hand its own values win and these are never consulted.
+#: An empty mapping to default the optional arguments to. A tuple stood there and read as
+#: empty to everything that asked it a truth question, right up to `meshes.get(...)`, which
+#: an effect that names a spawn mesh reaches and nothing else does.
+_NOTHING: Mapping = MappingProxyType({})
+
 _MISSING_EMITTER_DEFAULTS: Mapping[str, float] = {
     "_spawnCountMax": 5.0,
     "_spawnTermMin": 0.02,
@@ -528,10 +534,10 @@ def build_effect_preview(
     stem: str,
     document: EffectDocument,
     *,
-    emitter_documents: Mapping[str, EffectDocument] = (),
-    layouts: Mapping[str, EmitterLayout] = (),
-    preset_documents: Mapping[str, EffectDocument] = (),
-    meshes: Mapping[str, Sequence[Vec3]] = (),
+    emitter_documents: Mapping[str, EffectDocument] = _NOTHING,
+    layouts: Mapping[str, EmitterLayout] = _NOTHING,
+    preset_documents: Mapping[str, EffectDocument] = _NOTHING,
+    meshes: Mapping[str, Sequence[Vec3]] = _NOTHING,
 ) -> EffectPreview:
     """The preview of `document` (an effect, `.pae`), with its emitter files decoded in
     `emitter_documents` (archive path -> document), their `layouts` for positional
