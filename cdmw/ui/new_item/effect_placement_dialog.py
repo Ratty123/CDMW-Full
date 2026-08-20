@@ -281,6 +281,15 @@ class EffectPlacementDialog(QDialog):
         self.emitters_label = self.emitters_toggle.body
         self.emitters_toggle.setVisible(effect_preview is not None)
         side.addWidget(self.emitters_toggle)
+        # what the preview could not read, where the reader will see it. The emitters of a
+        # third of the shipped effects spawn their particles on the surface of a mesh, and
+        # when the archives do not carry that mesh the preview scatters them instead: the
+        # shape on screen is then a stand-in, and the game draws something else.
+        self.caveat = QLabel("")
+        self.caveat.setWordWrap(True)
+        self.caveat.setObjectName("new_item_warning")
+        self.caveat.setVisible(False)
+        side.addWidget(self.caveat)
         self.status = QLabel("Preparing the viewport...")
         self.status.setWordWrap(True)
         side.addWidget(self.status)
@@ -367,8 +376,28 @@ class EffectPlacementDialog(QDialog):
             if self._preview.missing_textures:
                 sentences.append(f"{len(self._preview.missing_textures)} sprite texture(s) could not be read from the archives.")
             self.status.setText(" ".join(sentences))
+            self._show_caveats()
         elif str(state) == "error":
             self.status.setText(str(message or "The viewport reported an error."))
+
+    def _show_caveats(self) -> None:
+        """Say what the preview could not read, before the reader trusts what it shows."""
+
+        preview = self._effect_preview
+        notes = tuple(getattr(preview, "notes", ()) or ()) if preview is not None else ()
+        spawn_meshes = sorted({
+            note.split("spawn mesh ", 1)[1].split(" ", 1)[0]
+            for note in notes if "spawn mesh " in note and "was not read" in note
+        })
+        if not spawn_meshes:
+            self.caveat.setVisible(False)
+            return
+        self.caveat.setText(
+            f"This effect spawns its particles on the surface of {spawn_meshes[0]}, which is not in the archives, so the "
+            "preview scatters them around the anchor instead. The anchor is where the effect starts either way, but the "
+            "shape around it is a stand-in: the game will draw its own."
+        )
+        self.caveat.setVisible(True)
 
     def _apply_scene_visibility(self) -> None:
         """Show or hide the reach frame and the character; the item, the anchor and the

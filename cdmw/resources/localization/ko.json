@@ -7956,6 +7956,7 @@
     "This dialog is read-only. Model paths and all editable backend or texture-policy controls remain in the main Texture Workflow panel.": "이 대화 상자는 읽기 전용입니다. 모델 경로와 편집 가능한 모든 백엔드 또는 텍스처 정책 컨트롤은 기본 텍스처 작업 흐름 패널에 유지됩니다.",
     "This editor contains changes that have not been exported to a mod package. Discard them and close?": "이 편집기에는 모드 패키지로 내보내지지 않은 변경 사항이 포함되어 있습니다. 삭제하고 닫으시겠습니까?",
     "This editor uses the shared out-of-process .NET/Vortice Preview. Pick a recovered attach point, review the socket chain, optionally drag/tune offset/rotation, then build the same loose package copy plan.": "이 편집기는 공유된 out-of-process .NET/Vortice 미리보기를 사용합니다. 복구된 연결 지점을 선택하고, 소켓 체인을 검토하고, 선택적으로 오프셋/회전을 드래그/조정한 다음 동일한 느슨한 패키지 복사 계획을 구축합니다.",
+    "This effect spawns its particles on the surface of {value_0}, which is not in the archives, so the preview scatters them around the anchor instead. The anchor is where the effect starts either way, but the shape around it is a stand-in: the game will draw its own.": "이 이펙트는 {value_0}의 표면에서 파티클을 생성하지만 그 메시가 아카이브에 없어, 미리보기는 대신 앵커 주위에 흩뿌립니다. 이펙트가 시작되는 곳은 어느 쪽이든 앵커이지만, 그 주위의 형태는 임시이며 게임은 자기 나름의 모양을 그립니다.",
     "This file could not be read as a prefab: {value_0}": "이 파일은 프리팹으로 읽을 수 없습니다: {value_0}",
     "This file is read-only because it was only partly read.": "이 파일은 부분적으로만 읽었으므로 읽기 전용입니다.",
     "This image was opened as a loose external file, so Texture Workflow needs an explicit game-relative target path and the original DDS source.": "이 이미지는 느슨한 외부 파일로 열렸으므로 Texture Workflow에는 명시적인 게임 관련 대상 경로와 원본 DDS 소스가 필요합니다.",

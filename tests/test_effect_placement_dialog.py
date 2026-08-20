@@ -187,6 +187,28 @@ class DialogTests(unittest.TestCase):
         self.assertEqual(dialog.host.views[-1][:2], (90.0, 8.0))
         self.assertLess(dialog.host.zooms[-1], 0.2)
 
+    def test_an_effect_whose_spawn_mesh_is_missing_says_so_where_it_is_read(self) -> None:
+        """A third of the shipped emitters spawn their particles on the surface of a mesh,
+        and the archives do not carry all of those meshes. The preview scatters them
+        instead, which looked like a compact cloud on the hammer head while the game drew
+        a metre of fire along the weapon: the reader has to be told before they trust it."""
+
+        from types import SimpleNamespace
+
+        preview = SimpleNamespace(
+            emitters=(),
+            notes=("emitter/cdem_x: spawn mesh pafx_m_ds_firesword_trail_002a.pam was not read; particles spawn in a spread instead",),
+        )
+        dialog = self._dialog(effect_preview=preview)
+        dialog._show_caveats()
+        self.assertFalse(dialog.caveat.isHidden())
+        self.assertIn("pafx_m_ds_firesword_trail_002a.pam", dialog.caveat.text())
+        self.assertIn("stand-in", dialog.caveat.text())
+
+        quiet = self._dialog(effect_preview=SimpleNamespace(emitters=(), notes=()))
+        quiet._show_caveats()
+        self.assertTrue(quiet.caveat.isHidden())
+
     def test_a_reach_far_larger_than_the_item_starts_hidden(self) -> None:
         dialog = self._dialog()
         self.assertFalse(dialog.show_reach.isChecked())

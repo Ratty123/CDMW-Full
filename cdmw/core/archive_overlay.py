@@ -102,7 +102,10 @@ def build_overlay_archive(
 
     Folders are written in path order and their file ranges tile the file table, which is
     what the reader checks; the files inside a folder are in byte order, as the shipped
-    tables have them.
+    tables have them. Every folder on the way down is written, not only the ones holding
+    files: `character/bin__/prefab/...` puts four records in the table, three of them
+    empty. The shipped archives are built that way -- 123 of archive 0000's 1,370 folders
+    hold no file of their own -- and the game walks that table as a tree.
     """
 
     if not files:
@@ -117,12 +120,22 @@ def build_overlay_archive(
             raise ValueError(f"{item.path!r} names no file")
         by_folder.setdefault(folder, []).append(OverlayFile(path=clean, payload=item.payload, orig_size=item.orig_size, flags=item.flags))
 
+    # every folder on the way down to a file, not only the folder holding it
+    every_folder = set(by_folder)
+    for folder in tuple(by_folder):
+        parts = folder.split("/")
+        for depth in range(1, len(parts)):
+            every_folder.add("/".join(parts[:depth]))
+    every_folder.discard("")
+    if "" in by_folder:
+        every_folder.add("")
+
     paz = bytearray()
     folder_records: List[Tuple[int, str, int, int]] = []
     file_records: List[Tuple[str, int, int, int, int, int]] = []
     entries: List[Tuple[str, int, int, int]] = []
-    for folder in sorted(by_folder):
-        items = sorted(by_folder[folder], key=lambda item: item.path.rpartition("/")[2].encode("utf-8"))
+    for folder in sorted(every_folder):
+        items = sorted(by_folder.get(folder, ()), key=lambda item: item.path.rpartition("/")[2].encode("utf-8"))
         start = len(file_records)
         for item in items:
             name = item.path.rpartition("/")[2]

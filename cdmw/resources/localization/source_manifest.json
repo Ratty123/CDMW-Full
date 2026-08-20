@@ -1046,7 +1046,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 567,
+          "line": 596,
           "sink": "setText"
         }
       ]
@@ -46156,7 +46156,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 342,
+          "line": 351,
           "sink": "setText"
         },
         {
@@ -67781,7 +67781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 284,
+          "line": 293,
           "sink": "QLabel"
         }
       ]
@@ -70631,7 +70631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 567,
+          "line": 596,
           "sink": "setText"
         }
       ]
@@ -94576,7 +94576,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 322,
+          "line": 331,
           "sink": "setText"
         }
       ]
@@ -94786,7 +94786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 344,
+          "line": 353,
           "sink": "setText"
         }
       ]
@@ -95472,6 +95472,16 @@
       ]
     },
     {
+      "key": "This effect spawns its particles on the surface of {value_0}, which is not in the archives, so the preview scatters them around the anchor instead. The anchor is where the effect starts either way, but the shape around it is a stand-in: the game will draw its own.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 395,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "This file could not be read as a prefab: {value_0}",
       "origins": [
         {
@@ -95996,7 +96006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 369,
+          "line": 378,
           "sink": "setText"
         }
       ]
@@ -201366,7 +201376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 369,
+          "line": 378,
           "sink": "setText"
         }
       ]

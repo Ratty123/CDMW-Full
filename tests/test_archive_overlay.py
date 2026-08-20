@@ -64,13 +64,37 @@ class OverlayArchiveTests(unittest.TestCase):
         self.assertEqual(built.pamt_checksum, stored)
 
     def test_folders_carry_their_hash_and_tile_the_file_table(self) -> None:
+        """Every folder on the way down is in the table, in path order, and the ones with
+        no file of their own carry a count of zero.
+
+        The shipped archives are built that way: 123 of archive 0000's 1,370 folder
+        records hold no file. An overlay that listed only the folders holding files read
+        back correctly through this repository's own reader and made the game refuse to
+        start with "There may be a problem with the game installation", so the tree the
+        game walks has to be whole.
+        """
+
         built = build_overlay_archive(_files())
         document = parse_pamt_document(built.pamt_bytes, name="overlay")
-        self.assertEqual([folder.path for folder in document.folders], sorted({BIN, MODEL}))
+        expected = sorted({
+            "character", "character/model", "character/model/1_pc", "character/model/1_pc/1_phm",
+            "character/model/1_pc/1_phm/weapon", MODEL,
+            "gamedata", "gamedata/binary__", "gamedata/binary__/client", BIN,
+        })
+        self.assertEqual([folder.path for folder in document.folders], expected)
         for folder in document.folders:
             self.assertEqual(folder.folder_hash, hashlittle(folder.path.encode("utf-8"), FOLDER_HASH_SEED))
+        by_path = {folder.path: folder for folder in document.folders}
+        self.assertEqual(by_path[BIN].count, 2)
+        self.assertEqual(by_path[MODEL].count, 1)
+        self.assertEqual(by_path["character"].count, 0, "a folder on the way down holds no file of its own")
         covered = sum(folder.count for folder in document.folders)
         self.assertEqual(covered, len(document.files))
+        # the ranges tile the file table in order, empty folders included
+        cursor = 0
+        for folder in document.folders:
+            self.assertEqual(folder.start, cursor, f"{folder.path} does not start where the last folder ended")
+            cursor += folder.count
 
     def test_payloads_sit_where_the_records_say_and_stay_aligned(self) -> None:
         built = build_overlay_archive(_files())
@@ -152,3 +176,79 @@ class PapgtTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+import pytest  # noqa: E402
+
+
+def _tables(data: bytes):
+    """The folder and file tables of a PAMT, as the reader walks them."""
+
+    _crc, paz_count, _konst = struct.unpack_from("<III", data, 0)
+    off = 12 + paz_count * 12
+    dir_size = struct.unpack_from("<I", data, off)[0]; off += 4
+    dir_block = data[off:off + dir_size]; off += dir_size
+    name_size = struct.unpack_from("<I", data, off)[0]; off += 4
+    name_block = data[off:off + name_size]; off += name_size
+    folder_count = struct.unpack_from("<I", data, off)[0]; off += 4
+    folders = [struct.unpack_from("<IIII", data, off + index * 16) for index in range(folder_count)]
+    off += folder_count * 16
+    file_count = struct.unpack_from("<I", data, off)[0]; off += 4
+    files = [struct.unpack_from("<IIIIHH", data, off + index * 20) for index in range(file_count)]
+
+    def resolve(block: bytes, offset: int) -> str:
+        parts, seen = [], set()
+        while offset != 0xFFFFFFFF and offset not in seen:
+            seen.add(offset)
+            parent = struct.unpack_from("<I", block, offset)[0]
+            length = block[offset + 4]
+            parts.append(block[offset + 5: offset + 5 + length].decode("utf-8", "replace"))
+            offset = parent
+        return "".join(reversed(parts))
+
+    return (
+        [(resolve(dir_block, record[1]) if record[1] != 0xFFFFFFFF else "", record[0], record[2], record[3]) for record in folders],
+        [(resolve(name_block, record[0]), record[2], record[3], record[5]) for record in files],
+    )
+
+
+@pytest.mark.real_game
+@pytest.mark.parametrize("directory", ["0013", "0011", "0002"])
+def test_the_writer_lays_a_shipped_archive_out_the_way_the_game_ships_it(directory: str) -> None:
+    """A shipped archive's own files, back through the overlay writer, come out with the
+    same tables the game shipped.
+
+    This is the gate that would have caught the folder table: an overlay listed only the
+    folders that held files, which read back correctly through this repository's own
+    reader and made the game refuse to start. The game walks that table as a tree, and
+    every shipped archive carries every folder on the way down -- 123 of archive 0000's
+    1,370 folder records hold no file of their own.
+    """
+
+    from cdmw.core.archive_format import parse_archive_pamt
+    from tools.placement_studio import corpus
+
+    game = Path(corpus.game_root())
+    pamt = game / directory / "0.pamt"
+    if not pamt.is_file():
+        pytest.skip(f"{directory} is not in this install")
+    payloads = (game / directory / "0.paz").read_bytes()
+    shipped_folders, shipped_files = _tables(pamt.read_bytes())
+
+    built = build_overlay_archive([
+        OverlayFile(
+            path=str(entry.path).replace("\\", "/").strip("/"),
+            payload=payloads[int(entry.offset): int(entry.offset) + int(entry.comp_size)],
+            orig_size=int(entry.orig_size),
+            flags=int(entry.flags),
+        )
+        for entry in parse_archive_pamt(pamt)
+    ])
+    ours_folders, ours_files = _tables(built.pamt_bytes)
+
+    assert [row[0] for row in ours_folders] == [row[0] for row in shipped_folders], "folder paths and their order"
+    assert [row[1] for row in ours_folders] == [row[1] for row in shipped_folders], "folder hashes"
+    assert [(row[2], row[3]) for row in ours_folders] == [(row[2], row[3]) for row in shipped_folders], "folder file ranges"
+    assert [row[0] for row in ours_files] == [row[0] for row in shipped_files], "file names and their order"
+    assert [(row[1], row[2], row[3]) for row in ours_files] == [(row[1], row[2], row[3]) for row in shipped_files], "sizes and flags"
+    assert len(built.paz_bytes) % PAZ_ALIGNMENT == 0
