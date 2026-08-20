@@ -2508,6 +2508,7 @@
     "Enables loose package output when the donor and target body family or armor slot do not match. Preview is still allowed without this.": "Permite a saída de pacotes soltos quando a família do corpo doador e alvo ou slot de armadura não coincidem. A visualização ainda é permitida sem isso.",
     "Encoding a solid _sp for {value_0} (roughness {value_1}, metalness {value_2}) -> {value_3}": "Codificando um _sp sólido para {value_0} (rugosidade {value_1}, metalicidade {value_2}) -> {value_3}",
     "Encoding a solid glow map for {value_0} -> {value_1} (BC4)": "Codificando um mapa de brilho sólido para {value_0} -> {value_1} (BC4)",
+    "Encoding a solid glow map for {value_0} -> {value_1} (BC4, {value_2} x{value_3} from the source's emissive factor)": "Codificando um mapa de brilho sólido para {value_0} -> {value_1} (BC4, {value_2} x{value_3} do fator emissivo da fonte)",
     "Encoding generated model preview icon...": "Ícone de visualização do modelo gerado de codificação...",
     "Encoding {value_0} -> {value_1} (BC1, G roughness, B metalness)": "Codificando {value_0} -> {value_1} (BC1, G rugosidade, B metal)",
     "Encoding {value_0} -> {value_1} (BC4 intensity, colour from the source)": "Codificando {value_0} -> {value_1} (BC4 intensidade, cor da fonte)",

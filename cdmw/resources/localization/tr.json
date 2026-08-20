@@ -2508,6 +2508,7 @@
     "Enables loose package output when the donor and target body family or armor slot do not match. Preview is still allowed without this.": "Donör ve hedef vücut ailesi veya zırh yuvası eşleşmediğinde gevşek paket çıktısını etkinleştirir. Bu olmadan da önizlemeye izin veriliyor.",
     "Encoding a solid _sp for {value_0} (roughness {value_1}, metalness {value_2}) -> {value_3}": "{value_0} için düz bir _sp kodlanıyor (pürüzlülük {value_1}, metaliklik {value_2}) -> {value_3}",
     "Encoding a solid glow map for {value_0} -> {value_1} (BC4)": "{value_0} için düz bir parıltı haritası kodlanıyor -> {value_1} (BC4)",
+    "Encoding a solid glow map for {value_0} -> {value_1} (BC4, {value_2} x{value_3} from the source's emissive factor)": "{value_0} için düz bir parıltı haritası kodlanıyor -> {value_1} (BC4, kaynağın emissive çarpanından {value_2} x{value_3})",
     "Encoding generated model preview icon...": "Oluşturulan model önizleme simgesi kodlanıyor...",
     "Encoding {value_0} -> {value_1} (BC1, G roughness, B metalness)": "{value_0} -> {value_1} kodlanıyor (BC1, G pürüzlülük, B metal)",
     "Encoding {value_0} -> {value_1} (BC4 intensity, colour from the source)": "{value_0} -> {value_1} kodlanıyor (BC4 yoğunluk, renk kaynaktan)",

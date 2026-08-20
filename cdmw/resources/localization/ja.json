@@ -2508,6 +2508,7 @@
     "Enables loose package output when the donor and target body family or armor slot do not match. Preview is still allowed without this.": "ドナーとターゲットのボディ ファミリまたはアーマー スロットが一致しない場合に、ルーズ パッケージの出力を有効にします。これがなくてもプレビューは可能です。",
     "Encoding a solid _sp for {value_0} (roughness {value_1}, metalness {value_2}) -> {value_3}": "{value_0} 用の単色 _sp をエンコード中（粗さ {value_1}、金属度 {value_2}）-> {value_3}",
     "Encoding a solid glow map for {value_0} -> {value_1} (BC4)": "{value_0} 用の一様な発光マップをエンコード中 -> {value_1} (BC4)",
+    "Encoding a solid glow map for {value_0} -> {value_1} (BC4, {value_2} x{value_3} from the source's emissive factor)": "{value_0} 用の一様な発光マップをエンコード中 -> {value_1}（BC4、ソースの emissive ファクターから {value_2} x{value_3}）",
     "Encoding generated model preview icon...": "生成されたモデルのプレビュー アイコンをエンコードしています...",
     "Encoding {value_0} -> {value_1} (BC1, G roughness, B metalness)": "{value_0} -> {value_1} をエンコード中（BC1、G ラフネス、B メタル）",
     "Encoding {value_0} -> {value_1} (BC4 intensity, colour from the source)": "{value_0} -> {value_1} をエンコード中（BC4 強度、色はソースから）",
