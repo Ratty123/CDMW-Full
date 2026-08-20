@@ -70,6 +70,7 @@ internal sealed partial class MeshViewport
     //: whether the effect particle layer draws. The fire an effect throws is a wall of
     //: additive sprites, and there are placements it hides the thing being placed behind.
     private bool _presentationEffectParticlesVisible = true;
+    private bool _presentationEffectParticlesPaused;
     private bool _presentationGizmoVisible = true;
     // Set once the host has named a display mode, so a package swap knows the
     // difference between "nobody has chosen yet" and "the host chose this".
@@ -285,6 +286,12 @@ internal sealed partial class MeshViewport
             MaterialDebugMode = Math.Clamp(JsonInt(display, "material_debug_mode", MaterialDebugMode), 0, 12);
             _presentationGridVisible = JsonBool(display, "grid_visible", _presentationGridVisible);
             _presentationGizmoVisible = JsonBool(display, "gizmo_visible", _presentationGizmoVisible);
+            var particlesPaused = JsonBool(display, "effect_particles_paused", _presentationEffectParticlesPaused);
+            if (particlesPaused != _presentationEffectParticlesPaused)
+            {
+                _presentationEffectParticlesPaused = particlesPaused;
+                _d3d11Viewport?.SetEffectParticlesPaused(particlesPaused);
+            }
             var particlesVisible = JsonBool(display, "effect_particles_visible", _presentationEffectParticlesVisible);
             if (particlesVisible != _presentationEffectParticlesVisible)
             {
@@ -472,6 +479,7 @@ internal sealed partial class MeshViewport
             ["presentation_fingerprint"] = _presentationStateFingerprint,
             ["grid_visible"] = _presentationGridVisible,
             ["effect_particles_visible"] = _presentationEffectParticlesVisible,
+            ["effect_particles_paused"] = _presentationEffectParticlesPaused,
             ["gizmo_visible"] = _presentationGizmoVisible,
             ["hidden_submesh_indices"] = _presentationHiddenSubmeshes.OrderBy(index => index).ToArray(),
             ["highlighted_source_indices"] = _presentationHighlightedSources.OrderBy(index => index).ToArray(),

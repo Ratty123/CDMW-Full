@@ -717,6 +717,35 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
         self._presentation_state["display"] = display
         return self._remember_presentation_state({"display": {"effect_particles_visible": bool(visible)}})
 
+    def set_effect_particles_paused(self, paused: bool) -> bool:
+        """Hold the particle simulation where it is, still drawn.
+
+        Hiding the particles answers "what is under the fire"; holding them answers "where
+        exactly is this one", which a cloud in motion never lets anyone read.
+        """
+
+        display = dict(self._presentation_state.get("display", {}))
+        display["effect_particles_paused"] = bool(paused)
+        self._presentation_state["display"] = display
+        return self._remember_presentation_state({"display": {"effect_particles_paused": bool(paused)}})
+
+    def set_viewport_backdrop(self, color: str) -> bool:
+        """This viewport's clear colour, as `#RRGGBB`.
+
+        The shipped grey is chosen for judging a material's response, where a near-black
+        clear lets dark leather melt into it. An additive effect is the other problem: its
+        fire competes with whatever is behind it, and measured against the same fire a
+        backdrop of #101014 reads 173 shades above the background where the grey reads 131.
+        Merged into whatever quality the viewport already has, so nothing else moves.
+        """
+
+        display = dict(self._presentation_state.get("display", {}))
+        quality = dict(display.get("quality", {}) or {})
+        quality["d3d11_background_color"] = str(color or "")
+        display["quality"] = quality
+        self._presentation_state["display"] = display
+        return self._remember_presentation_state({"display": {"quality": quality}})
+
     def set_alignment_state(
         self,
         *,

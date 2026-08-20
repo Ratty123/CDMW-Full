@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -79,6 +80,14 @@ internal static class PackageCaptureProof
             {
                 Console.Error.WriteLine($"viewport initialization failed: {initializeError}");
                 return 3;
+            }
+            // The default backdrop is a mid grey chosen for judging material response. An
+            // additive effect is the other problem -- its fire competes with whatever is
+            // behind it -- so a caller comparing backdrops can name one.
+            var backdrop = ValueFor(args, "--capture-background");
+            if (!string.IsNullOrWhiteSpace(backdrop) && TryParseHexColor(backdrop, out var clear))
+            {
+                viewport.ApplyPresentationSettings(new D3D11PresentationSettings { BackgroundColor = clear });
             }
             if (!string.IsNullOrWhiteSpace(mode)
                 && MeshDisplayModeState.TryResolve(mode, out var display, out _))
@@ -204,6 +213,24 @@ internal static class PackageCaptureProof
     private static bool HasFlag(string[] args, string name)
     {
         return args.Any(argument => string.Equals(argument, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool TryParseHexColor(string text, out Vector3 linear)
+    {
+        linear = default;
+        var trimmed = (text ?? string.Empty).Trim().TrimStart('#');
+        if (trimmed.Length != 6 || !int.TryParse(trimmed, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var packed))
+        {
+            return false;
+        }
+        // the render target is sRGB, so the clear colour goes in linear
+        static float ToLinear(float channel) =>
+            channel <= 0.04045f ? channel / 12.92f : MathF.Pow((channel + 0.055f) / 1.055f, 2.4f);
+        linear = new Vector3(
+            ToLinear(((packed >> 16) & 0xFF) / 255.0f),
+            ToLinear(((packed >> 8) & 0xFF) / 255.0f),
+            ToLinear((packed & 0xFF) / 255.0f));
+        return true;
     }
 
     private static string ValueFor(string[] args, string name)
