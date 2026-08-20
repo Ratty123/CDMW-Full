@@ -39,6 +39,7 @@ __all__ = [
     "anchor_mesh",
     "build_effect_placement_package",
     "framing_bounds_for",
+    "mesh_names_textures",
     "next_scale",
     "write_effect_preview",
 ]
@@ -497,6 +498,22 @@ def write_effect_preview(
     target = Path(package_dir) / EFFECT_PREVIEW_FILE
     target.write_text(json.dumps(payload, indent=1), encoding="utf-8")
     return target, tuple(missing)
+
+
+#: Where a submesh can name the texture it draws with. `texture` is the name a `.pac`
+#: family carries; an imported model binds its own files through the preview attributes
+#: instead, and a check that read only the first found none and drew the item flat grey.
+_TEXTURE_ATTRIBUTES = ("texture", "preview_texture_path", "preview_texture_dds_path")
+
+
+def mesh_names_textures(mesh: object) -> bool:
+    """Whether any submesh of `mesh` names a texture to draw with."""
+
+    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+        for attribute in _TEXTURE_ATTRIBUTES:
+            if str(getattr(submesh, attribute, "") or "").strip():
+                return True
+    return False
 
 
 def anchor_radius_for(item_mesh: ParsedMesh) -> float:

@@ -405,7 +405,9 @@ class NewItemStudioController(QObject):
             mesh = parsed_mesh_from_model_preview(model)
         except Exception:  # noqa: BLE001 - the bare geometry still places an effect
             return None
-        return mesh if any(str(getattr(part, "texture", "") or "").strip() for part in mesh.submeshes) else None
+        from cdmw.services.effect_placement_preview import mesh_names_textures
+
+        return mesh if mesh_names_textures(mesh) else None
 
     def item_mesh_for_preview(self):
         """The item's mesh as it will be: the imported model, else the template's own.
