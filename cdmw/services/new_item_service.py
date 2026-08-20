@@ -42,7 +42,11 @@ GAME_EXECUTABLE = "CrimsonDesert.exe"
 #: The loose-mod layouts the Placement Studio's golden packages established, by manager.
 LOOSE_EXPORT_PROFILES: Mapping[str, Mapping[str, object]] = {
     "CDUMM": {"manager_targets": ("cdumm",), "structure": "files_wrapper", "create_manifest_json": True, "create_modinfo_json": True, "create_no_encrypt_file": True, "create_mod_json": False, "kind": "archive_loose_mod"},
-    "DMM": {"manager_targets": ("dmm",), "structure": "game_relative", "create_manifest_json": True, "create_modinfo_json": True, "create_no_encrypt_file": False, "create_mod_json": False, "kind": "archive_loose_mod"},
+    # DMM mounts a prebuilt archive group rather than routing loose table files: its own
+    # mount summary counts mods as JSON, browser/file, standalone-overlay or group-replace,
+    # and a six-megabyte iteminfo.pabgb belongs to the last two. `archive_group` writes
+    # what it mounts.
+    "DMM": {"manager_targets": ("dmm",), "structure": "archive_group", "create_manifest_json": True, "create_modinfo_json": True, "create_no_encrypt_file": False, "create_mod_json": False, "kind": "archive_override_mod"},
     "JMM": {"manager_targets": ("jmm",), "structure": "game_relative", "create_manifest_json": False, "create_modinfo_json": False, "create_no_encrypt_file": False, "create_mod_json": False, "kind": "loose_mod"},
 }
 
@@ -235,6 +239,8 @@ class NewItemService:
             raise ValueError(f"Unknown loose-mod manager profile {manager!r}; one of {', '.join(LOOSE_EXPORT_PROFILES)}")
         root = Path(package_root)
         root.mkdir(parents=True, exist_ok=True)
+        if str((profile or {}).get("structure") or "") == "archive_group" and options is None:
+            return self._export_archive_group(plan, root, manager=manager, package_info=package_info, created_utc=created_utc)
         payload_paths = []
         for game_path, data in sorted(plan.loose_files.items()):
             raise_if_cancelled(stop_event, "New item export cancelled.")
@@ -264,6 +270,44 @@ class NewItemService:
         return NewItemExportResult(
             package_root=root, manager=str(manager or "").upper() or "custom",
             payload_paths=tuple(payload_paths), new_paths=tuple(plan.new_paths), metadata_files=metadata,
+        )
+
+    def _export_archive_group(
+        self,
+        plan: NewItemPlan,
+        root: Path,
+        *,
+        manager: str,
+        package_info: Optional[ModPackageInfo] = None,
+        created_utc: Optional[str] = None,
+    ) -> NewItemExportResult:
+        """The mod folder as an archive group: what a manager that mounts groups reads."""
+
+        from cdmw.services.new_item_overlay_export import export_overlay_mod
+
+        info = package_info or ModPackageInfo(
+            title=f"New item {plan.spec.internal_name}",
+            description=f"Adds {plan.spec.internal_name} (item {plan.spec.item_key}) cloned from item {plan.spec.template_key}.",
+        )
+        try:
+            game_root = _package_root_of(plan)
+        except NewItemInstallRefused:
+            game_root = None
+        written = export_overlay_mod(
+            plan, root,
+            title=str(getattr(info, "title", "") or ""),
+            description=str(getattr(info, "description", "") or ""),
+            author=str(getattr(info, "author", "") or ""),
+            version=str(getattr(info, "version", "") or "1.0.0"),
+            created_utc=str(created_utc or ""),
+            game_root=game_root,
+        )
+        return NewItemExportResult(
+            package_root=root,
+            manager=str(manager or "").upper() or "custom",
+            payload_paths=written.paths,
+            new_paths=tuple(plan.new_paths),
+            metadata_files=tuple(sorted(written.metadata_files)),
         )
 
     def install(

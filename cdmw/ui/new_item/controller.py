@@ -60,6 +60,10 @@ class NewItemStudioController(QObject):
         self._read_entry = read_entry
         self._synchronous = bool(synchronous)
         self.snapshot: Optional[NewItemSnapshot] = None
+        #: A mod folder to plan on top of, so a second item joins the first one's tables
+        #: instead of replacing them. None plans against the archives.
+        self.mod_base_folder: Optional[Path] = None
+        self._mod_base_cache: tuple = ()
         self.draft = NewItemDraft()
         self.plan: Optional[NewItemPlan] = None
         self.model_result: object | None = None
@@ -835,6 +839,42 @@ class NewItemStudioController(QObject):
         except Exception:  # noqa: BLE001 - remembering is best effort; this session's set still holds
             pass
 
+    def set_mod_base(self, folder: Optional[Path]) -> str:
+        """Plan the next item on the tables in `folder` rather than on the archives.
+
+        Returns what is in the folder, for the panel to show; an empty string when there
+        is nothing there to build on. The plan is dropped either way, since what it would
+        be built from has changed.
+        """
+
+        from cdmw.services.new_item_mod_base import describe_mod_folder, mod_folder_payloads
+
+        chosen = Path(folder) if folder else None
+        if chosen is not None and not mod_folder_payloads(chosen):
+            chosen = None
+        if chosen != self.mod_base_folder:
+            self.plan = None
+        self.mod_base_folder = chosen
+        self._mod_base_cache = ()
+        return describe_mod_folder(chosen) if chosen is not None else ""
+
+    def planning_snapshot(self) -> Optional[NewItemSnapshot]:
+        """The tables the next item is planned against: the archives, or the archives with
+        a mod folder's own copies read in its place."""
+
+        if self.snapshot is None or self.mod_base_folder is None or self._read_entry is None:
+            return self.snapshot
+        from cdmw.services.new_item_mod_base import mod_folder_payloads, read_entry_over_mod_folder
+
+        payloads = mod_folder_payloads(self.mod_base_folder)
+        stamp = tuple(sorted((key, path.stat().st_mtime_ns, path.stat().st_size) for key, path in payloads.items()))
+        if self._mod_base_cache and self._mod_base_cache[0] == stamp:
+            return self._mod_base_cache[1]
+        reader = read_entry_over_mod_folder(self._read_entry, payloads)
+        built = self.service.build_snapshot(tuple(self.snapshot.entries.values()), read_entry=reader)
+        self._mod_base_cache = (stamp, built)
+        return built
+
     def start_plan(self) -> bool:
         self.plan = None
         if self.snapshot is None:
@@ -845,7 +885,14 @@ class NewItemStudioController(QObject):
         except ValueError as exc:
             self.plan_failed.emit(str(exc), ())
             return False
-        issues = self.service.validate(spec, self.snapshot)
+        # the tables the item is built on: the archives, or a mod folder's own copies of
+        # them, so a second item joins the first one's rows instead of replacing them
+        try:
+            base = self.planning_snapshot() or self.snapshot
+        except (OSError, ValueError) as exc:
+            self.plan_failed.emit(f"The mod folder could not be read as a base: {exc}", ())
+            return False
+        issues = self.service.validate(spec, base)
         if has_errors(issues):
             self.plan_failed.emit("; ".join(issue.message for issue in issues if issue.is_error), issues)
             return False
@@ -857,7 +904,7 @@ class NewItemStudioController(QObject):
                 self.plan_failed.emit(str(exc), ())
                 return False
         task = plan_task(
-            spec, self.snapshot, service=self.service, model=self.model_result, scene=self.model_scene,
+            spec, base, service=self.service, model=self.model_result, scene=self.model_scene,
             icon_source_path=icon_source, reserved_keys=tuple(self.issued_keys), reserved_stems=tuple(self.issued_stems),
         )
 
