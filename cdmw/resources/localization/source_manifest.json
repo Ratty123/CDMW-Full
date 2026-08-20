@@ -53001,7 +53001,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 184,
+          "line": 186,
           "sink": "on_log"
         }
       ]
@@ -70262,22 +70262,22 @@
       ]
     },
     {
-      "key": "Put {value_0} back to the copy the workbench first saw ({value_1}).",
-      "origins": [
-        {
-          "path": "cdmw/services/archive_overlay_migration.py",
-          "line": 307,
-          "sink": "on_log"
-        }
-      ]
-    },
-    {
       "key": "Put {value_0} back to the value in the file.",
       "origins": [
         {
           "path": "cdmw/ui/archive_browser/prefab_inspector_editing.py",
           "line": 230,
           "sink": "_log"
+        }
+      ]
+    },
+    {
+      "key": "Put {value_0} back to what it was before the overlay.",
+      "origins": [
+        {
+          "path": "cdmw/services/archive_overlay_migration.py",
+          "line": 307,
+          "sink": "on_log"
         }
       ]
     },
@@ -104126,7 +104126,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 179,
+          "line": 181,
           "sink": "on_log"
         }
       ]
@@ -104176,7 +104176,7 @@
       "origins": [
         {
           "path": "cdmw/services/archive_overlay_install.py",
-          "line": 173,
+          "line": 175,
           "sink": "on_log"
         }
       ]

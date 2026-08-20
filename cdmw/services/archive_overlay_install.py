@@ -166,6 +166,8 @@ def install_overlay(
         if on_log is not None:
             on_log(f"Backup created: {backup_dir}")
 
+    for relative, _payload in metas:
+        remember_overlay_baseline(root, relative)
     directory.mkdir(parents=True, exist_ok=True)
     _write_atomic(directory / "0.paz", built.paz_bytes)
     _write_atomic(directory / "0.pamt", built.pamt_bytes)
@@ -191,6 +193,59 @@ def install_overlay(
         backup_dir=backup_dir,
         paths=tuple(sorted(files)),
     )
+
+
+def overlay_baseline_dir(package_root: Path) -> Path:
+    """Where the workbench keeps the loose files an overlay overwrote, per install.
+
+    `meta/0.pathc` is a loose file beside the archives rather than an entry inside one, so
+    an overlay has nowhere to write it except in place, and removing the overlay has to put
+    it back. The copy has to be the one from before the overlay existed: the workbench's
+    own backup folders are not that, since the oldest of them is only as old as the first
+    time this workbench touched the file, which may already have been a modified one.
+    """
+
+    import hashlib
+
+    from cdmw.core.archive_patching import ARCHIVE_PATCH_BACKUP_ROOT
+
+    fingerprint = hashlib.sha256(str(Path(package_root).resolve()).lower().encode("utf-8")).hexdigest()[:16]
+    return Path(ARCHIVE_PATCH_BACKUP_ROOT).parent / "overlay_baseline" / fingerprint
+
+
+def remember_overlay_baseline(package_root: Path, relative: str) -> Optional[Path]:
+    """Keep the file at `relative` as it is now, unless it is already kept. First write
+    wins: what matters is the state before the overlay, not before the latest install."""
+
+    root = Path(package_root)
+    source = root / relative
+    target = overlay_baseline_dir(root) / relative
+    if target.is_file() or not source.is_file():
+        return target if target.is_file() else None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    _write_atomic(target, source.read_bytes())
+    return target
+
+
+def overlay_baseline_files(package_root: Path) -> Dict[str, Path]:
+    """`{path relative to the package root: the copy from before the overlay}`."""
+
+    base = overlay_baseline_dir(package_root)
+    if not base.is_dir():
+        return {}
+    return {
+        path.relative_to(base).as_posix(): path
+        for path in sorted(base.rglob("*"))
+        if path.is_file()
+    }
+
+
+def forget_overlay_baseline(package_root: Path) -> None:
+    """Drop the kept copies; the overlay they belonged to is gone."""
+
+    import shutil
+
+    shutil.rmtree(overlay_baseline_dir(package_root), ignore_errors=True)
 
 
 def _write_atomic(path: Path, payload: bytes) -> None:

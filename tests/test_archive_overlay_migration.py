@@ -119,20 +119,32 @@ class MigrationTests(unittest.TestCase):
         shipped = b"the shipped texture registry" * 8
         registry.write_bytes(shipped)
 
-        mutations = ArchiveMutationService()
-        self._patch_the_old_way(b"a patched table")
-        result = migrate_into_overlay(
-            self.root, plan=plan_migration(self.root),
-            backup=lambda paths, description: mutations.backup_files(list(paths) + [registry], description=description),
-        )
-        registry.write_bytes(shipped + b" plus an overlay item's textures")
-        self.assertNotEqual(registry.read_bytes(), shipped)
+        from cdmw.core.archive_extraction import read_archive_entry_data as _read_entry
+        from cdmw.domain.archives.mutation import ArchivePatchRequest as _Patch
+        from cdmw.services.archive_overlay_install import forget_overlay_baseline, install_overlay, overlay_baseline_files
 
-        removal = remove_overlay(self.root, backup=lambda paths, description: mutations.backup_files(paths, description=description))
+        self.addCleanup(forget_overlay_baseline, self.root)
+        forget_overlay_baseline(self.root)
+        entry = {item.path: item for item in parse_archive_pamt(self.pamt)}[f"{BIN}/iteminfo.pabgb"]
+        install_overlay(
+            [_Patch(entry, b"an overlay table")], (), package_root=self.root,
+            meta_files=[("meta/0.pathc", shipped + b" plus an overlay item's textures")],
+        )
+        self.assertEqual(registry.read_bytes(), shipped + b" plus an overlay item's textures")
+        self.assertEqual(sorted(overlay_baseline_files(self.root)), ["meta/0.pathc"], "the install kept the copy from before it")
+
+        # a second install must not move the recorded copy on: it is the state before the
+        # overlay, not before the latest install
+        install_overlay(
+            [_Patch(entry, b"an overlay table, again")], (), package_root=self.root,
+            meta_files=[("meta/0.pathc", shipped + b" and a second item's")],
+        )
+
+        removal = remove_overlay(self.root)
         self.assertTrue(removal.unmounted)
-        self.assertEqual(registry.read_bytes(), shipped, "the registry is the one the game shipped again")
+        self.assertEqual(registry.read_bytes(), shipped, "the registry is the one from before the overlay again")
         self.assertEqual(removal.restored_meta, ("meta/0.pathc",))
-        self.assertTrue(result.directory is not None)
+        self.assertEqual(overlay_baseline_files(self.root), {}, "the record goes with the overlay")
 
     def test_removing_when_there_is_no_overlay_says_so(self) -> None:
         removal = remove_overlay(self.root)
