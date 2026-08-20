@@ -131,6 +131,11 @@ def _strut(start: Vec3, end: Vec3, half: float, vertices: list, normals: list, u
         faces.append((base, base + 2, base + 3))
 
 
+#: How much of each edge a corner bracket keeps. An eighth from each end leaves a quarter
+#: of the box drawn and every corner stated twice over, once along each axis meeting there.
+_REACH_CORNER_FRACTION = 0.125
+
+
 def reach_cage_mesh(box_min: Vec3, box_max: Vec3, *, name: str = EFFECT_REACH_SUBMESH) -> ParsedMesh:
     """The effect's reach as twelve thin bars along the edges of its bounding box: an
     outline the reader can see through, drawn at scale 1.0 in the effect's own frame, so
@@ -144,21 +149,33 @@ def reach_cage_mesh(box_min: Vec3, box_max: Vec3, *, name: str = EFFECT_REACH_SU
             centre = (high[axis] + low[axis]) / 2.0
             low[axis], high[axis] = centre - _MIN_EXTENT / 2.0, centre + _MIN_EXTENT / 2.0
     span = max(high[axis] - low[axis] for axis in range(3))
-    thickness = max(0.004, span * 0.004)
+    thickness = max(0.003, span * 0.003)
     vertices: list[Vec3] = []
     normals: list[Vec3] = []
     uvs: list[Tuple[float, float]] = []
     faces: list[Tuple[int, int, int]] = []
     for axis in range(3):
         other = [index for index in range(3) if index != axis]
+        length = high[axis] - low[axis]
+        # Corner brackets, not whole edges. Twelve full bars around a boss effect's reach
+        # is a cage the item sits inside and the reader looks through; the same box drawn
+        # as eight corners says where it ends with a fraction of the ink, which is what
+        # the frame is for. Short reaches keep more of each edge so the shape still reads.
+        bracket = max(_MIN_EXTENT, length * _REACH_CORNER_FRACTION)
         for first in (low[other[0]], high[other[0]]):
             for second in (low[other[1]], high[other[1]]):
-                bar_low = [0.0, 0.0, 0.0]
-                bar_high = [0.0, 0.0, 0.0]
-                bar_low[axis], bar_high[axis] = low[axis], high[axis]
-                bar_low[other[0]], bar_high[other[0]] = first - thickness, first + thickness
-                bar_low[other[1]], bar_high[other[1]] = second - thickness, second + thickness
-                _bar(tuple(bar_low), tuple(bar_high), vertices, normals, uvs, faces)  # type: ignore[arg-type]
+                for span_low, span_high in (
+                    (low[axis], min(high[axis], low[axis] + bracket)),
+                    (max(low[axis], high[axis] - bracket), high[axis]),
+                ):
+                    if span_high - span_low <= 0.0:
+                        continue
+                    bar_low = [0.0, 0.0, 0.0]
+                    bar_high = [0.0, 0.0, 0.0]
+                    bar_low[axis], bar_high[axis] = span_low, span_high
+                    bar_low[other[0]], bar_high[other[0]] = first - thickness, first + thickness
+                    bar_low[other[1]], bar_high[other[1]] = second - thickness, second + thickness
+                    _bar(tuple(bar_low), tuple(bar_high), vertices, normals, uvs, faces)  # type: ignore[arg-type]
     submesh = SubMesh(
         name=name, material=EFFECT_REACH_MATERIAL, vertices=vertices, uvs=uvs, normals=normals, faces=faces,
         vertex_count=len(vertices), face_count=len(faces),
@@ -290,7 +307,11 @@ def next_scale(current: float, delta: Sequence[float]) -> float:
 #: the anchor's colour: orange, opaque, so it reads as a handle and not as part of the item
 ANCHOR_TINT = (1.0, 0.45, 0.1)
 #: the reach cage's colour: the same family, dimmer, so it reads as a frame around the effect
-REACH_TINT = (0.55, 0.3, 0.1)
+#: The reach frame is not the anchor and must not read as it: a dimmer shade of the same
+#: orange left the reader asking which of the two orange things they were meant to drag,
+#: and it competed with the particles, which are warm by nature. A cool blue is none of
+#: those things.
+REACH_TINT = (0.28, 0.52, 0.78)
 #: the item's colour: a light neutral, because the package builder leaves its materials
 #: without a texture or a base colour and the renderer draws that as a black body
 ITEM_TINT = (0.62, 0.64, 0.67)
