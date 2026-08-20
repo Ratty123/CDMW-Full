@@ -299,12 +299,15 @@ def remove_overlay(
         if on_log is not None:
             on_log(f"Deleted {name} ({removed} file(s)).")
     restored: List[str] = []
-    for target, oldest in sorted(stale_meta.items()):
-        _write_atomic_meta(target, oldest.read_bytes())
+    for target, kept in sorted(stale_meta.items()):
+        _write_atomic_meta(target, kept.read_bytes())
         relative = target.relative_to(root).as_posix()
         restored.append(relative)
         if on_log is not None:
-            on_log(f"Put {relative} back to the copy the workbench first saw ({oldest.parent.name}).")
+            on_log(f"Put {relative} back to what it was before the overlay.")
+    from cdmw.services.archive_overlay_install import forget_overlay_baseline
+
+    forget_overlay_baseline(root)
     return RemovalResult(
         directory=directory, unmounted=True, removed_files=removed, backup_dir=backup_dir,
         restored_meta=tuple(restored),
@@ -318,31 +321,22 @@ def _write_atomic_meta(path: Path, payload: bytes) -> None:
 
 
 def _meta_to_restore(root: Path, *, backups: Optional[Sequence[Path]] = None) -> Dict[Path, Path]:
-    """`{loose file beside the archives: its oldest backup copy}` for the ones that differ.
+    """`{loose file beside the archives: the copy from before the overlay}` for the ones
+    that differ, as the install recorded them.
 
-    An overlay install rewrites `meta/0.pathc` (the texture registry) in place, because the
-    registry is a loose file rather than an archive entry: there is no overlay for it to
-    live in. Taking the overlay away therefore has to put that file back, or the game keeps
-    a registry naming textures that went with the directory. The oldest copy is the state
-    before this workbench touched it at all, which is the same rule the move into the
-    overlay uses for the archives themselves.
+    Not the workbench's backup folders: the oldest of those is only as old as the first
+    time this workbench touched the file, which may already have been a modified one, and
+    restoring from it would write a stale registry over a good one.
     """
 
-    from cdmw.core.archive_patching import list_archive_patch_backups
+    from cdmw.services.archive_overlay_install import overlay_baseline_files
 
-    try:
-        known = list(backups) if backups is not None else list(list_archive_patch_backups())
-        copies, _used = _oldest_copies(known)
-    except Exception:  # noqa: BLE001 - a removal must not fail over a backup that cannot be read
-        return {}
-    meta = root / "meta"
     out: Dict[Path, Path] = {}
-    for original, oldest in copies.items():
+    for relative, kept in overlay_baseline_files(root).items():
+        target = root / relative
         try:
-            if original.parent != meta or original.name.lower() == "0.papgt" or not original.is_file():
-                continue
-            if original.read_bytes() != oldest.read_bytes():
-                out[original] = oldest
+            if target.is_file() and target.read_bytes() != kept.read_bytes():
+                out[target] = kept
         except OSError:
             continue
     return out
