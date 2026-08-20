@@ -107,6 +107,33 @@ class MigrationTests(unittest.TestCase):
         self.assertIn("0009", mounted, "the shipped directory stays mounted")
         self.assertEqual(self._payload(f"{BIN}/iteminfo.pabgb"), synthetic_files()[f"{BIN}/iteminfo.pabgb"], "the shipped table answers again")
 
+    def test_removing_the_overlay_puts_the_texture_registry_back(self) -> None:
+        """`meta/0.pathc` is a loose file beside the archives, not an entry inside one, so
+        an overlay install rewrites it in place: there is nowhere else for it to go. Taking
+        the overlay away has to put it back, or the game keeps a registry naming the
+        textures that went with the directory."""
+
+        from cdmw.services.archive_mutation_service import ArchiveMutationService
+
+        registry = self.root / "meta" / "0.pathc"
+        shipped = b"the shipped texture registry" * 8
+        registry.write_bytes(shipped)
+
+        mutations = ArchiveMutationService()
+        self._patch_the_old_way(b"a patched table")
+        result = migrate_into_overlay(
+            self.root, plan=plan_migration(self.root),
+            backup=lambda paths, description: mutations.backup_files(list(paths) + [registry], description=description),
+        )
+        registry.write_bytes(shipped + b" plus an overlay item's textures")
+        self.assertNotEqual(registry.read_bytes(), shipped)
+
+        removal = remove_overlay(self.root, backup=lambda paths, description: mutations.backup_files(paths, description=description))
+        self.assertTrue(removal.unmounted)
+        self.assertEqual(registry.read_bytes(), shipped, "the registry is the one the game shipped again")
+        self.assertEqual(removal.restored_meta, ("meta/0.pathc",))
+        self.assertTrue(result.directory is not None)
+
     def test_removing_when_there_is_no_overlay_says_so(self) -> None:
         removal = remove_overlay(self.root)
         self.assertFalse(removal.unmounted)
