@@ -7893,7 +7893,7 @@
     "The model decoder completed, but no canonical .NET/Vortice package was published. The legacy renderer is not used as a fallback.": "Der Modelldecoder wurde abgeschlossen, aber es wurde kein kanonisches .NET/Vortice-Paket veröffentlicht. Der Legacy-Renderer wird nicht als Fallback verwendet.",
     "The model import finished with an unexpected result.": "Der Modellimport endete mit einem unerwarteten Ergebnis.",
     "The model starts at its fit to the template; the gizmo and the numbers move it from there (origin = the hand, blade toward -z). Apply the placement builds the item's mesh from it.": "Das Modell beginnt an seiner Anpassung an die Vorlage; Gizmo und Zahlen bewegen es von dort (Ursprung = die Hand, Klinge nach -z). Platzierung anwenden baut daraus das Mesh des Gegenstands.",
-    "The model's material parts could not be read: {value_0}": "Die Materialteile des Modells konnten nicht gelesen werden: {value_0}",
+    "The model's materials could not be read: {value_0}": "Die Materialien des Modells konnten nicht gelesen werden: {value_0}",
     "The move was cancelled before anything was written.": "Das Verschieben wurde abgebrochen, bevor etwas geschrieben wurde.",
     "The move was cancelled while restoring.": "Das Verschieben wurde beim Wiederherstellen abgebrochen.",
     "The move was not applied": "Der Verschiebevorgang wurde nicht angewendet",

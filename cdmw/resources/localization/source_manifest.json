@@ -29646,7 +29646,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 367,
+          "line": 368,
           "sink": "on_log"
         }
       ]
@@ -29656,7 +29656,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 410,
+          "line": 414,
           "sink": "on_log"
         }
       ]
@@ -29666,7 +29666,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 397,
+          "line": 401,
           "sink": "on_log"
         }
       ]
@@ -29691,7 +29691,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 357,
+          "line": 358,
           "sink": "on_log"
         }
       ]
@@ -29701,7 +29701,7 @@
       "origins": [
         {
           "path": "cdmw/services/new_item_materials.py",
-          "line": 433,
+          "line": 437,
           "sink": "on_log"
         }
       ]
@@ -94852,11 +94852,11 @@
       ]
     },
     {
-      "key": "The model's material parts could not be read: {value_0}",
+      "key": "The model's materials could not be read: {value_0}",
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 624,
+          "line": 623,
           "sink": "emit"
         }
       ]

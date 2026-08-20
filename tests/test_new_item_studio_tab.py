@@ -896,6 +896,13 @@ class TabTests(unittest.TestCase):
             baked_preview_mesh=lambda: mesh("frostmourne_basecolor.png"),
             baked_scene_mesh=lambda: mesh(""),
             baked_bounds=lambda: ((0.0, 0.0, 0.0), (0.1, 0.1, 0.0)),
+            # the materials the file itself declares, which is what a glow is chosen by
+            scene=SimpleNamespace(material_bindings=(
+                SimpleNamespace(material_name="lambert1"),
+                SimpleNamespace(material_name="Inside"),
+                SimpleNamespace(material_name="Inside"),
+                SimpleNamespace(material_name="Outside"),
+            )),
         )
         planned, kind = controller.item_mesh_as_planned()
         self.assertEqual(kind, "placed")
@@ -904,24 +911,22 @@ class TabTests(unittest.TestCase):
             "the effect viewport gets the textured decode, not the bare geometry",
         )
 
-        # and the parts are read, under the template's names until the result can rename
-        # them. The synthetic family here carries no .pac_xml, so what is asserted is the
-        # gate that was wrong: it waited for the Builder result and listed nothing at all.
-        with patch(
-            "cdmw.services.new_item_materials.material_part_names",
-            return_value=(("cd_phm_02_sword_0040", "cd_phm_02_sword_0040"),),
-        ) as reader:
-            self.assertEqual(controller.material_parts(), (("cd_phm_02_sword_0040", "cd_phm_02_sword_0040"),))
-        self.assertTrue(reader.called, "the parts are read before Apply, not after it")
+        # the parts are the model's own materials, in the order the file declares them and
+        # each one once. The template's parts are never among them: `cd_phm_02_hammer_sub_0002`
+        # is not a thing the reader can act on, and it is not theirs to light either.
+        self.assertEqual(
+            controller.material_parts(),
+            (("lambert1", "lambert1"), ("Inside", "Inside"), ("Outside", "Outside")),
+        )
 
         # and the step fills its list when the file is read, not when Apply runs: the
-        # result only exists after Apply, so listening for that alone left it empty
+        # Builder result only exists after Apply, and listening for that alone left it empty
         panel = tab.model_panel
         panel.glow_parts.clear()
-        controller.material_parts = lambda: (("cd_phm_02_sword_0040", "blade"),)  # type: ignore[method-assign]
         controller.model_import_changed.emit(controller.model_import)
         self.assertEqual(
-            [panel.glow_parts.item(row).text() for row in range(panel.glow_parts.count())], ["blade"],
+            [panel.glow_parts.item(row).text() for row in range(panel.glow_parts.count())],
+            ["lambert1", "Inside", "Outside"],
             "importing a model fills the parts list",
         )
         tab.close()

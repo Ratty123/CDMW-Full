@@ -7893,7 +7893,7 @@
     "The model decoder completed, but no canonical .NET/Vortice package was published. The legacy renderer is not used as a fallback.": "模型解碼器已完成，但沒有發布規範的 .NET/Vortice 套件。舊版渲染器不用作後備。",
     "The model import finished with an unexpected result.": "模型匯入以意外結果結束。",
     "The model starts at its fit to the template; the gizmo and the numbers move it from there (origin = the hand, blade toward -z). Apply the placement builds the item's mesh from it.": "模型從貼合範本的狀態開始；操縱桿和數字從那裡移動它（原點 = 手，刀刃朝 -z）。「套用放置」據此建置物品網格。",
-    "The model's material parts could not be read: {value_0}": "無法讀取模型的材質部件：{value_0}",
+    "The model's materials could not be read: {value_0}": "無法讀取模型的材質：{value_0}",
     "The move was cancelled before anything was written.": "移動在寫入任何內容之前被取消。",
     "The move was cancelled while restoring.": "移動在還原過程中被取消。",
     "The move was not applied": "移動未被套用",

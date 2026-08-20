@@ -7893,7 +7893,7 @@
     "The model decoder completed, but no canonical .NET/Vortice package was published. The legacy renderer is not used as a fallback.": "Декодер модели завершен, но канонический пакет .NET/Vortice опубликован не был. Устаревший модуль визуализации не используется в качестве запасного варианта.",
     "The model import finished with an unexpected result.": "Импорт модели завершился неожиданным результатом.",
     "The model starts at its fit to the template; the gizmo and the numbers move it from there (origin = the hand, blade toward -z). Apply the placement builds the item's mesh from it.": "Модель начинает с подгонки под шаблон; гизмо и числа двигают её оттуда (начало координат = рука, клинок к -z). Применить размещение строит из этого сетку предмета.",
-    "The model's material parts could not be read: {value_0}": "Материальные части модели не удалось прочитать: {value_0}",
+    "The model's materials could not be read: {value_0}": "Материалы модели не удалось прочитать: {value_0}",
     "The move was cancelled before anything was written.": "Перенос отменён до того, как что-либо было записано.",
     "The move was cancelled while restoring.": "Перенос отменён во время восстановления.",
     "The move was not applied": "Перемещение не применено",

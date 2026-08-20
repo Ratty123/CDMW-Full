@@ -302,7 +302,8 @@ def route_plain_pbr(
     mask.
 
     Glow is not inherited. Its emissive is encoded from `sources[submesh].emissive` when
-    the model brought one; else, for a submesh named in `glow.parts`, a solid map in
+    the model brought one; else, for a submesh whose own name or whose source material's
+    name is in `glow.parts`, a solid map in
     `glow`'s colour and strength; else nothing, and the wrapper goes back to the plain
     shader. The template's own emissive rides on a mask cut for the template's mesh, and
     what the importer generates in its place is flat, so inheriting it lights the whole
@@ -381,7 +382,10 @@ def route_plain_pbr(
             intensity = float(wrapper.value("_emissiveIntensity") or 1.0)
         except ValueError:
             intensity = 1.0
-        wants_glow = wrapper.submesh_name.casefold() in glow_parts
+        # by the source material the reader picked, or by the wrapper name a caller used
+        wants_glow = wrapper.submesh_name.casefold() in glow_parts or (
+            source is not None and str(source.name or "").casefold() in glow_parts
+        )
         factor_glow = (
             source is not None and source.emissive is None
             and bool(source.emissive_color) and source.emissive_intensity > 0.0
@@ -480,49 +484,6 @@ def route_plain_pbr(
     )
 
 
-def material_part_names(
-    snapshot,
-    item_key: int,
-    *,
-    result: object = None,
-    scene: object = None,
-) -> Tuple[Tuple[str, str], ...]:
-    """The material parts a glow can be chosen by: `(name, label)`, in file order.
-
-    `name` is what a `.pac_xml` keys its material wrapper by, which is the template's own
-    submesh name and the only thing the game's emissive is per. `label` is what to call it
-    on screen: with an imported model that is the source material the part draws with,
-    because "cd_phm_02_sword_handle_0040" is the template's word for a part that is now
-    the reader's own.
-
-    With `result` and `scene` from an import, only the parts that import owns are listed.
-    The others are not the reader's to light: the plain-PBR route rewrites a wrapper only
-    when the import owns one of its textures, so ticking one of them would do nothing.
-    """
-
-    from cdmw.core.pac_xml_standard_material import find_material_wrappers
-
-    sources = source_materials_from_import(result, scene) if result is not None and scene is not None else {}
-    family = snapshot.family(int(item_key))
-    for file in tuple(getattr(family, "files", ()) or ()):
-        path = str(getattr(file, "path", "") or "")
-        if not path.lower().endswith(".pac_xml") or not getattr(file, "exists", False):
-            continue
-        text = snapshot.payload(path).decode("utf-8-sig", "replace")
-        parts = []
-        for wrapper in find_material_wrappers(text):
-            name = str(wrapper.submesh_name or "")
-            if not name:
-                continue
-            source = sources.get(name.casefold())
-            if sources and source is None:
-                continue
-            parts.append((name, str(getattr(source, "name", "") or "") or name))
-        if parts:
-            return tuple(parts)
-    return ()
-
-
 def route_model_files(
     files: ModelFiles,
     route: MaterialRoute,
@@ -548,7 +509,6 @@ def route_model_files(
 __all__ = [
     "PlainPbrRoute",
     "encode_emissive_solid",
-    "material_part_names",
     "SourceMaterialTextures",
     "encode_emissive_from_png",
     "encode_sp_from_factors",

@@ -597,32 +597,32 @@ class NewItemStudioController(QObject):
         return held
 
     def material_parts(self) -> Tuple[Tuple[str, str], ...]:
-        """The item's material parts as `(name, label)`, for choosing which ones glow.
+        """The imported model's own materials, for choosing which of them glow.
 
-        `name` is what the `.pac_xml` keys the wrapper by; `label` is the imported model's
-        own material name, because the template's word for a part is not the reader's.
+        The reader's materials, never the template's: `Inside` and `Outside` are words
+        they can act on and `cd_phm_02_hammer_sub_0002` is not, and the template's parts
+        are not theirs to light in any case. They are in the scene the importer read, so
+        they are here from the moment the file is chosen rather than after Apply.
+
         Empty without an imported model: the route that writes a glow runs only for one.
         """
 
-        snapshot, template = self.snapshot, self.draft.template_key
-        # Before Apply the placement there is no Builder result, so nothing says which
-        # wrapper each of the reader's materials lands on -- but the parts are still
-        # there to tick, under the template's names for them until the result arrives.
-        model = self.model_result if self.model_result is not None else self.model_import
-        if snapshot is None or template is None or model is None:
+        source = self.model_import
+        if source is None:
             return ()
-        stamp = (template, id(model))
+        stamp = (id(source),)
         if self._material_parts and self._material_parts[0] == stamp:
             return self._material_parts[1]
-        from cdmw.services.new_item_materials import material_part_names
-
+        names: list = []
         try:
-            parts = material_part_names(
-                snapshot, int(template), result=self.model_result, scene=self.model_scene
-            )
+            for binding in tuple(getattr(getattr(source, "scene", None), "material_bindings", ()) or ()):
+                name = str(getattr(binding, "material_name", "") or "").strip()
+                if name and name not in names:
+                    names.append(name)
         except Exception as exc:  # noqa: BLE001 - no list is a smaller loss than no step
-            self.log_message.emit(f"The model's material parts could not be read: {exc}")
-            parts = ()
+            self.log_message.emit(f"The model's materials could not be read: {exc}")
+            names = []
+        parts = tuple((name, name) for name in names)
         self._material_parts = (stamp, parts)
         return parts
 
