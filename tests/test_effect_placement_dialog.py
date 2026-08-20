@@ -321,6 +321,28 @@ class DialogTests(unittest.TestCase):
         self.assertIn("the angle the game holds it", dialog.show_character.toolTip())
         dialog._closed = True
 
+    def test_the_trail_button_appears_only_when_the_item_has_its_own_trail(self) -> None:
+        """Weapons share socket files, so a borrowed one puts the trail at another weapon's
+        tip. The button is the game's own answer or it is not offered at all."""
+
+        from cdmw.services.effect_character_reference import TRAIL_SOCKET
+
+        dialog = self._dialog()
+        dialog._offer_the_trail_socket()
+        self.assertFalse(dialog.trail_button.isVisible(), "nothing read yet, nothing offered")
+
+        dialog._effect_sockets = (("FX_Muzzle_00_Socket", (0.0, 0.0, -0.4)),)
+        dialog._offer_the_trail_socket()
+        self.assertFalse(dialog.trail_button.isVisible(), "a muzzle is not a trail")
+
+        dialog._effect_sockets = ((TRAIL_SOCKET, (0.0, 0.02, -1.1)),)
+        dialog._offer_the_trail_socket()
+        self.assertTrue(dialog.trail_button.isVisibleTo(dialog), "the item's own trail is offered")
+        self.assertIn("-1.10", dialog.trail_button.toolTip(), "and the tooltip says where it is")
+
+        dialog._put_it_at("trail")
+        self.assertEqual(tuple(round(v, 6) for v in dialog.offset), (0.0, 0.02, -1.1))
+
     def test_a_reach_far_larger_than_the_item_starts_hidden(self) -> None:
         dialog = self._dialog()
         self.assertFalse(dialog.show_reach.isChecked())

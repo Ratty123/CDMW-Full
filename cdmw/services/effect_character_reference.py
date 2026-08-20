@@ -44,6 +44,7 @@ __all__ = [
     "HeldCharacter",
     "build_character_reference",
     "character_reference_from_snapshot",
+    "TRAIL_SOCKET",
     "hold_the_item",
     "item_child_frame",
     "rotate_point",
@@ -60,6 +61,12 @@ _HAND_SOCKET = "RHand_Socket"
 #: that has one calls it this; the descriptor rows pair it with `RHand_Socket` for every
 #: held part, sword through war hammer.
 _CHILD_SOCKET = "Basic_ChildSocket"
+#: The socket the game hangs a weapon's trail effect on. Every one of the 48 shipped weapon
+#: socket files carries one, and it sits at the far end of the weapon: 2 to 4 per cent from
+#: the tip on an axe or a mace, a little past it on a sword, partway along a chain weapon.
+#: Effect sockets are named `FX_...` -- muzzles, chambers and sparks are the others.
+TRAIL_SOCKET = "FX_Trail_00_Socket"
+_EFFECT_SOCKET_PREFIX = "fx"
 #: The character's own low-detail body: one mesh, floor to the top of the head, under a
 #: thousand vertices. It is what the game draws when the player is far away, so it is the
 #: whole figure rather than a piece of one.
@@ -104,6 +111,10 @@ class HeldCharacter:
     #: where that frame came from: "prefab", "convention", or "" for none at all
     held_from: str
     sources: Tuple[str, ...]
+    #: `(name, point)` for each `FX_...` socket on the item, in the item's own frame, from
+    #: the socket file the item's prefab named. Empty when that file was not found, because
+    #: another weapon's trail sits at another weapon's tip.
+    effect_sockets: Tuple[Tuple[str, Tuple[float, float, float]], ...] = ()
 
     @property
     def submesh_count(self) -> int:
@@ -307,8 +318,8 @@ def item_child_frame(
     prefab_paths: Sequence[str] = (),
     model_folder: str = "",
     child_socket: str = _CHILD_SOCKET,
-) -> Tuple[Optional[Tuple[float, ...]], str, str]:
-    """The frame on the item that mates with the hand socket: (matrix, socket name, where).
+) -> Tuple[Optional[Tuple[float, ...]], str, str, Tuple[Tuple[str, Tuple[float, float, float]], ...]]:
+    """The item's mating frame and its effect sockets: (matrix, socket name, where, sockets).
 
     A weapon prefab names the socket file it uses in `_socketFileName`, and several weapons
     share one file, so the prefab is the only thing that says which applies. When there is
@@ -321,17 +332,22 @@ def item_child_frame(
         from tools.placement_studio.documents import SocketDocument
         from tools.placement_studio.skeleton import invert_rigid
     except Exception:  # noqa: BLE001 - without the studio's reader there is no frame to find
-        return None, "", ""
+        return None, "", "", ()
 
     paths = [_normalize(path) for path in entry_paths]
     known = set(paths)
 
-    def frame_in(socket_file: str) -> Optional[Tuple[float, ...]]:
+    def read_sockets(socket_file: str):
         if socket_file not in known:
             return None
         try:
-            document = SocketDocument.load(read(socket_file), socket_file)
+            return SocketDocument.load(read(socket_file), socket_file)
         except Exception:  # noqa: BLE001 - an unreadable socket file is no frame
+            return None
+
+    def frame_in(socket_file: str) -> Optional[Tuple[float, ...]]:
+        document = read_sockets(socket_file)
+        if document is None:
             return None
         found = next((item for item in document.sockets() if item.name == child_socket), None)
         if found is None:
@@ -350,7 +366,7 @@ def item_child_frame(
         for socket_file in named:
             matrix = frame_in(socket_file)
             if matrix is not None:
-                return matrix, child_socket, "prefab"
+                return matrix, child_socket, "prefab", _effect_sockets_in(read_sockets(socket_file))
 
     # what the weapons of this kind do, by weight of numbers
     kind = _normalize(model_folder).rstrip("/").split("/model/")[-1]
@@ -363,8 +379,29 @@ def item_child_frame(
             if matrix is not None:
                 tally[matrix] += 1
         if tally:
-            return tally.most_common(1)[0][0], child_socket, "convention"
-    return None, "", ""
+            # no effect sockets with a borrowed frame: another weapon's trail is at another
+            # weapon's tip, and a preset that puts the effect there would be a guess
+            return tally.most_common(1)[0][0], child_socket, "convention", ()
+    return None, "", "", ()
+
+
+def _effect_sockets_in(document) -> Tuple[Tuple[str, Tuple[float, float, float]], ...]:
+    """The `FX_...` sockets on an item, as points in its own frame.
+
+    A child socket is an item-local offset -- the studio's placement never walks a bone for
+    one -- so the translation is the point, and it is what the effect dialog's offset boxes
+    are measured in.
+    """
+
+    if document is None:
+        return ()
+    found = []
+    for socket in document.sockets():
+        if not socket.name.lower().startswith(_EFFECT_SOCKET_PREFIX):
+            continue
+        point = socket.translation
+        found.append((socket.name, (float(point.x), float(point.y), float(point.z))))
+    return tuple(found)
 
 
 def _socket_files_named_in(prefab: bytes) -> List[str]:
@@ -392,6 +429,7 @@ def hold_the_item(
     *,
     child_socket: str = "",
     held_from: str = "",
+    effect_sockets: Sequence[Tuple[str, Sequence[float]]] = (),
     max_vertices: int = 60_000,
 ) -> HeldCharacter:
     """Stand `reference`'s body around an item whose origin is the origin.
@@ -430,6 +468,9 @@ def hold_the_item(
         child_socket=child_socket if child_frame is not None else "",
         held_from=held_from if child_frame is not None else "",
         sources=reference.sources,
+        effect_sockets=tuple(
+            (str(name), (float(point[0]), float(point[1]), float(point[2]))) for name, point in effect_sockets
+        ),
     )
 
 
@@ -471,11 +512,13 @@ def held_character_from_snapshot(
     if reference is None:
         return None, ""
     try:
-        child, child_socket, held_from = item_child_frame(
+        child, child_socket, held_from, sockets = item_child_frame(
             snapshot.entries.keys(), snapshot.payload,
             prefab_paths=prefab_paths, model_folder=model_folder,
         )
-        held = hold_the_item(reference, child, child_socket=child_socket, held_from=held_from)
+        held = hold_the_item(
+            reference, child, child_socket=child_socket, held_from=held_from, effect_sockets=sockets
+        )
     except Exception as exc:  # noqa: BLE001 - the stand-in figure is drawn instead
         return None, f"The character for the placement viewport could not be read: {exc}"
     body = held.body_name
