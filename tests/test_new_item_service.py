@@ -10,6 +10,7 @@ through the real mutation path and read back.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 import struct
 import sys
 import tempfile
@@ -425,7 +426,7 @@ class PlanTests(_PackageCase):
         added = {request.path: request for request in plan.additions}
         self.assertEqual(set(added), {
             f"character/model/{MODEL_FOLDER}/{new_stem}.pac", f"character/modelproperty/{MODEL_FOLDER}/{new_stem}.pac_xml",
-            f"character/bin__/meshphysics/{MODEL_FOLDER}/{new_stem}.hkx",
+            # no mesh physics: the template's binds cloth to the template's own vertices
             f"character/bin__/prefab/{FOLDER}/{new_stem}_r.prefab", f"character/bin__/prefab/{FOLDER}/{new_stem}_l.prefab",
             # the sheathed (_IN) part of the item's own: the borrowed scabbard record cloned, its prefab re-pathed to the imported mesh
             f"character/bin__/prefab/{FOLDER}/{new_stem}_r_in.prefab",
@@ -437,7 +438,6 @@ class PlanTests(_PackageCase):
         self.assertEqual(plan.manifest["sheathed_records"], {"cd_phm_01_sword_0168_r_in_index01": f"{new_stem}_r_in"})
         self.assertEqual(plan.manifest["sheathed_model"], "own_model")
         self.assertEqual(added[f"character/model/{MODEL_FOLDER}/{new_stem}.pac"].payload_data, b"PAC imported mesh")
-        self.assertEqual(added[f"character/bin__/meshphysics/{MODEL_FOLDER}/{new_stem}.hkx"].payload_data, b"HKX physics")
         self.assertEqual(
             added[f"character/modelproperty/{MODEL_FOLDER}/{new_stem}.pac_xml"].payload_data,
             b"<pac_xml><texture>cd_phm_01_sword_9109_d.dds</texture><texture>cd_phm_01_sword_9109_extra_n.dds</texture></pac_xml>",
@@ -478,6 +478,36 @@ class PlanTests(_PackageCase):
         self.assertIn(b'<Texture Name="ItemIcon_Prefab_cd_phm_01_sword_9109"\tFilename="UI/texture/icon/ItemIcon_Prefab_cd_phm_01_sword_9109.dds" Type="Image" GetRect="0,0,256,256"/>\r\n', registry)
         self.assertTrue(registry.startswith(b"\xef\xbb\xbf"))
         self.assertTrue(any("icon registry" in line for line in plan.summary_lines))
+
+    def test_an_imported_model_does_not_inherit_the_template_s_physics(self) -> None:
+        """A template's mesh physics binds cloth and collision to the template's own
+        vertices. Copied onto a model of one's own it drives whichever vertices those
+        indices land on, which is how an imported hammer's handle ended up swinging like
+        cloth. The game finds the file by the stem, so leaving it out leaves the item
+        without physics; the choice is on the Model step for a template whose cloth is
+        wanted."""
+
+        spec = NewItemSpec(
+            template_key=TEMPLATE, internal_name="Ziane_Clone_OneHandSword", display_names={"eng": "X"},
+            model_source=ModelSource.IMPORTED,
+        )
+        plan = self.service.plan(self.service.allocate(spec, self.snapshot), self.snapshot, model=ModelFiles(pac_data=b"PAC"))
+        physics = [path for path in plan.new_paths if path.lower().endswith(".hkx")]
+        self.assertEqual(physics, [], "the template's physics is not copied by default")
+        self.assertTrue(any("mesh physics" in line for line in plan.summary_lines), plan.summary_lines)
+
+        wanted = self.service.plan(
+            self.service.allocate(replace(spec, keep_template_physics=True), self.snapshot),
+            self.snapshot, model=ModelFiles(pac_data=b"PAC"),
+        )
+        self.assertTrue([path for path in wanted.new_paths if path.lower().endswith(".hkx")], "asked for, it is copied")
+
+        # a template-model item keeps it: the mesh is the template's own, so its physics fits
+        template_model = self.service.plan(
+            self.service.allocate(replace(spec, model_source=ModelSource.TEMPLATE), self.snapshot),
+            self.snapshot,
+        )
+        self.assertEqual([path for path in template_model.new_paths if path.lower().endswith(".hkx")], [])
 
     def test_own_enhancement_rows_are_cloned_and_repointed(self) -> None:
         from cdmw.core.multichangeinfo_table import find_multichange_keys, parse_multichange_table
@@ -706,7 +736,10 @@ class WriteTests(_PackageCase):
         family = again.family(1990000)
         self.assertEqual(family.model_stem, "cd_phm_01_sword_9109")
         self.assertEqual(family.owned_stems, ("cd_phm_01_sword_9109_r", "cd_phm_01_sword_9109_r_in", "cd_phm_01_sword_9109_l"), "the installed item owns its sheathed part too")
-        self.assertEqual(family.missing_files, ())
+        self.assertEqual(
+            [item.role for item in family.missing_files], ["hkx"],
+            "the only file the family goes without is the template's mesh physics, which an imported model does not inherit",
+        )
         self.assertEqual([s for s in again.stores if s.name == "Store_Camp_Equipment"][0].entries[0].item_key, 1990000)
 
     def test_installing_as_an_overlay_leaves_the_shipped_archives_alone(self) -> None:
@@ -747,7 +780,7 @@ class WriteTests(_PackageCase):
         self.assertEqual(again.rows[1990000].string_key, "Ziane_Clone_OneHandSword")
         family = again.family(1990000)
         self.assertEqual(family.model_stem, "cd_phm_01_sword_9109")
-        self.assertEqual(family.missing_files, ())
+        self.assertEqual([item.role for item in family.missing_files], ["hkx"], "no inherited mesh physics")
         if result.backup_dir is not None:
             names = sorted(path.name for path in result.backup_dir.iterdir())
             self.assertNotIn("0009_0.paz", names, "no shipped payload file is in the backup")
@@ -796,8 +829,8 @@ class WriteTests(_PackageCase):
         again = self.service.build_snapshot(tuple(after.values()), read_entry=_read)
         self.assertIn(first.spec.item_key, again.rows, "the item the overlay carries")
         self.assertIn(second.spec.item_key, again.rows, "the item patched on top of it")
-        self.assertEqual(again.family(first.spec.item_key).missing_files, ())
-        self.assertEqual(again.family(second.spec.item_key).missing_files, ())
+        for key in (first.spec.item_key, second.spec.item_key):
+            self.assertEqual([item.role for item in again.family(key).missing_files], ["hkx"], "no inherited mesh physics")
 
     def test_a_read_that_fails_after_the_archives_moved_says_so(self) -> None:
         """Another program rewriting the archives -- a mod manager mounting or unmounting

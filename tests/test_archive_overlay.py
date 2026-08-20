@@ -228,6 +228,7 @@ def test_the_writer_lays_a_shipped_archive_out_the_way_the_game_ships_it(directo
     from cdmw.core.archive_format import parse_archive_pamt
     from tools.placement_studio import corpus
 
+
     game = Path(corpus.game_root())
     pamt = game / directory / "0.pamt"
     if not pamt.is_file():
@@ -252,3 +253,8 @@ def test_the_writer_lays_a_shipped_archive_out_the_way_the_game_ships_it(directo
     assert [row[0] for row in ours_files] == [row[0] for row in shipped_files], "file names and their order"
     assert [(row[1], row[2], row[3]) for row in ours_files] == [(row[1], row[2], row[3]) for row in shipped_files], "sizes and flags"
     assert len(built.paz_bytes) % PAZ_ALIGNMENT == 0
+    if directory in {"0013", "0016"}:
+        # these two carry no file names sharing a prefix, so the whole table comes back
+        # byte for byte: the same trie, the same tables, the same header checksum
+        assert built.pamt_bytes == pamt.read_bytes(), "the PAMT is the one the game shipped"
+        assert built.paz_bytes == payloads, "the PAZ is the one the game shipped"

@@ -539,9 +539,15 @@ class _Planner:
         texture_map = self._texture_renames()
         donor = self._effect_donor()
         written: List[str] = []
+        skipped_physics = ""
         for item in family.files:
             role, new_path = renamed[item.path]
             if role == "icon":
+                continue
+            if role == "hkx" and self.spec.model_source is ModelSource.IMPORTED and not self.spec.keep_template_physics:
+                # the template's cloth is bound to the template's vertices; on a model of
+                # its own it drives whatever those indices hit
+                skipped_physics = item.path
                 continue
             if not item.exists:
                 self.warnings.append(f"The template has no {role} at {item.path}; the clone goes without one.")
@@ -563,6 +569,10 @@ class _Planner:
                 payload = self.snapshot.payload(item.path)
             self.add(self.snapshot.entry(item.path), new_path, payload, f"{role}: {new_path}")
             written.append(new_path)
+        if skipped_physics:
+            self.summary.append(
+                f"mesh physics: the template's {skipped_physics.rsplit('/', 1)[-1]} is not copied, so the imported model has none"
+            )
         for old_path, data in self.model.side_files.items():
             if not old_path.lower().endswith(".dds"):
                 continue
