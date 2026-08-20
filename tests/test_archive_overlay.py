@@ -150,6 +150,33 @@ class PapgtTests(unittest.TestCase):
         self.assertEqual(serialize_papgt(directories, header=data[:12]), data)
         self.assertEqual(data[:4], b"\x01\x02\x03\x04", "the header bytes this module does not read are kept")
 
+    def test_the_header_counts_the_directories_it_lists(self) -> None:
+        """The low byte of the header's third field is how many directories the file
+        holds, and the game reads that rather than counting the records.
+
+        Preserving the header verbatim, as this module first did, left every mounted
+        overlay claiming one directory fewer than it listed. The game starts on a list
+        that counts itself and refuses one that does not, with "There may be a problem
+        with the game installation"; the shipped file says 33 with its 33 directories,
+        and the game itself wrote 34 when it had 34.
+        """
+
+        data = self._papgt(("0000", "0001", "0008"))
+        self.assertEqual(data[8], 3, "three directories, three in the header")
+        mounted = papgt_with_directory(data, "0036", 0x22222222)
+        self.assertEqual(len(parse_papgt(mounted)), 4)
+        self.assertEqual(mounted[8], 4, "the mounted file counts itself")
+        self.assertEqual(mounted[9:12], data[9:12], "the rest of the field is left alone")
+
+        unmounted = serialize_papgt([item for item in parse_papgt(mounted) if item.name != "0036"], header=mounted[:12])
+        self.assertEqual(unmounted[8], 3)
+        self.assertEqual(unmounted, data, "and taking it out again gives back the file it started as")
+
+        # re-mounting an already listed directory changes no count
+        again = papgt_with_directory(mounted, "0036", 0x33333333)
+        self.assertEqual(again[8], 4)
+        self.assertEqual(len(parse_papgt(again)), 4)
+
     def test_a_mod_directory_is_mounted_first(self) -> None:
         """The game takes the first directory that holds a path, so an overlay that is to
         win over a shipped archive has to be named before it."""

@@ -95,9 +95,15 @@ def serialize_papgt(directories: Sequence[PapgtDirectory], *, header: bytes = b"
     rather than invented.
     """
 
-    prefix = bytes(header[:_HEADER_BYTES]) if header else b"\x00" * _HEADER_BYTES
+    prefix = bytearray(header[:_HEADER_BYTES]) if header else bytearray(_HEADER_BYTES)
     if len(prefix) != _HEADER_BYTES:
         raise ValueError("a PAPGT header is twelve bytes")
+    if len(directories) > 0xFF:
+        raise ValueError(f"a PAPGT header holds the directory count in one byte; {len(directories)} will not fit")
+    # The count the game reads, in the low byte of the third field. A list longer than the
+    # header admits is what makes the game refuse to start on its own installation.
+    counted = (struct.unpack_from("<I", bytes(prefix), 8)[0] & 0xFFFFFF00) | len(directories)
+    struct.pack_into("<I", prefix, 8, counted)
     table = bytearray()
     offsets: Dict[str, int] = {}
     for directory in directories:
