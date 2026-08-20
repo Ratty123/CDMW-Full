@@ -7,6 +7,7 @@ from typing import Optional
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QGroupBox,
@@ -171,6 +172,24 @@ class OutputPanel(QGroupBox):
         self.export_button.clicked.connect(self._export)
         export.addWidget(self.export_button)
         write_layout.addLayout(export)
+        # A loose mod carries whole tables, so two of them cannot both be enabled: the one
+        # the manager mounts last owns the table and the other item is not in it. Planned
+        # on the folder's own tables instead, the next item joins the ones already there.
+        self.add_to_mod = QCheckBox("Add to the mod already in this folder")
+        self.add_to_mod.setToolTip(
+            "A mod folder carries whole tables, so a second mod replaces the first one's rather than adding to it, and only "
+            "one of the items survives. On, the next item is planned on the tables in this folder, so the folder ends up "
+            "holding both. Off, it is planned on the game's own tables and the folder is overwritten."
+        )
+        self.add_to_mod.setChecked(True)
+        self.add_to_mod.setVisible(False)
+        self.add_to_mod.toggled.connect(lambda _checked: self._mod_base_changed())
+        write_layout.addWidget(self.add_to_mod)
+        self.mod_base_note = QLabel("")
+        self.mod_base_note.setWordWrap(True)
+        self.mod_base_note.setVisible(False)
+        write_layout.addWidget(self.mod_base_note)
+        self.export_root.textChanged.connect(lambda _text: self._mod_base_changed())
         install = QHBoxLayout()
         self.install_button = QPushButton("Install into the game archives...")
         self.install_button.setToolTip("Confirmed first, backed up, restorable. Refused while the game is running.")
@@ -240,6 +259,26 @@ class OutputPanel(QGroupBox):
         if not self._controller.start_plan():
             self.plan_state.set_note("The plan could not start; see the message above.", BLOCK)
             return
+
+    def _mod_base_changed(self) -> None:
+        """Follow the folder box: say what is already there, and plan on it when asked."""
+
+        from cdmw.services.new_item_mod_base import describe_mod_folder
+
+        text = self.export_root.text().strip()
+        found = describe_mod_folder(Path(text)) if text else ""
+        self.add_to_mod.setVisible(bool(found))
+        self.mod_base_note.setVisible(bool(found))
+        if not found:
+            self.mod_base_note.setText("")
+            self._controller.set_mod_base(None)
+            return
+        if self.add_to_mod.isChecked():
+            self.mod_base_note.setText(f"{found} The next item is planned on its tables, so the folder will hold both.")
+            self._controller.set_mod_base(Path(text))
+        else:
+            self.mod_base_note.setText(f"{found} Writing here will replace it, and only the new item will be in the tables.")
+            self._controller.set_mod_base(None)
 
     def _pick_root(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Choose the loose mod output folder", self.export_root.text() or "")
