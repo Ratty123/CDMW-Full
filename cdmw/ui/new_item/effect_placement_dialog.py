@@ -113,6 +113,9 @@ class EffectPlacementDialog(QDialog):
         host_factory=None,
         effect_preview: Optional[EffectPreview] = None,
         texture_reader: Optional[Callable[[str], Optional[bytes]]] = None,
+        # builds the game's own character, on the worker thread: reading a rig and a body
+        # out of the archives is a second the dialog should not spend frozen
+        character_builder: Optional[Callable[[], object]] = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Place the effect on the item")
@@ -126,6 +129,10 @@ class EffectPlacementDialog(QDialog):
         self._preview: Optional[EffectPlacementPreview] = None
         self._effect_preview = effect_preview
         self._texture_reader = texture_reader
+        self._character_builder = character_builder
+        # the scene is the character's frame when there is a character to stand in it, and
+        # the item's own when there is not; the offsets are the item's either way
+        self._rotation: Optional[Tuple[float, ...]] = None
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
         self._closed = False
@@ -133,7 +140,7 @@ class EffectPlacementDialog(QDialog):
         layout = QVBoxLayout(self)
         intro = QLabel(
             f"{effect_label or 'The effect'} on the item: drag the orange anchor with the gizmo (Move / Scale) or type the numbers. "
-            "The character behind the item is there for scale, and the buttons under the viewport turn it to the standing views."
+            "The character holds the item the way the game holds it, and the buttons under the viewport turn to the standing views."
         )
         intro.setWordWrap(True)
         layout.addWidget(intro)
@@ -172,7 +179,7 @@ class EffectPlacementDialog(QDialog):
             viewport_column.addWidget(self.host, 1)
             views = QHBoxLayout()
             views.addWidget(QLabel("View"))
-            self._add_view_button(views, "Front", "Looking the character in the face, with the blade pointing at you.")
+            self._add_view_button(views, "Front", "Looking the character in the face: which side of the item the effect sits on.")
             self._add_view_button(views, "Side", "From the character's side: the blade end to end, and how far up it the effect sits.")
             self._add_view_button(views, "Top", "From above: how far in front of or behind the item the effect sits.")
             self._add_view_button(views, "Angled", "The three-quarter view the dialog opens on.")
@@ -316,10 +323,21 @@ class EffectPlacementDialog(QDialog):
         mesh, box = self._item_mesh, self._box
         root = self._output_root
         effect_preview, texture_reader = self._effect_preview, self._texture_reader
+        builder = self._character_builder
 
         def task(_log, stop_event: threading.Event) -> EffectPlacementPreview:
+            character, rotation = None, None
+            if builder is not None and not stop_event.is_set():
+                try:
+                    reference = builder()
+                except Exception:  # noqa: BLE001 - no character is a smaller loss than no dialog
+                    reference = None
+                if reference is not None:
+                    character = getattr(reference, "mesh", None)
+                    rotation = getattr(reference, "item_rotation", None)
             return build_effect_placement_package(
                 mesh, box[0], box[1], output_root=root, cancelled=stop_event.is_set,
+                character_mesh=character, item_rotation=rotation if character is not None else None,
                 effect_preview=effect_preview, texture_reader=texture_reader,
             )
 
@@ -346,6 +364,9 @@ class EffectPlacementDialog(QDialog):
         if self._closed or not isinstance(result, EffectPlacementPreview) or self.host is None:
             return
         self._preview = result
+        self._rotation = result.item_rotation
+        if result.item_rotation is not None:
+            self._say_the_character_is_the_game_s()
         if self.host.load_package(result.package_dir, reset_view=True):
             self.host.set_display_mode("overlay")
             self.status.setText("Loading the viewport...")
@@ -363,7 +384,7 @@ class EffectPlacementDialog(QDialog):
             # so hand it the item's bounds instead and the view opens on the item
             remember = getattr(self.host, "remember_editable_local_bounds", None)
             if callable(remember):
-                low, high = self._item_bounds()
+                low, high = self._scene_item_bounds()
                 remember(low, high)
             self._sync_host()
             self._apply_scene_visibility()
@@ -409,8 +430,8 @@ class EffectPlacementDialog(QDialog):
         hidden = []
         if not self.show_reach.isChecked():
             hidden.append(self._preview.reach_submesh_index)
-        if not self.show_character.isChecked() and self._preview.body_submesh_index >= 0:
-            hidden.append(self._preview.body_submesh_index)
+        if not self.show_character.isChecked():
+            hidden.extend(self._preview.body_submesh_indices)
         setter = getattr(self.host, "set_hidden_source_submeshes", None)
         if callable(setter):
             try:
@@ -552,6 +573,51 @@ class EffectPlacementDialog(QDialog):
         self._set_numbers(self.offset, item / reach)
         self._sync_host()
 
+    def _to_scene(self, point: Sequence[float]) -> Vec3:
+        """A point in the item's frame, in the scene's."""
+
+        if self._rotation is None:
+            return tuple(float(v) for v in tuple(point)[:3])  # type: ignore[return-value]
+        from cdmw.services.effect_character_reference import rotate_point
+
+        return rotate_point(point, self._rotation)
+
+    def _from_scene(self, point: Sequence[float]) -> Vec3:
+        """A point (or a drag) in the scene's frame, back in the item's."""
+
+        if self._rotation is None:
+            return tuple(float(v) for v in tuple(point)[:3])  # type: ignore[return-value]
+        from cdmw.services.effect_character_reference import unrotate_point
+
+        return unrotate_point(point, self._rotation)
+
+    def _scene_item_bounds(self) -> Tuple[Vec3, Vec3]:
+        """The item's bounds where the camera will find them: turned with the item when
+        the scene is the character's frame."""
+
+        low, high = self._item_bounds()
+        if self._rotation is None:
+            return low, high
+        corners = [
+            self._to_scene((low[0] if a else high[0], low[1] if b else high[1], low[2] if c else high[2]))
+            for a in (0, 1) for b in (0, 1) for c in (0, 1)
+        ]
+        return (
+            tuple(min(corner[axis] for corner in corners) for axis in range(3)),  # type: ignore[return-value]
+            tuple(max(corner[axis] for corner in corners) for axis in range(3)),  # type: ignore[return-value]
+        )
+
+    def _say_the_character_is_the_game_s(self) -> None:
+        """The stand-in's wording is a promise the real character keeps better: say so
+        once it is the one on screen."""
+
+        self.show_character.setToolTip(
+            "The game's own character, holding the item in the hand and at the angle the game holds it."
+        )
+        row = getattr(self, "legend_rows", {}).get("body")
+        if row is not None:
+            row.setText(f"{_swatch(BODY_TINT)} the game's character, holding the item")
+
     def _item_bounds(self) -> Tuple[Vec3, Vec3]:
         mesh = self._item_mesh
         low = tuple(float(v) for v in (getattr(mesh, "bbox_min", None) or (-0.5, -0.5, -0.5)))
@@ -578,7 +644,8 @@ class EffectPlacementDialog(QDialog):
         if self.host is None or self._preview is None:
             return
         self.host.set_alignment_preview_transform(
-            translation=self.offset, rotation_degrees=(0.0, 0.0, 0.0), scale_xyz=(self.scale, self.scale, self.scale),
+            translation=self._to_scene(self.offset), rotation_degrees=(0.0, 0.0, 0.0),
+            scale_xyz=(self.scale, self.scale, self.scale),
         )
 
     def _refresh_size_label(self) -> None:
@@ -614,7 +681,9 @@ class EffectPlacementDialog(QDialog):
         self._sync_host()
 
     def _drag_finished(self, dx: float, dy: float, dz: float) -> None:
-        self._set_numbers((self.offset[0] + dx, self.offset[1] + dy, self.offset[2] + dz), self.scale)
+        # the drag is in the scene the reader is looking at; the numbers are the item's own
+        moved = self._from_scene((dx, dy, dz))
+        self._set_numbers(tuple(self.offset[axis] + moved[axis] for axis in range(3)), self.scale)  # type: ignore[arg-type]
         self._sync_host()
 
     def _scale_finished(self, dx: float, dy: float, dz: float) -> None:
