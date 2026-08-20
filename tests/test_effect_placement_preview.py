@@ -212,8 +212,9 @@ class EffectPreviewInPackageTests(unittest.TestCase):
         self.assertIn("pafx_fire_003a_kjd.dds", lines[0])
         self.assertIn("#", lines[0])
         self.assertTrue(lines[1].startswith("cdem_material_firefly_alpha_uberstandard: billboard, "), lines[1])
-        self.assertIn("once", lines[1])
-        self.assertTrue(any("was not read" in line for line in lines[2:]), "the missing firefly file is a note")
+        # its emitter file is missing, and a missing one is stood in for as looping
+        self.assertIn("loops", lines[1])
+        self.assertTrue(any("is not in the archives" in line for line in lines[2:]), "the missing firefly file is a note")
         self.assertEqual(describe_effect_preview(None), "")
 
 

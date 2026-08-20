@@ -87,7 +87,8 @@ class PreviewTests(unittest.TestCase):
         # the trail's own render data carries 0.1 so that one stays
         self.assertAlmostEqual(with_preset.emitters[0].brightness, 0.1, places=5)
         self.assertEqual(len(without.notes), 1, "the firefly emitter file is not a fixture, and the preview says so")
-        self.assertIn("cdem_material_firefly_alpha_uberstandard.paem was not read", without.notes[0])
+        self.assertIn("cdem_material_firefly_alpha_uberstandard.paem is not in the archives", without.notes[0])
+        self.assertIn("what a shipped emitter typically does", without.notes[0], "and what it stands in with")
         alone = build_effect_preview("x", decode_effect_binary(EFFECT.read_bytes()))
         self.assertEqual(len(alone.notes), 2, "both emitter files missing are said")
 
@@ -105,7 +106,10 @@ class PreviewTests(unittest.TestCase):
         self.assertEqual(len(trail.alpha_over_life), CURVE_SAMPLES)
         firefly = preview.emitters[1]
         self.assertGreater(firefly.force[1][1], 0.0, "the fireflies are pushed upward")
-        self.assertFalse(firefly.loop)
+        # the firefly's emitter file is not a fixture, so nothing states a loop count. All
+        # 208 shipped emitters that state one state -1 and none states anything else, so a
+        # missing file is stood in for as looping rather than as a single burst.
+        self.assertTrue(firefly.loop, "a missing emitter file is taken to loop, as every shipped one does")
         self.assertEqual(trail.spawn, "spread", "the trail names no spawn mesh in this fixture")
         self.assertTrue(all(0.0 <= a <= 1.0 for a in trail.alpha_over_life))
         self.assertGreater(trail.alpha_over_life[1], trail.alpha_over_life[-1], "alpha (curve 2) rises fast and fades")
