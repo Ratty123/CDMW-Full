@@ -121,6 +121,175 @@ class NoCharacterTests(unittest.TestCase):
         self.assertIsNone(build_character_reference(["gamedata/binary__/client/bin/iteminfo.pabgb"], read))
 
 
+SOCKETS_XML = """<SocketBoneData>
+	<SocketList Count="2">
+		<Socket Name="Basic_ChildSocket" Parent="B_Weapon_0001" Rotation="0.000000 0.707107 0.000000 0.707107" Translation="0.000000 0.000000 -0.030000"/>
+		<Socket Name="FX_Trail_00_Socket" Parent="B_Weapon_0001" Rotation="0.000000 0.000000 0.000000 1.000000" Translation="0.000000 0.020000 -1.100000"/>
+	</SocketList>
+</SocketBoneData>
+""".encode("utf-8")
+
+#: What the archives hold, with the paths the game uses.
+HELD_PREFAB = "character/bin__/prefab/1_pc/01_phm/weapon/01_onehandweapon/cd_phm_01_sword_0039_r.prefab"
+SHEATHED_PREFAB = "character/bin__/prefab/1_pc/01_phm/weapon/01_onehandweapon/cd_phm_01_sword_0039_r_in.prefab"
+SOCKET_FILE = "character/descriptors/socketbonedata/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0001_r.sockets.xml"
+OTHER_SOCKET_FILE = "character/descriptors/socketbonedata/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0070_r.sockets.xml"
+
+
+def _prefab(names) -> bytes:
+    """A prefab as far as this reader cares: a blob with printable strings in it."""
+
+    body = bytearray(b"SceneObject\x00_socketFileName\x00staticstringA\x00")
+    for name in names:
+        body += name.encode("ascii") + b"\x00"
+    body += bytes(16)
+    return bytes(body)
+
+
+class ChildFrameTests(unittest.TestCase):
+    """Which frame on the item mates with the hand. The Placement studio composes
+    inverse(child socket) . body socket, and for a one-hand sword that child socket is a
+    quarter turn about y: hang a weapon on RHand_Socket alone and it is held ninety degrees
+    off, which is invisible to every file-level check and obvious in a render."""
+
+    def _archives(self, extra=None):
+        entries = {
+            HELD_PREFAB: _prefab([SOCKET_FILE]),
+            SHEATHED_PREFAB: _prefab([OTHER_SOCKET_FILE]),
+            SOCKET_FILE: SOCKETS_XML,
+            OTHER_SOCKET_FILE: SOCKETS_XML,
+        }
+        entries.update(extra or {})
+        return entries
+
+    def _read(self, entries):
+        def read(path: str) -> bytes:
+            return entries[path]
+
+        return read
+
+    def test_the_item_s_own_prefab_names_the_socket_file(self) -> None:
+        from cdmw.services.effect_character_reference import item_child_frame
+
+        entries = self._archives()
+        matrix, socket, where = item_child_frame(
+            entries.keys(), self._read(entries), prefab_paths=[HELD_PREFAB],
+            model_folder="1_pc/1_phm/weapon/1_onehandweapon",
+        )
+        self.assertEqual((socket, where), ("Basic_ChildSocket", "prefab"))
+        self.assertIsNotNone(matrix)
+        # inverse of a quarter turn about y, so the item's z goes to the frame's x
+        self.assertAlmostEqual(rotate_point((0.0, 0.0, 1.0), matrix[0:3] + matrix[4:7] + matrix[8:11])[0], -1.0, places=5)
+
+    def test_the_held_prefab_is_read_before_the_sheathed_one(self) -> None:
+        """The `_in` prefab describes the item on the character's back. Reading it first
+        would mate the item by whatever frame the scabbard uses."""
+
+        from cdmw.services.effect_character_reference import item_child_frame
+
+        entries = self._archives()
+        entries[OTHER_SOCKET_FILE] = SOCKETS_XML.replace(b"Basic_ChildSocket", b"Other_ChildSocket")
+        matrix, socket, where = item_child_frame(
+            entries.keys(), self._read(entries), prefab_paths=[SHEATHED_PREFAB, HELD_PREFAB],
+        )
+        self.assertEqual((socket, where), ("Basic_ChildSocket", "prefab"))
+        self.assertIsNotNone(matrix)
+
+    def test_without_a_prefab_the_kind_s_own_convention_stands_in(self) -> None:
+        from cdmw.services.effect_character_reference import item_child_frame
+
+        entries = self._archives()
+        matrix, socket, where = item_child_frame(
+            entries.keys(), self._read(entries), model_folder="1_pc/1_phm/weapon/1_onehandweapon",
+        )
+        self.assertEqual((socket, where), ("Basic_ChildSocket", "convention"))
+        self.assertIsNotNone(matrix)
+
+    def test_archives_with_neither_give_nothing_rather_than_a_guess(self) -> None:
+        from cdmw.services.effect_character_reference import item_child_frame
+
+        entries = {"gamedata/binary__/client/bin/iteminfo.pabgb": b"\x00"}
+        self.assertEqual(
+            item_child_frame(entries.keys(), self._read(entries), model_folder="1_pc/1_phm/weapon/1_onehandweapon"),
+            (None, "", ""),
+        )
+
+
+class HeldPoseTests(unittest.TestCase):
+    """What the mating frame does to the scene."""
+
+    def _reference(self):
+        from cdmw.services.effect_character_reference import CharacterReference
+
+        # a body standing on the floor, and a hand a metre up and turned a quarter about z
+        body = _body(1)
+        return CharacterReference(
+            body=body,
+            body_matrix=(0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.2, 1.0, 0.0, 1.0),
+            socket="RHand_Socket", rig="phm_01.pab", sources=("cd_phm_00_lod_0001.pac",),
+        )
+
+    def test_with_no_mating_frame_the_item_hangs_on_the_socket_alone(self) -> None:
+        from cdmw.services.effect_character_reference import hold_the_item
+
+        held = hold_the_item(self._reference(), None)
+        self.assertEqual(held.item_rotation, (0.0, 1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0))
+        self.assertEqual(held.held_from, "")
+        self.assertEqual(held.child_socket, "", "nothing mated it, and it does not claim otherwise")
+        # the body gave up the hand's position, so the hand is the origin
+        self.assertAlmostEqual(held.mesh.bbox_min[1], _body(1).bbox_min[1] - 1.0, places=6)
+
+    def test_the_mating_frame_turns_the_item_with_it(self) -> None:
+        from cdmw.services.effect_character_reference import hold_the_item
+
+        # a quarter turn about z the same way round as the hand's, as a matrix: the studio's
+        # invert_rigid hands one of these in
+        child = (0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+        held = hold_the_item(self._reference(), child, child_socket="Basic_ChildSocket", held_from="prefab")
+        self.assertEqual(held.child_socket, "Basic_ChildSocket")
+        # child . body: two quarter turns about z the same way round make a half turn
+        self.assertEqual(
+            tuple(round(v, 6) for v in held.item_rotation), (-1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0)
+        )
+        self.assertNotEqual(held.item_rotation, hold_the_item(self._reference(), None).item_rotation)
+
+    def test_the_seam_says_which_frame_held_it(self) -> None:
+        """The line the studio logs. Three cases and three sentences, because "the item's
+        own frame" and "the frame most weapons of this kind use" are not the same claim,
+        and neither is "nothing mated it, so this may be a quarter turn off"."""
+
+        from cdmw.services.effect_character_reference import held_character_from_snapshot
+
+        archives = ChildFrameTests()
+        entries = archives._archives()
+
+        class _Snapshot:
+            def __init__(self, payloads) -> None:
+                self._payloads = payloads
+                self.entries = {path: type("E", (), {"orig_size": len(data)}) for path, data in payloads.items()}
+
+            def payload(self, path: str) -> bytes:
+                return self._payloads[path]
+
+        snapshot = _Snapshot(entries)
+        reference = self._reference()
+
+        _held, said = held_character_from_snapshot(
+            snapshot, reference, prefab_paths=[HELD_PREFAB], model_folder="1_pc/1_phm/weapon/1_onehandweapon",
+        )
+        self.assertIn("the item's own Basic_ChildSocket", said)
+
+        _held, said = held_character_from_snapshot(
+            snapshot, reference, model_folder="1_pc/1_phm/weapon/1_onehandweapon",
+        )
+        self.assertIn("most weapons of this kind use", said)
+
+        _held, said = held_character_from_snapshot(_Snapshot({}), reference)
+        self.assertIn("quarter turn off", said)
+
+        self.assertEqual(held_character_from_snapshot(snapshot, None), (None, ""), "no character, nothing to say")
+
+
 class SnapshotSeamTests(unittest.TestCase):
     """The studio's controller reads no archives itself; it asks for a character and gets
     one line back to log either way."""
