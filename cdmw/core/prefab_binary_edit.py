@@ -385,6 +385,15 @@ def rewrite_prefab_paths(
     )
 
 
+def _every_replacement_is_the_same_length(replacements: Mapping[str, str]) -> bool:
+    """Whether every path swap keeps its byte count, so nothing after it moves."""
+
+    for old, new in dict(replacements or {}).items():
+        if len(str(old or "").encode("utf-8")) != len(str(new or "").encode("utf-8")):
+            return False
+    return True
+
+
 def rewrite_prefab_paths_any_length(
     data: bytes,
     replacements: Mapping[str, str],
@@ -405,7 +414,18 @@ def rewrite_prefab_paths_any_length(
     payload = bytes(data or b"")
     document = decode_prefab_binary(payload)
     if document.walk_complete and walk_is_determined(payload):
-        return rewrite_prefab_paths(payload, replacements)
+        try:
+            return rewrite_prefab_paths(payload, replacements)
+        except PrefabEditError:
+            # The relocating path refuses rather than guess at a pointee whose length
+            # field the file does not pin down. A replacement of exactly the same byte
+            # length moves nothing, so no length field is the answer to anything and the
+            # refusal does not apply: the same-length path below writes the text in place.
+            # This is what a cloned stem looks like (`cd_phm_01_sword_0054_04` becomes
+            # `..._9054_04`), and it is how the Cigar family's sheathed prefabs, whose
+            # root pointee has two candidate length fields, get retargeted at all.
+            if not _every_replacement_is_the_same_length(replacements):
+                raise
 
     same_length: list[PrefabPathEdit] = []
     strings = {
