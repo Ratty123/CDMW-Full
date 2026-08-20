@@ -14,6 +14,7 @@ from cdmw.domain.new_item.spec import (
     BuyPriceEdit,
     EffectLook,
     EnhancementRows,
+    GlowChoice,
     IconSource,
     ItemGroupsChoice,
     MaterialRoute,
@@ -162,6 +163,11 @@ class NewItemDraft:
     sheathed_model: SheathedModel = SheathedModel.OWN_MODEL
     #: whether an imported model inherits the template's cloth and collision
     keep_template_physics: bool = False
+    #: the material parts that glow, and how. Empty is no glow, which is what an imported
+    #: model does unless it brought an emissive map of its own.
+    glow_parts: Tuple[str, ...] = ()
+    glow_color: Tuple[float, float, float] = (1.0, 1.0, 1.0)
+    glow_intensity: float = 4.0
     icon: IconSource = IconSource.TEMPLATE
     icon_source_path: str = ""
     #: level -> column index -> value; None means "as the template".
@@ -280,6 +286,9 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         material_route=draft.material_route,
         sheathed_model=draft.sheathed_model,
         keep_template_physics=draft.keep_template_physics,
+        glow=GlowChoice(
+            parts=tuple(draft.glow_parts), color=tuple(draft.glow_color), intensity=float(draft.glow_intensity),
+        ) if draft.glow_parts else None,
         icon=draft.icon,
         stat_edits=stats,
         buy_price_edits=buy_prices,

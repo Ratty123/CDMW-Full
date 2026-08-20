@@ -135,16 +135,21 @@ class RouteTests(unittest.TestCase):
         self.assertIn(sp, files.side_files)
         self.assertNotIn(MASK, files.side_files, "the Builder mask no wrapper names any more is dropped")
         self.assertIn(GEM_MASK, files.side_files, "the gem's mask stands in for its _sp")
-        self.assertEqual(set(files.side_files) - {XML, sp}, {BASE, NORMAL, GEM_BASE, GEM_MASK, GEM_EMI})
+        self.assertNotIn(GEM_EMI, files.side_files, "the glow the model never asked for goes, and its flat map with it")
+        self.assertEqual(set(files.side_files) - {XML, sp}, {BASE, NORMAL, GEM_BASE, GEM_MASK})
         text = files.side_files[XML].decode("utf-8")
         self.assertTrue(text.startswith("\ufeff<SkinnedMeshPropertyCommon"), "the BOM stays")
         wrappers = {w.submesh_name: w for w in find_material_wrappers(text)}
         self.assertEqual(wrappers["cd_phm_02_sword_0003"].shader, STANDARD_SHADER)
         self.assertEqual(wrappers["cd_phm_02_sword_0003"].textures, {"_baseColorTexture": BASE, "_normalTexture": NORMAL, "_materialTexture": sp})
+        # The template's material glows, and the map the Builder generates for that slot is
+        # flat: inheriting it lit a whole imported sword cyan at intensity 10 (seen in game
+        # 2026-08-20). A model that brought no emissive of its own does not glow.
         gem = wrappers["cd_phm_02_sword_handle_0003"]
-        self.assertEqual(gem.shader, EMISSIVE_SHADER)
-        self.assertEqual(gem.textures, {"_baseColorTexture": GEM_BASE, "_materialTexture": GEM_MASK, "_emissiveIntensityTexture": GEM_EMI})
-        self.assertEqual((gem.value("_emissiveColor"), gem.value("_emissiveIntensity")), ("#00FFCAFF", "10.000000"), "the Builder's colour and intensity carry over")
+        self.assertEqual(gem.shader, STANDARD_SHADER)
+        self.assertEqual(gem.textures, {"_baseColorTexture": GEM_BASE, "_materialTexture": GEM_MASK})
+        self.assertIsNone(gem.value("_emissiveColor"))
+        self.assertTrue(any("brought no emissive map" in w for w in route.warnings), route.warnings)
         self.assertEqual(wrappers["cd_phm_02_sword_guard_0003"].shader, LAYERED_SHADER, "the template's own wrapper is untouched")
         self.assertTrue(any("lambert1_metallicRoughness.png" in line for line in route.lines), route.lines)
         self.assertTrue(any("gem" not in w and "handle" in w for w in route.warnings), route.warnings)
@@ -172,8 +177,11 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(route.encoded, ())
         wrappers = {w.submesh_name: w for w in find_material_wrappers(route.files.side_files[XML].decode("utf-8"))}
         self.assertEqual(wrappers["cd_phm_02_sword_0003"].textures["_materialTexture"], MASK)
-        self.assertEqual(len(route.warnings), 2)
-        self.assertEqual(set(route.files.side_files), set(builder_files().side_files), "nothing dropped, nothing added")
+        self.assertEqual(len(route.warnings), 3)
+        self.assertEqual(
+            set(route.files.side_files), set(builder_files().side_files) - {GEM_EMI},
+            "nothing added, and the only thing dropped is the glow map for a glow nobody asked for",
+        )
 
     def test_wrappers_sharing_a_base_share_the_source(self) -> None:
         # a cloned section (the guard drawing with the handle's textures) has no draw section of its own
@@ -220,7 +228,59 @@ class RouteTests(unittest.TestCase):
         self.assertTrue(kept.notes)
         routed = route_model_files(files, MaterialRoute.PLAIN_PBR, result=Result(()), scene=Scene(()))
         self.assertEqual(routed.material_route, MaterialRoute.PLAIN_PBR.value)
-        self.assertEqual({w.shader for w in find_material_wrappers(routed.side_files[XML].decode("utf-8"))}, {STANDARD_SHADER, EMISSIVE_SHADER, LAYERED_SHADER})
+        self.assertEqual({w.shader for w in find_material_wrappers(routed.side_files[XML].decode("utf-8"))}, {STANDARD_SHADER, LAYERED_SHADER})
+
+        # and with a glow asked for, the part named lights up in the colour it was given
+        class _Glow:
+            parts = ("cd_phm_02_sword_handle_0003",)
+            intensity = 6.0
+
+            def hex_color(self) -> str:
+                return "#3366FFFF"
+
+        lit = route_model_files(files, MaterialRoute.PLAIN_PBR, result=Result(()), scene=Scene(()), glow=_Glow())
+        gem = {w.submesh_name: w for w in find_material_wrappers(lit.side_files[XML].decode("utf-8"))}["cd_phm_02_sword_handle_0003"]
+        self.assertEqual(gem.shader, EMISSIVE_SHADER)
+        self.assertEqual((gem.value("_emissiveColor"), gem.value("_emissiveIntensity")), ("#3366FFFF", "6.000000"))
+        self.assertTrue(gem.textures.get("_emissiveIntensityTexture"), "a solid map for the part that glows")
+
+
+class PartNameTests(unittest.TestCase):
+    """The parts a glow is chosen by: the submesh names the template's sidecar keys its
+    material wrappers with, which is the only thing the game's emissive is per."""
+
+    class _File:
+        def __init__(self, path: str, exists: bool = True) -> None:
+            self.path, self.exists = path, exists
+            self.role = "pac_xml"
+
+    class _Snapshot:
+        def __init__(self, files, payloads) -> None:
+            self._files, self._payloads = files, payloads
+
+        def family(self, item_key: int):
+            from types import SimpleNamespace
+
+            return SimpleNamespace(files=self._files)
+
+        def payload(self, path: str) -> bytes:
+            return self._payloads[path]
+
+    def test_the_wrappers_of_the_template_sidecar_are_the_parts(self) -> None:
+        from cdmw.services.new_item_materials import material_part_names
+
+        snapshot = self._Snapshot([self._File(XML)], {XML: SIDECAR.encode("utf-8")})
+        self.assertEqual(
+            material_part_names(snapshot, 1),
+            ("cd_phm_02_sword_0003", "cd_phm_02_sword_handle_0003", "cd_phm_02_sword_guard_0003"),
+        )
+
+    def test_a_family_with_no_readable_sidecar_names_no_parts(self) -> None:
+        from cdmw.services.new_item_materials import material_part_names
+
+        self.assertEqual(material_part_names(self._Snapshot([], {}), 1), ())
+        missing = self._Snapshot([self._File(XML, exists=False)], {})
+        self.assertEqual(material_part_names(missing, 1), (), "a sidecar the family says is not there is not read")
 
 
 class EncoderTests(unittest.TestCase):

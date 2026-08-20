@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QProgressBar,
     QPushButton,
     QRadioButton,
@@ -125,6 +127,42 @@ class ModelPanel(QGroupBox):
         )
         self.keep_physics.toggled.connect(self._keep_physics_changed)
         model_layout.addWidget(self.keep_physics)
+        # Glow. The template's own emissive is not inherited -- its mask is cut for the
+        # template's mesh and the importer's stand-in is flat, which lights the whole model
+        # -- so a glow is something the reader asks for, part by part.
+        self.glow_box = QGroupBox("Glow")
+        self.glow_box.setCheckable(True)
+        self.glow_box.setChecked(False)
+        self.glow_box.setToolTip(
+            "Make parts of the item give off light. The game's emissive is one colour and one strength per part, so a part "
+            "either glows or it does not; pick the parts, the colour and how strongly. Off, the item glows only where your "
+            "own model brought an emissive map."
+        )
+        glow_layout = QVBoxLayout(self.glow_box)
+        self.glow_parts = QListWidget()
+        self.glow_parts.setToolTip("The item's material parts, as its model names them. Tick the ones that glow.")
+        self.glow_parts.setMaximumHeight(110)
+        self.glow_parts.itemChanged.connect(lambda _item: self._glow_changed())
+        glow_layout.addWidget(self.glow_parts)
+        glow_row = QHBoxLayout()
+        self.glow_color_button = QPushButton("Colour")
+        self.glow_color_button.setToolTip("The colour the chosen parts glow in.")
+        self.glow_color_button.clicked.connect(self._pick_glow_color)
+        glow_row.addWidget(self.glow_color_button)
+        glow_row.addWidget(QLabel("Strength"))
+        self.glow_intensity = QDoubleSpinBox()
+        self.glow_intensity.setRange(0.1, 20.0)
+        self.glow_intensity.setSingleStep(0.5)
+        self.glow_intensity.setDecimals(1)
+        self.glow_intensity.setValue(4.0)
+        self.glow_intensity.setToolTip("How strongly they glow. The shipped magic weapons run 1 to 10; the game's own limit is 20.")
+        self.glow_intensity.valueChanged.connect(lambda _value: self._glow_changed())
+        glow_row.addWidget(self.glow_intensity)
+        glow_row.addStretch(1)
+        glow_layout.addLayout(glow_row)
+        self.glow_box.toggled.connect(lambda _on: self._glow_changed())
+        model_layout.addWidget(self.glow_box)
+        self._set_glow_swatch()
         self.flip_texture_v = QCheckBox("Flip the imported textures vertically (V)")
         self.flip_texture_v.setToolTip(
             "glTF, GLB, OBJ and DAE put V's origin at the bottom and the game samples it from the top, so their textures need the "
@@ -273,6 +311,8 @@ class ModelPanel(QGroupBox):
         layout.addStretch(1)
         controller.template_changed.connect(lambda _key: self._show_model(controller.model_result))
         controller.template_changed.connect(lambda _key: self.refresh_preview())
+        # the parts a glow is chosen by are the template's, so the list follows it
+        controller.template_changed.connect(lambda _key: self.refresh_glow_parts())
         self.preview.ready.connect(lambda: self.capture_inline_button.setEnabled(True))
         self.preview.ready.connect(self._refresh_placement_enabled)
         self.preview.ready.connect(self._refresh_apply_status)
@@ -300,6 +340,56 @@ class ModelPanel(QGroupBox):
     def _material_route_changed(self, plain: bool) -> None:
         self._controller.draft.material_route = MaterialRoute.PLAIN_PBR if plain else MaterialRoute.BUILDER
         self._controller.plan = None
+
+    def refresh_glow_parts(self) -> None:
+        """Fill the part list from the chosen template, keeping what was already ticked."""
+
+        chosen = set(self._controller.draft.glow_parts)
+        parts = self._controller.material_parts()
+        self.glow_parts.blockSignals(True)
+        self.glow_parts.clear()
+        for name in parts:
+            item = QListWidgetItem(name)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if name in chosen else Qt.CheckState.Unchecked)
+            self.glow_parts.addItem(item)
+        self.glow_parts.blockSignals(False)
+        self.glow_box.setEnabled(bool(parts))
+        if not parts:
+            self.glow_box.setToolTip("The template's model names no material parts, so there is nothing to light up.")
+
+    def _ticked_glow_parts(self) -> tuple:
+        return tuple(
+            self.glow_parts.item(row).text()
+            for row in range(self.glow_parts.count())
+            if self.glow_parts.item(row).checkState() == Qt.CheckState.Checked
+        )
+
+    def _glow_changed(self) -> None:
+        draft = self._controller.draft
+        draft.glow_parts = self._ticked_glow_parts() if self.glow_box.isChecked() else ()
+        draft.glow_intensity = float(self.glow_intensity.value())
+        self._controller.plan = None
+
+    def _pick_glow_color(self) -> None:
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QColorDialog
+
+        current = self._controller.draft.glow_color
+        start = QColor.fromRgbF(*(max(0.0, min(1.0, float(channel))) for channel in current))
+        chosen = QColorDialog.getColor(start, self, "The colour the parts glow in")
+        if not chosen.isValid():
+            return
+        self._controller.draft.glow_color = (chosen.redF(), chosen.greenF(), chosen.blueF())
+        self._set_glow_swatch()
+        self._controller.plan = None
+
+    def _set_glow_swatch(self) -> None:
+        red, green, blue = (int(round(max(0.0, min(1.0, float(c))) * 255)) for c in self._controller.draft.glow_color)
+        self.glow_color_button.setText(f"Colour: #{red:02x}{green:02x}{blue:02x}")
+        self.glow_color_button.setStyleSheet(
+            f"background-color: rgb({red},{green},{blue}); color: {'black' if (red + green + blue) > 380 else 'white'};"
+        )
 
     def _keep_physics_changed(self, keep: bool) -> None:
         self._controller.draft.keep_template_physics = bool(keep)

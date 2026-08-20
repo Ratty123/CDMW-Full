@@ -160,6 +160,33 @@ class EffectLook:
 
 
 @dataclass(frozen=True, slots=True)
+class GlowChoice:
+    """The parts of an item that glow, and how.
+
+    `parts` are material submesh names as the `.pac_xml` writes them
+    (`cd_phm_02_sword_handle_0040`), because that is what a material wrapper is keyed by.
+    The game's emissive is one intensity map times one colour times one number, so a part
+    that glows takes a solid map and these two values.
+    """
+
+    parts: Tuple[str, ...] = ()
+    #: linear 0..1 per channel, as the colour buttons elsewhere in the studio carry it
+    color: Tuple[float, float, float] = (1.0, 1.0, 1.0)
+    #: the shipped materials run 1 to 10 and the game's own authority caps at 20
+    intensity: float = 4.0
+
+    @property
+    def wanted(self) -> bool:
+        return bool(self.parts)
+
+    def hex_color(self) -> str:
+        """`#RRGGBBAA`, the way a `.pac_xml` writes a colour."""
+
+        red, green, blue = (max(0, min(255, int(round(float(channel) * 255)))) for channel in self.color)
+        return f"#{red:02X}{green:02X}{blue:02X}FF"
+
+
+@dataclass(frozen=True, slots=True)
 class NewItemSpec:
     template_key: int
     internal_name: str
@@ -181,6 +208,11 @@ class NewItemSpec:
     #: swings like cloth, a blade that sags. The game finds the file by the stem, so an item
     #: written without one simply has no physics. Only read for an imported model.
     keep_template_physics: bool = False
+    #: Which parts of the item glow, in what colour, and how strongly. Empty parts means
+    #: nothing glows, which is what an imported model does unless it brought an emissive
+    #: map of its own: a template's own glow rides on a mask cut for the template's mesh,
+    #: and the map the importer generates in its place says "glow everywhere".
+    glow: "GlowChoice" = None  # type: ignore[assignment]
     icon: IconSource = IconSource.TEMPLATE
     stat_edits: Tuple[StatEdit, ...] = ()
     buy_price_edits: Tuple[BuyPriceEdit, ...] = ()

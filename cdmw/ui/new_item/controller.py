@@ -75,6 +75,8 @@ class NewItemStudioController(QObject):
         #: (template key, the character holding that template's item), so opening the
         #: placement dialog again does not re-read the prefab
         self._held_character: tuple = ()
+        #: (template key, its material part names), read once per template
+        self._material_parts: tuple = ()
         self.draft = NewItemDraft()
         self.plan: Optional[NewItemPlan] = None
         self.model_result: object | None = None
@@ -561,6 +563,29 @@ class NewItemStudioController(QObject):
         self._held_character = (template, held)
         return held
 
+    def material_parts(self) -> Tuple[str, ...]:
+        """The names of the item's material parts, as its `.pac_xml` keys them.
+
+        These are what a glow is chosen by: a material wrapper is keyed by submesh name,
+        and the game's emissive is per material, not per triangle. Empty when there is no
+        template or its sidecar will not read.
+        """
+
+        snapshot, template = self.snapshot, self.draft.template_key
+        if snapshot is None or template is None:
+            return ()
+        if self._material_parts and self._material_parts[0] == template:
+            return self._material_parts[1]
+        from cdmw.services.new_item_materials import material_part_names
+
+        try:
+            parts = material_part_names(snapshot, int(template))
+        except Exception as exc:  # noqa: BLE001 - no list is a smaller loss than no step
+            self.log_message.emit(f"The template's material parts could not be read: {exc}")
+            parts = ()
+        self._material_parts = (template, parts)
+        return parts
+
     def effect_box(self, stem: str = "") -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
         """The chosen effect's bounding box at scale 1.0, or a metre cube before indexing."""
 
@@ -847,6 +872,7 @@ class NewItemStudioController(QObject):
                 # a different install can have a different character
                 self._character_reference = _NOT_READ
                 self._held_character = ()
+                self._material_parts = ()
                 self.snapshot_ready.emit()
             else:
                 self.snapshot_failed.emit("The snapshot finished with an unexpected result.")
