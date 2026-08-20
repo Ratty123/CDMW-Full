@@ -279,6 +279,22 @@ def _sample_surface(mesh_path: str, meshes: Mapping[str, Sequence[Vec3]], count:
     return tuple((float(vertices[i][0]), float(vertices[i][1]), float(vertices[i][2])) for i in sorted(picked))
 
 
+#: What a shipped emitter says, for the ones that are not shipped at all. Medians over the
+#: 562 `.paem` files in the archives, measured 2026-08-20; `_loopCount` is not a median but
+#: a count, because all 208 emitters that state it state -1 and none states anything else.
+#: Used only when the emitter file an effect names is missing, which is a third of them:
+#: with the file in hand its own values win and these are never consulted.
+_MISSING_EMITTER_DEFAULTS: Mapping[str, float] = {
+    "_spawnCountMax": 5.0,
+    "_spawnTermMin": 0.02,
+    "_spawnTermMax": 0.05,
+    "_lifeTimeMin": 0.65,
+    "_lifeTimeMax": 1.25,
+    "_spawnTime": 0.2,
+    "_loopCount": -1.0,
+}
+
+
 @dataclass
 class _Source:
     """One place an emitter's values can come from, in priority order: the effect's
@@ -352,15 +368,32 @@ def _emitter_preview(
     sources: Sequence[_Source],
     meshes: Mapping[str, Sequence[Vec3]],
     notes: List[str],
+    *,
+    emitter_file_read: bool = True,
 ) -> EmitterPreview:
-    burst = int(_read(sources, "_spawnData", "_spawnCountMax", 1, _number))
-    term_min = float(_read(sources, "_spawnData", "_spawnTermMin", 0.05, _number))
-    term_max = float(_read(sources, "_spawnData", "_spawnTermMax", term_min or 0.05, _number))
+    def fallback(key: str, shipped: float) -> float:
+        """What to use when nothing in `sources` says.
+
+        With the emitter file in hand the gaps are small and the old zeros were harmless.
+        Without it -- a third of the emitters effects name are not in the archives at all
+        -- the gaps are most of the emitter, and a default of "no spawn window, not
+        looping" meant the preview drew one particle and stopped. The stand-ins are what
+        the 562 shipped emitter files actually say.
+        """
+
+        return _MISSING_EMITTER_DEFAULTS[key] if not emitter_file_read and key in _MISSING_EMITTER_DEFAULTS else shipped
+
+    burst = int(_read(sources, "_spawnData", "_spawnCountMax", fallback("_spawnCountMax", 1), _number))
+    term_min = float(_read(sources, "_spawnData", "_spawnTermMin", fallback("_spawnTermMin", 0.05), _number))
+    term_max = float(_read(sources, "_spawnData", "_spawnTermMax", term_min or fallback("_spawnTermMax", 0.05), _number))
     term = max(1e-3, (term_min + term_max) / 2.0)
-    life = (float(_read(sources, "_spawnData", "_lifeTimeMin", 1.0, _number)), float(_read(sources, "_spawnData", "_lifeTimeMax", 1.0, _number)))
+    life = (
+        float(_read(sources, "_spawnData", "_lifeTimeMin", fallback("_lifeTimeMin", 1.0), _number)),
+        float(_read(sources, "_spawnData", "_lifeTimeMax", fallback("_lifeTimeMax", 1.0), _number)),
+    )
     max_particles = int(_read(sources, "_spawnData", "_maxParticleCount", 200, _number))
-    loop = int(_read(sources, "_spawnData", "_loopCount", 0, _number)) == -1
-    spawn_time = float(_read(sources, "_spawnData", "_spawnTime", 0.0, _number))
+    loop = int(_read(sources, "_spawnData", "_loopCount", fallback("_loopCount", 0), _number)) == -1
+    spawn_time = float(_read(sources, "_spawnData", "_spawnTime", fallback("_spawnTime", 0.0), _number))
     mass = float(_read(sources, "_simulationData", "_mass", 1.0, _number))
     simulation_speed = float(_read(sources, "_simulationData", "_simulationSpeed", 1.0, _number))
     velocity_stretch = float(_read(sources, "_renderData", "_velocityStretch", 0.0, _number))
@@ -524,12 +557,15 @@ def build_effect_preview(
         if base_doc is not None:
             sources.append(_Source(base_doc.root, EmitterLayout()))
         else:
-            notes.append(f"{name}: the emitter file {path.rsplit('/', 1)[-1]} was not read; only the effect's own overrides describe it")
+            notes.append(
+                f"{name}: the emitter file {path.rsplit('/', 1)[-1]} is not in the archives; the effect's own overrides "
+                "describe it, and what they leave out is what a shipped emitter typically does"
+            )
         preset_name = embedded.value("_renderGroupPreset")
         preset = preset_documents.get(str(preset_name.value)) if preset_name is not None and preset_documents else None
         if preset is not None:
             sources.append(_Source(preset.root, EmitterLayout()))
-        emitters.append(_emitter_preview(name, sources, meshes, notes))
+        emitters.append(_emitter_preview(name, sources, meshes, notes, emitter_file_read=base_doc is not None))
     box_min = _vec3(document.root, "_boundingBoxMin", (-0.5, -0.5, -0.5))
     box_max = _vec3(document.root, "_boundingBoxMax", (0.5, 0.5, 0.5))
     if not emitters and not paths:
