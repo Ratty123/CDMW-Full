@@ -168,8 +168,9 @@ def reach_cage_mesh(box_min: Vec3, box_max: Vec3, *, name: str = EFFECT_REACH_SU
 
 
 #: What a submesh cut from the game's own character is named, so the material pass tints
-#: it like the stand-in figure and the dialog can hide the whole body at once.
-CHARACTER_MATERIAL_PREFIX = "effect_character_"
+#: it like the stand-in figure. Taken from the module that names them rather than spelled
+#: again here: two copies of the string would let a rename draw the character black.
+from cdmw.services.effect_character_reference import CHARACTER_SUBMESH_PREFIX as CHARACTER_MATERIAL_PREFIX  # noqa: E402
 
 EFFECT_BODY_SUBMESH = "effect_body"
 EFFECT_BODY_MATERIAL = "effect_body"
