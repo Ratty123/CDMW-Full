@@ -272,7 +272,27 @@ class PartNameTests(unittest.TestCase):
         snapshot = self._Snapshot([self._File(XML)], {XML: SIDECAR.encode("utf-8")})
         self.assertEqual(
             material_part_names(snapshot, 1),
-            ("cd_phm_02_sword_0003", "cd_phm_02_sword_handle_0003", "cd_phm_02_sword_guard_0003"),
+            (
+                ("cd_phm_02_sword_0003", "cd_phm_02_sword_0003"),
+                ("cd_phm_02_sword_handle_0003", "cd_phm_02_sword_handle_0003"),
+                ("cd_phm_02_sword_guard_0003", "cd_phm_02_sword_guard_0003"),
+            ),
+            "with no import to name them, a part is its own label",
+        )
+
+    def test_an_import_names_the_parts_and_narrows_them_to_its_own(self) -> None:
+        """`cd_phm_02_sword_handle_0003` is the template's word for a part that is now the
+        reader's model. And a wrapper the import does not own is not theirs to light: the
+        route rewrites it for nobody, so ticking it would do nothing."""
+
+        from cdmw.services.new_item_materials import material_part_names
+
+        snapshot = self._Snapshot([self._File(XML)], {XML: SIDECAR.encode("utf-8")})
+        result = Result((Section("cd_phm_02_sword_0003", "lambert1"), Section("cd_phm_02_sword_handle_0003", "Gem")))
+        scene = Scene((Binding("lambert1"), Binding("Gem")), Mesh(()))
+        self.assertEqual(
+            material_part_names(snapshot, 1, result=result, scene=scene),
+            (("cd_phm_02_sword_0003", "lambert1"), ("cd_phm_02_sword_handle_0003", "Gem")),
         )
 
     def test_a_family_with_no_readable_sidecar_names_no_parts(self) -> None:

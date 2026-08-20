@@ -237,7 +237,10 @@ class DialogTests(unittest.TestCase):
         dialog._show_caveats()
         self.assertFalse(dialog.caveat.isHidden())
         self.assertIn("pafx_m_ds_firesword_trail_002a.pam", dialog.caveat.text())
-        self.assertIn("stand-in", dialog.caveat.text())
+        # the line stays short; the detail moved to its tooltip, because a paragraph here
+        # pushed the controls above it off a short panel
+        self.assertLess(len(dialog.caveat.text()), 160, dialog.caveat.text())
+        self.assertIn("stand-in", dialog.caveat.toolTip())
 
         quiet = self._dialog(effect_preview=SimpleNamespace(emitters=(), notes=()))
         quiet._show_caveats()
@@ -407,7 +410,7 @@ class DialogTests(unittest.TestCase):
     def test_a_reach_far_larger_than_the_item_starts_hidden(self) -> None:
         dialog = self._dialog()
         self.assertFalse(dialog.show_reach.isChecked())
-        self.assertIn("far larger than the item", dialog.size_label.text())
+        self.assertIn("dwarfs the item", dialog.size_label.text())
 
 
 if __name__ == "__main__":

@@ -313,6 +313,8 @@ class ModelPanel(QGroupBox):
         controller.template_changed.connect(lambda _key: self.refresh_preview())
         # the parts a glow is chosen by are the template's, so the list follows it
         controller.template_changed.connect(lambda _key: self.refresh_glow_parts())
+        # and the parts are the imported model's, so they follow it too
+        controller.model_changed.connect(lambda _result: self.refresh_glow_parts())
         self.preview.ready.connect(lambda: self.capture_inline_button.setEnabled(True))
         self.preview.ready.connect(self._refresh_placement_enabled)
         self.preview.ready.connect(self._refresh_apply_status)
@@ -348,19 +350,24 @@ class ModelPanel(QGroupBox):
         parts = self._controller.material_parts()
         self.glow_parts.blockSignals(True)
         self.glow_parts.clear()
-        for name in parts:
-            item = QListWidgetItem(name)
+        for name, label in parts:
+            item = QListWidgetItem(label)
+            # the label is the reader's own material; the wrapper name is what the file
+            # keys it by, and what the plan has to be given
+            item.setData(Qt.ItemDataRole.UserRole, name)
+            item.setToolTip(name)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(Qt.CheckState.Checked if name in chosen else Qt.CheckState.Unchecked)
             self.glow_parts.addItem(item)
         self.glow_parts.blockSignals(False)
         self.glow_box.setEnabled(bool(parts))
         if not parts:
-            self.glow_box.setToolTip("The template's model names no material parts, so there is nothing to light up.")
+            self.glow_box.setChecked(False)
+            self.glow_box.setToolTip("Import a model on this step to choose which of its parts glow.")
 
     def _ticked_glow_parts(self) -> tuple:
         return tuple(
-            self.glow_parts.item(row).text()
+            str(self.glow_parts.item(row).data(Qt.ItemDataRole.UserRole) or self.glow_parts.item(row).text())
             for row in range(self.glow_parts.count())
             if self.glow_parts.item(row).checkState() == Qt.CheckState.Checked
         )

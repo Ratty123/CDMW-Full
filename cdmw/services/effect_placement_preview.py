@@ -354,6 +354,10 @@ def _tint_anchor_material(materials_path: Path) -> None:
         elif material == EFFECT_REACH_MATERIAL:
             item["double_sided"] = True
             parameters.update({"base_tint_color": list(REACH_TINT), "base_tint_strength": 1.0, "roughness": 0.6, "metalness": 0.0})
+        elif str(item.get("texture", "") or "").strip():
+            # it has textures of its own: tinting them would be painting over the thing the
+            # reader came to look at
+            parameters.update({"roughness": 0.55, "metalness": 0.0})
         else:
             parameters.update({"base_tint_color": list(ITEM_TINT), "base_tint_strength": 1.0, "roughness": 0.55, "metalness": 0.0})
         item["parameters"] = parameters
@@ -520,6 +524,11 @@ def build_effect_placement_package(
     character_mesh: Optional[ParsedMesh] = None,
     item_rotation: Optional[Sequence[float]] = None,
     cancelled: Optional[Callable[[], bool]] = None,
+    #: Carry the item's own textures into the package and draw it with them, the way the
+    #: Model step does. Off, the item is a flat neutral: the package builder resolves no
+    #: textures and the renderer draws an untextured material as a black body, which on a
+    #: dark backdrop is an invisible sword. Costs the material synthesis pass.
+    include_item_textures: bool = False,
     effect_preview: Optional["EffectPreview"] = None,
     texture_reader: Optional[Callable[[str], Optional[bytes]]] = None,
 ) -> EffectPlacementPreview:
@@ -579,7 +588,7 @@ def build_effect_placement_package(
         interaction_mode="placement",
         output_root=output_root,
         cancelled=cancelled,
-        include_material_resources=False,
+        include_material_resources=bool(include_item_textures),
     )
     _tint_anchor_material(Path(package.package_dir) / "net_materials.json")
     frame_low, frame_high = framing_bounds_for(

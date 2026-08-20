@@ -441,25 +441,46 @@ def route_plain_pbr(
     )
 
 
-def material_part_names(snapshot, item_key: int) -> Tuple[str, ...]:
-    """The material part names of an item's model, in file order.
+def material_part_names(
+    snapshot,
+    item_key: int,
+    *,
+    result: object = None,
+    scene: object = None,
+) -> Tuple[Tuple[str, str], ...]:
+    """The material parts a glow can be chosen by: `(name, label)`, in file order.
 
-    A `.pac_xml` keys its material wrappers by submesh name, and the game's emissive is
-    per material, so these are the parts a glow can be chosen by. Reads the template's own
-    sidecar out of the archives; an item whose family has none has no parts to choose.
+    `name` is what a `.pac_xml` keys its material wrapper by, which is the template's own
+    submesh name and the only thing the game's emissive is per. `label` is what to call it
+    on screen: with an imported model that is the source material the part draws with,
+    because "cd_phm_02_sword_handle_0040" is the template's word for a part that is now
+    the reader's own.
+
+    With `result` and `scene` from an import, only the parts that import owns are listed.
+    The others are not the reader's to light: the plain-PBR route rewrites a wrapper only
+    when the import owns one of its textures, so ticking one of them would do nothing.
     """
 
     from cdmw.core.pac_xml_standard_material import find_material_wrappers
 
+    sources = source_materials_from_import(result, scene) if result is not None and scene is not None else {}
     family = snapshot.family(int(item_key))
     for file in tuple(getattr(family, "files", ()) or ()):
         path = str(getattr(file, "path", "") or "")
         if not path.lower().endswith(".pac_xml") or not getattr(file, "exists", False):
             continue
         text = snapshot.payload(path).decode("utf-8-sig", "replace")
-        names = tuple(w.submesh_name for w in find_material_wrappers(text) if w.submesh_name)
-        if names:
-            return names
+        parts = []
+        for wrapper in find_material_wrappers(text):
+            name = str(wrapper.submesh_name or "")
+            if not name:
+                continue
+            source = sources.get(name.casefold())
+            if sources and source is None:
+                continue
+            parts.append((name, str(getattr(source, "name", "") or "") or name))
+        if parts:
+            return tuple(parts)
     return ()
 
 
