@@ -899,6 +899,12 @@ class InstallReportTests(unittest.TestCase):
         self.assertIn("Removed the overlay 0036", message)
         self.assertIn("gone from the game", message)
 
+        # the texture registry is a loose file the overlay rewrote in place, so a removal
+        # that put it back has to say so
+        title, message = install_result_report(RemovalResult(Path("g/0036"), True, 2, Path("b/3"), ("meta/0.pathc",)))
+        self.assertIn("meta/0.pathc", message)
+        self.assertIn("back to what the game shipped", message)
+
         title, message = install_result_report(RemovalResult(None, False, 0, None))
         self.assertIn("no overlay to remove", message)
 

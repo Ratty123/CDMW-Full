@@ -52,6 +52,14 @@ def install_result_report(result: object) -> tuple:
     if hasattr(result, "removed_files"):  # the overlay taken away
         if not getattr(result, "unmounted", False):
             return ("Remove the overlay", "There was no overlay to remove: the mount list names none.")
+        put_back = tuple(getattr(result, "restored_meta", ()) or ())
+        if put_back:
+            return (
+                "Remove the overlay",
+                f"Removed the overlay {name} and unmounted it, and put {', '.join(put_back)} back to what the game shipped."
+                f"\n\nAnything that lived only in the overlay is gone from the game with it; anything installed into the "
+                f"shipped archives is untouched.\n\nBackup: {backup}",
+            )
         return (
             "Remove the overlay",
             f"Removed the overlay {name} and unmounted it.\n\nAnything that lived only in the overlay is gone from the game "

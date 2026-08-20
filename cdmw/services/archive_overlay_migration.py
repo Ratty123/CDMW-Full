@@ -76,6 +76,9 @@ class RemovalResult:
     unmounted: bool
     removed_files: int
     backup_dir: Optional[Path]
+    #: Loose files beside the archives that the overlay had rewritten and that came back
+    #: with it, `meta/0.pathc` above all.
+    restored_meta: Tuple[str, ...] = ()
 
 
 def _oldest_copies(backups: Sequence[Path]) -> Tuple[Dict[Path, Path], Tuple[Path, ...]]:
@@ -257,6 +260,7 @@ def remove_overlay(
     *,
     directory_name: Optional[str] = None,
     backup: Optional[Callable[[Sequence[Path], str], Path]] = None,
+    backups: Optional[Sequence[Path]] = None,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> RemovalResult:
     """Unmount the workbench's overlay and delete it.
@@ -274,10 +278,11 @@ def remove_overlay(
         return RemovalResult(directory=None, unmounted=False, removed_files=0, backup_dir=None)
     directory = root / name
     files = [path for path in (directory / "0.pamt", directory / "0.paz") if path.is_file()]
+    stale_meta = _meta_to_restore(root, backups=backups)
 
     backup_dir: Optional[Path] = None
     if backup is not None:
-        backup_dir = backup(sorted({papgt_path, *files}), f"Remove the overlay at {name}")
+        backup_dir = backup(sorted({papgt_path, *files, *stale_meta}), f"Remove the overlay at {name}")
         if on_log is not None:
             on_log(f"Backup created: {backup_dir}")
 
@@ -293,4 +298,51 @@ def remove_overlay(
         removed = len(files)
         if on_log is not None:
             on_log(f"Deleted {name} ({removed} file(s)).")
-    return RemovalResult(directory=directory, unmounted=True, removed_files=removed, backup_dir=backup_dir)
+    restored: List[str] = []
+    for target, oldest in sorted(stale_meta.items()):
+        _write_atomic_meta(target, oldest.read_bytes())
+        relative = target.relative_to(root).as_posix()
+        restored.append(relative)
+        if on_log is not None:
+            on_log(f"Put {relative} back to the copy the workbench first saw ({oldest.parent.name}).")
+    return RemovalResult(
+        directory=directory, unmounted=True, removed_files=removed, backup_dir=backup_dir,
+        restored_meta=tuple(restored),
+    )
+
+
+def _write_atomic_meta(path: Path, payload: bytes) -> None:
+    from cdmw.services.archive_overlay_install import _write_atomic
+
+    _write_atomic(path, payload)
+
+
+def _meta_to_restore(root: Path, *, backups: Optional[Sequence[Path]] = None) -> Dict[Path, Path]:
+    """`{loose file beside the archives: its oldest backup copy}` for the ones that differ.
+
+    An overlay install rewrites `meta/0.pathc` (the texture registry) in place, because the
+    registry is a loose file rather than an archive entry: there is no overlay for it to
+    live in. Taking the overlay away therefore has to put that file back, or the game keeps
+    a registry naming textures that went with the directory. The oldest copy is the state
+    before this workbench touched it at all, which is the same rule the move into the
+    overlay uses for the archives themselves.
+    """
+
+    from cdmw.core.archive_patching import list_archive_patch_backups
+
+    try:
+        known = list(backups) if backups is not None else list(list_archive_patch_backups())
+        copies, _used = _oldest_copies(known)
+    except Exception:  # noqa: BLE001 - a removal must not fail over a backup that cannot be read
+        return {}
+    meta = root / "meta"
+    out: Dict[Path, Path] = {}
+    for original, oldest in copies.items():
+        try:
+            if original.parent != meta or original.name.lower() == "0.papgt" or not original.is_file():
+                continue
+            if original.read_bytes() != oldest.read_bytes():
+                out[original] = oldest
+        except OSError:
+            continue
+    return out
