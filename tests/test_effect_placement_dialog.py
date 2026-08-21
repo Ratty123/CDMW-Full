@@ -58,6 +58,7 @@ class _Host(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.views: list = []
+        self.view_roles: list = []
         self.zooms: list = []
         self.hidden: tuple = ()
         self.particles: list = []
@@ -68,8 +69,9 @@ class _Host(QWidget):
         self.loaded = None
         self.controller = _Controller(self)
 
-    def set_view(self, *, yaw, pitch, zoom_factor=None, fit_to_view=None, **_rest) -> bool:
+    def set_view(self, *, yaw, pitch, zoom_factor=None, fit_to_view=None, role="replacement", **_rest) -> bool:
         self.views.append((float(yaw), float(pitch), fit_to_view))
+        self.view_roles.append(str(role))
         self.zooms.append(None if zoom_factor is None else round(float(zoom_factor), 4))
         return True
 
@@ -105,6 +107,15 @@ class _Host(QWidget):
         return True
 
     def set_display_mode(self, mode: str) -> bool:
+        return True
+
+    def set_viewport_display_mode(self, mode: str) -> bool:
+        return True
+
+    def set_alignment_state(self, *, enabled: bool) -> bool:
+        return True
+
+    def set_camera_drag_bindings(self, **_bindings) -> bool:
         return True
 
 
@@ -155,12 +166,28 @@ class DialogTests(unittest.TestCase):
         dialog = self._dialog()
         self.assertEqual(len(dialog.view_buttons), len(STANDING_VIEW_ANGLES))
         self.assertEqual([button.text() for button in dialog.view_buttons], ["Front", "Side", "Top", "Angled"])
+        self.assertTrue(dialog.view_buttons[-1].isChecked(), "the selected opening view is visible")
         for button in dialog.view_buttons:
             button.click()
         self.assertEqual(
             dialog.host.views,
             [(yaw, pitch, True) for yaw, pitch in STANDING_VIEW_ANGLES],
         )
+        self.assertEqual(dialog.host.view_roles, ["reference"] * len(STANDING_VIEW_ANGLES))
+
+    def test_camera_follows_the_item_reference_not_the_moving_effect(self) -> None:
+        """The anchor is the editable role. Replacing its local bounds with the item's
+        made every later camera fit follow a fabricated box at the effect offset; after
+        fitting a large reach down, the item and character fell outside the view."""
+
+        dialog = self._dialog(offset=(3.704, 0.756, -0.344), scale=0.6)
+        dialog._host_state("ready", "")
+        self.assertEqual(dialog.host.remembered, (), "the editable role keeps its own bounds")
+        self.assertEqual(dialog.host.view_roles[-1], "reference", "the opening fit follows the item")
+
+        dialog._fit_reach_to_item()
+        self.assertEqual(dialog.host.view_roles[-1], "reference", "Fit keeps the item and character in frame")
+        self.assertLess(dialog.scale, 0.1, "the reported large-reach case is represented")
 
     def test_the_places_on_the_item_move_the_offset_along_its_long_axis(self) -> None:
         """Three spin boxes and a mesh whose long axis is not obvious make placing an
@@ -400,12 +427,24 @@ class DialogTests(unittest.TestCase):
 
         dialog = self._dialog()
         groups = [box.title() for box in dialog.findChildren(QGroupBox)]
-        self.assertEqual(groups, ["Place the effect", "What is drawn"])
+        self.assertEqual(groups, ["Placement", "Preview"])
         self.assertFalse(dialog.legend_toggle.toggle.isChecked(), "the legend starts folded")
         for label in dialog.legend_rows.values():
             self.assertFalse(label.isVisibleTo(dialog), "and its rows are not taking room")
         dialog.legend_toggle.toggle.setChecked(True)
         self.assertTrue(dialog.legend_rows["anchor"].isVisibleTo(dialog), "one click and it is there")
+
+    def test_the_context_and_actions_are_compact_and_specific(self) -> None:
+        from PySide6.QtWidgets import QDialogButtonBox
+
+        dialog = self._dialog(effect_label="pafx_weapon_fire", item_label="placed")
+        self.assertEqual(dialog.effect_name_label.text(), "pafx_weapon_fire")
+        self.assertEqual(dialog.showing_label.text(), "Imported")
+        self.assertIn("step 3", dialog.showing_label.toolTip(), "detail stays available without another paragraph")
+        self.assertIn("right mouse button", dialog.host.toolTip(), "gesture help moved off the permanent canvas")
+        buttons = dialog.findChild(QDialogButtonBox)
+        self.assertIsNotNone(buttons)
+        self.assertEqual(buttons.button(QDialogButtonBox.StandardButton.Ok).text(), "Apply")
 
     def test_a_reach_far_larger_than_the_item_starts_hidden(self) -> None:
         dialog = self._dialog()

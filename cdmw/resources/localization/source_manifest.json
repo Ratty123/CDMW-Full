@@ -1056,7 +1056,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 877,
+          "line": 870,
           "sink": "setText"
         }
       ]
@@ -3711,7 +3711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 365,
+          "line": 373,
           "sink": "setToolTip"
         }
       ]
@@ -6746,7 +6746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 565,
+          "line": 566,
           "sink": "setToolTip"
         }
       ]
@@ -6875,6 +6875,11 @@
       "key": "Anchor",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 319,
+          "sink": "QLabel"
+        },
+        {
           "path": "cdmw/ui/texture_workflow/editor_document_ui.py",
           "line": 78,
           "sink": "addRow"
@@ -6906,7 +6911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 234,
+          "line": 242,
           "sink": "_add_view_button"
         }
       ]
@@ -7657,6 +7662,11 @@
         {
           "path": "cdmw/ui/model_library/view_state.py",
           "line": 213,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 442,
           "sink": "setText"
         },
         {
@@ -12031,7 +12041,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 368,
+          "line": 376,
           "sink": "QLabel"
         }
       ]
@@ -12701,7 +12711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 374,
+          "line": 382,
           "sink": "addItem"
         },
         {
@@ -24866,7 +24876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 372,
+          "line": 380,
           "sink": "addItem"
         }
       ]
@@ -29178,6 +29188,11 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_shell_part_01.py",
           "line": 550,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 195,
+          "sink": "QLabel"
         }
       ]
     },
@@ -35246,7 +35261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 343,
+          "line": 351,
           "sink": "QPushButton"
         }
       ]
@@ -36361,7 +36376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 233,
+          "line": 241,
           "sink": "_add_view_button"
         }
       ]
@@ -36371,7 +36386,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 232,
+          "line": 240,
           "sink": "_add_view_button"
         }
       ]
@@ -36381,7 +36396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 231,
+          "line": 239,
           "sink": "_add_view_button"
         },
         {
@@ -37486,7 +37501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 373,
+          "line": 381,
           "sink": "addItem"
         }
       ]
@@ -38356,7 +38371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 312,
+          "line": 320,
           "sink": "_add_place_button"
         }
       ]
@@ -39121,7 +39136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 359,
+          "line": 367,
           "sink": "setToolTip"
         }
       ]
@@ -41023,6 +41038,16 @@
           "path": "cdmw/ui/mesh_editor/tab_dotnet_material_roles.py",
           "line": 30,
           "sink": "python-return:_dotnet_material_role_label"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 201,
+          "sink": "setText"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 204,
+          "sink": "setText"
         }
       ]
     },
@@ -46456,7 +46481,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 507,
+          "line": 516,
           "sink": "setText"
         },
         {
@@ -46821,7 +46846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 231,
+          "line": 239,
           "sink": "_add_view_button"
         }
       ]
@@ -51496,7 +51521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 313,
+          "line": 321,
           "sink": "_add_place_button"
         }
       ]
@@ -52163,6 +52188,11 @@
           "path": "cdmw/ui/archive_browser/hkx_editor_dialog_preview_part_02.py",
           "line": 150,
           "sink": "setHeaderLabels"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 198,
+          "sink": "QLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
@@ -53311,7 +53341,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 279,
+          "line": 287,
           "sink": "QPushButton"
         },
         {
@@ -65161,12 +65191,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 357,
+          "line": 365,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 620,
+          "line": 623,
           "sink": "setText"
         },
         {
@@ -65196,7 +65226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 620,
+          "line": 623,
           "sink": "setText"
         }
       ]
@@ -65807,21 +65837,11 @@
       ]
     },
     {
-      "key": "Place the effect",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 259,
-          "sink": "QGroupBox"
-        }
-      ]
-    },
-    {
       "key": "Place the effect on the item",
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 169,
+          "line": 170,
           "sink": "setWindowTitle"
         }
       ]
@@ -65848,6 +65868,11 @@
           "path": "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py",
           "line": 207,
           "sink": "QLabel"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 267,
+          "sink": "QGroupBox"
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.ToolPanels.cs",
@@ -68151,7 +68176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 429,
+          "line": 437,
           "sink": "QLabel"
         }
       ]
@@ -68433,6 +68458,11 @@
           "path": "cdmw/ui/model_library/panels.py",
           "line": 190,
           "sink": "QPushButton"
+        },
+        {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 269,
+          "sink": "QGroupBox"
         },
         {
           "path": "cdmw/ui/replace_assistant/preview.py",
@@ -70542,21 +70572,11 @@
       ]
     },
     {
-      "key": "Put it at",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 311,
-          "sink": "QLabel"
-        }
-      ]
-    },
-    {
       "key": "Put the effect's origin at the far end of the item: a blade's point.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 314,
+          "line": 322,
           "sink": "_add_place_button"
         }
       ]
@@ -70566,7 +70586,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 313,
+          "line": 321,
           "sink": "_add_place_button"
         }
       ]
@@ -70576,7 +70596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 312,
+          "line": 320,
           "sink": "_add_place_button"
         }
       ]
@@ -70586,7 +70606,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 812,
+          "line": 805,
           "sink": "setToolTip"
         }
       ]
@@ -70596,7 +70616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 318,
+          "line": 326,
           "sink": "setToolTip"
         }
       ]
@@ -71031,7 +71051,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 877,
+          "line": 870,
           "sink": "setText"
         }
       ]
@@ -79656,12 +79676,12 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 282,
+          "line": 290,
           "sink": "QPushButton"
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 296,
+          "line": 304,
           "sink": "addRow"
         },
         {
@@ -84701,7 +84721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 344,
+          "line": 352,
           "sink": "setToolTip"
         }
       ]
@@ -85996,7 +86016,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 364,
+          "line": 372,
           "sink": "QCheckBox"
         }
       ]
@@ -86056,7 +86076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 349,
+          "line": 357,
           "sink": "QCheckBox"
         }
       ]
@@ -86101,7 +86121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 325,
+          "line": 333,
           "sink": "QCheckBox"
         }
       ]
@@ -86226,8 +86246,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 205,
-          "sink": "setText"
+          "line": 208,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -86236,8 +86256,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 203,
-          "sink": "setText"
+          "line": 205,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -86246,8 +86266,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 201,
-          "sink": "setText"
+          "line": 202,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -86466,7 +86486,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 232,
+          "line": 240,
           "sink": "_add_view_button"
         }
       ]
@@ -92240,6 +92260,11 @@
       "key": "Template",
       "origins": [
         {
+          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
+          "line": 207,
+          "sink": "setText"
+        },
+        {
           "path": "cdmw/ui/recolor_variants_tab.py",
           "line": 390,
           "sink": "QLabel"
@@ -94611,7 +94636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 326,
+          "line": 334,
           "sink": "setToolTip"
         }
       ]
@@ -94621,7 +94646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 350,
+          "line": 358,
           "sink": "setToolTip"
         }
       ]
@@ -94631,7 +94656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 880,
+          "line": 873,
           "sink": "setToolTip"
         }
       ]
@@ -94746,7 +94771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 831,
+          "line": 824,
           "sink": "setToolTip"
         }
       ]
@@ -95096,7 +95121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 483,
+          "line": 492,
           "sink": "setText"
         }
       ]
@@ -95306,7 +95331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 245,
+          "line": 253,
           "sink": "QLabel"
         }
       ]
@@ -95316,7 +95341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 509,
+          "line": 518,
           "sink": "setText"
         }
       ]
@@ -95651,7 +95676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 234,
+          "line": 242,
           "sink": "_add_view_button"
         }
       ]
@@ -96546,7 +96571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 545,
+          "line": 546,
           "sink": "setText"
         }
       ]
@@ -96661,7 +96686,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 314,
+          "line": 322,
           "sink": "_add_place_button"
         }
       ]
@@ -96901,7 +96926,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 233,
+          "line": 241,
           "sink": "_add_view_button"
         },
         {
@@ -97036,7 +97061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 317,
+          "line": 325,
           "sink": "QPushButton"
         }
       ]
@@ -97516,8 +97541,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 239,
-          "sink": "intro_label"
+          "line": 247,
+          "sink": "setToolTip"
         }
       ]
     },
@@ -100966,7 +100991,7 @@
         },
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 230,
+          "line": 238,
           "sink": "QLabel"
         },
         {
@@ -102522,16 +102547,6 @@
       ]
     },
     {
-      "key": "What is drawn",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 261,
-          "sink": "QGroupBox"
-        }
-      ]
-    },
-    {
       "key": "What is left:",
       "origins": [
         {
@@ -102621,7 +102636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 399,
+          "line": 407,
           "sink": "DetailsToggle"
         }
       ]
@@ -102631,7 +102646,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 416,
+          "line": 424,
           "sink": "DetailsToggle"
         }
       ]
@@ -102641,7 +102656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 375,
+          "line": 383,
           "sink": "setToolTip"
         }
       ]
@@ -105441,7 +105456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 405,
+          "line": 413,
           "sink": "_add_legend_row"
         }
       ]
@@ -112506,7 +112521,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 406,
+          "line": 414,
           "sink": "_add_legend_row"
         }
       ]
@@ -196776,7 +196791,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 403,
+          "line": 411,
           "sink": "_add_legend_row"
         }
       ]
@@ -196866,7 +196881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 407,
+          "line": 415,
           "sink": "_add_legend_row"
         }
       ]
@@ -198771,7 +198786,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 404,
+          "line": 412,
           "sink": "_add_legend_row"
         }
       ]
@@ -201281,7 +201296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 564,
+          "line": 565,
           "sink": "setText"
         }
       ]
@@ -202076,7 +202091,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 545,
+          "line": 546,
           "sink": "setText"
         }
       ]
@@ -202176,7 +202191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 836,
+          "line": 829,
           "sink": "setText"
         }
       ]
@@ -203338,16 +203353,6 @@
           "path": "tools/placement_studio/clips.py",
           "line": 504,
           "sink": "ValueError"
-        }
-      ]
-    },
-    {
-      "key": "{value_0}: drag the orange anchor, or type the numbers. The character holds the item the way the game does.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/effect_placement_dialog.py",
-          "line": 191,
-          "sink": "QLabel"
         }
       ]
     },
