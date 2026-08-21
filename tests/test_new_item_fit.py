@@ -97,8 +97,11 @@ class UnimportableModelTests(unittest.TestCase):
             zipped.writestr("textures/MagicSword_Albedo.png", b"not really a png")
         message = _nothing_to_import(archive, self.folder / "nothing")
         self.assertIn("MagicSword.fbx", message, "the file it found, not just a list of extensions")
-        self.assertIn("does not read FBX", message)
-        self.assertIn("glTF, GLB, OBJ or DAE", message, "and the way out")
+        # FBX is read by converting it, and only with a Blender the reader pointed at: the
+        # message has to say that is what is missing, not that the file is the wrong kind
+        self.assertIn("converting it with Blender", message)
+        self.assertIn("choose blender.exe", message)
+        self.assertIn("glTF, GLB, OBJ or DAE", message, "and the way round it")
 
     def test_a_file_of_no_known_kind_falls_back_to_what_can_be_read(self) -> None:
         from cdmw.ui.new_item.model_import import _nothing_to_import

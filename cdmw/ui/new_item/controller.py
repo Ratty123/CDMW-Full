@@ -18,6 +18,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
 from cdmw.models import ArchiveEntry
+from cdmw.ui.new_item.blender_setting import blender_for_fbx
 from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, bake_mesh, build_placed_import, fitted_placement, load_model_import_source, mesh_bounds, mesh_centroid
 from cdmw.services.effect_catalogue import EffectCatalogue, EffectFacts, build_effect_catalogue, catalogue_signature, load_effect_catalogue, save_effect_catalogue
 from cdmw.services.new_item_baseline import baseline_facts, baseline_lines
@@ -804,9 +805,12 @@ class NewItemStudioController(QObject):
             self.status_message.emit("Choose a template first; the model is placed over its mesh.", True)
             return False
 
+        # read on the UI thread, used on the worker: the Blender the reader chose, or ""
+        blender = blender_for_fbx()
+
         def task(log, stop_event):
             log(f"Reading {chosen.name}...")
-            return load_model_import_source(chosen, stop_event=stop_event)
+            return load_model_import_source(chosen, stop_event=stop_event, blender_path=blender, on_log=log)
 
         def done(result: object) -> None:
             if not isinstance(result, ModelImportSource):

@@ -30,7 +30,12 @@ from cdmw.ui.new_item.item_preview import GIZMO_TOOLS, ItemPreviewFrame
 from cdmw.ui.new_item.model_import import ModelPlacement
 from cdmw.ui.new_item.ui_kit import EDIT, OK, WARN, DetailsToggle, NoteLabel, intro_label, note
 
-IMPORT_FILE_FILTER = "Model files (*.gltf *.glb *.obj *.dae *.zip);;glTF / GLB (*.gltf *.glb);;Wavefront OBJ (*.obj);;Collada DAE (*.dae);;Zip with a model inside (*.zip);;All files (*)"
+IMPORT_FILE_FILTER = (
+    "Model files (*.gltf *.glb *.obj *.dae *.fbx *.zip);;glTF / GLB (*.gltf *.glb);;Wavefront OBJ (*.obj);;"
+    "Collada DAE (*.dae);;FBX, converted with Blender (*.fbx);;Zip with a model inside (*.zip);;All files (*)"
+)
+#: what a Blender looks like on each platform, for the dialog that points the studio at one
+BLENDER_FILE_FILTER = "Blender (blender.exe blender);;All files (*)"
 IMPORT_DIR_SETTING = "ui/new_item_import_dir"
 
 
@@ -181,6 +186,34 @@ class ModelPanel(QGroupBox):
             "rotation, origin at the head, about y 1.745, z -0.03). Fit to the template gives a first guess; the gizmo does the rest.",
             title="Import tips",
         )
+        # FBX is read by converting it with Blender, and only with a Blender the reader
+        # points at. The row lives inside the tips so the step does not carry it until it
+        # is opened, and it says which Blender rather than only that there is one.
+        blender_holder = QWidget()
+        blender_row = QVBoxLayout(blender_holder)
+        blender_row.setContentsMargins(0, 4, 0, 0)
+        self.blender_label = QLabel("")
+        self.blender_label.setWordWrap(True)
+        blender_row.addWidget(self.blender_label)
+        blender_buttons = QHBoxLayout()
+        self.blender_button = QPushButton("Choose blender.exe...")
+        self.blender_button.setToolTip(
+            "FBX is the one format the studio does not read itself: an FBX arrives rotated, mirrored or a hundred times "
+            "too large unless its transform stack, layer mappings and units are read exactly, and Blender is what reads "
+            "them correctly. Point the studio at a Blender and an FBX is converted to glTF on import; leave it unset and "
+            "an FBX is refused with that as the reason."
+        )
+        self.blender_button.clicked.connect(self._choose_blender)
+        blender_buttons.addWidget(self.blender_button)
+        self.blender_forget = QPushButton("Forget it")
+        self.blender_forget.clicked.connect(lambda: self._set_blender(""))
+        blender_buttons.addWidget(self.blender_forget)
+        blender_buttons.addStretch(1)
+        blender_row.addLayout(blender_buttons)
+        blender_holder.setVisible(False)
+        import_tips.layout().addWidget(blender_holder)
+        import_tips.toggle.toggled.connect(blender_holder.setVisible)
+        self._refresh_blender_label()
         model_layout.addWidget(import_tips)
         #: the import's own controls: shown once a model of your own is asked for, so the
         #: step is two radio buttons while the template's model is kept
@@ -341,6 +374,51 @@ class ModelPanel(QGroupBox):
         self.clear_button.setVisible(self._controller.model_import is not None)
         if keep:
             self.flip_texture_v.setVisible(False)
+
+    def _refresh_blender_label(self) -> None:
+        """Say which Blender the studio will use for an FBX, or that there is none."""
+
+        from cdmw.ui.new_item.blender_setting import blender_for_fbx
+
+        chosen = blender_for_fbx()
+        if chosen:
+            self.blender_label.setText(f"FBX: converted with {chosen}")
+        else:
+            self.blender_label.setText(
+                "FBX is not read directly: the studio converts it with Blender, which it has to be pointed at. "
+                "Without one, import glTF, GLB, OBJ or DAE instead."
+            )
+        self.blender_forget.setVisible(bool(chosen))
+
+    def _choose_blender(self) -> None:
+        from cdmw.ui.new_item.blender_setting import suggested_blender
+
+        suggestion = suggested_blender()
+        start = str(suggestion) if suggestion is not None else ""
+        path, _selected = QFileDialog.getOpenFileName(
+            self, "Choose the Blender that reads FBX", start, BLENDER_FILE_FILTER,
+        )
+        if path:
+            self._set_blender(path)
+
+    def _set_blender(self, path: str) -> None:
+        """Remember `path` (or forget it), and say what it turned out to be."""
+
+        from cdmw.services.fbx_blender_conversion import describe_blender
+        from cdmw.ui.new_item.blender_setting import remember_blender
+
+        stored = remember_blender(path)
+        self._refresh_blender_label()
+        if not path:
+            self._controller.status_message.emit("The studio will not convert FBX until it is pointed at a Blender again.", False)
+            return
+        if not stored:
+            self._controller.status_message.emit(f"{Path(path).name} is not a Blender the studio can run.", True)
+            return
+        version = describe_blender(stored)
+        self._controller.status_message.emit(
+            f"FBX will be converted with {version or Path(stored).name}.", False
+        )
 
     def _material_route_changed(self, plain: bool) -> None:
         self._controller.draft.material_route = MaterialRoute.PLAIN_PBR if plain else MaterialRoute.BUILDER

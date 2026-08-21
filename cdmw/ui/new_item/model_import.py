@@ -23,9 +23,10 @@ import tempfile
 import threading
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Iterable, Mapping, Optional, Sequence, Tuple
+from typing import Callable, Iterable, Mapping, Optional, Sequence, Tuple
 
 from cdmw.models import ArchiveEntry
+from cdmw.services.fbx_blender_conversion import FBX_EXTENSION, convert_fbx_to_glb
 from cdmw.core.model_preview_orientation import scene_import_normalizes_texture_v
 from cdmw.modding.static_mesh_types import StaticMeshReplacementOptions, StaticReplacementTransform, StaticTextureUvTransform
 
@@ -418,6 +419,12 @@ def _nothing_to_import(chosen: Path, root: Path) -> str:
             found.append((candidate.name, kind))
     if found:
         name, kind = found[0]
+        if kind == "FBX":
+            return (
+                f"{chosen.name} holds {name}. The studio reads FBX by converting it with Blender, and it has not been "
+                f"pointed at one: choose blender.exe under Import tips. Or export the model as glTF, GLB, OBJ or DAE "
+                f"yourself and import that."
+            )
         return (
             f"{chosen.name} holds {name}, and the studio does not read {kind}. Export it as glTF, GLB, OBJ or DAE "
             f"-- Blender does that in a few seconds -- and import that instead."
@@ -425,7 +432,63 @@ def _nothing_to_import(chosen: Path, root: Path) -> str:
     return f"{chosen.name} holds no model the studio can read. It reads {readable}."
 
 
-def load_model_import_source(chosen_path: Path, *, extract_root: Optional[Path] = None, stop_event: Optional[threading.Event] = None) -> ModelImportSource:
+def _fbx_inside(chosen: Path) -> str:
+    """The first `.fbx` in a zip's listing, or "" -- read from the listing, because a zip
+    holding nothing the studio reads is never extracted."""
+
+    if chosen.suffix.casefold() != ".zip" or not chosen.is_file():
+        return ""
+    try:
+        import zipfile
+
+        with zipfile.ZipFile(chosen) as archive:
+            for name in archive.namelist():
+                if name.casefold().endswith(FBX_EXTENSION) and not name.endswith("/"):
+                    return name
+    except Exception:  # noqa: BLE001 - a zip that will not open holds nothing we can name
+        return ""
+    return ""
+
+
+def _fbx_converted_to_glb(
+    chosen: Path,
+    root: Path,
+    blender: object,
+    on_log: Optional[Callable[[str], None]],
+    stop_event: Optional[threading.Event],
+) -> Optional[Path]:
+    """`chosen`'s FBX as a GLB, or None when there is no FBX in it.
+
+    A zip is extracted whole rather than by pattern: an FBX names its textures beside
+    itself, and Blender needs them there to carry them into the GLB.
+    """
+
+    from cdmw.core.model_catalogue import safe_extract_zip
+    from cdmw.domain.cancellation import raise_if_cancelled
+
+    inside = _fbx_inside(chosen)
+    if chosen.suffix.casefold() == FBX_EXTENSION:
+        source = chosen
+    elif inside:
+        root.mkdir(parents=True, exist_ok=True)
+        safe_extract_zip(chosen, root, stop_event=stop_event)
+        source = root / inside
+        if not source.is_file():
+            source = next((path for path in sorted(root.rglob("*")) if path.suffix.casefold() == FBX_EXTENSION), source)
+    else:
+        return None
+    raise_if_cancelled(stop_event)
+    return convert_fbx_to_glb(source, blender, output_dir=root, on_log=on_log).glb
+
+
+def load_model_import_source(
+    chosen_path: Path,
+    *,
+    extract_root: Optional[Path] = None,
+    stop_event: Optional[threading.Event] = None,
+    blender_path: object = None,
+    on_log: Optional[Callable[[str], None]] = None,
+) -> ModelImportSource:
     """Read `chosen_path` (a model file, or a zip holding one) the way the Model Library
     does: resolve the importable model, run the scene import, bind the source's textures
     to a preview model. Raises ValueError when the file holds no importable model."""
@@ -442,7 +505,13 @@ def load_model_import_source(chosen_path: Path, *, extract_root: Optional[Path] 
     root = Path(extract_root) if extract_root is not None else Path(tempfile.mkdtemp(prefix="cdmw_new_item_model_"))
     model_path = ModelLibraryService().resolve_importable_model(chosen, extract_root=root, stop_event=stop_event)
     if model_path is None:
-        raise ValueError(_nothing_to_import(chosen, root))
+        # An FBX is read by asking Blender for it as glTF first, and only with the Blender
+        # the reader pointed at: a conversion nobody asked for is one nobody can account
+        # for when the result looks wrong.
+        if chosen.suffix.casefold() == FBX_EXTENSION or _fbx_inside(chosen):
+            model_path = _fbx_converted_to_glb(chosen, root, blender_path, on_log, stop_event)
+        if model_path is None:
+            raise ValueError(_nothing_to_import(chosen, root))
     raise_if_cancelled(stop_event)
     scene = import_scene_mesh_with_report(Path(model_path), include_external_audit=False)
     raise_if_cancelled(stop_event)
