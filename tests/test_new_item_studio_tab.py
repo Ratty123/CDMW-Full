@@ -972,6 +972,57 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_an_fbx_with_no_blender_never_starts_a_read(self) -> None:
+        """It did, and that was the fault: the refusal lived at the bottom of the worker,
+        so a zip was extracted whole, the reason arrived in the window's status line, and
+        the step was left saying "Reading the model file..." over a read that could never
+        finish. The rule is answered from the listing, before the worker exists."""
+
+        import zipfile
+
+        tab = self._tab(window=None)
+        tab.prefill_template(TEMPLATE)
+        controller = tab.controller
+        panel = tab.model_panel
+
+        holder = tempfile.TemporaryDirectory(prefix="cdmw_fbx_gate_")
+        self.addCleanup(holder.cleanup)
+        folder = Path(holder.name)
+        archive = folder / "magic-sword.zip"
+        with zipfile.ZipFile(archive, "w") as zipped:
+            zipped.writestr("source/MagicSword.fbx", b"not really an fbx")
+
+        said: list = []
+        controller.status_message.connect(lambda text, bad: said.append((text, bad)))
+        with patch("cdmw.ui.new_item.controller.blender_for_fbx", return_value=""):
+            started = controller.start_model_import(archive)
+
+        self.assertFalse(started, "no read is started at all")
+        self.assertFalse(controller.busy, "and nothing goes busy over it")
+        self.assertEqual(sorted(path.name for path in folder.iterdir()), ["magic-sword.zip"], "nothing extracted")
+        self.assertTrue(said and said[-1][1], "the refusal is said as a problem")
+        self.assertIn("MagicSword.fbx", said[-1][0])
+        self.assertIn("Blender", said[-1][0])
+        # and it lands where the reader is looking, not only in the window's status line
+        self.assertIn("MagicSword.fbx", panel.model_status.text())
+
+        # the row that answers it is on the step, not folded behind Import tips: a refusal
+        # naming a button nobody can see is the same as no answer. It shows with the rest
+        # of the import controls, which is the moment the question can be asked at all.
+        panel.import_model.setChecked(True)
+        self.assertTrue(panel.blender_holder.isVisibleTo(panel), "the Blender row shows with the import controls")
+        # and it says which of the two states the studio is in (the machine running this
+        # may have a Blender stored, so both are asked for rather than read off it)
+        with patch("cdmw.ui.new_item.blender_setting.blender_for_fbx", return_value=""):
+            panel._refresh_blender_label()
+        self.assertIn("Blender is required", panel.blender_label.text())
+        self.assertFalse(panel.blender_forget.isVisibleTo(panel), "nothing to forget")
+        with patch("cdmw.ui.new_item.blender_setting.blender_for_fbx", return_value="C:/blender/blender.exe"):
+            panel._refresh_blender_label()
+        self.assertIn("C:/blender/blender.exe", panel.blender_label.text(), "which Blender, not just that there is one")
+        tab.close()
+        tab.deleteLater()
+
     def test_the_parts_that_glow_are_chosen_on_the_step(self) -> None:
         """A template's own emissive is not inherited -- its mask is cut for the template's
         mesh, and what the importer generates in its place is flat, so inheriting it lit a

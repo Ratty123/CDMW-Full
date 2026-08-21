@@ -420,16 +420,50 @@ def _nothing_to_import(chosen: Path, root: Path) -> str:
     if found:
         name, kind = found[0]
         if kind == "FBX":
-            return (
-                f"{chosen.name} holds {name}. The studio reads FBX by converting it with Blender, and it has not been "
-                f"pointed at one: choose blender.exe under Import tips. Or export the model as glTF, GLB, OBJ or DAE "
-                f"yourself and import that."
-            )
+            return fbx_needs_blender_message(name)
         return (
             f"{chosen.name} holds {name}, and the studio does not read {kind}. Export it as glTF, GLB, OBJ or DAE "
             f"-- Blender does that in a few seconds -- and import that instead."
         )
     return f"{chosen.name} holds no model the studio can read. It reads {readable}."
+
+
+def fbx_needs_blender_message(name: str) -> str:
+    """Why `name` cannot be read, and the two ways out of it."""
+
+    return (
+        f"{name} is an FBX, and the studio reads FBX by converting it with Blender. Choose blender.exe on the Model "
+        f"step first, or export the model as glTF, GLB, OBJ or DAE yourself and import that."
+    )
+
+
+def fbx_needing_blender(chosen: object) -> str:
+    """The FBX that would have to be converted before `chosen` can be read, or "".
+
+    Answered from the name, and for a zip from its listing alone: nothing is extracted
+    and nothing is run, because this is the question asked *before* an import starts. A
+    zip that also holds a model the studio reads itself needs no Blender for it, so that
+    answers "" and the import goes ahead on the model it can read.
+    """
+
+    from cdmw.domain.library.models import IMPORTABLE_MODEL_EXTENSIONS
+
+    path = Path(str(chosen or ""))
+    if path.suffix.casefold() == FBX_EXTENSION:
+        return path.name
+    inside = _fbx_inside(path)
+    if not inside:
+        return ""
+    try:
+        import zipfile
+
+        with zipfile.ZipFile(path) as archive:
+            for name in archive.namelist():
+                if not name.endswith("/") and Path(name).suffix.casefold() in IMPORTABLE_MODEL_EXTENSIONS:
+                    return ""
+    except Exception:  # noqa: BLE001 - a zip that will not open is the reader's next problem
+        pass
+    return Path(inside).name
 
 
 def _fbx_inside(chosen: Path) -> str:
