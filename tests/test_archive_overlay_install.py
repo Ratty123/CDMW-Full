@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT / "tests") not in sys.path:
@@ -22,7 +24,11 @@ from cdmw.core.archive_format import parse_archive_pamt  # noqa: E402
 from cdmw.core.archive_scan_cache import discover_pamt_files  # noqa: E402
 from cdmw.core.papgt_format import parse_papgt  # noqa: E402
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest  # noqa: E402
-from cdmw.services.archive_overlay_install import install_overlay, overlay_directory_name  # noqa: E402
+from cdmw.services.archive_overlay_install import (  # noqa: E402
+    OVERLAY_OWNER_MARKER,
+    install_overlay,
+    overlay_directory_name,
+)
 from test_new_item_service import build_package, synthetic_files  # noqa: E402
 
 BIN = "gamedata/binary__/client/bin"
@@ -60,6 +66,7 @@ class OverlayInstallTests(unittest.TestCase):
 
         self.assertTrue((result.directory / "0.pamt").is_file())
         self.assertTrue((result.directory / "0.paz").is_file())
+        self.assertTrue((result.directory / OVERLAY_OWNER_MARKER).is_file())
         self.assertEqual(result.file_count, 2)
         self.assertEqual(result.carried_forward, 0)
 
@@ -133,7 +140,79 @@ class OverlayInstallTests(unittest.TestCase):
         self.assertEqual(name, "0036")
         (self.root / "0036").mkdir()
         self.assertEqual(overlay_directory_name(self.root), "0037")
-        self.assertEqual(overlay_directory_name(self.root, existing="0036"), "0036")
+        self.assertEqual(overlay_directory_name(self.root, existing="0036"), "0037", "an unmarked folder is foreign")
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+        installed = install_overlay([ArchivePatchRequest(target, b"payload")], package_root=self.root)
+        self.assertEqual(overlay_directory_name(self.root, existing=installed.directory.name), installed.directory.name)
+
+    def test_a_foreign_numeric_mount_is_never_reused(self) -> None:
+        from cdmw.core.papgt_format import papgt_with_directory
+
+        foreign = self.root / "0036"
+        foreign.mkdir()
+        (foreign / "keep.txt").write_bytes(b"belongs to another mod")
+        mount = self.root / "meta" / "0.papgt"
+        mount.write_bytes(papgt_with_directory(mount.read_bytes(), "0036", 0, first=True))
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+
+        result = install_overlay([ArchivePatchRequest(target, b"payload")], package_root=self.root)
+
+        self.assertEqual(result.directory.name, "0037")
+        self.assertEqual((foreign / "keep.txt").read_bytes(), b"belongs to another mod")
+
+    def test_a_write_failure_rolls_back_without_a_restore_service(self) -> None:
+        import cdmw.services.archive_overlay_install as overlay
+
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+        mount = self.root / "meta" / "0.papgt"
+        before = mount.read_bytes()
+        original = overlay._write_atomic
+
+        def fail_on_index(path: Path, payload: bytes) -> None:
+            if path.name == "0.pamt" and path.parent.name == "0036":
+                raise OSError("index write failed")
+            original(path, payload)
+
+        with patch.object(overlay, "_write_atomic", fail_on_index):
+            with self.assertRaisesRegex(OSError, "index write failed"):
+                install_overlay([ArchivePatchRequest(target, b"payload")], package_root=self.root)
+
+        self.assertEqual(mount.read_bytes(), before)
+        self.assertFalse((self.root / "0036").exists(), "the unpublished overlay is removed")
+
+    def test_cancellation_after_backup_restores_before_any_write(self) -> None:
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+        before = {
+            path.relative_to(self.root).as_posix(): path.read_bytes()
+            for path in self.root.rglob("*")
+            if path.is_file()
+        }
+        stop_event = threading.Event()
+        restored: list[Path] = []
+
+        def backup(_paths, _description):
+            folder = self.root / "backup"
+            folder.mkdir()
+            stop_event.set()
+            return folder
+
+        with self.assertRaisesRegex(Exception, "cancelled before writing"):
+            install_overlay(
+                [ArchivePatchRequest(target, b"payload")],
+                package_root=self.root,
+                backup=backup,
+                restore_backup=lambda path: restored.append(path),
+                stop_event=stop_event,
+            )
+
+        after = {
+            path.relative_to(self.root).as_posix(): path.read_bytes()
+            for path in self.root.rglob("*")
+            if path.is_file() and "backup" not in path.parts
+        }
+        self.assertEqual(restored, [self.root / "backup"])
+        self.assertEqual(after, before)
+        self.assertFalse((self.root / "0036").exists())
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ would have handed over: the rebuilt mesh and its side files.
 from __future__ import annotations
 
 import math
+import shutil
 import tempfile
 import threading
 from dataclasses import dataclass, field, replace
@@ -322,6 +323,9 @@ class ModelImportSource:
     texture_count: int = 0
     notes: Tuple[str, ...] = ()
     extract_root: Optional[Path] = None
+    #: True only when the loader created ``extract_root``. A caller-provided extraction
+    #: directory belongs to that caller and must never be removed here.
+    owns_extract_root: bool = False
     #: the mean vertex, for the fit's sense of which end is the heavy one
     centroid: Optional[Vec3] = None
     #: the fit baked into the mesh the viewport and the build see; the numbers start at zero on top
@@ -372,6 +376,15 @@ class ModelImportSource:
     def baked_bounds(self) -> Optional[Bounds]:
         mesh = self.baked_scene_mesh()
         return (tuple(mesh.bbox_min), tuple(mesh.bbox_max)) if mesh is not None and mesh.bbox_min is not None else None
+
+    def cleanup(self) -> None:
+        """Release an extraction directory created for this import, once."""
+
+        root = self.extract_root
+        if not self.owns_extract_root or root is None:
+            return
+        self.extract_root = None
+        shutil.rmtree(root, ignore_errors=True)
 
 
 #: What a model file might be that the studio cannot read, and what to do about it. FBX is
@@ -536,38 +549,45 @@ def load_model_import_source(
     from cdmw.services.model_library_service import ModelLibraryService
 
     chosen = Path(chosen_path)
+    owns_root = extract_root is None
     root = Path(extract_root) if extract_root is not None else Path(tempfile.mkdtemp(prefix="cdmw_new_item_model_"))
-    model_path = ModelLibraryService().resolve_importable_model(chosen, extract_root=root, stop_event=stop_event)
-    if model_path is None:
-        # An FBX is read by asking Blender for it as glTF first, and only with the Blender
-        # the reader pointed at: a conversion nobody asked for is one nobody can account
-        # for when the result looks wrong.
-        if chosen.suffix.casefold() == FBX_EXTENSION or _fbx_inside(chosen):
-            model_path = _fbx_converted_to_glb(chosen, root, blender_path, on_log, stop_event)
+    try:
+        model_path = ModelLibraryService().resolve_importable_model(chosen, extract_root=root, stop_event=stop_event)
         if model_path is None:
-            raise ValueError(_nothing_to_import(chosen, root))
-    raise_if_cancelled(stop_event)
-    scene = import_scene_mesh_with_report(Path(model_path), include_external_audit=False)
-    raise_if_cancelled(stop_event)
-    preview_model = parsed_mesh_to_preview_model(scene.mesh)
-    texture_count = int(attach_scene_preview_textures(preview_model, scene, Path(model_path)) or 0)
-    set_dotnet_preview_texture_flip_vertical(
-        preview_model, scene_import_normalizes_texture_v(getattr(scene.mesh, "format", ""), getattr(scene.mesh, "path", "") or str(model_path)),
-    )
-    notes = tuple(str(line) for line in tuple(getattr(scene, "diagnostics", ()) or ())[:6])
-    flip_v = scene_import_normalizes_texture_v(getattr(scene.mesh, "format", ""), getattr(scene.mesh, "path", "") or str(model_path))
-    return ModelImportSource(
-        flip_texture_v=bool(flip_v),
-        chosen_path=chosen,
-        model_path=Path(model_path),
-        scene=scene,
-        preview_model=preview_model,
-        bounds=mesh_bounds(scene.mesh),
-        texture_count=texture_count,
-        notes=notes,
-        extract_root=root,
-        centroid=mesh_centroid(scene.mesh),
-    )
+            # An FBX is read by asking Blender for it as glTF first, and only with the Blender
+            # the reader pointed at: a conversion nobody asked for is one nobody can account
+            # for when the result looks wrong.
+            if chosen.suffix.casefold() == FBX_EXTENSION or _fbx_inside(chosen):
+                model_path = _fbx_converted_to_glb(chosen, root, blender_path, on_log, stop_event)
+            if model_path is None:
+                raise ValueError(_nothing_to_import(chosen, root))
+        raise_if_cancelled(stop_event)
+        scene = import_scene_mesh_with_report(Path(model_path), include_external_audit=False)
+        raise_if_cancelled(stop_event)
+        preview_model = parsed_mesh_to_preview_model(scene.mesh)
+        texture_count = int(attach_scene_preview_textures(preview_model, scene, Path(model_path)) or 0)
+        set_dotnet_preview_texture_flip_vertical(
+            preview_model, scene_import_normalizes_texture_v(getattr(scene.mesh, "format", ""), getattr(scene.mesh, "path", "") or str(model_path)),
+        )
+        notes = tuple(str(line) for line in tuple(getattr(scene, "diagnostics", ()) or ())[:6])
+        flip_v = scene_import_normalizes_texture_v(getattr(scene.mesh, "format", ""), getattr(scene.mesh, "path", "") or str(model_path))
+        return ModelImportSource(
+            flip_texture_v=bool(flip_v),
+            chosen_path=chosen,
+            model_path=Path(model_path),
+            scene=scene,
+            preview_model=preview_model,
+            bounds=mesh_bounds(scene.mesh),
+            texture_count=texture_count,
+            notes=notes,
+            extract_root=root,
+            owns_extract_root=owns_root,
+            centroid=mesh_centroid(scene.mesh),
+        )
+    except BaseException:
+        if owns_root:
+            shutil.rmtree(root, ignore_errors=True)
+        raise
 
 
 # ------------------------------------------------------------------ the build

@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -23,6 +24,7 @@ if str(REPO_ROOT / "tests") not in sys.path:
 from cdmw.core.iteminfo_row import parse_iteminfo_row  # noqa: E402
 from cdmw.core.structured_binary_editor import parse_pabgh_table  # noqa: E402
 from cdmw.domain.new_item.spec import NewItemSpec  # noqa: E402
+from cdmw.domain.cancellation import RunCancelled  # noqa: E402
 from cdmw.services.new_item_mod_base import (  # noqa: E402
     describe_mod_folder,
     mod_folder_payloads,
@@ -139,17 +141,38 @@ class ModBaseTests(unittest.TestCase):
 
         controller = NewItemStudioController(read_entry=_read, synchronous=True)
         controller.snapshot = snapshot
-        self.assertEqual(controller.planning_snapshot(), snapshot, "no folder, no change")
-
         found = controller.set_mod_base(folder)
         self.assertIn("already holds a mod", found)
-        over = controller.planning_snapshot()
-        self.assertIsNotNone(over)
-        self.assertIn(first.spec.item_key, over.rows, "the item in the folder is in the tables the next plan sees")
-        self.assertIs(controller.planning_snapshot(), over, "and the reading is kept while the folder is unchanged")
+        controller.set_template(TEMPLATE)
+        controller.draft.internal_name = "Item_Two"
+        controller.draft.display_names = {"eng": "Two"}
+        self.assertTrue(controller.start_plan())
+        plan = controller.plan
+        self.assertIsNotNone(plan)
+        self.assertNotEqual(plan.spec.item_key, first.spec.item_key, "the worker planned on the item in the folder")
+
+        body = plan.loose_files[f"{BIN}/iteminfo.pabgb"]
+        head = plan.loose_files[f"{BIN}/iteminfo.pabgh"]
+        names = [
+            parse_iteminfo_row(body[start:end]).string_key
+            for row, start, end in parse_pabgh_table(head, payload=body).row_spans(len(body))
+            if row.row_id >= 1990000
+        ]
+        self.assertIn("Item_One", names)
 
         self.assertEqual(controller.set_mod_base(None), "")
-        self.assertEqual(controller.planning_snapshot(), snapshot, "pointed away, the archives again")
+        controller.draft.internal_name = "Item_Three"
+        controller.draft.display_names = {"eng": "Three"}
+        self.assertTrue(controller.start_plan())
+        plain = controller.plan
+        body = plain.loose_files[f"{BIN}/iteminfo.pabgb"]
+        head = plain.loose_files[f"{BIN}/iteminfo.pabgh"]
+        names = [
+            parse_iteminfo_row(body[start:end]).string_key
+            for row, start, end in parse_pabgh_table(head, payload=body).row_spans(len(body))
+            if row.row_id >= 1990000
+        ]
+        self.assertNotIn("Item_One", names, "pointed away, the worker uses the archives again")
         self.assertEqual(controller.set_mod_base(self.root / "nothing_here"), "", "a folder with no mod is not a base")
 
     def test_the_dmm_layout_is_an_archive_group(self) -> None:
@@ -189,12 +212,51 @@ class ModBaseTests(unittest.TestCase):
         self.assertEqual(names[0], group)
         self.assertEqual(mounted[8], len(names), "the header counts the directories it lists")
 
+    def test_a_second_dmm_item_keeps_the_first_one(self) -> None:
+        folder = self.root / "dmm_two_items"
+        snapshot = self.service.build_snapshot(self.entries, read_entry=_read)
+        first = self.service.plan(
+            self.service.allocate(
+                NewItemSpec(template_key=TEMPLATE, internal_name="Item_One", display_names={"eng": "One"}),
+                snapshot,
+            ),
+            snapshot,
+        )
+        self.service.export_loose(first, folder, manager="DMM")
+
+        payloads = mod_folder_payloads(folder)
+        self.assertIn(f"{BIN}/iteminfo.pabgb", payloads, "the DMM archive group is a readable mod base")
+        over_mod = self.service.build_snapshot(
+            self.entries,
+            read_entry=read_entry_over_mod_folder(_read, payloads),
+        )
+        self.assertIn(first.spec.item_key, over_mod.rows)
+        second = self.service.plan(
+            self.service.allocate(
+                NewItemSpec(template_key=TEMPLATE, internal_name="Item_Two", display_names={"eng": "Two"}),
+                over_mod,
+            ),
+            over_mod,
+        )
+        self.service.export_loose(second, folder, manager="DMM")
+
+        self.assertEqual(
+            self._rows(folder),
+            {first.spec.item_key: "Item_One", second.spec.item_key: "Item_Two"},
+        )
+
     def test_a_folder_with_nothing_in_it_says_nothing(self) -> None:
         empty = self.root / "empty"
         empty.mkdir()
         self.assertEqual(mod_folder_payloads(empty), {})
         self.assertEqual(describe_mod_folder(empty), "")
         self.assertEqual(describe_mod_folder(self.root / "missing"), "")
+
+    def test_a_mod_folder_scan_honors_worker_cancellation(self) -> None:
+        stop = threading.Event()
+        stop.set()
+        with self.assertRaises(RunCancelled):
+            mod_folder_payloads(self.root, stop_event=stop)
 
 
 if __name__ == "__main__":

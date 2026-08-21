@@ -42,7 +42,9 @@ def find_item_icon_source_candidates(
     related_stems: Sequence[str] = (),
     display_name: str = "",
     min_score: int = 80,
+    stop_event: Optional[threading.Event] = None,
 ) -> tuple[ItemIconSourceCandidate, ...]:
+    raise_if_cancelled(stop_event, "New item plan cancelled.")
     resolved = source.expanduser()
     if resolved.is_file():
         if resolved.suffix.lower() not in ITEM_ICON_SOURCE_EXTENSIONS:
@@ -53,6 +55,7 @@ def find_item_icon_source_candidates(
 
     candidates: list[ItemIconSourceCandidate] = []
     for path in resolved.rglob("*"):
+        raise_if_cancelled(stop_event, "New item plan cancelled.")
         if not path.is_file() or path.suffix.lower() not in ITEM_ICON_SOURCE_EXTENSIONS:
             continue
         candidate = _candidate_score(path, target_path=target_path, related_stems=related_stems, display_name=display_name)
@@ -68,6 +71,7 @@ def choose_item_icon_source(
     related_stems: Sequence[str] = (),
     display_name: str = "",
     min_score: int = 80,
+    stop_event: Optional[threading.Event] = None,
 ) -> tuple[Optional[ItemIconSourceCandidate], tuple[ItemIconSourceCandidate, ...], str]:
     candidates = find_item_icon_source_candidates(
         source,
@@ -75,6 +79,7 @@ def choose_item_icon_source(
         related_stems=related_stems,
         display_name=display_name,
         min_score=min_score,
+        stop_event=stop_event,
     )
     return select_item_icon_source_candidate(candidates)
 

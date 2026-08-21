@@ -14,6 +14,7 @@ from dataclasses import replace
 import struct
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -35,6 +36,7 @@ from cdmw.core.storeinfo_table import parse_store_table  # noqa: E402
 from cdmw.core.stringinfo_table import build_stringinfo_row, parse_stringinfo, stringinfo_index, stringinfo_key  # noqa: E402
 from cdmw.core.structured_binary_editor import parse_pabgh_table  # noqa: E402
 from cdmw.domain.archives.mutation import ArchiveAddRequest  # noqa: E402
+from cdmw.domain.cancellation import RunCancelled  # noqa: E402
 from cdmw.domain.new_item.allocation import localization_keys  # noqa: E402
 from cdmw.domain.new_item.spec import (  # noqa: E402
     BuyPriceEdit,
@@ -888,6 +890,59 @@ class WriteTests(_PackageCase):
         jmm = self.service.export_loose(plan, self.root / "jmm", manager="JMM")
         self.assertTrue((self.root / "jmm" / "character" / "model" / Path(MODEL_FOLDER) / "cd_phm_01_sword_9109.pac").is_file())
         self.assertEqual(jmm.manager, "JMM")
+
+    def test_a_failed_export_leaves_the_existing_folder_unchanged(self) -> None:
+        plan = self._plan()
+        out = self.root / "atomic_failure"
+        out.mkdir()
+        (out / "keep.txt").write_bytes(b"original")
+        before = {
+            path.relative_to(out).as_posix(): path.read_bytes()
+            for path in out.rglob("*")
+            if path.is_file()
+        }
+
+        with patch("cdmw.core.mod_package.finalize_mod_package_export", side_effect=RuntimeError("metadata failed")):
+            with self.assertRaisesRegex(RuntimeError, "metadata failed"):
+                self.service.export_loose(plan, out, manager="JMM")
+
+        after = {
+            path.relative_to(out).as_posix(): path.read_bytes()
+            for path in out.rglob("*")
+            if path.is_file()
+        }
+        self.assertEqual(after, before)
+
+    def test_cancelling_mid_export_never_publishes_the_staged_files(self) -> None:
+        plan = self._plan()
+        out = self.root / "atomic_cancel"
+        out.mkdir()
+        (out / "keep.txt").write_bytes(b"original")
+        stop = threading.Event()
+        original_write = Path.write_bytes
+        wrote_staged_file = False
+
+        def cancelling_write(path: Path, payload: bytes) -> int:
+            nonlocal wrote_staged_file
+            result = original_write(path, payload)
+            if ".cdmw-stage-" in str(path) and not wrote_staged_file:
+                wrote_staged_file = True
+                stop.set()
+            return result
+
+        with patch.object(Path, "write_bytes", cancelling_write):
+            with self.assertRaises(RunCancelled):
+                self.service.export_loose(plan, out, manager="JMM", stop_event=stop)
+
+        self.assertTrue(wrote_staged_file, "the cancellation happened after staging began")
+        self.assertEqual(
+            {
+                path.relative_to(out).as_posix(): path.read_bytes()
+                for path in out.rglob("*")
+                if path.is_file()
+            },
+            {"keep.txt": b"original"},
+        )
 
     def test_plan_task_runs_the_service(self) -> None:
         spec = NewItemSpec(template_key=TEMPLATE, internal_name="Ziane_Clone_OneHandSword", display_names={"eng": "X"})

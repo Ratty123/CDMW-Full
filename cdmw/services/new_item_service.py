@@ -12,13 +12,15 @@ through :mod:`cdmw.workers.new_item_workers`.
 from __future__ import annotations
 
 import os
+import shutil
+import tempfile
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable, Mapping, Optional, Tuple
 
 from cdmw.core.item_icon_addition import NewItemIcon, build_new_item_icon
-from cdmw.domain.archives.mutation import ArchivePatchResult
+from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchResult
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.library.item_icons import ITEM_ICON_DEFAULT_BACKGROUND_MODE
 from cdmw.domain.new_item.allocation import AllocationError, allocate_item_key, localization_keys, suggest_stem
@@ -237,49 +239,71 @@ class NewItemService:
         profile = LOOSE_EXPORT_PROFILES.get(str(manager or "").upper())
         if profile is None and options is None:
             raise ValueError(f"Unknown loose-mod manager profile {manager!r}; one of {', '.join(LOOSE_EXPORT_PROFILES)}")
-        root = Path(package_root)
-        root.mkdir(parents=True, exist_ok=True)
-        if str((profile or {}).get("structure") or "") == "archive_group" and options is None:
-            return self._export_archive_group(plan, root, manager=manager, package_info=package_info, created_utc=created_utc)
-        payload_paths = []
-        for game_path, data in sorted(plan.loose_files.items()):
-            raise_if_cancelled(stop_event, "New item export cancelled.")
-            target = root.joinpath(*PurePosixPath(game_path).parts)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(data)
-            payload_paths.append(game_path)
-        info = package_info or ModPackageInfo(
-            title=f"New item {plan.spec.internal_name}",
-            description=f"Adds {plan.spec.internal_name} (item {plan.spec.item_key}) cloned from item {plan.spec.template_key}.",
-        )
-        if options is None:
-            options = ModPackageExportOptions(
-                manager_targets=tuple(profile["manager_targets"]),
-                structure=str(profile["structure"]),
-                create_manifest_json=bool(profile["create_manifest_json"]),
-                create_modinfo_json=bool(profile["create_modinfo_json"]),
-                create_mod_json=bool(profile["create_mod_json"]),
-                create_no_encrypt_file=bool(profile["create_no_encrypt_file"]),
+        root = Path(package_root).expanduser().resolve()
+
+        def write(staging: Path) -> NewItemExportResult:
+            if str((profile or {}).get("structure") or "") == "archive_group" and options is None:
+                return self._export_archive_group(
+                    plan,
+                    staging,
+                    existing_root=root,
+                    manager=manager,
+                    package_info=package_info,
+                    created_utc=created_utc,
+                    stop_event=stop_event,
+                )
+            payload_paths = []
+            for game_path, data in sorted(plan.loose_files.items()):
+                raise_if_cancelled(stop_event, "New item export cancelled.")
+                target = staging.joinpath(*PurePosixPath(game_path).parts)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+                payload_paths.append(game_path)
+            info = package_info or ModPackageInfo(
+                title=f"New item {plan.spec.internal_name}",
+                description=f"Adds {plan.spec.internal_name} (item {plan.spec.item_key}) cloned from item {plan.spec.template_key}.",
             )
-        kind = str((profile or {}).get("kind") or "archive_loose_mod")
-        result = finalize_mod_package_export(
-            root, info, kind=kind, payload_paths=payload_paths, new_file_paths=list(plan.new_paths),
-            options=options, created_utc=created_utc,
-        )
-        metadata = tuple(sorted(Path(path).name for path in getattr(result, "metadata_files", ()) or ()))
-        return NewItemExportResult(
-            package_root=root, manager=str(manager or "").upper() or "custom",
-            payload_paths=tuple(payload_paths), new_paths=tuple(plan.new_paths), metadata_files=metadata,
-        )
+            resolved_options = options
+            if resolved_options is None:
+                resolved_options = ModPackageExportOptions(
+                    manager_targets=tuple(profile["manager_targets"]),
+                    structure=str(profile["structure"]),
+                    create_manifest_json=bool(profile["create_manifest_json"]),
+                    create_modinfo_json=bool(profile["create_modinfo_json"]),
+                    create_mod_json=bool(profile["create_mod_json"]),
+                    create_no_encrypt_file=bool(profile["create_no_encrypt_file"]),
+                )
+            kind = str((profile or {}).get("kind") or "archive_loose_mod")
+            result = finalize_mod_package_export(
+                staging,
+                info,
+                kind=kind,
+                payload_paths=payload_paths,
+                new_file_paths=list(plan.new_paths),
+                options=resolved_options,
+                created_utc=created_utc,
+            )
+            metadata = tuple(sorted(Path(path).name for path in getattr(result, "metadata_files", ()) or ()))
+            return NewItemExportResult(
+                package_root=staging,
+                manager=str(manager or "").upper() or "custom",
+                payload_paths=tuple(payload_paths),
+                new_paths=tuple(plan.new_paths),
+                metadata_files=metadata,
+            )
+
+        return _publish_package_atomically(root, write, stop_event=stop_event)
 
     def _export_archive_group(
         self,
         plan: NewItemPlan,
         root: Path,
         *,
+        existing_root: Optional[Path] = None,
         manager: str,
         package_info: Optional[ModPackageInfo] = None,
         created_utc: Optional[str] = None,
+        stop_event: Optional[threading.Event] = None,
     ) -> NewItemExportResult:
         """The mod folder as an archive group: what a manager that mounts groups reads."""
 
@@ -293,8 +317,13 @@ class NewItemService:
             game_root = _package_root_of(plan)
         except NewItemInstallRefused:
             game_root = None
+        source_root = Path(existing_root) if existing_root is not None else root
+        group = _existing_archive_group(source_root)
+        carried_plan = _carry_forward_archive_group(plan, source_root, group, stop_event=stop_event)
+        raise_if_cancelled(stop_event, "New item export cancelled.")
         written = export_overlay_mod(
-            plan, root,
+            carried_plan, root,
+            group=group,
             title=str(getattr(info, "title", "") or ""),
             description=str(getattr(info, "description", "") or ""),
             author=str(getattr(info, "author", "") or ""),
@@ -370,21 +399,123 @@ class NewItemService:
             raise NewItemInstallRefused(f"{GAME_EXECUTABLE} is running; close the game before installing, its archives are open.")
         if not plan.patches and not plan.additions:
             raise NewItemInstallRefused("The plan changes nothing.")
+        if not hasattr(mutation_service, "backup_files") or not hasattr(mutation_service, "restore_backup"):
+            raise NewItemInstallRefused("The archive mutation service is not available in this window.")
         package_root = _package_root_of(plan)
         description = f"New item {plan.spec.internal_name} ({plan.spec.item_key}) as an overlay"
 
         def backup(paths, label):
             return mutation_service.backup_files(paths, description=f"{description}: {label}", on_log=on_log)
 
+        def restore(path):
+            return mutation_service.restore_backup(path, confirmed=True, on_log=on_log)
+
         return write_overlay(
             plan.patches,
             plan.additions,
             package_root=package_root,
             meta_files=[(write.path, write.payload_data) for write in plan.meta_files],
-            backup=backup if hasattr(mutation_service, "backup_files") else None,
+            backup=backup,
+            restore_backup=restore,
             on_log=on_log,
             stop_event=stop_event,
         )
+
+
+def _publish_package_atomically(
+    package_root: Path,
+    writer: Callable[[Path], NewItemExportResult],
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> NewItemExportResult:
+    """Build beside the destination, then publish with a rollback rename."""
+
+    from cdmw.core.atomic_file import atomic_publish_directory
+
+    root = Path(package_root).expanduser().resolve()
+    parent = root.parent
+    if root == parent:
+        raise ValueError(f"Loose root does not exist or is not a folder: {root}")
+    if root.exists() and not root.is_dir():
+        raise ValueError(f"Loose root does not exist or is not a folder: {root}")
+    parent.mkdir(parents=True, exist_ok=True)
+    raise_if_cancelled(stop_event, "New item export cancelled.")
+    staging = Path(tempfile.mkdtemp(prefix=f".{root.name}.cdmw-stage-", dir=parent))
+    try:
+        if root.is_dir():
+            shutil.copytree(root, staging, dirs_exist_ok=True)
+        raise_if_cancelled(stop_event, "New item export cancelled.")
+        result = writer(staging)
+        raise_if_cancelled(stop_event, "New item export cancelled.")
+        atomic_publish_directory(staging, root)
+        return replace(result, package_root=root)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
+
+
+def _existing_archive_group(root: Path) -> str:
+    """The first archive group an existing DMM package mounts, or an empty string."""
+
+    package = Path(root)
+    if not package.is_dir():
+        return ""
+    from cdmw.core.papgt_format import parse_papgt
+
+    mount = package / "meta" / "0.papgt"
+    if mount.is_file():
+        for item in parse_papgt(mount.read_bytes()):
+            name = str(item.name)
+            if (package / name / "0.pamt").is_file() and (package / name / "0.paz").is_file():
+                return name
+    return next(
+        (
+            path.parent.name
+            for path in sorted(package.glob("*/0.pamt"))
+            if (path.parent / "0.paz").is_file()
+        ),
+        "",
+    )
+
+
+def _carry_forward_archive_group(
+    plan: NewItemPlan,
+    root: Path,
+    group: str,
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> NewItemPlan:
+    """Keep files from a prior DMM export that the new plan does not replace."""
+
+    if not group:
+        return plan
+    pamt = Path(root) / group / "0.pamt"
+    if not pamt.is_file():
+        return plan
+    from cdmw.core.archive_extraction import read_archive_entry_data
+    from cdmw.core.archive_format import parse_archive_pamt
+
+    changed = {
+        str(request.entry.path).replace("\\", "/").strip("/").casefold()
+        for request in plan.patches
+    }
+    changed.update(str(item.path).replace("\\", "/").strip("/").casefold() for item in plan.additions)
+    carried = []
+    for entry in parse_archive_pamt(pamt):
+        raise_if_cancelled(stop_event, "New item export cancelled.")
+        path = str(entry.path).replace("\\", "/").strip("/")
+        if path.casefold() in changed:
+            continue
+        payload, _decompressed, _note = read_archive_entry_data(entry, stop_event=stop_event)
+        carried.append(
+            ArchiveAddRequest(
+                pamt_path=Path(entry.pamt_path),
+                path=path,
+                payload_data=bytes(payload),
+                flags=int(entry.flags),
+            )
+        )
+    return replace(plan, additions=tuple(carried) + tuple(plan.additions)) if carried else plan
 
 
 def _package_root_of(plan: NewItemPlan) -> Path:

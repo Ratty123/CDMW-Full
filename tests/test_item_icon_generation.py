@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import struct
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -16,6 +17,7 @@ from cdmw.core.item_icon import (
     prepare_item_icon_png,
 )
 from cdmw.core.pipeline import parse_dds
+from cdmw.domain.cancellation import RunCancelled
 
 
 def _fake_dds_bytes(width: int, height: int, *, mips: int = 1, fourcc: bytes = b"DXT1") -> bytes:
@@ -68,6 +70,17 @@ class ItemIconGenerationTests(unittest.TestCase):
             self.assertIsNone(chosen)
             self.assertEqual(2, len(candidates))
             self.assertIn("ambiguous", message)
+
+    def test_folder_auto_match_honors_worker_cancellation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stop = threading.Event()
+            stop.set()
+            with self.assertRaises(RunCancelled):
+                choose_item_icon_source(
+                    Path(temp_dir),
+                    target_path="ui/itemicon/item.dds",
+                    stop_event=stop,
+                )
 
     def test_fit_pad_preserves_aspect_ratio_and_exact_target_size(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

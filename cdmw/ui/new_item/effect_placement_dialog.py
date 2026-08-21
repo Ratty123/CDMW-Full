@@ -466,8 +466,8 @@ class EffectPlacementDialog(QDialog):
         # no textures to resolve it would be seconds spent on nothing
         textured = mesh_names_textures(mesh)
 
-        def task(_log, stop_event: threading.Event) -> EffectPlacementPreview:
-            character, rotation = None, None
+        def task(_log, stop_event: threading.Event) -> tuple[EffectPlacementPreview, tuple]:
+            character, rotation, effect_sockets = None, None, ()
             if builder is not None and not stop_event.is_set():
                 try:
                     reference = builder()
@@ -476,36 +476,38 @@ class EffectPlacementDialog(QDialog):
                 if reference is not None:
                     character = getattr(reference, "mesh", None)
                     rotation = getattr(reference, "item_rotation", None)
-                    self._effect_sockets = tuple(getattr(reference, "effect_sockets", ()) or ())
-            return build_effect_placement_package(
+                    effect_sockets = tuple(getattr(reference, "effect_sockets", ()) or ())
+            preview = build_effect_placement_package(
                 mesh, box[0], box[1], output_root=root, cancelled=stop_event.is_set,
                 include_item_textures=textured,
                 character_mesh=character, item_rotation=rotation if character is not None else None,
                 effect_preview=effect_preview, texture_reader=texture_reader,
             )
+            return preview, effect_sockets
 
         worker = UtilityWorker(task, task_accepts_cancel=True)
         thread = QThread(self)
         worker.moveToThread(thread)
         self._thread, self._worker = thread, worker
         worker.completed.connect(self._package_ready)
-        worker.error.connect(lambda message: self.status.setText(f"The placement preview could not be built: {message}"))
-
-        def finish() -> None:
-            self._thread = None
-            self._worker = None
-            thread.quit()
-            thread.wait(5000)
-            worker.deleteLater()
-            thread.deleteLater()
-
-        worker.finished.connect(finish)
+        worker.error.connect(self._package_failed)
+        worker.finished.connect(self._worker_finished, Qt.DirectConnection)
+        thread.finished.connect(self._build_finished, Qt.QueuedConnection)
         thread.started.connect(worker.run)
         thread.start()
 
     def _package_ready(self, result: object) -> None:
-        if self._closed or not isinstance(result, EffectPlacementPreview) or self.host is None:
+        sockets = ()
+        if isinstance(result, tuple) and len(result) == 2:
+            result, sockets = result
+        if not isinstance(result, EffectPlacementPreview):
             return
+        if self._closed:
+            shutil.rmtree(result.package_dir.parent, ignore_errors=True)
+            return
+        if self.host is None:
+            return
+        self._effect_sockets = tuple(sockets or ())
         self._preview = result
         self._rotation = result.item_rotation
         if result.item_rotation is not None:
@@ -516,6 +518,28 @@ class EffectPlacementDialog(QDialog):
             self.status.setText("Loading the viewport...")
         else:
             self.status.setText("The resident viewport rejected the placement package.")
+
+    def _package_failed(self, message: object) -> None:
+        if not self._closed:
+            self.status.setText(f"The placement preview could not be built: {message}")
+
+    def _worker_finished(self) -> None:
+        worker = self._worker
+        if worker is not None and worker.thread() is QThread.currentThread():
+            worker.moveToThread(self.thread())
+        QThread.currentThread().quit()
+
+    def _build_finished(self) -> None:
+        thread, worker = self._thread, self._worker
+        if thread is not None and not thread.wait(0):
+            QTimer.singleShot(0, self._build_finished)
+            return
+        self._thread = None
+        self._worker = None
+        if worker is not None:
+            worker.deleteLater()
+        if thread is not None:
+            thread.deleteLater()
 
     def _host_state(self, state: str, message: str) -> None:
         if self._closed or self.host is None:
@@ -920,15 +944,21 @@ class EffectPlacementDialog(QDialog):
         if any(abs(float(v)) > 1e-12 for v in scale_delta):
             self._scale_finished(*(float(v) for v in tuple(scale_delta)[:3]))
 
-    def done(self, result: int) -> None:  # noqa: D401 - Qt override
+    def iter_shutdown_workers(self):
+        return (("effect placement preview", self._thread, self._worker),) if self._thread is not None else ()
+
+    def request_shutdown(self) -> None:
         self._closed = True
         worker = self._worker
         if worker is not None:
             worker.stop()
         thread = self._thread
         if thread is not None:
+            thread.requestInterruption()
             thread.quit()
-            thread.wait(5000)
+
+    def done(self, result: int) -> None:  # noqa: D401 - Qt override
+        self.request_shutdown()
         host = self.host
         if host is not None:
             try:

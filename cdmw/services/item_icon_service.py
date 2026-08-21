@@ -35,6 +35,7 @@ class ItemIconService:
         related_stems: Sequence[str] = (),
         display_name: str = "",
         min_score: int = 80,
+        stop_event: Optional[threading.Event] = None,
     ) -> tuple[Optional[ItemIconSourceCandidate], tuple[ItemIconSourceCandidate, ...], str]:
         return _backend().choose_item_icon_source(
             source,
@@ -42,6 +43,7 @@ class ItemIconService:
             related_stems=related_stems,
             display_name=display_name,
             min_score=min_score,
+            stop_event=stop_event,
         )
 
     def refresh_library(
