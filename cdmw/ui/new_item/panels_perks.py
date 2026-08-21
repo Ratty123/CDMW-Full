@@ -248,7 +248,7 @@ class PerksPanel(QGroupBox):
         for widget in (self.chosen, self.remove_button, self.reset_button, self.perk_filter, self.catalogue, self.add_button):
             widget.setEnabled(bool(checked))
             widget.setVisible(bool(checked))
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self._refresh_chosen()
 
     def _refresh_chosen(self) -> None:
@@ -286,7 +286,7 @@ class PerksPanel(QGroupBox):
             self._controller.status_message.emit(f"An item carries at most {MAX_PERKS} perks.", True)
             return
         draft.socket_items.append(int(key))
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self._refresh_chosen()
 
     def _remove_selected(self) -> None:
@@ -295,12 +295,12 @@ class PerksPanel(QGroupBox):
         if draft.socket_items is None or row < 0 or row >= len(draft.socket_items):
             return
         del draft.socket_items[row]
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self._refresh_chosen()
 
     def _reset_to_template(self) -> None:
         self._controller.draft.socket_items = list(self._controller.template_socket_items())
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self._refresh_chosen()
 
     # ------------------------------------------------------------------ effect
@@ -316,7 +316,7 @@ class PerksPanel(QGroupBox):
         draft = self._controller.draft
         draft.effect_scale = float(self.effect_scale.value())
         draft.effect_offset = tuple(float(box.value()) for box in self.effect_offset)
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self._refresh_facts()
 
     def _index_effects(self) -> None:
@@ -328,7 +328,7 @@ class PerksPanel(QGroupBox):
         draft.effect_size = float(self.look_factors["size"].value())
         draft.effect_rate = float(self.look_factors["rate"].value())
         draft.effect_lifetime = float(self.look_factors["lifetime"].value())
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _pick_color(self) -> None:
         from PySide6.QtGui import QColor
@@ -358,7 +358,7 @@ class PerksPanel(QGroupBox):
             r, g, b = (int(round(v * 255)) for v in draft.effect_color)
             self.color_button.setText(f"Colour: #{r:02x}{g:02x}{b:02x}")
             self.color_button.setStyleSheet(f"background-color: rgb({r},{g},{b}); color: {'black' if (r + g + b) > 380 else 'white'};")
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _reset_color(self) -> None:
         self.set_effect_color(None)
@@ -471,7 +471,7 @@ class PerksPanel(QGroupBox):
     def _effect_changed(self, _index: int) -> None:
         stem = self.effect.currentData() if self.use_effect.isChecked() else None
         self._controller.draft.effect_stem = str(stem or "")
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self._refresh_facts()
 
     def choose_effect(self, stem: str) -> None:
@@ -483,6 +483,21 @@ class PerksPanel(QGroupBox):
         if index >= 0:
             self.effect.setCurrentIndex(index)
         self._effect_changed(index)
+
+    def _placement_dialogs(self):
+        from cdmw.ui.new_item.effect_placement_dialog import EffectPlacementDialog
+
+        return tuple(self.findChildren(EffectPlacementDialog))
+
+    def iter_shutdown_workers(self):
+        workers = []
+        for dialog in self._placement_dialogs():
+            workers.extend(dialog.iter_shutdown_workers())
+        return tuple(workers)
+
+    def request_shutdown(self) -> None:
+        for dialog in self._placement_dialogs():
+            dialog.request_shutdown()
 
 
 __all__ = ["MAX_PERKS", "PerksPanel"]

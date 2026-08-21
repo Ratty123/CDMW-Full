@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -360,6 +363,38 @@ class DialogTests(unittest.TestCase):
         self.assertIn("game's character", dialog.legend_rows["body"].text())
         self.assertIn("the angle the game holds it", dialog.show_character.toolTip())
         dialog._closed = True
+
+    def test_closing_during_package_build_never_waits_on_the_ui_thread(self) -> None:
+        output = Path(tempfile.mkdtemp(prefix="cdmw_effect_shutdown_"))
+
+        def slow_build(*_args, output_root, **_kwargs):
+            time.sleep(0.2)
+            package = Path(output_root) / "slow" / "package"
+            package.mkdir(parents=True, exist_ok=True)
+            return EffectPlacementPreview(
+                package_dir=package,
+                box_submesh_index=0,
+                item_submesh_count=1,
+                box_min=(-1.0, -1.0, -1.0),
+                box_max=(1.0, 1.0, 1.0),
+            )
+
+        with patch("cdmw.ui.new_item.effect_placement_dialog.build_effect_placement_package", slow_build):
+            dialog = EffectPlacementDialog(
+                item_mesh=_blade(),
+                box_min=(-1.0, -1.0, -1.0),
+                box_max=(1.0, 1.0, 1.0),
+                output_root=output,
+                host_factory=lambda parent: _Host(parent),
+            )
+            self.addCleanup(dialog.deleteLater)
+            self._settle(lambda: dialog._thread is not None and dialog._thread.isRunning())
+            started = time.monotonic()
+            dialog.reject()
+            self.assertLess(time.monotonic() - started, 0.08)
+            self.assertTrue(dialog.iter_shutdown_workers())
+            self._settle(lambda: dialog._thread is None)
+            self.assertEqual(dialog.iter_shutdown_workers(), ())
 
     def test_the_trail_button_appears_only_when_the_item_has_its_own_trail(self) -> None:
         """Weapons share socket files, so a borrowed one puts the trail at another weapon's

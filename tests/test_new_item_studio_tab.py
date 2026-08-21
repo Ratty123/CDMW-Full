@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -817,12 +819,91 @@ class TabTests(unittest.TestCase):
         tab = self._tab()
         tab.prefill_template(TEMPLATE)
         reread = []
-        with patch.object(type(tab), "start_snapshot", lambda self_: reread.append(True)):
+        with patch.object(tab.controller, "start_snapshot", side_effect=lambda entries, **kwargs: reread.append((tuple(entries), kwargs)) or True):
             tab._reread_after_install()
         self.assertEqual(len(reread), 1)
+        self.assertTrue(reread[0][0], "the mounted studio refreshes even though a snapshot is already ready")
         self.assertIn("own key and stem", tab.output_panel.log.toPlainText())
         tab.close()
         tab.deleteLater()
+
+    def test_every_plan_input_clears_a_ready_plan(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        controller = tab.controller
+
+        def remember_dummy_plan() -> None:
+            controller.plan = object()
+            controller._plan_revision = controller._draft_revision
+
+        remember_dummy_plan()
+        tab.identity_panel.internal_name.setText("Changed_identity")
+        self.assertIsNone(controller.plan)
+
+        remember_dummy_plan()
+        tab.model_panel.icon_source.setText(str(self.root / "icons"))
+        self.assertIsNone(controller.plan)
+
+        remember_dummy_plan()
+        tab.stats_panel.scale.setValue(1.25)
+        tab.stats_panel._apply_scale()
+        self.assertIsNone(controller.plan)
+        tab.close()
+        tab.deleteLater()
+
+    def test_a_plan_finishing_after_an_edit_is_discarded(self) -> None:
+        from PySide6.QtCore import QEventLoop
+
+        from cdmw.ui.new_item.controller import NewItemStudioController
+
+        service = NewItemService()
+        snapshot = service.build_snapshot(self.entries, read_entry=_read)
+        controller = NewItemStudioController(service=service, read_entry=_read)
+        controller.snapshot = snapshot
+        controller.set_template(TEMPLATE)
+        controller.draft.internal_name = "First_Name"
+        controller.draft.display_names = {"eng": "First"}
+        ready_plan = service.plan(controller.current_spec(), snapshot)
+        release = threading.Event()
+
+        def delayed_task(_log, _stop):
+            release.wait(1.0)
+            return ready_plan
+
+        with patch("cdmw.ui.new_item.controller.plan_task", return_value=delayed_task):
+            self.assertTrue(controller.start_plan())
+            controller.draft.internal_name = "Changed_After_Plan"
+            controller.invalidate_plan()
+            release.set()
+            deadline = time.monotonic() + 2.0
+            while controller._thread is not None and time.monotonic() < deadline:
+                self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        self.assertIsNone(controller.plan)
+        self.assertNotIn(ready_plan.spec.item_key, controller.issued_keys)
+        controller.shutdown()
+
+    def test_controller_shutdown_does_not_wait_for_a_running_task(self) -> None:
+        from PySide6.QtCore import QEventLoop
+
+        from cdmw.ui.new_item.controller import NewItemStudioController
+
+        controller = NewItemStudioController()
+
+        def slow_task(_log, _stop):
+            time.sleep(0.2)
+            return None
+
+        self.assertTrue(controller._run("slow", slow_task, lambda _result: None, lambda _message: None))
+        deadline = time.monotonic() + 1.0
+        while (controller._thread is None or not controller._thread.isRunning()) and time.monotonic() < deadline:
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        started = time.monotonic()
+        controller.shutdown()
+        self.assertLess(time.monotonic() - started, 0.08)
+        self.assertTrue(controller.iter_shutdown_workers())
+        while controller._thread is not None and time.monotonic() < deadline + 1.0:
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        self.assertEqual(controller.iter_shutdown_workers(), ())
 
     def test_a_builder_result_handed_in_directly_and_the_material_route(self) -> None:
         """`receive_imported_model` takes a ready Builder result (code can hand one in);

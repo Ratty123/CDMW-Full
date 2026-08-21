@@ -6,9 +6,14 @@ it as a loose mod or install it.
 
 `state.py` is the editable draft and the pure helpers (stat grid, spec from
 draft). `controller.py` holds the draft, the read-only archive snapshot and the
-last plan, and runs the snapshot, plan, export, install, the model import and
+last plan. Every plan is pinned to a draft revision: changing any plan input
+invalidates it, and a worker result from an older revision is discarded. The
+controller runs the snapshot, plan, export, install, the model import and
 the placement build through `cdmw/workers/new_item_workers.py` on one owned
-thread at a time. The `panels_*.py` modules edit the draft and ask the
+thread at a time. Mod-folder and icon-folder scans are part of that planning
+worker, never UI callbacks. Shutdown requests cancellation and leaves live
+threads discoverable to the shell close sweep; no New Item widget waits on its
+own worker. The `panels_*.py` modules edit the draft and ask the
 controller for facts; `tab.py` composes them, and forwards install to the shell.
 
 The Model and icon step imports a model file itself: `model_import.py` reads it
@@ -23,7 +28,12 @@ then-z are the same matrix re-expressed, proven in
 
 UI code here never touches the archives: reading is the service's snapshot,
 writing is `ArchiveMutationService` through the service's `install`, and the
-loose export is the package finalizer. Entry points: the tool tab
+loose export is built in a sibling staging directory and published only when
+complete. DMM archive groups are readable as mod bases, so repeated exports
+carry earlier items forward. Game overlays carry a CDMW ownership marker;
+install, migration and removal ignore foreign numeric groups and roll back every
+post-backup failure or cancellation. Temporary model extraction roots are removed when their
+import is replaced, discarded, fails, or the studio closes. Entry points: the tool tab
 `new_item_studio` and the Item Finder's `Clone as new item...`; a ready Builder
 result can still be handed in through the tab's `receive_imported_model`.
 

@@ -19,11 +19,14 @@ entry names where a file lives in the archives, and an install has to write ther
 
 from __future__ import annotations
 
+import threading
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, Iterable, Mapping, Optional, Sequence
 
 __all__ = [
     "MOD_BASE_TABLE_PATHS",
+    "ModFolderPayload",
     "mod_folder_payloads",
     "read_entry_over_mod_folder",
     "describe_mod_folder",
@@ -56,19 +59,47 @@ def _roots(folder: Path) -> Iterable[Path]:
         yield wrapper
 
 
-def mod_folder_payloads(folder: Path) -> Dict[str, Path]:
+@dataclass(frozen=True, slots=True)
+class ModFolderPayload:
+    """One game-relative payload, either loose or inside an exported archive group."""
+
+    path: Optional[Path] = None
+    entry: object = None
+
+    def read_bytes(self) -> bytes:
+        if self.path is not None:
+            return self.path.read_bytes()
+        if self.entry is None:
+            raise FileNotFoundError("Source folder does not exist.")
+        from cdmw.core.archive_extraction import read_archive_entry_data
+
+        return bytes(read_archive_entry_data(self.entry)[0])
+
+def _payload(value: object) -> ModFolderPayload:
+    return value if isinstance(value, ModFolderPayload) else ModFolderPayload(path=Path(value))
+
+
+def mod_folder_payloads(
+    folder: Path,
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> Dict[str, ModFolderPayload]:
     """`{game path: the file in the folder}` for everything the folder carries.
 
     Both layouts the studio writes are read: game-relative at the top of the folder, and
     the same tree under `files/`.
     """
 
-    found: Dict[str, Path] = {}
+    found: Dict[str, ModFolderPayload] = {}
+    from cdmw.domain.cancellation import raise_if_cancelled
+
+    raise_if_cancelled(stop_event, "New item plan cancelled.")
     root = Path(folder)
     if not root.is_dir():
         return found
     for base in _roots(root):
         for path in base.rglob("*"):
+            raise_if_cancelled(stop_event, "New item plan cancelled.")
             if not path.is_file():
                 continue
             relative = path.relative_to(base)
@@ -77,28 +108,39 @@ def mod_folder_payloads(folder: Path) -> Dict[str, Path]:
                 continue
             if len(parts) < 2:
                 continue  # manifest.json, modinfo.json, README.txt and the like
-            found.setdefault(PurePosixPath(*parts).as_posix().lower(), path)
+            if len(parts) == 2 and parts[0].isdigit() and parts[1].casefold() in {"0.pamt", "0.paz"}:
+                continue  # an archive group's contents are indexed below, not as loose paths
+            found.setdefault(PurePosixPath(*parts).as_posix().lower(), ModFolderPayload(path=path))
+
+    # DMM writes the game-relative files inside ``<group>/0.pamt`` and ``0.paz``.
+    # ``discover_pamt_files`` follows meta/0.papgt, so setdefault preserves the same
+    # first-mounted-wins rule the game uses when more than one group is present.
+    from cdmw.core.archive_format import discover_pamt_files, parse_archive_pamt
+
+    for pamt in discover_pamt_files(root):
+        for entry in parse_archive_pamt(pamt):
+            raise_if_cancelled(stop_event, "New item plan cancelled.")
+            found.setdefault(_normalize(getattr(entry, "path", "")), ModFolderPayload(entry=entry))
     return found
 
 
 def read_entry_over_mod_folder(
     read_entry: Callable[[object], bytes],
-    payloads: Mapping[str, Path],
+    payloads: Mapping[str, object],
 ) -> Callable[[object], bytes]:
     """`read_entry`, but a path the folder carries reads from the folder.
 
     The entry itself is untouched: it still names the archive the install writes into.
     """
 
-    files = {_normalize(key): Path(value) for key, value in dict(payloads or {}).items()}
+    files = {_normalize(key): _payload(value) for key, value in dict(payloads or {}).items()}
 
     def read(entry) -> bytes:
         loose = files.get(_normalize(getattr(entry, "path", "")))
         if loose is not None:
-            try:
-                return loose.read_bytes()
-            except OSError:
-                pass
+            # A selected mod base is authoritative. Falling through to the game after a
+            # read failure silently plans a replacement that drops the mod's prior rows.
+            return loose.read_bytes()
         return read_entry(entry)
 
     return read

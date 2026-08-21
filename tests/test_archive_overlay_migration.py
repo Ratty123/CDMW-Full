@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -150,6 +151,88 @@ class MigrationTests(unittest.TestCase):
         removal = remove_overlay(self.root)
         self.assertFalse(removal.unmounted)
         self.assertIsNone(removal.directory)
+
+    def test_removal_ignores_a_foreign_numeric_mount(self) -> None:
+        from cdmw.core.papgt_format import papgt_with_directory
+
+        foreign = self.root / "0036"
+        foreign.mkdir()
+        (foreign / "keep.txt").write_bytes(b"another mod")
+        mount = self.root / "meta" / "0.papgt"
+        mount.write_bytes(papgt_with_directory(mount.read_bytes(), "0036", 0, first=True))
+
+        removal = remove_overlay(self.root)
+
+        self.assertFalse(removal.unmounted)
+        self.assertEqual((foreign / "keep.txt").read_bytes(), b"another mod")
+        self.assertIn("0036", [item.name for item in parse_papgt(mount.read_bytes())])
+
+    def test_a_migration_write_failure_restores_every_touched_file(self) -> None:
+        import cdmw.services.archive_overlay_install as overlay
+
+        self._patch_the_old_way()
+        found = plan_migration(self.root)
+        before = {path.relative_to(self.root).as_posix(): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        original = overlay._write_atomic
+
+        def fail_overlay_index(path: Path, payload: bytes) -> None:
+            if path.name == "0.pamt" and path.parent.name == "0036":
+                raise OSError("overlay index failed")
+            original(path, payload)
+
+        with patch.object(overlay, "_write_atomic", fail_overlay_index):
+            with self.assertRaisesRegex(OSError, "overlay index failed"):
+                migrate_into_overlay(self.root, plan=found)
+
+        after = {path.relative_to(self.root).as_posix(): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        self.assertEqual(after, before)
+
+    def test_cancellation_after_backup_restores_before_migration_writes(self) -> None:
+        self._patch_the_old_way()
+        found = plan_migration(self.root)
+        before = {
+            path.relative_to(self.root).as_posix(): path.read_bytes()
+            for path in self.root.rglob("*")
+            if path.is_file()
+        }
+        stop_event = threading.Event()
+        restored: list[Path] = []
+
+        def backup(_paths, _description):
+            folder = self.root / "move_backup"
+            folder.mkdir()
+            stop_event.set()
+            return folder
+
+        with self.assertRaisesRegex(Exception, "cancelled; restoring the backup"):
+            migrate_into_overlay(
+                self.root,
+                plan=found,
+                backup=backup,
+                restore_backup=lambda path: restored.append(path),
+                stop_event=stop_event,
+            )
+
+        after = {
+            path.relative_to(self.root).as_posix(): path.read_bytes()
+            for path in self.root.rglob("*")
+            if path.is_file() and "move_backup" not in path.parts
+        }
+        self.assertEqual(restored, [self.root / "move_backup"])
+        self.assertEqual(after, before)
+
+    def test_a_removal_failure_restores_the_mounted_overlay(self) -> None:
+        self._patch_the_old_way()
+        migrated = migrate_into_overlay(self.root, plan=plan_migration(self.root))
+        before = {path.relative_to(self.root).as_posix(): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+
+        with patch("cdmw.services.archive_overlay_migration.shutil.rmtree", side_effect=OSError("delete failed")):
+            with self.assertRaisesRegex(OSError, "delete failed"):
+                remove_overlay(self.root)
+
+        after = {path.relative_to(self.root).as_posix(): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        self.assertEqual(after, before)
+        self.assertTrue(migrated.directory.is_dir())
 
     def test_the_move_backs_up_what_it_is_about_to_overwrite(self) -> None:
         self._patch_the_old_way()

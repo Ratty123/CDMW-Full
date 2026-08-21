@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -104,6 +105,47 @@ class PlacementConventionTests(unittest.TestCase):
 
 
 class ModelImportBuildTests(unittest.TestCase):
+    def test_model_import_temp_roots_are_owned_and_cleaned(self) -> None:
+        from cdmw.ui.new_item.model_import import ModelImportSource, load_model_import_source
+
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            generated = base / "generated"
+
+            def make_root(**_kwargs):
+                generated.mkdir()
+                return str(generated)
+
+            with patch("cdmw.ui.new_item.model_import.tempfile.mkdtemp", make_root), patch(
+                "cdmw.services.model_library_service.ModelLibraryService.resolve_importable_model",
+                side_effect=ValueError("bad model"),
+            ):
+                with self.assertRaisesRegex(ValueError, "bad model"):
+                    load_model_import_source(base / "bad.obj")
+            self.assertFalse(generated.exists(), "a failed import removes the temp directory it created")
+
+            caller_root = base / "caller"
+            caller_root.mkdir()
+            source = ModelImportSource(
+                chosen_path=base / "a.obj",
+                model_path=base / "a.obj",
+                scene=None,
+                preview_model=None,
+                bounds=None,
+                extract_root=caller_root,
+                owns_extract_root=False,
+            )
+            source.cleanup()
+            self.assertTrue(caller_root.is_dir(), "a caller-provided extraction root remains caller-owned")
+
+            owned = base / "owned"
+            owned.mkdir()
+            source.extract_root = owned
+            source.owns_extract_root = True
+            source.cleanup()
+            source.cleanup()
+            self.assertFalse(owned.exists(), "owned cleanup is idempotent")
+
     def test_a_scene_source_flips_v_and_the_build_carries_it(self) -> None:
         """glTF, GLB, OBJ and DAE put V's origin at the bottom while the game samples from
         the top, so the studio reads those sources with the flip on and the build applies
@@ -309,6 +351,33 @@ class ItemPreviewFrameTests(unittest.TestCase):
         self.assertEqual(frame._loaded_token, "p")
         self.assertTrue(frame._loaded_is_placement)
         frame._closed = True
+
+    def test_shutdown_requests_preview_stop_without_waiting_on_the_ui_thread(self) -> None:
+        from PySide6.QtCore import QEventLoop
+
+        from cdmw.ui.new_item.item_preview import ItemPreviewFrame
+
+        output = Path(tempfile.mkdtemp(prefix="cdmw_item_preview_shutdown_"))
+        frame = ItemPreviewFrame(output_root=output, host_factory=self._fake_host_class())
+
+        def slow_build(_source, *, output_root, **_kwargs):
+            time.sleep(0.2)
+            package = Path(output_root) / "cdmw_dotnet_preview_slow" / "package"
+            package.mkdir(parents=True, exist_ok=True)
+            return package
+
+        with patch("cdmw.ui.new_item.item_preview.build_item_preview_package", slow_build):
+            frame.show(object(), token="slow")
+            deadline = time.monotonic() + 1.0
+            while (frame._thread is None or not frame._thread.isRunning()) and time.monotonic() < deadline:
+                self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+            started = time.monotonic()
+            frame.shutdown()
+            self.assertLess(time.monotonic() - started, 0.08)
+            self.assertTrue(frame.iter_shutdown_workers(), "the live worker remains discoverable for the shell close sweep")
+            while frame._thread is not None and time.monotonic() < deadline + 1.0:
+                self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+            self.assertEqual(frame.iter_shutdown_workers(), ())
 
     def test_a_hidden_frame_builds_the_package_and_loads_it_when_shown(self) -> None:
         """The package builds ahead of the step (shown or not); the viewport starts, and the

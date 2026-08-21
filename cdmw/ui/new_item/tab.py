@@ -136,7 +136,7 @@ class NewItemStudioTab(QWidget):
             self._progress = None
 
     def start_snapshot(self) -> None:
-        if self.controller.busy or self.controller.ready:
+        if self.controller.busy:
             return
         entries = tuple(self._get_entries() or ())
         package_root: Optional[Path] = None
@@ -145,27 +145,47 @@ class NewItemStudioTab(QWidget):
             # entry list; the studio then lists the archives itself from the package root
             root_text = str(self._get_package_root() or "").strip()
             if not root_text or not Path(root_text).is_dir():
-                self._status.setText("The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.")
+                if self._panels_built:
+                    self.status_message_requested.emit("The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.", True)
+                else:
+                    self._status.setText("The archive list is empty and no game folder is set. Set the game folder in the Archive Browser first, then come back.")
                 return
             package_root = Path(root_text)
-        self._read_button.setEnabled(False)
-        self._progress.setVisible(True)
-        if entries:
-            self._status.setText(f"Reading the tables from {len(entries):,} archive entries...")
+        if self._panels_built:
+            self.output_panel.append_log("Reading the archives again so the next item gets its own key and stem...")
         else:
-            self._status.setText(f"Listing the archives under {package_root}, then reading the tables...")
-        self.controller.log_message.connect(self._status.setText)
+            self._read_button.setEnabled(False)
+            self._progress.setVisible(True)
+            if entries:
+                self._status.setText(f"Reading the tables from {len(entries):,} archive entries...")
+            else:
+                self._status.setText(f"Listing the archives under {package_root}, then reading the tables...")
+            self.controller.log_message.connect(self._status.setText)
         if not self.controller.start_snapshot(entries, package_root=package_root):
-            self._read_button.setEnabled(True)
-            self._progress.setVisible(False)
+            if not self._panels_built:
+                self._read_button.setEnabled(True)
+                self._progress.setVisible(False)
 
     def _snapshot_failed(self, message: str) -> None:
+        if self._panels_built:
+            self.output_panel.append_log(f"The archives could not be read for a new item.\n\n{message}")
+            self.status_message_requested.emit(message, True)
+            return
         self._progress.setVisible(False)
         self._read_button.setEnabled(True)
         self._read_button.setText("Try again")
         self._status.setText(f"The archives could not be read for a new item.\n\n{message}")
 
     def _snapshot_ready(self) -> None:
+        if self._panels_built:
+            self.template_panel._refresh_matches()
+            self.stats_panel.rebuild()
+            self.perks_panel._refresh_all()
+            self.placement_panel._refresh_stores()
+            self.placement_panel._refresh_groups()
+            self.identity_panel.refresh_issues()
+            self._refresh_summary()
+            return
         try:
             self.controller.log_message.disconnect(self._status.setText)
         except (RuntimeError, TypeError):
@@ -238,10 +258,7 @@ class NewItemStudioTab(QWidget):
         self.summary.setObjectName("new_item_summary")
         summary_layout.addWidget(self.summary)
         green, amber, red, blue = tinted("green", OK), tinted("amber", WARN), tinted("red", BLOCK), tinted("blue", EDIT)
-        self.legend = QLabel(f"{green} settled, {amber} wants a decision or an in-game check, {red} blocks the plan, {blue} differs from the template.")
-        self.legend.setObjectName("new_item_intro")
-        self.legend.setWordWrap(True)
-        summary_layout.addWidget(self.legend)
+        self.summary_box.setToolTip(f"{green} settled, {amber} wants a decision or an in-game check, {red} blocks the plan, {blue} differs from the template.")
         summary_layout.addStretch(1)
         rail = QVBoxLayout()
         rail.setContentsMargins(0, 0, 0, 0)
@@ -279,6 +296,7 @@ class NewItemStudioTab(QWidget):
         controller.model_changed.connect(self._refresh_summary)
         controller.plan_ready.connect(self._refresh_summary)
         controller.plan_failed.connect(self._refresh_summary)
+        controller.plan_invalidated.connect(self._refresh_summary)
         self.identity_panel.internal_name.textChanged.connect(self._refresh_summary)
         self.identity_panel.display_name.textChanged.connect(self._refresh_summary)
         for radio in (self.placement_panel.no_store, self.placement_panel.swap, self.placement_panel.insert):
@@ -517,12 +535,20 @@ class NewItemStudioTab(QWidget):
     # ------------------------------------------------------------------ lifecycle
 
     def iter_shutdown_workers(self):
-        return self.controller.iter_shutdown_workers()
+        workers = list(self.controller.iter_shutdown_workers())
+        if self._panels_built:
+            workers.extend(self.model_panel.iter_shutdown_workers())
+            workers.extend(self.perks_panel.iter_shutdown_workers())
+        return tuple(workers)
 
     def request_shutdown(self) -> None:
         self.controller.request_shutdown()
+        if self._panels_built:
+            self.model_panel.request_shutdown_preview()
+            self.perks_panel.request_shutdown()
 
     def shutdown(self) -> None:
+        self.request_shutdown()
         if self._panels_built:
             self.model_panel.shutdown_preview()
         self.controller.shutdown()

@@ -87,14 +87,17 @@ class IdentityPanel(QGroupBox):
 
     def _store_internal_name(self, text: str) -> None:
         self._controller.draft.internal_name = str(text)
+        self._controller.invalidate_plan()
         self.refresh_issues()
 
     def _store_item_key(self, value: int) -> None:
         self._controller.draft.item_key = int(value) or None
+        self._controller.invalidate_plan()
         self.refresh_issues()
 
     def _store_stem(self, text: str) -> None:
         self._controller.draft.stem = str(text)
+        self._controller.invalidate_plan()
         self.refresh_issues()
 
     def _switch_language(self, _index: int) -> None:
@@ -112,10 +115,12 @@ class IdentityPanel(QGroupBox):
 
     def _store_display_name(self, text: str) -> None:
         self._controller.draft.display_names[self._language] = str(text)
+        self._controller.invalidate_plan()
         self.refresh_issues()
 
     def _store_description(self) -> None:
         self._controller.draft.descriptions[self._language] = self.description.toPlainText()
+        self._controller.invalidate_plan()
 
     def _template_changed(self, _key: object) -> None:
         self.stem.blockSignals(True)

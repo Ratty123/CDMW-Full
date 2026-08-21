@@ -435,25 +435,34 @@ class ItemPreviewFrame(QWidget):
         # for a build that never started.
         worker.completed.connect(self._package_ready)
         worker.error.connect(self._package_failed)
-        worker.finished.connect(self._build_finished)
+        worker.finished.connect(self._worker_finished, Qt.DirectConnection)
+        thread.finished.connect(self._build_finished, Qt.QueuedConnection)
         thread.started.connect(worker.run)
         thread.start()
 
     def _package_failed(self, message: object) -> None:
-        if self._superseded:
+        if self._closed or self._superseded:
             return
         self.status_changed.emit(f"The preview could not be built: {message}")
+
+    def _worker_finished(self) -> None:
+        """Return the worker QObject to this frame's thread before its loop exits."""
+
+        worker = self._worker
+        if worker is not None and worker.thread() is QThread.currentThread():
+            worker.moveToThread(self.thread())
+        QThread.currentThread().quit()
 
     def _build_finished(self) -> None:
         """The build in flight has ended (landed or failed): tear its thread down and
         start the newest request when it superseded this one."""
 
         thread, worker = self._thread, self._worker
+        if thread is not None and not thread.wait(0):
+            QTimer.singleShot(0, self._build_finished)
+            return
         self._thread = None
         self._worker = None
-        if thread is not None:
-            thread.quit()
-            thread.wait(5000)
         if worker is not None:
             worker.deleteLater()
         if thread is not None:
@@ -471,7 +480,10 @@ class ItemPreviewFrame(QWidget):
 
         if token is _UNSET:
             token, is_placement = self._building if self._building is not None else (None, False)
-        if self._closed or not isinstance(result, Path):
+        if not isinstance(result, Path):
+            return
+        if self._closed:
+            shutil.rmtree(self._package_cleanup_root(result), ignore_errors=True)
             return
         if self.host is None:
             if self.isVisible() and self._ensure_host():
@@ -564,15 +576,21 @@ class ItemPreviewFrame(QWidget):
 
     # ------------------------------------------------------------------ lifecycle
 
-    def shutdown(self) -> None:
+    def iter_shutdown_workers(self):
+        return (("new item preview", self._thread, self._worker),) if self._thread is not None else ()
+
+    def request_shutdown(self) -> None:
         self._closed = True
         worker = self._worker
         if worker is not None:
             worker.stop()
         thread = self._thread
         if thread is not None:
+            thread.requestInterruption()
             thread.quit()
-            thread.wait(5000)
+
+    def shutdown(self) -> None:
+        self.request_shutdown()
         if self.host is not None:
             try:
                 self.host.set_icon_capture_mode(False)

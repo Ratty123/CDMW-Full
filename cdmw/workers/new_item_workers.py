@@ -11,12 +11,12 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import Callable, Iterable, Optional
+from typing import Callable, Iterable, Optional, Sequence
 
 from cdmw.core.item_icon_addition import NewItemIcon
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.archives.mutation import ArchivePatchResult
-from cdmw.domain.new_item.spec import NewItemSpec
+from cdmw.domain.new_item.spec import IconSource, NewItemSpec
 from cdmw.domain.packages.export_policy import ModPackageExportOptions
 from cdmw.models import ArchiveEntry, ModPackageInfo
 from cdmw.services.new_item_planning import NewItemPlan
@@ -91,6 +91,8 @@ def plan_task(
     scene: object | None = None,
     icon: Optional[NewItemIcon] = None,
     icon_source_path: Optional[Path] = None,
+    mod_base_folder: Optional[Path] = None,
+    read_entry: Optional[Callable[[ArchiveEntry], bytes]] = None,
     reserved_keys: Sequence[int] = (),
     reserved_stems: Sequence[str] = (),
 ) -> Callable[[LogSink, threading.Event], NewItemPlan]:
@@ -99,13 +101,63 @@ def plan_task(
     that the snapshot cannot see (an earlier plan this session, a loose mod not installed)."""
 
     def run(log: LogSink, stop_event: threading.Event) -> NewItemPlan:
+        base = snapshot
+        if mod_base_folder is not None:
+            if read_entry is None:
+                raise ValueError("Read the archives first.")
+            from cdmw.services.new_item_mod_base import mod_folder_payloads, read_entry_over_mod_folder
+
+            payloads = mod_folder_payloads(Path(mod_base_folder), stop_event=stop_event)
+            if payloads:
+                log("Reading the archives again so the next item gets its own key and stem...")
+                try:
+                    base = service.build_snapshot(
+                        tuple(snapshot.entries.values()),
+                        read_entry=read_entry_over_mod_folder(read_entry, payloads),
+                        on_log=log,
+                        stop_event=stop_event,
+                    )
+                except (OSError, ValueError) as exc:
+                    raise ValueError(f"The mod folder could not be read as a base: {exc}") from exc
+        resolved_icon = icon_source_path
+        if spec.icon is IconSource.GENERATED and icon_source_path is not None:
+            resolved_icon = _resolve_icon_source(spec, base, Path(icon_source_path), stop_event=stop_event)
         return service.plan(
-            spec, snapshot, model=model, scene=scene, icon=icon, icon_source_path=icon_source_path,
+            spec, base, model=model, scene=scene, icon=icon, icon_source_path=resolved_icon,
             reserved_keys=tuple(reserved_keys), reserved_stems=tuple(reserved_stems),
             on_log=log, stop_event=stop_event,
         )
 
     return run
+
+
+def _resolve_icon_source(
+    spec: NewItemSpec,
+    snapshot: NewItemSnapshot,
+    source: Path,
+    *,
+    stop_event: Optional[threading.Event] = None,
+) -> Path:
+    """Resolve a chosen image folder inside the planning worker."""
+
+    if source.is_file():
+        return source
+    if not source.is_dir():
+        raise ValueError(f"The icon source {source} does not exist.")
+    from cdmw.services.item_icon_service import ItemIconService
+
+    template = snapshot.row(spec.template_key)
+    stems = [str(spec.stem or ""), str(snapshot.family(spec.template_key).model_stem)]
+    chosen, _candidates, message = ItemIconService().choose_source(
+        source,
+        target_path=f"itemicon_prefab_{spec.stem or ''}.dds",
+        related_stems=[stem for stem in stems if stem],
+        display_name=spec.display_names.get("eng", "") or template.string_key,
+        stop_event=stop_event,
+    )
+    if chosen is None:
+        raise ValueError(message or f"No image in {source} matched the new item closely enough; pick a file instead.")
+    return Path(chosen.path)
 
 
 def export_task(
@@ -169,13 +221,23 @@ def overlay_migration_task(package_root, *, mutation_service) -> Callable[[LogSi
         if found.is_empty:
             return found
 
+        if not hasattr(mutation_service, "backup_files") or not hasattr(mutation_service, "restore_backup"):
+            raise RuntimeError("The archive mutation service is not available in this window.")
+
         def backup(paths, description):
             return mutation_service.backup_files(paths, description=description, on_log=log)
+
+        def restore(path):
+            return mutation_service.restore_backup(path, confirmed=True, on_log=log)
+
+        from cdmw.services.new_item_service import game_is_running
 
         return migrate_into_overlay(
             package_root,
             plan=found,
-            backup=backup if hasattr(mutation_service, "backup_files") else None,
+            backup=backup,
+            restore_backup=restore,
+            game_running=game_is_running,
             on_log=log,
             stop_event=stop_event,
         )
@@ -189,13 +251,24 @@ def overlay_removal_task(package_root, *, mutation_service) -> Callable[[LogSink
     def run(log: LogSink, stop_event: threading.Event) -> object:
         from cdmw.services.archive_overlay_migration import remove_overlay
 
+        if not hasattr(mutation_service, "backup_files") or not hasattr(mutation_service, "restore_backup"):
+            raise RuntimeError("The archive mutation service is not available in this window.")
+
         def backup(paths, description):
             return mutation_service.backup_files(paths, description=description, on_log=log)
 
+        def restore(path):
+            return mutation_service.restore_backup(path, confirmed=True, on_log=log)
+
+        from cdmw.services.new_item_service import game_is_running
+
         return remove_overlay(
             package_root,
-            backup=backup if hasattr(mutation_service, "backup_files") else None,
+            backup=backup,
+            restore_backup=restore,
+            game_running=game_is_running,
             on_log=log,
+            stop_event=stop_event,
         )
 
     return run

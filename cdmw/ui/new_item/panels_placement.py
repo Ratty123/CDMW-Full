@@ -143,7 +143,7 @@ class PlacementPanel(QGroupBox):
         self.keep_requirement.setVisible(swapping)
         self.unlimited_stock.setEnabled(enabled)
         self.unlimited_stock.setVisible(enabled)
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self._refresh_requirement_note()
 
     def _store_changed(self, name: str) -> None:
@@ -157,21 +157,21 @@ class PlacementPanel(QGroupBox):
         finally:
             self.old_item.blockSignals(False)
         self._old_item_changed(self.old_item.currentIndex())
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _old_item_changed(self, _index: int) -> None:
         self._controller.draft.old_item_name = str(self.old_item.currentData() or "")
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self._refresh_requirement_note()
 
     def _keep_requirement_changed(self, checked: bool) -> None:
         self._controller.draft.keep_requirement = bool(checked)
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self._refresh_requirement_note()
 
     def _unlimited_stock_changed(self, checked: bool) -> None:
         self._controller.draft.unlimited_stock = bool(checked)
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _refresh_requirement_note(self) -> None:
         draft = self._controller.draft
@@ -205,7 +205,7 @@ class PlacementPanel(QGroupBox):
         for widget in (self.group_filter, self.group_list):
             widget.setEnabled(bool(checked))
             widget.setVisible(bool(checked))
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _refresh_groups(self, *_args) -> None:
         chosen = set(self._controller.draft.explicit_item_groups)
@@ -231,7 +231,7 @@ class PlacementPanel(QGroupBox):
         else:
             chosen.discard(key)
         self._controller.draft.explicit_item_groups = tuple(sorted(chosen))
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
 
 __all__ = ["PlacementPanel"]

@@ -366,7 +366,7 @@ class ModelPanel(QGroupBox):
         self.plain_pbr.setEnabled(not keep)
         self.own_sheath.setEnabled(not keep)
         self._refresh_import_widgets()
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _refresh_import_widgets(self) -> None:
         keep = self.keep_model.isChecked()
@@ -423,7 +423,7 @@ class ModelPanel(QGroupBox):
 
     def _material_route_changed(self, plain: bool) -> None:
         self._controller.draft.material_route = MaterialRoute.PLAIN_PBR if plain else MaterialRoute.BUILDER
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def refresh_glow_parts(self) -> None:
         """Fill the part list from the chosen template, keeping what was already ticked."""
@@ -458,7 +458,7 @@ class ModelPanel(QGroupBox):
         draft = self._controller.draft
         draft.glow_parts = self._ticked_glow_parts() if self.glow_box.isChecked() else ()
         draft.glow_intensity = float(self.glow_intensity.value())
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _pick_glow_color(self) -> None:
         from PySide6.QtGui import QColor
@@ -471,7 +471,7 @@ class ModelPanel(QGroupBox):
             return
         self._controller.draft.glow_color = (chosen.redF(), chosen.greenF(), chosen.blueF())
         self._set_glow_swatch()
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _set_glow_swatch(self) -> None:
         red, green, blue = (int(round(max(0.0, min(1.0, float(c))) * 255)) for c in self._controller.draft.glow_color)
@@ -482,7 +482,7 @@ class ModelPanel(QGroupBox):
 
     def _keep_physics_changed(self, keep: bool) -> None:
         self._controller.draft.keep_template_physics = bool(keep)
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _flip_texture_v_changed(self, flip: bool) -> None:
         source = self._controller.model_import
@@ -492,12 +492,12 @@ class ModelPanel(QGroupBox):
         # the build differs, so a result from before this switch is no longer the item's
         if self._controller.model_result is not None:
             self._controller.set_imported_model(None, None)
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self._refresh_apply_status()
 
     def _sheath_changed(self, own: bool) -> None:
         self._controller.draft.sheathed_model = SheathedModel.OWN_MODEL if own else SheathedModel.TEMPLATE
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _show_model(self, result: object) -> None:
         source = self._controller.model_import
@@ -544,7 +544,7 @@ class ModelPanel(QGroupBox):
         self._controller.draft.icon = IconSource.TEMPLATE if keep else IconSource.GENERATED
         for widget in (self.icon_source, self.icon_file_button, self.icon_folder_button):
             widget.setEnabled(not keep)
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     # ------------------------------------------------------------------ preview
 
@@ -732,8 +732,21 @@ class ModelPanel(QGroupBox):
         except Exception:  # noqa: BLE001
             pass
 
+    def request_shutdown_preview(self) -> None:
+        try:
+            self.preview.request_shutdown()
+        except Exception:  # noqa: BLE001
+            pass
+
+    def iter_shutdown_workers(self):
+        try:
+            return self.preview.iter_shutdown_workers()
+        except Exception:  # noqa: BLE001
+            return ()
+
     def _store_icon_source(self, text: str) -> None:
         self._controller.draft.icon_source_path = str(text)
+        self._controller.invalidate_plan()
 
     def _pick_icon_file(self) -> None:
         path, _selected = QFileDialog.getOpenFileName(

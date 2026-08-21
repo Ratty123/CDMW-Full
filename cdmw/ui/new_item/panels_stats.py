@@ -170,7 +170,7 @@ class StatsPanel(QGroupBox):
                     draft.grid_values[(level, column_index)] = 1
         for key, _label, _template in self._grid.price_items:
             draft.price_values[key] = 1
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self.rebuild()
 
     # ------------------------------------------------------------------ building
@@ -251,7 +251,7 @@ class StatsPanel(QGroupBox):
             except ValueError:
                 self.rebuild()
                 return
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _price_changed(self, index: int, column: int) -> None:
         if self._syncing or self._grid is None or column != 1:
@@ -264,7 +264,7 @@ class StatsPanel(QGroupBox):
             return
         key = self._grid.price_items[index][0]
         self._controller.draft.price_values[key] = value
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _refresh_status_choices(self) -> None:
         present = {column.key for column in (self._grid.columns if self._grid else ()) if column.kind == STAT_KIND}
@@ -326,7 +326,7 @@ class StatsPanel(QGroupBox):
         rows = grid.level_count + draft.extra_levels
         for level in range(rows):
             draft.grid_values[(level, insert_at)] = int(self.new_stat_value.value())
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self.rebuild()
 
     def _remove_stat_column(self) -> None:
@@ -350,29 +350,31 @@ class StatsPanel(QGroupBox):
                 continue
             kept[(level, index - 1 if index > column_index else index)] = value
         draft.grid_values = kept
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self.rebuild()
 
     def _own_rows_changed(self, checked: bool) -> None:
         self._controller.draft.own_enhancement_rows = bool(checked)
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _stack_changed(self, value: int) -> None:
         if self._syncing:
             return
         self._controller.draft.max_stack_count = int(value)
-        self._controller.plan = None
+        self._controller.invalidate_plan()
 
     def _apply_scale(self) -> None:
         if self._grid is None:
             return
         self._controller.draft.grid_values.update(scaled_grid_values(self._grid, float(self.scale.value())))
+        self._controller.invalidate_plan()
         self.rebuild()
 
     def _apply_flat(self) -> None:
         if self._grid is None:
             return
         self._controller.draft.grid_values.update(flat_grid_values(self._grid, int(self.flat.value())))
+        self._controller.invalidate_plan()
         self.rebuild()
 
     def _add_level(self) -> None:
@@ -390,7 +392,7 @@ class StatsPanel(QGroupBox):
             if value is not None:
                 draft.grid_values[(new_level, column_index)] = int(value)
         draft.extra_levels += 1
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self.rebuild()
 
     def _reset(self) -> None:
@@ -400,7 +402,7 @@ class StatsPanel(QGroupBox):
         draft.extra_levels = 0
         draft.extra_stat_keys.clear()
         draft.max_stack_count = None
-        self._controller.plan = None
+        self._controller.invalidate_plan()
         self.rebuild()
 
 

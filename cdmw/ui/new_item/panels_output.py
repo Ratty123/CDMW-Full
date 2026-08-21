@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 from cdmw.services.new_item_planning import NewItemPlan
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.state import MANAGERS
-from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, DetailsToggle, NoteLabel, intro_label
+from cdmw.ui.new_item.ui_kit import BLOCK, EDIT, OK, WARN, DetailsToggle, NoteLabel
 
 CHECKLIST = (
     "In game: the item shows in the shop you chose (or in the inventory when given by other means).",
@@ -121,7 +121,7 @@ class OutputPanel(QGroupBox):
         super().__init__("7. Output", parent)
         self._controller = controller
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label("Build the plan (nothing is written yet), read what it changes, then write a mod folder or install into the game."))
+        self.setToolTip("Build the plan (nothing is written yet), read what it changes, then write a mod folder or install into the game.")
 
         self.busy_bar = QProgressBar()
         self.busy_bar.setRange(0, 0)
@@ -206,11 +206,11 @@ class OutputPanel(QGroupBox):
         install.addWidget(self.install_overlay_button)
         install.addStretch(1)
         write_layout.addLayout(install)
-        write_layout.addWidget(intro_label(
+        write.setToolTip(
             "Installing writes into the archives the game shipped, backs them up first, and can be restored. An overlay "
             "writes a directory of its own instead and leaves them alone; it is the faster and more easily undone of the "
             "two, and the newer."
-        ))
+        )
         overlay_row = QHBoxLayout()
         self.overlay_migration_button = QPushButton("Move installed items into the overlay...")
         self.overlay_migration_button.setToolTip(
@@ -245,6 +245,7 @@ class OutputPanel(QGroupBox):
         controller.log_message.connect(self.append_log)
         controller.plan_ready.connect(self._show_plan)
         controller.plan_failed.connect(self._plan_failed)
+        controller.plan_invalidated.connect(self._show_plan)
         controller.export_finished.connect(self._export_finished)
         controller.install_finished.connect(self._install_finished)
         controller.busy_changed.connect(self._busy_changed)
@@ -263,19 +264,18 @@ class OutputPanel(QGroupBox):
     def _mod_base_changed(self) -> None:
         """Follow the folder box: say what is already there, and plan on it when asked."""
 
-        from cdmw.services.new_item_mod_base import describe_mod_folder
-
         text = self.export_root.text().strip()
-        found = describe_mod_folder(Path(text)) if text else ""
-        self.add_to_mod.setVisible(bool(found))
-        self.mod_base_note.setVisible(bool(found))
-        if not found:
+        folder = Path(text) if text and Path(text).is_dir() else None
+        self.add_to_mod.setVisible(folder is not None)
+        self.mod_base_note.setVisible(folder is not None)
+        if folder is None:
             self.mod_base_note.setText("")
             self._controller.set_mod_base(None)
             return
+        found = folder.name
         if self.add_to_mod.isChecked():
             self.mod_base_note.setText(f"{found} The next item is planned on its tables, so the folder will hold both.")
-            self._controller.set_mod_base(Path(text))
+            self._controller.set_mod_base(folder)
         else:
             self.mod_base_note.setText(f"{found} Writing here will replace it, and only the new item will be in the tables.")
             self._controller.set_mod_base(None)
@@ -300,10 +300,11 @@ class OutputPanel(QGroupBox):
     def append_log(self, message: str) -> None:
         self.log.appendPlainText(str(message))
 
-    def _show_plan(self, plan: Optional[NewItemPlan]) -> None:
+    def _show_plan(self, plan: Optional[NewItemPlan] = None) -> None:
         enabled = plan is not None
         self.export_button.setEnabled(enabled and not self._controller.busy)
         self.install_button.setEnabled(enabled and not self._controller.busy)
+        self.install_overlay_button.setEnabled(enabled and not self._controller.busy)
         if plan is None:
             self.summary.setPlainText("")
             self.plan_state.set_note("Not built yet. Every change on the other steps clears the plan, so build it last.", WARN)
@@ -369,9 +370,12 @@ class OutputPanel(QGroupBox):
         else:
             self.busy_state.set_note("Working...", EDIT)
         self.build_button.setEnabled(not busy)
-        has_plan = self._controller.plan is not None
+        has_plan = self._controller.has_current_plan
         self.export_button.setEnabled(has_plan and not busy)
         self.install_button.setEnabled(has_plan and not busy)
+        self.install_overlay_button.setEnabled(has_plan and not busy)
+        self.overlay_migration_button.setEnabled(not busy)
+        self.overlay_removal_button.setEnabled(not busy)
 
 
 __all__ = ["CHECKLIST", "OutputPanel", "install_result_report"]

@@ -13,7 +13,7 @@ import threading
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal
 
 from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
@@ -44,6 +44,7 @@ class NewItemStudioController(QObject):
     template_changed = Signal(object)
     plan_ready = Signal(object)
     plan_failed = Signal(str, object)
+    plan_invalidated = Signal()
     export_finished = Signal(object)
     install_finished = Signal(object)
     model_changed = Signal(object)
@@ -72,7 +73,6 @@ class NewItemStudioController(QObject):
         #: A mod folder to plan on top of, so a second item joins the first one's tables
         #: instead of replacing them. None plans against the archives.
         self.mod_base_folder: Optional[Path] = None
-        self._mod_base_cache: tuple = ()
         #: The game's own character for the placement viewport, read once (None means the
         #: archives had no character; _NOT_READ means nobody has asked yet)
         self._character_reference: object = _NOT_READ
@@ -83,6 +83,8 @@ class NewItemStudioController(QObject):
         self._material_parts: tuple = ()
         self.draft = NewItemDraft()
         self.plan: Optional[NewItemPlan] = None
+        self._draft_revision = 0
+        self._plan_revision = -1
         self.model_result: object | None = None
         self.model_entry: Optional[ArchiveEntry] = None
         self.model_scene: object | None = None
@@ -97,6 +99,8 @@ class NewItemStudioController(QObject):
         self._on_done: Optional[Callable[[object], None]] = None
         self._on_error: Optional[Callable[[str], None]] = None
         self._lane: str = ""
+        self._shutdown_requested = False
+        self._model_sources_to_cleanup: list[object] = []
         #: What every shipped effect is made of, once indexed (a minute, cached on disk).
         self.effect_catalogue: Optional[EffectCatalogue] = None
         #: Where the catalogue cache lives; None keeps it in memory only.
@@ -120,6 +124,28 @@ class NewItemStudioController(QObject):
     @property
     def ready(self) -> bool:
         return self.snapshot is not None
+
+    @property
+    def has_current_plan(self) -> bool:
+        return self.plan is not None and self._plan_revision == self._draft_revision
+
+    def invalidate_plan(self) -> None:
+        """Advance draft authority and make every older or in-flight plan unusable."""
+
+        self._draft_revision += 1
+        self._plan_revision = -1
+        self.plan = None
+        self.plan_invalidated.emit()
+
+    def _cleanup_model_source(self, source: Optional[ModelImportSource]) -> None:
+        cleanup = getattr(source, "cleanup", None)
+        if not callable(cleanup):
+            return
+        if self._thread is not None:
+            if not any(item is source for item in self._model_sources_to_cleanup):
+                self._model_sources_to_cleanup.append(source)
+            return
+        cleanup()
 
     def template_options(self, text: str = "", *, limit: int = 60) -> List[Tuple[int, str, str]]:
         """(key, internal name, equip type) for equipment whose name or key matches `text`."""
@@ -755,12 +781,14 @@ class NewItemStudioController(QObject):
             self.status_message.emit(f"Item {template_key} is not in the snapshot.", True)
             return
         self.draft = with_template(self.draft, template_key)
-        self.plan = None
+        self.invalidate_plan()
         self.model_result = None
         self.model_entry = None
         self.model_scene = None
-        had_import = self.model_import is not None
+        previous_import = self.model_import
+        had_import = previous_import is not None
         self.model_import = None
+        self._cleanup_model_source(previous_import)
         self.model_placement = ModelPlacement()
         self.template_changed.emit(template_key)
         if had_import:
@@ -775,7 +803,7 @@ class NewItemStudioController(QObject):
         self.model_entry = entry
         self.model_scene = scene if result is not None else None
         self.draft.model_source = ModelSource.IMPORTED if (result is not None or self.model_import is not None) else ModelSource.TEMPLATE
-        self.plan = None
+        self.invalidate_plan()
         self.model_changed.emit(result)
 
     # ------------------------------------------------------------------ the studio's own import
@@ -831,13 +859,16 @@ class NewItemStudioController(QObject):
             if not isinstance(result, ModelImportSource):
                 self.status_message.emit("The model import finished with an unexpected result.", True)
                 return
+            previous = self.model_import
             self.model_import = result
+            if previous is not result:
+                self._cleanup_model_source(previous)
             result.set_bake(self._fitted_placement(result))
             self.model_placement = ModelPlacement()
             if self.model_result is not None:
                 self.set_imported_model(None, None)
             self.draft.model_source = ModelSource.IMPORTED
-            self.plan = None
+            self.invalidate_plan()
             self.model_import_changed.emit(result)
             self.model_placement_changed.emit(self.model_placement)
 
@@ -858,7 +889,7 @@ class NewItemStudioController(QObject):
         source = self.model_import
         if self.model_result is not None and source is not None and source.applied != (source.bake, placement):
             self.set_imported_model(None, None)
-        self.plan = None
+        self.invalidate_plan()
         self.model_placement_changed.emit(placement)
 
     def fit_model_placement(self) -> None:
@@ -872,7 +903,7 @@ class NewItemStudioController(QObject):
         if self.model_result is not None:
             self.set_imported_model(None, None)
         self.model_placement = ModelPlacement()
-        self.plan = None
+        self.invalidate_plan()
         self.model_import_changed.emit(source)
         self.model_placement_changed.emit(self.model_placement)
 
@@ -908,13 +939,15 @@ class NewItemStudioController(QObject):
     def discard_model(self) -> None:
         """Drop the imported model, its placement and any result: back to the template's model."""
 
+        previous = self.model_import
         self.model_import = None
+        self._cleanup_model_source(previous)
         self.model_placement = ModelPlacement()
         if self.model_result is not None:
             self.set_imported_model(None, None)
         else:
             self.draft.model_source = ModelSource.TEMPLATE
-            self.plan = None
+            self.invalidate_plan()
         self.model_import_changed.emit(None)
 
     # ------------------------------------------------------------------ tasks
@@ -932,6 +965,7 @@ class NewItemStudioController(QObject):
         def done(result: object) -> None:
             if isinstance(result, NewItemSnapshot):
                 self.snapshot = result
+                self.invalidate_plan()
                 # a different install can have a different character
                 self._character_reference = _NOT_READ
                 self._held_character = ()
@@ -995,41 +1029,19 @@ class NewItemStudioController(QObject):
     def set_mod_base(self, folder: Optional[Path]) -> str:
         """Plan the next item on the tables in `folder` rather than on the archives.
 
-        Returns what is in the folder, for the panel to show; an empty string when there
-        is nothing there to build on. The plan is dropped either way, since what it would
-        be built from has changed.
+        Folder contents are inspected later by the planning worker; this UI-thread call
+        only records the selected directory.
         """
 
-        from cdmw.services.new_item_mod_base import describe_mod_folder, mod_folder_payloads
-
-        chosen = Path(folder) if folder else None
-        if chosen is not None and not mod_folder_payloads(chosen):
-            chosen = None
+        chosen = Path(folder) if folder and Path(folder).is_dir() else None
         if chosen != self.mod_base_folder:
-            self.plan = None
+            self.invalidate_plan()
         self.mod_base_folder = chosen
-        self._mod_base_cache = ()
-        return describe_mod_folder(chosen) if chosen is not None else ""
-
-    def planning_snapshot(self) -> Optional[NewItemSnapshot]:
-        """The tables the next item is planned against: the archives, or the archives with
-        a mod folder's own copies read in its place."""
-
-        if self.snapshot is None or self.mod_base_folder is None or self._read_entry is None:
-            return self.snapshot
-        from cdmw.services.new_item_mod_base import mod_folder_payloads, read_entry_over_mod_folder
-
-        payloads = mod_folder_payloads(self.mod_base_folder)
-        stamp = tuple(sorted((key, path.stat().st_mtime_ns, path.stat().st_size) for key, path in payloads.items()))
-        if self._mod_base_cache and self._mod_base_cache[0] == stamp:
-            return self._mod_base_cache[1]
-        reader = read_entry_over_mod_folder(self._read_entry, payloads)
-        built = self.service.build_snapshot(tuple(self.snapshot.entries.values()), read_entry=reader)
-        self._mod_base_cache = (stamp, built)
-        return built
+        return f"{chosen.name} already holds a mod and is selected as the base." if chosen is not None else ""
 
     def start_plan(self) -> bool:
-        self.plan = None
+        self.invalidate_plan()
+        revision = self._draft_revision
         if self.snapshot is None:
             self.plan_failed.emit("Read the archives first.", ())
             return False
@@ -1038,72 +1050,60 @@ class NewItemStudioController(QObject):
         except ValueError as exc:
             self.plan_failed.emit(str(exc), ())
             return False
-        # the tables the item is built on: the archives, or a mod folder's own copies of
-        # them, so a second item joins the first one's rows instead of replacing them
-        try:
-            base = self.planning_snapshot() or self.snapshot
-        except (OSError, ValueError) as exc:
-            self.plan_failed.emit(f"The mod folder could not be read as a base: {exc}", ())
-            return False
-        issues = self.service.validate(spec, base)
+        # Cheap validation stays immediate. Reading an existing mod and resolving an
+        # icon folder happen in the planning worker.
+        issues = self.service.validate(spec, self.snapshot)
         if has_errors(issues):
             self.plan_failed.emit("; ".join(issue.message for issue in issues if issue.is_error), issues)
             return False
         icon_source: Optional[Path] = None
         if spec.icon is IconSource.GENERATED:
-            try:
-                icon_source = self._resolve_icon_source(spec)
-            except ValueError as exc:
-                self.plan_failed.emit(str(exc), ())
+            text = str(self.draft.icon_source_path or "").strip()
+            if not text:
+                self.plan_failed.emit("Choose an image (or a folder of images) to generate the icon from, or keep the template's icon.", ())
+                return False
+            icon_source = Path(text)
+            if not icon_source.exists():
+                self.plan_failed.emit(f"The icon source {icon_source} does not exist.", ())
                 return False
         task = plan_task(
-            spec, base, service=self.service, model=self.model_result, scene=self.model_scene,
+            spec, self.snapshot, service=self.service, model=self.model_result, scene=self.model_scene,
             icon_source_path=icon_source, reserved_keys=tuple(self.issued_keys), reserved_stems=tuple(self.issued_stems),
+            mod_base_folder=self.mod_base_folder, read_entry=self._read_entry,
         )
 
         def done(result: object) -> None:
+            if revision != self._draft_revision:
+                return
             if isinstance(result, NewItemPlan):
                 self.plan = result
+                self._plan_revision = revision
                 self.remember_issued_identity(result.spec.item_key, str(result.spec.stem or ""))
                 self.plan_ready.emit(result)
             else:
                 self.plan_failed.emit("The plan finished with an unexpected result.", ())
 
-        return self._run("plan", task, done, lambda message: self.plan_failed.emit(message, ()))
+        def failed(message: str) -> None:
+            if revision == self._draft_revision:
+                shown = message
+                prefix = "The mod folder could not be read as a base: "
+                if message.startswith(prefix):
+                    shown = f"The mod folder could not be read as a base: {message.removeprefix(prefix)}"
+                elif icon_source is not None and icon_source.is_dir() and message.startswith("No image in "):
+                    shown = f"No image in {icon_source} matched the new item closely enough; pick a file instead."
+                self.plan_failed.emit(shown, ())
 
-    def _resolve_icon_source(self, spec: NewItemSpec) -> Path:
-        """The image the icon is generated from: a file as given, or the best match in a folder."""
-
-        text = str(self.draft.icon_source_path or "").strip()
-        if not text:
-            raise ValueError("Choose an image (or a folder of images) to generate the icon from, or keep the template's icon.")
-        source = Path(text)
-        if source.is_file():
-            return source
-        if not source.is_dir():
-            raise ValueError(f"The icon source {source} does not exist.")
-        from cdmw.services.item_icon_service import ItemIconService
-
-        assert self.snapshot is not None
-        template = self.snapshot.row(spec.template_key)
-        stems = [spec.stem or ""] + [str(self.snapshot.family(spec.template_key).model_stem)]
-        chosen, _candidates, message = ItemIconService().choose_source(
-            source, target_path=f"itemicon_prefab_{spec.stem or ''}.dds", related_stems=[s for s in stems if s],
-            display_name=spec.display_names.get("eng", "") or template.string_key,
-        )
-        if chosen is None:
-            raise ValueError(message or f"No image in {source} matched the new item closely enough; pick a file instead.")
-        return Path(chosen.path)
+        return self._run("plan", task, done, failed)
 
     def start_export(self, package_root: Path, manager: str) -> bool:
-        if self.plan is None:
+        if not self.has_current_plan:
             self.status_message.emit("Build the plan first.", True)
             return False
         task = export_task(self.plan, Path(package_root), service=self.service, manager=manager)
         return self._run("export", task, self.export_finished.emit, lambda message: self.status_message.emit(message, True))
 
     def start_install(self, mutation_service) -> bool:
-        if self.plan is None:
+        if not self.has_current_plan:
             self.status_message.emit("Build the plan first.", True)
             return False
         task = install_task(self.plan, service=self.service, mutation_service=mutation_service, confirmed=True)
@@ -1112,7 +1112,7 @@ class NewItemStudioController(QObject):
     def start_install_overlay(self, mutation_service) -> bool:
         """Install the plan as its own archive directory instead of into the shipped ones."""
 
-        if self.plan is None:
+        if not self.has_current_plan:
             self.status_message.emit("Build the plan first.", True)
             return False
         task = install_overlay_task(self.plan, service=self.service, mutation_service=mutation_service, confirmed=True)
@@ -1131,6 +1131,8 @@ class NewItemStudioController(QObject):
         return self._run("overlay", task, self.install_finished.emit, lambda message: self.status_message.emit(message, True))
 
     def _run(self, lane: str, task, on_done: Callable[[object], None], on_error: Callable[[str], None]) -> bool:
+        if self._shutdown_requested:
+            return False
         if self.busy:
             self.status_message.emit(f"Still busy with the previous step ({self._lane}); wait for it to finish.", True)
             return False
@@ -1156,34 +1158,59 @@ class NewItemStudioController(QObject):
         # onto the thread the controller lives on.
         worker.completed.connect(self._task_completed)
         worker.error.connect(self._task_failed)
-        worker.finished.connect(self._task_finished)
+        worker.finished.connect(self._worker_finished, Qt.DirectConnection)
+        thread.finished.connect(self._task_finished, Qt.QueuedConnection)
         thread.started.connect(worker.run)
         thread.start()
         return True
 
     def _task_completed(self, result: object) -> None:
+        if self._shutdown_requested:
+            cleanup = getattr(result, "cleanup", None)
+            if callable(cleanup):
+                cleanup()
+            return
         handler = self._on_done
         if handler is not None:
             handler(result)
 
     def _task_failed(self, message: object) -> None:
+        if self._shutdown_requested:
+            return
         handler = self._on_error
         if handler is not None:
             handler(str(message))
 
+    def _worker_finished(self) -> None:
+        """Run on the worker thread: return its QObject, then stop that event loop."""
+
+        worker = self._worker
+        if worker is not None and worker.thread() is QThread.currentThread():
+            worker.moveToThread(self.thread())
+        QThread.currentThread().quit()
+
     def _task_finished(self) -> None:
+        """Run on the controller thread only after the native worker thread ended."""
+
         thread, worker = self._thread, self._worker
+        if thread is not None and not thread.wait(0):
+            QTimer.singleShot(0, self._task_finished)
+            return
         self._thread = None
         self._worker = None
         self._lane = ""
         self._on_done = None
         self._on_error = None
-        if thread is not None:
-            thread.quit()
-            thread.wait(5000)
-            thread.deleteLater()
         if worker is not None:
             worker.deleteLater()
+        if thread is not None:
+            thread.deleteLater()
+        retired, self._model_sources_to_cleanup = self._model_sources_to_cleanup, []
+        for source in retired:
+            self._cleanup_model_source(source)
+        if self._shutdown_requested:
+            self._cleanup_model_source(self.model_import)
+            self.model_import = None
         self.busy_changed.emit(False)
 
     # ------------------------------------------------------------------ shutdown
@@ -1192,6 +1219,7 @@ class NewItemStudioController(QObject):
         return ((self._lane or "task", self._thread, self._worker),) if self._thread is not None else ()
 
     def request_shutdown(self) -> None:
+        self._shutdown_requested = True
         worker = self._worker
         if worker is not None:
             worker.stop()
@@ -1199,13 +1227,12 @@ class NewItemStudioController(QObject):
         if thread is not None:
             thread.requestInterruption()
             thread.quit()
+        else:
+            self._cleanup_model_source(self.model_import)
+            self.model_import = None
 
     def shutdown(self) -> None:
         self.request_shutdown()
-        thread = self._thread
-        self._thread = None
-        if thread is not None:
-            thread.wait(5000)
 
 
 __all__ = ["NewItemStudioController"]

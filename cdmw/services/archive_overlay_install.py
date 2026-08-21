@@ -34,8 +34,11 @@ from cdmw.domain.cancellation import raise_if_cancelled
 
 __all__ = [
     "OVERLAY_DIRECTORY_FIRST",
+    "OVERLAY_OWNER_BYTES",
+    "OVERLAY_OWNER_MARKER",
     "OverlayInstallResult",
     "install_overlay",
+    "is_cdmw_overlay_directory",
     "overlay_directory_name",
 ]
 
@@ -43,6 +46,8 @@ __all__ = [
 #: install ends at 0035, and the game reads a directory only if the mount list names it, so
 #: an unmounted 0036 left by something else is not in the way.
 OVERLAY_DIRECTORY_FIRST = 36
+OVERLAY_OWNER_MARKER = ".cdmw-new-item-overlay"
+OVERLAY_OWNER_BYTES = b"CDMW New Item Studio overlay v1\n"
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,7 +68,7 @@ def overlay_directory_name(package_root: Path, *, existing: Optional[str] = None
     first four-digit name at or after 0036 that no directory on disk uses."""
 
     root = Path(package_root)
-    if existing and (root / existing).is_dir():
+    if existing and is_cdmw_overlay_directory(root / existing):
         return existing
     used = {child.name for child in root.iterdir() if child.is_dir()}
     for number in range(OVERLAY_DIRECTORY_FIRST, 10000):
@@ -71,6 +76,16 @@ def overlay_directory_name(package_root: Path, *, existing: Optional[str] = None
         if name not in used:
             return name
     raise ValueError("no free archive directory name is left under the package root")
+
+
+def is_cdmw_overlay_directory(directory: Path) -> bool:
+    """Whether ``directory`` carries the exact marker written by this installer."""
+
+    marker = Path(directory) / OVERLAY_OWNER_MARKER
+    try:
+        return marker.is_file() and marker.read_bytes() == OVERLAY_OWNER_BYTES
+    except OSError:
+        return False
 
 
 def _processed_payload(payload: bytes, *, compression_type: int, encrypted: bool, basename: str) -> bytes:
@@ -85,6 +100,8 @@ def _processed_payload(payload: bytes, *, compression_type: int, encrypted: bool
 def _existing_overlay_files(directory: Path) -> Dict[str, OverlayFile]:
     """What the workbench's overlay already holds, keyed by path, ready to carry forward."""
 
+    if not is_cdmw_overlay_directory(directory):
+        return {}
     pamt = directory / "0.pamt"
     paz = directory / "0.paz"
     if not pamt.is_file() or not paz.is_file():
@@ -107,6 +124,7 @@ def install_overlay(
     meta_files: Iterable[Tuple[str, bytes]] = (),
     directory_name: Optional[str] = None,
     backup: Optional[Callable[[Sequence[Path], str], Path]] = None,
+    restore_backup: Optional[Callable[[Path], object]] = None,
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> OverlayInstallResult:
@@ -123,8 +141,20 @@ def install_overlay(
     raise_if_cancelled(stop_event, "Overlay install cancelled before it started.")
 
     mounted = {item.name for item in parse_papgt(papgt_path.read_bytes())}
-    name = directory_name or overlay_directory_name(root, existing=next((item for item in sorted(mounted) if int(item) >= OVERLAY_DIRECTORY_FIRST), None))
+    existing = next(
+        (
+            item
+            for item in sorted(mounted)
+            if item.isdigit()
+            and int(item) >= OVERLAY_DIRECTORY_FIRST
+            and is_cdmw_overlay_directory(root / item)
+        ),
+        None,
+    )
+    name = directory_name or overlay_directory_name(root, existing=existing)
     directory = root / name
+    if directory.exists() and not is_cdmw_overlay_directory(directory):
+        raise ValueError(f"Archive directory {name} is not owned by CDMW and will not be reused.")
     carried = _existing_overlay_files(directory)
     if carried and on_log is not None:
         on_log(f"Carrying {len(carried)} file(s) forward from the overlay at {name}.")
@@ -158,29 +188,79 @@ def install_overlay(
     raise_if_cancelled(stop_event, "Overlay install cancelled before writing.")
 
     metas = [(str(relative), bytes(payload)) for relative, payload in meta_files]
+    marker_path = directory / OVERLAY_OWNER_MARKER
+    touched = [papgt_path, directory / "0.pamt", directory / "0.paz", marker_path]
+    touched.extend(root / relative for relative, _payload in metas)
+    rollback_files = tuple((path.resolve(), path.read_bytes()) for path in touched if path.is_file())
+    created_files = tuple(path.resolve() for path in touched if not path.exists())
     backup_dir: Optional[Path] = None
     if backup is not None:
         targets = [papgt_path] + [root / relative for relative, _payload in metas]
-        targets += [path for path in (directory / "0.pamt", directory / "0.paz") if path.is_file()]
+        targets += [
+            path
+            for path in (directory / "0.pamt", directory / "0.paz", marker_path)
+            if path.is_file()
+        ]
         backup_dir = backup(sorted(set(targets)), f"Mount {name} with {len(files)} overlay file(s)")
         if on_log is not None:
             on_log(f"Backup created: {backup_dir}")
 
-    for relative, _payload in metas:
-        remember_overlay_baseline(root, relative)
-    directory.mkdir(parents=True, exist_ok=True)
-    _write_atomic(directory / "0.paz", built.paz_bytes)
-    _write_atomic(directory / "0.pamt", built.pamt_bytes)
+    baseline_created: list[Path] = []
+    try:
+        raise_if_cancelled(stop_event, "Overlay install cancelled before writing.")
+        for relative, _payload in metas:
+            baseline = overlay_baseline_dir(root) / relative
+            existed = baseline.is_file()
+            kept = remember_overlay_baseline(root, relative)
+            if kept is not None and not existed:
+                baseline_created.append(kept)
+        directory.mkdir(parents=True, exist_ok=True)
+        _write_atomic(marker_path, OVERLAY_OWNER_BYTES)
+        raise_if_cancelled(stop_event, "Overlay install cancelled before writing.")
+        _write_atomic(directory / "0.paz", built.paz_bytes)
+        raise_if_cancelled(stop_event, "Overlay install cancelled before writing.")
+        _write_atomic(directory / "0.pamt", built.pamt_bytes)
+        for relative, payload in metas:
+            target = root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            _write_atomic(target, payload)
+            raise_if_cancelled(stop_event, "Overlay install cancelled before writing.")
+        mounted_bytes = papgt_with_directory(
+            papgt_path.read_bytes(),
+            name,
+            built.pamt_checksum,
+            flags=PAPGT_DEFAULT_FLAGS,
+            first=True,
+        )
+        _write_atomic(papgt_path, mounted_bytes)
+    except BaseException as error:
+        try:
+            if backup_dir is not None and restore_backup is not None:
+                restore_backup(backup_dir)
+            else:
+                for path, payload in rollback_files:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    _write_atomic(path, payload)
+        except Exception as rollback_error:
+            raise RuntimeError(
+                f"Overlay installation failed and its backup could not be restored: {rollback_error}"
+            ) from error
+        finally:
+            for path in sorted(created_files, key=lambda item: len(item.parts), reverse=True):
+                path.unlink(missing_ok=True)
+            for empty in (directory,):
+                try:
+                    empty.rmdir()
+                except OSError:
+                    pass
+            for baseline in baseline_created:
+                baseline.unlink(missing_ok=True)
+        raise
     if on_log is not None:
         on_log(f"Wrote {name}/0.pamt and {name}/0.paz: {len(files)} file(s), {len(built.paz_bytes):,} bytes.")
     for relative, payload in metas:
-        target = root / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        _write_atomic(target, payload)
         if on_log is not None:
             on_log(f"Wrote {relative} ({len(payload):,} bytes).")
-    mounted_bytes = papgt_with_directory(papgt_path.read_bytes(), name, built.pamt_checksum, flags=PAPGT_DEFAULT_FLAGS, first=True)
-    _write_atomic(papgt_path, mounted_bytes)
     if on_log is not None:
         order = [item.name for item in parse_papgt(mounted_bytes)]
         on_log(f"Mounted {name} first in meta/0.papgt ({len(order)} directories, {order[0]} then {order[1]}).")
