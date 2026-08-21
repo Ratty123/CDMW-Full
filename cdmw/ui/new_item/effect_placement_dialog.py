@@ -1,6 +1,6 @@
 """New Item Studio: place the effect on the item in the resident .NET viewport.
 
-The item's mesh is the reference (drawn as its wire), the effect's bounding box the
+The item's mesh is the reference (drawn solid), the effect's bounding box the
 mesh the placement gizmo moves and scales; every drag comes back as a delta the
 dialog adds to the offset and scale it was opened with, and the numbers next to
 the viewport are the same numbers the panel writes into the plan. Nothing here
@@ -17,6 +17,7 @@ from typing import Callable, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QThread, Qt, QTimer
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -47,7 +48,7 @@ from cdmw.services.effect_placement_preview import (
     next_scale,
 )
 from cdmw.services.effect_preview_model import EffectPreview
-from cdmw.ui.new_item.ui_kit import DetailsToggle, intro_label
+from cdmw.ui.new_item.ui_kit import DetailsToggle
 from cdmw.workers.utility_workers import UtilityWorker
 
 Vec3 = Tuple[float, float, float]
@@ -188,24 +189,29 @@ class EffectPlacementDialog(QDialog):
         self._closed = False
 
         layout = QVBoxLayout(self)
-        intro = QLabel(
-            f"{effect_label or 'The effect'}: drag the orange anchor, or type the numbers. The character holds the item the way the game does."
-        )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
-        # which mesh the wire is: the studio only builds the imported model into the item
-        # once Apply the placement has run, and before that the effect was judged against
-        # the template's blade without saying so
+        # One compact context row replaces two explanatory paragraphs. The distinctions
+        # that still matter stay available on the model value's tooltip.
+        context = QHBoxLayout()
+        context.addWidget(QLabel("Effect"))
+        self.effect_name_label = QLabel(str(effect_label or "-"))
+        context.addWidget(self.effect_name_label, 1)
+        model_caption = QLabel("Model")
         showing = QLabel("")
         if item_label == "placed":
-            showing.setText("Showing your imported model, at the placement set on step 3.")
+            showing.setText("Imported")
+            showing.setToolTip("Showing your imported model, at the placement set on step 3.")
         elif item_label == "applied":
-            showing.setText("Showing your imported model, as applied.")
+            showing.setText("Imported")
+            showing.setToolTip("Showing your imported model, as applied.")
         elif item_label == "template":
-            showing.setText("Showing the template's model; import one on step 3 to place the effect on your own.")
-        showing.setWordWrap(True)
-        showing.setVisible(bool(showing.text()))
-        layout.addWidget(showing)
+            showing.setText("Template")
+            showing.setToolTip("Showing the template's model; import one on step 3 to place the effect on your own.")
+        has_model_context = bool(showing.text())
+        model_caption.setVisible(has_model_context)
+        showing.setVisible(has_model_context)
+        context.addWidget(model_caption)
+        context.addWidget(showing)
+        layout.addLayout(context)
         self.showing_label = showing
         body = QHBoxLayout()
         layout.addLayout(body, 1)
@@ -220,6 +226,8 @@ class EffectPlacementDialog(QDialog):
         else:
             self._host_error = ""
         self.view_buttons: list[QPushButton] = []
+        self.view_group = QButtonGroup(self)
+        self.view_group.setExclusive(True)
         if self.host is not None:
             self.host.setMinimumSize(560, 420)
             self.host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -232,14 +240,14 @@ class EffectPlacementDialog(QDialog):
             self._add_view_button(views, "Side", "From the character's side: the blade end to end, and how far up it the effect sits.")
             self._add_view_button(views, "Top", "From above: how far in front of or behind the item the effect sits.")
             self._add_view_button(views, "Angled", "The three-quarter view the dialog opens on.")
+            self.view_buttons[-1].setChecked(True)
             views.addStretch(1)
             viewport_column.addLayout(views)
-            # The gizmo owns the left button, so the camera needs a gesture of its own and
-            # a line saying which: without one the viewport reads as stuck on the anchor.
-            viewport_column.addWidget(intro_label(
+            # Keep the gesture reference without spending a permanent line on it.
+            self.host.setToolTip(
                 "Turn the view: drag with the right mouse button. Shift-drag pans, the wheel zooms. "
                 "The left button drags the orange anchor."
-            ))
+            )
             body.addLayout(viewport_column, 1)
         else:
             missing = QLabel("The resident viewport is not available here; set the numbers by hand." + (f" ({self._host_error})" if self._host_error else ""))
@@ -249,16 +257,16 @@ class EffectPlacementDialog(QDialog):
         # the panel keeps to its own width: left to itself it takes half the dialog and
         # the viewport -- the thing being looked at -- gets what is left
         side_panel = QWidget()
-        # wide enough for the widest row -- "Put it at" and its four buttons -- plus the
+        # wide enough for the widest row -- "Anchor" and its four buttons -- plus the
         # scroll bar beside it; narrower than that and the last button is clipped away
         side_panel.setMaximumWidth(400)
         side = QVBoxLayout(side_panel)
-        # Three groups and nothing loose. Fourteen controls, five legend rows and four
+        # Two primary groups and nothing loose. Fourteen controls, five legend rows and four
         # labels in one column read as a wall: what moves the effect, what is drawn, and
         # what the effect is are three different questions and they now look like three.
-        place_box = QGroupBox("Place the effect")
+        place_box = QGroupBox("Placement")
         place = QVBoxLayout(place_box)
-        view_box = QGroupBox("What is drawn")
+        view_box = QGroupBox("Preview")
         view = QVBoxLayout(view_box)
         side.setContentsMargins(0, 0, 0, 0)
         # The panel scrolls rather than being squeezed. Asked for less height than it
@@ -308,7 +316,7 @@ class EffectPlacementDialog(QDialog):
         width, height, depth = (high - low for low, high in zip(*self._box))
         self._box_size = (width, height, depth)
         places = QHBoxLayout()
-        places.addWidget(QLabel("Put it at"))
+        places.addWidget(QLabel("Anchor"))
         self._add_place_button(places, "Hand", "hand", "Put the effect's origin back at the hand the item is held by.")
         self._add_place_button(places, "Middle", "middle", "Put the effect's origin at the middle of the item.")
         self._add_place_button(places, "Tip", "tip", "Put the effect's origin at the far end of the item: a blade's point.")
@@ -431,6 +439,7 @@ class EffectPlacementDialog(QDialog):
         side.addWidget(self.status)
         side.addStretch(1)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Apply")
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         side.addWidget(buttons)
@@ -526,17 +535,9 @@ class EffectPlacementDialog(QDialog):
                     bindings(right="orbit")
                 except Exception:  # noqa: BLE001 - a host without the call keeps its own
                     pass
-            # the camera frames the editable role's bounds; the anchor is a few centimetres,
-            # so hand it the item's bounds instead and the view opens on the item
-            remember = getattr(self.host, "remember_editable_local_bounds", None)
-            if callable(remember):
-                low, high = self._scene_item_bounds()
-                remember(low, high)
             self._sync_host()
             self._apply_scene_visibility()
-            reset = getattr(self.host, "reset_view", None)
-            if callable(reset):
-                reset()
+            self._point_camera(yaw=STANDING_VIEW_ANGLES[-1][0], pitch=STANDING_VIEW_ANGLES[-1][1])
             sentences = []
             if self._preview.preview_file is not None and not self._host_draws_particles():
                 sentences.append("This viewport build draws no particles yet; the anchor shows where the effect sits.")
@@ -593,6 +594,8 @@ class EffectPlacementDialog(QDialog):
 
         yaw, pitch = STANDING_VIEW_ANGLES[len(self.view_buttons)]
         button = QPushButton(title)
+        button.setCheckable(True)
+        self.view_group.addButton(button)
         button.setToolTip(explanation)
         button.clicked.connect(lambda _checked=False, y=yaw, p=pitch: self._look_from(y, p))
         row.addWidget(button)
@@ -689,7 +692,13 @@ class EffectPlacementDialog(QDialog):
             yaw = float(state.get("yaw", STANDING_VIEW_ANGLES[-1][0])) if yaw is None else yaw
             pitch = float(state.get("pitch", STANDING_VIEW_ANGLES[-1][1])) if pitch is None else pitch
         try:
-            setter(yaw=float(yaw), pitch=float(pitch), zoom_factor=self._zoom_for_the_subject(), fit_to_view=True)
+            # The item and character are the stable reference role. Fitting the editable
+            # role follows the moving effect anchor instead; after a small scale and a
+            # non-zero offset that leaves the item outside the camera and the view black.
+            setter(
+                yaw=float(yaw), pitch=float(pitch), zoom_factor=self._zoom_for_the_subject(),
+                fit_to_view=True, role="reference",
+            )
         except Exception:  # noqa: BLE001 - a host without the call keeps the view it has
             pass
 
@@ -782,22 +791,6 @@ class EffectPlacementDialog(QDialog):
         from cdmw.services.effect_character_reference import unrotate_point
 
         return unrotate_point(point, self._rotation)
-
-    def _scene_item_bounds(self) -> Tuple[Vec3, Vec3]:
-        """The item's bounds where the camera will find them: turned with the item when
-        the scene is the character's frame."""
-
-        low, high = self._item_bounds()
-        if self._rotation is None:
-            return low, high
-        corners = [
-            self._to_scene((low[0] if a else high[0], low[1] if b else high[1], low[2] if c else high[2]))
-            for a in (0, 1) for b in (0, 1) for c in (0, 1)
-        ]
-        return (
-            tuple(min(corner[axis] for corner in corners) for axis in range(3)),  # type: ignore[return-value]
-            tuple(max(corner[axis] for corner in corners) for axis in range(3)),  # type: ignore[return-value]
-        )
 
     def _offer_the_trail_socket(self) -> None:
         """Show the Trail button when the item's own socket file named one.
