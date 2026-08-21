@@ -94,8 +94,8 @@ class RotationTests(unittest.TestCase):
 
 class BodyChoiceTests(unittest.TestCase):
     """Which mesh stands in for the player. The whole low-detail figure has a head, hands
-    and feet in one file of under a thousand vertices; armour is the fallback, and picking
-    it badly lands on an accessory the size of an elbow pad."""
+    and feet in one file of under a thousand vertices. It is that or nothing: armour was
+    the fallback until it was rendered."""
 
     LOD = "character/model/1_pc/1_phm/nude/cd_phm_00_lod_0001.pac"
     UPPER = "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_02_ub_0010_01.pac"
@@ -105,9 +105,17 @@ class BodyChoiceTests(unittest.TestCase):
         chosen = _body_mesh_paths([self.UPPER, self.LOWER, self.LOD], {})
         self.assertEqual(chosen, [self.LOD])
 
-    def test_without_it_one_piece_per_half(self) -> None:
+    def test_without_it_no_body_at_all_rather_than_armour(self) -> None:
+        """Armour used to stand in for a missing figure, on the reasoning that armour is at
+        least body-shaped. Rendered offscreen against a real install, it is not: the median
+        upper and lower body draw a coat with a helm floating where the head should be,
+        legs that stop above their boots, and daylight between the three. That reads as a
+        broken preview rather than as a stand-in, and there is a stand-in already -- the
+        strut figure the package draws when no character comes -- which reads as one.
+        """
+
         chosen = _body_mesh_paths([self.UPPER, self.LOWER], {self.UPPER: 400_000, self.LOWER: 300_000})
-        self.assertEqual(chosen, [self.UPPER, self.LOWER])
+        self.assertEqual(chosen, [], "no character, so the viewport draws its own figure")
 
     def test_an_install_with_neither_gives_nothing(self) -> None:
         self.assertEqual(_body_mesh_paths(["gamedata/binary__/client/bin/iteminfo.pabgb"], {}), [])

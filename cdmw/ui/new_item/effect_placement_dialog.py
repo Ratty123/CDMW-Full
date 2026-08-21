@@ -47,7 +47,7 @@ from cdmw.services.effect_placement_preview import (
     next_scale,
 )
 from cdmw.services.effect_preview_model import EffectPreview
-from cdmw.ui.new_item.ui_kit import DetailsToggle
+from cdmw.ui.new_item.ui_kit import DetailsToggle, intro_label
 from cdmw.workers.utility_workers import UtilityWorker
 
 Vec3 = Tuple[float, float, float]
@@ -78,6 +78,14 @@ def describe_effect_preview(preview: Optional[EffectPreview]) -> str:
 
 #: how many times the item's own length a reach may be before its frame starts hidden
 REACH_HIDDEN_ABOVE = 6.0
+
+#: What the effect's scale can be, and to how many decimals. Three rather than two because
+#: fitting a forty-metre reach to a one-metre sword lands on 0.025, and the dialog has to
+#: hold the same number the box shows: kept apart, an edit of any other field silently
+#: took the box's rounding.
+SCALE_MINIMUM = 0.01
+SCALE_MAXIMUM = 10.0
+SCALE_DECIMALS = 3
 
 #: The standing views, as the camera angles (yaw, pitch) in degrees the host takes, in
 #: the order the buttons appear. The game holds a weapon at the origin with the blade
@@ -226,6 +234,12 @@ class EffectPlacementDialog(QDialog):
             self._add_view_button(views, "Angled", "The three-quarter view the dialog opens on.")
             views.addStretch(1)
             viewport_column.addLayout(views)
+            # The gizmo owns the left button, so the camera needs a gesture of its own and
+            # a line saying which: without one the viewport reads as stuck on the anchor.
+            viewport_column.addWidget(intro_label(
+                "Turn the view: drag with the right mouse button. Shift-drag pans, the wheel zooms. "
+                "The left button drags the orange anchor."
+            ))
             body.addLayout(viewport_column, 1)
         else:
             missing = QLabel("The resident viewport is not available here; set the numbers by hand." + (f" ({self._host_error})" if self._host_error else ""))
@@ -274,8 +288,8 @@ class EffectPlacementDialog(QDialog):
         place.addLayout(tools)
         form = QFormLayout()
         self.scale_spin = QDoubleSpinBox()
-        self.scale_spin.setRange(0.01, 10.0)
-        self.scale_spin.setDecimals(2)
+        self.scale_spin.setRange(SCALE_MINIMUM, SCALE_MAXIMUM)
+        self.scale_spin.setDecimals(SCALE_DECIMALS)
         self.scale_spin.setSingleStep(0.05)
         self.scale_spin.setValue(self.scale)
         self.scale_spin.valueChanged.connect(self._numbers_edited)
@@ -503,6 +517,15 @@ class EffectPlacementDialog(QDialog):
             self.host.set_alignment_state(enabled=True)
             # the backdrop the reader last chose, sent once the viewport can take it
             self._backdrop_changed()
+            # the gizmo owns the left button here, so the right one turns the view rather
+            # than panning: a viewport that cannot be turned is one the effect can only be
+            # judged from one angle in
+            bindings = getattr(self.host, "set_camera_drag_bindings", None)
+            if callable(bindings):
+                try:
+                    bindings(right="orbit")
+                except Exception:  # noqa: BLE001 - a host without the call keeps its own
+                    pass
             # the camera frames the editable role's bounds; the anchor is a few centimetres,
             # so hand it the item's bounds instead and the view opens on the item
             remember = getattr(self.host, "remember_editable_local_bounds", None)
@@ -731,7 +754,16 @@ class EffectPlacementDialog(QDialog):
         if item <= 0 or reach <= 0:
             return
         self._set_numbers(self.offset, item / reach)
+        # the frame is what was just fitted, so it is shown whether or not it dwarfed the
+        # item a moment ago: fitting a frame and leaving it hidden answers nothing
+        if not self.show_reach.isChecked():
+            self.show_reach.setChecked(True)  # `_reach_toggled` re-points the camera
+        else:
+            # the view was framed to hold twenty metres; the reach is now the item's own
+            # length, and left where it was the item sits tiny in the middle of it
+            self._point_camera()
         self._sync_host()
+        self._apply_scene_visibility()
 
     def _to_scene(self, point: Sequence[float]) -> Vec3:
         """A point in the item's frame, in the scene's."""
@@ -851,7 +883,10 @@ class EffectPlacementDialog(QDialog):
 
     def _set_numbers(self, offset: Vec3, scale: float) -> None:
         self.offset = tuple(round(float(v), 4) for v in offset)  # type: ignore[assignment]
-        self.scale = round(max(0.01, min(10.0, float(scale))), 3)
+        # rounded the way the spin box rounds it. Kept to three decimals against a box
+        # showing two, the dialog and the box held different numbers, and the next edit of
+        # any other field took the box's: a fit to 0.034 became 0.03 without being asked.
+        self.scale = round(max(SCALE_MINIMUM, min(SCALE_MAXIMUM, float(scale))), SCALE_DECIMALS)
         for spin, value in zip(self.offset_spins, self.offset):
             spin.blockSignals(True)
             spin.setValue(float(value))

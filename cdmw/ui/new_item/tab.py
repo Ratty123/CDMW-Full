@@ -300,6 +300,10 @@ class NewItemStudioTab(QWidget):
     def _show_step(self, row: int) -> None:
         if row < 0:
             return
+        # the template list takes a row once the reader settles on it; leaving the step
+        # is settling on it, and the steps after read the template
+        if self._panels_built:
+            self.template_panel.apply_pending_pick()
         self.pages.setCurrentIndex(row)
         self.back_button.setEnabled(row > 0)
         self.next_button.setEnabled(row < self.pages.count() - 1)
