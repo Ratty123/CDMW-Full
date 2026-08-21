@@ -373,6 +373,58 @@ class ModelImportSource:
         return (tuple(mesh.bbox_min), tuple(mesh.bbox_max)) if mesh is not None and mesh.bbox_min is not None else None
 
 
+#: What a model file might be that the studio cannot read, and what to do about it. FBX is
+#: the one people actually arrive with: half the models on the asset sites ship as `source/
+#: <name>.fbx` with the textures beside it, and "holds no importable model" reads like the
+#: file is broken rather than like it is the wrong kind.
+_UNREADABLE_MODEL_ADVICE: Mapping[str, str] = {
+    ".fbx": "FBX",
+    ".blend": "a Blender file",
+    ".max": "a 3ds Max file",
+    ".ma": "a Maya file",
+    ".mb": "a Maya file",
+    ".c4d": "a Cinema 4D file",
+    ".skp": "a SketchUp file",
+    ".usd": "USD",
+    ".usdz": "USD",
+    ".ply": "PLY",
+    ".stl": "STL",
+}
+
+
+def _nothing_to_import(chosen: Path, root: Path) -> str:
+    """Why nothing in `chosen` could be read, naming what was found where it helps."""
+
+    from cdmw.domain.library.models import IMPORTABLE_MODEL_EXTENSIONS
+
+    readable = ", ".join(sorted(extension.lstrip(".").upper() for extension in IMPORTABLE_MODEL_EXTENSIONS))
+    names: list = [chosen]
+    # a zip that holds nothing importable is never extracted, so its listing is the only
+    # place the file inside it can be seen
+    if chosen.suffix.casefold() == ".zip" and chosen.is_file():
+        try:
+            import zipfile
+
+            with zipfile.ZipFile(chosen) as archive:
+                names.extend(Path(name) for name in archive.namelist())
+        except Exception:  # noqa: BLE001 - a zip that will not open says nothing extra
+            pass
+    if root.is_dir():
+        names.extend(sorted(root.rglob("*")))
+    found: list = []
+    for candidate in names:
+        kind = _UNREADABLE_MODEL_ADVICE.get(candidate.suffix.casefold())
+        if kind and (candidate.name, kind) not in found:
+            found.append((candidate.name, kind))
+    if found:
+        name, kind = found[0]
+        return (
+            f"{chosen.name} holds {name}, and the studio does not read {kind}. Export it as glTF, GLB, OBJ or DAE "
+            f"-- Blender does that in a few seconds -- and import that instead."
+        )
+    return f"{chosen.name} holds no model the studio can read. It reads {readable}."
+
+
 def load_model_import_source(chosen_path: Path, *, extract_root: Optional[Path] = None, stop_event: Optional[threading.Event] = None) -> ModelImportSource:
     """Read `chosen_path` (a model file, or a zip holding one) the way the Model Library
     does: resolve the importable model, run the scene import, bind the source's textures
@@ -390,7 +442,7 @@ def load_model_import_source(chosen_path: Path, *, extract_root: Optional[Path] 
     root = Path(extract_root) if extract_root is not None else Path(tempfile.mkdtemp(prefix="cdmw_new_item_model_"))
     model_path = ModelLibraryService().resolve_importable_model(chosen, extract_root=root, stop_event=stop_event)
     if model_path is None:
-        raise ValueError(f"{chosen.suffix or 'This file'} holds no importable model ({', '.join(sorted(IMPORTABLE_MODEL_EXTENSIONS))}).")
+        raise ValueError(_nothing_to_import(chosen, root))
     raise_if_cancelled(stop_event)
     scene = import_scene_mesh_with_report(Path(model_path), include_external_audit=False)
     raise_if_cancelled(stop_event)

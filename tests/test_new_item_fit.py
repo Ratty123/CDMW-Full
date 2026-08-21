@@ -74,5 +74,42 @@ class FitTests(unittest.TestCase):
         self.assertEqual(fitted_placement(self.TEMPLATE, None).scale, (1.0, 1.0, 1.0))
 
 
+class UnimportableModelTests(unittest.TestCase):
+    """What the studio says when a file holds nothing it can read. Half the models on the
+    asset sites arrive as `source/<name>.fbx` with the textures beside it, and a list of
+    extensions reads like the file is broken rather than like it is the wrong kind."""
+
+    def setUp(self) -> None:
+        import tempfile
+
+        self._temp = tempfile.TemporaryDirectory()
+        self.folder = Path(self._temp.name)
+        self.addCleanup(self._temp.cleanup)
+
+    def test_a_zip_holding_an_fbx_says_so_and_says_what_to_do(self) -> None:
+        import zipfile
+
+        from cdmw.ui.new_item.model_import import _nothing_to_import
+
+        archive = self.folder / "magic-sword.zip"
+        with zipfile.ZipFile(archive, "w") as zipped:
+            zipped.writestr("source/MagicSword.fbx", b"not really an fbx")
+            zipped.writestr("textures/MagicSword_Albedo.png", b"not really a png")
+        message = _nothing_to_import(archive, self.folder / "nothing")
+        self.assertIn("MagicSword.fbx", message, "the file it found, not just a list of extensions")
+        self.assertIn("does not read FBX", message)
+        self.assertIn("glTF, GLB, OBJ or DAE", message, "and the way out")
+
+    def test_a_file_of_no_known_kind_falls_back_to_what_can_be_read(self) -> None:
+        from cdmw.ui.new_item.model_import import _nothing_to_import
+
+        empty = self.folder / "sword.rar"
+        empty.write_bytes(b"")
+        message = _nothing_to_import(empty, self.folder / "nothing")
+        self.assertIn("sword.rar", message)
+        for readable in ("GLTF", "GLB", "OBJ", "DAE"):
+            self.assertIn(readable, message)
+
+
 if __name__ == "__main__":
     unittest.main()

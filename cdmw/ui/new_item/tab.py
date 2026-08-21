@@ -110,9 +110,30 @@ class NewItemStudioTab(QWidget):
         self.controller.snapshot_ready.connect(self._snapshot_ready)
         self.controller.snapshot_failed.connect(self._snapshot_failed)
         self.controller.status_message.connect(self.status_message_requested.emit)
-        self.controller.busy_changed.connect(lambda busy: self._progress.setVisible(bool(busy) and not self._panels_built))
+        self.controller.busy_changed.connect(self._bootstrap_busy_changed)
 
     # ------------------------------------------------------------------ bootstrap
+
+    def _bootstrap_busy_changed(self, busy: object) -> None:
+        """The bootstrap's own progress bar, while the archives are being read.
+
+        Only until the panels replace the bootstrap, which is deleted then -- and this
+        signal goes on firing for every operation after it: an import, a plan, an install.
+        A lambda used to do this, and a lambda has no receiver for Qt to disconnect when
+        the widget dies, so `setVisible` was still called on a deleted C++ object. It was
+        called whatever the flag said, too, because the flag was inside the argument.
+        """
+
+        if self._panels_built:
+            return
+        progress = getattr(self, "_progress", None)
+        if progress is None:
+            return
+        try:
+            progress.setVisible(bool(busy))
+        except RuntimeError:
+            # deleted between the check and the call; there is nothing left to show
+            self._progress = None
 
     def start_snapshot(self) -> None:
         if self.controller.busy or self.controller.ready:
