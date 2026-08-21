@@ -19,7 +19,7 @@ from cdmw.domain.new_item.rules import ValidationIssue, has_errors
 from cdmw.domain.new_item.spec import IconSource, ModelSource, NewItemSpec
 from cdmw.models import ArchiveEntry
 from cdmw.ui.new_item.blender_setting import blender_for_fbx
-from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, bake_mesh, build_placed_import, fitted_placement, load_model_import_source, mesh_bounds, mesh_centroid
+from cdmw.ui.new_item.model_import import ModelImportSource, ModelPlacement, bake_mesh, build_placed_import, fbx_needing_blender, fbx_needs_blender_message, fitted_placement, load_model_import_source, mesh_bounds, mesh_centroid
 from cdmw.services.effect_catalogue import EffectCatalogue, EffectFacts, build_effect_catalogue, catalogue_signature, load_effect_catalogue, save_effect_catalogue
 from cdmw.services.new_item_baseline import baseline_facts, baseline_lines
 from cdmw.services.new_item_planning import NewItemPlan, NewItemPlanError
@@ -49,6 +49,9 @@ class NewItemStudioController(QObject):
     model_changed = Signal(object)
     #: a model file was read for the studio (a ModelImportSource), or discarded (None)
     model_import_changed = Signal(object)
+    #: a model file was not read, with the reason: the step says so where the reader is,
+    #: since the window's status line is not where they are looking
+    model_import_failed = Signal(str)
     #: the imported model's placement over the template moved (a ModelPlacement)
     model_placement_changed = Signal(object)
     effect_catalogue_ready = Signal()
@@ -808,6 +811,18 @@ class NewItemStudioController(QObject):
         # read on the UI thread, used on the worker: the Blender the reader chose, or ""
         blender = blender_for_fbx()
 
+        # An FBX with no Blender is refused here rather than inside the read: the question
+        # is answered from the file's name and a zip's listing, so nothing is extracted and
+        # no worker starts. Starting one only to fail at the end left the step saying
+        # "Reading the model file..." while a zip was unpacked for a conversion that could
+        # never run.
+        needs_blender = fbx_needing_blender(chosen)
+        if needs_blender and not blender:
+            message = fbx_needs_blender_message(needs_blender)
+            self.status_message.emit(message, True)
+            self.model_import_failed.emit(message)
+            return False
+
         def task(log, stop_event):
             log(f"Reading {chosen.name}...")
             return load_model_import_source(chosen, stop_event=stop_event, blender_path=blender, on_log=log)
@@ -827,7 +842,11 @@ class NewItemStudioController(QObject):
             self.model_placement_changed.emit(self.model_placement)
 
         def failed(message: str) -> None:
-            self.status_message.emit(f"The model could not be read: {message}", True)
+            # both places: the window's status line, and the step the reader is looking at,
+            # whose note is otherwise left mid-read
+            said = f"The model could not be read: {message}"
+            self.status_message.emit(said, True)
+            self.model_import_failed.emit(said)
 
         return self._run("model_import", task, done, failed)
 

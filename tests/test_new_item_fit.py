@@ -100,7 +100,7 @@ class UnimportableModelTests(unittest.TestCase):
         # FBX is read by converting it, and only with a Blender the reader pointed at: the
         # message has to say that is what is missing, not that the file is the wrong kind
         self.assertIn("converting it with Blender", message)
-        self.assertIn("choose blender.exe", message)
+        self.assertIn("Choose blender.exe", message)
         self.assertIn("glTF, GLB, OBJ or DAE", message, "and the way round it")
 
     def test_a_file_of_no_known_kind_falls_back_to_what_can_be_read(self) -> None:
@@ -112,6 +112,67 @@ class UnimportableModelTests(unittest.TestCase):
         self.assertIn("sword.rar", message)
         for readable in ("GLTF", "GLB", "OBJ", "DAE"):
             self.assertIn(readable, message)
+
+
+class NeedsBlenderBeforeReadingTests(unittest.TestCase):
+    """Whether a source needs Blender is answered from its name and, for a zip, its
+    listing: the studio has to know *before* it starts, because the alternative is what
+    shipped first -- a zip extracted whole, a worker started, and a refusal at the far end
+    of it while the step still said "Reading the model file...".
+    """
+
+    def setUp(self) -> None:
+        import tempfile
+
+        self._temp = tempfile.TemporaryDirectory()
+        self.folder = Path(self._temp.name)
+        self.addCleanup(self._temp.cleanup)
+
+    def zip_of(self, *names) -> Path:
+        import zipfile
+
+        archive = self.folder / "source.zip"
+        with zipfile.ZipFile(archive, "w") as zipped:
+            for name in names:
+                zipped.writestr(name, b"x")
+        return archive
+
+    def test_a_loose_fbx_needs_one(self) -> None:
+        from cdmw.ui.new_item.model_import import fbx_needing_blender
+
+        self.assertEqual(fbx_needing_blender(self.folder / "MagicSword.fbx"), "MagicSword.fbx")
+
+    def test_a_zip_holding_only_an_fbx_needs_one(self) -> None:
+        from cdmw.ui.new_item.model_import import fbx_needing_blender
+
+        archive = self.zip_of("source/MagicSword.fbx", "textures/Albedo.png")
+        self.assertEqual(fbx_needing_blender(archive), "MagicSword.fbx")
+
+    def test_a_zip_that_also_holds_a_readable_model_needs_none(self) -> None:
+        """Publishers ship both often enough that refusing the zip for the FBX in it would
+        refuse a model the studio reads perfectly well."""
+
+        from cdmw.ui.new_item.model_import import fbx_needing_blender
+
+        archive = self.zip_of("source/MagicSword.fbx", "MagicSword.glb")
+        self.assertEqual(fbx_needing_blender(archive), "")
+
+    def test_the_formats_the_studio_reads_itself_need_none(self) -> None:
+        from cdmw.ui.new_item.model_import import fbx_needing_blender
+
+        for name in ("sword.glb", "sword.gltf", "sword.obj", "sword.dae", "sword.rar", ""):
+            self.assertEqual(fbx_needing_blender(self.folder / name if name else ""), "", name)
+
+    def test_nothing_is_extracted_to_answer_it(self) -> None:
+        """The point of the question: a 300 MB zip is not unpacked to find out that the
+        conversion it needs cannot run."""
+
+        from cdmw.ui.new_item.model_import import fbx_needing_blender
+
+        archive = self.zip_of("source/MagicSword.fbx")
+        before = sorted(path.name for path in self.folder.iterdir())
+        fbx_needing_blender(archive)
+        self.assertEqual(sorted(path.name for path in self.folder.iterdir()), before)
 
 
 if __name__ == "__main__":

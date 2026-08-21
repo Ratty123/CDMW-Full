@@ -128,8 +128,12 @@ class SuggestionTests(unittest.TestCase):
 
         from cdmw.ui.new_item.blender_setting import blender_for_fbx
 
-        # nothing is used until it is stored, and only a real executable can be stored
-        self.assertIn(blender_for_fbx(), ("", *(str(path) for path in likely_blender_executables())))
+        # Nothing found here is used until it is stored, and only a real executable is ever
+        # stored. What is stored is whatever the reader picked in the dialog, which need
+        # not be one of the candidates above (a portable Blender is a normal thing to own),
+        # so the property is the executable, not the path.
+        stored = blender_for_fbx()
+        self.assertTrue(stored == "" or is_blender_executable(stored), stored)
 
     def test_what_counts_as_a_blender(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

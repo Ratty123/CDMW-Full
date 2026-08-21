@@ -80,13 +80,14 @@ class ModelPanel(QGroupBox):
         self.keep_model.setChecked(True)
         self.keep_model.toggled.connect(self._model_source_changed)
         model_layout.addWidget(self.keep_model)
-        self.import_model = QRadioButton("Use a model file of your own (glTF, GLB, OBJ, DAE, or a zip holding one)")
+        self.import_model = QRadioButton("Use a model file of your own (glTF, GLB, OBJ, DAE, FBX with Blender, or a zip holding one)")
         model_layout.addWidget(self.import_model)
         row = QHBoxLayout()
         self.import_button = QPushButton("Import a model file...")
         self.import_button.setToolTip(
             "Pick a glTF, GLB, OBJ or DAE file, or a zip with one inside, from anywhere on disk. It is read the way the Model "
-            "Library reads it (its own textures too) and shown over the template below, where you place it."
+            "Library reads it (its own textures too) and shown over the template below, where you place it. An FBX is read too "
+            "once the studio has been pointed at a Blender, which converts it first."
         )
         self.import_button.clicked.connect(self._pick_model_file)
         row.addWidget(self.import_button)
@@ -99,6 +100,33 @@ class ModelPanel(QGroupBox):
         model_layout.addWidget(import_row)
         self.model_status = NoteLabel("No imported model.", None)
         model_layout.addWidget(self.model_status)
+        # FBX is read by converting it with Blender, and only with a Blender the reader
+        # pointed at. That is a requirement of the format, not a tip about it, so it says
+        # so on the step: buried under a toggle, the one refusal that names it has nowhere
+        # to send anyone.
+        self.blender_holder = QWidget()
+        blender_row = QVBoxLayout(self.blender_holder)
+        blender_row.setContentsMargins(0, 0, 0, 0)
+        self.blender_label = QLabel("")
+        self.blender_label.setWordWrap(True)
+        blender_row.addWidget(self.blender_label)
+        blender_buttons = QHBoxLayout()
+        self.blender_button = QPushButton("Choose blender.exe...")
+        self.blender_button.setToolTip(
+            "FBX is the one format the studio does not read itself: an FBX arrives rotated, mirrored or a hundred times "
+            "too large unless its transform stack, layer mappings and units are read exactly, and Blender is what reads "
+            "them correctly. Point the studio at a Blender and an FBX is converted to glTF on import; leave it unset and "
+            "an FBX is refused before anything is read."
+        )
+        self.blender_button.clicked.connect(self._choose_blender)
+        blender_buttons.addWidget(self.blender_button)
+        self.blender_forget = QPushButton("Forget it")
+        self.blender_forget.clicked.connect(lambda: self._set_blender(""))
+        blender_buttons.addWidget(self.blender_forget)
+        blender_buttons.addStretch(1)
+        blender_row.addLayout(blender_buttons)
+        model_layout.addWidget(self.blender_holder)
+        self._refresh_blender_label()
         self.busy_bar = QProgressBar()
         self.busy_bar.setRange(0, 0)
         self.busy_bar.setTextVisible(False)
@@ -186,38 +214,10 @@ class ModelPanel(QGroupBox):
             "rotation, origin at the head, about y 1.745, z -0.03). Fit to the template gives a first guess; the gizmo does the rest.",
             title="Import tips",
         )
-        # FBX is read by converting it with Blender, and only with a Blender the reader
-        # points at. The row lives inside the tips so the step does not carry it until it
-        # is opened, and it says which Blender rather than only that there is one.
-        blender_holder = QWidget()
-        blender_row = QVBoxLayout(blender_holder)
-        blender_row.setContentsMargins(0, 4, 0, 0)
-        self.blender_label = QLabel("")
-        self.blender_label.setWordWrap(True)
-        blender_row.addWidget(self.blender_label)
-        blender_buttons = QHBoxLayout()
-        self.blender_button = QPushButton("Choose blender.exe...")
-        self.blender_button.setToolTip(
-            "FBX is the one format the studio does not read itself: an FBX arrives rotated, mirrored or a hundred times "
-            "too large unless its transform stack, layer mappings and units are read exactly, and Blender is what reads "
-            "them correctly. Point the studio at a Blender and an FBX is converted to glTF on import; leave it unset and "
-            "an FBX is refused with that as the reason."
-        )
-        self.blender_button.clicked.connect(self._choose_blender)
-        blender_buttons.addWidget(self.blender_button)
-        self.blender_forget = QPushButton("Forget it")
-        self.blender_forget.clicked.connect(lambda: self._set_blender(""))
-        blender_buttons.addWidget(self.blender_forget)
-        blender_buttons.addStretch(1)
-        blender_row.addLayout(blender_buttons)
-        blender_holder.setVisible(False)
-        import_tips.layout().addWidget(blender_holder)
-        import_tips.toggle.toggled.connect(blender_holder.setVisible)
-        self._refresh_blender_label()
         model_layout.addWidget(import_tips)
         #: the import's own controls: shown once a model of your own is asked for, so the
         #: step is two radio buttons while the template's model is kept
-        self._import_widgets = (import_row, self.model_status, self.plain_pbr, self.own_sheath, import_tips)
+        self._import_widgets = (import_row, self.model_status, self.blender_holder, self.plain_pbr, self.own_sheath, import_tips)
         layout.addWidget(model)
 
         # ---- placement: the model over the template, in the viewport below
@@ -351,6 +351,7 @@ class ModelPanel(QGroupBox):
         # Apply, and listening for it alone left the list empty until then.
         controller.model_changed.connect(lambda _result: self.refresh_glow_parts())
         controller.model_import_changed.connect(lambda _source: self.refresh_glow_parts())
+        controller.model_import_failed.connect(self._import_failed)
         self.preview.ready.connect(lambda: self.capture_inline_button.setEnabled(True))
         self.preview.ready.connect(self._refresh_placement_enabled)
         self.preview.ready.connect(self._refresh_apply_status)
@@ -382,11 +383,11 @@ class ModelPanel(QGroupBox):
 
         chosen = blender_for_fbx()
         if chosen:
-            self.blender_label.setText(f"FBX: converted with {chosen}")
+            self.blender_label.setText(f"FBX support: on, converted with {chosen}")
         else:
             self.blender_label.setText(
-                "FBX is not read directly: the studio converts it with Blender, which it has to be pointed at. "
-                "Without one, import glTF, GLB, OBJ or DAE instead."
+                "For FBX support, Blender is required: the studio converts an FBX with it, and will not import one "
+                "until it is pointed at a Blender. glTF, GLB, OBJ and DAE need none of this."
             )
         self.blender_forget.setVisible(bool(chosen))
 
@@ -644,6 +645,13 @@ class ModelPanel(QGroupBox):
         self._sync_placement_numbers(placement)
         if finished:
             self._controller.set_model_placement(placement)
+
+    def _import_failed(self, message: object) -> None:
+        """Say on the step why nothing was imported. The note is otherwise left saying
+        "Reading the model file...", which reads as a hang rather than a refusal."""
+
+        self.model_status.set_note(str(message or "The model could not be read."), WARN)
+        self.busy_bar.setVisible(False)
 
     def _busy_changed(self, busy: bool) -> None:
         lane = getattr(self._controller, "_lane", "")

@@ -3966,7 +3966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 127,
+          "line": 155,
           "sink": "setToolTip"
         }
       ]
@@ -4006,7 +4006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 119,
+          "line": 147,
           "sink": "setToolTip"
         }
       ]
@@ -6106,17 +6106,17 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 398,
+          "line": 399,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 594,
+          "line": 595,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 731,
+          "line": 739,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -7586,12 +7586,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 536,
+          "line": 537,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 605,
+          "line": 606,
           "sink": "set_note"
         }
       ]
@@ -12741,7 +12741,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 398,
+          "line": 399,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -14201,17 +14201,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1081,
+          "line": 1100,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1088,
+          "line": 1107,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1097,
+          "line": 1116,
           "sink": "emit"
         },
         {
@@ -14636,7 +14636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 656,
+          "line": 664,
           "sink": "set_note"
         }
       ]
@@ -14666,7 +14666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 673,
+          "line": 681,
           "sink": "set_note"
         }
       ]
@@ -14706,7 +14706,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 877,
+          "line": 896,
           "sink": "log"
         }
       ]
@@ -16331,7 +16331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 700,
+          "line": 708,
           "sink": "setText"
         }
       ]
@@ -18121,7 +18121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 739,
+          "line": 747,
           "sink": "getExistingDirectory"
         }
       ]
@@ -18256,7 +18256,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 805,
+          "line": 808,
           "sink": "emit"
         }
       ]
@@ -18371,7 +18371,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 731,
+          "line": 739,
           "sink": "getOpenFileName"
         }
       ]
@@ -18381,7 +18381,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1060,
+          "line": 1079,
           "sink": "ValueError"
         }
       ]
@@ -18486,7 +18486,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 199,
+          "line": 114,
           "sink": "QPushButton"
         }
       ]
@@ -18636,7 +18636,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 398,
+          "line": 399,
           "sink": "getOpenFileName"
         }
       ]
@@ -19991,7 +19991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 594,
+          "line": 595,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -20401,7 +20401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 153,
+          "line": 181,
           "sink": "QPushButton"
         },
         {
@@ -20421,7 +20421,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 477,
+          "line": 478,
           "sink": "setText"
         },
         {
@@ -27006,7 +27006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 93,
+          "line": 94,
           "sink": "QPushButton"
         }
       ]
@@ -33137,22 +33137,22 @@
       ]
     },
     {
-      "key": "FBX is not read directly: the studio converts it with Blender, which it has to be pointed at. Without one, import glTF, GLB, OBJ or DAE instead.",
+      "key": "FBX is the one format the studio does not read itself: an FBX arrives rotated, mirrored or a hundred times too large unless its transform stack, layer mappings and units are read exactly, and Blender is what reads them correctly. Point the studio at a Blender and an FBX is converted to glTF on import; leave it unset and an FBX is refused before anything is read.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 387,
-          "sink": "setText"
+          "line": 115,
+          "sink": "setToolTip"
         }
       ]
     },
     {
-      "key": "FBX is the one format the studio does not read itself: an FBX arrives rotated, mirrored or a hundred times too large unless its transform stack, layer mappings and units are read exactly, and Blender is what reads them correctly. Point the studio at a Blender and an FBX is converted to glTF on import; leave it unset and an FBX is refused with that as the reason.",
+      "key": "FBX support: on, converted with {value_0}",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 200,
-          "sink": "setToolTip"
+          "line": 386,
+          "sink": "setText"
         }
       ]
     },
@@ -33161,7 +33161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 419,
+          "line": 420,
           "sink": "emit"
         }
       ]
@@ -33171,18 +33171,8 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 594,
+          "line": 595,
           "sink": "getOpenFileName:filter-label"
-        }
-      ]
-    },
-    {
-      "key": "FBX: converted with {value_0}",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 385,
-          "sink": "setText"
         }
       ]
     },
@@ -35556,7 +35546,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 171,
+          "line": 199,
           "sink": "QCheckBox"
         }
       ]
@@ -35982,6 +35972,16 @@
       ]
     },
     {
+      "key": "For FBX support, Blender is required: the studio converts an FBX with it, and will not import one until it is pointed at a Blender. glTF, GLB, OBJ and DAE need none of this.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/panels_model.py",
+          "line": 388,
+          "sink": "setText"
+        }
+      ]
+    },
+    {
       "key": "For a first session, use the bundled",
       "origins": [
         {
@@ -36081,7 +36081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 208,
+          "line": 123,
           "sink": "QPushButton"
         }
       ]
@@ -37121,7 +37121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 126,
+          "line": 154,
           "sink": "QCheckBox"
         }
       ]
@@ -37316,7 +37316,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 138,
+          "line": 166,
           "sink": "QGroupBox"
         }
       ]
@@ -39341,7 +39341,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 163,
+          "line": 191,
           "sink": "setToolTip"
         }
       ]
@@ -39711,7 +39711,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 712,
+          "line": 720,
           "sink": "setText"
         }
       ]
@@ -40166,7 +40166,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 731,
+          "line": 739,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -40746,7 +40746,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 594,
+          "line": 595,
           "sink": "getOpenFileName"
         }
       ]
@@ -40771,7 +40771,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 868,
+          "line": 887,
           "sink": "emit"
         }
       ]
@@ -40781,7 +40781,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 447,
+          "line": 448,
           "sink": "setToolTip"
         }
       ]
@@ -40931,7 +40931,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 180,
+          "line": 208,
           "sink": "DetailsToggle"
         }
       ]
@@ -40941,7 +40941,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 180,
+          "line": 208,
           "sink": "DetailsToggle"
         }
       ]
@@ -43376,7 +43376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 752,
+          "line": 755,
           "sink": "emit"
         }
       ]
@@ -47266,7 +47266,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 141,
+          "line": 169,
           "sink": "setToolTip"
         }
       ]
@@ -52551,7 +52551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 594,
+          "line": 595,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -56441,7 +56441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1076,
+          "line": 1095,
           "sink": "ValueError"
         }
       ]
@@ -56546,12 +56546,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 100,
+          "line": 101,
           "sink": "NoteLabel"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 512,
+          "line": 513,
           "sink": "set_note"
         }
       ]
@@ -58691,12 +58691,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 538,
+          "line": 539,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 607,
+          "line": 608,
           "sink": "set_note"
         }
       ]
@@ -65597,7 +65597,7 @@
       ]
     },
     {
-      "key": "Pick a glTF, GLB, OBJ or DAE file, or a zip with one inside, from anywhere on disk. It is read the way the Model Library reads it (its own textures too) and shown over the template below, where you place it.",
+      "key": "Pick a glTF, GLB, OBJ or DAE file, or a zip with one inside, from anywhere on disk. It is read the way the Model Library reads it (its own textures too) and shown over the template below, where you place it. An FBX is read too once the studio has been pointed at a Blender, which converts it first.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
@@ -71131,12 +71131,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 654,
+          "line": 657,
           "sink": "emit"
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1015,
+          "line": 1034,
           "sink": "emit"
         }
       ]
@@ -71661,7 +71661,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 654,
+          "line": 662,
           "sink": "set_note"
         }
       ]
@@ -71721,7 +71721,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 812,
+          "line": 827,
           "sink": "log"
         }
       ]
@@ -87281,7 +87281,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 110,
+          "line": 138,
           "sink": "setToolTip"
         }
       ]
@@ -90261,7 +90261,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1116,
+          "line": 1135,
           "sink": "emit"
         }
       ]
@@ -90551,7 +90551,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 157,
+          "line": 185,
           "sink": "QLabel"
         },
         {
@@ -94136,7 +94136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 909,
+          "line": 928,
           "sink": "emit"
         }
       ]
@@ -94406,7 +94406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 696,
+          "line": 704,
           "sink": "setText"
         }
       ]
@@ -94496,7 +94496,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 154,
+          "line": 182,
           "sink": "setToolTip"
         }
       ]
@@ -94506,7 +94506,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 468,
+          "line": 469,
           "sink": "getColor"
         }
       ]
@@ -94571,7 +94571,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 670,
+          "line": 673,
           "sink": "emit"
         }
       ]
@@ -94601,7 +94601,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 539,
+          "line": 542,
           "sink": "emit"
         }
       ]
@@ -94756,7 +94756,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 708,
+          "line": 716,
           "sink": "setText"
         }
       ]
@@ -94776,7 +94776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1065,
+          "line": 1084,
           "sink": "ValueError"
         }
       ]
@@ -94796,7 +94796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 148,
+          "line": 176,
           "sink": "setToolTip"
         }
       ]
@@ -94911,7 +94911,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1027,
+          "line": 1046,
           "sink": "emit"
         }
       ]
@@ -94951,7 +94951,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 830,
+          "line": 848,
+          "sink": "emit"
+        },
+        {
+          "path": "cdmw/ui/new_item/controller.py",
+          "line": 849,
           "sink": "emit"
         }
       ]
@@ -94981,7 +94986,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 817,
+          "line": 832,
           "sink": "emit"
         }
       ]
@@ -95001,7 +95006,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 624,
+          "line": 627,
           "sink": "emit"
         }
       ]
@@ -95071,7 +95076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 885,
+          "line": 904,
           "sink": "emit"
         }
       ]
@@ -95141,7 +95146,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 1051,
+          "line": 1070,
           "sink": "emit"
         }
       ]
@@ -95466,7 +95471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 922,
+          "line": 941,
           "sink": "emit"
         }
       ]
@@ -95586,7 +95591,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 413,
+          "line": 414,
           "sink": "emit"
         }
       ]
@@ -95626,7 +95631,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 593,
+          "line": 596,
           "sink": "emit"
         }
       ]
@@ -95686,7 +95691,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 677,
+          "line": 685,
           "sink": "setText"
         }
       ]
@@ -99522,7 +99527,7 @@
       ]
     },
     {
-      "key": "Use a model file of your own (glTF, GLB, OBJ, DAE, or a zip holding one)",
+      "key": "Use a model file of your own (glTF, GLB, OBJ, DAE, FBX with Blender, or a zip holding one)",
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
@@ -99941,7 +99946,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 108,
+          "line": 136,
           "sink": "QCheckBox"
         }
       ]
@@ -101961,7 +101966,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 594,
+          "line": 595,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -102836,7 +102841,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 117,
+          "line": 145,
           "sink": "QCheckBox"
         }
       ]
@@ -105201,7 +105206,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 594,
+          "line": 595,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -111951,7 +111956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 594,
+          "line": 595,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -111976,7 +111981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 172,
+          "line": 200,
           "sink": "setToolTip"
         }
       ]
@@ -196771,7 +196776,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 706,
+          "line": 714,
           "sink": "ValueError"
         }
       ]
@@ -199291,7 +199296,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 331,
+          "line": 334,
           "sink": "python-return:_perk_label"
         }
       ]
@@ -199661,7 +199666,7 @@
         },
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 331,
+          "line": 334,
           "sink": "python-return:_perk_label"
         },
         {
@@ -201056,7 +201061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 432,
+          "line": 428,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -201076,17 +201081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 428,
-          "sink": "python-return:_nothing_to_import"
-        }
-      ]
-    },
-    {
-      "key": "{value_0} holds {value_1}. The studio reads FBX by converting it with Blender, and it has not been pointed at one: choose blender.exe under Import tips. Or export the model as glTF, GLB, OBJ or DAE yourself and import that.",
-      "origins": [
-        {
-          "path": "cdmw/ui/new_item/model_import.py",
-          "line": 423,
+          "line": 424,
           "sink": "python-return:_nothing_to_import"
         }
       ]
@@ -201177,6 +201172,16 @@
       ]
     },
     {
+      "key": "{value_0} is an FBX, and the studio reads FBX by converting it with Blender. Choose blender.exe on the Model step first, or export the model as glTF, GLB, OBJ or DAE yourself and import that.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/model_import.py",
+          "line": 434,
+          "sink": "python-return:fbx_needs_blender_message"
+        }
+      ]
+    },
+    {
       "key": "{value_0} is legacy display-shape cleanup and is not available in active Mesh Edit.",
       "origins": [
         {
@@ -201226,7 +201231,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 416,
+          "line": 417,
           "sink": "emit"
         }
       ]
@@ -203431,7 +203436,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 535,
+          "line": 536,
           "sink": "note"
         }
       ]
@@ -203821,7 +203826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 528,
+          "line": 529,
           "sink": "note"
         }
       ]
@@ -204146,7 +204151,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 158,
+          "line": 161,
           "sink": "python-return:suggest_internal_name"
         }
       ]
@@ -204156,7 +204161,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/controller.py",
-          "line": 158,
+          "line": 161,
           "sink": "python-return:suggest_internal_name"
         }
       ]
