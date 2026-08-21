@@ -414,8 +414,7 @@ def build_snapshot(
             pathc = parse_pathc(pathc_path.read_bytes())
         except PathcError as exc:
             log(f"The texture registry did not decode; new icons will not be registered: {exc}")
-    log(f"Snapshot ready: {len(rows):,} items, {len(stores):,} stores, {len(item_groups):,} item groups, {len(paloc_entries)} languages.")
-    return NewItemSnapshot(
+    snapshot = NewItemSnapshot(
         entries=by_path,
         read_entry=read,
         iteminfo=iteminfo,
@@ -439,6 +438,14 @@ def build_snapshot(
         pathc=pathc,
         effect_stems=effect_stems,
     )
+    # Measured here rather than the first time a stat is offered. The measure itself is
+    # 17 ms over the corpus; the import it needs is 1.5 s, because an import made after
+    # PySide is loaded goes through shiboken's feature hook and that reads the source of
+    # every module it touches. Paid on the first template chosen, that was a window that
+    # stopped answering; paid here it is a fiftieth of the read that is already happening.
+    snapshot.status_value_ranges()
+    log(f"Snapshot ready: {len(rows):,} items, {len(stores):,} stores, {len(item_groups):,} item groups, {len(paloc_entries)} languages.")
+    return snapshot
 
 
 # --------------------------------------------------------------------------- context

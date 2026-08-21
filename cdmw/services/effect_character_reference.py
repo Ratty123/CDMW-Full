@@ -70,12 +70,11 @@ _EFFECT_SOCKET_PREFIX = "fx"
 #: The character's own low-detail body: one mesh, floor to the top of the head, under a
 #: thousand vertices. It is what the game draws when the player is far away, so it is the
 #: whole figure rather than a piece of one.
+#: If that is not there, no character is read at all and the viewport draws its own strut
+#: figure. Armour used to stand in for it, which drew a coat and a floating helm rather
+#: than a body; see `_body_mesh_paths`.
 _BODY_LOD = "/nude/"
 _BODY_LOD_STEM = "_lod_"
-#: If that is not there, two armour pieces stand in for a body: the upper and lower halves.
-_ARMOUR_SLOTS = ("9_upperbody", "10_lowerbody")
-#: A proxy that is neither an accessory nor a show piece, by size order.
-_MEDIAN = 0.5
 
 #: The rotation that leaves everything where it is.
 IDENTITY_ROTATION: Tuple[float, ...] = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
@@ -177,35 +176,26 @@ def rotate_mesh(mesh: ParsedMesh, rotation: Sequence[float]) -> ParsedMesh:
 
 
 def _body_mesh_paths(paths: Iterable[str], sizes: Mapping[str, int]) -> List[str]:
-    """The meshes to draw as the body: the low-detail whole figure if the archives carry
-    it, else one armour piece per half.
+    """The mesh to draw as the body: the whole figure, or nothing at all.
 
-    Picking the smallest armour lands on an accessory -- a scrap near one elbow -- and the
-    largest on a show piece of several megabytes. The median of the canonically named base
-    armour is at least body-shaped.
+    `sizes` is kept for callers that still pass it; nothing here needs it any more.
+
+    This used to fall back to one median armour piece per half, on the reasoning that
+    armour is at least body-shaped. Rendered, it is not: the median upper and lower body
+    of a real install draw a coat with a helm floating where the head should be, legs that
+    stop above their boots, and daylight between the three. A reader looking at that sees
+    a broken preview, not a stand-in -- and there is a stand-in already, a plain strut
+    figure that reads as exactly what it is. So the choice here is the whole figure or
+    none, and none hands the viewport that strut.
     """
 
-    paths = list(paths)
+    del sizes
     prefix = f"/model/1_pc/{_RIG_MODEL}"
     whole = sorted(
         path for path in paths
         if f"{prefix}{_BODY_LOD}" in path and _BODY_LOD_STEM in path and path.endswith(".pac")
     )
-    if whole:
-        return [whole[0]]
-
-    chosen: List[str] = []
-    for slot in _ARMOUR_SLOTS:
-        in_slot = sorted(
-            path for path in paths
-            if f"/{_RIG_MODEL}/armor/{slot}/" in path and path.endswith(".pac")
-            and "_acc" not in path and "_sub" not in path
-        )
-        if not in_slot:
-            continue
-        by_size = sorted(in_slot, key=lambda path: int(sizes.get(path, 0) or 0))
-        chosen.append(by_size[int(len(by_size) * _MEDIAN)])
-    return chosen
+    return [whole[0]] if whole else []
 
 
 def build_character_reference(

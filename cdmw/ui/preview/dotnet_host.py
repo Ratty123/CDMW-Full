@@ -746,6 +746,29 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
         self._presentation_state["display"] = display
         return self._remember_presentation_state({"display": {"viewport_background_color": str(color or "")}})
 
+    def set_camera_drag_bindings(self, *, right: str = "", middle: str = "") -> bool:
+        """What a right- or middle-button drag does in this viewport: "pan" or "orbit".
+
+        A partial quality payload: the helper resolves every key it is not sent against
+        the settings it is already running, so this leaves the rest of the presentation
+        alone. Meant for a viewport where an edit tool owns the left button and the reader
+        has no reason to know which modifier hands it back -- the placement dialogs.
+        """
+
+        wanted = {}
+        if right:
+            wanted["camera_right_drag"] = normalize_camera_drag(right, DEFAULT_RIGHT_DRAG)
+        if middle:
+            wanted["camera_middle_drag"] = normalize_camera_drag(middle, DEFAULT_MIDDLE_DRAG)
+        if not wanted:
+            return False
+        display = dict(self._presentation_state.get("display", {}))
+        quality = dict(display.get("quality", {}) or {})
+        quality.update(wanted)
+        display["quality"] = quality
+        self._presentation_state["display"] = display
+        return self._remember_presentation_state({"display": {"quality": dict(wanted)}})
+
     def set_alignment_state(
         self,
         *,

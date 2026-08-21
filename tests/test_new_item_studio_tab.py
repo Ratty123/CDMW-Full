@@ -1023,6 +1023,49 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_walking_the_template_list_rebuilds_once_the_reader_stops(self) -> None:
+        """Choosing a template rebuilds five steps: 65 ms against the real archives, and
+        1,926 ms before the corpus measure moved to the snapshot worker. The list asked
+        for that once per row the arrow keys passed through, so holding the key down
+        queued one per row and the window stopped answering."""
+
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QListWidgetItem
+
+        tab = self._tab(window=None)
+        tab.prefill_template(TEMPLATE)
+        panel = tab.template_panel
+
+        taken: list = []
+        tab.controller.set_template = lambda key: taken.append(key)  # type: ignore[method-assign]
+
+        panel._syncing = True
+        panel.matches.clear()
+        for key in (4001, 4002, 4003):
+            item = QListWidgetItem(f"row {key}")
+            item.setData(Qt.UserRole, key)
+            panel.matches.addItem(item)
+        panel._syncing = False
+
+        for row in range(panel.matches.count()):
+            panel.matches.setCurrentRow(row)
+        self.assertEqual(taken, [], "walking the list takes nothing on the way past")
+        self.assertTrue(panel._pick_timer.isActive(), "the row waits for the reader to settle")
+
+        # and the row they stopped on is taken, once
+        panel._pick_timer.stop()
+        panel._apply_pick()
+        self.assertEqual(taken, [4003])
+
+        # leaving the step is settling on a row too: a pending pick is never dropped
+        taken.clear()
+        panel.matches.setCurrentRow(0)
+        tab._show_step(1)
+        self.assertEqual(taken, [4001], "moving on takes the row the reader left on")
+        self.assertFalse(panel._pick_timer.isActive())
+        tab.close()
+        tab.deleteLater()
+
     def test_the_parts_that_glow_are_chosen_on_the_step(self) -> None:
         """A template's own emissive is not inherited -- its mask is cut for the template's
         mesh, and what the importer generates in its place is flat, so inheriting it lit a
