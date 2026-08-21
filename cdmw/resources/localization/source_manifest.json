@@ -11951,7 +11951,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 245,
+          "line": 266,
           "sink": "QPushButton"
         },
         {
@@ -29121,7 +29121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 332,
+          "line": 353,
           "sink": "note"
         }
       ]
@@ -29131,7 +29131,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 332,
+          "line": 353,
           "sink": "note"
         }
       ]
@@ -42306,12 +42306,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 403,
+          "line": 424,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 407,
+          "line": 428,
           "sink": "question"
         }
       ]
@@ -42336,12 +42336,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 377,
+          "line": 398,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 381,
+          "line": 402,
           "sink": "question"
         }
       ]
@@ -42366,7 +42366,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 407,
+          "line": 428,
           "sink": "question"
         }
       ]
@@ -42376,7 +42376,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 381,
+          "line": 402,
           "sink": "question"
         }
       ]
@@ -45346,7 +45346,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 135,
+          "line": 156,
           "sink": "setText"
         }
       ]
@@ -52621,7 +52621,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 328,
+          "line": 349,
           "sink": "note"
         }
       ]
@@ -52641,7 +52641,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 326,
+          "line": 347,
           "sink": "note"
         }
       ]
@@ -52651,7 +52651,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 324,
+          "line": 345,
           "sink": "note"
         }
       ]
@@ -53271,22 +53271,22 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 439,
+          "line": 460,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 448,
+          "line": 469,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 451,
+          "line": 472,
           "sink": "information"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 455,
+          "line": 476,
           "sink": "question"
         }
       ]
@@ -53416,7 +53416,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 455,
+          "line": 476,
           "sink": "question"
         }
       ]
@@ -53971,7 +53971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 318,
+          "line": 339,
           "sink": "note"
         }
       ]
@@ -53981,7 +53981,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 316,
+          "line": 337,
           "sink": "note"
         }
       ]
@@ -53991,7 +53991,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 316,
+          "line": 337,
           "sink": "note"
         }
       ]
@@ -54921,7 +54921,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 247,
+          "line": 268,
           "sink": "QPushButton"
         },
         {
@@ -58846,7 +58846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 451,
+          "line": 472,
           "sink": "information"
         }
       ]
@@ -65276,7 +65276,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 331,
+          "line": 352,
           "sink": "note"
         }
       ]
@@ -65286,7 +65286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 331,
+          "line": 352,
           "sink": "note"
         }
       ]
@@ -66216,7 +66216,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 340,
+          "line": 361,
           "sink": "note"
         }
       ]
@@ -66226,7 +66226,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 338,
+          "line": 359,
           "sink": "note"
         }
       ]
@@ -66596,7 +66596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 433,
+          "line": 454,
           "sink": "warning"
         }
       ]
@@ -71466,7 +71466,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 358,
+          "line": 379,
           "sink": "append_log"
         }
       ]
@@ -71526,7 +71526,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 133,
+          "line": 154,
           "sink": "setText"
         }
       ]
@@ -74741,12 +74741,12 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 473,
+          "line": 494,
           "sink": "_overlay_services"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 477,
+          "line": 498,
           "sink": "question"
         }
       ]
@@ -85176,7 +85176,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 336,
+          "line": 357,
           "sink": "note"
         }
       ]
@@ -85186,7 +85186,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 334,
+          "line": 355,
           "sink": "note"
         }
       ]
@@ -89826,7 +89826,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 330,
+          "line": 351,
           "sink": "note"
         }
       ]
@@ -89836,7 +89836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 330,
+          "line": 351,
           "sink": "note"
         }
       ]
@@ -90061,7 +90061,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 285,
+          "line": 306,
           "sink": "setText"
         }
       ]
@@ -92136,7 +92136,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 313,
+          "line": 334,
           "sink": "note"
         }
       ]
@@ -92156,7 +92156,7 @@
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 313,
+          "line": 334,
           "sink": "note"
         }
       ]
@@ -93971,7 +93971,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 127,
+          "line": 148,
           "sink": "setText"
         }
       ]
@@ -94001,17 +94001,17 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 377,
+          "line": 398,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 403,
+          "line": 424,
           "sink": "warning"
         },
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 429,
+          "line": 450,
           "sink": "warning"
         }
       ]
@@ -94181,7 +94181,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 145,
+          "line": 166,
           "sink": "setText"
         }
       ]
@@ -94191,7 +94191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 448,
+          "line": 469,
           "sink": "warning"
         }
       ]
@@ -97301,7 +97301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 144,
+          "line": 165,
           "sink": "setText"
         },
         {
@@ -98301,7 +98301,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 477,
+          "line": 498,
           "sink": "question"
         }
       ]
@@ -104901,7 +104901,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 214,
+          "line": 235,
           "sink": "QGroupBox"
         }
       ]
@@ -105541,7 +105541,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 219,
+          "line": 240,
           "sink": "tinted"
         }
       ]
@@ -106321,7 +106321,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 219,
+          "line": 240,
           "sink": "tinted"
         },
         {
@@ -111956,7 +111956,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 219,
+          "line": 240,
           "sink": "tinted"
         },
         {
@@ -119031,7 +119031,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 219,
+          "line": 240,
           "sink": "tinted"
         },
         {
@@ -200887,12 +200887,12 @@
       ]
     },
     {
-      "key": "{value_0} holds no importable model ({value_1}).",
+      "key": "{value_0} holds no model the studio can read. It reads {value_1}.",
       "origins": [
         {
           "path": "cdmw/ui/new_item/model_import.py",
-          "line": 393,
-          "sink": "ValueError"
+          "line": 425,
+          "sink": "python-return:_nothing_to_import"
         }
       ]
     },
@@ -200903,6 +200903,16 @@
           "path": "cdmw/services/new_item_mod_base.py",
           "line": 115,
           "sink": "python-return:describe_mod_folder"
+        }
+      ]
+    },
+    {
+      "key": "{value_0} holds {value_1}, and the studio does not read {value_2}. Export it as glTF, GLB, OBJ or DAE -- Blender does that in a few seconds -- and import that instead.",
+      "origins": [
+        {
+          "path": "cdmw/ui/new_item/model_import.py",
+          "line": 421,
+          "sink": "python-return:_nothing_to_import"
         }
       ]
     },
@@ -201786,7 +201796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 220,
+          "line": 241,
           "sink": "QLabel"
         }
       ]
@@ -201966,7 +201976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/tab.py",
-          "line": 321,
+          "line": 342,
           "sink": "note"
         }
       ]

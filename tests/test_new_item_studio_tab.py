@@ -866,6 +866,46 @@ class TabTests(unittest.TestCase):
         tab.deleteLater()
 
 
+    def test_a_busy_operation_after_the_panels_are_built_does_not_touch_the_bootstrap(self) -> None:
+        """The bootstrap's progress bar is deleted when the panels replace it, and
+        `busy_changed` goes on firing for every operation after that -- importing a model
+        is one. A lambda was still calling setVisible on the deleted C++ object, which took
+        the app down with `libshiboken: Internal C++ object already deleted`. A lambda also
+        has no receiver for Qt to disconnect when the widget dies, which is why it survived
+        to be called at all."""
+
+        import inspect
+
+        from PySide6.QtCore import QEvent
+
+        import shiboken6
+
+        from cdmw.ui.new_item.tab import NewItemStudioTab
+
+        source = inspect.getsource(NewItemStudioTab.__init__)
+        self.assertIn("busy_changed.connect(self._bootstrap_busy_changed)", source, "a slot Qt can disconnect")
+        self.assertNotIn("lambda busy:", source, "not a lambda that outlives the widget it touches")
+
+        tab = self._tab(window=None)
+        progress = tab._progress
+        tab.prefill_template(TEMPLATE)
+        self.assertTrue(tab._panels_built, "the panels replaced the bootstrap")
+        # deleteLater only runs when the loop processes deferred deletions, and the C++
+        # object has to be gone for this to be the failure the reader hit
+        self.app.processEvents()
+        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.app.processEvents()
+        self.assertFalse(shiboken6.isValid(progress), "the bootstrap's progress bar is gone")
+
+        # what an import does. Neither the slot nor the signal may touch what is gone.
+        tab._bootstrap_busy_changed(True)
+        tab._bootstrap_busy_changed(False)
+        tab.controller.busy_changed.emit(True)
+        tab.controller.busy_changed.emit(False)
+        self.app.processEvents()
+        tab.close()
+        tab.deleteLater()
+
     def test_an_imported_model_is_textured_and_listed_before_it_is_applied(self) -> None:
         """Both of these were wrong for the same reason: they waited for the Builder result,
         which only exists once Apply the placement has run. Before that the studio still has
