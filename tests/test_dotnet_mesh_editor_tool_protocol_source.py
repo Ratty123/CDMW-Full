@@ -6,13 +6,21 @@ DOTNET_EDITOR = ROOT / "tools" / "dotnet_mesh_editor_experiment"
 
 
 def _source(name: str) -> str:
+    # Partials of one class are concatenated in the order listed: the assertions
+    # below read the constructor before the hidden startup that follows it.
     patterns = {
-        "Program.cs": ("Program.cs", "ExperimentForm.ToolPanels.cs"),
+        "Program.cs": ("Program.cs", "ExperimentForm.ToolPanels.cs", "ExperimentForm.StartupRealization.cs"),
+        "ExperimentForm.Controls.cs": ("ExperimentForm.Controls.cs", "ExperimentForm.FlatButton.cs"),
         "D3D11MaterialViewport.cs": ("D3D11MaterialViewport*.cs",),
         "D3D11MaterialViewport.Overlay.cs": ("D3D11MaterialViewport.Overlay.cs", "D3D11MaterialViewport.OverlayInteraction.cs", "D3D11MaterialViewport.OverlaySelection.cs"),
         "MeshViewport.SelectionPicking.cs": ("MeshViewport.SelectionPicking.cs", "MeshViewport.SelectionPaint.cs"),
     }.get(name, (name,))
-    return "\n".join(path.read_text(encoding="utf-8") for path in sorted({path for pattern in patterns for path in DOTNET_EDITOR.glob(pattern)}))
+    paths: list[Path] = []
+    for pattern in patterns:
+        for path in sorted(DOTNET_EDITOR.glob(pattern)):
+            if path not in paths:
+                paths.append(path)
+    return "\n".join(path.read_text(encoding="utf-8") for path in paths)
 
 
 def test_renderer_status_response_preserves_mutation_correlation() -> None:

@@ -172,7 +172,6 @@ internal sealed partial class ExperimentForm : Form
         }
         _textureSet = NetTextureSet.Load(_materials);
         _ = _textureSet.LoadAsync(_materials);
-        StartupTiming.Mark("package_metadata_loaded");
         Text = "CDMW .NET Mesh Editor Experiment";
         Width = 1180;
         Height = 760;
@@ -193,31 +192,10 @@ internal sealed partial class ExperimentForm : Form
 
         _ = Handle;
         StartupTiming.Root = this;
-        if (EmbedsAtBirth
-            && NativeWindowHost.TryGetClientSize(new IntPtr(options.ParentHwnd), out var hostClientSize)
-            && hostClientSize.Width >= 200
-            && hostClientSize.Height >= 200)
-        {
-            // Take the host's size now, before a single child exists. The
-            // startup realisation embeds and sizes this window again later, and
-            // when that changed the size from the constructor's default it
-            // re-laid out the whole finished tool tree at a new width: the most
-            // expensive resize the editor ever does, spent on a window nobody
-            // could see yet. Taking the final size first makes that a no-op.
-            NativeWindowHost.ResizeToParent(this, new IntPtr(options.ParentHwnd), forceFrameRefresh: false, show: false);
-        }
+        TakeHostSizeBeforeChildren(options);
         StartupTiming.Mark("form_handle_created");
-        if (!options.HeadlessSmoke)
-        {
-            StartProtocolReader();
-            // From here on every startup mark is also a protocol event, so the
-            // host can tell a helper that is still building from one that hung.
-            StartupTiming.Reporter = (phase, atMs) => WriteProtocolEvent("startup_progress", new Dictionary<string, object?>
-            {
-                ["phase"] = phase,
-                ["at_ms"] = Math.Round(atMs, 1),
-            });
-        }
+        if (!options.HeadlessSmoke) StartProtocolReader();
+        StartStartupProgressReporting(options);
 
         _viewport = new MeshViewport(document, _materials, _textureSet, _scene, options) { Dock = DockStyle.Fill };
         StartupTiming.Mark("viewport_created");
@@ -230,16 +208,7 @@ internal sealed partial class ExperimentForm : Form
         }
         if (options.SimplePreview)
         {
-            _overlaySettings = new MeshOverlaySettings(
-                new MeshOverlayColors(
-                    Color.FromArgb(48, 60, 74),
-                    MeshOverlayColors.Default.Vertex,
-                    MeshOverlayColors.Default.Selection,
-                    MeshOverlayColors.Default.LiveSelection),
-                new MeshOverlaySizing(1.0f, MeshOverlaySizing.Default.VertexMarkerSizePixels));
-            _ = _viewport.TrySetSynchronizedDisplayMode(
-                _viewport.InitialResidentDisplayMode(HasResidentTextureResources()),
-                out _);
+            ConfigureSimplePreviewOverlay();
         }
         _viewport.SetOverlaySettings(_overlaySettings);
         // Applied before the first frame, so a remembered background is what the
@@ -274,18 +243,7 @@ internal sealed partial class ExperimentForm : Form
         _selectionTarget.SelectedIndexChanged += (_, _) => UpdateViewportControlsHint();
         _selectionOperation.SelectedIndexChanged += (_, _) => UpdateViewportControlsHint();
         ConfigureCheckBox(_xray, "X-Ray", isChecked: false);
-        _xray.CheckedChanged += (_, _) =>
-        {
-            if (!_xray.Checked && _previewMode.SelectedIndex == 6)
-            {
-                _previewMode.SelectedIndex = 4;
-                return;
-            }
-            _viewport.SetXRayEnabled(_xray.Checked);
-            _statusLabel.Text = _xray.Checked
-                ? "X-Ray enabled: visible and occluded topology is drawn without depth rejection; wire and vertex colors switch automatically."
-                : "Visible-only selection enabled; picking uses the front surface.";
-        };
+        ConfigureXRayToggle();
         ConfigureNumeric(_radius, decimalPlaces: 1, minimum: 1, maximum: 512, value: 24, increment: 2);
         ConfigureNumeric(_grabRadius, decimalPlaces: 1, minimum: 1, maximum: 512, value: 24, increment: 2);
         ConfigureNumeric(_strength, decimalPlaces: 2, minimum: 0, maximum: 1, value: 0.5M, increment: 0.05M);
@@ -312,7 +270,6 @@ internal sealed partial class ExperimentForm : Form
         _statusLabel.TextChanged += (_, _) => _helpToolTip.SetToolTip(_statusLabel, _statusLabel.Text);
         _statusLabel.Text = $"Loaded package. materials={_materials.SlotCount} textureRefs={_materials.TextureReferenceCount} resolved={_materials.ExistingTextureFileCount}/{_materials.ResolvedTextureReferenceCount} decodable={_textureSet.DecodedCount}/{_materials.DecodableTextureFileCount}. Solid view is on; wire overlay is optional.";
 
-        StartupTiming.Mark("basic_controls_configured");
         // Display state both profiles drive over the protocol, so it is
         // configured before the tool panels that merely present it.
         ConfigurePreviewModeCombo();
@@ -328,7 +285,6 @@ internal sealed partial class ExperimentForm : Form
         }
         _viewport.Margin = new Padding(0);
         _presentationViewportRegion = BuildPresentationViewportRegion();
-        StartupTiming.Mark("presentation_region_built");
         _rightToolSplit = CreateToolPanelSplit("DotNetMeshEditorViewportRightSplit", FixedPanel.Panel2);
         _leftToolSplit = CreateToolPanelSplit("DotNetMeshEditorLeftViewportSplit", FixedPanel.Panel1);
         if (_leftToolPanel is not null)
@@ -349,15 +305,9 @@ internal sealed partial class ExperimentForm : Form
             _leftToolSplit.Panel1Collapsed = true;
             _rightToolSplit.Panel2Collapsed = true;
         }
-        StartupTiming.Mark("tool_panel_splitters_configured");
         ApplySavedToolPanelLayout();
         StartupTiming.Mark("saved_tool_panel_layout_applied");
-        using (SuspendLayoutTree(_leftToolSplit))
-        {
-            // Booting into mesh edit moves every rail section into its page
-            // here; one closing layout pass covers all of those moves.
-            ApplyInteractionModeControls();
-        }
+        ApplyInteractionModeControlsUnderOneLayout();
         StartupTiming.Mark("interaction_mode_controls_applied");
 
         StartFrameTimer();
@@ -446,221 +396,6 @@ internal sealed partial class ExperimentForm : Form
             {
             }
         }, TaskScheduler.Default);
-    }
-
-    private void QueueReadyAfterFirstFrame(string textureState, string textureError)
-    {
-        _pendingTextureState = textureState;
-        _pendingTextureError = textureError;
-        _readyPendingFirstFrame = true;
-        StartupTiming.Mark("ready_queued_for_first_frame");
-        _statusLabel.Text = "Textures ready; drawing the first .NET/Vortice frame...";
-        _viewport.ApplySceneState();
-        // The reveal cannot wait for the frame itself — the frame is produced by
-        // a paint, and a hidden window never gets one. This is as late as it can
-        // go: geometry, materials and textures are all bound, so the first paint
-        // draws the finished model rather than an empty viewport.
-        //
-        // A prewarm launch is the exception and must stay hidden. Its scene is a
-        // procedural placeholder nobody asked to see; revealing it painted that
-        // placeholder into the host pane and then hid it again the moment the
-        // host answered `ready` with `deactivate_request` — a flash of the wrong
-        // model at dialog-open time. The host does not need `ready` from a
-        // prewarm (it warms the GPU with an offscreen capture instead), and
-        // without a reveal there is no paint, so `ready` correctly stays pending
-        // until `activate_request` reveals the window over a real package.
-        if (!_options.PrewarmLaunch)
-        {
-            EnsureEmbeddedWindowRevealed();
-        }
-    }
-
-    protected override void OnShown(EventArgs e)
-    {
-        base.OnShown(e);
-        if (_startupRealizationQueued)
-        {
-            // An embedded window runs its startup while still hidden; this
-            // OnShown is that startup's own reveal, not a second entry.
-            return;
-        }
-        RunStartupRealization();
-    }
-
-    /// <summary>
-    /// Everything between a built form and a window the user should be looking
-    /// at. Embedded, this runs hidden (see <see cref="SetVisibleCore"/>) and the
-    /// reveal is deferred to the texture load's completion; standalone, it runs
-    /// from OnShown as before.
-    /// </summary>
-    /// <remarks>
-    /// The reveal used to sit here, before <see cref="StartTextureLoad"/>, which
-    /// meant the host pane showed a fully built but untextured editor for the
-    /// whole texture decode — the chrome arriving seconds before the model, read
-    /// as the editor loading in stages. It sat here because it had to: the D3D11
-    /// device was created by the first paint, a hidden window never paints, and
-    /// <c>TryApplyMaterialState</c> fails outright without a device. Initialising
-    /// the renderer explicitly breaks that dependency, so the window can stay
-    /// hidden until there is a finished picture to show.
-    /// </remarks>
-    private void RunStartupRealization()
-    {
-        _startupRealizationQueued = true;
-        StartupTiming.Mark("startup_realization_begin");
-        // Build the expensive authoring tree while the Qt host still shows its
-        // loading surface. Besides moving the cost off the Edit Mesh click,
-        // this ensures the first visible WinForms frame contains one settled
-        // layout instead of controls being attached and repainted in stages.
-        if (DeferAuthoringToolPanels && !_options.SimplePreview)
-        {
-            EnsureAuthoringToolPanelsReady();
-        }
-        StartupTiming.Mark("authoring_tool_panels_ready");
-        bool rendererInitialized;
-        using (SuspendLayoutTree(_leftToolSplit))
-        {
-            // Handle creation and the embed both re-lay out the flanks, and the
-            // window is still hidden; one pass when this closes is enough.
-            //
-            // Must precede the reveal: no layout switch may be the first
-            // realisation of its subtree, and none of that realisation should be
-            // something the user watches happen.
-            RealizeClassicToolFlanks();
-            StartupTiming.Mark("classic_tool_flanks_realized");
-            if (_options.Embedded && !TryEmbedOrFail("startup"))
-            {
-                return;
-            }
-            StartupTiming.Mark("embedded_in_host");
-            ApplySavedToolPanelLayout();
-            StartupTiming.Mark("embedded_and_layout_applied");
-            // EnsureRendererInitialized needs the viewport's handle, and nothing has
-            // forced it while the form is hidden.
-            RealizeControlTree(_viewport);
-            StartupTiming.Mark("viewport_handles_realized");
-            rendererInitialized = _viewport.EnsureRendererInitialized();
-            StartupTiming.Mark("renderer_ensured");
-        }
-        StartupTiming.Mark("startup_realization_layout_settled");
-        if (!rendererInitialized)
-        {
-            // Not fatal, and not worth blocking the reveal over: the first paint
-            // still creates the device the way it always did, and a renderer that
-            // genuinely cannot start reports through the texture/ready path.
-            WriteProtocolEvent("renderer_prewarm_skipped", new Dictionary<string, object?>
-            {
-                ["reason"] = _viewport.RendererBlocked ? _viewport.RendererBlockReason : "device not ready before reveal",
-                ["embedded"] = _options.Embedded,
-                ["prewarm_launch"] = _options.PrewarmLaunch,
-            });
-            if (!_options.PrewarmLaunch)
-            {
-                EnsureEmbeddedWindowRevealed();
-            }
-        }
-        StartTextureLoad();
-    }
-
-    private void PublishReady(string textureState, string textureError)
-    {
-        if (_readyPublished)
-        {
-            return;
-        }
-        _readyPublished = true;
-        // Every terminal texture failure publishes ready directly, without ever
-        // reaching QueueReadyAfterFirstFrame. Without this the editor would stay
-        // hidden behind the host's spinner with the error only in a status line
-        // nobody can see. A failed prewarm still stays hidden: nobody asked to
-        // see it, and the host simply launches again for the real package.
-        if (!_options.PrewarmLaunch)
-        {
-            EnsureEmbeddedWindowRevealed();
-        }
-        var rendererStatus = RendererStatusWithLifecycle();
-        WriteStatus(
-            _options,
-            _viewport.RendererBlocked ? "blocked_renderer_unavailable" : "loaded",
-            _viewport.RendererBlocked ? _viewport.RendererBlockReason : "Mesh loaded in .NET editor experiment.",
-            _viewport.Metrics,
-            rendererStatus: rendererStatus);
-        StartupTiming.Mark("ready_published");
-        WriteProtocolEvent("startup_timing", StartupTiming.Payload(this));
-        StartupTiming.Seal();
-        WriteProtocolEvent("ready", new Dictionary<string, object?>
-        {
-            ["capabilities"] = _viewport.ActiveCapabilities(),
-            ["profile"] = _options.Profile,
-            ["selection_depth_mode"] = "visible",
-            ["tool_enabled"] = !string.Equals(_viewport.ActiveTool, "orbit", StringComparison.OrdinalIgnoreCase),
-            ["tool"] = _viewport.ActiveTool,
-            ["target_mode"] = _viewport.CurrentTargetMode(),
-            ["selection_mode"] = SelectionText(_selectionShape, "brush"),
-            ["selection_operation"] = SelectionOperation(),
-            ["material_signature"] = _materials.Signature,
-            ["material_generation"] = _materials.Generation,
-            ["texture_state"] = textureState,
-            ["texture_error"] = textureError,
-            ["renderer"] = rendererStatus,
-            ["lifecycle_counts"] = LifecycleCountsPayload(),
-            ["local_selection"] = _viewport.SelectionSnapshotPayload(),
-            ["selected_part_index"] = _viewport.SelectedSubmeshIndex,
-            ["parts_list_selected_index"] = _submeshList.SelectedIndex,
-            ["parts_list_selected_indices"] = _submeshList.SelectedIndices.Cast<int>().ToArray(),
-        });
-    }
-
-    private bool TryEmbedOrFail(string phase)
-    {
-        // Before the first reveal this only verifies and sizes the window the
-        // constructor already created inside the host; forcing it on screen
-        // here is what RevealEmbeddedWindow is for.
-        if (NativeWindowHost.Embed(this, new IntPtr(_options.ParentHwnd), reveal: _embeddedWindowRevealed))
-        {
-            _statusLabel.Text = "Embedded .NET mesh editor ready.";
-            if (_embeddedWindowRevealed)
-            {
-                Focus();
-                _viewport.Focus();
-            }
-            return true;
-        }
-        _embeddedViewportActive = false;
-        _embeddedHostFailed = true;
-        var message = $"Embedded host unavailable during {phase}; returning to the native mesh editor.";
-        _statusLabel.Text = message;
-        WriteStatus(_options, "error", message, _viewport.Metrics, rendererStatus: RendererStatusWithLifecycle());
-        WriteProtocolEvent("error", new Dictionary<string, object?>
-        {
-            ["code"] = "embedded_host_unavailable",
-            ["phase"] = phase,
-            ["message"] = message
-        });
-        Close();
-        return false;
-    }
-
-    protected override void OnFormClosing(FormClosingEventArgs e)
-    {
-        SaveToolPanelLayout();
-        CancelResidentPackageLoad();
-        CancelPerformanceCaptureForShutdown();
-        FlushPendingPlacementTransform(force: true);
-        if (!_saved && !_embeddedHostFailed && _options.Embedded && _editedSubmeshes.Count > 0 && !_externalTopologyDirty)
-        {
-            SaveAndReport();
-        }
-        if (!_saved && !_embeddedHostFailed)
-        {
-            WriteStatus(
-                _options,
-                "closed",
-                "Mesh .NET editor experiment closed without saving.",
-                _viewport.Metrics,
-                rendererStatus: RendererStatusWithLifecycle());
-        }
-        _textureSet.Dispose();
-        base.OnFormClosing(e);
     }
 
     /// <summary>

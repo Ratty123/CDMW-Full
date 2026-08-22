@@ -11,10 +11,17 @@ DOTNET_ROOT = (
 
 def _source(name: str) -> str:
     owners = {
-        "Program.cs": ("Program.cs", "ExperimentForm.ToolPanels.cs"),
+        # The hidden startup realisation is a further partial of the same class.
+        "Program.cs": (
+            "Program.cs",
+            "ExperimentForm.ToolPanels.cs",
+            "ExperimentForm.StartupRealization.cs",
+        ),
+        # The flat button is a further partial of the same class.
         "ExperimentForm.Controls.cs": (
             "ExperimentForm.Controls.cs",
             "ExperimentForm.AppearanceControls.cs",
+            "ExperimentForm.FlatButton.cs",
         ),
         # Layout suspend and resume are a second partial of the same class.
         "ExperimentForm.EditMeshLayouts.cs": (

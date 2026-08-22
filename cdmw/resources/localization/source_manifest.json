@@ -1471,7 +1471,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 934,
+          "line": 719,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -2001,7 +2001,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 931,
+          "line": 716,
           "sink": "csharp:csharp-wrapper:StyledActionButton[0]"
         }
       ]
@@ -15781,7 +15781,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 124,
+          "line": 111,
           "sink": "csharp:.Text="
         }
       ]
@@ -20956,7 +20956,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1070,
+          "line": 1018,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -29340,8 +29340,8 @@
       "key": "Embedded .NET mesh editor ready.",
       "origins": [
         {
-          "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 620,
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.StartupRealization.cs",
+          "line": 179,
           "sink": "csharp:.Text="
         }
       ]
@@ -33396,7 +33396,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 157,
+          "line": 144,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -33406,7 +33406,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 158,
+          "line": 145,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -35691,7 +35691,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1041,
+          "line": 989,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -35701,7 +35701,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1041,
+          "line": 989,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -44871,7 +44871,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 504,
+          "line": 452,
           "sink": "csharp:AccessibleName="
         },
         {
@@ -46406,7 +46406,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 245,
+          "line": 232,
           "sink": "csharp:.Text="
         },
         {
@@ -53476,7 +53476,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 698,
+          "line": 646,
           "sink": "csharp:.Text="
         },
         {
@@ -53486,7 +53486,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 872,
+          "line": 657,
           "sink": "csharp:.Text="
         }
       ]
@@ -53516,7 +53516,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 939,
+          "line": 724,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -53526,7 +53526,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 938,
+          "line": 723,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -62911,7 +62911,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1041,
+          "line": 989,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -66531,7 +66531,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 792,
+          "line": 577,
           "sink": "csharp:.Text="
         }
       ]
@@ -66541,7 +66541,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 861,
+          "line": 646,
           "sink": "csharp:.Text="
         }
       ]
@@ -69531,7 +69531,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 130,
+          "line": 117,
           "sink": "csharp:csharp-wrapper:LabeledControl[0]"
         }
       ]
@@ -69541,12 +69541,12 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 195,
+          "line": 182,
           "sink": "csharp:.Text="
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 962,
+          "line": 910,
           "sink": "csharp:.Text="
         }
       ]
@@ -76921,7 +76921,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 505,
+          "line": 453,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -76931,7 +76931,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 506,
+          "line": 454,
           "sink": "csharp:AccessibleName="
         }
       ]
@@ -82631,12 +82631,12 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 689,
+          "line": 692,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 741,
+          "line": 744,
           "sink": "_set_state"
         }
       ]
@@ -88771,7 +88771,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 156,
+          "line": 143,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -94385,8 +94385,8 @@
       "key": "Textures ready; drawing the first .NET/Vortice frame...",
       "origins": [
         {
-          "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 457,
+          "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.StartupRealization.cs",
+          "line": 16,
           "sink": "csharp:.Text="
         }
       ]
@@ -94406,7 +94406,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 226,
+          "line": 213,
           "sink": "csharp:.Text="
         }
       ]
@@ -97086,7 +97086,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/Program.cs",
-          "line": 873,
+          "line": 658,
           "sink": "csharp:.Text="
         }
       ]
@@ -97526,7 +97526,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 704,
+          "line": 652,
           "sink": "csharp:.Text="
         }
       ]
@@ -98236,7 +98236,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1041,
+          "line": 989,
           "sink": "csharp:.Items.AddRange("
         }
       ]
@@ -101501,7 +101501,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 160,
+          "line": 147,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         },
         {
@@ -101631,7 +101631,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 1068,
+          "line": 1016,
           "sink": "csharp:.Text="
         }
       ]
@@ -103931,7 +103931,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 159,
+          "line": 146,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -103941,7 +103941,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 161,
+          "line": 148,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         }
       ]
@@ -105466,7 +105466,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 162,
+          "line": 149,
           "sink": "csharp:csharp-wrapper:ConfigureCombo[1]"
         },
         {
@@ -108451,7 +108451,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 959,
+          "line": 962,
           "sink": "_set_state"
         }
       ]
@@ -108766,7 +108766,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1055,
+          "line": 1058,
           "sink": "_set_state"
         }
       ]
@@ -110431,12 +110431,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 689,
+          "line": 692,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 741,
+          "line": 744,
           "sink": "_set_state"
         }
       ]
@@ -112606,7 +112606,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 702,
+          "line": 650,
           "sink": "csharp:.Text="
         }
       ]
@@ -113291,12 +113291,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 724,
+          "line": 727,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1884,
+          "line": 1854,
           "sink": "_set_state"
         }
       ]
@@ -113441,7 +113441,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 702,
+          "line": 650,
           "sink": "csharp:.Text="
         }
       ]
@@ -113876,7 +113876,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1050,
+          "line": 1053,
           "sink": "_set_state"
         }
       ]
@@ -118266,7 +118266,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 702,
+          "line": 650,
           "sink": "csharp:.Text="
         }
       ]
@@ -118456,17 +118456,17 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 619,
+          "line": 622,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1471,
+          "line": 1474,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1657,
+          "line": 1660,
           "sink": "_set_state"
         }
       ]
@@ -118656,17 +118656,17 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1408,
+          "line": 1411,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1424,
+          "line": 1427,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1672,
+          "line": 1675,
           "sink": "_set_state"
         }
       ]
@@ -119426,7 +119426,7 @@
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1237,
+          "line": 1240,
           "sink": "_set_state"
         }
       ]
@@ -120381,12 +120381,12 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 743,
+          "line": 746,
           "sink": "_set_state"
         },
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1574,
+          "line": 1577,
           "sink": "_set_state"
         }
       ]
@@ -120406,7 +120406,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1897,
+          "line": 1867,
           "sink": "_set_state"
         }
       ]
@@ -196026,7 +196026,7 @@
         },
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 702,
+          "line": 650,
           "sink": "csharp:.Text="
         }
       ]
@@ -199396,7 +199396,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 826,
+          "line": 774,
           "sink": "csharp:csharp-wrapper:SetHelpText[1]"
         }
       ]
@@ -200401,7 +200401,7 @@
       "origins": [
         {
           "path": "cdmw/ui/preview/dotnet_session.py",
-          "line": 1897,
+          "line": 1867,
           "sink": "_set_state"
         }
       ]
@@ -200546,7 +200546,7 @@
       "origins": [
         {
           "path": "tools/dotnet_mesh_editor_experiment/ExperimentForm.Controls.cs",
-          "line": 703,
+          "line": 651,
           "sink": "csharp:.Text="
         }
       ]
