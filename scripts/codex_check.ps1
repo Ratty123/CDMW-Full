@@ -159,6 +159,10 @@ $TestsByArea = @{
         "tests/test_native_preview_material_authority_protocol.py",
         "tests/test_native_preview_core.py",
         "tests/test_dotnet_icon_capture_protocol.py",
+        # The viewport's icon capture is the view on screen at any yaw, pitch and
+        # pan: the helper's GPU-free proof over the real capture camera, which
+        # agreed with the screen only at yaw 0 from 2026-07-17 to 2026-08-22.
+        "tests/test_dotnet_capture_camera_parity.py",
         "tests/test_mesh_edit_native_coverage.py",
         "tests/test_native_mesh_editor_session.py",
         "tests/test_native_mesh_subdivide_repeat.py",

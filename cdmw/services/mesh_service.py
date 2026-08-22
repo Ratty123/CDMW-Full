@@ -415,9 +415,11 @@ def _attach_mesh_asset_status(mesh: ParsedMesh, original_data: bytes, *, run_rou
     source_data = bytes(original_data or b"")
     setattr(mesh, "_cdmw_original_data", source_data)
     setattr(mesh, "_cdmw_mesh_asset_source_hash", hashlib.sha256(source_data).hexdigest() if source_data else "")
+    asset = None
     try:
         asset = mesh_asset_from_parsed_mesh(mesh, source_data, source_path=str(mesh.path or ""))
     except Exception:
+        asset = None
         setattr(mesh, "_cdmw_mesh_asset_parse_confidence", "failed")
         setattr(mesh, "_cdmw_mesh_asset_inferred_bone_count", 0)
         setattr(mesh, "_cdmw_mesh_asset_lods", ())
@@ -437,10 +439,14 @@ def _attach_mesh_asset_status(mesh: ParsedMesh, original_data: bytes, *, run_rou
     if not run_roundtrip:
         return
     try:
+        # The asset view above describes exactly the mesh the parser lambda
+        # returns, so the roundtrip reuses it instead of walking every vertex
+        # a second time.
         result = roundtrip_mesh_bytes(
             source_data,
             str(mesh.path or ""),
             parser=lambda _data, _filename: mesh,
+            asset=asset,
         )
         setattr(mesh, "_cdmw_no_op_roundtrip_report", dict(result.report))
     except Exception as exc:

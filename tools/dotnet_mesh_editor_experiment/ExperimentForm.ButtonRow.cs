@@ -50,8 +50,10 @@ internal sealed partial class ExperimentForm
 
         protected override void OnLayout(LayoutEventArgs levent)
         {
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
             Reflow();
             base.OnLayout(levent);
+            StartupTiming.Account("button_row_layout", System.Diagnostics.Stopwatch.GetTimestamp() - started);
         }
 
         protected override void OnSizeChanged(EventArgs e)

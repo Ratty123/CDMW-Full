@@ -278,19 +278,37 @@ def _submesh_asset(
     faces = tuple(getattr(submesh, "faces", ()) or ())
     stride = int(getattr(submesh, "source_vertex_stride", 0) or _stride_from_offsets(submesh))
     source_offsets = tuple(int(value) for value in tuple(getattr(submesh, "source_vertex_offsets", ()) or ()))
-    raw_records = tuple(_raw_record(original_data, source_offsets[index] if index < len(source_offsets) else -1, stride) for index in range(len(vertices)))
+    vertex_count = len(vertices)
+    offset_count = len(source_offsets)
+    raw_records = tuple(
+        _raw_record(original_data, source_offsets[index] if index < offset_count else -1, stride)
+        for index in range(vertex_count)
+    )
+    # One row per source vertex. The per-vertex attribute sequences are
+    # materialised once up front: fetching and re-wrapping them inside the row
+    # loop made this the slowest step of opening a mesh, at roughly four
+    # sequence conversions per vertex on top of the row itself.
+    normals = _vertex_aligned(getattr(submesh, "normals", ()), vertex_count)
+    tangents = _vertex_aligned(getattr(submesh, "tangents", ()), vertex_count)
+    uvs = _vertex_aligned(getattr(submesh, "uvs", ()), vertex_count)
+    bone_indices_rows = _vertex_aligned(getattr(submesh, "bone_indices", ()), vertex_count)
+    bone_weights_rows = _vertex_aligned(getattr(submesh, "bone_weights", ()), vertex_count)
+    vec3 = _vec3
+    vec2 = _vec2
     vertex_rows = tuple(
         MeshVertex(
-            position=_vec3(vertices[index]),
-            normal=_vec3(_value_at(getattr(submesh, "normals", ()), index)) if _value_at(getattr(submesh, "normals", ()), index) is not None else None,
-            tangent=_vec3(_value_at(getattr(submesh, "tangents", ()), index)) if _value_at(getattr(submesh, "tangents", ()), index) is not None else None,
-            uv0=_vec2(_value_at(getattr(submesh, "uvs", ()), index)) if _value_at(getattr(submesh, "uvs", ()), index) is not None else None,
-            bone_indices=tuple(int(value) for value in tuple(_value_at(getattr(submesh, "bone_indices", ()), index) or ())),
-            bone_weights=tuple(float(value) for value in tuple(_value_at(getattr(submesh, "bone_weights", ()), index) or ())),
-            source_offset=source_offsets[index] if index < len(source_offsets) else -1,
+            position=vec3(vertices[index]),
+            normal=vec3(normal) if normal is not None else None,
+            tangent=vec3(tangent) if tangent is not None else None,
+            uv0=vec2(uv) if uv is not None else None,
+            bone_indices=tuple(int(value) for value in (bone_index_row or ())),
+            bone_weights=tuple(float(value) for value in (bone_weight_row or ())),
+            source_offset=source_offsets[index] if index < offset_count else -1,
             raw_bytes_before_edit=raw_records[index],
         )
-        for index in range(len(vertices))
+        for index, normal, tangent, uv, bone_index_row, bone_weight_row in zip(
+            range(vertex_count), normals, tangents, uvs, bone_indices_rows, bone_weights_rows
+        )
     )
     indices = tuple(int(index) for face in faces for index in tuple(face or ()))
     original_index_count = int(getattr(submesh, "source_index_count", 0) or len(indices))
@@ -455,6 +473,20 @@ def _bounds(vertices: tuple[object, ...]) -> tuple[tuple[float, float, float], t
 def _value_at(values: object, index: int) -> object | None:
     sequence = tuple(values or ()) if not isinstance(values, tuple) else values
     return sequence[index] if 0 <= index < len(sequence) else None
+
+
+def _vertex_aligned(values: object, count: int) -> tuple[object | None, ...]:
+    """``values`` as a tuple of exactly ``count`` rows, ``None`` where it is short.
+
+    The row-wise equivalent of calling ``_value_at`` for every vertex index.
+    """
+    sequence = values if isinstance(values, tuple) else tuple(values or ())
+    length = len(sequence)
+    if length == count:
+        return sequence
+    if length > count:
+        return sequence[:count]
+    return sequence + (None,) * (count - length)
 
 
 def _vec3(value: object) -> tuple[float, float, float]:

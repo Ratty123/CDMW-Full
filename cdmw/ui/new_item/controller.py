@@ -213,7 +213,7 @@ class NewItemStudioController(QObject):
         if self.snapshot is None or self.draft.template_key is None:
             return None
         row = self.snapshot.row(self.draft.template_key)
-        return stat_grid_for(row, self.snapshot.status_names, {key: r.string_key for key, r in self.snapshot.rows.items()}, self.draft.extra_stat_keys)
+        return stat_grid_for(row, self.snapshot.status_names, self.snapshot.item_names(), self.draft.extra_stat_keys)
 
     def status_choices(self) -> Tuple[Tuple[int, str, bool], ...]:
         """Every StatusInfo entry as (key, label, carried by shipped equipment): the ones

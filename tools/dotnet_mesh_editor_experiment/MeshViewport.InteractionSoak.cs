@@ -359,4 +359,91 @@ internal sealed partial class MeshViewport
                 nameof(mode),
                 "Interaction soak mode must be a vertex/edge/face Select brush/lasso/rectangle, Move, Grab, Smooth, Inflate, or Pinch."),
         };
+
+    /// <summary>
+    /// Which way a plain left drag turns the subject. The contract is that the side
+    /// facing the reader follows the pointer -- right for a drag to the right, down for a
+    /// drag downward -- the way pan does and the way Blender and Maya orbit. It is read
+    /// through the renderer's own projection and depth, on the vertex drawn nearest the
+    /// reader, so it holds whatever sign the camera's angles carry. A synthetic viewport
+    /// with no files behind it, like the layout smoke's backdrop contract: no renderer,
+    /// no window.
+    /// </summary>
+    internal static Dictionary<string, object?> OrbitFollowsPointerContract()
+    {
+        var document = HeadlessGpuSparseSoak.BuildSyntheticDocument(64);
+        var materials = NetMaterialSet.Empty;
+        using var textures = NetTextureSet.Load(materials);
+        var scene = NetSceneState.Load(string.Empty, document.Submeshes.Count);
+        scene.SetInteractionMode("mesh_edit");
+        using var viewport = new MeshViewport(document, materials, textures, scene, HeadlessGpuInteractionSoak.SyntheticLaunchOptions())
+        {
+            Size = new Size(640, 480),
+        };
+        viewport.ActiveTool = "orbit";
+        // A three-quarter view: the synthetic mesh is a strip along x, and seen from an
+        // angle it has a near end. Each drag starts from the same view.
+        const float startYaw = MathF.PI * 0.25f;
+        const float startPitch = 0.35f;
+        viewport.PointCameraForContract(startYaw, startPitch);
+        var start = new Point(320, 240);
+        var before = viewport.NearestVertexScreenPoint(out var vertex);
+        var afterRight = viewport.OrbitDragThenProject(vertex, start, new Point(start.X + 40, start.Y));
+        viewport.PointCameraForContract(startYaw, startPitch);
+        var afterDown = viewport.OrbitDragThenProject(vertex, start, new Point(start.X, start.Y + 40));
+        var followsRight = afterRight.X > before.X + 0.5f;
+        var followsDown = afterDown.Y > before.Y + 0.5f;
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = followsRight && followsDown,
+            ["near_side_follows_drag_right"] = followsRight,
+            ["near_side_follows_drag_down"] = followsDown,
+            ["near_vertex"] = new[] { vertex.X, vertex.Y, vertex.Z },
+            ["near_vertex_px_before"] = new[] { before.X, before.Y },
+            ["near_vertex_px_after_drag_right"] = new[] { afterRight.X, afterRight.Y },
+            ["near_vertex_px_after_drag_down"] = new[] { afterDown.X, afterDown.Y },
+        };
+    }
+
+    private void PointCameraForContract(float yaw, float pitch)
+    {
+        _yaw = yaw;
+        _pitch = pitch;
+        _panX = 0.0f;
+        _panY = 0.0f;
+    }
+
+    /// <summary>The vertex the renderer draws nearest the reader, by its own depth, and
+    /// where it lands on screen.</summary>
+    private PointF NearestVertexScreenPoint(out Vec3 vertex)
+    {
+        var camera = CurrentCamera();
+        var submesh = _document.Submeshes[0];
+        vertex = submesh.Vertices[0];
+        var point = PointF.Empty;
+        var nearest = float.MaxValue;
+        foreach (var candidate in submesh.Vertices)
+        {
+            var projected = SceneProjectedPointWithDepth(camera, 0, candidate, out var depth);
+            if (depth < nearest)
+            {
+                nearest = depth;
+                vertex = candidate;
+                point = projected;
+            }
+        }
+        return point;
+    }
+
+    /// <summary>A plain left drag from one point to another through the move handler
+    /// WinForms drives, then where the vertex is drawn afterwards.</summary>
+    private PointF OrbitDragThenProject(Vec3 vertex, Point from, Point to)
+    {
+        _rotating = true;
+        _panning = false;
+        _lastMouse = from;
+        OnMouseMove(new MouseEventArgs(MouseButtons.Left, 0, to.X, to.Y, 0));
+        _rotating = false;
+        return SceneProjectedPoint(CurrentCamera(), 0, vertex);
+    }
 }

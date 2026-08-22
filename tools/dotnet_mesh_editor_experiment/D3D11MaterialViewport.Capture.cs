@@ -248,7 +248,31 @@ internal sealed partial class D3D11MaterialViewport
         }
     }
 
-    private static NetViewportCamera CameraForCaptureViewport(
+    /// <summary>
+    /// The visible camera re-aimed at a capture of <paramref name="width"/> x
+    /// <paramref name="height"/>: the same view, its zoom scaled by how the capture's
+    /// size compares with the viewport's and its pan scaled with it, so a capture at
+    /// the viewport's own size is exactly what is on screen and a smaller square shows
+    /// a little more around the subject.
+    /// </summary>
+    /// <remarks>
+    /// The screen draws from <see cref="NetViewportCamera.WorldViewProjection"/>, so the
+    /// capture is that matrix with its x and y rescaled: each clip axis is 2 * zoom /
+    /// extent with the pan riding on the same scale, which makes this exactly
+    /// <see cref="NetViewportCamera.Create"/> re-run at the scaled zoom and pan, and for
+    /// <see cref="NetViewportCamera.CreateArchiveAudit"/> exactly its World times the
+    /// capture projection. Neither constructor is recreated through the other, so the
+    /// audit keeps its Archive Browser object-rotation basis and the interactive camera
+    /// keeps the editor's. Building the capture from <see cref="NetViewportCamera.World"/>
+    /// and a fresh projection (this method from 2026-07-17 to 2026-08-22) agreed with
+    /// the screen only at yaw 0: the interactive constructor then wrote World and
+    /// WorldViewProjection as two separate hand-built matrices that did not encode the
+    /// same rotation and folded the pan in at different points, so an icon taken from an
+    /// orbited view came out at another angle. World is the projection's view frame
+    /// since then (the parity proof holds it there), but the screen's matrix stays the
+    /// capture's source: it is the one thing the capture must equal.
+    /// </remarks>
+    internal static NetViewportCamera CameraForCaptureViewport(
         NetViewportCamera camera,
         int width,
         int height)
@@ -258,32 +282,15 @@ internal sealed partial class D3D11MaterialViewport
         var uniformScale = Math.Max(
             0.001f,
             Math.Min(width / sourceWidth, height / sourceHeight));
+        var sourceZoom = Math.Max(0.001f, camera.Zoom);
         var captureZoom = Math.Max(0.001f, camera.Zoom * uniformScale);
         var captureWidth = Math.Max(1.0f, width);
         var captureHeight = Math.Max(1.0f, height);
-        var depthScale = 1.0f / Math.Max(camera.SceneSize * 4.0f, 0.0001f);
-        var captureProjection = new Matrix4x4(
-            2.0f * captureZoom / captureWidth,
-            0.0f,
-            0.0f,
-            0.0f,
-            0.0f,
-            2.0f * captureZoom / captureHeight,
-            0.0f,
-            0.0f,
-            0.0f,
-            0.0f,
-            depthScale,
-            0.0f,
-            0.0f,
-            0.0f,
-            0.5f,
+        var captureScale = Matrix4x4.CreateScale(
+            (captureZoom / sourceZoom) * (sourceWidth / captureWidth),
+            (captureZoom / sourceZoom) * (sourceHeight / captureHeight),
             1.0f);
 
-        // Preserve the source camera's world/basis contract. Visual-audit
-        // cameras intentionally use Archive Browser object-rotation order,
-        // while interactive cameras use the editor's camera basis. Recreating
-        // either through the other constructor silently rotates the capture.
         return camera with
         {
             Zoom = captureZoom,
@@ -291,7 +298,7 @@ internal sealed partial class D3D11MaterialViewport
             PanY = camera.PanY * uniformScale,
             ViewportWidth = captureWidth,
             ViewportHeight = captureHeight,
-            WorldViewProjection = camera.World * captureProjection,
+            WorldViewProjection = camera.WorldViewProjection * captureScale,
         };
     }
 }

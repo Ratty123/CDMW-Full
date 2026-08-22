@@ -47,7 +47,7 @@ SUGGESTED_EFFECT_TERMS = ("fire", "lightning", "ice", "aura", "sword", "weapon")
 
 class PerksPanel(QGroupBox):
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
-        super().__init__("5. Abilities and weapon appearance", parent)
+        super().__init__("5. Perks & Effects", parent)
         self._controller = controller
         self._syncing_effect = False
         layout = QVBoxLayout(self)
@@ -107,7 +107,7 @@ class PerksPanel(QGroupBox):
         perks_layout.addWidget(self.custom_perks)
         layout.addWidget(perks)
 
-        effect = QGroupBox("Weapon appearance (optional)")
+        effect = QGroupBox("Weapon effect (optional)")
         effect_layout = QVBoxLayout(effect)
         self.visual_only = intro_label("Visual only — this does not change attack damage or apply an elemental status.")
         effect_layout.addWidget(self.visual_only)
@@ -130,7 +130,7 @@ class PerksPanel(QGroupBox):
         primary_layout.addLayout(choose)
         self.effect_selection = NoteLabel("")
         primary_layout.addWidget(self.effect_selection)
-        self.place_button = QPushButton("Place on weapon in viewport...")
+        self.place_button = QPushButton("Place on item in viewport...")
         self.place_button.setToolTip("Open the resident viewport to move and scale the selected visual on the item.")
         self.place_button.clicked.connect(self._place_in_viewport)
         primary_layout.addWidget(self.place_button)
@@ -732,10 +732,10 @@ class PerksPanel(QGroupBox):
     def effect_summary(self) -> tuple[str, bool]:
         stem = str(self._controller.draft.effect_stem or "")
         if not stem:
-            return ("Weapon appearance: choose a visual", False) if self.use_effect.isChecked() else ("Weapon appearance: none", False)
+            return ("Weapon effect: choose a visual", False) if self.use_effect.isChecked() else ("Weapon effect: none", False)
         preset = next((item for item in presets_for(None) if item.stem == stem), None)
         label = preset.label if preset is not None else stem
-        return f"Weapon appearance: {label} (visual only)", True
+        return f"Weapon effect: {label} (visual only)", True
 
     def _placement_dialogs(self):
         from cdmw.ui.new_item.effect_placement_dialog import EffectPlacementDialog

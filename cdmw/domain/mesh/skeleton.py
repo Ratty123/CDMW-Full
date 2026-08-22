@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass
 
@@ -795,6 +796,44 @@ def _has_nonempty_bone_rows(*row_sets: tuple[object, ...]) -> bool:
     return any(_row_tuple(row) for rows in row_sets for row in rows)
 
 
+# Walking every bone row of a part is the whole cost of a skinning summary, and
+# one mesh open asks for the same summary several times over: once for the
+# asset status, then once per OBJ export of the same geometry (the editable
+# mesh and the scene copy are separate clones that share their rows). The
+# summary is a pure function of the rows and the skeleton bone count, so it is
+# keyed on their content and kept for the last few parts seen.
+_PART_SUMMARY_CACHE_LIMIT = 64
+_PART_SUMMARY_CACHE: "OrderedDict[tuple[object, ...], MeshSkinningPartSummary]" = OrderedDict()
+
+
+def _part_summary_cache_key(
+    index: int,
+    submesh: object,
+    vertices: tuple[object, ...],
+    bone_indices: tuple[object, ...],
+    bone_weights: tuple[object, ...],
+    *,
+    selected: bool,
+    skeleton_bone_count: int | None,
+) -> tuple[object, ...] | None:
+    try:
+        return (
+            index,
+            str(getattr(submesh, "name", "") or ""),
+            len(vertices),
+            len(bone_indices),
+            len(bone_weights),
+            bool(selected),
+            skeleton_bone_count,
+            _row_tuple(bone_indices[0]) if bone_indices else (),
+            _row_tuple(bone_indices[-1]) if bone_indices else (),
+            hash(tuple(_row_tuple(row) for row in bone_indices)),
+            hash(tuple(_row_tuple(row) for row in bone_weights)),
+        )
+    except TypeError:
+        return None
+
+
 def _part_summary(
     index: int,
     submesh: object,
@@ -805,6 +844,46 @@ def _part_summary(
     vertices = tuple(getattr(submesh, "vertices", ()) or ())
     bone_indices = tuple(getattr(submesh, "bone_indices", ()) or ())
     bone_weights = tuple(getattr(submesh, "bone_weights", ()) or ())
+    key = _part_summary_cache_key(
+        index,
+        submesh,
+        vertices,
+        bone_indices,
+        bone_weights,
+        selected=selected,
+        skeleton_bone_count=skeleton_bone_count,
+    )
+    if key is not None:
+        cached = _PART_SUMMARY_CACHE.get(key)
+        if cached is not None:
+            _PART_SUMMARY_CACHE.move_to_end(key)
+            return cached
+    summary = _part_summary_uncached(
+        index,
+        submesh,
+        vertices,
+        bone_indices,
+        bone_weights,
+        selected=selected,
+        skeleton_bone_count=skeleton_bone_count,
+    )
+    if key is not None:
+        _PART_SUMMARY_CACHE[key] = summary
+        while len(_PART_SUMMARY_CACHE) > _PART_SUMMARY_CACHE_LIMIT:
+            _PART_SUMMARY_CACHE.popitem(last=False)
+    return summary
+
+
+def _part_summary_uncached(
+    index: int,
+    submesh: object,
+    vertices: tuple[object, ...],
+    bone_indices: tuple[object, ...],
+    bone_weights: tuple[object, ...],
+    *,
+    selected: bool,
+    skeleton_bone_count: int | None,
+) -> MeshSkinningPartSummary:
     skinned = _has_nonempty_bone_rows(bone_indices, bone_weights)
     if not skinned:
         return MeshSkinningPartSummary(

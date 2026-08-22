@@ -95,6 +95,9 @@ class NewItemSnapshot:
     effect_stems: FrozenSet[str] = frozenset()
     _status_ranges: Optional[Mapping[int, Tuple[int, int, int, int]]] = field(default=None, repr=False)
     _socket_users: Optional[Mapping[int, int]] = field(default=None, repr=False)
+    _item_names: Optional[Mapping[int, str]] = field(default=None, repr=False)
+    #: template key -> the validation context built for it; see :func:`build_context`
+    _contexts: Dict[int, NewItemContext] = field(default_factory=dict, repr=False)
     _families: Dict[int, ItemModelFamily] = field(default_factory=dict, repr=False)
     _payloads: Dict[str, bytes] = field(default_factory=dict, repr=False)
     _index_maps: Optional[Tuple[Mapping[str, Tuple[ArchiveEntry, ...]], Mapping[str, Tuple[ArchiveEntry, ...]]]] = field(default=None, repr=False)
@@ -238,6 +241,17 @@ class NewItemSnapshot:
                     users[int(item)] = users.get(int(item), 0) + 1
             self._socket_users = users
         return self._socket_users
+
+    def item_names(self) -> Mapping[int, str]:
+        """`{item key: internal name}`, the inverse of `keys_by_name`, built once.
+
+        The studio's stat grid names price columns by the money item; it asked for this
+        map on every grid build, and it builds the grid on every validation.
+        """
+
+        if self._item_names is None:
+            self._item_names = {int(key): row.string_key for key, row in self.rows.items()}
+        return self._item_names
 
     def status_value_ranges(self) -> Mapping[int, Tuple[int, int, int, int]]:
         """`{status key: (entries, low, median, high)}` over shipped equipment rows.
@@ -488,8 +502,19 @@ def template_facts(snapshot: NewItemSnapshot, template_key: int) -> TemplateFact
 
 
 def build_context(snapshot: NewItemSnapshot, template_key: int) -> NewItemContext:
-    """The domain's read-only view for validating a spec against `template_key`."""
+    """The domain's read-only view for validating a spec against `template_key`.
 
+    Built once per template and kept on the snapshot. The snapshot is read-only, and
+    everything here but the template facts is a frozenset over the whole of it: every
+    item key and name, every StringInfo text, every part-prefab stem, every English
+    localisation key, every store's stock. The studio validates the draft on every edit
+    and used to rebuild all of that each time.
+    """
+
+    key = int(template_key)
+    cached = snapshot._contexts.get(key)
+    if cached is not None:
+        return cached
     stock_names: Dict[str, FrozenSet[str]] = {}
     for store in snapshot.stores:
         names = set()
@@ -498,8 +523,8 @@ def build_context(snapshot: NewItemSnapshot, template_key: int) -> NewItemContex
             if row is not None:
                 names.add(row.string_key)
         stock_names[store.name] = frozenset(names)
-    return NewItemContext(
-        template=template_facts(snapshot, template_key),
+    context = NewItemContext(
+        template=template_facts(snapshot, key),
         item_keys=frozenset(snapshot.rows),
         internal_names=frozenset(snapshot.keys_by_name),
         stringinfo_texts=frozenset(snapshot.stringinfo_texts.values()),
@@ -515,6 +540,8 @@ def build_context(snapshot: NewItemSnapshot, template_key: int) -> NewItemContex
         store_insert_supported=True,
         stat_shape_edits_supported=True,
     )
+    snapshot._contexts[key] = context
+    return context
 
 
 __all__ = [

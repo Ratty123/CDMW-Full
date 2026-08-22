@@ -149,6 +149,7 @@ internal sealed partial class ExperimentForm
         // DWM show that stale surface until the first post-reveal paint.
         _viewport.PresentFreshFrame();
         Visible = true;
+        StartupTiming.Mark("embedded_window_revealed");
         Focus();
         _viewport.Focus();
         WriteProtocolEvent("embedded_window_revealed", new Dictionary<string, object?>

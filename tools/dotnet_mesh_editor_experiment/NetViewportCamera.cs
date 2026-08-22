@@ -49,12 +49,19 @@ internal readonly record struct NetViewportCamera(
         var right = NormalizeOrFallback(new Vector3(cosYaw, 0.0f, -sinYaw), Vector3.UnitX);
         var up = NormalizeOrFallback(Vector3.Cross(forward, right), Vector3.UnitY);
 
-        var world = Matrix4x4.CreateTranslation(
-            -center.X + (panX / safeZoom),
-            -center.Y - (panY / safeZoom),
-            -center.Z)
+        // The view frame the projection below draws in: the camera basis (right, up,
+        // forward) as the columns, centred on the subject, with the pan applied after the
+        // rotation the way the projection applies it after its scales, so that
+        // `world * (2 zoom / width, 2 zoom / height, -depthScale, +0.5)` is exactly
+        // `worldViewProjection`. Lighting (World and NormalWorld) and the transparent
+        // sort read this matrix and must see the frame the geometry is drawn in; until
+        // 2026-08-22 it was RotX(pitch) * RotY(yaw) with the pan folded in before the
+        // rotation, which agreed with the projection at yaw 0 only, so the lit side
+        // drifted against the surface as the view turned.
+        var world = Matrix4x4.CreateTranslation(-center.X, -center.Y, -center.Z)
+            * Matrix4x4.CreateRotationY(-yaw)
             * Matrix4x4.CreateRotationX(pitch)
-            * Matrix4x4.CreateRotationY(yaw);
+            * Matrix4x4.CreateTranslation(panX / safeZoom, -(panY / safeZoom), 0.0f);
 
         var worldViewProjection = new Matrix4x4(
             scaleX * cosYaw,

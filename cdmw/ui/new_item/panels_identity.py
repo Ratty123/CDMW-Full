@@ -141,18 +141,22 @@ class IdentityPanel(QGroupBox):
                 self.internal_name.setText(suggestion)
         self.refresh_issues()
 
-    def refresh_issues(self) -> None:
+    def refresh_issues(self) -> tuple:
+        """Show the draft's validation issues; returns them, so the tab's rail can read
+        the same validation instead of running a second one."""
+
         issues = self._controller.validate()
         blocked = [issue for issue in issues if issue.is_error]
         self.issues_ok.setVisible(not blocked)
         if not issues:
             self.issues.set_lines([])
-            return
+            return issues
         ordered = sorted(issues, key=lambda issue: 0 if issue.is_error else 1)
         lines = [note(f"Blocked: {issue.message}", BLOCK) if issue.is_error else note(f"Note: {issue.message}", WARN) for issue in ordered[:8]]
         if len(issues) > 8:
             lines.append(note(f"... {len(issues) - 8} more", None))
         self.issues.set_lines(lines)
+        return issues
 
     def set_stem_enabled(self, enabled: bool) -> None:
         self.stem.setEnabled(bool(enabled))

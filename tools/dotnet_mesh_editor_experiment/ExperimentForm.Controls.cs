@@ -72,6 +72,19 @@ internal sealed partial class ExperimentForm
 
     private static Button StyledButton(string text, int height = 26)
     {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            return StyledButtonCore(text, height);
+        }
+        finally
+        {
+            StartupTiming.Account("styled_button", System.Diagnostics.Stopwatch.GetTimestamp() - started);
+        }
+    }
+
+    private static Button StyledButtonCore(string text, int height)
+    {
         var buttonHeight = Math.Max(height, TextRenderer.MeasureText(text, SystemFonts.MessageBoxFont).Height + 6);
         var button = new MeshEditorFlatButton
         {
@@ -315,6 +328,19 @@ internal sealed partial class ExperimentForm
 
     private static Control LabeledControl(string label, Control control)
     {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            return LabeledControlCore(label, control);
+        }
+        finally
+        {
+            StartupTiming.Account("labeled_control", System.Diagnostics.Stopwatch.GetTimestamp() - started);
+        }
+    }
+
+    private static Control LabeledControlCore(string label, Control control)
+    {
         var panel = new TableLayoutPanel
         {
             ColumnCount = 2,
@@ -348,6 +374,19 @@ internal sealed partial class ExperimentForm
 
     private static Control ButtonRow(params Control[] controls)
     {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            return ButtonRowCore(controls);
+        }
+        finally
+        {
+            StartupTiming.Account("button_row", System.Diagnostics.Stopwatch.GetTimestamp() - started);
+        }
+    }
+
+    private static Control ButtonRowCore(Control[] controls)
+    {
         var panel = new MeshEditorButtonRow(controls);
         var cellWidths = new int[controls.Length];
         var widestCellWidth = 0;
@@ -373,6 +412,19 @@ internal sealed partial class ExperimentForm
 
     private static GroupBox AddSection(TableLayoutPanel stack, string title, params Control[] controls)
     {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        try
+        {
+            return AddSectionCore(stack, title, controls);
+        }
+        finally
+        {
+            StartupTiming.Account("add_section", System.Diagnostics.Stopwatch.GetTimestamp() - started);
+        }
+    }
+
+    private static GroupBox AddSectionCore(TableLayoutPanel stack, string title, Control[] controls)
+    {
         var group = new MeshEditorSectionBox
         {
             Text = title,
@@ -396,11 +448,24 @@ internal sealed partial class ExperimentForm
             Padding = new Padding(0)
         };
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        foreach (var control in controls)
+        // Rows are appended one at a time and both the body and the group are
+        // AutoSize, so without this every append re-laid out everything added
+        // so far. The section is measured once, when its stack lays out.
+        group.SuspendLayout();
+        body.SuspendLayout();
+        try
         {
-            AddStackRow(body, control);
+            foreach (var control in controls)
+            {
+                AddStackRow(body, control);
+            }
+            group.Controls.Add(body);
         }
-        group.Controls.Add(body);
+        finally
+        {
+            body.ResumeLayout(performLayout: false);
+            group.ResumeLayout(performLayout: false);
+        }
         AddStackRow(stack, group);
         return group;
     }
@@ -813,6 +878,7 @@ internal sealed partial class ExperimentForm
             // an idempotent backstop for nonstandard construction paths before
             // anything below walks the section lists.
             EnsureAuthoringToolPanelsReady();
+            StartupTiming.Mark("interaction_mode_panels_ready");
         }
         var enteringMeshEdit = meshEdit && !_meshEditInteractionActive;
         var leavingMeshEdit = !meshEdit && _meshEditInteractionActive;
@@ -838,18 +904,21 @@ internal sealed partial class ExperimentForm
                 section.Visible = !meshEdit;
                 section.Enabled = !meshEdit;
             }
+            StartupTiming.Mark("interaction_mode_sections_toggled");
             if (meshEdit)
             {
                 // The tool-rail activation below owns the final split state.
                 // Expanding both placement flanks first only lays them out so
                 // the same sections can immediately be hidden and re-parented.
                 ApplyToolRailEditMeshLayout();
+                StartupTiming.Mark("tool_rail_edit_mesh_layout_applied");
             }
         }
         finally
         {
             ResumeToolPanelLayout();
         }
+        StartupTiming.Mark("interaction_mode_layout_resumed");
         if (meshEdit)
         {
             _viewport.ActivatePresentationView("editable");
@@ -1071,6 +1140,13 @@ internal sealed partial class ExperimentForm
             DoubleBuffered = true;
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
         }
+
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
+            base.OnLayout(levent);
+            StartupTiming.Account("buffered_table_layout", System.Diagnostics.Stopwatch.GetTimestamp() - started);
+        }
     }
 
     private sealed class MeshEditorBufferedSplitContainer : SplitContainer
@@ -1098,6 +1174,67 @@ internal sealed partial class ExperimentForm
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
+        }
+
+        // The tool flanks are AutoSize table layouts nested four deep, and the
+        // table layout engine measures every AutoSize child several times per
+        // pass. At startup that came to ~200,000 preferred-size queries for 73
+        // buttons, and each of them laid the caption out again from scratch.
+        // The answer only depends on the text, font, padding and the proposed
+        // constraints, so it is computed once per distinct question and reused
+        // until one of those inputs changes.
+        private readonly Dictionary<Size, Size> _preferredSizeCache = new();
+        private Size _preferredSizeCacheMinimum;
+        private Size _preferredSizeCacheMaximum;
+
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            // Size constraints are applied inside the base measurement and have
+            // no change notification of their own, so they are part of the key.
+            if (_preferredSizeCacheMinimum != MinimumSize || _preferredSizeCacheMaximum != MaximumSize)
+            {
+                _preferredSizeCache.Clear();
+                _preferredSizeCacheMinimum = MinimumSize;
+                _preferredSizeCacheMaximum = MaximumSize;
+            }
+            if (_preferredSizeCache.TryGetValue(proposedSize, out var cached))
+            {
+                StartupTiming.Account("flat_button_get_preferred_size_cached", 0);
+                return cached;
+            }
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
+            var size = base.GetPreferredSize(proposedSize);
+            StartupTiming.Account("flat_button_get_preferred_size", System.Diagnostics.Stopwatch.GetTimestamp() - started);
+            if (_preferredSizeCache.Count > 64)
+            {
+                _preferredSizeCache.Clear();
+            }
+            _preferredSizeCache[proposedSize] = size;
+            return size;
+        }
+
+        protected override void OnTextChanged(EventArgs e)
+        {
+            _preferredSizeCache.Clear();
+            base.OnTextChanged(e);
+        }
+
+        protected override void OnFontChanged(EventArgs e)
+        {
+            _preferredSizeCache.Clear();
+            base.OnFontChanged(e);
+        }
+
+        protected override void OnPaddingChanged(EventArgs e)
+        {
+            _preferredSizeCache.Clear();
+            base.OnPaddingChanged(e);
+        }
+
+        protected override void OnDpiChangedAfterParent(EventArgs e)
+        {
+            _preferredSizeCache.Clear();
+            base.OnDpiChangedAfterParent(e);
         }
 
         public void SetAccent(bool accent)
@@ -1200,6 +1337,13 @@ internal sealed partial class ExperimentForm
         {
             ResizeRedraw = true;
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        }
+
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
+            base.OnLayout(levent);
+            StartupTiming.Account("section_box_layout", System.Diagnostics.Stopwatch.GetTimestamp() - started);
         }
 
         [System.Diagnostics.CodeAnalysis.AllowNull]

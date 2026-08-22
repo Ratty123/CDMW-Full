@@ -172,6 +172,7 @@ internal sealed partial class ExperimentForm : Form
         }
         _textureSet = NetTextureSet.Load(_materials);
         _ = _textureSet.LoadAsync(_materials);
+        StartupTiming.Mark("package_metadata_loaded");
         Text = "CDMW .NET Mesh Editor Experiment";
         Width = 1180;
         Height = 760;
@@ -191,9 +192,35 @@ internal sealed partial class ExperimentForm : Form
         }
 
         _ = Handle;
-        if (!options.HeadlessSmoke) StartProtocolReader();
+        StartupTiming.Root = this;
+        if (EmbedsAtBirth
+            && NativeWindowHost.TryGetClientSize(new IntPtr(options.ParentHwnd), out var hostClientSize)
+            && hostClientSize.Width >= 200
+            && hostClientSize.Height >= 200)
+        {
+            // Take the host's size now, before a single child exists. The
+            // startup realisation embeds and sizes this window again later, and
+            // when that changed the size from the constructor's default it
+            // re-laid out the whole finished tool tree at a new width: the most
+            // expensive resize the editor ever does, spent on a window nobody
+            // could see yet. Taking the final size first makes that a no-op.
+            NativeWindowHost.ResizeToParent(this, new IntPtr(options.ParentHwnd), forceFrameRefresh: false, show: false);
+        }
+        StartupTiming.Mark("form_handle_created");
+        if (!options.HeadlessSmoke)
+        {
+            StartProtocolReader();
+            // From here on every startup mark is also a protocol event, so the
+            // host can tell a helper that is still building from one that hung.
+            StartupTiming.Reporter = (phase, atMs) => WriteProtocolEvent("startup_progress", new Dictionary<string, object?>
+            {
+                ["phase"] = phase,
+                ["at_ms"] = Math.Round(atMs, 1),
+            });
+        }
 
         _viewport = new MeshViewport(document, _materials, _textureSet, _scene, options) { Dock = DockStyle.Fill };
+        StartupTiming.Mark("viewport_created");
         InitializeResidentPackageProtocol();
         // A package booted from the command line may carry an effect particle
         // description beside its scene; a resident swap loads its own later.
@@ -285,6 +312,7 @@ internal sealed partial class ExperimentForm : Form
         _statusLabel.TextChanged += (_, _) => _helpToolTip.SetToolTip(_statusLabel, _statusLabel.Text);
         _statusLabel.Text = $"Loaded package. materials={_materials.SlotCount} textureRefs={_materials.TextureReferenceCount} resolved={_materials.ExistingTextureFileCount}/{_materials.ResolvedTextureReferenceCount} decodable={_textureSet.DecodedCount}/{_materials.DecodableTextureFileCount}. Solid view is on; wire overlay is optional.";
 
+        StartupTiming.Mark("basic_controls_configured");
         // Display state both profiles drive over the protocol, so it is
         // configured before the tool panels that merely present it.
         ConfigurePreviewModeCombo();
@@ -300,6 +328,7 @@ internal sealed partial class ExperimentForm : Form
         }
         _viewport.Margin = new Padding(0);
         _presentationViewportRegion = BuildPresentationViewportRegion();
+        StartupTiming.Mark("presentation_region_built");
         _rightToolSplit = CreateToolPanelSplit("DotNetMeshEditorViewportRightSplit", FixedPanel.Panel2);
         _leftToolSplit = CreateToolPanelSplit("DotNetMeshEditorLeftViewportSplit", FixedPanel.Panel1);
         if (_leftToolPanel is not null)
@@ -308,6 +337,7 @@ internal sealed partial class ExperimentForm : Form
         }
         _leftToolSplit.Panel2.Controls.Add(_rightToolSplit);
         InitializeEditMeshLayoutHost(_leftToolSplit);
+        StartupTiming.Mark("layout_host_initialized");
         ConfigureToolPanelSplitters();
         if (options.SimplePreview)
         {
@@ -319,15 +349,25 @@ internal sealed partial class ExperimentForm : Form
             _leftToolSplit.Panel1Collapsed = true;
             _rightToolSplit.Panel2Collapsed = true;
         }
+        StartupTiming.Mark("tool_panel_splitters_configured");
         ApplySavedToolPanelLayout();
-        ApplyInteractionModeControls();
+        StartupTiming.Mark("saved_tool_panel_layout_applied");
+        using (SuspendLayoutTree(_leftToolSplit))
+        {
+            // Booting into mesh edit moves every rail section into its page
+            // here; one closing layout pass covers all of those moves.
+            ApplyInteractionModeControls();
+        }
+        StartupTiming.Mark("interaction_mode_controls_applied");
 
         StartFrameTimer();
+        StartupTiming.Mark("form_constructed");
     }
 
     private void StartTextureLoad()
     {
         _initialTextureLoadCount++;
+        StartupTiming.Mark("texture_load_started");
         _statusLabel.Text = "Loading textures before the resident editor becomes ready...";
         _ = _textureSet.LoadAsync(_materials).ContinueWith(task =>
         {
@@ -383,6 +423,7 @@ internal sealed partial class ExperimentForm : Form
                         return;
                     }
                     var optionalFailures = _materials.FailedOptionalResources(_textureSet.TextureLoadFailures);
+                    StartupTiming.Mark("textures_ready");
                     _statusLabel.Text = $"Textures ready: {_textureSet.DecodedCount} decoded, {optionalFailures.Count} optional fallback(s).";
                     WriteProtocolEvent("textures_ready", new Dictionary<string, object?>
                     {
@@ -412,6 +453,7 @@ internal sealed partial class ExperimentForm : Form
         _pendingTextureState = textureState;
         _pendingTextureError = textureError;
         _readyPendingFirstFrame = true;
+        StartupTiming.Mark("ready_queued_for_first_frame");
         _statusLabel.Text = "Textures ready; drawing the first .NET/Vortice frame...";
         _viewport.ApplySceneState();
         // The reveal cannot wait for the frame itself — the frame is produced by
@@ -464,6 +506,7 @@ internal sealed partial class ExperimentForm : Form
     private void RunStartupRealization()
     {
         _startupRealizationQueued = true;
+        StartupTiming.Mark("startup_realization_begin");
         // Build the expensive authoring tree while the Qt host still shows its
         // loading surface. Besides moving the cost off the Edit Mesh click,
         // this ensures the first visible WinForms frame contains one settled
@@ -472,19 +515,34 @@ internal sealed partial class ExperimentForm : Form
         {
             EnsureAuthoringToolPanelsReady();
         }
-        // Must precede the reveal: no layout switch may be the first
-        // realisation of its subtree, and none of that realisation should be
-        // something the user watches happen.
-        RealizeClassicToolFlanks();
-        if (_options.Embedded && !TryEmbedOrFail("startup"))
+        StartupTiming.Mark("authoring_tool_panels_ready");
+        bool rendererInitialized;
+        using (SuspendLayoutTree(_leftToolSplit))
         {
-            return;
+            // Handle creation and the embed both re-lay out the flanks, and the
+            // window is still hidden; one pass when this closes is enough.
+            //
+            // Must precede the reveal: no layout switch may be the first
+            // realisation of its subtree, and none of that realisation should be
+            // something the user watches happen.
+            RealizeClassicToolFlanks();
+            StartupTiming.Mark("classic_tool_flanks_realized");
+            if (_options.Embedded && !TryEmbedOrFail("startup"))
+            {
+                return;
+            }
+            StartupTiming.Mark("embedded_in_host");
+            ApplySavedToolPanelLayout();
+            StartupTiming.Mark("embedded_and_layout_applied");
+            // EnsureRendererInitialized needs the viewport's handle, and nothing has
+            // forced it while the form is hidden.
+            RealizeControlTree(_viewport);
+            StartupTiming.Mark("viewport_handles_realized");
+            rendererInitialized = _viewport.EnsureRendererInitialized();
+            StartupTiming.Mark("renderer_ensured");
         }
-        ApplySavedToolPanelLayout();
-        // EnsureRendererInitialized needs the viewport's handle, and nothing has
-        // forced it while the form is hidden.
-        RealizeControlTree(_viewport);
-        if (!_viewport.EnsureRendererInitialized())
+        StartupTiming.Mark("startup_realization_layout_settled");
+        if (!rendererInitialized)
         {
             // Not fatal, and not worth blocking the reveal over: the first paint
             // still creates the device the way it always did, and a renderer that
@@ -526,6 +584,9 @@ internal sealed partial class ExperimentForm : Form
             _viewport.RendererBlocked ? _viewport.RendererBlockReason : "Mesh loaded in .NET editor experiment.",
             _viewport.Metrics,
             rendererStatus: rendererStatus);
+        StartupTiming.Mark("ready_published");
+        WriteProtocolEvent("startup_timing", StartupTiming.Payload(this));
+        StartupTiming.Seal();
         WriteProtocolEvent("ready", new Dictionary<string, object?>
         {
             ["capabilities"] = _viewport.ActiveCapabilities(),
@@ -643,16 +704,29 @@ internal sealed partial class ExperimentForm : Form
         // window may already be visible.
         using var redraw = BeginRedrawBatch();
         SuspendLayout();
+        // Deep, not just the form: every attach, re-parent and dock change below
+        // otherwise lays out the freshly built flanks again, and there is no
+        // screen to keep current while this runs.
+        using var layouts = SuspendLayoutTree(_leftToolSplit, _rightToolSplit, _editMeshLayoutHost);
         try
         {
             BuildAuthoringToolPanels();
+            layouts.Include(_leftToolPanel);
+            layouts.Include(_rightToolPanel);
+            StartupTiming.Mark("authoring_tool_panels_built");
             if (_leftToolPanel is not null)
             {
                 _leftToolSplit.Panel1.Controls.Add(_leftToolPanel);
             }
+            StartupTiming.Mark("left_tool_panel_attached");
             AttachPermanentToolModeHosts();
+            layouts.Include(_leftToolModeHost);
+            layouts.Include(_rightToolModeHost);
+            StartupTiming.Mark("permanent_tool_mode_hosts_attached");
             AttachCompactSessionBar();
+            layouts.Include(_compactSessionBar);
             PrimeToolRailSectionOwnership();
+            StartupTiming.Mark("tool_rail_sections_primed");
             ApplySavedToolPanelLayout();
         }
         finally
@@ -1250,9 +1324,11 @@ internal sealed partial class MeshViewport : Control
         TabStop = true;
         _renderSurfaceResizeTimer.Tick += OnRenderSurfaceResizeTimerTick;
         InitializeGpuViewport();
+        StartupTiming.Mark("gpu_viewport_initialized");
         FrameMesh();
         ApplyArchivePreviewInitialCamera();
         InitializePresentationContexts();
+        StartupTiming.Mark("viewport_presentation_initialized");
     }
 
 }
