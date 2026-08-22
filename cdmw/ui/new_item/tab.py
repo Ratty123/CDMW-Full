@@ -369,10 +369,13 @@ class NewItemStudioTab(QWidget):
             lines.append(note(f"Model: {imported.label if imported is not None else 'imported'}, placed", EDIT))
         else:
             lines.append(note("Model: the template's", OK))
-        edits = len(draft.grid_values) + len(draft.price_values) + int(draft.extra_levels) + (1 if draft.max_stack_count is not None else 0)
-        lines.append(note(f"Stats and prices: {edits} edit(s)", EDIT) if edits else note("Stats and prices: as the template", OK))
-        lines.append(note("Perks: chosen here", EDIT) if draft.socket_items is not None else note("Perks: the template's", OK))
-        lines.append(note(f"Effect: {draft.effect_stem}", EDIT) if draft.effect_stem else note("Effect: none", OK))
+        stats_text, stats_changed = self.stats_panel.summary_text()
+        lines.append(note(stats_text, EDIT if stats_changed else OK))
+        perks_text, perks_changed = self.perks_panel.perks_summary()
+        lines.append(note(perks_text, EDIT if perks_changed else OK))
+        effect_text, effect_changed = self.perks_panel.effect_summary()
+        effect_tone = WARN if self.perks_panel.use_effect.isChecked() and not draft.effect_stem else EDIT if effect_changed else OK
+        lines.append(note(effect_text, effect_tone))
         if draft.placement_kind.value != "none" and draft.store_name:
             lines.append(note(f"Shop: {draft.store_name}", OK))
         else:

@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Changed
+- **New Item Studio now separates raw combat data, gameplay perks and visual-only weapon effects.** The Stats step labels ItemInfo numbers as raw values, shows template deltas and shipped ranges, keeps arbitrary fields and enhancement-row changes under an experimental fold, scopes exact-value edits to the selected stat, and restores every hidden setting with the step reset. The Abilities and weapon appearance step keeps four perks as the evidence-backed default, explains each selected gem, marks five to eight as experimental, requires an explicit visual instead of silently choosing one, resets tuning when visuals change, hides unsupported armour effects, and folds raw files, placement numbers, recolouring and particle controls under Advanced. The rail now reports effective changes rather than control modes, and both fully expanded steps have zero outer horizontal scroll at a 1,280-pixel window instead of overflowing by 334 and 210 pixels.
+
 ## [0.11.0-alpha.6] - 2026-08-21
 
 ### Added

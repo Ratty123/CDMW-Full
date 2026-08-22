@@ -31,99 +31,152 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from cdmw.domain.new_item.effects import presets_for
 from cdmw.ui.new_item.controller import NewItemStudioController
-from cdmw.ui.new_item.ui_kit import DetailsToggle, intro_label
+from cdmw.ui.new_item.ui_kit import DetailsToggle, NoteLabel, WARN, intro_label
 
 MAX_PERKS = 8
+SAFE_PERKS = 4
 SUGGESTED_EFFECT_TERMS = ("fire", "lightning", "ice", "aura", "sword", "weapon")
 
 
 class PerksPanel(QGroupBox):
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
-        super().__init__("5. Perks and effect", parent)
+        super().__init__("5. Abilities and weapon appearance", parent)
         self._controller = controller
+        self._syncing_effect = False
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label("The perks the item comes with, and an optional effect on the drawn weapon."))
+        layout.addWidget(intro_label(
+            "Gameplay perks change the item's built-in abilities or stats. Weapon effects change appearance only; "
+            "they do not add fire, ice, lightning or other attack damage."
+        ))
 
-        perks = QGroupBox("Perks (the socket items embedded in the item)")
+        perks = QGroupBox("Gameplay perks and abilities")
         perks_layout = QVBoxLayout(perks)
         self.template_perks = QLabel("The clone carries the template's own perks.")
         self.template_perks.setWordWrap(True)
         perks_layout.addWidget(self.template_perks)
-        self.own_perks = QCheckBox("Choose the perks myself (up to eight; no shipped item carries more than four)")
+        self.own_perks = QCheckBox("Customize perks and abilities")
+        self.own_perks.setToolTip("Off keeps the template's exact perk list. On starts from that list and lets you add or remove entries.")
         self.own_perks.toggled.connect(self._own_perks_changed)
         perks_layout.addWidget(self.own_perks)
+
+        self.custom_perks = QWidget()
+        custom_layout = QVBoxLayout(self.custom_perks)
+        custom_layout.setContentsMargins(0, 0, 0, 0)
+        self.perk_count = QLabel("")
+        self.perk_count.setWordWrap(True)
+        custom_layout.addWidget(self.perk_count)
         chosen_row = QHBoxLayout()
         self.chosen = QListWidget()
+        self.chosen.currentItemChanged.connect(self._chosen_perk_changed)
         chosen_row.addWidget(self.chosen, 1)
         buttons = QVBoxLayout()
         self.remove_button = QPushButton("Remove")
         self.remove_button.clicked.connect(self._remove_selected)
         buttons.addWidget(self.remove_button)
-        self.reset_button = QPushButton("Back to the template's")
+        self.reset_button = QPushButton("Keep template perks")
         self.reset_button.clicked.connect(self._reset_to_template)
         buttons.addWidget(self.reset_button)
         buttons.addStretch(1)
         chosen_row.addLayout(buttons)
-        perks_layout.addLayout(chosen_row)
+        custom_layout.addLayout(chosen_row)
         add_row = QHBoxLayout()
         self.perk_filter = QLineEdit()
-        self.perk_filter.setPlaceholderText("Filter perks by name (Insight, Destruction, Malicebane; Item_Skill for the Abyss skills: Volcanic Eruption, Storm Fang, Groundsurge...)")
+        self.perk_filter.setPlaceholderText("Search by perk name or internal ID")
         self.perk_filter.textChanged.connect(self._refresh_catalogue)
         add_row.addWidget(self.perk_filter, 1)
         self.catalogue = QComboBox()
-        self.catalogue.setMinimumWidth(240)
+        self.catalogue.currentIndexChanged.connect(self._catalogue_perk_changed)
         add_row.addWidget(self.catalogue, 2)
         self.add_button = QPushButton("Add")
         self.add_button.clicked.connect(self._add_selected)
         add_row.addWidget(self.add_button)
-        perks_layout.addLayout(add_row)
+        custom_layout.addLayout(add_row)
+        self.perk_details = NoteLabel("")
+        custom_layout.addWidget(self.perk_details)
+        self.experimental_perks = QCheckBox("Experimental: allow five to eight perks")
+        self.experimental_perks.setToolTip("No shipped item carries more than four perks. The row format accepts eight, but five to eight remain unproven in game.")
+        self.experimental_perks.toggled.connect(self._perk_limit_changed)
+        custom_layout.addWidget(self.experimental_perks)
+        perks_layout.addWidget(self.custom_perks)
         layout.addWidget(perks)
 
-        effect = QGroupBox("Weapon effect (optional)")
+        effect = QGroupBox("Weapon appearance (optional)")
         effect_layout = QVBoxLayout(effect)
-        self.use_effect = QCheckBox("Give the weapon a visual effect while it is drawn (fire proven in game)")
-        self.use_effect.setToolTip("The effect is grafted into the item's own prefabs, so the shipped items keep theirs.")
+        self.visual_only = intro_label("Visual only — this does not change attack damage or apply an elemental status.")
+        effect_layout.addWidget(self.visual_only)
+        self.effect_support = NoteLabel("")
+        effect_layout.addWidget(self.effect_support)
+        self.use_effect = QCheckBox("Add a visual effect to the drawn weapon")
+        self.use_effect.setToolTip("The effect is grafted into the new item's weapon prefabs. The shipped items keep theirs.")
         self.use_effect.toggled.connect(self._use_effect_changed)
         effect_layout.addWidget(self.use_effect)
+
+        self.effect_primary = QWidget()
+        primary_layout = QVBoxLayout(self.effect_primary)
+        primary_layout.setContentsMargins(0, 0, 0, 0)
         choose = QFormLayout()
         choose.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.effect_preset = QComboBox()
-        self.effect_preset.setToolTip("Shipped effects named for weapons and elements (fire, lightning, frost...) with a starting scale, as a place to begin; the list below has every shipped effect.")
+        self.effect_preset.setToolTip("Curated shipped visual effects with a sensible starting scale. Their names describe appearance, not damage.")
         self.effect_preset.currentIndexChanged.connect(self._preset_chosen)
-        choose.addRow("Start from a preset:", self.effect_preset)
-        effect_row = QHBoxLayout()
+        choose.addRow("Curated visual:", self.effect_preset)
+        primary_layout.addLayout(choose)
+        self.effect_selection = NoteLabel("")
+        primary_layout.addWidget(self.effect_selection)
+        self.place_button = QPushButton("Place on weapon in viewport...")
+        self.place_button.setToolTip("Open the resident viewport to move and scale the selected visual on the item.")
+        self.place_button.clicked.connect(self._place_in_viewport)
+        primary_layout.addWidget(self.place_button)
+        self.effect_advanced_toggle = QToolButton()
+        self.effect_advanced_toggle.setText("Advanced")
+        self.effect_advanced_toggle.setCheckable(True)
+        self.effect_advanced_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.effect_advanced_toggle.setArrowType(Qt.RightArrow)
+        self.effect_advanced_toggle.setAutoRaise(True)
+        self.effect_advanced_toggle.toggled.connect(self._toggle_effect_advanced)
+        primary_layout.addWidget(self.effect_advanced_toggle)
+        effect_layout.addWidget(self.effect_primary)
+
+        self.effect_advanced = QGroupBox("Advanced effect browser and tuning")
+        advanced_layout = QVBoxLayout(self.effect_advanced)
+        advanced_warning = NoteLabel("")
+        advanced_warning.set_note(
+            "Custom effect files, recolouring and particle tuning are experimental. A built-in fire visual has drawn in game; customized looks are not proven.",
+            WARN,
+        )
+        advanced_layout.addWidget(advanced_warning)
+
+        browser_form = QFormLayout()
         self.effect_filter = QLineEdit()
-        self.effect_filter.setPlaceholderText("Filter (fire, lightning, aura, sword...)")
+        self.effect_filter.setPlaceholderText("Search effect files")
         self.effect_filter.textChanged.connect(self._refresh_effects)
-        effect_row.addWidget(self.effect_filter, 1)
+        browser_form.addRow("Search:", self.effect_filter)
         self.effect = QComboBox()
-        self.effect.setMinimumWidth(260)
         self.effect.currentIndexChanged.connect(self._effect_changed)
-        effect_row.addWidget(self.effect, 2)
-        self.index_button = QPushButton("Index effects (once, about a minute)")
+        browser_form.addRow("Effect file:", self.effect)
+        self.index_button = QPushButton("Build optional effect index...")
         self.index_button.setToolTip(
             "Read every shipped effect once and keep the index on disk: the filter then also matches the emitters, "
             "textures and meshes an effect is made of, and the line below says what the chosen effect draws and how big it is."
         )
         self.index_button.clicked.connect(self._index_effects)
-        effect_row.addWidget(self.index_button)
-        choose.addRow("Or any shipped effect:", effect_row)
-        choose_holder = QWidget()
-        choose_holder.setLayout(choose)
-        effect_layout.addWidget(choose_holder)
+        browser_form.addRow("Optional catalogue:", self.index_button)
+        advanced_layout.addLayout(browser_form)
         self.effect_facts = QLabel("")
         self.effect_facts.setObjectName("new_item_intro")
         self.effect_facts.setWordWrap(True)
         self.effect_facts.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        effect_layout.addWidget(self.effect_facts)
-        placement_row = QHBoxLayout()
-        placement_row.addWidget(QLabel("Where it sits:  scale"))
+        advanced_layout.addWidget(self.effect_facts)
+
+        self.placement_holder = QWidget()
+        placement_form = QFormLayout(self.placement_holder)
         self.effect_scale = QDoubleSpinBox()
         self.effect_scale.setRange(0.01, 10.0)
         self.effect_scale.setSingleStep(0.1)
@@ -131,10 +184,9 @@ class PerksPanel(QGroupBox):
         self.effect_scale.setValue(1.0)
         self.effect_scale.setToolTip("A uniform scale on the grafted effect. Effects made for bigger weapons (the titan's lightning, the fire sweep) reach past a sword at 1.0; the shipped spear carries 0.7.")
         self.effect_scale.valueChanged.connect(self._effect_transform_changed)
-        placement_row.addWidget(self.effect_scale)
-        placement_row.addWidget(QLabel("offset x, y, z (m):"))
+        placement_form.addRow("Visual scale:", self.effect_scale)
         self.effect_offset = []
-        for _axis in range(3):
+        for axis in ("X", "Y", "Z"):
             box = QDoubleSpinBox()
             box.setRange(-5.0, 5.0)
             box.setSingleStep(0.05)
@@ -142,42 +194,30 @@ class PerksPanel(QGroupBox):
             box.setValue(0.0)
             box.setToolTip("Moves the effect along the weapon's own axes, in metres, from the weapon's origin.")
             box.valueChanged.connect(self._effect_transform_changed)
-            placement_row.addWidget(box)
+            placement_form.addRow(f"Offset {axis} (m):", box)
             self.effect_offset.append(box)
-        placement_row.addStretch(1)
-        placement_holder = QWidget()
-        placement_holder.setLayout(placement_row)
-        effect_layout.addWidget(placement_holder)
-        self.place_button = QPushButton("Place in viewport...")
-        self.place_button.setToolTip(
-            "Open the resident viewport with the item's mesh and the effect's box at the current scale and offset; "
-            "drag the gizmo to move or scale it, and the numbers come back here."
-        )
-        self.place_button.clicked.connect(self._place_in_viewport)
-        placement_row.addWidget(self.place_button)
-        look_row = QHBoxLayout()
-        look_row.addWidget(QLabel("How it looks:  colour"))
+        advanced_layout.addWidget(self.placement_holder)
+
+        self.look_holder = QWidget()
+        look_form = QFormLayout(self.look_holder)
+        color_row = QHBoxLayout()
         self.color_button = QPushButton("Colour: as shipped")
-        self.color_button.setToolTip("Recolour the effect (a fire's colour curve and temperature ramp; proven blue in game). The effect and its emitters are cloned under the item's own stems; the shipped ones stay as they are.")
+        self.color_button.setToolTip("Recolour a clone of the effect and its emitters. In-game colour behavior remains unproven.")
         self.color_button.clicked.connect(self._pick_color)
-        look_row.addWidget(self.color_button)
+        color_row.addWidget(self.color_button)
         self.color_reset = QPushButton("Drop the colour")
         self.color_reset.setToolTip("Back to the shipped colour.")
         self.color_reset.clicked.connect(self._reset_color)
-        look_row.addWidget(self.color_reset)
-        look_row.addStretch(1)
-        # the four factors go on their own row: eight widgets beside the colour buttons set a
-        # minimum width the step could not be read at
-        factor_row = QHBoxLayout()
-        factor_row.addSpacing(24)
+        color_row.addWidget(self.color_reset)
+        color_row.addStretch(1)
+        look_form.addRow("Colour:", color_row)
         self.look_factors: dict[str, QDoubleSpinBox] = {}
         for key, label, tip in (
-            ("intensity", "brightness x", "Multiplies the emitters' emissive brightness (and the temperature ramp's brightness)."),
-            ("size", "particle size x", "Multiplies the particle scale (and the effect's bounding boxes)."),
-            ("rate", "spawn rate x", "Multiplies the spawn counts and the particle cap."),
-            ("lifetime", "lifetime x", "Multiplies the particle lifetimes."),
+            ("intensity", "Brightness multiplier:", "Multiplies the emitters' emissive brightness (and the temperature ramp's brightness)."),
+            ("size", "Particle-size multiplier:", "Multiplies the particle scale (and the effect's bounding boxes)."),
+            ("rate", "Spawn-rate multiplier:", "Multiplies the spawn counts and the particle cap."),
+            ("lifetime", "Lifetime multiplier:", "Multiplies the particle lifetimes."),
         ):
-            factor_row.addWidget(QLabel(label))
             box = QDoubleSpinBox()
             box.setRange(0.05, 20.0)
             box.setDecimals(2)
@@ -185,31 +225,30 @@ class PerksPanel(QGroupBox):
             box.setValue(1.0)
             box.setToolTip(tip)
             box.valueChanged.connect(self._look_changed)
-            factor_row.addWidget(box)
+            look_form.addRow(label, box)
             self.look_factors[key] = box
-        factor_row.addStretch(1)
-        look_holder = QWidget()
-        look_column = QVBoxLayout(look_holder)
-        look_column.setContentsMargins(0, 0, 0, 0)
-        look_column.addLayout(look_row)
-        look_column.addLayout(factor_row)
-        effect_layout.addWidget(look_holder)
+        advanced_layout.addWidget(self.look_holder)
+        self.effect_reset_button = QPushButton("Restore effect defaults")
+        self.effect_reset_button.clicked.connect(self._reset_effect_tuning)
+        advanced_layout.addWidget(self.effect_reset_button)
         self.effect_note = DetailsToggle(
             "The effect is drawn at the weapon's own origin, as the shipped thrown lightning spear draws its aura. Effects made for "
             "other weapons may sit or scale oddly; the scale and offset above move them, the presets carry a starting scale, and "
             "Place in viewport shows the effect's box (and its particles, approximately) on the item. A colour edit recolours the "
-            "effect's colour curve and temperature ramp on a clone of the effect; the factors multiply the emitters' brightness, "
-            "particle size, spawn rate and lifetime.",
+            "effect's data on a clone; whether each colour or particle field changes the in-game result is experimental.",
             title="How the effect and its look work",
         )
-        effect_layout.addWidget(self.effect_note)
-        #: everything below the "give it an effect" tick: hidden while it is off, so the
-        #: step is one line when the answer is no
-        self._effect_rows = (choose_holder, self.effect_facts, placement_holder, look_holder, self.effect_note)
+        advanced_layout.addWidget(self.effect_note)
+        self.effect_advanced.setVisible(False)
+        effect_layout.addWidget(self.effect_advanced)
+        #: Everything below the opt-in is hidden while it is off. Advanced controls remain
+        #: folded until separately requested.
+        self._effect_rows = (self.effect_primary,)
         for row in self._effect_rows:
             row.setVisible(False)
         layout.addWidget(effect)
 
+        self.custom_perks.setVisible(False)
         self._own_perks_changed(False)
         self._use_effect_changed(False)
         layout.addStretch(1)
@@ -236,6 +275,7 @@ class PerksPanel(QGroupBox):
         if self._controller.draft.socket_items is None:
             self.own_perks.setChecked(False)
         self._refresh_chosen()
+        self._refresh_effect_support()
 
     def _own_perks_changed(self, checked: bool) -> None:
         draft = self._controller.draft
@@ -243,15 +283,12 @@ class PerksPanel(QGroupBox):
             draft.socket_items = list(self._controller.template_socket_items())
         elif not checked:
             draft.socket_items = None
-        # hidden rather than greyed: an empty list box the height of the panel is dead
-        # space on a step whose usual answer is "the template's"
-        for widget in (self.chosen, self.remove_button, self.reset_button, self.perk_filter, self.catalogue, self.add_button):
-            widget.setEnabled(bool(checked))
-            widget.setVisible(bool(checked))
+        self.custom_perks.setVisible(bool(checked))
         self._controller.invalidate_plan()
         self._refresh_chosen()
 
     def _refresh_chosen(self) -> None:
+        current_key = self.chosen.currentItem().data(Qt.UserRole) if self.chosen.currentItem() is not None else None
         self.chosen.clear()
         for key in list(self._controller.draft.socket_items or ()):
             item = QListWidgetItem(self._controller.perk_label(key))
@@ -262,6 +299,20 @@ class PerksPanel(QGroupBox):
         rows = max(2, min(8, self.chosen.count()))
         height = rows * max(18, self.chosen.sizeHintForRow(0) if self.chosen.count() else 18) + 2 * self.chosen.frameWidth() + 4
         self.chosen.setFixedHeight(height)
+        if current_key is not None:
+            for index in range(self.chosen.count()):
+                if self.chosen.item(index).data(Qt.UserRole) == current_key:
+                    self.chosen.setCurrentRow(index)
+                    break
+        if self.chosen.currentRow() < 0 and self.chosen.count():
+            self.chosen.setCurrentRow(0)
+        count = self.chosen.count()
+        safe_note = "Shipped items use at most four." if count <= SAFE_PERKS else "Five to eight perks are experimental."
+        self.perk_count.setText(f"Selected: {count}/{MAX_PERKS}. {safe_note} Duplicate stacking is unverified.")
+        selected_item = self.chosen.currentItem()
+        selected_key = selected_item.data(Qt.UserRole) if selected_item is not None else None
+        self._refresh_perk_details(int(selected_key) if isinstance(selected_key, int) else None)
+        self._update_add_enabled()
 
     def _refresh_catalogue(self, *_args) -> None:
         current = self.catalogue.currentData()
@@ -276,14 +327,47 @@ class PerksPanel(QGroupBox):
                     self.catalogue.setCurrentIndex(index)
         finally:
             self.catalogue.blockSignals(False)
+        self._catalogue_perk_changed(self.catalogue.currentIndex())
+
+    def _catalogue_perk_changed(self, _index: int) -> None:
+        key = self.catalogue.currentData()
+        self._refresh_perk_details(int(key) if isinstance(key, int) else None)
+        self._update_add_enabled()
+
+    def _chosen_perk_changed(self, current, _previous) -> None:
+        key = current.data(Qt.UserRole) if current is not None else None
+        self._refresh_perk_details(int(key) if isinstance(key, int) else None)
+
+    def _refresh_perk_details(self, key: Optional[int] = None) -> None:
+        if key is None:
+            current = self.catalogue.currentData()
+            key = int(current) if isinstance(current, int) else None
+        if key is None:
+            self.perk_details.set_note("Choose a perk to see what the game calls it and whether shipped equipment uses it.", None)
+            return
+        text = self._controller.perk_details(int(key))
+        selected_count = list(self._controller.draft.socket_items or ()).count(int(key))
+        if selected_count > 1:
+            text += f" Selected {selected_count} times; whether duplicates stack is unverified."
+        self.perk_details.set_note(text, WARN if "experimental" in text.casefold() or selected_count > 1 else None)
+
+    def _perk_limit_changed(self, _checked: bool) -> None:
+        self._update_add_enabled()
+
+    def _update_add_enabled(self) -> None:
+        selected = len(self._controller.draft.socket_items or ())
+        limit = MAX_PERKS if self.experimental_perks.isChecked() else SAFE_PERKS
+        self.add_button.setEnabled(self.own_perks.isChecked() and self.catalogue.currentData() is not None and selected < limit)
 
     def _add_selected(self) -> None:
         key = self.catalogue.currentData()
         draft = self._controller.draft
         if not isinstance(key, int) or draft.socket_items is None:
             return
-        if len(draft.socket_items) >= MAX_PERKS:
-            self._controller.status_message.emit(f"An item carries at most {MAX_PERKS} perks.", True)
+        limit = MAX_PERKS if self.experimental_perks.isChecked() else SAFE_PERKS
+        if len(draft.socket_items) >= limit:
+            message = f"Enable the experimental five-to-eight option to exceed {SAFE_PERKS} perks." if limit == SAFE_PERKS else f"An item carries at most {MAX_PERKS} perks."
+            self._controller.status_message.emit(message, True)
             return
         draft.socket_items.append(int(key))
         self._controller.invalidate_plan()
@@ -299,36 +383,85 @@ class PerksPanel(QGroupBox):
         self._refresh_chosen()
 
     def _reset_to_template(self) -> None:
-        self._controller.draft.socket_items = list(self._controller.template_socket_items())
-        self._controller.invalidate_plan()
-        self._refresh_chosen()
+        self.own_perks.setChecked(False)
 
     # ------------------------------------------------------------------ effect
 
     def _use_effect_changed(self, checked: bool) -> None:
-        for widget in (self.effect_filter, self.effect, self.effect_preset, self.effect_scale, self.index_button, self.place_button, self.color_button, self.color_reset, *self.effect_offset, *self.look_factors.values()):
-            widget.setEnabled(bool(checked))
+        if checked and not self.use_effect.isEnabled():
+            self.use_effect.setChecked(False)
+            return
         for row in self._effect_rows:
             row.setVisible(bool(checked))
-        self._effect_changed(self.effect.currentIndex())
+        if not checked:
+            self.effect_advanced_toggle.setChecked(False)
+            self._syncing_effect = True
+            try:
+                self.effect_preset.setCurrentIndex(0)
+                self.effect.setCurrentIndex(0)
+            finally:
+                self._syncing_effect = False
+            self._controller.draft.effect_stem = ""
+            self._reset_effect_tuning(invalidate=False)
+            self._controller.invalidate_plan()
+        else:
+            # Opting in does not silently choose the first of thousands of files. The
+            # curated selector and advanced browser both start on an explicit placeholder.
+            self._effect_changed(self.effect.currentIndex())
+        self._refresh_effect_selection()
+
+    def _toggle_effect_advanced(self, checked: bool) -> None:
+        self.effect_advanced.setVisible(bool(checked) and self.use_effect.isChecked())
+        self.effect_advanced_toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
 
     def _effect_transform_changed(self, *_args) -> None:
+        if self._syncing_effect:
+            return
         draft = self._controller.draft
         draft.effect_scale = float(self.effect_scale.value())
         draft.effect_offset = tuple(float(box.value()) for box in self.effect_offset)
         self._controller.invalidate_plan()
         self._refresh_facts()
+        self._refresh_effect_selection()
 
     def _index_effects(self) -> None:
         self._controller.start_effect_index()
 
     def _look_changed(self, *_args) -> None:
+        if self._syncing_effect:
+            return
         draft = self._controller.draft
         draft.effect_intensity = float(self.look_factors["intensity"].value())
         draft.effect_size = float(self.look_factors["size"].value())
         draft.effect_rate = float(self.look_factors["rate"].value())
         draft.effect_lifetime = float(self.look_factors["lifetime"].value())
         self._controller.invalidate_plan()
+        self._refresh_effect_selection()
+
+    def _reset_effect_tuning(self, _checked: bool = False, *, scale: float = 1.0, invalidate: bool = True) -> None:
+        self._syncing_effect = True
+        try:
+            self.effect_scale.setValue(float(scale))
+            for box in self.effect_offset:
+                box.setValue(0.0)
+            for box in self.look_factors.values():
+                box.setValue(1.0)
+            draft = self._controller.draft
+            draft.effect_scale = float(scale)
+            draft.effect_offset = (0.0, 0.0, 0.0)
+            draft.effect_color = None
+            draft.effect_intensity = 1.0
+            draft.effect_size = 1.0
+            draft.effect_rate = 1.0
+            draft.effect_lifetime = 1.0
+            self.color_button.setText("Colour: as shipped")
+            self.color_button.setStyleSheet("")
+        finally:
+            self._syncing_effect = False
+        if invalidate:
+            self._controller.invalidate_plan()
+        self._refresh_facts()
+        self._refresh_effect_selection()
 
     def _pick_color(self) -> None:
         from PySide6.QtGui import QColor
@@ -359,6 +492,7 @@ class PerksPanel(QGroupBox):
             self.color_button.setText(f"Colour: #{r:02x}{g:02x}{b:02x}")
             self.color_button.setStyleSheet(f"background-color: rgb({r},{g},{b}); color: {'black' if (r + g + b) > 380 else 'white'};")
         self._controller.invalidate_plan()
+        self._refresh_effect_selection()
 
     def _reset_color(self) -> None:
         self.set_effect_color(None)
@@ -410,7 +544,7 @@ class PerksPanel(QGroupBox):
             self.effect_facts.setText("")
             return
         if facts is None:
-            self.effect_facts.setText("Index the effects to see what this one draws and how big it is.")
+            self.effect_facts.setText("The optional index adds technical contents and approximate dimensions for this file.")
             return
         emitters = ", ".join(name.rsplit("/", 1)[-1] for name in facts.emitters) or "none named"
         textures = ", ".join(path.rsplit("/", 1)[-1] for path in facts.textures) or "none"
@@ -419,8 +553,10 @@ class PerksPanel(QGroupBox):
         scale = float(self.effect_scale.value())
         loop = "loops" if facts.loops else f"plays once ({facts.max_spawnable_time:.1f} s)"
         text = (
-            f"{facts.name or facts.stem}: emitters {emitters}; textures {textures}; "
-            f"box {width:.2f} x {height:.2f} x {depth:.2f} m, at scale {scale:.2f}: {width * scale:.2f} x {height * scale:.2f} x {depth * scale:.2f} m; {loop}"
+            f"{facts.name or facts.stem}\n"
+            f"Behavior: {loop}. Approximate box at scale {scale:.2f}: "
+            f"{width * scale:.2f} × {height * scale:.2f} × {depth * scale:.2f} m.\n"
+            f"Technical contents: emitters {emitters}; textures {textures}"
         )
         if meshes:
             text += f"; meshes {meshes}"
@@ -443,46 +579,143 @@ class PerksPanel(QGroupBox):
                     self.effect_preset.setItemData(self.effect_preset.count() - 1, f"{preset.stem}: {preset.note}", Qt.ItemDataRole.ToolTipRole)
         finally:
             self.effect_preset.blockSignals(False)
+        self._sync_preset_to_effect()
 
     def _preset_chosen(self, index: int) -> None:
+        if self._syncing_effect:
+            return
         stem = self.effect_preset.itemData(index) if index >= 0 else ""
         if stem:
-            self.choose_effect(str(stem))
+            scale = 1.0
             for preset in presets_for(None):
                 if preset.stem == str(stem):
-                    self.effect_scale.setValue(float(preset.scale))
+                    scale = float(preset.scale)
                     break
+            self.choose_effect(str(stem), scale=scale)
 
     def _refresh_effects(self, *_args) -> None:
-        current = self.effect.currentData()
+        current = str(self._controller.draft.effect_stem or "")
+        matches = list(self._controller.effect_stems(self.effect_filter.text()))
+        if current and current not in matches:
+            matches.insert(0, current)
         self.effect.blockSignals(True)
         try:
             self.effect.clear()
-            for stem in self._controller.effect_stems(self.effect_filter.text()):
+            self.effect.addItem("Choose an effect file...", "")
+            for stem in matches:
                 self.effect.addItem(stem, stem)
-            if current is not None:
+            if current:
                 index = self.effect.findData(current)
                 if index >= 0:
                     self.effect.setCurrentIndex(index)
         finally:
             self.effect.blockSignals(False)
-        self._effect_changed(self.effect.currentIndex())
-
-    def _effect_changed(self, _index: int) -> None:
-        stem = self.effect.currentData() if self.use_effect.isChecked() else None
-        self._controller.draft.effect_stem = str(stem or "")
-        self._controller.invalidate_plan()
         self._refresh_facts()
 
-    def choose_effect(self, stem: str) -> None:
+    def _effect_changed(self, _index: int) -> None:
+        if self._syncing_effect:
+            return
+        stem = str(self.effect.currentData() or "") if self.use_effect.isChecked() else ""
+        draft = self._controller.draft
+        if stem == draft.effect_stem:
+            self._refresh_facts()
+            self._refresh_effect_selection()
+            return
+        draft.effect_stem = stem
+        self._reset_effect_tuning(invalidate=False)
+        self._sync_preset_to_effect()
+        self._controller.invalidate_plan()
+        self._refresh_facts()
+        self._refresh_effect_selection()
+
+    def choose_effect(self, stem: str, *, scale: float = 1.0) -> None:
         """Select an effect by stem (used by tests and by callers with a known effect)."""
 
+        clean = str(stem or "").strip()
+        if not clean:
+            return
         self.use_effect.setChecked(True)
-        self.effect_filter.setText(str(stem))
-        index = self.effect.findData(str(stem))
-        if index >= 0:
-            self.effect.setCurrentIndex(index)
-        self._effect_changed(index)
+        self._syncing_effect = True
+        try:
+            self.effect_filter.setText(clean)
+            index = self.effect.findData(clean)
+            if index >= 0:
+                self.effect.setCurrentIndex(index)
+            self._controller.draft.effect_stem = clean
+        finally:
+            self._syncing_effect = False
+        self._reset_effect_tuning(scale=float(scale), invalidate=False)
+        self._sync_preset_to_effect()
+        self._controller.invalidate_plan()
+        self._refresh_facts()
+        self._refresh_effect_selection()
+
+    def _sync_preset_to_effect(self) -> None:
+        stem = str(self._controller.draft.effect_stem or "")
+        index = self.effect_preset.findData(stem) if stem else 0
+        self._syncing_effect = True
+        try:
+            self.effect_preset.setCurrentIndex(index if index >= 0 else 0)
+        finally:
+            self._syncing_effect = False
+
+    def _refresh_effect_selection(self) -> None:
+        stem = str(self._controller.draft.effect_stem or "")
+        if not self.use_effect.isChecked():
+            self.effect_selection.set_note("No visual effect. Gameplay damage is unchanged.", None)
+            return
+        if not stem:
+            self.effect_selection.set_note("Choose a curated visual. Nothing is added until one is selected.", WARN)
+            return
+        preset = next((item for item in presets_for(None) if item.stem == stem), None)
+        label = preset.label if preset is not None else stem
+        draft = self._controller.draft
+        customized = bool(
+            draft.effect_color is not None
+            or draft.effect_scale != (float(preset.scale) if preset is not None else 1.0)
+            or draft.effect_offset != (0.0, 0.0, 0.0)
+            or any(value != 1.0 for value in (draft.effect_intensity, draft.effect_size, draft.effect_rate, draft.effect_lifetime))
+        )
+        suffix = " Advanced tuning differs from its starting values." if customized else " Using its starting values."
+        self.effect_selection.set_note(f"Selected visual: {label}. Visual only; attack damage is unchanged.{suffix}", WARN if customized else None)
+
+    def _refresh_effect_support(self) -> None:
+        snapshot = self._controller.snapshot
+        key = self._controller.draft.template_key
+        if snapshot is None or key is None:
+            supported = False
+            text = "Choose a template before adding a weapon visual."
+        else:
+            row = snapshot.row(int(key))
+            equip = snapshot.equip_type_name(row) or "Unknown equipment type"
+            compact = "".join(character for character in equip.casefold() if character.isalnum())
+            armour_tokens = ("armor", "armour", "helm", "glove", "handwear", "boot", "shoe", "footwear", "ring", "earring", "necklace", "belt", "cloak", "cape")
+            supported = not any(token in compact for token in armour_tokens)
+            text = (
+                f"{equip}: weapon-prefab visuals are available, but each effect still needs an in-game fit check."
+                if supported else
+                f"{equip}: this prefab effect path is unavailable for armour and accessories, so no visual effect will be exported."
+            )
+        if not supported and self.use_effect.isChecked():
+            self.use_effect.setChecked(False)
+        self.use_effect.setEnabled(supported)
+        self.effect_support.set_note(text, None if supported else WARN)
+        self._refresh_effect_selection()
+
+    def perks_summary(self) -> tuple[str, bool]:
+        selected = self._controller.draft.socket_items
+        template = tuple(self._controller.template_socket_items())
+        if selected is None or tuple(selected) == template:
+            return f"Perks: template list ({len(template)})", False
+        return f"Perks: {len(selected)} custom", True
+
+    def effect_summary(self) -> tuple[str, bool]:
+        stem = str(self._controller.draft.effect_stem or "")
+        if not stem:
+            return ("Weapon appearance: choose a visual", False) if self.use_effect.isChecked() else ("Weapon appearance: none", False)
+        preset = next((item for item in presets_for(None) if item.stem == stem), None)
+        label = preset.label if preset is not None else stem
+        return f"Weapon appearance: {label} (visual only)", True
 
     def _placement_dialogs(self):
         from cdmw.ui.new_item.effect_placement_dialog import EffectPlacementDialog

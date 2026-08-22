@@ -16,6 +16,15 @@ threads discoverable to the shell close sweep; no New Item widget waits on its
 own worker. The `panels_*.py` modules edit the draft and ask the
 controller for facts; `tab.py` composes them, and forwards install to the shell.
 
+The default Stats view labels ItemInfo values as raw game data and compares a
+selected cell with the template and shipped range; arbitrary stats, flat values,
+extra levels and separate enhancement rows stay under an experimental fold. The
+Abilities and weapon appearance step keeps gameplay perks separate from visual-only
+weapon effects. Four perks is the evidence-backed default cap, five to eight requires
+an explicit experimental opt-in, and raw effect browsing, placement numbers, colour
+and particle factors stay under Advanced. Reset actions clear the corresponding draft
+authority, and the rail summarizes effective changes rather than UI mode.
+
 The Model and icon step imports a model file itself: `model_import.py` reads it
 the way the Model Library does (the scene import, the source's own textures),
 `item_preview.py` shows it over the template in the resident viewport with the
