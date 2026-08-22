@@ -1332,6 +1332,14 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
 // texture sits past the material slots so neither pass disturbs the other.
 // ---------------------------------------------------------------------------
 Texture2D ParticleTexture : register(t11);
+// The scene's depth, bound read-only during the particle pass so a sprite can fade
+// where it approaches geometry instead of slicing through it. The camera is
+// orthographic, so NDC depth is linear and OverlayColor.z is the fade window as an
+// NDC delta. The host binds t12 for a single-sampled target and t13 for a
+// multisampled one, and says which with OverlayColor.y; OverlayColor.x gates the
+// whole fade.
+Texture2D<float> ParticleSceneDepth : register(t12);
+Texture2DMS<float> ParticleSceneDepthMS : register(t13);
 
 struct ParticleVSInput
 {
@@ -1395,9 +1403,23 @@ float4 PSParticle(ParticleVSOutput input) : SV_Target
         float radius = length(input.Corner * 2.0f - 1.0f);
         colour.a *= saturate(1.0f - smoothstep(0.35f, 1.0f, radius));
     }
+    if (OverlayColor.x > 0.5f)
+    {
+        // the soft fade: how far behind this pixel the scene sits, in NDC depth,
+        // over the fade window. At the surface that is 0 and the sprite vanishes
+        // instead of cutting a line across the blade.
+        int2 pixel = int2(input.Position.xy);
+        float sceneDepth = OverlayColor.y > 0.5f
+            ? ParticleSceneDepthMS.Load(pixel, 0)
+            : ParticleSceneDepth.Load(int3(pixel, 0));
+        colour.a *= saturate((sceneDepth - input.Position.z) / max(OverlayColor.z, 1e-6f));
+    }
     if (colour.a <= 0.002f)
     {
         discard;
     }
+    // premultiplied: the blend states expect alpha already folded into the colour
+    // (screen blending for additive emitters, One/InvSrcAlpha for alpha ones)
+    colour.rgb *= colour.a;
     return colour;
 }

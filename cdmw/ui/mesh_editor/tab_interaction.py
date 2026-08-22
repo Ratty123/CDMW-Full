@@ -493,11 +493,16 @@ class MeshEditorInteractionMixin:
         except TypeError:
             has_groups_for_reuse = False
         resident_selection_active = False
-        if tool in {"move", "vertex", "grab", "smooth", "inflate", "pinch"}:
+        if normalized_phase == "begin" and tool in {"move", "vertex", "grab", "smooth", "inflate", "pinch"}:
             # A resident .NET stroke must keep the Python-authoritative
             # selection instead of replacing it with the helper's broad
             # screen/candidate set.  Legacy native-host strokes still own and
             # forward their binary selection descriptor on begin.
+            # Only the begin phase consumes this value, and session_view()
+            # takes the session's export lock: asking on every pointer sample
+            # serialized the UI thread against whichever native apply held the
+            # lock, so stroke events queued at the apply's pace instead of the
+            # pointer's.
             controller = getattr(self, "standalone_dotnet_target_controller", None)
             try:
                 resident_selection_active = controller is not None and not controller.session_view().selection.is_empty()

@@ -764,6 +764,15 @@ struct MeshSessionSubmesh {
     std::vector<Vec3> vertices;
     std::vector<std::array<int, 3>> faces;
     std::vector<int> source_face_indices;
+    // Raw caller face offset per compacted face, captured only when this
+    // submesh was stored from faces json that dropped malformed rows, so a
+    // face selection made against the caller's raw face list can be
+    // translated into compact offsets exactly once. Empty means the spaces
+    // agree. A topology-changing rewrite builds a fresh submesh and leaves
+    // this empty: from then on compact offsets are the only face-selection
+    // space, while source_face_indices above moves on to ancestor
+    // bookkeeping and must never be read as a selection space again.
+    std::vector<int> input_face_offsets;
     std::vector<Vec3> normals;
     std::vector<Vec2> uvs;
     std::vector<Vec3> tangents;

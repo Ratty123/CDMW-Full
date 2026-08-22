@@ -705,20 +705,30 @@ class _Planner:
             self.warnings.append("The chosen look edits nothing this effect carries (no colour, brightness, scale, spawn count or lifetime member); the clone draws as shipped.")
 
     def _graft_effect(self, prefab: bytes, donor: bytes, new_path: str) -> bytes:
+        from cdmw.services.effect_placement_rotation import euler_xyz_quaternion
+
         try:
             scale = float(self.spec.effect_scale)
             offset = tuple(float(v) for v in self.spec.effect_offset)
+            rotation = tuple(float(v) for v in self.spec.effect_rotation_degrees)
             result = graft_prefab_component(
                 prefab, donor, component_type="EffectComponent",
                 path_replacements={EFFECT_DONOR_PATH: str(self.effect_reference)},
-                offset_transform=encode_transform(scale=(scale, scale, scale), position=offset),
+                offset_transform=encode_transform(
+                    scale=(scale, scale, scale),
+                    rotation=euler_xyz_quaternion(rotation),
+                    position=offset,
+                ),
             )
         except PrefabEditError as exc:
             raise NewItemPlanError(f"{new_path}: the effect could not be grafted: {exc}") from exc
         self.manifest["effect"]["prefabs"].append(new_path)
         self.manifest["effect"]["scale"] = scale
         self.manifest["effect"]["offset"] = list(offset)
+        self.manifest["effect"]["rotation_degrees"] = list(rotation)
         placed = f", scale {scale:g}" + (f", offset {offset[0]:g} {offset[1]:g} {offset[2]:g}" if any(offset) else "")
+        if any(rotation):
+            placed += f", rotation {rotation[0]:g} {rotation[1]:g} {rotation[2]:g} deg"
         self.summary.append(f"effect: {self.effect_reference} grafted into {new_path.rsplit('/', 1)[-1]} ({', '.join(result.types_added) or 'types already declared'}{placed})")
         return result.data
 

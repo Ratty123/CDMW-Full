@@ -32,6 +32,10 @@ internal sealed partial class D3D11MaterialViewport : Control
     private ID3D11RenderTargetView? _renderTargetView;
     private ID3D11Texture2D? _depthTexture;
     private ID3D11DepthStencilView? _depthStencilView;
+    // the same depth, readable while still bound for testing: the particle pass's
+    // soft fade samples it; both stay null when their creation is refused
+    private ID3D11DepthStencilView? _depthStencilReadOnlyView;
+    private ID3D11ShaderResourceView? _depthShaderResourceView;
     private ID3D11VertexShader? _vertexShader;
     private ID3D11PixelShader? _pixelShader;
     private ID3D11VertexShader? _overlayVertexShader;

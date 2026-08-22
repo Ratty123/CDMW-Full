@@ -77,11 +77,19 @@ converts edit results into native preview update payloads.
 surface. They map visible tools to service command keys without applying edits.
 Topology tools include local Subdivide and Refine Smooth. Their shared action
 descriptor owns the 200,000-faces-per-submesh safety cap, which is merged into
-resident requests before caller overrides. Faces subdivide exactly; selected
-wires and vertices expand to incident faces and remap back to the split wires or
-the original/generated vertices. Geometry and selection are one native history
-pair, so one Undo or Redo restores both. The Builder adopts the native remapped
-selection after topology rather than clearing its mirror independently.
+resident requests before caller overrides; a request the cap rejects reports
+the native reason and leaves the resident session exactly as it was. Faces
+subdivide exactly; selected wires and vertices expand to incident faces. An
+unselected neighbour across the region border is stitched against the new
+midpoints on its edges rather than left spanning them as a T-junction. The
+remapped selection keeps the original vertices, the split wires, and the
+midpoints of fully selected wires only, so repeating the command refines the
+same region instead of adopting the bled boundary ring and quadrupling it per
+click. Face-selection values are compact face offsets everywhere in the
+resident session; per-face source indices are ancestor bookkeeping, never a
+selection space. Geometry and selection are one native history pair, so one
+Undo or Redo restores both. The Builder adopts the native remapped selection
+after topology rather than clearing its mirror independently.
 Normal tools include service-routed recalc, tangent generation, flip,
 sharpen/soften, weighted normals, and source-normal copy commands; cleanup
 tools include remove doubles, delete loose vertices, compact orphans, winding

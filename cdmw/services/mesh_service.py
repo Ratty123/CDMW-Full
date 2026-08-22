@@ -190,7 +190,7 @@ from cdmw.services.mesh_service_payloads import (
     _mesh_edit_selection_signature,
     _native_editor_selection_payload_for_apply,
     _add_native_editor_binary_vertex_selection_payload,
-    _native_editor_selection_signature_for_apply,
+    _native_editor_selection_request_for_apply, _native_editor_selection_signature_for_apply,
     _freeze_native_selection_value,
     _can_reuse_native_live_stroke_selection,
     _can_reuse_native_stroke_begin_selection,

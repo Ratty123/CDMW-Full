@@ -553,6 +553,7 @@ from cdmw.modding.mesh_native_dispatch import (
     _run_native_mesh_core_service_inline_job as _run_native_mesh_core_service_inline_job,
     _run_native_mesh_core_job as _run_native_mesh_core_job,
     last_native_mesh_core_job_error as last_native_mesh_core_job_error,
+    last_native_mesh_core_job_rejection as last_native_mesh_core_job_rejection,
 )
 
 

@@ -712,7 +712,12 @@ def test_dotnet_provisional_picking_and_mutation_responses_are_authority_safe() 
     assert "nearestDistance + depthTolerance < candidateDistance" in occlusion
     assert "ActivePaneIncludesForPicking(submeshIndex)" in occlusion
     assert "ShowXRay" in occlusion
-    assert "ShowXRay || !IsWorldPointOccluded" in picking
+    # Edge hover picks resolve occlusion once per cursor position and compare
+    # every candidate against that scan, instead of re-walking every face per
+    # candidate through IsWorldPointOccluded.
+    assert "WorldPointBehindNearestSurface" in occlusion
+    assert "WorldPointBehindNearestSurface(" in picking
+    assert "!IsWorldPointOccluded(" in picking
     assert "return TryNearestVisibleSurface(point" in picking
 
     assert "SelectionAuthoritySnapshot" in selection_authority
@@ -1194,23 +1199,27 @@ def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
     )
     assert 'region["mode"] = "lasso";' in finish
     assert 'region["points"]' in finish
-    # A step longer than the brush radius becomes a swept-segment quad, so the
-    # painted band has no holes at any cursor speed: the 30ms cadence bounds
+    # A step longer than the brush radius -- or a pointer path that bowed away
+    # from the straight chord between throttled samples -- becomes a native
+    # brush-path band over the polyline actually swept, so the painted band has
+    # no holes at any cursor speed or curvature: the 30ms cadence bounds
     # message rate, never coverage.
-    assert "private void EmitSelectionSweepQuad(" in picking_source
+    assert "private void EmitSelectionSweepPath(" in picking_source
     sampler = picking_source.split(
         "private void MaybeEmitSelectionPaintSample(Point point, bool final = false)", maxsplit=1
-    )[1].split("private void EmitSelectionSweepQuad(", maxsplit=1)[0]
+    )[1].split("private void EmitSelectionSweepPath(", maxsplit=1)[0]
     assert "stepLength > radius" in sampler
+    assert "SelectionPaintPathLeavesChord(previous, point, radius)" in sampler
     assert "toggleGesture" in sampler
     assert "EmitFinalTogglePaintSelection();" in sampler
-    sweep = picking_source.split("private void EmitSelectionSweepQuad(", maxsplit=1)[1]
-    assert 'region["mode"] = "lasso";' in sweep
+    sweep = picking_source.split("private void EmitSelectionSweepPath(", maxsplit=1)[1]
+    assert 'region["mode"] = "brush";' in sweep
+    assert 'region["radius_pixels"] = radius;' in sweep
     assert '["paint_sample"] = true' in sweep
     assert "_selectionPaintToggleTouchedVertices.Add((submeshIndex, vertexIndex))" in picking_source
     toggle_finish = picking_source.split(
         "private void EmitFinalTogglePaintSelection()", maxsplit=1
-    )[1].split("private void EmitSelectionSweepQuad(", maxsplit=1)[0]
+    )[1].split("private void EmitSelectionSweepPath(", maxsplit=1)[0]
     assert 'region["mode"] = "brush";' in toggle_finish
     assert 'region["points"] = path' in toggle_finish
     assert 'region["radius_pixels"] = SelectionPaintRadiusPixels();' in toggle_finish
@@ -1218,8 +1227,12 @@ def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
     assert '["operation"] = "toggle"' in toggle_finish
     assert '["local_selection"]' not in toggle_finish
     assert "ProvisionalSelectionVertexBudget" not in picking_source
-    assert "FrontFacingVertices" in picking_source
+    # The visible-mode echo filters by the same kind of occlusion raster the
+    # native authority uses, not by face orientation alone.
+    assert "OcclusionDepths" in picking_source
+    assert "PaintSegmentVisible" in picking_source
     assert "VertexBuckets" in picking_source
+    assert "EdgeBuckets" in picking_source
     assert "PartBounds" in picking_source
 
     renderer_source = _source("MeshViewport.Renderer.cs")

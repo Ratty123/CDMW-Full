@@ -622,6 +622,16 @@ class PlanTests(_PackageCase):
         self.assertIn(encode_transform(scale=(0.25, 0.25, 0.25), position=(0.0, 0.1, -0.05)), prefab)
         self.assertNotIn(encode_transform(), prefab, "no identity transform left in the graft")
         self.assertTrue(any("scale 0.25, offset 0 0.1 -0.05" in line for line in placed.summary_lines), placed.summary_lines)
+        # and a turn goes in as the quaternion of the same rotation the viewport showed
+        from cdmw.services.effect_placement_rotation import euler_xyz_quaternion
+        turned = self.service.plan(
+            self._spec(model_source=ModelSource.TEMPLATE, effect="fx_test_fire.level.effect", effect_rotation_degrees=(0.0, 0.0, 90.0)),
+            self.snapshot,
+        )
+        turned_prefab = {r.path: r for r in turned.additions}[f"character/bin__/prefab/{FOLDER}/{new_stem}_r.prefab"].payload_data
+        self.assertIn(encode_transform(rotation=euler_xyz_quaternion((0.0, 0.0, 90.0))), turned_prefab)
+        self.assertEqual(turned.manifest["effect"]["rotation_degrees"], [0.0, 0.0, 90.0])
+        self.assertTrue(any("rotation 0 0 90 deg" in line for line in turned.summary_lines), turned.summary_lines)
         # the item's row points at its own part stems and the part-prefab table knows them
         files = dict(plan.loose_files)
         pappt = parse_pappt(files["character/bin__/partprefabtable.pappt"])

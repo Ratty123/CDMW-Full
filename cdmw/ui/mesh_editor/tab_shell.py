@@ -814,6 +814,7 @@ class MeshEditorTabShellMixin(
             self._finish_pending_textured_view(
                 success=False,
                 reason="package_error",
+                status_text=str(message or ".NET/Vortice package update failed."),
             )
             self._set_dotnet_status(str(message or ".NET/Vortice package update failed."), error=True)
 

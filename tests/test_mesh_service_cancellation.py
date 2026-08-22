@@ -16,15 +16,15 @@ def test_cancel_during_native_selection_preparation_never_opens_helper() -> None
     view = service.open_edit_session(build_synthetic_mesh(), session_id="cancel-selection-prep", mode="edit")
     stop_event = threading.Event()
 
-    def cancel_after_signature(*_args: object) -> tuple[str, tuple[object, ...]]:
+    def cancel_after_preparation(*_args: object) -> tuple[dict[str, object], tuple[object, ...]]:
         stop_event.set()
-        return ("selection", ())
+        return ({}, ("selection", ()))
 
     with (
         patch("cdmw.services.mesh_service.native_mesh_core_available", return_value=True),
         patch(
-            "cdmw.services.mesh_service._native_editor_selection_signature_for_apply",
-            side_effect=cancel_after_signature,
+            "cdmw.services.mesh_service._native_editor_selection_request_for_apply",
+            side_effect=cancel_after_preparation,
         ),
         patch("cdmw.services.mesh_service.open_native_mesh_editor_session") as open_native,
         pytest.raises(RunCancelled, match="cancelled"),

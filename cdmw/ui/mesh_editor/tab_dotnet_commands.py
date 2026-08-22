@@ -438,6 +438,13 @@ class MeshEditorDotNetCommandMixin(MeshEditorDotNetNamedCommandMixin):
             vertex_group_count=len(tuple(update.vertex_groups or ())),
             triangle_group_count=len(tuple(update.triangle_groups or ())),
             selection_group_count=len(tuple(update.selection_groups or ())),
+            # The apply already measured itself (editor_open/native_apply/cpp/io
+            # milliseconds); until now the numbers died with the result object,
+            # so a multi-second stroke in a trail could not name its slow stage.
+            result_metrics={
+                str(key): round(float(value), 3)
+                for key, value in dict(outcome.result.metrics or {}).items()
+            },
         )
         selection_outcome = outcome.source == "dotnet_selection"
         terminal_selection_presentation = (

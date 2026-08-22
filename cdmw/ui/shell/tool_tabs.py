@@ -99,6 +99,15 @@ class ShellToolTabsMixin:
                 self, "archive_sidecar_entries_by_texture_basename", {}
             )
             or {},
+            # True while the deferred path-lookup build is missing and being
+            # started or warmed, so the Mesh Editor can hold its material
+            # resolution instead of resolving against empty indexes. The
+            # Archive Browser preview makes the identical call before it
+            # previews a model.
+            ensure_archive_texture_indexes=lambda: bool(
+                callable(getattr(self, "_ensure_archive_basic_index_worker_started", None))
+                and self._ensure_archive_basic_index_worker_started()
+            ),
             get_archive_mutation_service=_archive_mutations,
             get_archive_material_preview_model=_archive_material_preview_model,
         )

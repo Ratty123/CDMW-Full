@@ -122,7 +122,7 @@ PROVIDER_SOURCE_HASHES = {
     'cdmw/ui/shell/support_dialog.py': '4c5b8d27ae4f45423a25481ea195fbe390cba57cc731c9ac2e910454ec773011',
     'cdmw/ui/shell/texture_workspace_layout.py': '286dc5a23d749a2cf2a5987818f6839b17382fbf6ed8333b74df561f6000d46b',
     'cdmw/ui/shell/theme_controller.py': '4e804a1afc6f7311e447c36dcb02c9d1a7e7e89d492a605d2aa03ec647aa698c',
-    'cdmw/ui/shell/tool_tabs.py': 'a61da1e32ea0f12b9246396e396d43da7ffd4fdb8ec001a8d5bc15e3503c037f',
+    'cdmw/ui/shell/tool_tabs.py': '9fc9b1ad8c422e2f4d510b069b7ef19426a2c43bf01b4d392007a77c5bcdcdd3',
     'cdmw/ui/shell/utility_controller.py': 'e4362c7393a1c59c02165a6c7a6362f44fa653d3e3c184077366fecb63ee60ea',
     'cdmw/ui/shell/window_bootstrap_state.py': '77d2ff16d0d9fedc2bc481b08e2779deed512ff51b70bd3a9c08088bd917a2c4',
     'cdmw/ui/shell/window_feature_providers.py': 'c7342a1404eeb73d9f22144a30e0e72a7d8d68d34e8030181e2e98eaa877ee3f',

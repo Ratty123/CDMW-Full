@@ -23,12 +23,31 @@ internal sealed partial class MeshViewport
         {
             return false;
         }
+        return WorldPointBehindNearestSurface(
+            rayOrigin,
+            rayDirection,
+            nearestDistance,
+            Math.Max(_scene.SceneExtent * 0.01f, 0.0005f),
+            worldPoint);
+    }
+
+    /// <summary>
+    /// The comparison half of <see cref="IsWorldPointOccluded"/>, for callers
+    /// that test many candidates against one cursor: the nearest-surface scan
+    /// runs once per pick, not once per candidate.
+    /// </summary>
+    private static bool WorldPointBehindNearestSurface(
+        Vector3 rayOrigin,
+        Vector3 rayDirection,
+        float nearestDistance,
+        float depthTolerance,
+        Vector3 worldPoint)
+    {
         var candidateDistance = Vector3.Dot(worldPoint - rayOrigin, rayDirection);
         if (!float.IsFinite(candidateDistance) || candidateDistance <= 0.0f)
         {
             return true;
         }
-        var depthTolerance = Math.Max(_scene.SceneExtent * 0.01f, 0.0005f);
         return nearestDistance + depthTolerance < candidateDistance;
     }
 
@@ -55,7 +74,8 @@ internal sealed partial class MeshViewport
         Vector3 rayDirection,
         out float distance,
         out int nearestSubmeshIndex,
-        out int nearestFaceIndex)
+        out int nearestFaceIndex,
+        Dictionary<int, sbyte[]>? faceOrientationScratch = null)
     {
         distance = float.PositiveInfinity;
         nearestSubmeshIndex = -1;
@@ -73,18 +93,23 @@ internal sealed partial class MeshViewport
             {
                 var face = submesh.Faces[faceIndex];
                 if (face.Corners.Length != 3
-                    || !IsFaceFrontFacing(submeshIndex, faceIndex, camera))
+                    || !IsFaceFrontFacingCached(submeshIndex, faceIndex, camera, faceOrientationScratch))
                 {
                     continue;
                 }
-                var indices = face.Corners.Select(corner => corner.VertexIndex).ToArray();
-                if (indices.Any(index => index < 0 || index >= submesh.Vertices.Count))
+                var indexA = face.Corners[0].VertexIndex;
+                var indexB = face.Corners[1].VertexIndex;
+                var indexC = face.Corners[2].VertexIndex;
+                if (indexA < 0 || indexB < 0 || indexC < 0
+                    || indexA >= submesh.Vertices.Count
+                    || indexB >= submesh.Vertices.Count
+                    || indexC >= submesh.Vertices.Count)
                 {
                     continue;
                 }
-                var a = SceneWorldPoint(submeshIndex, submesh.Vertices[indices[0]]);
-                var b = SceneWorldPoint(submeshIndex, submesh.Vertices[indices[1]]);
-                var c = SceneWorldPoint(submeshIndex, submesh.Vertices[indices[2]]);
+                var a = SceneWorldPoint(submeshIndex, submesh.Vertices[indexA]);
+                var b = SceneWorldPoint(submeshIndex, submesh.Vertices[indexB]);
+                var c = SceneWorldPoint(submeshIndex, submesh.Vertices[indexC]);
                 if (RayIntersectsTriangle(rayOrigin, rayDirection, a, b, c, out var hitDistance)
                     && hitDistance < distance)
                 {

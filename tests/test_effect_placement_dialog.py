@@ -56,6 +56,7 @@ class _Host(QWidget):
     """What the dialog asks a viewport to do, written down instead of drawn."""
 
     alignment_drag_finished = Signal(float, float, float)
+    alignment_rotation_finished = Signal(float, float, float)
     alignment_scale_finished = Signal(float, float, float)
 
     def __init__(self, parent=None) -> None:
@@ -68,9 +69,14 @@ class _Host(QWidget):
         self.transforms: list = []
         self.paused: list = []
         self.backdrops: list = []
+        self.gizmo_tools: list = []
         self.remembered: tuple = ()
         self.loaded = None
         self.controller = _Controller(self)
+
+    def set_alignment_gizmo_tool(self, tool: str) -> bool:
+        self.gizmo_tools.append(str(tool))
+        return True
 
     def set_view(self, *, yaw, pitch, zoom_factor=None, fit_to_view=None, role="replacement", **_rest) -> bool:
         self.views.append((float(yaw), float(pitch), fit_to_view))
@@ -157,11 +163,12 @@ class DialogTests(unittest.TestCase):
         dialog = self._dialog()
         dialog.show_character.setChecked(True)
         dialog.show_reach.setChecked(True)
-        self.assertEqual(self._legend(dialog), ["anchor", "item", "body", "reach", "particles"])
+        self.assertEqual(self._legend(dialog), ["anchor", "axes", "item", "body", "reach", "particles"])
         dialog.show_character.setChecked(False)
         dialog.show_reach.setChecked(False)
-        # the anchor, the item and the particles are always drawn, so they are always named
-        self.assertEqual(self._legend(dialog), ["anchor", "item", "particles"])
+        # the anchor, its axes, the item and the particles are always drawn, so they
+        # are always named
+        self.assertEqual(self._legend(dialog), ["anchor", "axes", "item", "particles"])
         self.assertIn("character", dialog.legend_rows["body"].text())
         self.assertIn("1.75 m", dialog.legend_rows["body"].text())
 
@@ -291,7 +298,9 @@ class DialogTests(unittest.TestCase):
             box_min=(-1.0, -1.0, -1.0), box_max=(1.0, 1.0, 1.0),
             reach_submesh_index=1, body_submesh_index=3, item_rotation=quarter,
         )
-        dialog._rotation = quarter
+        from cdmw.ui.new_item.effect_placement_dialog_support import PlacementFrame
+
+        dialog._frame = PlacementFrame(quarter)
         dialog._set_numbers((0.0, 0.0, 0.5), 1.0)
         dialog._sync_host()
         sent = dialog.host.transforms[-1]["translation"]
@@ -308,6 +317,60 @@ class DialogTests(unittest.TestCase):
         self.assertEqual(tuple(plain.host.transforms[-1]["translation"]), (0.0, 0.0, 0.5))
         plain._drag_finished(0.0, 0.1, 0.0)
         self.assertEqual(tuple(round(v, 6) for v in plain.offset), (0.0, 0.1, 0.5))
+
+    def test_the_rotate_tool_reaches_the_gizmo_and_a_ring_drag_lands_in_the_boxes(self) -> None:
+        """The helper's placement gizmo has carried rotate rings all along; the dialog
+        now offers them. A ring drag reports scene-frame degree deltas, and the numbers
+        the dialog keeps are the item's own."""
+
+        dialog = self._dialog()
+        dialog.rotate_button.click()
+        self.assertEqual(dialog.host.gizmo_tools, ["rotate"])
+        self.assertTrue(dialog.rotate_button.isChecked())
+        self.assertFalse(dialog.move_button.isChecked())
+
+        dialog._rotation_finished(0.0, 0.0, 30.0)
+        self.assertEqual(dialog.rotation, (0.0, 0.0, 30.0))
+        self.assertEqual([spin.value() for spin in dialog.rotation_spins], [0.0, 0.0, 30.0])
+        sent = dialog.host.transforms[-1]["rotation_degrees"]
+        self.assertEqual(tuple(round(v, 3) for v in sent), (0.0, 0.0, 30.0))
+        # a second drag composes rather than replaces
+        dialog._rotation_finished(0.0, 0.0, 30.0)
+        self.assertEqual(dialog.rotation, (0.0, 0.0, 60.0))
+
+    def test_a_ring_drag_crosses_the_character_frame_back_into_the_item_s(self) -> None:
+        """With the character on screen the scene is a turn away from the item's frame:
+        the ring the reader drags is the scene's, the numbers stay the item's, and the
+        game's transform gets the item-frame turn."""
+
+        from cdmw.ui.new_item.effect_placement_dialog_support import PlacementFrame
+
+        # a quarter turn about x: the item's +z becomes the scene's -y, so the scene's
+        # +y ring is the item's -z axis
+        quarter = (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0)
+        dialog = self._dialog()
+        dialog._frame = PlacementFrame(quarter)
+        dialog._rotation_finished(0.0, 30.0, 0.0)
+        self.assertEqual(tuple(round(v, 3) for v in dialog.rotation), (0.0, 0.0, -30.0))
+        # and what goes back out to the viewport is the scene's own euler again
+        sent = dialog.host.transforms[-1]["rotation_degrees"]
+        self.assertEqual(tuple(round(v, 3) for v in sent), (0.0, 30.0, 0.0))
+
+    def test_rotation_spin_edits_and_deltas_share_one_state(self) -> None:
+        dialog = self._dialog(rotation=(0.0, 15.0, 0.0))
+        self.assertEqual([spin.value() for spin in dialog.rotation_spins], [0.0, 15.0, 0.0])
+        dialog.rotation_spins[1].setValue(45.0)
+        self.assertEqual(dialog.rotation, (0.0, 45.0, 0.0))
+        sent = dialog.host.transforms[-1]["rotation_degrees"]
+        self.assertEqual(tuple(round(v, 3) for v in sent), (0.0, 45.0, 0.0))
+        dialog.apply_deltas(rotation_delta=(0.0, 0.0, 90.0))
+        self.assertEqual(tuple(round(v, 1) for v in dialog.rotation), (0.0, 45.0, 90.0))
+
+    def test_a_turn_past_a_half_circle_reads_as_the_short_way_round(self) -> None:
+        dialog = self._dialog()
+        dialog._rotation_finished(0.0, 0.0, 170.0)
+        dialog._rotation_finished(0.0, 0.0, 40.0)
+        self.assertEqual(tuple(round(v, 1) for v in dialog.rotation), (0.0, 0.0, -150.0))
 
     def test_the_character_s_submeshes_all_hide_together(self) -> None:
         """The game's character is several meshes; hiding one of them leaves the rest."""
@@ -358,7 +421,7 @@ class DialogTests(unittest.TestCase):
         self._settle(lambda: dialog._preview is not None)
         self.assertIsNotNone(dialog._preview, "the package was built")
         self.assertEqual(dialog._preview.item_rotation, quarter, "the rotation went in and came back")
-        self.assertEqual(dialog._rotation, quarter, "and the dialog carries its numbers across it")
+        self.assertEqual(dialog._frame.rotation, quarter, "and the dialog carries its numbers across it")
         self.assertEqual(dialog._preview.body_submesh_count, 1)
         self.assertIn("game's character", dialog.legend_rows["body"].text())
         self.assertIn("the angle the game holds it", dialog.show_character.toolTip())
@@ -437,21 +500,21 @@ class DialogTests(unittest.TestCase):
         backdrop; the Mesh Editor's grey is there for judging the item's own textures,
         which is the other half of what this dialog is for."""
 
-        from cdmw.ui.new_item.effect_placement_dialog import BACKDROPS, _remembered_backdrop
+        from cdmw.ui.new_item.effect_placement_dialog_support import BACKDROPS, remembered_backdrop
 
         dialog = self._dialog()
         self.assertEqual([dialog.backdrop_choice.itemData(row) for row in range(dialog.backdrop_choice.count())],
                          list(BACKDROPS))
-        self.assertEqual(dialog.backdrop_choice.currentData(), _remembered_backdrop(), "it opens on the last one chosen")
+        self.assertEqual(dialog.backdrop_choice.currentData(), remembered_backdrop(), "it opens on the last one chosen")
 
         grey = BACKDROPS.index("#3B3B3B")
         dialog.backdrop_choice.setCurrentIndex(grey)
         self.assertEqual(dialog.host.backdrops[-1], "#3B3B3B", "the viewport is told")
-        self.assertEqual(_remembered_backdrop(), "#3B3B3B", "and the next dialog opens on it")
+        self.assertEqual(remembered_backdrop(), "#3B3B3B", "and the next dialog opens on it")
 
         dark = BACKDROPS.index("#101014")
         dialog.backdrop_choice.setCurrentIndex(dark)
-        self.assertEqual(_remembered_backdrop(), "#101014")
+        self.assertEqual(remembered_backdrop(), "#101014")
 
     def test_the_panel_is_grouped_and_the_legend_folds_away(self) -> None:
         """Fourteen controls, five legend rows and four labels in one column read as a

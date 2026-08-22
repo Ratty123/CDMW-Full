@@ -50,6 +50,10 @@ internal sealed class NetEdgeTopology
 
     private readonly Dictionary<int, NetEdge> _edgesById;
     private readonly Dictionary<string, NetEdge> _edgesByStableKey;
+    // Authoritative selection pushes arrive as (submesh, vertexA, vertexB)
+    // pairs, one lookup per selected edge per push. A linear scan here made
+    // applying a large wire selection quadratic in the mesh's edge count.
+    private readonly Dictionary<(int SubmeshIndex, int A, int B), NetEdge> _edgesByVertices;
 
     private NetEdgeTopology(IEnumerable<NetEdge> edges, int generation)
     {
@@ -57,6 +61,7 @@ internal sealed class NetEdgeTopology
         Generation = generation;
         _edgesById = Edges.ToDictionary(edge => edge.Id);
         _edgesByStableKey = Edges.ToDictionary(edge => edge.StableKey, StringComparer.OrdinalIgnoreCase);
+        _edgesByVertices = Edges.ToDictionary(edge => (edge.SubmeshIndex, edge.VertexA, edge.VertexB));
     }
 
     public IReadOnlyList<NetEdge> Edges { get; }
@@ -81,7 +86,7 @@ internal sealed class NetEdgeTopology
     {
         var a = Math.Min(vertexA, vertexB);
         var b = Math.Max(vertexA, vertexB);
-        return Edges.FirstOrDefault(edge => edge.SubmeshIndex == submeshIndex && edge.VertexA == a && edge.VertexB == b);
+        return _edgesByVertices.TryGetValue((submeshIndex, a, b), out var edge) ? edge : null;
     }
 
     public static NetEdgeTopology Build(ObjDocument document, int generation = 1)

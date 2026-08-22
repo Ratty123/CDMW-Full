@@ -196,6 +196,18 @@ class PerksPanel(QGroupBox):
             box.valueChanged.connect(self._effect_transform_changed)
             placement_form.addRow(f"Offset {axis} (m):", box)
             self.effect_offset.append(box)
+        self.effect_rotation = []
+        for axis in ("X", "Y", "Z"):
+            box = QDoubleSpinBox()
+            box.setRange(-180.0, 180.0)
+            box.setSingleStep(5.0)
+            box.setDecimals(1)
+            box.setWrapping(True)
+            box.setValue(0.0)
+            box.setToolTip("Turns the effect about the weapon's own axes, in degrees; x, then y, then z. The viewport's Rotate tool sets the same numbers.")
+            box.valueChanged.connect(self._effect_transform_changed)
+            placement_form.addRow(f"Rotation {axis} (°):", box)
+            self.effect_rotation.append(box)
         advanced_layout.addWidget(self.placement_holder)
 
         self.look_holder = QWidget()
@@ -420,6 +432,7 @@ class PerksPanel(QGroupBox):
         draft = self._controller.draft
         draft.effect_scale = float(self.effect_scale.value())
         draft.effect_offset = tuple(float(box.value()) for box in self.effect_offset)
+        draft.effect_rotation = tuple(float(box.value()) for box in self.effect_rotation)
         self._controller.invalidate_plan()
         self._refresh_facts()
         self._refresh_effect_selection()
@@ -444,11 +457,14 @@ class PerksPanel(QGroupBox):
             self.effect_scale.setValue(float(scale))
             for box in self.effect_offset:
                 box.setValue(0.0)
+            for box in self.effect_rotation:
+                box.setValue(0.0)
             for box in self.look_factors.values():
                 box.setValue(1.0)
             draft = self._controller.draft
             draft.effect_scale = float(scale)
             draft.effect_offset = (0.0, 0.0, 0.0)
+            draft.effect_rotation = (0.0, 0.0, 0.0)
             draft.effect_color = None
             draft.effect_intensity = 1.0
             draft.effect_size = 1.0
@@ -513,7 +529,9 @@ class PerksPanel(QGroupBox):
             box_min, box_max = effect_preview.box_min, effect_preview.box_max
         dialog = self.placement_dialog_factory(
             self, item_mesh=mesh, box_min=box_min, box_max=box_max, item_label=item_label,
-            offset=tuple(float(box.value()) for box in self.effect_offset), scale=float(self.effect_scale.value()), effect_label=stem,
+            offset=tuple(float(box.value()) for box in self.effect_offset),
+            rotation=tuple(float(box.value()) for box in self.effect_rotation),
+            scale=float(self.effect_scale.value()), effect_label=stem,
             effect_preview=effect_preview, texture_reader=texture_reader,
             character_builder=self._controller.character_holding_the_item,
         )
@@ -521,6 +539,8 @@ class PerksPanel(QGroupBox):
             return
         self.effect_scale.setValue(float(dialog.scale))
         for box, value in zip(self.effect_offset, dialog.offset):
+            box.setValue(float(value))
+        for box, value in zip(self.effect_rotation, dialog.rotation):
             box.setValue(float(value))
         self._effect_transform_changed()
 

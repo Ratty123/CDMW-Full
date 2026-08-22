@@ -83,7 +83,15 @@ MeshEditorSelection mesh_editor_remap_subdivide_selection(
                 }
             }
             for (const VertexBlend& blend : result.vertex_blends) {
-                if (blend.index >= 0 && static_cast<std::size_t>(blend.index) < result.vertices.size()) {
+                if (blend.index < 0 || static_cast<std::size_t>(blend.index) >= result.vertices.size()) {
+                    continue;
+                }
+                // Only a midpoint whose whole parent edge was selected joins
+                // the selection. Selecting every generated midpoint made each
+                // Subdivide adopt the bled boundary ring too, so the split
+                // region and the visible selection quadrupled per click.
+                if (selected_vertices->second.find(blend.left) != selected_vertices->second.end()
+                    && selected_vertices->second.find(blend.right) != selected_vertices->second.end()) {
                     mapped.insert(blend.index);
                 }
             }
@@ -310,10 +318,14 @@ void mesh_editor_commit_apply_results(
             session.selection = MeshEditorSelection{};
             for (const SubmeshMeshEditResult& result : state.results) {
                 if (!result.append_submesh || result.index < 0) continue;
-                const std::vector<int> faces = result.source_face_indices.size() == result.faces.size()
-                    ? result.source_face_indices
-                    : identity_indices(result.faces.size());
-                session.selection.faces[result.index] = std::set<int>(faces.begin(), faces.end());
+                // Select the whole pasted layer. Face-selection values are
+                // current compact offsets, so name every pasted face directly
+                // rather than going through its source-face ids.
+                std::set<int> pasted_faces;
+                for (std::size_t face_index = 0; face_index < result.faces.size(); ++face_index) {
+                    pasted_faces.insert(static_cast<int>(face_index));
+                }
+                session.selection.faces[result.index] = std::move(pasted_faces);
             }
         } else if (state.operation == "delete") {
             session.selection = MeshEditorSelection{};

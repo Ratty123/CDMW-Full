@@ -28,6 +28,7 @@ from cdmw.domain.new_item.spec import IconSource, MaterialRoute, ModelSource, Sh
 from cdmw.ui.new_item.controller import NewItemStudioController
 from cdmw.ui.new_item.item_preview import GIZMO_TOOLS, ItemPreviewFrame
 from cdmw.ui.new_item.model_import import ModelPlacement
+from cdmw.ui.new_item.state import glow_choice
 from cdmw.ui.new_item.ui_kit import EDIT, OK, WARN, DetailsToggle, NoteLabel, intro_label, note
 
 IMPORT_FILE_FILTER = (
@@ -54,6 +55,10 @@ def _spin(minimum: float, maximum: float, step: float, decimals: int, suffix: st
 class ModelPanel(QGroupBox):
     """Keep the template's model or import one and place it over the template here, in
     the step's own viewport (the gizmo, the numbers); keep the icon or generate one."""
+
+    #: a glow was pushed to the viewport at least once: only then does an all-unticked
+    #: draft still need a restoring push
+    _glow_preview_touched = False
 
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("3. Model and icon", parent)
@@ -355,6 +360,10 @@ class ModelPanel(QGroupBox):
         self.preview.ready.connect(lambda: self.capture_inline_button.setEnabled(True))
         self.preview.ready.connect(self._refresh_placement_enabled)
         self.preview.ready.connect(self._refresh_apply_status)
+        # after every package (re)build: the session replays the last glow update as
+        # stored, which is stale the moment the model changes, so a fresh full statement
+        # for the mesh now showing lands right behind it
+        self.preview.ready.connect(self._sync_glow_preview)
         self._icon_source_changed(True)
         self.plain_pbr.setEnabled(False)
         self.own_sheath.setEnabled(False)
@@ -459,6 +468,35 @@ class ModelPanel(QGroupBox):
         draft.glow_parts = self._ticked_glow_parts() if self.glow_box.isChecked() else ()
         draft.glow_intensity = float(self.glow_intensity.value())
         self._controller.invalidate_plan()
+        self._sync_glow_preview()
+
+    def _sync_glow_preview(self) -> None:
+        """Show the glow in the step's viewport as it stands in the draft.
+
+        Only for the placement scene of a live import: that is the only mesh a glow
+        applies to, and the only role the renderer's parameter channel can touch. The
+        groups are a complete statement over the model's submeshes, so un-ticking a
+        part restores the import's own emissive without remembering what was sent.
+        A draft that never glowed sends nothing: there is nothing to restore.
+        """
+
+        preview = self.preview
+        source = self._controller.model_import
+        sender = getattr(preview.host, "apply_material_parameter_groups", None)
+        if source is None or not callable(sender) or not preview.showing_placement:
+            return
+        glow = glow_choice(self._controller.draft)
+        if glow is None and not self._glow_preview_touched:
+            return
+        try:
+            mesh = source.baked_preview_mesh()
+        except Exception:  # noqa: BLE001 - no preview glow is a smaller loss than a step that errors
+            return
+        from cdmw.services.new_item_materials import glow_preview_parameter_groups
+
+        groups = glow_preview_parameter_groups(mesh, glow)
+        if groups and sender(groups):
+            self._glow_preview_touched = self._glow_preview_touched or glow is not None
 
     def _pick_glow_color(self) -> None:
         from PySide6.QtGui import QColor
@@ -472,6 +510,7 @@ class ModelPanel(QGroupBox):
         self._controller.draft.glow_color = (chosen.redF(), chosen.greenF(), chosen.blueF())
         self._set_glow_swatch()
         self._controller.invalidate_plan()
+        self._sync_glow_preview()
 
     def _set_glow_swatch(self) -> None:
         red, green, blue = (int(round(max(0.0, min(1.0, float(c))) * 255)) for c in self._controller.draft.glow_color)

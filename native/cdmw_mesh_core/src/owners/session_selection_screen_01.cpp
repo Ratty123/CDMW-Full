@@ -137,38 +137,129 @@ bool mesh_editor_brush_edge_ray_hit(
     ) && mesh_editor_screen_brush_depth_visible(context.depth_mask, x, y, depth);
 }
 
-bool mesh_editor_brush_edge_screen_hit(
-    const MeshEditorScreenBrushSelectionContext& context,
-    const MeshEditorScreenBrushProjection& projection,
-    const Vec3& edge_start,
-    const Vec3& edge_end
-) {
+struct MeshEditorProjectedScreenSegment {
     double ax = 0.0;
     double ay = 0.0;
     double az = 0.0;
     double bx = 0.0;
     double by = 0.0;
     double bz = 0.0;
-    if (!mesh_editor_project_screen_brush_vertex_with_projection(
-            context.brush, projection, edge_start, ax, ay, context.depth_mask != nullptr ? &az : nullptr)
-        || !mesh_editor_project_screen_brush_vertex_with_projection(
-            context.brush, projection, edge_end, bx, by, context.depth_mask != nullptr ? &bz : nullptr)) {
+};
+
+/// Projects a world segment, clipping it to the projectable depth window when
+/// an endpoint falls outside it. An edge whose far end leaves the window used
+/// to be rejected whole, so its visible span could never be brush-selected.
+bool mesh_editor_project_screen_segment_clipped(
+    const JsonValue& payload,
+    const MeshEditorScreenBrushProjection& projection,
+    const Vec3& start,
+    const Vec3& end,
+    bool need_depth,
+    MeshEditorProjectedScreenSegment& out
+) {
+    const auto project = [&](const Vec3& vertex, double& x, double& y, double* z) {
+        return mesh_editor_project_screen_brush_vertex_with_projection(payload, projection, vertex, x, y, z);
+    };
+    const bool start_ok = project(start, out.ax, out.ay, need_depth ? &out.az : nullptr);
+    const bool end_ok = project(end, out.bx, out.by, need_depth ? &out.bz : nullptr);
+    if (start_ok && end_ok) {
+        return true;
+    }
+    const auto clip_toward = [&](Vec3 good, Vec3 bad, double& x, double& y, double* z) {
+        for (int iteration = 0; iteration < 24; ++iteration) {
+            const Vec3 mid = scale_vec3(add_vec3(good, bad), 0.5);
+            double mid_x = 0.0;
+            double mid_y = 0.0;
+            double mid_z = 0.0;
+            if (project(mid, mid_x, mid_y, need_depth ? &mid_z : nullptr)) {
+                good = mid;
+            } else {
+                bad = mid;
+            }
+        }
+        return project(good, x, y, z);
+    };
+    if (start_ok != end_ok) {
+        const Vec3& good = start_ok ? start : end;
+        const Vec3& bad = start_ok ? end : start;
+        double* z = need_depth ? (start_ok ? &out.bz : &out.az) : nullptr;
+        return start_ok
+            ? clip_toward(good, bad, out.bx, out.by, z)
+            : clip_toward(good, bad, out.ax, out.ay, z);
+    }
+    // Both ends outside: the segment may still cross the window.
+    const Vec3 midpoint = scale_vec3(add_vec3(start, end), 0.5);
+    double mid_x = 0.0;
+    double mid_y = 0.0;
+    double mid_z = 0.0;
+    if (!project(midpoint, mid_x, mid_y, need_depth ? &mid_z : nullptr)) {
         return false;
     }
-    const double vx = bx - ax;
-    const double vy = by - ay;
+    return clip_toward(midpoint, start, out.ax, out.ay, need_depth ? &out.az : nullptr)
+        && clip_toward(midpoint, end, out.bx, out.by, need_depth ? &out.bz : nullptr);
+}
+
+/// Cursor-vs-projected-segment test with the depth check sampled along the
+/// segment's in-radius span. The depth mask is a rasterized approximation and
+/// the edge lies on the very surface it is tested against, so a single
+/// occluded sample must not hide a wire whose in-brush span is partly visible.
+bool mesh_editor_brush_projected_segment_hit(
+    const MeshEditorScreenBrushSelectionContext& context,
+    const MeshEditorProjectedScreenSegment& segment
+) {
+    const double vx = segment.bx - segment.ax;
+    const double vy = segment.by - segment.ay;
     const double length_sq = vx * vx + vy * vy;
     const double t = length_sq <= 1.0e-12
         ? 0.0
-        : std::clamp(((context.x - ax) * vx + (context.y - ay) * vy) / length_sq, 0.0, 1.0);
-    const double hit_x = ax + vx * t;
-    const double hit_y = ay + vy * t;
+        : std::clamp(((context.x - segment.ax) * vx + (context.y - segment.ay) * vy) / length_sq, 0.0, 1.0);
+    const double hit_x = segment.ax + vx * t;
+    const double hit_y = segment.ay + vy * t;
     if (std::hypot(context.x - hit_x, context.y - hit_y) > context.radius_pixels) {
         return false;
     }
-    return mesh_editor_screen_brush_depth_visible(
-        context.depth_mask, hit_x, hit_y, az + (bz - az) * t
-    );
+    if (context.depth_mask == nullptr) {
+        return true;
+    }
+    double t_low = t;
+    double t_high = t;
+    if (length_sq > 1.0e-12) {
+        const double b_half = (segment.ax - context.x) * vx + (segment.ay - context.y) * vy;
+        const double c_term = (segment.ax - context.x) * (segment.ax - context.x)
+            + (segment.ay - context.y) * (segment.ay - context.y)
+            - context.radius_pixels * context.radius_pixels;
+        const double discriminant = b_half * b_half - length_sq * c_term;
+        if (discriminant >= 0.0) {
+            const double root = std::sqrt(discriminant);
+            t_low = std::clamp((-b_half - root) / length_sq, 0.0, 1.0);
+            t_high = std::clamp((-b_half + root) / length_sq, 0.0, 1.0);
+        }
+    }
+    for (int sample = 0; sample <= 4; ++sample) {
+        const double tk = t_low + (t_high - t_low) * (static_cast<double>(sample) / 4.0);
+        if (mesh_editor_screen_brush_depth_visible(
+                context.depth_mask,
+                segment.ax + vx * tk,
+                segment.ay + vy * tk,
+                segment.az + (segment.bz - segment.az) * tk)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool mesh_editor_brush_edge_screen_hit(
+    const MeshEditorScreenBrushSelectionContext& context,
+    const MeshEditorScreenBrushProjection& projection,
+    const Vec3& edge_start,
+    const Vec3& edge_end
+) {
+    MeshEditorProjectedScreenSegment segment;
+    if (!mesh_editor_project_screen_segment_clipped(
+            context.brush, projection, edge_start, edge_end, context.depth_mask != nullptr, segment)) {
+        return false;
+    }
+    return mesh_editor_brush_projected_segment_hit(context, segment);
 }
 
 void mesh_editor_select_brush_edges(
@@ -183,28 +274,61 @@ void mesh_editor_select_brush_edges(
         return;
     }
     std::set<std::array<int, 2>>& selected = selection.edges[submesh_index];
+    // Every projection this loop needs, computed once per vertex. Interior
+    // edges are shared by two faces and each face names its three edges, so
+    // the per-face-edge projection alone did six projections per face.
+    const std::size_t vertex_count = submesh.vertices.size();
+    const bool need_depth = context.depth_mask != nullptr;
+    std::vector<std::array<double, 3>> projected(vertex_count);
+    std::vector<char> projected_ok(vertex_count, 0);
+    for (std::size_t vertex_index = 0; vertex_index < vertex_count; ++vertex_index) {
+        std::array<double, 3>& out = projected[vertex_index];
+        projected_ok[vertex_index] = mesh_editor_project_screen_brush_vertex_with_projection(
+            context.brush,
+            projection,
+            submesh.vertices[vertex_index],
+            out[0],
+            out[1],
+            need_depth ? &out[2] : nullptr)
+            ? 1
+            : 0;
+    }
+    std::set<std::array<int, 2>> tested;
     for (const std::array<int, 3>& face : submesh.faces) {
         const std::array<std::array<int, 2>, 3> face_edges{{
             {face[0], face[1]}, {face[1], face[2]}, {face[2], face[0]},
         }};
-        for (std::array<int, 2> edge : face_edges) {
-            if (edge[0] < 0 || edge[1] < 0 || edge[0] == edge[1]
-                || static_cast<std::size_t>(edge[0]) >= submesh.vertices.size()
-                || static_cast<std::size_t>(edge[1]) >= submesh.vertices.size()) {
+        for (const std::array<int, 2>& raw_edge : face_edges) {
+            if (raw_edge[0] < 0 || raw_edge[1] < 0 || raw_edge[0] == raw_edge[1]
+                || static_cast<std::size_t>(raw_edge[0]) >= vertex_count
+                || static_cast<std::size_t>(raw_edge[1]) >= vertex_count) {
+                continue;
+            }
+            const std::array<int, 2> edge = edge_key(raw_edge[0], raw_edge[1]);
+            if (selected.find(edge) != selected.end() || !tested.insert(edge).second) {
                 continue;
             }
             const Vec3& start = submesh.vertices[static_cast<std::size_t>(edge[0])];
             const Vec3& end = submesh.vertices[static_cast<std::size_t>(edge[1])];
-            const bool hit = (ray != nullptr && mesh_editor_brush_edge_ray_hit(
+            bool hit = ray != nullptr && mesh_editor_brush_edge_ray_hit(
                 context, projection, *ray, submesh_index, start, end
-            )) || mesh_editor_brush_edge_screen_hit(context, projection, start, end);
+            );
             if (!hit) {
-                continue;
+                const std::size_t index_a = static_cast<std::size_t>(edge[0]);
+                const std::size_t index_b = static_cast<std::size_t>(edge[1]);
+                if (projected_ok[index_a] && projected_ok[index_b]) {
+                    const MeshEditorProjectedScreenSegment segment{
+                        projected[index_a][0], projected[index_a][1], projected[index_a][2],
+                        projected[index_b][0], projected[index_b][1], projected[index_b][2],
+                    };
+                    hit = mesh_editor_brush_projected_segment_hit(context, segment);
+                } else if (projected_ok[index_a] || projected_ok[index_b]) {
+                    hit = mesh_editor_brush_edge_screen_hit(context, projection, start, end);
+                }
             }
-            if (edge[1] < edge[0]) {
-                std::swap(edge[0], edge[1]);
+            if (hit) {
+                selected.insert(edge);
             }
-            selected.insert(edge);
         }
     }
     if (selected.empty()) {
@@ -379,7 +503,8 @@ void mesh_editor_select_brush_submesh(
 void mesh_editor_add_screen_brush_selection(
     const MeshEditorSession* session,
     const JsonValue* raw_selection,
-    MeshEditorSelection& selection
+    MeshEditorSelection& selection,
+    const MeshEditorScreenBrushDepthMask* shared_depth_mask = nullptr
 ) {
     if (session == nullptr || raw_selection == nullptr || raw_selection->type != JsonValue::Type::Object) {
         return;
@@ -395,8 +520,15 @@ void mesh_editor_add_screen_brush_selection(
     MeshEditorScreenBrushDepthMask depth_mask_storage;
     const MeshEditorScreenBrushDepthMask* depth_mask = nullptr;
     if (depth_mode != "xray") {
-        depth_mask_storage = mesh_editor_screen_brush_depth_mask(session, *raw_brush);
-        if (depth_mask_storage.valid) depth_mask = &depth_mask_storage;
+        // A coalesced command replays many dabs through this function; the
+        // caller rasterizes occlusion once over their union and shares it,
+        // instead of every dab re-rendering every face of every submesh.
+        if (shared_depth_mask != nullptr && shared_depth_mask->valid) {
+            depth_mask = shared_depth_mask;
+        } else {
+            depth_mask_storage = mesh_editor_screen_brush_depth_mask(session, *raw_brush);
+            if (depth_mask_storage.valid) depth_mask = &depth_mask_storage;
+        }
     }
     MeshEditorScreenBrushSelectionContext context{
         *raw_brush,

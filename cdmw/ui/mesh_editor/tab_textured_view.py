@@ -16,6 +16,7 @@ from typing import Mapping, Optional
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
+from cdmw.services.active_ui_translation import translate_active_ui_text
 from cdmw.services.mesh_dotnet_material_state import count_dotnet_own_material_bindings
 from cdmw.services.mesh_editor_error_codes import MeshEditorErrorCode, error_payload
 from cdmw.services.mesh_material_publication import MaterialRole
@@ -231,6 +232,7 @@ class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
             self._finish_pending_textured_view(
                 success=False,
                 reason=f"texture_resolver_{normalized}",
+                status_text="No resolved textures are available for this Mesh Editor preview; the untextured scene remains active.",
             )
             self.status_message_requested.emit(
                 "No resolved textures are available for this Mesh Editor preview; the untextured scene remains active.",
@@ -278,11 +280,15 @@ class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
                 False,
             )
             return
+        missing = self._dotnet_missing_material_roles()
+        missing_text = ", ".join(
+            self._dotnet_material_role_label(role) for role in missing
+        )
         self._finish_pending_textured_view(
             success=False,
             reason="acknowledgement_timeout",
+            status_text=f"{missing_text or 'Mesh Editor'} textures did not reach the resident viewport in time; the untextured scene remains active.",
         )
-        missing = self._dotnet_missing_material_roles()
         # The stage each blocked pane stopped at goes to the event stream rather
         # than into the status line: "Imported textures did not arrive" is the
         # same sentence whether nothing was ever published, a compile failed, or
@@ -304,9 +310,6 @@ class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
                     self._dotnet_material_role_blocking_reason(role) for role in missing
                 ),
             ),
-        )
-        missing_text = ", ".join(
-            self._dotnet_material_role_label(role) for role in missing
         )
         self.status_message_requested.emit(
             f"{missing_text or 'Mesh Editor'} textures did not reach the resident viewport in time; the untextured scene remains active.",
@@ -345,6 +348,7 @@ class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
         *,
         texture_request_pending: bool = False,
         requested_mode: str = "",
+        failure_text: str = "",
     ) -> bool:
         self.standalone_dotnet_viewport_display_request_id += 1
         payload: dict[str, object] = {
@@ -360,6 +364,13 @@ class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
             payload["requested_mode"] = normalize_mesh_preview_display_mode(
                 requested_mode or "textured"
             )
+        if failure_text:
+            # Why the viewport stayed on the fallback, already localized, for
+            # the helper's own status line. Without it the helper's last words
+            # were "Loading textures in the resident viewport...", and the
+            # selector snapping back read as a dead control.
+            payload["texture_request_failed"] = True
+            payload["failure_text"] = translate_active_ui_text(failure_text)
         sent = self._send_dotnet_protocol_message(payload)
         if not sent:
             self.status_message_requested.emit("Could not update embedded .NET viewport display mode.", True)

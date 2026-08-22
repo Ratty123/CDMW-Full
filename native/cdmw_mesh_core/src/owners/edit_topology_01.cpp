@@ -481,7 +481,8 @@ std::array<double, 4> mesh_editor_screen_depth_mask_bounds(
     const JsonValue& brush,
     const MeshEditorScreenBrushProjection& projection,
     const JsonValue* raw_path = nullptr,
-    const JsonValue* raw_drag = nullptr
+    const JsonValue* raw_drag = nullptr,
+    bool full_viewport = false
 ) {
     const double viewport_left = projection.viewport_x;
     const double viewport_top = projection.viewport_y;
@@ -491,6 +492,13 @@ std::array<double, 4> mesh_editor_screen_depth_mask_bounds(
     double top = viewport_top;
     double right = viewport_right;
     double bottom = viewport_bottom;
+    if (full_viewport) {
+        // A mask reused across a whole stroke has to cover everywhere the
+        // pointer may travel, not the region around the sample that built it:
+        // a lookup outside the mask reads as occluded, so a region-bounded
+        // cached mask would kill the brush the moment it left that region.
+        return {left, top, std::max(left + 1.0, right), std::max(top + 1.0, bottom)};
+    }
     const double x = number_or(
         brush.get("x"),
         number_or(brush.get("cursor_x"), number_or(brush.get("screen_x"), std::numeric_limits<double>::quiet_NaN()))
@@ -593,11 +601,10 @@ std::array<double, 4> mesh_editor_screen_depth_mask_bounds(
     return {left, top, right, bottom};
 }
 
-MeshEditorScreenBrushDepthMask mesh_editor_screen_brush_depth_mask(
+MeshEditorScreenBrushDepthMask mesh_editor_screen_brush_depth_mask_in_bounds(
     const MeshEditorSession* session,
     const JsonValue& brush,
-    const JsonValue* raw_path = nullptr,
-    const JsonValue* raw_drag = nullptr
+    const std::array<double, 4>& bounds
 ) {
     MeshEditorScreenBrushDepthMask mask;
     if (session == nullptr) {
@@ -607,15 +614,13 @@ MeshEditorScreenBrushDepthMask mesh_editor_screen_brush_depth_mask(
     if (!projection.has_world_view_projection && projection.source_world_view_projections.empty()) {
         return mask;
     }
-    const std::array<double, 4> bounds = mesh_editor_screen_depth_mask_bounds(
-        brush,
-        projection,
-        raw_path,
-        raw_drag
-    );
     const double mask_width = std::max(1.0, bounds[2] - bounds[0]);
     const double mask_height = std::max(1.0, bounds[3] - bounds[1]);
-    constexpr double kMaxDepthMaskDimension = 1024.0;
+    // 2048, up from 1024: one mask now serves every dab of a coalesced
+    // command, and a long fast sweep's union bounds downscaled at the old cap
+    // left depth cells so coarse that wires on glancing surfaces z-fought
+    // their own faces and dropped out of visible-mode selection.
+    constexpr double kMaxDepthMaskDimension = 2048.0;
     const double scale = std::min(1.0, kMaxDepthMaskDimension / std::max(mask_width, mask_height));
     mask.valid = true;
     mask.width = std::max(1, static_cast<int>(std::ceil(mask_width * scale)));
@@ -712,6 +717,74 @@ MeshEditorScreenBrushDepthMask mesh_editor_screen_brush_depth_mask(
         }
     }
     return mask;
+}
+
+MeshEditorScreenBrushDepthMask mesh_editor_screen_brush_depth_mask(
+    const MeshEditorSession* session,
+    const JsonValue& brush,
+    const JsonValue* raw_path = nullptr,
+    const JsonValue* raw_drag = nullptr,
+    bool full_viewport = false
+) {
+    if (session == nullptr) {
+        return MeshEditorScreenBrushDepthMask{};
+    }
+    const MeshEditorScreenBrushProjection projection = mesh_editor_screen_brush_projection(brush);
+    if (!projection.has_world_view_projection && projection.source_world_view_projections.empty()) {
+        return MeshEditorScreenBrushDepthMask{};
+    }
+    return mesh_editor_screen_brush_depth_mask_in_bounds(
+        session,
+        brush,
+        mesh_editor_screen_depth_mask_bounds(brush, projection, raw_path, raw_drag, full_viewport)
+    );
+}
+
+namespace {
+
+struct MeshEditorStrokeDepthMaskSlot {
+    // Pointer plus native session id: the pointer alone could be a reallocation
+    // at the same address after a close, and the id alone can recur across
+    // reopens of the same editor session.
+    const void* session = nullptr;
+    std::string native_session_id;
+    std::string stroke_id;
+    std::string mask_key;
+    MeshEditorScreenBrushDepthMask mask;
+};
+
+MeshEditorStrokeDepthMaskSlot g_mesh_editor_stroke_depth_mask_slot;
+
+}  // namespace
+
+std::string mesh_editor_screen_brush_stroke_mask_key(const JsonValue& brush, const std::string& depth_mode) {
+    // Everything the rasterized depths depend on besides the session geometry:
+    // the camera, the viewport, and which submeshes may occlude. Geometry
+    // changes are covered by the stroke id, because topology cannot change
+    // inside a live stroke.
+    const MeshEditorScreenBrushProjection projection = mesh_editor_screen_brush_projection(brush);
+    std::ostringstream key;
+    key.precision(17);
+    key << depth_mode << '|'
+        << projection.viewport_x << ',' << projection.viewport_y << ','
+        << projection.viewport_width << ',' << projection.viewport_height << '|';
+    for (const double value : projection.world_view_projection) {
+        key << value << ',';
+    }
+    for (const auto& entry : projection.source_world_view_projections) {
+        key << '#' << entry.first << ':';
+        for (const double value : entry.second) {
+            key << value << ',';
+        }
+    }
+    const JsonValue* allowed = brush.get("source_submesh_indices");
+    if (allowed != nullptr && allowed->type == JsonValue::Type::Array) {
+        key << "|a:";
+        for (const JsonValue& index : allowed->array_value) {
+            key << int_or(&index, -1) << ',';
+        }
+    }
+    return key.str();
 }
 
 bool mesh_editor_screen_brush_depth_visible(
@@ -845,11 +918,45 @@ const MeshEditorScreenBrushDepthMask* mesh_editor_screen_brush_depth_mask_for_ed
     if (session == nullptr) {
         return nullptr;
     }
-    storage = mesh_editor_screen_brush_depth_mask(
-        session,
-        *raw_brush,
-        edit.get("screen_path"),
-        edit.get("screen_drag")
-    );
-    return storage.valid ? &storage : nullptr;
+    const std::string stroke_phase = lower_ascii(string_or(edit.get("stroke_phase"), ""));
+    const bool stroke_scoped = session->active_stroke.active
+        && (stroke_phase == "begin" || stroke_phase == "update"
+            || stroke_phase == "end" || stroke_phase == "cancel");
+    if (!stroke_scoped) {
+        storage = mesh_editor_screen_brush_depth_mask(
+            session,
+            *raw_brush,
+            edit.get("screen_path"),
+            edit.get("screen_drag")
+        );
+        return storage.valid ? &storage : nullptr;
+    }
+    // One mask per stroke. The camera cannot move while an edit stroke is
+    // active -- the viewport's camera gestures cancel the stroke -- so the
+    // occluders rasterized at stroke begin stay valid for every later sample,
+    // and rebuilding them per dab made every sample O(all faces). The mask is
+    // built over the whole viewport so it covers wherever the pointer travels,
+    // and occlusion is deliberately frozen at the begin-time geometry: vertices
+    // the stroke itself displaces do not flicker in and out of the footprint
+    // mid-stroke. The slot is overwritten by the next stroke that needs one.
+    MeshEditorStrokeDepthMaskSlot& slot = g_mesh_editor_stroke_depth_mask_slot;
+    const std::string mask_key = mesh_editor_screen_brush_stroke_mask_key(*raw_brush, depth_mode);
+    if (slot.session != static_cast<const void*>(session)
+        || slot.native_session_id != session->native_session_id
+        || slot.stroke_id != session->active_stroke.stroke_id
+        || slot.mask_key != mask_key
+        || !slot.mask.valid) {
+        slot.mask = mesh_editor_screen_brush_depth_mask(
+            session,
+            *raw_brush,
+            edit.get("screen_path"),
+            edit.get("screen_drag"),
+            /*full_viewport=*/true
+        );
+        slot.session = session;
+        slot.native_session_id = session->native_session_id;
+        slot.stroke_id = session->active_stroke.stroke_id;
+        slot.mask_key = mask_key;
+    }
+    return slot.mask.valid ? &slot.mask : nullptr;
 }

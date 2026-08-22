@@ -15,11 +15,14 @@ from cdmw.services.effect_placement_preview import (
     BODY_TINT,
     EFFECT_ANCHOR_MATERIAL,
     EFFECT_ANCHOR_RADIUS,
+    EFFECT_AXIS_MATERIALS,
+    EFFECT_AXIS_TINTS,
     EFFECT_BODY_MATERIAL,
     EFFECT_REACH_MATERIAL,
     ITEM_TINT,
     REACH_TINT,
     _tint_anchor_material,
+    anchor_axis_triad,
     anchor_mesh,
     build_effect_placement_package,
     next_scale,
@@ -53,6 +56,22 @@ class AnchorAndScaleTests(unittest.TestCase):
             centre = tuple((a[i] + b[i] + c[i]) / 3.0 for i in range(3))
             self.assertGreater(sum(normal[i] * centre[i] for i in range(3)), 0.0)
         self.assertEqual(anchor_mesh(0.0).bbox_max, (0.001, 0.001, 0.001), "a floor on the radius")
+
+    def test_the_axis_triad_is_three_bars_along_the_positive_axes(self) -> None:
+        """An octahedron is the same shape from every side, so without the triad a
+        rotation is invisible on the anchor itself."""
+
+        triad = anchor_axis_triad(0.02)
+        self.assertEqual([bar.material for bar in triad], list(EFFECT_AXIS_MATERIALS))
+        for axis, bar in enumerate(triad):
+            self.assertTrue(bar.vertices, bar.material)
+            far = max(vertex[axis] for vertex in bar.vertices)
+            self.assertAlmostEqual(far, 0.02 * 3.2, places=3, msg="the bar runs out along its own axis")
+            near = min(vertex[axis] for vertex in bar.vertices)
+            self.assertGreaterEqual(near, -0.005, "and only the positive way, so + reads as +")
+            for other in range(3):
+                if other != axis:
+                    self.assertLess(max(abs(vertex[other]) for vertex in bar.vertices), 0.02, "thin across")
 
     def test_next_scale_is_the_mean_delta_clamped(self) -> None:
         self.assertAlmostEqual(next_scale(0.5, (0.1, 0.1, 0.1)), 0.6)
@@ -104,9 +123,11 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(tints.get(EFFECT_ANCHOR_MATERIAL), ANCHOR_TINT)
             self.assertEqual(tints.get(EFFECT_REACH_MATERIAL), REACH_TINT)
             self.assertEqual(tints.get(EFFECT_BODY_MATERIAL), BODY_TINT)
+            for material, tint in zip(EFFECT_AXIS_MATERIALS, EFFECT_AXIS_TINTS):
+                self.assertEqual(tints.get(material), tint, f"{material} is one of the gizmo's own axis colours")
             item_materials = [
                 name for name in tints
-                if name not in (EFFECT_ANCHOR_MATERIAL, EFFECT_REACH_MATERIAL, EFFECT_BODY_MATERIAL)
+                if name not in (EFFECT_ANCHOR_MATERIAL, EFFECT_REACH_MATERIAL, EFFECT_BODY_MATERIAL) + EFFECT_AXIS_MATERIALS
             ]
             self.assertTrue(item_materials, "the item's own materials are in the package")
             for name in item_materials:
@@ -123,10 +144,10 @@ class PackageTests(unittest.TestCase):
             scene = json.loads((preview.package_dir / "dotnet_scene.json").read_text(encoding="utf-8-sig"))
             self.assertEqual(scene["comparison_mode"], "overlay")
             self.assertEqual(scene["interaction_mode"], "placement")
-            self.assertEqual(scene["roles"]["replacement"], [0, 1], "the anchor and the reach cage move together")
-            self.assertEqual(preview.reach_submesh_index, 1)
-            self.assertEqual(scene["roles"]["original_reference"], [2, 3], "the item and the character follow the anchor and the cage")
-            self.assertEqual(preview.body_submesh_index, 3)
+            self.assertEqual(scene["roles"]["replacement"], [0, 1, 2, 3, 4], "the anchor, the reach cage and the axis triad move together")
+            self.assertEqual(preview.reach_submesh_index, 1, "the cage keeps the index the dialog hides by")
+            self.assertEqual(scene["roles"]["original_reference"], [5, 6], "the item and the character follow the anchor's five")
+            self.assertEqual(preview.body_submesh_index, 6)
             self.assertTrue(scene["gizmo"]["visible"])
             materials = json.loads((preview.package_dir / "net_materials.json").read_text(encoding="utf-8"))
             anchor = next(item for item in materials["submeshes"] if item["material"] == EFFECT_ANCHOR_MATERIAL)
@@ -143,7 +164,7 @@ class PackageTests(unittest.TestCase):
                 _blade(), (-0.5, -0.5, -0.5), (0.5, 0.5, 0.5), output_root=Path(folder), include_body=False,
             )
             scene = json.loads((preview.package_dir / "dotnet_scene.json").read_text(encoding="utf-8-sig"))
-            self.assertEqual(scene["roles"]["original_reference"], [2])
+            self.assertEqual(scene["roles"]["original_reference"], [5])
             self.assertEqual(preview.body_submesh_index, -1)
 
     def test_a_reach_of_twenty_metres_does_not_become_the_size_of_the_world(self) -> None:

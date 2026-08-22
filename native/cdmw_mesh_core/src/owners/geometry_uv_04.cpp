@@ -161,6 +161,19 @@ std::vector<UvIslandSummaryResult> run_uv_summary(const JsonValue& root) {
                 selected_faces.insert(face_index);
             }
         }
+        // Selected-face matching happens in compact offset space. A resident
+        // submesh translates raw caller offsets through its captured
+        // input_face_offsets; a payload item's freshly derived source faces are
+        // that same raw map. The reported island face_indices keep using
+        // source_faces for ancestor multiplicity; matching selection through
+        // them counted a face as selected whenever an offset value collided
+        // with an ancestor id.
+        const MeshSessionSubmesh* stored_submesh = mesh_session_submesh_for_item(item);
+        const std::set<int> selected_face_offsets = compact_face_offsets_from_selection_values(
+            selected_faces,
+            stored_submesh != nullptr ? stored_submesh->input_face_offsets : source_faces,
+            faces.size()
+        );
         const bool source_selected = bool_or(item.get("source_selected"), false);
 
         std::map<int, std::vector<NativeUvEdgeKey>> face_edges;
@@ -237,10 +250,7 @@ std::vector<UvIslandSummaryResult> run_uv_summary(const JsonValue& root) {
 
             int selected_face_count = 0;
             for (const int face_index : island_faces) {
-                const int source_face_index = static_cast<std::size_t>(face_index) < source_faces.size()
-                    ? source_faces[static_cast<std::size_t>(face_index)]
-                    : face_index;
-                if (selected_faces.find(source_face_index) != selected_faces.end()) {
+                if (selected_face_offsets.find(face_index) != selected_face_offsets.end()) {
                     ++selected_face_count;
                 }
             }

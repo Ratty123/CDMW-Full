@@ -591,9 +591,10 @@ internal sealed partial class NetSceneState
             var part = _presentationPartMatrices.GetValueOrDefault(submeshIndex, Matrix4x4.Identity);
             return part * ProvisionalEditableModelMatrix() * EditablePresentationMatrix(includeSideBySideOffset);
         }
-        var rotation = RotationDegrees * (MathF.PI / 180.0f);
-        var placement = Matrix4x4.CreateScale(Scale)
-            * Matrix4x4.CreateFromYawPitchRoll(rotation.Y, rotation.X, rotation.Z)
+        // The same X-then-Y-then-Z composition as ManualLinearMatrix and the host's
+        // _placement_matrix. This path carried YawPitchRoll (Z, then X, then Y), which
+        // agrees on single-axis turns and silently disagrees on combined ones.
+        var placement = ManualLinearMatrix(RotationDegrees, Scale)
             * Matrix4x4.CreateTranslation(Translation);
         var partPlacement = _presentationPartMatrices.GetValueOrDefault(submeshIndex, Matrix4x4.Identity);
         return includeSideBySideOffset && ComparisonMode == "side_by_side"
@@ -603,9 +604,8 @@ internal sealed partial class NetSceneState
 
     private Matrix4x4 EditableAuthorityMatrix()
     {
-        var rotation = RotationDegrees * (MathF.PI / 180.0f);
-        return Matrix4x4.CreateScale(Scale)
-            * Matrix4x4.CreateFromYawPitchRoll(rotation.Y, rotation.X, rotation.Z)
+        // X, then Y, then Z, matching ManualLinearMatrix: one Euler order everywhere
+        return ManualLinearMatrix(RotationDegrees, Scale)
             * Matrix4x4.CreateTranslation(Translation);
     }
 

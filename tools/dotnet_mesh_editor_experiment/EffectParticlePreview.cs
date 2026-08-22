@@ -48,8 +48,18 @@ internal sealed class EffectEmitterPreview
     public int SequenceY = 1;
     public float VelocityStretch;
 
-    /// <summary>The colour curve's peak, so a dim HDR fire still shows: colours are drawn over this.</summary>
+    /// <summary>
+    /// The normaliser the colours are drawn over. Set per emitter while reading, then
+    /// levelled to the effect's own hottest emitter by <see cref="EffectParticlePreview.Load"/>:
+    /// normalised each by its own peak, a dim ember emitter rendered as bright as the
+    /// blazing core beside it, and the effect's balance was gone.
+    /// </summary>
     public float ColorPeak = 1.0f;
+
+    /// <summary>True when the emitter's colours could not be read and the sprite is drawn
+    /// on its own: such an emitter keeps its peak of 1 rather than dimming under the
+    /// effect-wide one, because its brightness is not a reading to preserve.</summary>
+    public bool ColorRescued;
 
     public bool IsAdditive => !string.Equals(Blend, "alpha", StringComparison.OrdinalIgnoreCase);
     public bool IsBeam => string.Equals(Kind, "beam", StringComparison.OrdinalIgnoreCase);
@@ -119,6 +129,26 @@ internal sealed class EffectParticlePreview
                 if (element.ValueKind == JsonValueKind.Object)
                 {
                     preview.Emitters.Add(ReadEmitter(element, packageDirectory, textureFiles));
+                }
+            }
+        }
+        // one normaliser for the whole effect, so the emitters keep their relative
+        // brightness; rescued emitters (no colour reading at all) stay at their own 1.0
+        var effectPeak = 0.0f;
+        foreach (var emitter in preview.Emitters)
+        {
+            if (!emitter.ColorRescued)
+            {
+                effectPeak = MathF.Max(effectPeak, emitter.ColorPeak);
+            }
+        }
+        if (effectPeak > 1e-4f)
+        {
+            foreach (var emitter in preview.Emitters)
+            {
+                if (!emitter.ColorRescued)
+                {
+                    emitter.ColorPeak = effectPeak;
                 }
             }
         }
@@ -209,6 +239,7 @@ internal sealed class EffectParticlePreview
             emitter.ColorOverLife = Array.Empty<Vector3>();
             emitter.EmissiveColor = Vector3.One;
             emitter.ColorPeak = 1.0f;
+            emitter.ColorRescued = true;
         }
         return emitter;
     }
@@ -326,6 +357,7 @@ internal sealed class EffectEmitterSimulation
     private const int BeamSegments = 14;
     private const float BeamRerollSeconds = 0.06f;
     private readonly List<EffectParticle> _particles = new();
+    private readonly List<int> _drawOrder = new();
     private readonly Random _random;
     private float _spawnAccumulator;
     private float _clock;
@@ -495,9 +527,11 @@ internal sealed class EffectEmitterSimulation
     /// <summary>
     /// The emitter's sprites as world-space quads: the effect frame is placed by
     /// `model` (the box's placement), sizes scale with it, quads face the camera
-    /// through `right`/`up`. Returns the vertex count appended (a multiple of 6).
+    /// through `right`/`up`. Alpha-blended emitters are laid out back to front along
+    /// `forward` -- their blend is order-dependent, and list order let a near puff
+    /// draw under a far one. Returns the vertex count appended (a multiple of 6).
     /// </summary>
-    public int AppendVertices(List<EffectParticleVertex> output, Matrix4x4 model, Vector3 right, Vector3 up, float modelScale)
+    public int AppendVertices(List<EffectParticleVertex> output, Matrix4x4 model, Vector3 right, Vector3 up, Vector3 forward, float modelScale)
     {
         var e = Emitter;
         var appended = 0;
@@ -509,8 +543,21 @@ internal sealed class EffectEmitterSimulation
         {
             return AppendBeamVertices(output, model, right, up, modelScale, invPeak);
         }
-        foreach (var particle in _particles)
+        _drawOrder.Clear();
+        for (var index = 0; index < _particles.Count; index++)
         {
+            _drawOrder.Add(index);
+        }
+        if (!e.IsAdditive && _particles.Count > 1)
+        {
+            // the camera's depth shrinks along `forward`, so ascending dot is far first
+            _drawOrder.Sort((left, right2) =>
+                Vector3.Dot(Vector3.Transform(_particles[left].Position, model), forward)
+                    .CompareTo(Vector3.Dot(Vector3.Transform(_particles[right2].Position, model), forward)));
+        }
+        foreach (var order in _drawOrder)
+        {
+            var particle = _particles[order];
             var t = particle.Life > 0.0f ? particle.Age / particle.Life : 1.0f;
             var alpha = Math.Clamp(Sample(e.AlphaOverLife, t, 1.0f), 0.0f, 1.0f);
             if (alpha <= 0.002f)

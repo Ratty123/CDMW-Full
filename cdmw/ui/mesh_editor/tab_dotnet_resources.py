@@ -132,6 +132,7 @@ class MeshEditorDotNetResourceProtocolMixin(
             self._finish_pending_textured_view(
                 success=False,
                 reason=f"{role}_texture_resources_not_ready",
+                status_text=message,
             )
             QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
             return True
@@ -251,6 +252,7 @@ class MeshEditorDotNetResourceProtocolMixin(
             self._finish_pending_textured_view(
                 success=False,
                 reason=f"{role}_material_state_failed",
+                status_text=f"{self._dotnet_material_role_label(role)} pane material update failed; keeping last valid resources: {message}",
             )
             QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
             return False
@@ -258,6 +260,7 @@ class MeshEditorDotNetResourceProtocolMixin(
             self._finish_pending_textured_view(
                 success=False,
                 reason="material_reload_required",
+                status_text="This .NET helper cannot update materials in place. Update the helper to enable Textured view; the current untextured scene remains active.",
             )
             self._set_dotnet_status(
                 "This .NET helper cannot update materials in place. Update the helper to enable Textured view; the current untextured scene remains active.",
@@ -305,7 +308,13 @@ class MeshEditorDotNetResourceProtocolMixin(
         )
         return True
 
-    def _finish_pending_textured_view(self, *, success: bool, reason: str = "") -> None:
+    def _finish_pending_textured_view(
+        self,
+        *,
+        success: bool,
+        reason: str = "",
+        status_text: str = "",
+    ) -> None:
         if not bool(getattr(self, "standalone_dotnet_pending_textured_view", False)):
             return
         if success and not self._dotnet_active_material_role_ready():
@@ -381,6 +390,14 @@ class MeshEditorDotNetResourceProtocolMixin(
         fallback_mode = untextured_fallback_display_mode(requested_mode)
         self._remember_dotnet_desired_display_mode(fallback_mode)
         self.sync_viewport_display_combos(fallback_mode)
+        if status_text and transition_event == "mesh_dotnet_textured_view_failed":
+            # The helper's status line is the only feedback inside the editor
+            # panel, and it was still reading "Loading textures..." after every
+            # failure. A deferral is not a failure, so it sends nothing.
+            self._send_embedded_viewport_display_mode(
+                fallback_mode,
+                failure_text=status_text,
+            )
 
     def sync_viewport_display_combos(self, mode: object) -> None:
         """Show one resident display mode in both visible Mesh View controls."""
@@ -440,6 +457,7 @@ class MeshEditorDotNetResourceProtocolMixin(
         self._finish_pending_textured_view(
             success=False,
             reason=f"texture_request_failed: {message}",
+            status_text=f"Mesh Editor texture loading failed; the untextured scene remains active: {message}",
         )
         self._set_dotnet_status(
             f"Mesh Editor texture loading failed; the untextured scene remains active: {message}",

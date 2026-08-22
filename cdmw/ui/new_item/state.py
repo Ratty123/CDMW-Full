@@ -194,9 +194,11 @@ class NewItemDraft:
     socket_items: Optional[List[int]] = None
     #: A weapon effect stem (`fx_cc_firesweapon_a__fire1`); empty for none.
     effect_stem: str = ""
-    #: the grafted effect's uniform scale and offset (x, y, z, metres in the weapon's axes)
+    #: the grafted effect's uniform scale, offset (x, y, z, metres in the weapon's axes)
+    #: and turn (Euler degrees about the weapon's axes, x then y then z)
     effect_scale: float = 1.0
     effect_offset: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    effect_rotation: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     #: The effect's look: colour (RGB 0..1) or None, and factors on brightness, particle
     #: size, spawn rate and lifetime; all as shipped by default.
     effect_color: Optional[Tuple[float, float, float]] = None
@@ -257,6 +259,16 @@ def flat_grid_values(grid: StatGrid, value: int, *, kinds: Sequence[str] = (STAT
     return out
 
 
+def glow_choice(draft: NewItemDraft) -> Optional[GlowChoice]:
+    """The draft's glow as the domain states it: None when no part is ticked."""
+
+    if not draft.glow_parts:
+        return None
+    return GlowChoice(
+        parts=tuple(draft.glow_parts), color=tuple(draft.glow_color), intensity=float(draft.glow_intensity),
+    )
+
+
 def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpec:
     """The domain spec for the draft; unset identity fields stay None for allocation."""
 
@@ -286,9 +298,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         material_route=draft.material_route,
         sheathed_model=draft.sheathed_model,
         keep_template_physics=draft.keep_template_physics,
-        glow=GlowChoice(
-            parts=tuple(draft.glow_parts), color=tuple(draft.glow_color), intensity=float(draft.glow_intensity),
-        ) if draft.glow_parts else None,
+        glow=glow_choice(draft),
         icon=draft.icon,
         stat_edits=stats,
         buy_price_edits=buy_prices,
@@ -302,6 +312,7 @@ def spec_from_draft(draft: NewItemDraft, grid: Optional[StatGrid]) -> NewItemSpe
         effect=effect_reference(draft.effect_stem),
         effect_scale=float(draft.effect_scale),
         effect_offset=tuple(float(v) for v in draft.effect_offset),
+        effect_rotation_degrees=tuple(float(v) for v in draft.effect_rotation),
         effect_look=EffectLook(
             color=tuple(float(v) for v in draft.effect_color) if draft.effect_color is not None else None,
             intensity=float(draft.effect_intensity), size=float(draft.effect_size),
