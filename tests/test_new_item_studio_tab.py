@@ -514,6 +514,7 @@ class TabTests(unittest.TestCase):
         perks.choose_effect("fx_test_fire")
         self.assertEqual(tab.controller.draft.effect_stem, "fx_test_fire")
         self.assertEqual((tab.controller.draft.effect_scale, tab.controller.draft.effect_offset), (1.0, (0.0, 0.0, 0.0)), "a new effect does not inherit another effect's tuning")
+        self.assertEqual(tab.controller.draft.effect_rotation, (0.0, 0.0, 0.0), "nor its turn")
         self.assertEqual(tab.controller.current_spec().effect, "fx_test_fire.level.effect")
         self.assertEqual(tab.controller.current_spec().socket_items, (1002812, 1002793))
         # the effect catalogue: before indexing the facts line asks for it; after, the real
@@ -547,6 +548,7 @@ class TabTests(unittest.TestCase):
             def __init__(self, parent, **kwargs):
                 seen.update(kwargs)
                 self.offset = (0.1, 0.0, -0.2)
+                self.rotation = (0.0, 90.0, -15.0)
                 self.scale = 0.75
 
             def exec(self):
@@ -571,8 +573,11 @@ class TabTests(unittest.TestCase):
         self.assertEqual(len(seen["effect_preview"].emitters), 2)
         self.assertTrue(callable(seen["texture_reader"]))
         self.assertIsNone(seen["texture_reader"]("effect/texture/not_in_the_snapshot.dds"))
+        self.assertEqual(seen["rotation"], (0.0, 0.0, 0.0))
         self.assertEqual(tab.controller.draft.effect_scale, 0.75)
         self.assertEqual(tab.controller.draft.effect_offset, (0.1, 0.0, -0.2))
+        self.assertEqual(tab.controller.draft.effect_rotation, (0.0, 90.0, -15.0))
+        self.assertEqual(tab.controller.current_spec().effect_rotation_degrees, (0.0, 90.0, -15.0))
         # the look: a colour and four factors go into the spec's EffectLook; as shipped by default
         self.assertTrue(tab.controller.current_spec().effect_look.is_default)
         perks.set_effect_color((0.2, 0.4, 1.0))
@@ -586,6 +591,7 @@ class TabTests(unittest.TestCase):
         self.assertIsNone(reset.effect_look.color)
         self.assertTrue(reset.effect_look.is_default)
         self.assertEqual((reset.effect_scale, reset.effect_offset), (1.0, (0.0, 0.0, 0.0)))
+        self.assertEqual(reset.effect_rotation_degrees, (0.0, 0.0, 0.0))
         self.assertEqual(perks.color_button.text(), "Colour: as shipped")
         # a second tab loads the cache instead of indexing again
         again = self._tab()

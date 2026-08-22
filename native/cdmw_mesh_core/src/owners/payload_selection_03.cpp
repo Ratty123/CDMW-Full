@@ -711,18 +711,26 @@ bool source_face_indices_are_identity(const std::vector<int>& source_faces) {
     return true;
 }
 
+// Face-selection values are compact face offsets. The one exception is a
+// submesh whose store dropped malformed caller rows: selections made against
+// the caller's raw face list are translated through its captured
+// input_face_offsets. This used to translate through source_face_indices
+// instead, treating any non-identity map as a selection space; the first
+// Subdivide rewrites that map to ancestor bookkeeping, so the second Subdivide
+// read its own remapped offsets as ancestor ids and split faces scattered
+// across the whole mesh.
 std::set<int> compact_face_offsets_from_selection_values(
     const std::set<int>& selected_values,
-    const std::vector<int>& source_faces,
+    const std::vector<int>& input_face_offsets,
     std::size_t face_count
 ) {
     std::set<int> result;
     if (selected_values.empty()) {
         return result;
     }
-    if (source_faces.size() == face_count && !source_face_indices_are_identity(source_faces)) {
-        for (std::size_t face_offset = 0; face_offset < source_faces.size(); ++face_offset) {
-            if (selected_values.find(source_faces[face_offset]) != selected_values.end()) {
+    if (input_face_offsets.size() == face_count && !source_face_indices_are_identity(input_face_offsets)) {
+        for (std::size_t face_offset = 0; face_offset < input_face_offsets.size(); ++face_offset) {
+            if (selected_values.find(input_face_offsets[face_offset]) != selected_values.end()) {
                 result.insert(static_cast<int>(face_offset));
             }
         }
@@ -734,25 +742,4 @@ std::set<int> compact_face_offsets_from_selection_values(
         }
     }
     return result;
-}
-
-std::vector<int> source_face_indices_for_selection(
-    const JsonValue& item,
-    const std::vector<std::array<int, 3>>& faces,
-    std::size_t vertex_count
-) {
-    std::vector<int> source_faces = mesh_source_face_indices_from_item(item, faces.size());
-    if (source_faces.size() == faces.size() && !source_face_indices_are_identity(source_faces)) {
-        return source_faces;
-    }
-    if (item.get("source_face_indices_binary") == nullptr
-        && item.get("source_face_indices") == nullptr
-        && item.get("source_face_start") == nullptr
-        && item.get("faces") != nullptr) {
-        const std::vector<int> raw_source_faces = source_face_indices_from_faces_json(item.get("faces"), vertex_count);
-        if (raw_source_faces.size() == faces.size()) {
-            return raw_source_faces;
-        }
-    }
-    return source_faces;
 }

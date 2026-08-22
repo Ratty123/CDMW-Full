@@ -889,6 +889,23 @@ def test_falloff_preview_matches_the_native_brush_weight() -> None:
     assert "geometry_uv_04.cpp" in profile
 
 
+def test_provisional_grab_echo_weights_with_the_active_falloff_profile() -> None:
+    """The grab echo weights with the shared native-profile port and the live option.
+
+    A private falloff copy hardcoded to "smooth" made every non-smooth grab
+    snap at stroke end, when the authoritative surface replaced a provisional
+    one shaped by a different profile.
+    """
+    strokes = _source("MeshViewport.ProvisionalStrokes.cs")
+
+    assert "BrushFalloffProfile.Weight(distance, Math.Max(radius, 0.001f), falloff)" in strokes
+    assert "FalloffOption(options)" in strokes
+    # The private duplicate profile stays gone; BrushFalloffProfile is the one
+    # guarded port of the native weight.
+    assert "BrushFalloffWeight(" not in strokes
+    assert '"smooth"' not in strokes
+
+
 def test_tool_column_width_is_measured_rather_than_reserved() -> None:
     metrics = _source("EditMeshToolColumnMetrics.cs")
     tool_list = _source("ExperimentForm.ToolList.cs")

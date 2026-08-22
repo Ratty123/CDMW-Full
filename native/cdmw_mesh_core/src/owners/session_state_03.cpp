@@ -1,3 +1,53 @@
+/// One occlusion mask for every screen item of one selection command. Each
+/// dab and region used to rasterize its own mask -- a full software render of
+/// every submesh -- so a coalesced backlog of N dabs paid for N renders and
+/// fell further behind the pointer the further behind it already was.
+MeshEditorScreenBrushDepthMask mesh_editor_shared_screen_selection_depth_mask(
+    const MeshEditorSession* session,
+    const std::vector<const JsonValue*>& screen_items
+) {
+    MeshEditorScreenBrushDepthMask mask;
+    if (session == nullptr || screen_items.empty()) {
+        return mask;
+    }
+    const MeshEditorScreenBrushProjection first_projection =
+        mesh_editor_screen_brush_projection(*screen_items.front());
+    if (!first_projection.has_world_view_projection
+        && first_projection.source_world_view_projections.empty()) {
+        return mask;
+    }
+    std::array<double, 4> bounds{};
+    bool has_bounds = false;
+    for (const JsonValue* item : screen_items) {
+        const MeshEditorScreenBrushProjection projection = mesh_editor_screen_brush_projection(*item);
+        // Dabs of one gesture share their camera; if a mixed payload ever
+        // carried differing projections, a shared mask would be wrong for all
+        // but the first, so fail back to per-item masks.
+        if (projection.world_view_projection != first_projection.world_view_projection
+            || projection.viewport_x != first_projection.viewport_x
+            || projection.viewport_y != first_projection.viewport_y
+            || projection.viewport_width != first_projection.viewport_width
+            || projection.viewport_height != first_projection.viewport_height) {
+            return MeshEditorScreenBrushDepthMask{};
+        }
+        const std::array<double, 4> item_bounds =
+            mesh_editor_screen_depth_mask_bounds(*item, projection);
+        if (!has_bounds) {
+            bounds = item_bounds;
+            has_bounds = true;
+        } else {
+            bounds[0] = std::min(bounds[0], item_bounds[0]);
+            bounds[1] = std::min(bounds[1], item_bounds[1]);
+            bounds[2] = std::max(bounds[2], item_bounds[2]);
+            bounds[3] = std::max(bounds[3], item_bounds[3]);
+        }
+    }
+    if (!has_bounds) {
+        return mask;
+    }
+    return mesh_editor_screen_brush_depth_mask_in_bounds(session, *screen_items.front(), bounds);
+}
+
 MeshEditorSelection mesh_editor_selection_from_json(const JsonValue* raw_selection, const MeshEditorSession* session = nullptr) {
     MeshEditorSelection selection;
     if (raw_selection == nullptr || raw_selection->type != JsonValue::Type::Object) {
@@ -34,24 +84,69 @@ MeshEditorSelection mesh_editor_selection_from_json(const JsonValue* raw_selecti
             if (!edges.empty()) selection.edges[submesh_index] = edges;
         }
     }
-    mesh_editor_add_screen_brush_selection(session, raw_selection, selection);
-    mesh_editor_add_screen_region_selection(session, raw_selection, selection);
-    if (raw_brushes != nullptr && raw_brushes->type == JsonValue::Type::Array) {
-        for (const JsonValue& brush : raw_brushes->array_value) {
-            if (brush.type != JsonValue::Type::Object) continue;
-            JsonValue item = *raw_selection;
-            item.object_value["screen_brush"] = brush;
-            item.object_value.erase("screen_region");
-            mesh_editor_add_screen_brush_selection(session, &item, selection);
+    std::vector<const JsonValue*> screen_items;
+    if (raw_brush != nullptr && raw_brush->type == JsonValue::Type::Object) {
+        screen_items.push_back(raw_brush);
+    }
+    if (raw_region != nullptr && raw_region->type == JsonValue::Type::Object) {
+        screen_items.push_back(raw_region);
+    }
+    for (const JsonValue* items : {raw_brushes, raw_regions}) {
+        if (items == nullptr || items->type != JsonValue::Type::Array) continue;
+        for (const JsonValue& item : items->array_value) {
+            if (item.type == JsonValue::Type::Object) {
+                screen_items.push_back(&item);
+            }
         }
     }
-    if (raw_regions != nullptr && raw_regions->type == JsonValue::Type::Array) {
-        for (const JsonValue& region : raw_regions->array_value) {
-            if (region.type != JsonValue::Type::Object) continue;
-            JsonValue item = *raw_selection;
-            item.object_value["screen_region"] = region;
+    MeshEditorScreenBrushDepthMask shared_depth_mask_storage;
+    const MeshEditorScreenBrushDepthMask* shared_depth_mask = nullptr;
+    if (session != nullptr && !screen_items.empty()) {
+        const std::string depth_mode = lower_ascii(string_or(
+            raw_selection->get("selection_depth_mode"),
+            string_or(
+                raw_selection->get("depth_mode"),
+                string_or(
+                    screen_items.front()->get("selection_depth_mode"),
+                    string_or(screen_items.front()->get("depth_mode"), "xray")
+                )
+            )
+        ));
+        if (depth_mode != "xray") {
+            shared_depth_mask_storage =
+                mesh_editor_shared_screen_selection_depth_mask(session, screen_items);
+            if (shared_depth_mask_storage.valid) {
+                shared_depth_mask = &shared_depth_mask_storage;
+            }
+        }
+    }
+    mesh_editor_add_screen_brush_selection(session, raw_selection, selection, shared_depth_mask);
+    mesh_editor_add_screen_region_selection(session, raw_selection, selection, shared_depth_mask);
+    const bool has_brush_array = raw_brushes != nullptr && raw_brushes->type == JsonValue::Type::Array;
+    const bool has_region_array = raw_regions != nullptr && raw_regions->type == JsonValue::Type::Array;
+    if (has_brush_array || has_region_array) {
+        // One reusable envelope instead of one copy of the whole payload --
+        // including the arrays themselves -- per replayed item, which made the
+        // copying alone quadratic in the coalesced backlog.
+        JsonValue item = *raw_selection;
+        item.object_value.erase("screen_brush");
+        item.object_value.erase("screen_region");
+        item.object_value.erase("screen_brushes");
+        item.object_value.erase("screen_regions");
+        if (has_brush_array) {
+            for (const JsonValue& brush : raw_brushes->array_value) {
+                if (brush.type != JsonValue::Type::Object) continue;
+                item.object_value["screen_brush"] = brush;
+                mesh_editor_add_screen_brush_selection(session, &item, selection, shared_depth_mask);
+            }
             item.object_value.erase("screen_brush");
-            mesh_editor_add_screen_region_selection(session, &item, selection);
+        }
+        if (has_region_array) {
+            for (const JsonValue& region : raw_regions->array_value) {
+                if (region.type != JsonValue::Type::Object) continue;
+                item.object_value["screen_region"] = region;
+                mesh_editor_add_screen_region_selection(session, &item, selection, shared_depth_mask);
+            }
         }
     }
     mesh_editor_prune_vertex_weights_to_selection(selection);

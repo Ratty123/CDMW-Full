@@ -257,6 +257,7 @@ class MeshEditorTabShellPackageStateMixin(MeshEditorTabShellNativeStateMixin):
         self._finish_pending_textured_view(
             success=False,
             reason="package_update_failed",
+            status_text=f"Mesh Editor package update failed; the resident scene was kept: {message}",
         )
         self._set_dotnet_status(
             f"Mesh Editor package update failed; the resident scene was kept: {message}",

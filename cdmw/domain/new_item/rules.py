@@ -218,6 +218,9 @@ def validate_spec(spec: NewItemSpec) -> Tuple[ValidationIssue, ...]:
         offset = tuple(spec.effect_offset)
         if len(offset) != 3 or any(not -5.0 <= float(v) <= 5.0 for v in offset):
             issues.append(_issue("effect.offset", "effect_offset", "The effect offset is three metres-scale numbers within 5 of the weapon's origin."))
+        rotation = tuple(spec.effect_rotation_degrees)
+        if len(rotation) != 3 or any(not -180.0 <= float(v) <= 180.0 for v in rotation):
+            issues.append(_issue("effect.rotation", "effect_rotation_degrees", "The effect rotation is three Euler degrees about the weapon's axes (x, then y, then z), each within 180."))
         look = spec.effect_look
         for name in ("intensity", "size", "rate", "lifetime"):
             try:

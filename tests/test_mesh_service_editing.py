@@ -12451,7 +12451,10 @@ class MeshServiceEditingTests(unittest.TestCase):
             mesh_native_core._cleanup_native_preview_delta_paths()
             mesh_native_core._clear_native_mesh_core_session_cache()
 
-        self.assertEqual([0, 0, 0, 0, 1], source_faces)
+        # Face 0 splits four ways; the unselected neighbour is stitched into
+        # two children against the shared-edge midpoint instead of keeping the
+        # whole original edge as a hanging T-junction.
+        self.assertEqual([0, 0, 0, 0, 1, 1], source_faces)
         self.assertEqual([0, 1, 2, 3, -1, -1, -1], source_vertices)
 
     def test_native_mesh_core_edit_json_suppresses_topology_remap_report_when_requested(self) -> None:
@@ -13870,8 +13873,12 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertTrue(subdivided.topology_changed)
         self.assertEqual((0,), subdivided.affected_submesh_indices)
         self.assertEqual(7, submesh.vertex_count)
-        self.assertEqual(5, submesh.face_count)
-        self.assertEqual((1, 3, 2), submesh.faces[-1])
+        # Face 0 splits four ways; the unselected neighbour (1, 3, 2) is
+        # stitched into two children against the shared-edge midpoint 5 so the
+        # split leaves no hanging T-junction on edge (1, 2).
+        self.assertEqual(6, submesh.face_count)
+        self.assertEqual((2, 5, 3), submesh.faces[-2])
+        self.assertEqual((5, 1, 3), submesh.faces[-1])
         self.assertEqual({0, 1, 2, 4, 5, 6}, _changed_vertices_as_set(subdivided))
 
     def test_subdivide_noops_when_edge_selection_matches_no_faces(self) -> None:

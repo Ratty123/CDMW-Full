@@ -4,7 +4,10 @@ std::set<int> selected_faces_from_topology_json(
     std::size_t vertex_count
 ) {
     std::set<int> selected_faces;
-    const std::vector<int> source_faces = source_face_indices_for_selection(item, faces, vertex_count);
+    const MeshSessionSubmesh* stored_submesh = mesh_session_submesh_for_item(item);
+    const std::vector<int> input_face_offsets = stored_submesh != nullptr
+        ? stored_submesh->input_face_offsets
+        : std::vector<int>();
     const std::vector<int> explicit_selected_faces = int_vector_from_binary_or_json(
         item,
         "selected_faces_binary",
@@ -25,13 +28,13 @@ std::set<int> selected_faces_from_topology_json(
         return selected_faces;
     }
     if (!selected_faces.empty()) {
-        return compact_face_offsets_from_selection_values(selected_faces, source_faces, faces.size());
+        return compact_face_offsets_from_selection_values(selected_faces, input_face_offsets, faces.size());
     }
     if (const MeshEditorSelection* selection = mesh_editor_selection_for_item(item)) {
         const int submesh_index = int_or(item.get("index"), -1);
         const auto found = selection->faces.find(submesh_index);
         if (found != selection->faces.end()) {
-            selected_faces = compact_face_offsets_from_selection_values(found->second, source_faces, faces.size());
+            selected_faces = compact_face_offsets_from_selection_values(found->second, input_face_offsets, faces.size());
         }
         if (!selected_faces.empty()) {
             return selected_faces;
@@ -142,12 +145,15 @@ std::set<int> selected_vertices_from_edit_domains(
         "selected_face_count"
     );
     if (selected_faces.empty()) {
-        const std::vector<int> source_faces = source_face_indices_for_selection(item, faces, vertex_count);
         if (const MeshEditorSelection* selection = mesh_editor_selection_for_item(item)) {
+            const MeshSessionSubmesh* stored_submesh = mesh_session_submesh_for_item(item);
+            const std::vector<int> input_face_offsets = stored_submesh != nullptr
+                ? stored_submesh->input_face_offsets
+                : std::vector<int>();
             const int submesh_index = int_or(item.get("index"), -1);
             const auto found = selection->faces.find(submesh_index);
             if (found != selection->faces.end()) {
-                for (const int face_index : compact_face_offsets_from_selection_values(found->second, source_faces, faces.size())) {
+                for (const int face_index : compact_face_offsets_from_selection_values(found->second, input_face_offsets, faces.size())) {
                     if (face_index >= 0 && static_cast<std::size_t>(face_index) < faces.size()) {
                         selected_vertices.insert(faces[static_cast<std::size_t>(face_index)][0]);
                         selected_vertices.insert(faces[static_cast<std::size_t>(face_index)][1]);

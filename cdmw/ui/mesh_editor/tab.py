@@ -201,6 +201,7 @@ class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshE
         get_archive_texture_entries_by_basename: Callable[[], Mapping[str, Sequence[ArchiveEntry]]] | None = None,
         get_archive_sidecar_entries_by_texture_path: Callable[[], Mapping[str, Sequence[ArchiveEntry]]] | None = None,
         get_archive_sidecar_entries_by_texture_basename: Callable[[], Mapping[str, Sequence[ArchiveEntry]]] | None = None,
+        ensure_archive_texture_indexes: Callable[[], bool] | None = None,
         get_archive_mutation_service: Callable[[], object | None] | None = None,
         get_archive_material_preview_model: Callable[[], object | None] | None = None,
         parent: Optional[QWidget] = None,
@@ -219,6 +220,7 @@ class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshE
             get_archive_texture_entries_by_basename=get_archive_texture_entries_by_basename,
             get_archive_sidecar_entries_by_texture_path=get_archive_sidecar_entries_by_texture_path,
             get_archive_sidecar_entries_by_texture_basename=get_archive_sidecar_entries_by_texture_basename,
+            ensure_archive_texture_indexes=ensure_archive_texture_indexes,
         )
 
         root = QVBoxLayout(self)

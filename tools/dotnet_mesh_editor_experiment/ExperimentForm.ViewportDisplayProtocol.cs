@@ -25,10 +25,19 @@ internal sealed partial class ExperimentForm
         }
         _viewport.MarkHostDisplayModeAuthoritative();
         var textureRequestPending = JsonBoolean(root, "texture_request_pending");
+        // Already localized by the host: why a requested textured view stayed
+        // on the fallback. Without it this label's last words were the pending
+        // "Loading textures..." line, and the snapped-back selector read as a
+        // dead control.
+        var failureText = JsonBoolean(root, "texture_request_failed")
+            ? JsonString(root, "failure_text").Trim()
+            : string.Empty;
         SyncPreviewModeSelection(_viewport.DisplayMode);
-        _statusLabel.Text = textureRequestPending
-            ? "Loading textures in the resident viewport..."
-            : $"Viewport display: {_viewport.DisplayMode}.";
+        _statusLabel.Text = failureText.Length > 0
+            ? failureText
+            : textureRequestPending
+                ? "Loading textures in the resident viewport..."
+                : $"Viewport display: {_viewport.DisplayMode}.";
         WriteViewportDisplayResult(root, "viewport_display_applied", sessionId, _viewport.DisplayMode, string.Empty, string.Empty);
     }
 

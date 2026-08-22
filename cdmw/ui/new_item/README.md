@@ -28,7 +28,11 @@ authority, and the rail summarizes effective changes rather than UI mode.
 The Model and icon step imports a model file itself: `model_import.py` reads it
 the way the Model Library does (the scene import, the source's own textures),
 `item_preview.py` shows it over the template in the resident viewport with the
-gizmo (`PlacementScene`), and `ModelPlacement.build_transform()` turns the
+gizmo (`PlacementScene`), a glow ticked on the step lights its parts in that
+viewport live (`glow_preview_parameter_groups` in the materials service builds
+the renderer's parameter groups from the same three values the plan will write,
+re-sent whole after every package rebuild; un-ticking restores the import's own
+emissive), and `ModelPlacement.build_transform()` turns the
 placement into the static replacement's transform for the headless Builder import
 (`build_placed_import`), whose result is what the plan writes. The viewport's
 rotation convention (the helper's yaw/pitch/roll) and the pipeline's x-then-y-

@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 
@@ -77,6 +78,7 @@ internal sealed partial class D3D11MaterialViewport
         _depthStencilView = CreateDepthStencilView(
             _depthTexture,
             multisampled: _renderSampleCount > 1);
+        CreateDepthReadViews(_depthTexture, multisampled: _renderSampleCount > 1);
         _renderSurfaceBytesEstimate = EstimateRenderSurfaceBytes(
             _renderWidth,
             _renderHeight,
@@ -145,11 +147,64 @@ internal sealed partial class D3D11MaterialViewport
             Height = (uint)Math.Max(1, height),
             MipLevels = 1,
             ArraySize = 1,
-            Format = Format.D24_UNorm_S8_UInt,
+            // typeless so the same texture takes the D24S8 depth view and the R24X8
+            // shader view the particle pass's soft fade reads
+            Format = Format.R24G8_Typeless,
             SampleDescription = samples,
             Usage = ResourceUsage.Default,
-            BindFlags = BindFlags.DepthStencil,
+            BindFlags = BindFlags.DepthStencil | BindFlags.ShaderResource,
         };
+
+    /// <summary>
+    /// The depth buffer's read-only depth view and shader view, for passes that test
+    /// against the depth and sample it in the same draw (the particle soft fade).
+    /// Best effort: refused, both stay null and the fade simply stays off.
+    /// </summary>
+    private void CreateDepthReadViews(ID3D11Texture2D texture, bool multisampled)
+    {
+        _depthShaderResourceView?.Dispose();
+        _depthShaderResourceView = null;
+        _depthStencilReadOnlyView?.Dispose();
+        _depthStencilReadOnlyView = null;
+        if (_device is null)
+        {
+            return;
+        }
+        try
+        {
+            _depthStencilReadOnlyView = _device.CreateDepthStencilView(
+                texture,
+                new DepthStencilViewDescription(
+                    texture,
+                    multisampled
+                        ? DepthStencilViewDimension.Texture2DMultisampled
+                        : DepthStencilViewDimension.Texture2D,
+                    Format.D24_UNorm_S8_UInt,
+                    0,
+                    0,
+                    1,
+                    DepthStencilViewFlags.ReadOnlyDepth | DepthStencilViewFlags.ReadOnlyStencil));
+            _depthShaderResourceView = _device.CreateShaderResourceView(
+                texture,
+                new ShaderResourceViewDescription(
+                    texture,
+                    multisampled
+                        ? ShaderResourceViewDimension.Texture2DMultisampled
+                        : ShaderResourceViewDimension.Texture2D,
+                    Format.R24_UNorm_X8_Typeless,
+                    0,
+                    1,
+                    0,
+                    1));
+        }
+        catch (Exception)
+        {
+            _depthShaderResourceView?.Dispose();
+            _depthShaderResourceView = null;
+            _depthStencilReadOnlyView?.Dispose();
+            _depthStencilReadOnlyView = null;
+        }
+    }
 
     private ID3D11RenderTargetView CreateSrgbRenderTargetView(
         ID3D11Texture2D texture,
@@ -227,6 +282,10 @@ internal sealed partial class D3D11MaterialViewport
         _renderTargetView = null;
         _depthStencilView?.Dispose();
         _depthStencilView = null;
+        _depthStencilReadOnlyView?.Dispose();
+        _depthStencilReadOnlyView = null;
+        _depthShaderResourceView?.Dispose();
+        _depthShaderResourceView = null;
         _depthTexture?.Dispose();
         _depthTexture = null;
         if (activeTarget is not null && !ReferenceEquals(activeTarget, _swapChainRenderTargetView))

@@ -19,7 +19,9 @@ namespace Cdmw.MeshEditorExperiment;
 /// </summary>
 internal sealed partial class D3D11MaterialViewport
 {
-    private const int EffectParticlePumpMilliseconds = 33;
+    // 60 Hz rather than 30: the pump only invalidates, so a fast frame shows and a
+    // slow one coalesces; the simulation steps by measured wall time either way
+    private const int EffectParticlePumpMilliseconds = 16;
     private const int EffectParticleInitialVertexCapacity = 6 * 1024;
     private static readonly uint EffectParticleVertexStride = (uint)Marshal.SizeOf<D3D11EffectParticleVertex>();
 
@@ -33,6 +35,7 @@ internal sealed partial class D3D11MaterialViewport
     private ID3D11PixelShader? _effectParticlePixelShader;
     private ID3D11InputLayout? _effectParticleInputLayout;
     private ID3D11BlendState? _effectParticleAdditiveBlendState;
+    private ID3D11BlendState? _effectParticlePremultipliedBlendState;
     private ID3D11SamplerState? _effectParticleSamplerState;
     private System.Windows.Forms.Timer? _effectParticlePump;
     private long _effectParticleLastTimestamp;
@@ -198,8 +201,15 @@ internal sealed partial class D3D11MaterialViewport
             return;
         }
         _effectParticleAdditiveBlendState?.Dispose();
+        // Screen blending (source premultiplied in the shader): out = s*(1-d) + d. Plain
+        // additive into the 8-bit target clipped every overlap to flat white -- the game
+        // accumulates in HDR and tone-maps, and this is the closed-form of that curve:
+        // it approaches white asymptotically and keeps hue in the bright core.
         _effectParticleAdditiveBlendState = _device.CreateBlendState(
-            new BlendDescription(Blend.SourceAlpha, Blend.One, Blend.One, Blend.One));
+            new BlendDescription(Blend.InverseDestinationColor, Blend.One, Blend.One, Blend.One));
+        _effectParticlePremultipliedBlendState?.Dispose();
+        _effectParticlePremultipliedBlendState = _device.CreateBlendState(
+            new BlendDescription(Blend.One, Blend.InverseSourceAlpha, Blend.One, Blend.InverseSourceAlpha));
         _effectParticleSamplerState?.Dispose();
         _effectParticleSamplerState = _device.CreateSamplerState(new SamplerDescription(
             Filter.MinMagMipLinear, TextureAddressMode.Clamp, TextureAddressMode.Clamp, TextureAddressMode.Clamp));
@@ -213,6 +223,8 @@ internal sealed partial class D3D11MaterialViewport
         _effectParticleVertexCapacity = 0;
         _effectParticleAdditiveBlendState?.Dispose();
         _effectParticleAdditiveBlendState = null;
+        _effectParticlePremultipliedBlendState?.Dispose();
+        _effectParticlePremultipliedBlendState = null;
         _effectParticleSamplerState?.Dispose();
         _effectParticleSamplerState = null;
         _effectParticleInputLayout?.Dispose();
@@ -471,10 +483,12 @@ internal sealed partial class D3D11MaterialViewport
         var modelScale = MathF.Max(1e-4f, new Vector3(model.M11, model.M12, model.M13).Length());
         var right = _camera.Right;
         var up = _camera.Up;
+        var forward = _camera.Forward;
         if (right.LengthSquared() < 1e-8f || up.LengthSquared() < 1e-8f)
         {
             right = Vector3.UnitX;
             up = Vector3.UnitY;
+            forward = Vector3.UnitZ;
         }
 
         _effectParticleVertices.Clear();
@@ -483,7 +497,7 @@ internal sealed partial class D3D11MaterialViewport
         {
             simulation.Step(_effectParticlesPaused ? 0.0f : deltaSeconds);
             var start = _effectParticleVertices.Count;
-            var count = simulation.AppendVertices(_effectParticleVertices, model, right, up, modelScale);
+            var count = simulation.AppendVertices(_effectParticleVertices, model, right, up, forward, modelScale);
             if (count > 0)
             {
                 ranges.Add((start, count, simulation.Emitter.TexturePath, simulation.Emitter.IsAdditive, simulation.Emitter.IsBeam));
@@ -519,16 +533,44 @@ internal sealed partial class D3D11MaterialViewport
             return;
         }
 
+        // Soft particles: the sprite fades where it approaches the scene's depth instead
+        // of slicing through the blade with a hard line. The camera is orthographic, so
+        // NDC depth is linear and one constant turns a fade distance in metres into an
+        // NDC delta: z = 0.5 + (v . forward - ...) / (sceneSize * 4). Needs the depth
+        // buffer readable while still bound for testing, which the read-only view and
+        // the depth SRV from the render-target pass provide; without them (an old
+        // driver, a failed creation) the fade flag stays 0 and the sprite keeps its edge.
+        var softDepth = _depthShaderResourceView;
+        var softEnabled = softDepth is not null
+            && _depthStencilReadOnlyView is not null
+            && _renderTargetView is not null
+            && !_presentationSettings.DisableDepthTest;
+        var fadeMetres = MathF.Max(0.02f, 0.06f * modelScale);
+        var fadeNdc = fadeMetres / MathF.Max(_camera.SceneSize * 4.0f, 0.0001f);
         var constants = new D3D11OverlayConstants
         {
             WorldViewProjection = _camera.WorldViewProjection,
-            Color = Vector4.One,
+            // Color is free in this pass (the sprites carry their own): x = soft fade
+            // on, y = the depth SRV is multisampled, z = the fade's NDC depth window
+            Color = new Vector4(
+                softEnabled ? 1.0f : 0.0f,
+                _renderSampleCount > 1 ? 1.0f : 0.0f,
+                fadeNdc,
+                0.0f),
             MarkerSettings = new Vector4(
                 Math.Max(1.0f, _camera.ViewportWidth),
                 Math.Max(1.0f, _camera.ViewportHeight),
                 0.0f,
                 0.0f),
         };
+        // t12 is the single-sampled depth declaration, t13 the multisampled one
+        var softSlot = _renderSampleCount > 1 ? 13u : 12u;
+        if (softEnabled)
+        {
+            // rebind the depth as read-only so it can be tested and sampled at once
+            _context.OMSetRenderTargets(_renderTargetView!, _depthStencilReadOnlyView);
+            _context.PSSetShaderResource(softSlot, softDepth!);
+        }
         _context.IASetInputLayout(_effectParticleInputLayout);
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _context.IASetVertexBuffer(0u, _effectParticleVertexBuffer, EffectParticleVertexStride);
@@ -552,12 +594,18 @@ internal sealed partial class D3D11MaterialViewport
             constants.MarkerSettings.W = range.Beam ? 1.0f : 0.0f;
             _context.UpdateSubresource(in constants, _overlayCameraBuffer);
             _context.PSSetShaderResource(11u, texture);
+            // the shader premultiplies, so alpha emitters take (One, InvSrcAlpha)
             _context.OMSetBlendState(range.Additive
                 ? _effectParticleAdditiveBlendState ?? _transparentBlendState ?? _overlayBlendState
-                : _transparentBlendState ?? _overlayBlendState);
+                : _effectParticlePremultipliedBlendState ?? _transparentBlendState ?? _overlayBlendState);
             _context.Draw((uint)range.Count, (uint)range.Start);
         }
         _context.PSSetShaderResource(11u, null);
+        if (softEnabled)
+        {
+            _context.PSSetShaderResource(softSlot, null!);
+            _context.OMSetRenderTargets(_renderTargetView!, _depthStencilView);
+        }
         // back to the solid pass's state for whatever draws next
         _context.RSSetState(_rasterizerState);
         _context.OMSetBlendState(_blendState);

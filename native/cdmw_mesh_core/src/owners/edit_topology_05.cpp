@@ -395,13 +395,13 @@ SubmeshMeshEditResult run_subdivide_edit_for_submesh(const JsonValue& item, cons
         result.vertices.clear();
         return result;
     }
-    const long long predicted_face_count = static_cast<long long>(original_faces.size())
+    const long long lower_bound_face_count = static_cast<long long>(original_faces.size())
         + 3LL * static_cast<long long>(split_faces.size());
-    if (predicted_face_count > static_cast<long long>(face_limit)) {
+    if (lower_bound_face_count > static_cast<long long>(face_limit)) {
         throw std::runtime_error(
             "subdivide would exceed the per-submesh face limit: submesh="
             + std::to_string(result.index)
-            + ", predicted_faces=" + std::to_string(predicted_face_count)
+            + ", predicted_faces=" + std::to_string(lower_bound_face_count)
             + ", limit=" + std::to_string(face_limit)
         );
     }
@@ -429,43 +429,91 @@ SubmeshMeshEditResult run_subdivide_edit_for_submesh(const JsonValue& item, cons
         ++result.added_vertices;
         return new_index;
     };
+    auto midpoint_for = [&](int a, int b) -> int {
+        const auto found = edge_midpoints.find(edge_key(a, b));
+        return found == edge_midpoints.end() ? -1 : found->second;
+    };
 
+    // Pass 1: create every split face's midpoints first, so unsplit neighbours
+    // can be stitched to them below. Splitting a face used to leave each
+    // neighbour across the region boundary spanning the whole original edge
+    // while the split side referenced the new midpoint: a T-junction that
+    // cracked open as soon as anything moved that midpoint.
+    for (const int split_index : split_faces) {
+        if (split_index < 0 || static_cast<std::size_t>(split_index) >= original_faces.size()) {
+            continue;
+        }
+        const auto& face = original_faces[static_cast<std::size_t>(split_index)];
+        midpoint_index(face[0], face[1]);
+        midpoint_index(face[1], face[2]);
+        midpoint_index(face[2], face[0]);
+        changed.insert(face[0]);
+        changed.insert(face[1]);
+        changed.insert(face[2]);
+    }
+
+    // Exact output size, neighbour stitching included, checked before any face
+    // is emitted. The pre-pass bound above is a lower bound only.
+    long long predicted_face_count = 0;
+    for (std::size_t face_index = 0; face_index < original_faces.size(); ++face_index) {
+        const auto& face = original_faces[face_index];
+        if (split_faces.find(static_cast<int>(face_index)) != split_faces.end()) {
+            predicted_face_count += 4;
+            continue;
+        }
+        predicted_face_count += 1
+            + (midpoint_for(face[0], face[1]) >= 0 ? 1 : 0)
+            + (midpoint_for(face[1], face[2]) >= 0 ? 1 : 0)
+            + (midpoint_for(face[2], face[0]) >= 0 ? 1 : 0);
+    }
+    if (predicted_face_count > static_cast<long long>(face_limit)) {
+        throw std::runtime_error(
+            "subdivide would exceed the per-submesh face limit: submesh="
+            + std::to_string(result.index)
+            + ", predicted_faces=" + std::to_string(predicted_face_count)
+            + ", limit=" + std::to_string(face_limit)
+        );
+    }
+
+    // Pass 2: emit children in original face order. A split face becomes its
+    // four-way split; an unsplit face touching split midpoints is stitched
+    // against them (two or three children) so no edge is left hanging.
     for (std::size_t face_index = 0; face_index < original_faces.size(); ++face_index) {
         const auto& face = original_faces[face_index];
         const int source_face_index = face_index < source_faces.size()
             ? source_faces[face_index]
             : static_cast<int>(face_index);
-        if (split_faces.find(static_cast<int>(face_index)) == split_faces.end()) {
-            result.faces.push_back(face);
-            result.source_face_indices.push_back(source_face_index);
-            result.topology_source_face_indices.push_back(static_cast<int>(face_index));
-            continue;
-        }
         const int a = face[0];
         const int b = face[1];
         const int c = face[2];
-        const int ab = midpoint_index(a, b);
-        const int bc = midpoint_index(b, c);
-        const int ca = midpoint_index(c, a);
-        changed.insert(a);
-        changed.insert(b);
-        changed.insert(c);
-        changed.insert(ab);
-        changed.insert(bc);
-        changed.insert(ca);
-        result.faces.push_back({a, ab, ca});
-        result.faces.push_back({ab, b, bc});
-        result.faces.push_back({ca, bc, c});
-        result.faces.push_back({ab, bc, ca});
-        result.source_face_indices.push_back(source_face_index);
-        result.source_face_indices.push_back(source_face_index);
-        result.source_face_indices.push_back(source_face_index);
-        result.source_face_indices.push_back(source_face_index);
-        result.topology_source_face_indices.push_back(static_cast<int>(face_index));
-        result.topology_source_face_indices.push_back(static_cast<int>(face_index));
-        result.topology_source_face_indices.push_back(static_cast<int>(face_index));
-        result.topology_source_face_indices.push_back(static_cast<int>(face_index));
-        result.added_faces += 3;
+        const int ab = midpoint_for(a, b);
+        const int bc = midpoint_for(b, c);
+        const int ca = midpoint_for(c, a);
+        std::vector<std::array<int, 3>> children;
+        if (split_faces.find(static_cast<int>(face_index)) != split_faces.end()
+            || (ab >= 0 && bc >= 0 && ca >= 0)) {
+            children = {{a, ab, ca}, {ab, b, bc}, {ca, bc, c}, {ab, bc, ca}};
+        } else if (ab >= 0 && bc >= 0) {
+            children = {{a, ab, c}, {ab, bc, c}, {ab, b, bc}};
+        } else if (bc >= 0 && ca >= 0) {
+            children = {{b, bc, a}, {bc, ca, a}, {bc, c, ca}};
+        } else if (ca >= 0 && ab >= 0) {
+            children = {{c, ca, b}, {ca, ab, b}, {ca, a, ab}};
+        } else if (ab >= 0) {
+            children = {{a, ab, c}, {ab, b, c}};
+        } else if (bc >= 0) {
+            children = {{b, bc, a}, {bc, c, a}};
+        } else if (ca >= 0) {
+            children = {{c, ca, b}, {ca, a, b}};
+        } else {
+            children = {face};
+        }
+        for (const std::array<int, 3>& child : children) {
+            result.faces.push_back(child);
+            result.source_face_indices.push_back(source_face_index);
+            result.topology_source_face_indices.push_back(static_cast<int>(face_index));
+        }
+        result.added_faces += static_cast<int>(children.size()) - 1;
     }
 
     if (refine && !changed.empty()) {

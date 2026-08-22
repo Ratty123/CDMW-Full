@@ -81,10 +81,9 @@ internal sealed partial class MeshViewport
         }
         SetProvisionalViewportSize();
         var camera = CurrentCamera();
-        var radius = (float)Math.Clamp(
-            NumberOption(ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>(), "radius", 24.0),
-            2.0,
-            256.0);
+        var options = ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>();
+        var radius = (float)Math.Clamp(NumberOption(options, "radius", 24.0), 2.0, 256.0);
+        var falloff = FalloffOption(options);
         var localGeometryPreview = normalizedTool is "move" or "grab";
         var candidates = localGeometryPreview
             ? new ProvisionalStrokeSubmesh[scope.Length]
@@ -97,7 +96,8 @@ internal sealed partial class MeshViewport
                 location,
                 radius,
                 hasExplicitSelection ? SelectionVerticesForSubmesh(scope[index]) : null,
-                normalizedTool);
+                normalizedTool,
+                falloff);
         }
         _provisionalStroke = new ProvisionalStrokeState
         {
@@ -153,7 +153,8 @@ internal sealed partial class MeshViewport
         Point origin,
         float radius,
         IReadOnlySet<int>? editableSelection,
-        string tool)
+        string tool,
+        string falloff)
     {
         var submesh = _document.Submeshes[submeshIndex];
         var count = submesh.Vertices.Count;
@@ -195,7 +196,11 @@ internal sealed partial class MeshViewport
                 {
                     continue;
                 }
-                var weight = BrushFalloffWeight(distance / Math.Max(radius, 0.001f), "smooth");
+                // The active falloff option, through the same profile the falloff
+                // preview draws. The echo hardcoding the smooth profile meant any
+                // other falloff snapped to a different surface when the
+                // authoritative result replaced the provisional one at stroke end.
+                var weight = (float)BrushFalloffProfile.Weight(distance, Math.Max(radius, 0.001f), falloff);
                 weights[vertexIndex] = weight;
                 grabIndices[grabCount++] = vertexIndex;
                 weightedCenter += new Vector3(
@@ -519,17 +524,13 @@ internal sealed partial class MeshViewport
         return MathF.Sqrt((point.X - nearestX) * (point.X - nearestX) + (point.Y - nearestY) * (point.Y - nearestY));
     }
 
-    private static float BrushFalloffWeight(float normalizedDistance, string falloff)
-    {
-        var weight = Math.Clamp(1.0f - normalizedDistance, 0.0f, 1.0f);
-        return falloff switch
-        {
-            "sharp" => weight * weight,
-            "linear" => weight,
-            "constant" => weight > 0.0f ? 1.0f : 0.0f,
-            _ => weight * weight * (3.0f - 2.0f * weight),
-        };
-    }
+    // The weight math itself lives in BrushFalloffProfile, the guarded
+    // line-for-line port of the native brush; a second local copy here is what
+    // let the echo drift onto a hardcoded smooth profile.
+    private static string FalloffOption(Dictionary<string, object?> options) =>
+        options.TryGetValue("falloff", out var value) && value is string text && text.Length > 0
+            ? text.Trim().ToLowerInvariant()
+            : BrushFalloffProfile.Smooth;
 
     private static Vector3 ToVector3(Vec3 value) => new(value.X, value.Y, value.Z);
     private static Vec3 FromVector3(Vector3 value) => new(value.X, value.Y, value.Z);

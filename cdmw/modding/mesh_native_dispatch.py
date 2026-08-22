@@ -111,6 +111,7 @@ def _run_native_mesh_core_service_inline_job(
     stop_event: threading.Event | None = None,
     timeout_seconds: float,
 ) -> dict[str, object] | None:
+    _LAST_NATIVE_JOB_REJECTION[0] = ""
     try:
         response = _get_native_mesh_core_service(binary).run_inline_job(
             command,
@@ -133,6 +134,13 @@ def _run_native_mesh_core_service_inline_job(
         status = str(report.get("status") or "").lower()
         if status != "ok":
             detail = str(report.get("error") or report.get("message") or report.get("reason") or "").strip()
+            # A structured non-ok report is the native core answering "no", not
+            # the native core failing: the process replied and its session state
+            # is untouched. Record the rejection separately so callers can keep
+            # the session alive and show the native reason instead of tearing
+            # the session down as lost.
+            if detail:
+                _LAST_NATIVE_JOB_REJECTION[0] = detail
             _note_native_job_failure(
                 command,
                 f"inline status {status or 'missing'}" + (f": {detail}" if detail else " with no message"),
@@ -162,6 +170,20 @@ def last_native_mesh_core_job_error() -> str:
     """Why the most recent native mesh job answered None, if it did."""
 
     return _LAST_NATIVE_JOB_ERROR[0]
+
+
+# A rejection is the subset of job failures where the native core itself wrote a
+# structured non-ok report: the process is alive and its resident session state
+# is exactly as it was, because every session command validates and throws
+# before its first mutation. Kept apart from _LAST_NATIVE_JOB_ERROR so callers
+# can tell "the native core said no, and why" from "the native core is gone".
+_LAST_NATIVE_JOB_REJECTION: list[str] = [""]
+
+
+def last_native_mesh_core_job_rejection() -> str:
+    """The native core's own reason for refusing the most recent job, if it did."""
+
+    return _LAST_NATIVE_JOB_REJECTION[0]
 
 
 def _note_native_job_failure(command: str, reason: str) -> None:

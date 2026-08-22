@@ -9,6 +9,14 @@ from PySide6.QtCore import QThread, QTimer, Qt
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 
+# How often to re-check for the shell's deferred texture lookup while material
+# context resolution is holding for it, and for how long. The native lookup
+# build finishes in seconds; the Python fallback over a full archive can take
+# a minute, and the textured-view watchdog extends past both.
+ARCHIVE_TEXTURE_INDEX_WAIT_INTERVAL_MS = 1_500
+ARCHIVE_TEXTURE_INDEX_WAIT_MAX_ATTEMPTS = 120
+
+
 class MeshEditorSessionMixin:
     def open_archive_session(
         self,
@@ -589,6 +597,83 @@ class MeshEditorSessionMixin:
             basename_index = {}
         return path_index or {}, basename_index or {}
 
+    def _wait_for_archive_texture_indexes(self, entry: _tab.ArchiveEntry) -> bool:
+        """Hold material context resolution until the texture lookup exists.
+
+        The shell defers its path/basename lookup build until something needs
+        it, and this resolver was resolving against the empty maps that state
+        leaves behind: every embedded material name then reports "no direct
+        visible DDS match" even though the archive holds the textures, which is
+        exactly how Solid (Textured) failed on a model the Archive Browser
+        preview textures fine. The preview waits for the same lookup before it
+        runs; this is that wait for the Mesh Editor.
+
+        True means the build is underway and a retry is scheduled; the caller
+        reports the resolution as started so the textured-view watchdog keeps
+        the request alive. False means nothing is coming (no shell hook, the
+        lookup is ready, or the wait ran out) and resolution should proceed
+        with whatever the providers return.
+        """
+
+        ensure = getattr(self, "ensure_archive_texture_indexes", None)
+        try:
+            building = bool(ensure()) if callable(ensure) else False
+        except Exception:
+            building = False
+        attempts = int(getattr(self, "archive_texture_index_wait_attempts", 0) or 0)
+        if not building or attempts >= ARCHIVE_TEXTURE_INDEX_WAIT_MAX_ATTEMPTS:
+            if attempts:
+                self._record_mesh_dotnet_event(
+                    "mesh_dotnet_material_context_index_wait_ended",
+                    attempts=attempts,
+                    index_build_active=building,
+                )
+            return False
+        if attempts == 0:
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_material_context_waiting_for_indexes",
+                entry_path=str(getattr(entry, "path", "") or ""),
+            )
+        self.archive_texture_index_wait_attempts = attempts + 1
+        self.archive_texture_index_wait_entry = entry
+        self.archive_material_context_pending = True
+        timer = getattr(self, "archive_texture_index_wait_timer", None)
+        if timer is not None:
+            timer.start(ARCHIVE_TEXTURE_INDEX_WAIT_INTERVAL_MS)
+        return True
+
+    def _clear_archive_texture_index_wait(self) -> None:
+        timer = getattr(self, "archive_texture_index_wait_timer", None)
+        if timer is not None:
+            timer.stop()
+        self.archive_texture_index_wait_entry = None
+        self.archive_texture_index_wait_attempts = 0
+
+    def _retry_archive_material_context_after_index_wait(self) -> None:
+        entry = getattr(self, "archive_texture_index_wait_entry", None)
+        if entry is None:
+            return
+        if self.archive_material_context_thread is not None:
+            # Another path already started a resolution; the wait is moot.
+            self._clear_archive_texture_index_wait()
+            return
+        self.archive_material_context_pending = False
+        if self._start_archive_material_context_resolution(entry):
+            return
+        self._clear_archive_texture_index_wait()
+        if not bool(getattr(self, "standalone_dotnet_pending_textured_view", False)):
+            return
+        message = (
+            "No resolved textures are available for this Mesh Editor preview; "
+            "the untextured scene remains active."
+        )
+        self._finish_pending_textured_view(
+            success=False,
+            reason="material_context_unavailable",
+            status_text=message,
+        )
+        self.status_message_requested.emit(message, True)
+
     def _start_archive_material_context_resolution(
         self,
         entry: _tab.ArchiveEntry | None = None,
@@ -599,6 +684,13 @@ class MeshEditorSessionMixin:
         if not isinstance(target_entry, _tab.ArchiveEntry):
             return False
         path_index, basename_index = self._archive_texture_indexes()
+        if not path_index and not basename_index:
+            if self._wait_for_archive_texture_indexes(target_entry):
+                return True
+            # The build may have completed between the two reads, so ask once
+            # more before resolving with whatever exists.
+            path_index, basename_index = self._archive_texture_indexes()
+        self._clear_archive_texture_index_wait()
         sidecar_path_index, sidecar_basename_index = self._archive_sidecar_indexes()
         self.archive_material_context_request_id += 1
         request_id = self.archive_material_context_request_id
@@ -647,6 +739,7 @@ class MeshEditorSessionMixin:
         self._finish_pending_textured_view(
             success=False,
             reason="material_context_publish_failed",
+            status_text="No resolved textures are available for this Mesh Editor preview; the untextured scene remains active.",
         )
         self.status_message_requested.emit(
             "No resolved textures are available for this Mesh Editor preview; the untextured scene remains active.",
@@ -666,6 +759,7 @@ class MeshEditorSessionMixin:
         self._finish_pending_textured_view(
             success=False,
             reason="material_context_resolution_failed",
+            status_text="No resolved textures are available for this Mesh Editor preview; the untextured scene remains active.",
         )
         self.status_message_requested.emit(
             "No resolved textures are available for this Mesh Editor preview; the untextured scene remains active.",
@@ -695,6 +789,7 @@ class MeshEditorSessionMixin:
         thread.deleteLater()
 
     def _cancel_archive_material_context_resolution(self) -> None:
+        self._clear_archive_texture_index_wait()
         worker = self.archive_material_context_worker
         thread = self.archive_material_context_thread
         if worker is None and thread is None:

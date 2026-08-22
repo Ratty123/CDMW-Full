@@ -7,6 +7,7 @@ import time
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
+from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
 from cdmw.modding.mesh_deformer import recompute_mesh_normals
 from cdmw.modding.mesh_edit_ops import MESH_GEOMETRY_ACTIONS, refresh_mesh_totals
@@ -19,6 +20,7 @@ from cdmw.modding.mesh_native_core import (
     dispose_native_mesh_history_delta,
     export_native_mesh_editor_session_to_mesh,
     last_native_mesh_core_job_error,
+    last_native_mesh_core_job_rejection,
     last_native_mesh_editor_apply_error,
     native_mesh_core_available,
     native_mesh_editor_session_preview_triangle_groups,
@@ -55,8 +57,7 @@ from cdmw.services.mesh_service_payloads import (
     _native_editor_edit_payload,
     _native_editor_metrics,
     _native_editor_selection_payload,
-    _native_editor_selection_payload_for_apply,
-    _native_editor_selection_signature_for_apply,
+    _native_editor_selection_request_for_apply,
     _native_editor_selection_target_indices,
     _native_editor_stroke_id,
     _native_editor_stroke_metrics,
@@ -386,14 +387,20 @@ def _prepare_native_editor_request(
         selection_signature = session.native_editor_selection_signature
         reuse_selection = True
     else:
-        selection_signature = _service_call("_native_editor_selection_signature_for_apply", selection, params)  # type: ignore[assignment]
+        # One build for both: the signature is the frozen payload, and building
+        # them separately serialized the whole selection twice per apply.
+        selection_payload, selection_signature = _service_call(
+            "_native_editor_selection_request_for_apply", selection, params
+        )  # type: ignore[assignment,misc]
         reuse_selection = (
             _can_reuse_native_live_stroke_selection(session, params, selection_signature)
             or _can_reuse_native_stroke_begin_selection(session, params, selection_signature)
         )
-        selection_payload = (
-            {} if reuse_selection else _native_editor_selection_payload_for_apply(selection, params)
-        )
+        if reuse_selection:
+            selection_payload = {}
+    # A cancel flagged during preparation must not open a helper session the
+    # request will never use, and must leave resident state untouched.
+    raise_if_cancelled(_stop_event_from_params(params), "Native mesh edit cancelled.")  # type: ignore[arg-type]
     return _NativeEditorRequest(
         action=action,
         params=params,
@@ -416,8 +423,7 @@ def _execute_native_editor_request(
         _refresh_native_editor_session_if_mesh_changed(session)
         if request.reuse_selection and not session.native_editor_session_ready:
             request.reuse_selection = False
-            request.selection_payload = _native_editor_selection_payload_for_apply(selection, request.params)
-            request.selection_signature = _native_editor_selection_signature_for_apply(selection, request.params)
+            request.selection_payload, request.selection_signature = _native_editor_selection_request_for_apply(selection, request.params)
         if not session.native_editor_session_ready:
             open_started = time.perf_counter()
             opened = _service_call(
@@ -482,6 +488,22 @@ def _execute_native_editor_request(
             (time.perf_counter() - native_apply_started) * 1000.0,
         )
         if report is None:
+            native_rejection = str(last_native_mesh_core_job_rejection() or "").strip()
+            if native_rejection:
+                # The native core answered with a structured refusal (for
+                # example the per-submesh face limit) and threw before its
+                # first mutation, so the resident session is exactly as it
+                # was. Tearing session_ready down here forced a full abandon
+                # and re-upload on the next edit for a session that was never
+                # lost, and buried the native reason under a lost-session
+                # message.
+                _native_editor_refusal(
+                    session,
+                    request.action,
+                    "native_rejected_edit",
+                    native_message=native_rejection,
+                )
+                return None
             session.native_editor_session_ready = False
             _native_editor_refusal(
                 session,

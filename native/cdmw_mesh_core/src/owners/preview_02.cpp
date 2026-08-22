@@ -323,6 +323,23 @@ MeshSessionSubmesh mesh_session_submesh_from_item(const JsonValue& item) {
     if (!valid_source_faces) {
         stored_submesh.source_face_indices = identity_indices(stored_submesh.faces.size());
     }
+    // A raw-compaction map (the store dropped malformed caller rows, so
+    // compact offset i came from raw row input_face_offsets[i]) is strictly
+    // increasing. Ancestor bookkeeping from an earlier Subdivide repeats a
+    // parent per child and never qualifies, so it cannot become a
+    // face-selection translation space here.
+    if (valid_source_faces && !source_face_indices_are_identity(stored_submesh.source_face_indices)) {
+        bool strictly_increasing = true;
+        for (std::size_t offset = 1; offset < stored_submesh.source_face_indices.size(); ++offset) {
+            if (stored_submesh.source_face_indices[offset] <= stored_submesh.source_face_indices[offset - 1]) {
+                strictly_increasing = false;
+                break;
+            }
+        }
+        if (strictly_increasing) {
+            stored_submesh.input_face_offsets = stored_submesh.source_face_indices;
+        }
+    }
     stored_submesh.normals = vertices_from_binary_or_json(item, "normals_binary", "normals");
     if (stored_submesh.normals.size() != stored_submesh.vertices.size()) {
         stored_submesh.normals.clear();

@@ -20,6 +20,7 @@ class MeshEditorTabShellRuntimeMixin:
         get_archive_texture_entries_by_basename: object,
         get_archive_sidecar_entries_by_texture_path: object,
         get_archive_sidecar_entries_by_texture_basename: object,
+        ensure_archive_texture_indexes: object = None,
     ) -> None:
         self.current_request: Optional[_tab.MeshEditorSessionRequest] = None
         self.current_archive_selection: Optional[_tab.ArchiveEntry] = None
@@ -47,6 +48,18 @@ class MeshEditorTabShellRuntimeMixin:
         self.archive_material_context_worker: _tab.MeshArchiveMaterialContextWorker | None = None
         self.archive_material_context_request_id = 0
         self.archive_material_context_pending = False
+        # The shell's deferred texture-lookup build, and the wait state used
+        # while material context resolution holds for it. See
+        # _wait_for_archive_texture_indexes for why resolving without the
+        # lookup is worse than waiting.
+        self.ensure_archive_texture_indexes = ensure_archive_texture_indexes
+        self.archive_texture_index_wait_entry: _tab.ArchiveEntry | None = None
+        self.archive_texture_index_wait_attempts = 0
+        self.archive_texture_index_wait_timer = QTimer(self)
+        self.archive_texture_index_wait_timer.setSingleShot(True)
+        self.archive_texture_index_wait_timer.timeout.connect(
+            self._retry_archive_material_context_after_index_wait
+        )
         self.get_archive_texture_entries_by_normalized_path = get_archive_texture_entries_by_normalized_path
         self.get_archive_texture_entries_by_basename = get_archive_texture_entries_by_basename
         self.get_archive_sidecar_entries_by_texture_path = get_archive_sidecar_entries_by_texture_path

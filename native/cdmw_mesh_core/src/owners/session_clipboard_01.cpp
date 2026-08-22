@@ -15,10 +15,7 @@ std::set<int> mesh_editor_clipboard_face_offsets(
     if (target == "face") {
         const auto found = session.selection.faces.find(submesh_index);
         if (found == session.selection.faces.end()) return selected;
-        const std::vector<int> source_faces = submesh.source_face_indices.size() == submesh.faces.size()
-            ? submesh.source_face_indices
-            : identity_indices(submesh.faces.size());
-        return compact_face_offsets_from_selection_values(found->second, source_faces, submesh.faces.size());
+        return compact_face_offsets_from_selection_values(found->second, submesh.input_face_offsets, submesh.faces.size());
     }
 
     if (target == "edge") {

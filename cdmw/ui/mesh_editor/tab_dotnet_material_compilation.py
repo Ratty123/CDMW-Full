@@ -303,6 +303,7 @@ class MeshEditorDotNetMaterialCompilationMixin(
             self._finish_pending_textured_view(
                 success=False,
                 reason="material_payload_send_failed",
+                status_text=f"Could not send the compiled {self._dotnet_material_role_label(role)} pane material payload.",
             )
             return
         # The payload is with the renderer but the pane is not textured yet, so
@@ -427,6 +428,7 @@ class MeshEditorDotNetMaterialCompilationMixin(
         self._finish_pending_textured_view(
             success=False,
             reason=f"{role}_material_compile_failed: {message}",
+            status_text=f"Could not compile resident PAC materials for the {self._dotnet_material_role_label(role)} pane: {message}",
         )
         QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
 

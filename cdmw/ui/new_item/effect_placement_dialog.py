@@ -1,10 +1,12 @@
 """New Item Studio: place the effect on the item in the resident .NET viewport.
 
-The item's mesh is the reference (drawn solid), the effect's bounding box the
-mesh the placement gizmo moves and scales; every drag comes back as a delta the
-dialog adds to the offset and scale it was opened with, and the numbers next to
-the viewport are the same numbers the panel writes into the plan. Nothing here
-touches the archives.
+The item's mesh is the reference (drawn solid), the effect's anchor the mesh the
+placement gizmo moves, turns and scales; every drag comes back as a delta the
+dialog adds to the offset, rotation and scale it was opened with, and the numbers
+next to the viewport are the same numbers the panel writes into the plan. Offsets
+and turns are held in the item's own frame -- the frame the game's
+``_offsetTransform`` applies in -- and cross into the scene's frame at the
+viewport's edge (see :class:`PlacementFrame`). Nothing here touches the archives.
 """
 
 from __future__ import annotations
@@ -38,6 +40,7 @@ from PySide6.QtWidgets import (
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.effect_placement_preview import (
     ANCHOR_TINT,
+    EFFECT_AXIS_TINTS,
     framing_bounds_for,
     mesh_names_textures,
     BODY_TINT,
@@ -48,33 +51,25 @@ from cdmw.services.effect_placement_preview import (
     next_scale,
 )
 from cdmw.services.effect_preview_model import EffectPreview
+from cdmw.services.effect_placement_rotation import wrap_degrees
+from cdmw.ui.new_item.effect_placement_dialog_support import (
+    BACKDROP_BLACK,
+    BACKDROP_DARK,
+    BACKDROP_GREY,
+    BACKDROPS,
+    PARTICLE_TINT,
+    PlacementFrame,
+    describe_effect_preview,
+    remember_backdrop,
+    remembered_backdrop,
+    swatch as _swatch,
+)
 from cdmw.ui.new_item.ui_kit import DetailsToggle
 from cdmw.workers.utility_workers import UtilityWorker
 
 Vec3 = Tuple[float, float, float]
 
 __all__ = ["EffectPlacementDialog", "describe_effect_preview"]
-
-
-def describe_effect_preview(preview: Optional[EffectPreview]) -> str:
-    """The emitters as the description read them, one line each, then what it could not read."""
-
-    if preview is None:
-        return ""
-    lines = []
-    for emitter in preview.emitters:
-        short = emitter.name.rsplit("/", 1)[-1]
-        rate = emitter.burst * emitter.bursts_per_second
-        colour = max(emitter.color_over_life, key=max) if emitter.color_over_life else emitter.emissive_color
-        top = max(colour) or 1.0
-        hex_colour = "#%02x%02x%02x" % tuple(int(round(255 * min(1.0, c / top))) for c in colour)
-        texture = emitter.texture.rsplit("/", 1)[-1] if emitter.texture else "no texture"
-        loop = "loops" if emitter.loop else "once"
-        lines.append(f"{short}: {emitter.kind}, {rate:.0f}/s, {emitter.life[0]:.2f}-{emitter.life[1]:.2f} s, {loop}, {emitter.blend}, {texture}, {hex_colour}")
-    if not lines:
-        lines.append("The effect names no emitters the description could read.")
-    lines.extend(preview.notes)
-    return "\n".join(lines)
 
 
 #: how many times the item's own length a reach may be before its frame starts hidden
@@ -96,56 +91,14 @@ SCALE_DECIMALS = 3
 STANDING_VIEW_ANGLES: tuple = ((0.0, 8.0), (90.0, 8.0), (0.0, -80.0), (-35.0, 20.0))
 
 
-#: What the viewport can clear to. An effect adds its light to what is behind it, so it
-#: reads best on a dark backdrop: measured on the same weapon fire, the effect stands 173
-#: shades above #101014 and 131 above the Mesh Editor's material grey. The grey is kept
-#: because judging the item's own textures is the other half of this dialog's job.
-BACKDROP_DARK = "#101014"
-BACKDROP_GREY = "#3B3B3B"
-BACKDROP_BLACK = "#06060A"
-#: in the order they are offered; the first is what a dialog opens on the first time
-BACKDROPS: tuple = (BACKDROP_DARK, BACKDROP_GREY, BACKDROP_BLACK)
-
-#: where the chosen backdrop is remembered between dialogs, in the scope the rest of the
-#: studio's own settings use
-_SETTINGS_SCOPE = "CrimsonDesertModWorkbench"
-_BACKDROP_SETTING = "new_item/effect_placement_backdrop"
-
-
-def _remembered_backdrop() -> str:
-    from PySide6.QtCore import QSettings
-
-    try:
-        value = QSettings(_SETTINGS_SCOPE, _SETTINGS_SCOPE).value(_BACKDROP_SETTING, BACKDROPS[0])
-    except Exception:  # noqa: BLE001 - a session without settings opens on the default
-        return BACKDROPS[0]
-    return str(value or BACKDROPS[0])
-
-
-def _remember_backdrop(colour: str) -> None:
-    from PySide6.QtCore import QSettings
-
-    try:
-        QSettings(_SETTINGS_SCOPE, _SETTINGS_SCOPE).setValue(_BACKDROP_SETTING, str(colour))
-    except Exception:  # noqa: BLE001 - not remembering is not worth an error
-        pass
-
-
-#: the swatch for the particles themselves, which have no one colour: the warm orange
-#: most of the shipped weapon effects land on
-PARTICLE_TINT = (0.75, 0.25, 0.05)
-
-
-def _swatch(tint: Sequence[float]) -> str:
-    """One of the scene's own colours as a small square of HTML, so the legend cannot
-    drift from what the viewport draws."""
-
-    red, green, blue = (max(0, min(255, int(round(255 * float(channel) ** (1 / 2.2))))) for channel in tuple(tint)[:3])
-    return f'<span style="color:#{red:02x}{green:02x}{blue:02x}">&#9632;</span>'
+#: How the rotation boxes step and read: whole tenths of a degree, five degrees a click.
+ROTATION_DECIMALS = 1
+ROTATION_STEP = 5.0
 
 
 class EffectPlacementDialog(QDialog):
-    """Move and scale the effect's box on the item; read `offset` and `scale` after accept."""
+    """Move, turn and scale the effect on the item; read `offset`, `rotation` (item-frame
+    Euler x, y, z degrees, applied in that order) and `scale` after accept."""
 
     def __init__(
         self,
@@ -155,6 +108,7 @@ class EffectPlacementDialog(QDialog):
         box_min: Vec3,
         box_max: Vec3,
         offset: Vec3 = (0.0, 0.0, 0.0),
+        rotation: Vec3 = (0.0, 0.0, 0.0),
         scale: float = 1.0,
         effect_label: str = "",
         item_label: str = "",  # "placed", "applied", "template", or "" for no line
@@ -173,6 +127,7 @@ class EffectPlacementDialog(QDialog):
         self._item_mesh = item_mesh
         self._box = (tuple(float(v) for v in box_min), tuple(float(v) for v in box_max))
         self.offset: Vec3 = tuple(float(v) for v in offset)  # type: ignore[assignment]
+        self.rotation: Vec3 = tuple(wrap_degrees(float(v)) for v in rotation)  # type: ignore[assignment]
         self.scale: float = float(scale)
         self._output_root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_effect_placement"
         self._preview: Optional[EffectPlacementPreview] = None
@@ -182,8 +137,8 @@ class EffectPlacementDialog(QDialog):
         #: `(name, point)` for the item's own FX sockets, once the character has been read
         self._effect_sockets: tuple = ()
         # the scene is the character's frame when there is a character to stand in it, and
-        # the item's own when there is not; the offsets are the item's either way
-        self._rotation: Optional[Tuple[float, ...]] = None
+        # the item's own when there is not; the offsets and the turn are the item's either way
+        self._frame = PlacementFrame(None)
         self._thread: Optional[QThread] = None
         self._worker: Optional[UtilityWorker] = None
         self._closed = False
@@ -287,11 +242,16 @@ class EffectPlacementDialog(QDialog):
         self.move_button = QPushButton("Move")
         self.move_button.setCheckable(True)
         self.move_button.setChecked(True)
+        self.rotate_button = QPushButton("Rotate")
+        self.rotate_button.setCheckable(True)
+        self.rotate_button.setToolTip("Turn the effect about the item: drag a ring for its axis.")
         self.scale_button = QPushButton("Scale")
         self.scale_button.setCheckable(True)
         self.move_button.clicked.connect(lambda: self._choose_tool("move"))
+        self.rotate_button.clicked.connect(lambda: self._choose_tool("rotate"))
         self.scale_button.clicked.connect(lambda: self._choose_tool("scale"))
         tools.addWidget(self.move_button)
+        tools.addWidget(self.rotate_button)
         tools.addWidget(self.scale_button)
         place.addLayout(tools)
         form = QFormLayout()
@@ -312,6 +272,18 @@ class EffectPlacementDialog(QDialog):
             spin.valueChanged.connect(self._numbers_edited)
             form.addRow(axis, spin)
             self.offset_spins.append(spin)
+        self.rotation_spins: list[QDoubleSpinBox] = []
+        for axis, value in zip(("Rotation x (°)", "Rotation y (°)", "Rotation z (°)"), self.rotation):
+            spin = QDoubleSpinBox()
+            spin.setRange(-180.0, 180.0)
+            spin.setDecimals(ROTATION_DECIMALS)
+            spin.setSingleStep(ROTATION_STEP)
+            spin.setWrapping(True)
+            spin.setValue(float(value))
+            spin.setToolTip("Turns the effect about the item's own axes, degrees; x, then y, then z.")
+            spin.valueChanged.connect(self._numbers_edited)
+            form.addRow(axis, spin)
+            self.rotation_spins.append(spin)
         place.addLayout(form)
         width, height, depth = (high - low for low, high in zip(*self._box))
         self._box_size = (width, height, depth)
@@ -385,7 +357,7 @@ class EffectPlacementDialog(QDialog):
             "backdrop; the grey is the one the Mesh Editor judges materials on, where a dark clear lets dark textures "
             "melt into it."
         )
-        remembered = _remembered_backdrop()
+        remembered = remembered_backdrop()
         for index, value in enumerate(BACKDROPS):
             if value.casefold() == remembered.casefold():
                 self.backdrop_choice.setCurrentIndex(index)
@@ -409,6 +381,15 @@ class EffectPlacementDialog(QDialog):
         legend_column.setContentsMargins(0, 0, 0, 0)
         self.legend_rows: dict = {}
         self._add_legend_row(legend_column, "anchor", ANCHOR_TINT, "the effect's origin - drag this one")
+        axes = QLabel()
+        axes.setTextFormat(Qt.TextFormat.RichText)
+        axes.setWordWrap(True)
+        axes.setText(
+            f"{_swatch(EFFECT_AXIS_TINTS[0])}{_swatch(EFFECT_AXIS_TINTS[1])}{_swatch(EFFECT_AXIS_TINTS[2])} "
+            "the effect's own x, y and z, which the rotation turns"
+        )
+        legend_column.addWidget(axes)
+        self.legend_rows["axes"] = axes
         self._add_legend_row(legend_column, "item", ITEM_TINT, "your item")
         self._add_legend_row(legend_column, "body", BODY_TINT, "a character, 1.75 m tall, for scale")
         self._add_legend_row(legend_column, "reach", REACH_TINT, "how far the effect can throw particles")
@@ -448,6 +429,11 @@ class EffectPlacementDialog(QDialog):
         if self.host is not None:
             self.host.alignment_drag_finished.connect(self._drag_finished)
             self.host.alignment_scale_finished.connect(self._scale_finished)
+            # older hosts predate the rotate tool; without the signal the Rotate
+            # button still switches the gizmo, its drags just report nothing
+            rotated = getattr(self.host, "alignment_rotation_finished", None)
+            if rotated is not None:
+                rotated.connect(self._rotation_finished)
             self.host.controller.state_changed.connect(self._host_state)
             QTimer.singleShot(0, self._start_package)
         else:
@@ -509,7 +495,7 @@ class EffectPlacementDialog(QDialog):
             return
         self._effect_sockets = tuple(sockets or ())
         self._preview = result
-        self._rotation = result.item_rotation
+        self._frame = PlacementFrame(result.item_rotation)
         if result.item_rotation is not None:
             self._say_the_character_is_the_game_s()
         self._offer_the_trail_socket()
@@ -659,7 +645,7 @@ class EffectPlacementDialog(QDialog):
         colour = str(self.backdrop_choice.currentData() or "")
         if not colour:
             return
-        _remember_backdrop(colour)
+        remember_backdrop(colour)
         host = self.host
         setter = getattr(host, "set_viewport_backdrop", None) if host is not None else None
         if callable(setter):
@@ -798,24 +784,6 @@ class EffectPlacementDialog(QDialog):
         self._sync_host()
         self._apply_scene_visibility()
 
-    def _to_scene(self, point: Sequence[float]) -> Vec3:
-        """A point in the item's frame, in the scene's."""
-
-        if self._rotation is None:
-            return tuple(float(v) for v in tuple(point)[:3])  # type: ignore[return-value]
-        from cdmw.services.effect_character_reference import rotate_point
-
-        return rotate_point(point, self._rotation)
-
-    def _from_scene(self, point: Sequence[float]) -> Vec3:
-        """A point (or a drag) in the scene's frame, back in the item's."""
-
-        if self._rotation is None:
-            return tuple(float(v) for v in tuple(point)[:3])  # type: ignore[return-value]
-        from cdmw.services.effect_character_reference import unrotate_point
-
-        return unrotate_point(point, self._rotation)
-
     def _offer_the_trail_socket(self) -> None:
         """Show the Trail button when the item's own socket file named one.
 
@@ -878,7 +846,8 @@ class EffectPlacementDialog(QDialog):
         if self.host is None or self._preview is None:
             return
         self.host.set_alignment_preview_transform(
-            translation=self._to_scene(self.offset), rotation_degrees=(0.0, 0.0, 0.0),
+            translation=self._frame.to_scene_point(self.offset),
+            rotation_degrees=self._frame.to_scene_euler(self.rotation),
             scale_xyz=(self.scale, self.scale, self.scale),
         )
 
@@ -898,13 +867,20 @@ class EffectPlacementDialog(QDialog):
             f"The effect's own reach is {width:.2f} x {height:.2f} x {depth:.2f} m, and the item is {item:.2f} m long."
         )
 
-    def _set_numbers(self, offset: Vec3, scale: float) -> None:
+    def _set_numbers(self, offset: Vec3, scale: float, rotation: Optional[Vec3] = None) -> None:
         self.offset = tuple(round(float(v), 4) for v in offset)  # type: ignore[assignment]
+        if rotation is not None:
+            # rounded the way the rotation boxes round, for the same reason the scale is
+            self.rotation = tuple(round(wrap_degrees(float(v)), ROTATION_DECIMALS) for v in rotation)  # type: ignore[assignment]
         # rounded the way the spin box rounds it. Kept to three decimals against a box
         # showing two, the dialog and the box held different numbers, and the next edit of
         # any other field took the box's: a fit to 0.034 became 0.03 without being asked.
         self.scale = round(max(SCALE_MINIMUM, min(SCALE_MAXIMUM, float(scale))), SCALE_DECIMALS)
         for spin, value in zip(self.offset_spins, self.offset):
+            spin.blockSignals(True)
+            spin.setValue(float(value))
+            spin.blockSignals(False)
+        for spin, value in zip(self.rotation_spins, self.rotation):
             spin.blockSignals(True)
             spin.setValue(float(value))
             spin.blockSignals(False)
@@ -915,14 +891,24 @@ class EffectPlacementDialog(QDialog):
 
     def _numbers_edited(self, *_args) -> None:
         self.offset = tuple(float(spin.value()) for spin in self.offset_spins)  # type: ignore[assignment]
+        self.rotation = tuple(wrap_degrees(float(spin.value())) for spin in self.rotation_spins)  # type: ignore[assignment]
         self.scale = float(self.scale_spin.value())
         self._refresh_size_label()
         self._sync_host()
 
     def _drag_finished(self, dx: float, dy: float, dz: float) -> None:
         # the drag is in the scene the reader is looking at; the numbers are the item's own
-        moved = self._from_scene((dx, dy, dz))
+        moved = self._frame.from_scene_point((dx, dy, dz))
         self._set_numbers(tuple(self.offset[axis] + moved[axis] for axis in range(3)), self.scale)  # type: ignore[arg-type]
+        self._sync_host()
+
+    def _rotation_finished(self, dx: float, dy: float, dz: float) -> None:
+        # the ring drag reports scene-frame degree deltas; the helper composed them onto
+        # the scene Euler this dialog last sent, so compose the same way and carry the
+        # result back into the item's frame, where the numbers and the game live
+        scene = self._frame.to_scene_euler(self.rotation)
+        turned = tuple(scene[axis] + (dx, dy, dz)[axis] for axis in range(3))
+        self._set_numbers(self.offset, self.scale, self._frame.from_scene_euler(turned))
         self._sync_host()
 
     def _scale_finished(self, dx: float, dy: float, dz: float) -> None:
@@ -931,16 +917,24 @@ class EffectPlacementDialog(QDialog):
 
     def _choose_tool(self, tool: str) -> None:
         self.move_button.setChecked(tool == "move")
+        self.rotate_button.setChecked(tool == "rotate")
         self.scale_button.setChecked(tool == "scale")
         if self.host is not None:
             self.host.set_alignment_gizmo_tool(tool)
 
     # ------------------------------------------------------------------ lifecycle
 
-    def apply_deltas(self, translation: Sequence[float] = (0.0, 0.0, 0.0), scale_delta: Sequence[float] = (0.0, 0.0, 0.0)) -> None:
+    def apply_deltas(
+        self,
+        translation: Sequence[float] = (0.0, 0.0, 0.0),
+        scale_delta: Sequence[float] = (0.0, 0.0, 0.0),
+        rotation_delta: Sequence[float] = (0.0, 0.0, 0.0),
+    ) -> None:
         """What a gizmo drag does, callable without a viewport (tests, scripts)."""
 
         self._drag_finished(*(float(v) for v in tuple(translation)[:3]))
+        if any(abs(float(v)) > 1e-12 for v in rotation_delta):
+            self._rotation_finished(*(float(v) for v in tuple(rotation_delta)[:3]))
         if any(abs(float(v)) > 1e-12 for v in scale_delta):
             self._scale_finished(*(float(v) for v in tuple(scale_delta)[:3]))
 

@@ -30,8 +30,11 @@ __all__ = [
     "EFFECT_ANCHOR_MATERIAL",
     "EFFECT_ANCHOR_RADIUS",
     "EFFECT_ANCHOR_SUBMESH",
+    "EFFECT_AXIS_MATERIALS",
+    "EFFECT_AXIS_TINTS",
     "EFFECT_REACH_MATERIAL",
     "EFFECT_REACH_SUBMESH",
+    "anchor_axis_triad",
     "reach_cage_mesh",
     "EFFECT_PREVIEW_FILE",
     "EFFECT_TEXTURE_DIR",
@@ -296,6 +299,35 @@ def anchor_mesh(radius: float = EFFECT_ANCHOR_RADIUS, *, name: str = EFFECT_ANCH
                       total_vertices=len(vertices), total_faces=len(faces), has_uvs=True, has_bones=False)
 
 
+#: The anchor's axis bars, in the placement gizmo's own axis colours (x red, y green,
+#: z blue; `GizmoAppearance.Default` as linear tints). An octahedron is the same shape
+#: from every side, so without these a rotation is invisible on the anchor itself.
+EFFECT_AXIS_MATERIALS: tuple = ("effect_anchor_axis_x", "effect_anchor_axis_y", "effect_anchor_axis_z")
+EFFECT_AXIS_TINTS: tuple = ((0.84, 0.07, 0.07), (0.08, 0.72, 0.14), (0.07, 0.29, 1.0))
+
+
+def anchor_axis_triad(radius: float = EFFECT_ANCHOR_RADIUS) -> Tuple[SubMesh, SubMesh, SubMesh]:
+    """Three short bars from the anchor along the effect's own +x, +y and +z, one
+    submesh each so the tint pass can colour them apart. They turn with the placement,
+    which is what makes a rotation readable at a glance."""
+
+    r = max(0.001, float(radius))
+    length, half = r * 3.2, r * 0.16
+    out = []
+    for axis, material in enumerate(EFFECT_AXIS_MATERIALS):
+        vertices: list[Vec3] = []
+        normals: list[Vec3] = []
+        uvs: list[Tuple[float, float]] = []
+        faces: list[Tuple[int, int, int]] = []
+        end = tuple(length if index == axis else 0.0 for index in range(3))
+        _strut((0.0, 0.0, 0.0), end, half, vertices, normals, uvs, faces)  # type: ignore[arg-type]
+        out.append(SubMesh(
+            name=material, material=material, vertices=vertices, uvs=uvs, normals=normals, faces=faces,
+            vertex_count=len(vertices), face_count=len(faces),
+        ))
+    return tuple(out)  # type: ignore[return-value]
+
+
 def next_scale(current: float, delta: Sequence[float]) -> float:
     """The uniform effect scale after a gizmo scale drag reported as a per-axis delta:
     the mean of the three, clamped to the studio's range."""
@@ -355,6 +387,10 @@ def _tint_anchor_material(materials_path: Path) -> None:
         elif material == EFFECT_REACH_MATERIAL:
             item["double_sided"] = True
             parameters.update({"base_tint_color": list(REACH_TINT), "base_tint_strength": 1.0, "roughness": 0.6, "metalness": 0.0})
+        elif material in EFFECT_AXIS_MATERIALS:
+            item["double_sided"] = True
+            tint = EFFECT_AXIS_TINTS[EFFECT_AXIS_MATERIALS.index(material)]
+            parameters.update({"base_tint_color": list(tint), "base_tint_strength": 1.0, "roughness": 0.6, "metalness": 0.0})
         elif str(item.get("texture", "") or "").strip():
             # it has textures of its own: tinting them would be painting over the thing the
             # reader came to look at
@@ -566,8 +602,11 @@ def build_effect_placement_package(
 
     from copy import replace as _dc_replace
 
-    anchor = anchor_mesh(anchor_radius_for(item_mesh))
+    radius = anchor_radius_for(item_mesh)
+    anchor = anchor_mesh(radius)
+    # the reach cage stays the second submesh: `reach_submesh_index` promises index 1
     anchor.submeshes.extend(reach_cage_mesh(box_min, box_max).submeshes)
+    anchor.submeshes.extend(anchor_axis_triad(radius))
     anchor.total_vertices = sum(len(submesh.vertices) for submesh in anchor.submeshes)
     anchor.total_faces = sum(len(submesh.faces) for submesh in anchor.submeshes)
     rotation = tuple(float(v) for v in item_rotation) if item_rotation is not None else None

@@ -282,6 +282,67 @@ def encode_emissive_solid(*, on_log: Optional[Callable[[str], None]] = None) -> 
         return produced.read_bytes()
 
 
+def glow_preview_parameter_groups(mesh: object, glow: object = None) -> Tuple[Dict[str, object], ...]:
+    """The Glow choice as resident material parameter groups for the studio's viewport.
+
+    What the export writes as a solid map times a colour times a number, the resident
+    renderer draws from the same three values sent as parameter overrides, so the
+    preview and the shipped item agree by construction. `mesh` is the ParsedMesh the
+    preview package was built from, so the group indices are the package's own submesh
+    order. A ticked part (matched on the submesh's material or name, the two keys the
+    export matches on) takes the reader's colour and strength; every other part goes
+    back to the import's own emissive when it declares one, else its override is
+    cleared outright (an explicit None, which the renderer reads as "unset").
+    Every push is a complete statement over all submeshes: un-ticking needs no
+    memory of what was sent before. Empty when the mesh has no submeshes.
+    """
+
+    from types import SimpleNamespace
+
+    from cdmw.domain.textures.material_parameters import (
+        evaluate_material_parameters,
+        material_parameter_renderer_overrides,
+        source_emissive_strength,
+    )
+
+    ticked = {str(name).casefold() for name in tuple(getattr(glow, "parts", ()) or ())}
+    # floats defeat evaluate's byte-colour heuristic: (1, 1, 1) as ints would read as
+    # near-black 1/255 channels
+    color = tuple(float(channel) for channel in tuple(getattr(glow, "color", ()) or ())[:3])
+    intensity = float(getattr(glow, "intensity", 0.0) or 0.0)
+    buckets: Dict[tuple, Tuple[Dict[str, object], list]] = {}
+    for index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ())):
+        names = {
+            str(getattr(submesh, "material", "") or "").casefold(),
+            str(getattr(submesh, "name", "") or "").casefold(),
+        }
+        wants_glow = bool(ticked & names)
+        adjustment = (
+            SimpleNamespace(material_role="glow", emissive_color_rgb=color, emissive_strength=intensity)
+            if wants_glow
+            else None
+        )
+        if wants_glow or source_emissive_strength(submesh) is not None:
+            overrides = material_parameter_renderer_overrides(evaluate_material_parameters(
+                source_slot=submesh, part_adjustment=adjustment, emissive_role=True,
+            ))
+            values: Dict[str, object] = {
+                "emissive_intensity": overrides.get("emissive_intensity"),
+                "emissive_color": overrides.get("emissive_color"),
+                "emissive_color_authoritative": overrides.get("emissive_color") is not None,
+            }
+        else:
+            values = {"emissive_intensity": None, "emissive_color": None, "emissive_color_authoritative": None}
+        key = tuple((name, repr(value)) for name, value in sorted(values.items()))
+        if key not in buckets:
+            buckets[key] = (values, [])
+        buckets[key][1].append(index)
+    return tuple(
+        {"source_submesh_indices": list(indices), "editor_role": "replacement_preview", **values}
+        for values, indices in buckets.values()
+    )
+
+
 def route_plain_pbr(
     files: ModelFiles,
     *,

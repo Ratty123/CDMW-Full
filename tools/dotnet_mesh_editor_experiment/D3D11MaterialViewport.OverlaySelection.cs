@@ -479,9 +479,12 @@ internal sealed partial class D3D11MaterialViewport
             return;
         }
         var lines = ResetScratchA();
-        foreach (var edge in _overlayTopology.Edges)
+        // The provisional set is what the brush touched; walking the whole
+        // topology to find it made every painted frame O(all edges).
+        foreach (var edgeId in provisional)
         {
-            if (!provisional.Contains(edge.Id)
+            var edge = _overlayTopology.EdgeById(edgeId);
+            if (edge is null
                 || edge.SubmeshIndex < 0
                 || edge.SubmeshIndex >= _document.Submeshes.Count
                 || !ActivePaneIncludes(edge.SubmeshIndex)

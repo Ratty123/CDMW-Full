@@ -320,24 +320,35 @@ def _add_native_editor_binary_vertex_selection_payload(
     return payload
 
 
+def _native_editor_selection_request_for_apply(
+    selection: MeshEditSelection,
+    params: Mapping[str, object],
+) -> tuple[dict[str, object], tuple[object, ...]]:
+    """Build the apply's selection payload once and derive its signature from it.
+
+    The signature is the frozen payload, so producing them through separate
+    calls serialized the whole selection twice per apply. On a stroke begin
+    after a topology change, which cleared the resident reuse signature, that
+    was the full remapped selection built twice on the interactive hot path.
+    """
+
+    payload = _native_editor_selection_payload_for_apply(selection, params)
+    if isinstance(params.get("_native_screen_selection_payload"), Mapping):
+        tag = "native-screen"
+    elif isinstance(params.get("_native_selection_payload"), Mapping):
+        tag = "native"
+    else:
+        tag = "selection"
+    signature = (tag, _freeze_native_selection_value(payload))
+    raise_if_cancelled(_stop_event_from_params(params), "Native mesh edit cancelled.")
+    return payload, signature
+
+
 def _native_editor_selection_signature_for_apply(
     selection: MeshEditSelection,
     params: Mapping[str, object],
 ) -> tuple[object, ...]:
-    raise_if_cancelled(_stop_event_from_params(params), "Native mesh edit cancelled.")
-    if isinstance(params.get("_native_screen_selection_payload"), Mapping):
-        signature = ("native-screen", _freeze_native_selection_value(_native_editor_selection_payload_for_apply(selection, params)))
-    else:
-        payload = params.get("_native_selection_payload")
-        signature = (
-            "native" if isinstance(payload, Mapping) else "selection",
-            _freeze_native_selection_value(
-                _add_native_editor_binary_vertex_selection_payload(dict(payload), params)
-                if isinstance(payload, Mapping)
-                else _native_editor_selection_payload_for_apply(selection, params)
-            ),
-        )
-    raise_if_cancelled(_stop_event_from_params(params), "Native mesh edit cancelled.")
+    _payload, signature = _native_editor_selection_request_for_apply(selection, params)
     return signature
 
 

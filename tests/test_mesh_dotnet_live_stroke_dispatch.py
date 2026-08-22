@@ -52,6 +52,7 @@ class _Controller:
             revision=revision,
             affected_submesh_indices=(0,),
             changed_vertices_by_submesh=((0, (0,)),),
+            metrics={"native_apply_roundtrip_ms": 12.5, "service_total_ms": 20.0},
         )
 
     @staticmethod
@@ -287,6 +288,43 @@ def test_sculpt_terminal_preserves_an_absorbed_final_drag_but_not_an_inert_relea
         {"x": 10.0, "y": 15.0},
         {"x": 15.0, "y": 15.0},
     )
+
+
+def test_stroke_update_commands_build_without_consulting_the_session_view() -> None:
+    """Only the begin phase may pay for session_view().
+
+    It takes the session's export lock, so asking on every pointer sample
+    serialized the UI thread against whichever native apply held the lock, and
+    stroke events then queued at the apply's pace instead of the pointer's.
+    """
+
+    class _CountingController:
+        def __init__(self) -> None:
+            self.session_view_calls = 0
+
+        def session_view(self):
+            self.session_view_calls += 1
+            return type("View", (), {"selection": MeshEditSelection()})()
+
+    controller = _CountingController()
+
+    class _PayloadHarness(MeshEditorInteractionMixin):
+        standalone_dotnet_target_controller = controller
+        standalone_native_mesh_edit_stroke_id = "grab-7"
+
+    harness = _PayloadHarness()
+    payload = {
+        "stroke_id": "grab-7",
+        "tool": "grab",
+        "screen_brush": {"x": 5, "y": 6, "radius_pixels": 24},
+        "screen_drag": {"start_x": 5, "start_y": 6, "end_x": 9, "end_y": 6},
+    }
+    for phase in ("update", "end", "cancel"):
+        assert harness._standalone_native_mesh_edit_stroke_command(payload, phase) is not None
+    assert controller.session_view_calls == 0
+
+    assert harness._standalone_native_mesh_edit_stroke_command(payload, "begin") is not None
+    assert controller.session_view_calls == 1
 
 
 def test_topology_waiting_for_selection_drops_the_stale_helper_snapshot() -> None:
@@ -526,6 +564,18 @@ def test_dotnet_stroke_updates_return_quickly_coalesce_and_apply_final_revision(
         assert harness.resident_history_commits == [True]
         assert harness.command_results == [("transform", "coalesced")]
         assert harness.standalone_native_mesh_edit_stroke_id == ""
+        # Every completed dispatch persists the apply's own timing breakdown to
+        # the interaction trail; without it a multi-second stroke in a captured
+        # trail cannot name its slow stage.
+        completed = [
+            payload
+            for event, payload in harness.interaction_decisions
+            if event == "mesh_edit_dispatch_completed"
+        ]
+        assert len(completed) == 4
+        for payload in completed:
+            assert payload["result_metrics"]["native_apply_roundtrip_ms"] == 12.5
+            assert payload["result_metrics"]["service_total_ms"] == 20.0
     finally:
         controller.release_update.set()
         dispatcher = harness.standalone_live_stroke_dispatcher

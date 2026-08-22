@@ -361,10 +361,18 @@ internal sealed partial class MeshViewport
                     || edge.VertexA >= points.Length
                     || edge.VertexB < 0
                     || edge.VertexB >= points.Length
-                    || (!ShowXRay
-                        && !cache.FrontFacingVertices[edge.SubmeshIndex][edge.VertexA]
-                        && !cache.FrontFacingVertices[edge.SubmeshIndex][edge.VertexB])
                     || !SelectionPolygonIntersectsSegment(polygon, points[edge.VertexA], points[edge.VertexB]))
+                {
+                    continue;
+                }
+                var edgeDepths = cache.Depths[edge.SubmeshIndex];
+                if (!ShowXRay
+                    && !PaintSegmentVisible(
+                        cache,
+                        points[edge.VertexA],
+                        edgeDepths[edge.VertexA],
+                        points[edge.VertexB],
+                        edgeDepths[edge.VertexB]))
                 {
                     continue;
                 }
@@ -382,7 +390,7 @@ internal sealed partial class MeshViewport
                 {
                     continue;
                 }
-                var frontFacing = cache.FrontFacingVertices[submeshIndex];
+                var depths = cache.Depths[submeshIndex];
                 if (_selectionDragTargetMode == "face")
                 {
                     var submesh = _document.Submeshes[submeshIndex];
@@ -405,8 +413,12 @@ internal sealed partial class MeshViewport
                         var b = face.Corners[1].VertexIndex;
                         var c = face.Corners[2].VertexIndex;
                         if (a < 0 || b < 0 || c < 0 || a >= points.Length || b >= points.Length || c >= points.Length
-                            || (!ShowXRay && !frontFacing[a] && !frontFacing[b] && !frontFacing[c])
                             || !SelectionPolygonIntersectsTriangle(polygon, points[a], points[b], points[c]))
+                        {
+                            continue;
+                        }
+                        if (!ShowXRay
+                            && !PaintTriangleVisible(cache, points[a], depths[a], points[b], depths[b], points[c], depths[c]))
                         {
                             continue;
                         }
@@ -433,8 +445,9 @@ internal sealed partial class MeshViewport
                 }
                 for (var vertexIndex = 0; vertexIndex < points.Length; vertexIndex++)
                 {
-                    if ((!ShowXRay && !frontFacing[vertexIndex])
-                        || !SelectionPointInPolygon(points[vertexIndex], polygon))
+                    if (!SelectionPointInPolygon(points[vertexIndex], polygon)
+                        || (!ShowXRay
+                            && !PaintPointVisible(cache, points[vertexIndex].X, points[vertexIndex].Y, depths[vertexIndex])))
                     {
                         continue;
                     }
@@ -624,13 +637,14 @@ internal sealed partial class MeshViewport
         var camera = CurrentCamera();
         var expanded = Rectangle.Inflate(rectangle, SelectionRegionTolerancePixels, SelectionRegionTolerancePixels);
         var result = new List<int>();
+        var orientationScratch = new Dictionary<int, sbyte[]>();
         foreach (var edge in _edgeTopology.Edges)
         {
             if (!IsSubmeshVisibleForViewportSelection(edge.SubmeshIndex))
             {
                 continue;
             }
-            if (!ShowXRay && !IsEdgeFrontFacing(edge, camera))
+            if (!ShowXRay && !IsEdgeFrontFacing(edge, camera, orientationScratch))
             {
                 continue;
             }
@@ -672,13 +686,34 @@ internal sealed partial class MeshViewport
         var camera = CurrentCamera();
         var bestEdgeId = -1;
         var bestDistance = SelectionClickRadiusPixels;
+        // Hover runs this on every mouse move. Both visibility questions are
+        // therefore answered once per call, not once per edge: each face's
+        // orientation is memoized (a face serves up to three edges), and the
+        // occlusion scan for the cursor ray runs a single time instead of
+        // re-walking every face for each candidate within click radius.
+        var orientationScratch = new Dictionary<int, sbyte[]>();
+        var hasOcclusion = false;
+        var rayOrigin = Vector3.Zero;
+        var rayDirection = Vector3.Zero;
+        var nearestSurfaceDistance = float.PositiveInfinity;
+        if (!ShowXRay && TryScreenRay(point, out rayOrigin, out rayDirection))
+        {
+            hasOcclusion = TryNearestVisibleSurface(
+                rayOrigin,
+                rayDirection,
+                out nearestSurfaceDistance,
+                out _,
+                out _,
+                orientationScratch);
+        }
+        var depthTolerance = Math.Max(_scene.SceneExtent * 0.01f, 0.0005f);
         foreach (var edge in _edgeTopology.Edges)
         {
             if (!IsSubmeshVisibleForViewportSelection(edge.SubmeshIndex))
             {
                 continue;
             }
-            if (!ShowXRay && !IsEdgeFrontFacing(edge, camera))
+            if (!ShowXRay && !IsEdgeFrontFacing(edge, camera, orientationScratch))
             {
                 continue;
             }
@@ -694,15 +729,28 @@ internal sealed partial class MeshViewport
             var a = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexA]);
             var b = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexB]);
             var distance = DistanceToSegment(point, a, b);
-            var edgePoint = Vector3.Lerp(
-                SceneWorldPoint(edge.SubmeshIndex, submesh.Vertices[edge.VertexA]),
-                SceneWorldPoint(edge.SubmeshIndex, submesh.Vertices[edge.VertexB]),
-                ScreenSegmentParameter(point, a, b));
-            if (distance < bestDistance && (ShowXRay || !IsWorldPointOccluded(point, edgePoint)))
+            if (distance >= bestDistance)
             {
-                bestDistance = distance;
-                bestEdgeId = edge.Id;
+                continue;
             }
+            if (hasOcclusion)
+            {
+                var edgePoint = Vector3.Lerp(
+                    SceneWorldPoint(edge.SubmeshIndex, submesh.Vertices[edge.VertexA]),
+                    SceneWorldPoint(edge.SubmeshIndex, submesh.Vertices[edge.VertexB]),
+                    ScreenSegmentParameter(point, a, b));
+                if (WorldPointBehindNearestSurface(
+                    rayOrigin,
+                    rayDirection,
+                    nearestSurfaceDistance,
+                    depthTolerance,
+                    edgePoint))
+                {
+                    continue;
+                }
+            }
+            bestDistance = distance;
+            bestEdgeId = edge.Id;
         }
         return bestEdgeId;
     }
@@ -718,18 +766,59 @@ internal sealed partial class MeshViewport
 
     private bool IsEdgeFrontFacing(NetEdge edge, NetViewportCamera camera)
     {
+        return IsEdgeFrontFacing(edge, camera, null);
+    }
+
+    private bool IsEdgeFrontFacing(NetEdge edge, NetViewportCamera camera, Dictionary<int, sbyte[]>? orientationScratch)
+    {
         if (edge.AdjacentFaces.Count == 0)
         {
             return true;
         }
         foreach (var faceIndex in edge.AdjacentFaces)
         {
-            if (IsFaceFrontFacing(edge.SubmeshIndex, faceIndex, camera))
+            if (IsFaceFrontFacingCached(edge.SubmeshIndex, faceIndex, camera, orientationScratch))
             {
                 return true;
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// Memoized face orientation for one pick or drag sample. A face is shared
+    /// by up to three edges, so an edge sweep without the scratch projects
+    /// every face's corners up to three times over.
+    /// </summary>
+    private bool IsFaceFrontFacingCached(
+        int submeshIndex,
+        int faceIndex,
+        NetViewportCamera camera,
+        Dictionary<int, sbyte[]>? orientationScratch)
+    {
+        if (orientationScratch is null)
+        {
+            return IsFaceFrontFacing(submeshIndex, faceIndex, camera);
+        }
+        if (submeshIndex < 0 || submeshIndex >= _document.Submeshes.Count)
+        {
+            return false;
+        }
+        var faceCount = _document.Submeshes[submeshIndex].Faces.Count;
+        if (faceIndex < 0 || faceIndex >= faceCount)
+        {
+            return false;
+        }
+        if (!orientationScratch.TryGetValue(submeshIndex, out var states))
+        {
+            states = new sbyte[faceCount];
+            orientationScratch[submeshIndex] = states;
+        }
+        if (states[faceIndex] == 0)
+        {
+            states[faceIndex] = IsFaceFrontFacing(submeshIndex, faceIndex, camera) ? (sbyte)1 : (sbyte)-1;
+        }
+        return states[faceIndex] > 0;
     }
 
     private bool IsFaceFrontFacing(int submeshIndex, int faceIndex, NetViewportCamera camera)

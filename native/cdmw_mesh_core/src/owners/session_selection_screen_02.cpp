@@ -146,12 +146,30 @@ bool mesh_editor_screen_region_edge_hit(
     const double t = length_sq <= 1.0e-12
         ? 0.0
         : std::clamp(((sample[0] - start[0]) * dx + (sample[1] - start[1]) * dy) / length_sq, 0.0, 1.0);
-    return mesh_editor_screen_brush_depth_visible(
-        context.depth_mask,
-        sample[0],
-        sample[1],
-        start[2] + (end[2] - start[2]) * t
-    );
+    if (mesh_editor_screen_brush_depth_visible(
+            context.depth_mask,
+            sample[0],
+            sample[1],
+            start[2] + (end[2] - start[2]) * t)) {
+        return true;
+    }
+    // The region test yields one sample -- typically where the edge crosses
+    // the region boundary -- and that single point can sit in a z-fighting
+    // pocket of the rasterized mask while most of the edge's in-region span is
+    // plainly visible. Walk the span before declaring the wire hidden.
+    for (int step = 1; step < 8; ++step) {
+        const double tk = static_cast<double>(step) / 8.0;
+        const double x = start[0] + dx * tk;
+        const double y = start[1] + dy * tk;
+        if (!mesh_editor_screen_region_contains(context.region, x, y)) {
+            continue;
+        }
+        if (mesh_editor_screen_brush_depth_visible(
+                context.depth_mask, x, y, start[2] + (end[2] - start[2]) * tk)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void mesh_editor_select_screen_region_edges(
@@ -173,24 +191,18 @@ void mesh_editor_select_screen_region_edges(
                 || static_cast<std::size_t>(edge[1]) >= submesh.vertices.size()) {
                 continue;
             }
-            Vec3 start{};
-            Vec3 end{};
-            if (!mesh_editor_project_screen_brush_vertex_with_projection(
+            MeshEditorProjectedScreenSegment segment;
+            if (!mesh_editor_project_screen_segment_clipped(
                     context.region,
                     projection,
                     submesh.vertices[static_cast<std::size_t>(edge[0])],
-                    start[0],
-                    start[1],
-                    context.depth_mask != nullptr ? &start[2] : nullptr)
-                || !mesh_editor_project_screen_brush_vertex_with_projection(
-                    context.region,
-                    projection,
                     submesh.vertices[static_cast<std::size_t>(edge[1])],
-                    end[0],
-                    end[1],
-                    context.depth_mask != nullptr ? &end[2] : nullptr)) {
+                    context.depth_mask != nullptr,
+                    segment)) {
                 continue;
             }
+            const Vec3 start{segment.ax, segment.ay, segment.az};
+            const Vec3 end{segment.bx, segment.by, segment.bz};
             if (mesh_editor_screen_region_edge_hit(start, end, context)) {
                 edges.insert(edge);
             }
@@ -215,15 +227,22 @@ void mesh_editor_select_screen_region_submesh(
     }
     const MeshEditorScreenBrushProjection projection =
         mesh_editor_projection_for_submesh(context.projection, index);
+    // Face and edge targets never read the vertex containment result, and
+    // computing it projected every vertex of every submesh per region for
+    // nothing.
+    if (context.target_mode == "face") {
+        mesh_editor_select_screen_region_faces(index, submesh, selection, context, projection);
+        return;
+    }
+    if (context.target_mode == "edge") {
+        mesh_editor_select_screen_region_edges(index, submesh, selection, context, projection);
+        return;
+    }
     std::set<int> vertices = mesh_editor_screen_region_vertices(submesh, context, projection);
     if (context.target_mode == "source") {
         if (mesh_editor_screen_region_source_hit(submesh, vertices, context, projection)) {
             selection.source_indices.insert(index);
         }
-    } else if (context.target_mode == "face") {
-        mesh_editor_select_screen_region_faces(index, submesh, selection, context, projection);
-    } else if (context.target_mode == "edge") {
-        mesh_editor_select_screen_region_edges(index, submesh, selection, context, projection);
     } else if (!vertices.empty()) {
         selection.vertices[index] = std::move(vertices);
     }
@@ -232,7 +251,8 @@ void mesh_editor_select_screen_region_submesh(
 void mesh_editor_add_screen_region_selection(
     const MeshEditorSession* session,
     const JsonValue* raw_selection,
-    MeshEditorSelection& selection
+    MeshEditorSelection& selection,
+    const MeshEditorScreenBrushDepthMask* shared_depth_mask = nullptr
 ) {
     if (session == nullptr || raw_selection == nullptr || raw_selection->type != JsonValue::Type::Object) {
         return;
@@ -248,8 +268,12 @@ void mesh_editor_add_screen_region_selection(
     MeshEditorScreenBrushDepthMask depth_mask_storage;
     const MeshEditorScreenBrushDepthMask* depth_mask = nullptr;
     if (depth_mode != "xray") {
-        depth_mask_storage = mesh_editor_screen_brush_depth_mask(session, *raw_region);
-        if (depth_mask_storage.valid) depth_mask = &depth_mask_storage;
+        if (shared_depth_mask != nullptr && shared_depth_mask->valid) {
+            depth_mask = shared_depth_mask;
+        } else {
+            depth_mask_storage = mesh_editor_screen_brush_depth_mask(session, *raw_region);
+            if (depth_mask_storage.valid) depth_mask = &depth_mask_storage;
+        }
     }
     const MeshEditorScreenRegionSelectionContext context{
         *raw_region,

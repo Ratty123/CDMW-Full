@@ -674,6 +674,41 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
             },
         )
 
+    def apply_material_parameter_groups(self, groups: Sequence[Mapping[str, object]]) -> bool:
+        """Send material parameter groups as they stand, in one update.
+
+        Unlike `set_material_overrides`, a value of None goes through as JSON null,
+        which the renderer reads as "clear this parameter's override". A group without
+        submesh indices is dropped: an empty index list means every submesh to the
+        renderer, which no caller of this method intends.
+        """
+
+        normalized: list[dict[str, object]] = []
+        affected: set[int] = set()
+        for group in groups:
+            body = dict(group)
+            indices = _indices(body.get("source_submesh_indices", ()))
+            if not indices:
+                continue
+            body["source_submesh_indices"] = indices
+            body.setdefault("editor_role", "replacement_preview")
+            normalized.append(body)
+            affected.update(indices)
+        if not normalized:
+            return False
+        self._material_parameter_generation += 1
+        return self.controller.remember_state(
+            "material_parameters",
+            "material_parameter_update",
+            {
+                "schema": "cdmw_mesh_material_parameters_v1",
+                "version": 1,
+                "parameter_generation": self._material_parameter_generation,
+                "affected_submeshes": sorted(affected),
+                "groups": normalized,
+            },
+        )
+
     def set_icon_capture_mode(self, enabled: bool) -> bool:
         self._icon_capture_mode = bool(enabled)
         display = dict(self._presentation_state.get("display", {}))
