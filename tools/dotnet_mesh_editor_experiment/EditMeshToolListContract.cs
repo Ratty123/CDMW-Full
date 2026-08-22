@@ -53,12 +53,11 @@ internal static class EditMeshToolListContract
         public const string Inflate = "inflate";
         public const string Pinch = "pinch";
         public const string Topology = "topology";
-        public const string Colour = "colour";
         public const string Morph = "morph";
     }
 
     /// <summary>
-    /// Every row, in list order: the six armable tools, then the three command
+    /// Every row, in list order: the six armable tools, then the two command
     /// pages. The order matches <see cref="EditMeshLayoutContracts.RailToolOrder"/>
     /// and <see cref="EditMeshLayoutContracts.RailCommandPageOrder"/>, and
     /// <see cref="RequireCompleteList"/> is what keeps it matching.
@@ -77,7 +76,6 @@ internal static class EditMeshToolListContract
         new(ToolListRowKind.Tool, Keys.Inflate, ToolRailPage.Brush),
         new(ToolListRowKind.Tool, Keys.Pinch, ToolRailPage.Brush),
         new(ToolListRowKind.CommandPage, Keys.Topology, ToolRailPage.Topology),
-        new(ToolListRowKind.CommandPage, Keys.Colour, ToolRailPage.Colour),
         new(ToolListRowKind.CommandPage, Keys.Morph, ToolRailPage.MorphRefit),
     };
 

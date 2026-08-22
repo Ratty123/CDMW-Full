@@ -28,6 +28,7 @@ internal static class HelperBuildProvenance
         // the next mesh; without this the helper refuses the new session and
         // that mesh never becomes loadable. Gated at use, like the line above.
         "authoring_session_handoff_v1",
+        "direct_authoring_host_v1",
         // The host names its window once, on the command line, and Qt recreates
         // that native window on a move to a screen at a different scale. This
         // says the helper will re-parent itself when told, rather than staying a
@@ -42,7 +43,6 @@ internal static class HelperBuildProvenance
         "topology_provenance_v1",
         "resident_material_updates_v2",
         "resident_material_parameter_updates_v1",
-        "resident_texture_region_updates_v1",
         "viewport_display_modes_v1",
         "resident_scene_state_v1",
         "authoritative_resident_scene_frame_v2",
@@ -81,6 +81,7 @@ internal static class HelperBuildProvenance
                 or "geometry_layers_v1"
                 or "authoring_provisional_session_v1"
                 or "authoring_session_handoff_v1"
+                or "direct_authoring_host_v1"
                 or "topology_provenance_v1"));
         }
         return capabilities.Order(StringComparer.Ordinal).ToArray();

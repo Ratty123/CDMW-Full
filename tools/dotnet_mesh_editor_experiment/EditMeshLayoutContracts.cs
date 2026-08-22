@@ -12,7 +12,6 @@ internal enum ToolRailPage
     Transform,
     Brush,
     Topology,
-    Colour,
     MorphRefit,
 }
 
@@ -35,14 +34,13 @@ internal static class EditMeshLayoutContracts
 
     /// <summary>
     /// The command pages that keep a rail entry of their own, in rail order.
-    /// Their entries only reveal the page: Topology, Colour and Morph &amp; Refit
+    /// Their entries only reveal the page: Topology and Morph &amp; Refit
     /// hold one-shot commands and settings, not modal tools, so revealing one
     /// leaves the active tool alone.
     /// </summary>
     public static readonly ToolRailPage[] RailCommandPageOrder =
     {
         ToolRailPage.Topology,
-        ToolRailPage.Colour,
         ToolRailPage.MorphRefit,
     };
 

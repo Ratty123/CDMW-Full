@@ -48,7 +48,7 @@ class AboutDocumentationSpanishMixin:
         <a href="topic:texture_workflow_guides">Guias del flujo de texturas</a>,
         <a href="topic:compare_review">Comparar y revisar</a>,
         <a href="topic:archive_browser">Explorador de archivos</a>,
-        <a href="topic:mesh_media_guides">Importacion e intercambio de mallas</a>,
+        <a href="topic:mesh_media_guides">Editor de mallas</a>,
         <a href="topic:texture_editor">Editor de texturas</a>,
         <a href="topic:replace_assistant">Asistente de reemplazo</a>,
         <a href="topic:research">Investigacion</a>,
@@ -74,8 +74,9 @@ class AboutDocumentationSpanishMixin:
                 <ul>
                   <li><b>Panel</b>: estado del workspace, rutas de herramientas, trabajo reciente y ultimo resultado con accesos a salida, Comparar y logs.</li>
                   <li><b>Flujo de texturas</b>: proceso por lotes para DDS sueltos, escalado opcional, reconstruccion DDS, comparacion y exportacion mod-ready.</li>
-                  <li><b>Explorador de archivos</b>: escaneo, filtro, vista previa, extraccion, exportacion suelta y parches compatibles.</li>
-                  <li><b>Biblioteca de modelos</b>: escaneo de modelos locales/importables, vista previa y envio a flujos del explorador.</li>
+                  <li><b>Explorador de archivos</b>: escaneo, filtro, vista previa, extraccion, investigacion, exportacion de dependencias y una accion <b>Abrir en el Editor de mallas</b>.</li>
+                  <li><b>Editor de mallas</b>: edicion directa de geometria, topologia, normales, rigging, Morph &amp; Refit, coordenadas UV y transformacion del objeto. Las texturas son de solo lectura en Vista de malla.</li>
+                  <li><b>Biblioteca de modelos</b>: escaneo y vista previa de modelos locales/importables, o envio a New Item Studio.</li>
                   <li><b>Creador de iconos</b>: prepara imagenes fuente y paquetes compatibles para iconos de items.</li>
                   <li><b>Editor de texturas</b>: edicion por capas de texturas visibles y envio directo al flujo.</li>
                   <li><b>Asistente de reemplazo</b>: reemplazos guiados para PNG/DDS editados.</li>
@@ -389,7 +390,7 @@ class AboutDocumentationSpanishMixin:
                       <li>Ejecuta <b>Inicializar espacio</b> para crear workspace, tools, salida, PNG y extraccion.</li>
                       <li>Usa la herramienta DDS nativa <code>cd-texture-dx.exe</code> incluida para vista previa y reconstruccion.</li>
                       <li>Escanea un conjunto pequeno antes de procesar archivos grandes.</li>
-                      <li>Para mallas, empieza con <b>Vista previa de importar malla</b> en el Explorador de archivos. Usa <b>Importar malla</b> o <b>Intercambiar con malla del juego</b> solo despues de revisar la alineacion.</li>
+                      <li>Para mallas, selecciona <b>Abrir en el Editor de mallas</b> en el Explorador. Las herramientas de geometria aparecen de inmediato; las texturas sirven solo para revisar.</li>
                     </ol>
                     <div class="doc-callout doc-warning"><b>Cache de sidecars:</b> puede tardar mucho, pero mejora referencias relacionadas, texturas conectadas a modelos y sidecars de material. Si lo activas, deja que termine.</div>
                     """,
@@ -407,7 +408,7 @@ class AboutDocumentationSpanishMixin:
                       <tr><td>Encontrar texturas relacionadas</td><td>Selecciona un modelo y revisa <b>Archivos referenciados</b>.</td><td>Muestra textura, sidecar, esqueleto, animacion, paquete y estado.</td></tr>
                       <tr><td>Elegir origen de colocacion</td><td>Usa <b>Editar HKX</b> y despues <b>Elegir origen de colocacion</b>, o entra desde <b>Item Finder</b>.</td><td>Elige el <code>.pac</code> visible si existe. HKX aporta contexto, pero la colocacion normalmente se resuelve con prefab/socket alrededor de la familia del modelo.</td></tr>
                       <tr><td>Revisar metadatos</td><td>Abre <b>Detalles</b>.</td><td>Incluye tamano, compresion, cadenas legibles, diagnosticos y advertencias.</td></tr>
-                      <tr><td>Editar XML/material</td><td>Usa <b>Editar valores de material</b> cuando haya sidecar reconocido.</td><td>Exporta valores editados como paquete mod-ready.</td></tr>
+                      <tr><td>Editar una malla</td><td>Selecciona una malla compatible y usa <b>Abrir en el Editor de mallas</b>.</td><td>Abre directamente los bytes exactos; los nombres de material y textura quedan como diagnostico.</td></tr>
                     </table>
                     <h4>Duplicados moddeados y filas activas</h4>
                     <ul>
@@ -420,44 +421,36 @@ class AboutDocumentationSpanishMixin:
                 },
                 {
                     "id": "mesh_media_guides",
-                    "title": "Guias de malla, 3D y medios",
-                    "summary": "Exportar, previsualizar, reemplazar mallas y revisar sidecars.",
-                    "keywords": "malla 3d obj fbx gltf dae pac pam material sidecar textura",
+                    "title": "Editor de mallas, 3D y medios",
+                    "summary": "Editar mallas directamente y crear salidas seguras; revisar medios y sidecars.",
+                    "keywords": "malla editor directo transformacion solido texturas overlay exportar pac pam sidecar",
                     "html": """
-                    <table>
-                      <tr><th>Accion</th><th>Uso</th><th>Resultado</th></tr>
-                      <tr><td>Exportar OBJ</td><td>Edicion round-trip cuando hay sidecar compatible.</td><td>Escribe geometria y contexto para reimportar.</td></tr>
-                      <tr><td>Exportar FBX</td><td>Inspeccion o trabajo en DCC.</td><td>Util para ver; no garantiza reimportacion parcheable.</td></tr>
-                      <tr><td>Vista previa de importar malla</td><td>Probar OBJ/DAE/glTF/GLB sin escribir archivos.</td><td>Solo crea vista previa.</td></tr>
-                      <tr><td>Vista previa de importar DDS</td><td>Probar una textura DDS en el modelo seleccionado sin escribir archivos.</td><td>Solo crea vista previa del modelo.</td></tr>
-                      <tr><td>Importar malla</td><td>Crear reemplazo soportado.</td><td>Permite parche o salida suelta mod-ready donde sea compatible.</td></tr>
-                      <tr><td>Intercambiar con malla del juego</td><td>Usar otra malla del archivo como reemplazo del objetivo seleccionado.</td><td>Abre Alineacion de reemplazo de malla y conserva archivos relacionados cuando es compatible.</td></tr>
-                      <tr><td>Editar HKX</td><td>Copiar colocacion desde otra familia de arma/modelo.</td><td>Muestra contexto del objetivo, permite elegir origen, compara colocacion y crea paquete suelto de colocacion.</td></tr>
-                    </table>
-                    <h4>Alineacion de reemplazo de malla</h4>
-                    <ul>
-                      <li>Es la revision principal para reemplazos estaticos e intercambios de malla del juego: geometria, partes mapeadas, texturas, sidecars, posicion, escala, rotacion y valores de exportacion.</li>
-                      <li>Usa <b>Vista previa de importar malla</b> antes de escribir archivos.</li>
-                      <li>Usa <b>Importar malla</b> solo despues de revisar compatibilidad, ubicacion y plan de texturas.</li>
-                      <li>Las anulaciones avanzadas de ranuras DDS son herramientas de reparacion manual; empieza con las sugerencias.</li>
-                    </ul>
-                    <h4>Autoridad de material y sidecars</h4>
-                    <ul>
-                      <li><b>Preservar XML runtime</b> mantiene la estructura PAC XML del objetivo/corpus y permite que capas o mapas de soporte originales influyan en el resultado.</li>
-                      <li><b>Autoridad de origen real</b> usa PAC/XML original como ABI runtime, pero bloquea influencia visible/soporte original en wrappers activos del origen.</li>
-                      <li><b>Autoridad de material manual</b> parte de Preservar XML runtime y expone controles para reparacion avanzada.</li>
-                      <li><b>Usar otra malla original</b> permite elegir otra referencia original para alineacion o contexto de material.</li>
-                      <li>Revisa estado de colocacion <b>Guardado / en el cuerpo</b> frente a <b>Sostenido / en mano</b> antes de crear paquetes.</li>
-                    </ul>
-                    <h4>Intercambio con malla del juego</h4>
+                    <h4>Abrir y editar una malla</h4>
                     <ol>
-                      <li>Selecciona la malla de archivo que quieres reemplazar y marca ese recurso como destino de intercambio.</li>
-                      <li>Elige si se incluyen archivos relacionados como texturas, sidecars, esqueletos o animaciones. Esqueletos y animaciones son explicitos porque rigs o fisica incompatibles pueden romper recursos.</li>
-                      <li>Selecciona otra malla cargada del archivo como origen.</li>
-                      <li>Revisa la colocacion y el mapeo de texturas en <b>Alineacion de reemplazo de malla</b>.</li>
-                      <li>Escribe salida suelta o parchea archivos solo cuando el resultado sea visual y estructuralmente razonable.</li>
+                      <li>Selecciona un archivo <code>.pam</code>, <code>.pamlod</code> o <code>.pac</code> compatible en el Explorador de archivos.</li>
+                      <li>Elige <b>Abrir en el Editor de mallas</b>. Los bytes exactos se validan fuera del hilo de la interfaz y los controles de edicion aparecen de inmediato.</li>
+                      <li>Edita seleccion, geometria, topologia, normales/tangentes, rigging, Morph &amp; Refit o coordenadas UV. Usa Original/Editado y <b>Solido (con texturas)</b> para revisar.</li>
                     </ol>
-                    <div class="doc-callout doc-warning"><b>Limites de malla:</b> los reemplazos estaticos pueden retargetear geometria y sidecars compatibles, pero no convierten todos los rigs, animaciones, skins o grafos de material complejos a datos nativos del juego.</div>
+                    <div class="doc-callout"><b>Solo malla:</b> los nombres de material y textura son diagnosticos. El Editor de mallas no reemplaza, recolorea, asigna ni abre texturas. Si no puede enlazar un DDS de origen, vuelve visiblemente a una vista sin texturas y la edicion geometrica sigue disponible.</div>
+                    <h4>Transformacion del objeto</h4>
+                    <ul>
+                      <li>Ubicacion, rotacion, escala XYZ o enlazada, pasos de inclinacion y reinicios afectan a todas las partes sin cambiar la seleccion.</li>
+                      <li>Rotacion y escala usan el centro fijo de los limites originales. Cada gesto completado crea una sola accion deshacible y los borradores restauran geometria y controles.</li>
+                    </ul>
+                    <h4>Guardar y construir</h4>
+                    <table>
+                      <tr><th>Accion</th><th>Resultado</th><th>Seguridad del archivo</th></tr>
+                      <tr><td>Exportar archivo de malla</td><td>Escribe de forma atomica la malla reconstruida y su informe.</td><td>Nunca sobrescribe el recurso de origen.</td></tr>
+                      <tr><td>Construir mod</td><td>Crea una carpeta suelta solo de malla o un overlay de grupo de archivo DMM.</td><td>Hereda sin cambios las texturas y sidecars de material.</td></tr>
+                      <tr><td>Instalar como overlay</td><td>Muestra ruta de malla, directorio, listas de montaje, conjunto conservado y objetivos de copia antes de confirmar.</td><td>Vuelve a comprobar que el juego esta cerrado, crea copia, publica la lista al final y revierte al cancelar o fallar.</td></tr>
+                      <tr><td>Restaurar ultima instalacion de overlay</td><td>Usa el recibo para restaurar el estado anterior de montaje/overlay.</td><td>Elimina solo los archivos creados por esa instalacion.</td></tr>
+                    </table>
+                    <p>Estas salidas nunca parchean los archivos PAMT/PAZ distribuidos. La exportacion/importacion de paquetes editables del mismo origen sigue disponible para trabajo geometrico externo.</p>
+                    <h4>Recursos nuevos y texturas</h4>
+                    <ul>
+                      <li>En la Biblioteca de modelos, <b>Usar en New Item Studio</b> abre el modelo en el paso Modelo del estudio.</li>
+                      <li>Usa directamente Flujo de texturas, Reemplazador de texturas, Variantes de color o Editor de texturas. Esas pestanas dedicadas no cambian.</li>
+                    </ul>
                     <h4>Colocacion HKX y sockets</h4>
                     <ul>
                       <li><b>Abrir colocacion HKX</b> trata el recurso abierto como el objetivo que cambia. <b>Elegir origen de colocacion</b> busca el arma/modelo fuente del que se copiara la colocacion.</li>

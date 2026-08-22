@@ -12,7 +12,17 @@ from pathlib import PurePosixPath
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from .documents import is_body_socket_file
-from .model import PlacementBinding, Socket, Vec3
+from .model import (
+    LINK_SUFFIXES,
+    STOW_CRITICAL_ROLES,
+    DescriptorPart,
+    EquipmentUnit,
+    LinkedPart,
+    PlacementBinding,
+    Socket,
+    Vec3,
+    link_role,
+)
 from .resolver import (
     KNOWN_MODELS,
     PlacementResolver,
@@ -57,6 +67,15 @@ def skeleton_path_for(socket_path: str) -> str:
 
 def skeleton_paths_for(socket_paths: Iterable[str]) -> List[str]:
     return sorted({p for p in (skeleton_path_for(s) for s in socket_paths) if p})
+
+
+class EquipmentResolutionError(RuntimeError):
+    """Raised when the selected row and the selected asset are not one equipment unit.
+
+    Deliberately fatal rather than a fallback. The old behaviour — keep the previously
+    selected weapon when the row changed — is what let one descriptor row move while another
+    weapon's animations and child sockets were edited.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -357,6 +376,213 @@ class PlacementSession:
             if socket is not None:
                 return socket
         return None
+
+    # ── equipment units ─────────────────────────────────────────────
+
+    def parts_map(self) -> Dict[str, DescriptorPart]:
+        """Every descriptor row this character defines, by part name."""
+
+        return self._resolver.parts(model=self.model)
+
+    def descriptor_part(self, part_name: str) -> Optional[DescriptorPart]:
+        return self.parts_map().get(part_name)
+
+    def linked_parts(self, part_name: str) -> Tuple[LinkedPart, ...]:
+        """Rows that belong to `part_name` — its sheath, quiver, holster, auxiliary blade.
+
+        Found three ways, none of them a hardcoded `Sword_IN`: the row's own
+        `WeaponCasePart` link, the reverse of that link, and a companion row sharing this
+        row's stem under a known suffix. A carrier the game adds later is picked up by the
+        first of those without a code change.
+        """
+
+        parts = self.parts_map()
+        primary = parts.get(part_name)
+        if primary is None:
+            return ()
+
+        found: Dict[str, DescriptorPart] = {}
+        if primary.weapon_case_part and primary.weapon_case_part in parts:
+            found[primary.weapon_case_part] = parts[primary.weapon_case_part]
+        for name, part in parts.items():
+            if name == part_name or name in found:
+                continue
+            if part.weapon_case_part and part.weapon_case_part == part_name:
+                found[name] = part
+        for suffix, _role in LINK_SUFFIXES:
+            candidate = f"{part_name}{suffix}"
+            if candidate in parts and candidate not in found:
+                found[candidate] = parts[candidate]
+
+        out = []
+        for name in sorted(found):
+            part = found[name]
+            role = link_role(primary, part)
+            out.append(
+                LinkedPart(
+                    part_name=name,
+                    role=role,
+                    required_for_stow=role in STOW_CRITICAL_ROLES,
+                    source_file=part.source_file,
+                    in_socket=part.in_socket,
+                    in_child_socket=part.in_child_socket,
+                    out_socket=part.out_socket,
+                    out_child_socket=part.out_child_socket,
+                )
+            )
+        return tuple(out)
+
+    def case_asset_for(self, weapon) -> Optional[WeaponSocketFile]:
+        """The `_in` socket file that aims a weapon's sheath, or `None`.
+
+        `cd_phm_01_sword_0001_r` -> `cd_phm_01_sword_0001_r_in`. The case row has its own
+        child sockets in its own file, so an operation that moves the sheath has to be
+        allowed to write *that* file and no other.
+        """
+
+        if weapon is None:
+            return None
+        wanted = f"{weapon.weapon_id}_in"
+        for candidate in self.weapons():
+            if candidate.weapon_id == wanted:
+                return candidate
+        return None
+
+    def resolve_equipment_unit(
+        self,
+        part_name: str,
+        *,
+        weapon=None,
+        available_families: Optional[Iterable[str]] = None,
+    ) -> EquipmentUnit:
+        """Resolve one selected row and one selected asset into a single validated unit.
+
+        This is the object every later step reads from. If the row and the asset cannot be
+        reconciled the call raises: falling back to whichever weapon happened to be selected
+        is the behaviour that produced mixed operations.
+        """
+
+        from . import carry as _carry
+
+        parts = self.parts_map()
+        primary = parts.get(part_name)
+        if primary is None:
+            raise EquipmentResolutionError(
+                f"{part_name!r} is not a descriptor row of {self.label}. The row and the "
+                f"character do not match, so there is nothing to move."
+            )
+
+        asset = weapon if weapon is not None else self._weapon
+        if asset is None:
+            raise EquipmentResolutionError(
+                f"No weapon asset is selected, so {part_name} cannot be resolved to one "
+                f"equipment unit. Choose the item whose child sockets apply."
+            )
+        if asset.model and asset.model != self.model:
+            raise EquipmentResolutionError(
+                f"{asset.weapon_id} belongs to {asset.model}, not {self.model}. An operation "
+                f"cannot span two characters."
+            )
+
+        hands = _carry.weapon_handedness(asset)
+        expected = {"two_hand_weapon": "2h", "main_weapon": "1h"}.get(primary.category, "")
+        if expected and hands and expected != hands:
+            raise EquipmentResolutionError(
+                f"{part_name} is a {expected} row but {asset.weapon_id} is a {hands} asset. "
+                f"Select the matching item before moving it."
+            )
+
+        wanted_children = {primary.in_child_socket, primary.out_child_socket} - {""}
+        if wanted_children and not (wanted_children & set(asset.sockets)):
+            raise EquipmentResolutionError(
+                f"{part_name} is aimed by {', '.join(sorted(wanted_children))}, none of which "
+                f"{asset.weapon_id} defines. The row and the asset are different items."
+            )
+
+        links = self.linked_parts(part_name)
+        case_asset = self.case_asset_for(asset)
+
+        descriptor_files = {primary.source_file, *(link.source_file for link in links)}
+        socket_files = {asset.game_path}
+        if case_asset is not None:
+            socket_files.add(case_asset.game_path)
+
+        return EquipmentUnit(
+            model=self.model,
+            weapon_id=asset.weapon_id,
+            primary_part=part_name,
+            linked_parts=links,
+            handedness=hands,
+            target_animation_families=_carry.target_families(
+                hands, available=available_families
+            ),
+            donor_animation_families=_carry.donor_families(
+                hands, available=available_families
+            ),
+            allowed_descriptor_files=tuple(sorted(p for p in descriptor_files if p)),
+            allowed_socket_files=tuple(sorted(p for p in socket_files if p)),
+            weapon_path=asset.game_path,
+            weapon_type=primary.weapon_type,
+            weapon_category=asset.category,
+            primary_source_file=primary.source_file,
+            in_socket=primary.in_socket,
+            in_child_socket=primary.in_child_socket,
+            out_socket=primary.out_socket,
+            out_child_socket=primary.out_child_socket,
+        )
+
+    def child_socket_users(self, socket_name: str) -> Tuple[str, ...]:
+        """Every descriptor row that is aimed by this child socket.
+
+        The 'what else moves if I edit this?' answer, and the input to clone-on-write.
+        """
+
+        return tuple(sorted(set(self.usage(socket_name).child_offset)))
+
+    def socket_edit_decision(self, socket_name: str, owned_parts: Iterable[str]):
+        """Whether an operation owning `owned_parts` may edit that child socket in place."""
+
+        from .orientation import decide_socket_edit
+
+        return decide_socket_edit(
+            socket_name, self.child_socket_users(socket_name), owned_parts
+        )
+
+    def orientation_template(
+        self,
+        destination_socket: str,
+        *,
+        current_child: str = "",
+        weapon=None,
+        held: bool = False,
+    ):
+        """The aim to give an item at a destination, in the plan's resolution order."""
+
+        from . import carry as _carry
+        from .orientation import resolve_orientation
+
+        asset = weapon if weapon is not None else self._weapon
+        sockets = dict(asset.sockets) if asset is not None else {}
+        conventional = self.conventional_child_socket(destination_socket, held=held)
+        fallback = "" if held else _carry.FALLBACK_CHILD_SOCKETS.get(destination_socket, "")
+        wanted = conventional or fallback
+        borrow = None
+        borrow_id = ""
+        if wanted and wanted not in sockets:
+            borrow = self.borrowed_child_socket(wanted)
+            if borrow is not None:
+                borrow_id = next(
+                    (w.weapon_id for w in self.weapons() if wanted in w.sockets), ""
+                )
+        return resolve_orientation(
+            destination_socket=destination_socket,
+            asset_sockets=sockets,
+            conventional_child=conventional,
+            fallback_child=fallback,
+            current_child=current_child,
+            borrow=borrow,
+            borrow_weapon_id=borrow_id,
+        )
 
     def usage(self, socket_name: str) -> SocketUsage:
         """Which rows route through a socket — the 'what moves if I edit this?' answer."""

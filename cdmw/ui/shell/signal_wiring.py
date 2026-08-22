@@ -7,8 +7,7 @@ class ShellSignalWiringMixin:
     """Connect shell-owned actions and widget signals."""
 
     def _connect_archive_mesh_import_signals(self) -> None:
-        self.archive_model_import_patch_button.clicked.connect(self._patch_current_archive_mesh_from_obj)
-        self.archive_model_full_import_button.clicked.connect(self._full_import_current_archive_model_replacement)
+        return None
 
     def _connect_shell_signals(self) -> None:
         self.export_profile_action.triggered.connect(self.export_profile)
@@ -47,8 +46,6 @@ class ShellSignalWiringMixin:
         self.archive_clear_asset_scope_button.clicked.connect(self._clear_archive_asset_catalog_scope)
         self.archive_extract_selected_button.clicked.connect(self.extract_selected_archive_entries)
         self.archive_extract_filtered_button.clicked.connect(self.extract_filtered_archive_entries)
-        self.archive_extract_to_workflow_button.clicked.connect(self.extract_filtered_archive_dds_to_workflow)
-        self.archive_open_in_editor_button.clicked.connect(self._open_archive_current_in_texture_editor)
         self.archive_resolve_in_research_button.clicked.connect(self._resolve_archive_current_in_research)
         self.archive_filter_apply_button.clicked.connect(self._apply_archive_filter)
         self.archive_path_search_button.clicked.connect(self._apply_archive_filter)
@@ -106,7 +103,6 @@ class ShellSignalWiringMixin:
         )
         self.archive_action_filter_to_family_button.clicked.connect(self._scope_current_archive_asset_family)
         self.archive_action_export_family_button.clicked.connect(self._export_current_archive_asset_family)
-        self.archive_action_source_mix_button.clicked.connect(self._open_current_archive_source_mix_package)
         self.archive_action_character_dependency_button.clicked.connect(
             self._export_current_archive_character_dependency_package
         )
@@ -114,13 +110,8 @@ class ShellSignalWiringMixin:
         self.archive_model_export_fbx_button.clicked.connect(
             lambda: self._export_current_archive_mesh("fbx")
         )
-        self.archive_model_import_preview_button.clicked.connect(self._preview_current_archive_mesh_import)
-        self.archive_model_import_dds_preview_button.clicked.connect(self._preview_current_archive_mesh_dds_import)
-        self._connect_archive_mesh_import_signals()
-        self.archive_model_modify_original_button.clicked.connect(self._modify_current_archive_original_mesh)
-        self.archive_model_swap_in_game_button.clicked.connect(self._swap_current_archive_mesh_with_in_game)
+        self.archive_model_open_mesh_editor_button.clicked.connect(self._open_current_archive_mesh_editor)
         self.archive_appearance_composite_button.clicked.connect(self._open_current_archive_appearance_composite_preview)
-        self.archive_appearance_swap_button.clicked.connect(self._open_current_archive_appearance_swap)
         self.archive_hkx_export_json_button.clicked.connect(self._export_current_archive_hkx_json)
         self.archive_hkx_import_json_button.clicked.connect(self._import_current_archive_hkx_json)
         self.archive_hkx_export_xml_button.clicked.connect(self._export_current_archive_hkx_xml)
@@ -132,7 +123,6 @@ class ShellSignalWiringMixin:
         self.archive_sidecar_export_json_button.clicked.connect(self._export_current_archive_binary_sidecar_json)
         self.archive_sidecar_inspect_button.clicked.connect(self._inspect_current_archive_binary_sidecar)
         self.archive_sidecar_corpus_button.clicked.connect(self._export_binary_sidecar_corpus_report)
-        self.archive_material_values_button.clicked.connect(self._edit_current_archive_material_sidecar)
         self.archive_import_loose_mod_button.clicked.connect(self._open_archive_loose_mod_overlay_dialog)
         self.archive_restore_patch_backup_button.clicked.connect(self._restore_archive_patch_backup_from_ui)
         self.archive_texture_refs_tree.itemSelectionChanged.connect(self._update_archive_texture_reference_action_controls)

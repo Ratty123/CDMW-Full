@@ -134,7 +134,6 @@ internal sealed partial class ExperimentForm
         RowKeys.Inflate => "◉",
         RowKeys.Pinch => "◇",
         RowKeys.Topology => "△",
-        RowKeys.Colour => "◧",
         _ => "◑",
     };
 
@@ -151,7 +150,6 @@ internal sealed partial class ExperimentForm
         RowKeys.Inflate => "Inflate",
         RowKeys.Pinch => "Pinch",
         RowKeys.Topology => "Topology",
-        RowKeys.Colour => "Colour",
         _ => "Morph & Refit",
     };
 
@@ -166,7 +164,6 @@ internal sealed partial class ExperimentForm
         RowKeys.Smooth or RowKeys.Inflate or RowKeys.Pinch =>
             "Smooth, Inflate and Pinch with radius, strength and falloff.",
         RowKeys.Topology => "Subdivide and Refine Smooth.",
-        RowKeys.Colour => "Per-part tint, recolour and glow for the current selection.",
         _ => "Definition profiles, shape sliders and garment refit binding.",
     };
 

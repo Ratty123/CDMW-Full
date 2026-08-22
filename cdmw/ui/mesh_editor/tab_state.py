@@ -59,13 +59,13 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
                 )
             )
         ):
-            self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="modify_original")
+            self.current_request = _tab.MeshEditorSessionRequest(target_entry=entry, mode="edit")
         self._sync_state()
     def open_session(self, request: _tab.MeshEditorSessionRequest) -> None:
-        self.current_request = request
-        self.current_archive_selection = request.target_entry
-        self._sync_state()
-        self.status_message_requested.emit(f"Mesh Editor loaded target: {self._entry_label(request.target_entry)}", False)
+        """Compatibility wrapper for the former session-request entry point."""
+        if not isinstance(request, _tab.MeshEditorSessionRequest):
+            raise TypeError("request must be MeshEditorSessionRequest")
+        self.open_archive_session(request.target_entry)
     def update_editor_action_state(
         self,
         *,
@@ -272,17 +272,14 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
             else "Mode: no active session"
         )
         self.empty_status_label.setText(
-            "Ready: choose Modify Original, Import Replacement, Import Preview, or In-Game Swap. "
-            "The full Mesh Replacement Builder opens here; archive writes still require explicit build/export confirmation."
+            "Ready: open the selected archive mesh directly in Mesh Editor. "
+            "Textures remain available as a read-only Mesh View."
             if has_target
             else "No mesh target loaded. Select a .pac, .pam, or .pamlod in Archive Browser, then Open in Mesh Editor."
         )
         for button in (
             self.open_archive_button,
-            self.modify_original_button,
-            self.import_replacement_button,
-            self.import_preview_button,
-            self.in_game_swap_button,
+            self.open_selected_mesh_button,
         ):
             button.setEnabled(has_workflow_target)
         self.standalone_native_preview_button.setEnabled(False)
@@ -291,11 +288,13 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
             self._standalone_action_worker_active()
             or self._standalone_validation_worker_active()
             or self._standalone_rebuild_report_worker_active()
+            or self._mesh_direct_output_busy()
             or self._standalone_editable_package_task_active()
             or self._standalone_dotnet_package_worker_active()
             or self._standalone_dotnet_import_worker_active()
             or (
                 self._standalone_dotnet_editor_process_running()
+                and self.standalone_dotnet_target_embedded
                 and self.standalone_dotnet_embedded_state != "suspended"
             )
         )
@@ -339,9 +338,10 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
                     self.embedded_dotnet_editor_button = None
         for button_name in (
             "standalone_run_validation_report_button",
-            "standalone_rebuild_asset_button",
-            "standalone_preview_rebuilt_asset_button",
-            "standalone_package_rebuilt_asset_button",
+            "standalone_export_mesh_file_button",
+            "standalone_build_mod_button",
+            "standalone_install_overlay_button",
+            "standalone_restore_overlay_button",
             "standalone_export_editable_package_button",
             "standalone_import_edited_package_button",
             "standalone_open_editable_package_folder_button",
@@ -349,10 +349,15 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
             button = getattr(self, button_name, None)
             if button is not None:
                 enabled = has_standalone and not task_active
-                if button_name == "standalone_rebuild_asset_button":
+                if button_name in {
+                    "standalone_export_mesh_file_button",
+                    "standalone_build_mod_button",
+                    "standalone_install_overlay_button",
+                }:
                     enabled = enabled and self._standalone_rebuild_allowed()
-                elif button_name in {"standalone_preview_rebuilt_asset_button", "standalone_package_rebuilt_asset_button"}:
-                    enabled = enabled and self.standalone_last_rebuilt_asset_path is not None
+                elif button_name == "standalone_restore_overlay_button":
+                    receipt = self._mesh_overlay_receipt_path()
+                    enabled = enabled and receipt is not None and receipt.is_file()
                 button.setEnabled(enabled)
         self._set_rebuild_report_button_enabled(has_standalone and not task_active)
         self._set_rebuild_asset_button_enabled(has_standalone and not task_active and self._standalone_rebuild_allowed())
@@ -780,7 +785,22 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
         # Any explicit request supersedes a textured view this tab is still
         # hoping to restore on its own, so it must never snap back later.
         self._forget_deferred_textured_view()
-        if not bool(getattr(self.active_builder(), "_mesh_editor_embedded_dotnet_active", False)):
+        direct_session = not bool(self.standalone_dotnet_target_embedded)
+        if direct_session:
+            viewport_ready = bool(
+                self.standalone_dotnet_lifecycle_session_id
+                and int(self.standalone_dotnet_process_generation) > 0
+                and self.standalone_dotnet_target_controller is not None
+            )
+        else:
+            viewport_ready = bool(
+                getattr(
+                    self.active_builder(),
+                    "_mesh_editor_embedded_dotnet_active",
+                    False,
+                )
+            )
+        if not viewport_ready:
             if normalized in MESH_PREVIEW_TEXTURED_DISPLAY_MODES:
                 fallback_mode = untextured_fallback_display_mode(normalized)
                 self._remember_dotnet_desired_display_mode(fallback_mode)
@@ -806,10 +826,14 @@ class MeshEditorStateMixin(MeshEditorTexturedViewMixin):
                 )
                 return False
             builder = self.active_builder()
-            request_textures = getattr(
-                builder,
-                "_mesh_editor_embedded_request_material_resources",
-                None,
+            request_textures = (
+                self._request_direct_textures_for_textured_view
+                if direct_session
+                else getattr(
+                    builder,
+                    "_mesh_editor_embedded_request_material_resources",
+                    None,
+                )
             )
             # The active pane decides. Waiting for a secondary pane that the
             # display message is going to reach anyway only kept the reader on

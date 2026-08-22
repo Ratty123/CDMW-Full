@@ -1,12 +1,23 @@
 from __future__ import annotations
 
 from importlib import import_module as _import_module
+from pathlib import Path
 from typing import Callable, Mapping, Optional, Sequence
 
 from PySide6.QtCore import QSettings, Signal
-from PySide6.QtWidgets import QFrame, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from cdmw.ui.mesh_editor.action_bar import MeshEditorActionBar
+from cdmw.services.workspace_layout import workspace_paths
 from cdmw.ui.mesh_editor.tab_support import (
     STANDALONE_NATIVE_TOOL_STATE as _STANDALONE_NATIVE_TOOL_STATE,
 )
@@ -115,6 +126,8 @@ _LAZY_EXPORT_GROUPS = (
         "cdmw.workers.mesh_editor_workers",
         (
             "MeshEditCommandWorker",
+            "MeshDirectOutputResult",
+            "MeshDirectOutputWorker",
             "MeshEditablePackageExportWorker",
             "MeshEditablePackageImportWorker",
             "MeshDotNetExperimentOutputImportWorker",
@@ -122,8 +135,13 @@ _LAZY_EXPORT_GROUPS = (
             "MeshDotNetMaterialUpdateWorker",
             "MeshDotNetSceneFrameWorker",
             "MeshExportValidationWorker",
+            "MeshArchiveMaterialContextWorker",
+            "MeshArchiveSessionLoadResult",
+            "MeshArchiveSessionLoadWorker",
             "MeshFileSessionLoadWorker",
             "MeshRebuildReportWorker",
+            "MeshOverlayApplyWorker",
+            "MeshOverlayRestoreWorker",
             "MeshReportWriteWorker",
             "MeshTextureSourceResolveWorker",
         ),
@@ -166,23 +184,13 @@ def __dir__() -> list[str]:
 
 
 class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshEditorPackageMixin, MeshEditorDotNetLaunchMixin, MeshEditorDotNetProtocolMixin, MeshEditorDotNetCommandMixin, MeshEditorDotNetProcessMixin, MeshEditorReportsMixin, MeshEditorSessionMixin, MeshEditorStateMixin, MeshEditorInteractionMixin, MeshEditorActionsMixin, QWidget):
-    """Main mesh replacement/editing workspace host.
-
-    The full Mesh Replacement Builder is mounted here for active sessions so the
-    .NET/Vortice preview, tabs, build preflight, and archive safety gates stay shared.
-    """
+    """Direct resident mesh-authoring workspace host."""
 
     status_message_requested = Signal(str, bool)
     runtime_event_requested = Signal(str, dict)
-    modify_original_requested = Signal(object)
-    import_replacement_requested = Signal(object)
-    import_preview_requested = Signal(object)
-    preview_rebuilt_asset_requested = Signal(object, object)
-    package_rebuilt_asset_requested = Signal(object, object)
-    in_game_swap_requested = Signal(object)
+    open_archive_session_requested = Signal(object)
     open_archive_target_requested = Signal(object)
     mesh_action_requested = Signal(object)
-    open_texture_source_requested = Signal(str, object)
 
     def __init__(
         self,
@@ -191,14 +199,26 @@ class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshE
         theme_key: str = "graphite",
         get_archive_texture_entries_by_normalized_path: Callable[[], Mapping[str, Sequence[ArchiveEntry]]] | None = None,
         get_archive_texture_entries_by_basename: Callable[[], Mapping[str, Sequence[ArchiveEntry]]] | None = None,
+        get_archive_sidecar_entries_by_texture_path: Callable[[], Mapping[str, Sequence[ArchiveEntry]]] | None = None,
+        get_archive_sidecar_entries_by_texture_basename: Callable[[], Mapping[str, Sequence[ArchiveEntry]]] | None = None,
+        get_archive_mutation_service: Callable[[], object | None] | None = None,
+        get_archive_material_preview_model: Callable[[], object | None] | None = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
         self.settings = settings
+        self.get_archive_mutation_service = get_archive_mutation_service
+        self.get_archive_material_preview_model = get_archive_material_preview_model
+        settings_path = Path(str(settings.fileName() or "settings.ini")).expanduser()
+        self.mesh_editor_draft_root = workspace_paths(settings_path.parent)[
+            "modify_original_sessions_root"
+        ]
         self.theme_key = str(theme_key or "graphite")
         self._initialize_runtime_state(
             get_archive_texture_entries_by_normalized_path=get_archive_texture_entries_by_normalized_path,
             get_archive_texture_entries_by_basename=get_archive_texture_entries_by_basename,
+            get_archive_sidecar_entries_by_texture_path=get_archive_sidecar_entries_by_texture_path,
+            get_archive_sidecar_entries_by_texture_basename=get_archive_sidecar_entries_by_texture_basename,
         )
 
         root = QVBoxLayout(self)
@@ -208,6 +228,23 @@ class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshE
         self.action_bar = MeshEditorActionBar(parent=self)
         self.action_bar.action_requested.connect(self._handle_action_requested)
         root.addWidget(self.action_bar)
+
+        self.draft_banner = QFrame(self)
+        self.draft_banner.setObjectName("MeshEditorDraftRecoveryBanner")
+        draft_layout = QHBoxLayout(self.draft_banner)
+        draft_layout.setContentsMargins(8, 5, 8, 5)
+        self.draft_banner_label = QLabel("", self.draft_banner)
+        self.draft_banner_label.setWordWrap(True)
+        draft_layout.addWidget(self.draft_banner_label, 1)
+        self.draft_resume_button = QPushButton("Resume", self.draft_banner)
+        self.draft_start_fresh_button = QPushButton("Start Fresh", self.draft_banner)
+        draft_layout.addWidget(self.draft_resume_button)
+        draft_layout.addWidget(self.draft_start_fresh_button)
+        self.draft_resume_button.clicked.connect(self._resume_latest_archive_draft)
+        self.draft_start_fresh_button.clicked.connect(self._dismiss_archive_draft_banner)
+        self.draft_banner.setVisible(False)
+        self.mesh_editor_matching_drafts: tuple[object, ...] = ()
+        root.addWidget(self.draft_banner)
 
         self.workspace_stack = QStackedWidget(self)
         self.workspace_stack.setObjectName("MeshEditorWorkspaceStack")

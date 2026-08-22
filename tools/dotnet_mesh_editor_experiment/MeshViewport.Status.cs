@@ -179,6 +179,7 @@ internal sealed partial class MeshViewport
             "geometry_layers_v1",
             "authoring_provisional_session_v1",
             "authoring_session_handoff_v1",
+            "direct_authoring_host_v1",
             "resident_material_updates_v2",
             "procedural_morph_refit_v2",
         };
@@ -191,7 +192,6 @@ internal sealed partial class MeshViewport
             capabilities.Add("d3d11_vortice_hlsl_material_renderer");
             capabilities.Add("d3d11_overlay_vertices_edges_faces_parts_wire_xray");
             capabilities.Add("resident_material_parameter_updates_v1");
-            capabilities.Add("resident_texture_region_updates_v1");
             capabilities.Add("resident_texture_mip_regeneration_v1");
             capabilities.Add("native_dds_2d_mip_chain_upload_v1");
             capabilities.Add("bitmap_bgra32_generated_mip_chain_v1");
@@ -234,6 +234,7 @@ internal sealed partial class MeshViewport
                 or "geometry_layers_v1"
                 or "authoring_provisional_session_v1"
                 or "authoring_session_handoff_v1"
+                or "direct_authoring_host_v1"
                 or "procedural_morph_refit_v2");
             capabilities.Add("preview_profile_read_only_v1");
         }

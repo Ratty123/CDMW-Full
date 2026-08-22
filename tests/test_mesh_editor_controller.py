@@ -1441,20 +1441,16 @@ class MeshEditorControllerTests(unittest.TestCase):
         controller = MeshEditorController()
         controller.open_mesh(build_synthetic_mesh(), session_id="palette-selection-required", mode="edit")
         before = tuple(controller.working_mesh().submeshes[0].vertices)
-        before_material = controller.working_mesh().submeshes[0].material
 
         moved = controller.apply_editor_action("transform_move", translate=(0.0, 0.0, 0.25))
-        material = controller.apply_editor_action("material_assign", material="edited_material", texture="edited.dds")
 
         self.assertEqual("noop", moved.status)
         self.assertEqual("transform", moved.action)
         self.assertIn("needs a selection", moved.diagnostics[0])
-        self.assertEqual("noop", material.status)
-        self.assertEqual("material_assign", material.action)
-        self.assertIn("needs a selection", material.diagnostics[0])
+        self.assertNotIn("material_assign", mesh_editor_actions_by_key())
+        self.assertNotIn("material_copy", mesh_editor_actions_by_key())
         self.assertEqual(0, controller.session_view().revision)
         self.assertEqual(before, tuple(controller.working_mesh().submeshes[0].vertices))
-        self.assertEqual(before_material, controller.working_mesh().submeshes[0].material)
 
     def test_controller_action_palette_rotate_and_scale_have_operator_defaults(self) -> None:
         controller = MeshEditorController()

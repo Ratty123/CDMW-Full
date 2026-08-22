@@ -712,11 +712,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('"Mesh Editor",\n            "mesh_editor",', source)
         self.assertIn("index=1,", source)
         self.assertIn('self._register_detachable_tool("mesh_editor", self.mesh_editor_tab, "Mesh Editor")', source)
-        self.assertIn("tab.modify_original_requested.connect(self._mesh_editor_modify_original_requested)", source)
-        self.assertIn("tab.import_replacement_requested.connect(self._mesh_editor_import_replacement_requested)", source)
-        self.assertIn("tab.preview_rebuilt_asset_requested.connect(self._mesh_editor_preview_rebuilt_asset_requested)", source)
-        self.assertIn("tab.package_rebuilt_asset_requested.connect(self._mesh_editor_package_rebuilt_asset_requested)", source)
-        self.assertIn("tab.in_game_swap_requested.connect(self._mesh_editor_in_game_swap_requested)", source)
+        self.assertIn("tab.open_archive_session_requested.connect(self._launch_archive_mesh_editor_for_entry)", source)
+        self.assertNotIn("tab.modify_original_requested.connect", source)
+        self.assertNotIn("tab.import_replacement_requested.connect", source)
+        self.assertNotIn("tab.preview_rebuilt_asset_requested.connect", source)
+        self.assertNotIn("tab.package_rebuilt_asset_requested.connect", source)
+        self.assertNotIn("tab.in_game_swap_requested.connect", source)
         self.assertIn("tab.mesh_action_requested.connect(self._mesh_editor_action_requested)", source)
         self.assertIn("def _mesh_editor_route_active_builder_action(self, action: object) -> Optional[bool]:", source)
         self.assertIn('getattr(active_builder, "_mesh_editor_action_bar_action_requested", None)', source)
@@ -751,7 +752,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('self.workspace_stack.setObjectName("MeshEditorWorkspaceStack")', mesh_editor_source)
         self.assertIn('page.setObjectName("MeshEditorEmptyState")', mesh_editor_source)
         self.assertIn('self.embedded_builder_host.setObjectName("MeshEditorEmbeddedBuilderHost")', mesh_editor_source)
-        self.assertIn("def builder_host(self) -> QWidget:", mesh_editor_source)
+        self.assertIn("def builder_host(self) -> None:", mesh_editor_source)
+        self.assertIn("return None", mesh_editor_source)
         self.assertIn("def active_builder(self) -> Optional[QWidget]:", mesh_editor_source)
         self.assertIn("def has_active_builder(self) -> bool:", mesh_editor_source)
         self.assertIn("def mount_embedded_builder(self, builder: QWidget) -> None:", mesh_editor_source)
@@ -764,9 +766,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("MeshEditorPreviewToolbar", mesh_editor_source)
         self.assertNotIn("MeshEditorCameraToolbar", mesh_editor_source)
         self.assertNotIn("MeshEditorWorkflowTabs", mesh_editor_source)
-        self.assertNotIn("MeshEditorPropertiesPanel", mesh_editor_source)
 
-    def test_mesh_editor_opens_alignment_builder_embedded_when_host_available(self) -> None:
+    def test_static_builder_embedding_is_retained_but_normal_mesh_editor_host_is_archived(self) -> None:
         source = (
             _main_window_source()
             + "\n"
@@ -779,7 +780,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         mesh_editor_source = _mesh_editor_source()
 
         self.assertIn('self.embedded_builder_host.setObjectName("MeshEditorEmbeddedBuilderHost")', mesh_editor_source)
-        self.assertIn("def builder_host(self) -> QWidget:", mesh_editor_source)
+        self.assertIn("def builder_host(self) -> None:", mesh_editor_source)
+        self.assertIn("return None", mesh_editor_source)
         self.assertIn("def mount_embedded_builder(self, builder: QWidget) -> None:", mesh_editor_source)
         self.assertIn("self.workspace_stack.setCurrentWidget(self.embedded_builder_host)", mesh_editor_source)
         self.assertIn("def show_empty_state(self, message: str = \"\") -> None:", mesh_editor_source)
@@ -1826,7 +1828,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn(assignment, source)
         self.assertLess(source.index(binding), source.index(assignment))
 
-    def test_archive_browser_has_source_mix_pair_overlay_export(self) -> None:
+    def test_source_mix_backend_is_retained_but_archive_browser_entry_is_archived(self) -> None:
         source = (
             _main_window_source()
             + "\n"
@@ -1834,7 +1836,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             + "\n"
             + ARCHIVE_SOURCE_MIX_ACTIONS.read_text(encoding="utf-8")
         )
-        self.assertIn('menu.addAction(menu_icons["workflow"], "Build Loose Package From Sources...")', source)
+        self.assertNotIn('menu.addAction(menu_icons["workflow"], "Build Loose Package From Sources...")', source)
         self.assertIn("def _open_archive_source_mix_package_dialog", source)
         self.assertIn("validate_source_mix_selections(selections)", source)
         self.assertIn("export_archive_payloads_to_mod_ready_loose(", source)
@@ -4114,7 +4116,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         )
         self.assertIn("_state.group_materials_button.clicked.connect(_state._apply_source_material_grouped_routing)", outliner_source)
 
-    def test_in_game_mesh_swap_reuses_alignment_import_path(self) -> None:
+    def test_in_game_mesh_swap_backend_is_retained_but_normal_ui_is_archived(self) -> None:
         source = (
             _main_window_source()
             + "\n"
@@ -4128,12 +4130,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             + "\n"
             + _about_documentation_source()
         )
-        self.assertIn('QPushButton("Swap With In-Game Mesh...")', source)
+        self.assertNotIn('QPushButton("Swap With In-Game Mesh...")', source)
         self.assertIn("pending_in_game_mesh_swap_target", source)
         self.assertIn("def _handle_archive_in_game_mesh_swap_entry", source)
-        self.assertIn('"Start In-Game Mesh Swap..."', source)
-        self.assertIn('"Use This as Swap Source..."', source)
-        self.assertIn('"Use as Swap Source..."', source)
+        self.assertNotIn('"Start In-Game Mesh Swap..."', source)
+        self.assertNotIn('"Use This as Swap Source..."', source)
+        self.assertNotIn('"Use as Swap Source..."', source)
         self.assertIn("def _start_archive_in_game_mesh_swap", source)
         self.assertIn("def _load_archive_mesh_scene_import_result", source)
         self.assertIn("def _build_archive_swap_source_texture_evidence", source)
@@ -4250,8 +4252,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("character_swap_plan_checkbox.toggled.connect(_character_swap_plan_toggled)", source)
         self.assertIn("Surgical Character Swap Plan appearance patch", source)
         self.assertIn(".pab/.pabc skeleton and .hkx/.hkt physics rows are not merged", source)
-        self.assertIn("Full character/body swaps often require matching <code>.app_xml</code>", source)
-        self.assertIn("Use <b>Character Swap Plan</b> for experimental full-character/body swaps", source)
+        self.assertNotIn("Full character/body swaps often require matching <code>.app_xml</code>", source)
+        self.assertNotIn("Use <b>Character Swap Plan</b> for experimental full-character/body swaps", source)
 
     def test_texture_suggestions_require_specific_character_part_tokens(self) -> None:
         source = _main_window_source()
@@ -4292,8 +4294,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('preflight_tree.setHeaderLabels(["Check", "Value"])', source)
         self.assertIn('preflight_tree.setMaximumHeight(128)', source)
         self.assertIn('supplemental_list.setMaximumHeight(112)', source)
-        self.assertIn("<b>Live Alignment Preview</b> is the transform workspace.", source)
-        self.assertIn("After loose export, the Archive Preview switches to a final-output view when possible", source)
+        self.assertNotIn("<b>Live Alignment Preview</b> is the transform workspace.", source)
+        self.assertNotIn("After loose export, the Archive Preview switches to a final-output view when possible", source)
         self.assertNotIn("Mesh Replacement automates common part and texture mappings, but some assets still need manual texture-slot review.", source)
 
     def test_modify_original_startup_defers_heavy_alignment_tables(self) -> None:

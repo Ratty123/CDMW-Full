@@ -220,7 +220,8 @@ internal sealed record LaunchOptions(
     string Profile,
     bool DeveloperRendererFallback,
     long ParentHwnd,
-    bool PrewarmLaunch = false)
+    bool PrewarmLaunch = false,
+    bool DirectAuthoring = false)
 {
     public bool SimplePreview => string.Equals(Profile, "preview", StringComparison.OrdinalIgnoreCase);
     public bool Authoring => string.Equals(Profile, "authoring", StringComparison.OrdinalIgnoreCase);
@@ -267,7 +268,8 @@ internal sealed record LaunchOptions(
             values.TryGetValue("parent-hwnd", out var parentHwnd) && long.TryParse(parentHwnd, NumberStyles.Integer, CultureInfo.InvariantCulture, out var hwnd)
                 ? hwnd
                 : 0L,
-            values.ContainsKey("prewarm"));
+            values.ContainsKey("prewarm"),
+            values.ContainsKey("direct-authoring"));
     }
 
     private static bool IsTruthy(string? value)

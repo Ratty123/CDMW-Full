@@ -50,7 +50,7 @@ class ModelLibraryTab(
     QWidget,
 ):
     status_message_requested = Signal(str, bool)
-    import_mesh_requested = Signal(str, object)
+    use_in_new_item_studio_requested = Signal(str, object)
     preview_mesh_requested = Signal(str, object)
     item_icon_source_generated = Signal(str, object)
     RESULTS_FILTER_DEBOUNCE_MS = 140

@@ -190,7 +190,7 @@ def test_a_raising_builder_is_contained_and_reported():
 # -- the .NET side of the contract ----------------------------------------
 
 
-def test_the_dotnet_editor_declares_the_colour_page_and_its_request():
+def test_the_dotnet_editor_archives_the_colour_page_but_retains_its_protocol_code():
     """Both ends must agree on the page and the event name.
 
     A source check only; it cannot prove the page renders, but it does fail if
@@ -201,11 +201,11 @@ def test_the_dotnet_editor_declares_the_colour_page_and_its_request():
     protocol = (DOTNET_ROOT / "ExperimentForm.ColourProtocol.cs").read_text(encoding="utf-8")
     smoke = (DOTNET_ROOT / "EditMeshLayoutSmoke.cs").read_text(encoding="utf-8")
 
-    assert "Colour," in contracts
-    assert "ToolRailPage.Colour" in contracts
-    assert "new(ToolListRowKind.CommandPage, Keys.Colour, ToolRailPage.Colour)" in tool_list
+    assert "Colour," not in contracts
+    assert "ToolRailPage.Colour" not in contracts
+    assert "new(ToolListRowKind.CommandPage, Keys.Colour, ToolRailPage.Colour)" not in tool_list
     assert 'WriteProtocolEvent("part_material_edit_request"' in protocol
-    assert '"Colour",' in smoke
+    assert '"Colour",' not in smoke
 
 
 def test_the_dotnet_editor_paces_slider_edits_instead_of_flooding_the_pipe():

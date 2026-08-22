@@ -135,10 +135,6 @@ class LogControllerMixin:
         self.archive_extract_selected_button.setEnabled(not busy and len(selected_entries) > 0)
         self.archive_extract_filtered_button.setEnabled(not busy and bool(self.archive_filtered_entries))
         selected_has_dds = any(entry.extension == ".dds" for entry in selected_entries)
-        filtered_has_dds = int(getattr(self, "archive_filtered_dds_count", 0) or 0) > 0
-        workflow_extract_enabled = selected_has_dds if selected_entries else filtered_has_dds
-        self.archive_extract_to_workflow_button.setEnabled(not busy and workflow_extract_enabled)
-        self.archive_open_in_editor_button.setEnabled(not busy and self._current_archive_entry() is not None)
         self.archive_resolve_in_research_button.setEnabled(
             not busy
             and self._current_archive_entry() is not None

@@ -12,7 +12,7 @@ from cdmw.ui.mesh_editor.actions import MESH_EDITOR_VISIBLE_ACTIONS, NATIVE_EDIT
 from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
 
 
-_CATEGORY_ORDER = ("mode", "selection", "transform", "sculpt", "topology", "cleanup", "normals", "uv", "material", "history")
+_CATEGORY_ORDER = ("mode", "selection", "transform", "sculpt", "topology", "cleanup", "normals", "uv", "history")
 _EXCLUSIVE_CATEGORIES = {"mode"}
 _MODE_ACTION_BY_MODE = {"object": "mode_object", "edit": "mode_edit", "sculpt": "mode_sculpt"}
 _TOOL_ACTION_KEYS = {"select_parts", "transform_move", "brush_grab", "brush_smooth", "brush_inflate", "brush_pinch"}
@@ -52,8 +52,6 @@ _BUTTON_LABELS = {
     "uv_auto_unwrap": "Auto UV",
     "uv_snap_grid": "Grid",
     "uv_snap_pixels": "Pixel",
-    "material_assign": "Assign",
-    "material_copy": "Copy Mat",
 }
 
 

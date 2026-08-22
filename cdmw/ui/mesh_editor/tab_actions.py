@@ -5,39 +5,17 @@ from pathlib import Path
 
 from PySide6.QtCore import Signal
 
-from cdmw.ui.mesh_editor.resident_texture_update_queue import ResidentTextureRegionRequest
+from cdmw.ui.mesh_editor.actions import MeshEditorAction
 
 
 from cdmw.ui.mesh_editor.tab_support import (
     STANDALONE_NATIVE_TOOL_STATE as _STANDALONE_NATIVE_TOOL_STATE,
     _mesh_edit_result_with_metric,
-    _mesh_editor_texture_binding_target,
     _native_update_has_payload,
 )
 
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
-
-
-def _mesh_texture_binding_targets(binding: object) -> tuple[str, tuple[int, ...]]:
-    session_id = str(getattr(binding, "mesh_session_id", "") or "").strip()
-    indices: set[int] = set()
-    for raw_index in tuple(getattr(binding, "mesh_submesh_indices", ()) or ()):
-        try:
-            index = int(raw_index)
-        except (TypeError, ValueError, OverflowError):
-            continue
-        if index >= 0:
-            indices.add(index)
-    if not session_id or not indices:
-        legacy_session_id, legacy_index = _mesh_editor_texture_binding_target(
-            getattr(binding, "source_identity_path", "")
-        )
-        session_id = session_id or legacy_session_id
-        if not indices and legacy_index >= 0:
-            indices.add(legacy_index)
-    return session_id, tuple(sorted(indices))
-
 
 class MeshEditorActionsMixin:
     def _handle_part_selection(self, part_index: int, operation: str = "toggle") -> bool:
@@ -93,8 +71,6 @@ class MeshEditorActionsMixin:
         selection = self._selection_for_part_context(controller, part_index)
         if selection is None:
             return False
-        if normalized == "open_texture":
-            return self.open_selected_texture_in_editor()
         if normalized not in {"delete", "duplicate", "recalculate_normals", "flip_normals"}:
             return False
         params = {"delete_parts": True} if normalized == "delete" else {}
@@ -171,6 +147,31 @@ class MeshEditorActionsMixin:
             self.status_message_requested.emit(f"Mesh Editor action failed: {text}: {exc}", True)
             return False
         return self._finish_standalone_action_execution(execution, action_text=text)
+
+    def _handle_object_transform_requested(self, payload: object) -> bool:
+        if not isinstance(payload, dict):
+            self.status_message_requested.emit("Mesh Editor object transform was invalid.", True)
+            return False
+        if self.standalone_controller is None:
+            return False
+        if self._standalone_action_worker_active():
+            self.update_editor_session_state(self.standalone_controller.session_view())
+            self.status_message_requested.emit(
+                "Wait for the current Mesh Editor action before changing Object Transform.",
+                True,
+            )
+            return False
+        action = MeshEditorAction(
+            key="object_transform_commit",
+            text="Object Transform",
+            command="object_transform",
+            category="transform",
+            params=tuple(
+                (key, tuple(payload.get(key, ())))
+                for key in ("location", "rotation_degrees", "scale")
+            ),
+        )
+        return self._start_standalone_action_worker(action, action_text="Object Transform")
     def _finish_standalone_action_execution(self, execution: object, *, action_text: str = "") -> bool:
         controller = self.standalone_controller
         if controller is None:
@@ -345,31 +346,20 @@ class MeshEditorActionsMixin:
         finally:
             combo.blockSignals(previous)
     def open_selected_texture_in_editor(self) -> bool:
-        return self._open_selected_texture_in_editor_for_controller(
-            self.standalone_controller,
-            missing_controller_message="Open a standalone Mesh Editor session before opening a texture.",
+        self.status_message_requested.emit(
+            "Texture editing is archived from Mesh Editor; use Texture Editor directly.",
+            True,
         )
+        return False
     def _open_selected_texture_in_editor_for_controller(
         self,
         controller: _tab.MeshEditorController | None,
         *,
         missing_controller_message: str = "Open a Mesh Editor session before opening a texture.",
     ) -> bool:
-        if controller is None:
-            self.status_message_requested.emit(missing_controller_message, True)
-            return False
-        target = controller.texture_edit_target()
-        if target is None:
-            self.status_message_requested.emit("Selected mesh part has no texture to open.", True)
-            return False
-        source_path = Path(target.texture).expanduser()
-        if not source_path.exists():
-            if self._start_archive_texture_source_resolution(target, controller=controller):
-                return True
-            self.status_message_requested.emit(f"Selected Mesh Editor texture is not a local file yet: {target.texture}", True)
-            return False
-        self._open_texture_target_source(target, source_path.resolve(), controller=controller)
-        return True
+        _ = controller, missing_controller_message
+        return False
+
     def _open_texture_target_source(
         self,
         target: object,
@@ -378,245 +368,27 @@ class MeshEditorActionsMixin:
         archive_path: str = "",
         controller: _tab.MeshEditorController | None = None,
     ) -> None:
-        controller = controller or self.standalone_controller
-        if controller is None:
-            return
-        resolved = Path(source_path).expanduser().resolve()
-        texture = str(getattr(target, "texture", "") or "")
-        submesh_index = int(getattr(target, "submesh_index", -1))
-        binding = _tab.TextureEditorSourceBinding(
-            launch_origin="mesh_editor",
-            display_name=str(getattr(target, "display_name", "") or resolved.name),
-            source_path=str(resolved),
-            source_identity_path=f"{controller.active_session_id}:{submesh_index}:{texture}",
-            relative_path=archive_path or texture,
-            archive_relative_path=archive_path or texture,
-            original_dds_path=str(resolved) if resolved.suffix.lower() == ".dds" else "",
-            texture_type="mesh_material",
-            semantic_subtype=str(getattr(target, "material", "") or getattr(target, "source_texture_set_key", "") or "unknown"),
-            mesh_session_id=str(controller.active_session_id or ""),
-            mesh_resource_id=str(getattr(target, "source_texture_set_key", "") or texture),
-            mesh_submesh_indices=(submesh_index,) if submesh_index >= 0 else (),
-            mesh_channel="base",
-        )
-        self.open_texture_source_requested.emit(str(resolved), binding)
-        self.status_message_requested.emit(f"Opening Mesh Editor texture in Texture Editor: {resolved.name}", False)
+        _ = target, source_path, archive_path, controller
+
     def apply_texture_editor_dds_result(self, dds_path_text: str, binding: object) -> bool:
-        commit_mode = str(getattr(binding, "mesh_commit_mode", "") or "").strip().lower()
-        if commit_mode == "assign":
-            return self.apply_texture_editor_dds_assignment(dds_path_text, binding)
-        return self.apply_texture_editor_dds_preview(dds_path_text, binding)
+        _ = dds_path_text, binding
+        return False
+
     def apply_texture_editor_dds_assignment(self, dds_path_text: str, binding: object) -> bool:
-        controller = self._dotnet_target_controller()
-        if controller is None or not isinstance(binding, _tab.TextureEditorSourceBinding):
-            return False
-        if str(binding.launch_origin or "") != "mesh_editor" or str(binding.texture_type or "") != "mesh_material":
-            return False
-        session_id, source_indices = _mesh_texture_binding_targets(binding)
-        if session_id and session_id != controller.active_session_id:
-            return False
-        channel = str(binding.mesh_channel or "base").strip().lower()
-        if channel not in {"base", "base_color", "albedo"}:
-            self.status_message_requested.emit(
-                f"Mesh Editor DDS assignment does not support the {channel or 'unknown'} channel yet.",
-                True,
-            )
-            return False
-        try:
-            dds_path = Path(dds_path_text).expanduser()
-        except OSError:
-            self.status_message_requested.emit(f"Mesh Editor DDS assignment path is invalid: {dds_path_text}", True)
-            return False
-        if not dds_path.is_file():
-            self.status_message_requested.emit(f"Mesh Editor DDS assignment not found: {dds_path}", True)
-            return False
-        resolved = dds_path.resolve()
-        try:
-            mesh = controller.working_mesh(clone=False)
-            submesh_count = len(tuple(getattr(mesh, "submeshes", ()) or ()))
-            source_indices = tuple(index for index in source_indices if 0 <= index < submesh_count)
-            if not source_indices:
-                return False
-            result = controller.apply_command(
-                _tab.MeshEditCommand(
-                    "material_assign",
-                    selection=_tab.MeshEditSelection.from_maps(source_indices=source_indices),
-                    mode="edit",
-                    params={"texture": str(resolved)},
-                    label="Assign DDS",
-                )
-            )
-        except (OSError, RuntimeError, TypeError, ValueError) as exc:
-            self.status_message_requested.emit(f"Mesh Editor DDS assignment failed: {exc}", True)
-            return False
-        if not result.ok:
-            diagnostic = "; ".join(str(item) for item in tuple(result.diagnostics or ()) if str(item).strip())
-            self.status_message_requested.emit(
-                f"Mesh Editor DDS assignment made no changes{': ' + diagnostic if diagnostic else ''}.",
-                False,
-            )
-            return False
-        affected = tuple(result.affected_submesh_indices or source_indices)
-        for submesh_index in affected:
-            self.standalone_texture_preview_overrides.pop(int(submesh_index), None)
-        self.update_editor_session_state(
-            controller.session_view(),
-            active_selection_mode=controller.active_selection_mode,
-        )
-        if self._standalone_dotnet_editor_process_running() and self._dotnet_resident_material_updates_supported():
-            preview_updated = bool(
-                self._send_dotnet_session_state()
-                and self._send_dotnet_material_state(
-                    reason="texture_editor_assign",
-                    affected_submeshes=affected,
-                )
-            )
-        else:
-            update = controller.native_update_for_result(result)
-            if self.standalone_native_host is not None:
-                preview_updated = self._apply_standalone_native_update(update)
-            elif self._standalone_native_preview_update_active():
-                preview_updated = self.start_standalone_native_preview_async(reset_view=False)
-            else:
-                self._refresh_standalone_preview()
-                preview_updated = True
-        self._update_standalone_status()
-        if not preview_updated:
-            self.status_message_requested.emit(
-                "DDS was assigned to the edit session, but the resident preview did not accept the update.",
-                True,
-            )
-            return False
-        self.status_message_requested.emit(f"Assigned Mesh Editor DDS: {resolved.name}", False)
-        return True
+        _ = dds_path_text, binding
+        return False
+
     def apply_texture_editor_region_patch(self, patch: object) -> bool:
         lease = getattr(patch, "composite_lease", None)
-        def reject() -> bool:
-            release = getattr(lease, "release", None)
-            if callable(release):
-                release()
-            return False
-        binding = getattr(patch, "binding", None)
-        if not isinstance(binding, _tab.TextureEditorSourceBinding):
-            return reject()
-        if str(binding.launch_origin or "") != "mesh_editor" or str(binding.texture_type or "") != "mesh_material":
-            return reject()
-        if not self._standalone_dotnet_editor_process_running() or not self._dotnet_resident_texture_region_updates_supported():
-            return reject()
-        controller = self._dotnet_target_controller()
-        if controller is None:
-            return reject()
-        session_id, source_indices = _mesh_texture_binding_targets(binding)
-        try:
-            view = controller.session_view()
-        except (AttributeError, RuntimeError, TypeError, ValueError):
-            return reject()
-        if not session_id or session_id != view.session_id or not source_indices:
-            return reject()
-        channel = str(binding.mesh_channel or "base").strip().lower()
-        if channel not in {"base", "base_color", "albedo"}:
-            return reject()
-        try:
-            material_state = _tab.mesh_dotnet_material_state_payload(
-                controller.working_mesh(clone=False),
-                session_id=view.session_id,
-                edit_revision=view.revision,
-                generation=0,
-            )
-            material_submeshes = tuple(material_state.get("submeshes", ()) or ())
-            resolved_targets: list[tuple[int, str]] = []
-            for source_index in source_indices:
-                if not 0 <= source_index < len(material_submeshes):
-                    continue
-                item = material_submeshes[source_index]
-                channels = item.get("channels", {}) if isinstance(item, dict) else {}
-                resource_id = str(channels.get("base", "") or "") if isinstance(channels, dict) else ""
-                if resource_id:
-                    resolved_targets.append((int(item.get("submesh_index", source_index)), resource_id))
-            resource_ids = {resource_id for _submesh_index, resource_id in resolved_targets}
-            if len(resource_ids) != 1:
-                return reject()
-            resource_id = next(iter(resource_ids))
-            package = self.standalone_dotnet_experiment_package
-            package_output_dir = getattr(package, "output_dir", None) if package is not None else None
-            request = ResidentTextureRegionRequest(
-                session_id=view.session_id,
-                edit_revision=view.revision,
-                document_texture_revision=int(getattr(patch, "texture_revision", 0) or 0),
-                resource_id=resource_id,
-                channel="base",
-                affected_submeshes=tuple(sorted({index for index, _resource in resolved_targets})),
-                texture_width=int(getattr(patch, "texture_width", 0) or 0),
-                texture_height=int(getattr(patch, "texture_height", 0) or 0),
-                rect=tuple(int(value) for value in tuple(getattr(patch, "rect", ()) or ())),
-                row_pitch=int(getattr(patch, "row_pitch", 0) or 0),
-                bgra=bytes(getattr(patch, "bgra", b"") or b""),
-                current_rgba=getattr(patch, "current_rgba"),
-                composite_lease=getattr(patch, "composite_lease"),
-                logical_path=str(
-                    binding.relative_path
-                    or binding.archive_relative_path
-                    or binding.source_path
-                    or ""
-                ),
-                mesh_service=controller.mesh_service,
-                output_root=(Path(package_output_dir) / "texture-regions") if package_output_dir else None,
-            )
-            queued = self.standalone_texture_region_queue.enqueue(request)
-        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            self.status_message_requested.emit(f"Mesh texture region update was rejected: {exc}", True)
-            return reject()
-        if queued:
-            self.standalone_dotnet_lifecycle_counts["texture_region_update_count"] = (
-                int(self.standalone_dotnet_lifecycle_counts.get("texture_region_update_count", 0)) + 1
-            )
-        return queued if queued else reject()
+        release = getattr(lease, "release", None)
+        if callable(release):
+            release()
+        return False
+
     def apply_texture_editor_dds_preview(self, dds_path_text: str, binding: object) -> bool:
-        controller = self._dotnet_target_controller()
-        if controller is None or not isinstance(binding, _tab.TextureEditorSourceBinding):
-            return False
-        if str(binding.launch_origin or "") != "mesh_editor" or str(binding.texture_type or "") != "mesh_material":
-            return False
-        session_id, source_indices = _mesh_texture_binding_targets(binding)
-        submesh_index = source_indices[0] if source_indices else -1
-        if session_id and session_id != controller.active_session_id:
-            return False
-        if submesh_index < 0:
-            return False
-        try:
-            dds_path = Path(dds_path_text).expanduser()
-        except OSError:
-            self.status_message_requested.emit(f"Mesh Editor texture preview path is invalid: {dds_path_text}", True)
-            return False
-        if not dds_path.is_file():
-            self.status_message_requested.emit(f"Mesh Editor texture preview DDS not found: {dds_path}", True)
-            return False
-        resolved = dds_path.resolve()
-        self.standalone_texture_preview_overrides[int(submesh_index)] = str(resolved)
-        if (
-            self._standalone_dotnet_editor_process_running()
-            and self._dotnet_resident_material_updates_supported()
-        ):
-            mesh_snapshot = controller.working_mesh(clone=True)
-            self._apply_texture_preview_overrides(mesh_snapshot)
-            if self._send_dotnet_material_state(
-                reason="texture_editor_preview",
-                affected_submeshes=(int(submesh_index),),
-                mesh_snapshot=mesh_snapshot,
-            ):
-                self.status_message_requested.emit(
-                    f"Updating resident .NET Mesh Editor texture: {resolved.name}", False
-                )
-                return True
-        refresh_started = self.start_standalone_native_preview_async(reset_view=False)
-        if refresh_started:
-            self.status_message_requested.emit(
-                f"Refreshing Mesh Editor .NET/Vortice texture preview: {resolved.name}",
-                False,
-            )
-        else:
-            self.status_message_requested.emit(f"Mesh Editor texture preview staged: {resolved.name}", False)
-        return True
+        _ = dds_path_text, binding
+        return False
+
     def _emit_target(self, signal: Signal) -> None:
         target = self._current_target_entry()
         if target is None:

@@ -710,13 +710,14 @@ class MeshEditorDotNetResourceProtocolMixin(
             )
             return False
         if not self._dotnet_resident_material_updates_supported():
-            if self.standalone_dotnet_target_embedded and (
+            if (
                 self.standalone_dotnet_embedded_state == "launching"
                 or self._standalone_dotnet_package_worker_active()
                 or self._standalone_dotnet_editor_process_running()
             ):
                 self.standalone_dotnet_pending_clone_material_model = preview_model
-            return True
+                return True
+            return False
         if self.standalone_dotnet_material_generation > self.standalone_dotnet_completed_material_generation:
             self.standalone_dotnet_pending_clone_material_model = preview_model
             return True

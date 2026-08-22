@@ -22,7 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.placement_studio import gates, ops  # noqa: E402
+from tools.placement_studio import gates, inspect_package, ops  # noqa: E402
 from tools.placement_studio.cli_support import (  # noqa: E402
     combination_pairs,
     derive_all,
@@ -265,8 +265,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     clip_parser.add_argument("--model", default="1_phm", help="character model")
     sub.add_parser("phase4b", help="run every Phase 4b gate")
 
+    inspect_parser = sub.add_parser(
+        "inspect-package",
+        help="read a built package back and check it against its operation manifest",
+    )
+    inspect_parser.add_argument("package", help="the package directory to inspect")
+    inspect_parser.add_argument(
+        "--no-baseline",
+        action="store_true",
+        help="skip the vanilla diff and report definitions instead",
+    )
+
     args = parser.parse_args(argv)
-    for name, default in (("manager", "DMM"), ("model", ""), ("socket", ""), ("group", "1H")):
+    for name, default in (
+        ("manager", "DMM"),
+        ("model", ""),
+        ("socket", ""),
+        ("group", "1H"),
+        ("package", ""),
+        ("no_baseline", False),
+    ):
         if not hasattr(args, name):
             setattr(args, name, default)
 
@@ -291,6 +309,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "phase4b": gates.cmd_phase4b,
         "package": gates.cmd_package,
         "phase5": gates.cmd_phase5,
+        "inspect-package": inspect_package.cmd_inspect_package,
     }
     return handlers[args.command](args)
 

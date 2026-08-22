@@ -77,8 +77,9 @@ class AboutControllerMixin:
             <h3>Application Areas</h3>
             <ul>
               <li><b>Texture Workflow</b>: batch processing, review, DDS rebuild, and mod-ready export.</li>
-              <li><b>Archive Browser</b>: game-file search, preview, extraction, references, mesh tools, and supported patch workflows.</li>
-              <li><b>Model Library and Icon Creator</b>: local/importable model routing and item-icon package helpers.</li>
+              <li><b>Archive Browser</b>: game-file search, preview, extraction, references, and direct opening of supported meshes.</li>
+              <li><b>Mesh Editor</b>: mesh-only geometry authoring with read-only textured review and safe file/mod/overlay outputs.</li>
+              <li><b>Model Library and Icon Creator</b>: models route to New Item Studio; icon helpers prepare item-icon packages.</li>
               <li><b>Texture Editor</b>: visible texture edits with handoff back to workflow/replacement tools.</li>
               <li><b>Texture Replacer</b>: guided one-off replacement packaging.</li>
               <li><b>Research and Text Search</b>: inspect file families, references, strings, and notes.</li>
@@ -95,7 +96,7 @@ class AboutControllerMixin:
             <a href="topic:first_run_checklist">Lista de primera ejecucion</a>,
             <a href="topic:workflow_overview">Flujo de texturas</a>,
             <a href="topic:archive_browser">Explorador de archivos</a>,
-            <a href="topic:mesh_media_guides">Importacion e intercambio de mallas</a>,
+            <a href="topic:mesh_media_guides">Editor de mallas</a>,
             <a href="topic:texture_editor">Editor de texturas</a>,
             <a href="topic:replace_assistant">Asistente de reemplazo</a>,
             <a href="topic:mod_packaging">Empaquetado mod-ready</a>,
@@ -105,8 +106,9 @@ class AboutControllerMixin:
             <h3>Areas de la aplicacion</h3>
             <ul>
               <li><b>Flujo de texturas</b>: proceso por lotes, revision, reconstruccion DDS y exportacion mod-ready.</li>
-              <li><b>Explorador de archivos</b>: busqueda de archivos del juego, vista previa, extraccion, referencias, herramientas de malla y parches compatibles.</li>
-              <li><b>Biblioteca de modelos y creador de iconos</b>: enrutamiento de modelos locales/importables y paquetes de iconos de items.</li>
+              <li><b>Explorador de archivos</b>: busqueda, vista previa, extraccion, referencias y apertura directa de mallas compatibles.</li>
+              <li><b>Editor de mallas</b>: edicion geometrica solamente, revision con texturas de solo lectura y salidas seguras de archivo, mod u overlay.</li>
+              <li><b>Biblioteca de modelos y creador de iconos</b>: los modelos se envian a New Item Studio; el creador prepara iconos de items.</li>
               <li><b>Editor de texturas</b>: ediciones de texturas visibles con envio a flujo o reemplazo.</li>
               <li><b>Asistente de reemplazo</b>: empaquetado guiado para reemplazos individuales.</li>
               <li><b>Investigacion y busqueda de texto</b>: inspeccion de familias de archivos, referencias, cadenas y notas.</li>
@@ -123,7 +125,7 @@ class AboutControllerMixin:
             <a href="topic:first_run_checklist">Erster-Lauf-Checkliste</a>,
             <a href="topic:workflow_overview">Textur-Workflow</a>,
             <a href="topic:archive_browser">Archiv-Browser</a>,
-            <a href="topic:mesh_media_guides">Mesh-Import und Swap</a>,
+            <a href="topic:mesh_media_guides">Mesh-Editor</a>,
             <a href="topic:texture_editor">Textur-Editor</a>,
             <a href="topic:replace_assistant">Ersetzungsassistent</a>,
             <a href="topic:mod_packaging">Mod-fertige Pakete</a>,
@@ -133,8 +135,9 @@ class AboutControllerMixin:
             <h3>Anwendungsbereiche</h3>
             <ul>
               <li><b>Textur-Workflow</b>: Stapelverarbeitung, Pruefung, DDS-Neuaufbau und mod-fertiger Export.</li>
-              <li><b>Archiv-Browser</b>: Suche in Spieldateien, Vorschau, Extraktion, Referenzen, Mesh-Werkzeuge und kompatible Patch-Workflows.</li>
-              <li><b>Modellbibliothek und Icon Creator</b>: Routing lokaler/importierbarer Modelle und Item-Icon-Pakete.</li>
+              <li><b>Archiv-Browser</b>: Suche, Vorschau, Extraktion, Referenzen und direktes Oeffnen kompatibler Meshes.</li>
+              <li><b>Mesh-Editor</b>: reine Geometriebearbeitung, schreibgeschuetzte Texturkontrolle und sichere Datei-/Mod-/Overlay-Ausgaben.</li>
+              <li><b>Modellbibliothek und Icon Creator</b>: Modelle gehen an New Item Studio; der Icon Creator bereitet Item-Icons vor.</li>
               <li><b>Textur-Editor</b>: sichtbare Texturbearbeitung mit Uebergabe an Workflow oder Ersetzung.</li>
               <li><b>Ersetzungsassistent</b>: gefuehrte Einzelersatz-Paketierung.</li>
               <li><b>Recherche und Textsuche</b>: Dateifamilien, Referenzen, Strings und Notizen pruefen.</li>
@@ -221,7 +224,7 @@ class AboutControllerMixin:
         <a href="topic:workflow_planner_profiles">Planner Profiles</a>,
         <a href="topic:workflow_planner_paths">Planner Paths</a>,
         <a href="topic:archive_browser">Archive Browser</a>,
-        <a href="topic:mesh_media_guides">Mesh Import &amp; Swap</a>,
+        <a href="topic:mesh_media_guides">Mesh Editor</a>,
         <a href="topic:texture_editor">Texture Editor</a>,
         <a href="topic:replace_assistant">Texture Replacer</a>,
         <a href="topic:research">Research</a>,

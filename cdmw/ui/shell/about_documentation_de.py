@@ -48,7 +48,7 @@ class AboutDocumentationGermanMixin:
         <a href="topic:texture_workflow_guides">Textur-Workflow-Anleitungen</a>,
         <a href="topic:compare_review">Vergleichen und pruefen</a>,
         <a href="topic:archive_browser">Archiv-Browser</a>,
-        <a href="topic:mesh_media_guides">Mesh-Import und Swap</a>,
+        <a href="topic:mesh_media_guides">Mesh-Editor</a>,
         <a href="topic:texture_editor">Textur-Editor</a>,
         <a href="topic:replace_assistant">Ersetzungsassistent</a>,
         <a href="topic:research">Recherche</a>,
@@ -73,8 +73,9 @@ class AboutDocumentationGermanMixin:
                 <p>Die App ist in Arbeitsbereiche aufgeteilt, damit nicht jede Aufgabe durch dieselbe Pipeline laufen muss.</p>
                 <ul>
                   <li><b>Textur-Workflow</b>: Stapelverarbeitung loser DDS, optionales Upscaling, DDS-Neuaufbau, Vergleich und mod-fertiger Export.</li>
-                  <li><b>Archiv-Browser</b>: Scannen, Filtern, Vorschau, Extraktion, Loose-Export und kompatible Patches.</li>
-                  <li><b>Modellbibliothek</b>: lokale/importierbare Modelle scannen, anzeigen und an Archiv-Browser-Workflows uebergeben.</li>
+                  <li><b>Archiv-Browser</b>: Scannen, Filtern, Vorschau, Extraktion, Recherche, Abhaengigkeitsexport und ein <b>Im Mesh-Editor oeffnen</b> fuer Meshes.</li>
+                  <li><b>Mesh-Editor</b>: direkte Bearbeitung von Geometrie, Topologie, Normalen, Rigging, Morph &amp; Refit, UV-Koordinaten und Objekttransformationen. Texturen sind in der Mesh-Ansicht schreibgeschuetzt.</li>
+                  <li><b>Modellbibliothek</b>: lokale/importierbare Modelle scannen und anzeigen oder an New Item Studio senden.</li>
                   <li><b>Icon Creator</b>: Quellbilder vorbereiten und kompatible Item-Icon-Pakete erzeugen.</li>
                   <li><b>Textur-Editor</b>: Ebenenbasierte Bearbeitung sichtbarer Texturen mit direkter Workflow-Uebergabe.</li>
                   <li><b>Ersetzungsassistent</b>: Gefuehrte Ersetzungen fuer bearbeitete PNG/DDS-Dateien.</li>
@@ -388,7 +389,7 @@ class AboutDocumentationGermanMixin:
                       <li>Fuehre <b>Arbeitsbereich einrichten</b> aus, um Workspace, tools, Ausgabe, PNG und Extraktion anzulegen.</li>
                       <li>Nutze das gebuendelte native DDS-Werkzeug <code>cd-texture-dx.exe</code> fuer Vorschau und Neuaufbau.</li>
                       <li>Scanne zuerst einen kleinen Testsatz.</li>
-                      <li>Fuer Meshes zuerst <b>Mesh-Importvorschau</b> im Archiv-Browser nutzen. <b>Mesh importieren</b> oder <b>Mit Ingame-Mesh tauschen</b> erst nach der Ausrichtungspruefung verwenden.</li>
+                      <li>Fuer Meshes im Archiv-Browser <b>Im Mesh-Editor oeffnen</b> waehlen. Die Geometriewerkzeuge sind sofort sichtbar; Texturen dienen nur der schreibgeschuetzten Kontrolle.</li>
                     </ol>
                     <div class="doc-callout doc-warning"><b>Sidecar-Cache:</b> kann lange dauern, verbessert aber verwandte Dateien, Modell-Textur-Verbindungen und Material-Sidecar-Suche. Wenn aktiviert, den ersten Lauf fertig werden lassen.</div>
                     """,
@@ -406,7 +407,7 @@ class AboutDocumentationGermanMixin:
                       <tr><td>Verwandte Texturen finden</td><td>Modell waehlen und <b>Referenzierte Dateien</b> lesen.</td><td>Zeigt Texturen, Sidecars, Skelette, Animationen, Paket und Status.</td></tr>
                       <tr><td>Platzierungsquelle waehlen</td><td><b>HKX bearbeiten</b> und dann <b>Platzierungsquelle waehlen</b> nutzen, oder ueber <b>Item Finder</b> starten.</td><td>Wenn moeglich den sichtbaren <code>.pac</code> waehlen. HKX ist Kontext, aber Platzierung wird meist ueber Prefab/Socket-Daten der Modellfamilie aufgeloest.</td></tr>
                       <tr><td>Metadaten pruefen</td><td><b>Details</b> oeffnen.</td><td>Enthaelt Groesse, Kompression, lesbare Strings, Diagnostik und Warnungen.</td></tr>
-                      <tr><td>XML/Material bearbeiten</td><td><b>Materialwerte bearbeiten</b>, wenn ein Sidecar erkannt wurde.</td><td>Exportiert bearbeitete Werte als mod-fertiges Paket.</td></tr>
+                      <tr><td>Mesh bearbeiten</td><td>Eine unterstuetzte Mesh waehlen und <b>Im Mesh-Editor oeffnen</b>.</td><td>Oeffnet die exakten Archivbytes direkt; Material- und Textur-Namen bleiben Diagnose.</td></tr>
                     </table>
                     <h4>Gemoddete Duplikate und aktive Zeilen</h4>
                     <ul>
@@ -419,44 +420,36 @@ class AboutDocumentationGermanMixin:
                 },
                 {
                     "id": "mesh_media_guides",
-                    "title": "Mesh-, 3D- und Medien-Anleitungen",
-                    "summary": "Meshes exportieren, ersetzen, pruefen und Sidecars verstehen.",
-                    "keywords": "mesh 3d obj fbx gltf dae pac pam material sidecar textur",
+                    "title": "Mesh-Editor, 3D- und Medien-Anleitungen",
+                    "summary": "Meshes direkt bearbeiten und sicher ausgeben; Medien und Sidecars verstehen.",
+                    "keywords": "mesh editor direkt objekttransformation solid texturiert overlay export pac pam sidecar",
                     "html": """
-                    <table>
-                      <tr><th>Aktion</th><th>Verwendung</th><th>Ergebnis</th></tr>
-                      <tr><td>OBJ exportieren</td><td>Round-trip-Bearbeitung mit kompatiblem Sidecar.</td><td>Schreibt Geometrie und Kontext fuer Reimport.</td></tr>
-                      <tr><td>FBX exportieren</td><td>Inspektion oder DCC-Arbeit.</td><td>Gut zum Anzeigen; keine Garantie fuer patchbaren Reimport.</td></tr>
-                      <tr><td>Mesh-Importvorschau</td><td>OBJ/DAE/glTF/GLB testen, ohne Dateien zu schreiben.</td><td>Erzeugt nur eine Vorschau.</td></tr>
-                      <tr><td>DDS-Importvorschau</td><td>Eine DDS-Textur am gewaehlten Modell testen, ohne Dateien zu schreiben.</td><td>Erzeugt nur eine Modellvorschau.</td></tr>
-                      <tr><td>Mesh importieren</td><td>Unterstuetzten Ersatz erstellen.</td><td>Erlaubt Patch oder mod-fertige Loose-Ausgabe, wo kompatibel.</td></tr>
-                      <tr><td>Mit Ingame-Mesh tauschen</td><td>Eine andere Archiv-Mesh als Ersatz fuer das gewaehlte Ziel verwenden.</td><td>Oeffnet Mesh-Ersetzungsausrichtung und uebernimmt verwandte Dateien, wenn kompatibel.</td></tr>
-                      <tr><td>HKX bearbeiten</td><td>Platzierung aus einer anderen Waffen-/Modellfamilie kopieren.</td><td>Zeigt Zielkontext, waehlt Quelle, vergleicht Platzierung und erstellt ein Loose-Platzierungspaket.</td></tr>
-                    </table>
-                    <h4>Mesh-Ersetzungsausrichtung</h4>
-                    <ul>
-                      <li>Dies ist die zentrale Pruefung fuer statische Ersetzungen und Ingame-Mesh-Swaps: Geometrie, gemappte Teile, Texturen, Sidecars, Position, Skalierung, Rotation und Exportwerte.</li>
-                      <li>Nutze <b>Mesh-Importvorschau</b>, bevor Dateien geschrieben werden.</li>
-                      <li>Nutze <b>Mesh importieren</b> erst nach Kompatibilitaets-, Platzierungs- und Texturplan-Pruefung.</li>
-                      <li>Erweiterte DDS-Slot-Overrides sind manuelle Reparaturwerkzeuge; beginne mit den Vorschlaegen.</li>
-                    </ul>
-                    <h4>Materialautoritaet und Sidecars</h4>
-                    <ul>
-                      <li><b>Materialautoritaet</b> nutzt die bewaehrte quellenbasierte Route: Quellfarbe ueber Overlay-Farbe, PBR-/Materialmaske ueber Detailmaske und keine glaenzende Color-Blend-Reaktion.</li>
-                      <li><b>Materialautoritaet manuell</b> startet mit derselben Route und zeigt Override-Regler fuer erweiterte Reparatur.</li>
-                      <li>Legacy Runtime XML und Echte Quellenautoritaet bleiben fuer alte Einstellungen/Debug ladbar, werden aber nicht mehr als Standardauswahl gezeigt.</li>
-                      <li><b>Andere Original-Mesh verwenden</b> waehlt eine andere Originalreferenz fuer Ausrichtung oder Materialkontext.</li>
-                      <li>Pruefe den Platzierungszustand <b>Verstaut / am Koerper</b> gegen <b>Gehalten / in der Hand</b>, bevor Pakete gebaut werden.</li>
-                    </ul>
-                    <h4>Ingame-Mesh-Swap</h4>
+                    <h4>Mesh oeffnen und bearbeiten</h4>
                     <ol>
-                      <li>Waehle die Archiv-Mesh, die ersetzt werden soll, und markiere sie als Swap-Ziel.</li>
-                      <li>Waehle, ob verwandte Dateien wie Texturen, Sidecars, Skelette oder Animationen eingeschlossen werden. Skelette und Animationen sind explizit, weil inkompatible Rigs oder Physikdaten Assets beschaedigen koennen.</li>
-                      <li>Waehle eine andere geladene Archiv-Mesh als Quelle.</li>
-                      <li>Pruefe Platzierung und Texturzuordnung in <b>Mesh-Ersetzungsausrichtung</b>.</li>
-                      <li>Schreibe Loose-Ausgabe oder patche Archive nur, wenn das Ergebnis visuell und strukturell plausibel ist.</li>
+                      <li>Eine unterstuetzte <code>.pam</code>-, <code>.pamlod</code>- oder <code>.pac</code>-Datei im Archiv-Browser waehlen.</li>
+                      <li><b>Im Mesh-Editor oeffnen</b> waehlen. Die exakten Archivbytes werden ausserhalb des UI-Threads validiert; die Bearbeitungswerkzeuge sind sofort sichtbar.</li>
+                      <li>Auswahl, Geometrie, Topologie, Normalen/Tangenten, Rigging, Morph &amp; Refit oder UV-Koordinaten bearbeiten. Original/Bearbeitet und <b>Solid (texturiert)</b> dienen der Kontrolle.</li>
                     </ol>
-                    <div class="doc-callout doc-warning"><b>Mesh-Grenzen:</b> statische Ersetzungen koennen Geometrie und kompatible Sidecars retargeten, konvertieren aber nicht jedes Rig, jede Animation, jeden Skin oder komplexe Materialgraphen in native Spieldaten.</div>
+                    <div class="doc-callout"><b>Nur Mesh:</b> Material- und Textur-Namen sind Diagnose. Der Mesh-Editor ersetzt, faerbt, weist oder oeffnet keine Texturen. Wenn eine Quell-DDS nicht gebunden werden kann, wird sichtbar auf untexturierte Darstellung zurueckgefallen; Geometriebearbeitung bleibt verfuegbar.</div>
+                    <h4>Objekttransformation</h4>
+                    <ul>
+                      <li>Position, Rotation, XYZ- oder gekoppelte Skalierung, Neigungsschritte und Zuruecksetzen wirken auf alle Mesh-Teile, ohne die Auswahl zu aendern.</li>
+                      <li>Rotation und Skalierung verwenden das feste Zentrum der urspruenglichen Quellgrenzen. Jede abgeschlossene Geste ist genau ein rueckgaengig machbarer Verlaufsschritt.</li>
+                    </ul>
+                    <h4>Speichern und bauen</h4>
+                    <table>
+                      <tr><th>Aktion</th><th>Ergebnis</th><th>Archivsicherheit</th></tr>
+                      <tr><td>Mesh-Datei exportieren</td><td>Schreibt die neu gebaute Mesh und den Bericht atomar.</td><td>Ueberschreibt niemals das Quell-Asset.</td></tr>
+                      <tr><td>Mod bauen</td><td>Erstellt einen losen Mesh-Ordner oder ein DMM-Archivgruppen-Overlay.</td><td>Quelltexturen und Material-Sidecars werden unveraendert geerbt.</td></tr>
+                      <tr><td>Als Overlay installieren</td><td>Zeigt Mesh-Pfad, Overlay-Ordner, Mount-Listen, Uebernahmemenge und Sicherungsziele vor der Bestaetigung.</td><td>Prueft erneut, ob das Spiel geschlossen ist, sichert, publiziert die Mount-Liste zuletzt und rollt bei Abbruch/Fehler zurueck.</td></tr>
+                      <tr><td>Letzte Overlay-Installation wiederherstellen</td><td>Stellt per Beleg den vorherigen Mount-/Overlay-Zustand wieder her.</td><td>Entfernt nur Dateien, die diese Installation angelegt hat.</td></tr>
+                    </table>
+                    <p>Diese Mesh-Editor-Ausgaben patchen niemals ausgelieferte PAMT-/PAZ-Archive. Gleichquellen-Editierpakete koennen fuer externe Geometriearbeit exportiert und importiert werden.</p>
+                    <h4>Neue Assets und Texturen</h4>
+                    <ul>
+                      <li>In der Modellbibliothek oeffnet <b>In New Item Studio verwenden</b> das Modell im Modellschritt des Studios.</li>
+                      <li>Textur-Workflow, Textur-Ersetzer, Farbvarianten und Textur-Editor direkt fuer Texturarbeit verwenden. Diese eigenen Tabs bleiben unveraendert.</li>
+                    </ul>
                     <h4>HKX-Platzierung und Sockets</h4>
                     <ul>
                       <li><b>HKX bearbeiten</b> behandelt das geoeffnete Asset als Ziel, das sich aendert. <b>Platzierungsquelle waehlen</b> sucht die Waffen-/Modellquelle, deren Platzierung kopiert wird.</li>

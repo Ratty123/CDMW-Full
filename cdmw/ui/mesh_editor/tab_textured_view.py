@@ -47,6 +47,13 @@ PENDING_TEXTURED_VIEW_MAX_EXTENSIONS = 9
 
 
 class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
+    @staticmethod
+    def _archive_material_preview_model_ready(preview_model: object) -> bool:
+        return bool(
+            preview_model is not None
+            and count_dotnet_own_material_bindings(preview_model) > 0
+        )
+
     def _imported_working_model_owns_materials(self) -> bool:
         """Whether the editable working model carries textures of its own.
 
@@ -182,6 +189,32 @@ class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
                 error=str(exc),
             )
 
+    def _request_direct_textures_for_textured_view(self) -> str:
+        """Publish read-only archive textures for a direct, builder-free session."""
+
+        if self._dotnet_active_material_role_ready():
+            return "already_loaded"
+        preview_model = self.standalone_archive_material_preview_model
+        if self._archive_material_preview_model_ready(preview_model):
+            return (
+                "started"
+                if self.apply_resident_clone_material_resources(preview_model)
+                else "failed"
+            )
+        if self._imported_working_model_owns_materials():
+            return (
+                "started"
+                if self.commit_imported_working_model_materials(
+                    reason="direct_textured_view_requested"
+                )
+                else "failed"
+            )
+        if bool(self.archive_material_context_pending):
+            return "started"
+        if self._start_archive_material_context_resolution():
+            return "started"
+        return "unavailable"
+
     def _settle_requested_textured_view(self, outcome: object) -> None:
         """Resolve a textured-view request whose resolver started no worker.
 
@@ -231,7 +264,10 @@ class MeshEditorTexturedViewMixin(MeshEditorEmbeddedPartsMixin):
         # had nothing left to complete. While the compiler is genuinely busy the
         # wait is making progress, so extend it instead of declaring failure.
         if (
-            self._dotnet_material_compile_active()
+            (
+                self._dotnet_material_compile_active()
+                or bool(self.archive_material_context_pending)
+            )
             and self.standalone_dotnet_pending_textured_view_extensions
             < PENDING_TEXTURED_VIEW_MAX_EXTENSIONS
         ):

@@ -736,6 +736,7 @@ def mesh_dotnet_experiment_command(
     developer_renderer_fallback: bool = False,
     profile: str = "authoring",
     prewarm_launch: bool = False,
+    direct_authoring: bool = False,
 ) -> tuple[str, list[str]]:
     executable = Path(executable_path)
     if not str(executable).strip():
@@ -776,6 +777,8 @@ def mesh_dotnet_experiment_command(
         # The helper stays hidden while it serves this placeholder, so the scene
         # nobody asked for is never painted into the host pane.
         args.append("--prewarm")
+    if bool(direct_authoring):
+        args.append("--direct-authoring")
     return (
         str(executable),
         args,

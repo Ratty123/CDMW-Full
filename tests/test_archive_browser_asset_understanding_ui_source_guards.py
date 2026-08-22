@@ -208,6 +208,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("def _launch_archive_mesh_editor_for_entry(self, entry: ArchiveEntry) -> None:", source)
         self.assertNotIn('self.archive_texture_scope_all_button = QPushButton("Filter to Family")', source)
         self.assertNotIn('self.archive_texture_export_asset_set_button = QPushButton("Export Family...")', source)
+        self.assertNotIn('"Open In Texture Editor..."', source)
+        self.assertNotIn('"Edit Material Values..."', source)
         self.assertIn("def _set_action_button_state(", source)
         self.assertIn("Unavailable:", source)
         self.assertIn("setToolTipsVisible", source)
@@ -218,6 +220,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn('"Export Family..."', source)
 
     def test_archive_file_context_menu_exposes_role_aware_actions(self) -> None:
+        actions_source = ARCHIVE_ACTIONS.read_text(encoding="utf-8")
         source = (
             MAIN_WINDOW.read_text(encoding="utf-8")
             + "\n"
@@ -248,24 +251,17 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("self._archive_hkx_placement_candidates_for_entry(entry)", source)
         self.assertIn("self._open_archive_hkx_placement_for_entry(current_entry)", source)
         self.assertIn('import_loose_mod_action = menu.addAction(menu_icons["workflow"], "Import Loose Mod Folder...")', source)
-        self.assertNotIn('open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor...")', source)
-        self.assertNotIn('open_mesh_editor_action = menu.addAction("Open in Mesh Editor...")', source)
-        self.assertIn('modify_original_action = menu.addAction(menu_icons["mesh"], "Modify Original...")', source)
-        self.assertIn("self._mesh_editor_modify_original_requested(current_entry)", source)
-        self.assertNotIn('import_preview_action = menu.addAction(menu_icons["mesh"], "Import Mesh Preview...")', source)
-        self.assertIn('import_patch_action = menu.addAction(menu_icons["mesh"], "Import Mesh...")', source)
-        self.assertIn('texture_editor_action = menu.addAction(menu_icons["texture"], "Open In Texture Editor...")', source)
+        self.assertIn('open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor")', actions_source)
+        self.assertIn("self._launch_archive_mesh_editor_for_entry(current_entry)", actions_source)
+        self.assertNotIn('modify_original_action = menu.addAction', actions_source)
+        self.assertNotIn('import_preview_action = menu.addAction', actions_source)
+        self.assertNotIn('import_patch_action = menu.addAction', actions_source)
+        self.assertNotIn('texture_editor_action = menu.addAction', actions_source)
         self.assertIn('edit_hkx_action = menu.addAction(menu_icons["physics"], "Edit HKX...")', source)
         self.assertIn('inspect_sidecar_action = menu.addAction(menu_icons["data"], "Inspect Structured Data...")', source)
-        self.assertIn('edit_material_action = menu.addAction(menu_icons["texture"], "Edit Material Values...")', source)
-        self.assertIn("material_sidecar_entry = self._related_material_sidecar_entry_for_archive_entry(entry)", source)
-        self.assertIn("def _add_archive_material_context_action(", source)
-        self.assertIn("self._add_archive_material_context_action(menu, menu_icons, entry)", source)
-        self.assertIn("if entry.extension not in ARCHIVE_MESH_EXTENSIONS and not is_material_sidecar_entry(entry):", source)
-        self.assertIn("edit_material_action.setEnabled(material_sidecar_entry is not None)", source)
-        self.assertIn("Unavailable: no recognized companion", source)
-        self.assertIn("current_material_entry=material_sidecar_entry", source)
-        self.assertIn("self._open_material_sidecar_editor(current_material_entry)", source)
+        self.assertNotIn('edit_material_action = menu.addAction', actions_source)
+        self.assertNotIn("def _add_archive_material_context_action(", actions_source)
+        self.assertNotIn("self._add_archive_material_context_action", actions_source)
         self.assertIn("candidate_path = (source_virtual_path.parent / basename).as_posix()", source)
         self.assertIn("candidate = self._find_archive_entry_by_virtual_path(candidate_path)", source)
 
@@ -282,7 +278,6 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             'self.archive_action_asset_family_button = QPushButton("Asset Family...")',
             'self.archive_action_filter_to_family_button = QPushButton("Filter to Family")',
             'self.archive_action_export_family_button = QPushButton("Export Family...")',
-            'self.archive_action_source_mix_button = QPushButton("Build Loose Package From Sources...")',
             'self.archive_action_character_dependency_button = QPushButton("Export Character Dependency Package...")',
         ):
             self.assertIn(token, source)
@@ -299,10 +294,10 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             '("Copy Filename", self.archive_action_copy_filename_button)',
             '("Asset Family", self.archive_action_asset_family_button)',
             '("Filter to Family", self.archive_action_filter_to_family_button)',
-            '("Build Loose Package From Sources", self.archive_action_source_mix_button)',
-            '("Edit Material Values", self.archive_material_values_button)',
+            '("Open in Mesh Editor", self.archive_model_open_mesh_editor_button)',
         ):
             self.assertIn(token, source)
+        self.assertNotIn("archive_action_source_mix_button", source)
         self.assertNotIn('("Show Only This File", self.archive_action_show_only_file_button)', source)
 
     def test_material_values_preview_uses_embedded_vortice_renderer(self) -> None:
@@ -414,9 +409,9 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("AppearanceSwapPlanRequest", source)
         self.assertIn("run_appearance_swap_plan", source)
         self.assertIn("build_appearance_single_pac_swap_package_plan", source)
-        self.assertIn('self.archive_appearance_swap_button = QPushButton("Armor Swap...")', source)
+        self.assertNotIn('self.archive_appearance_swap_button = QPushButton("Armor Swap...")', source)
         self.assertNotIn('("Appearance Armor Swap", self.archive_appearance_swap_button)', source)
-        self.assertIn("self.archive_appearance_swap_button.clicked.connect(self._open_current_archive_appearance_swap)", source)
+        self.assertNotIn("self.archive_appearance_swap_button.clicked.connect", source)
         self.assertIn("def _appearance_swap_selected_context", source)
         self.assertIn("def _open_current_archive_appearance_swap", source)
         self.assertIn("def _open_archive_appearance_swap_review_dialog", source)
@@ -470,9 +465,9 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         )
         mesh_session_source = MESH_DOMAIN_SESSION.read_text(encoding="utf-8")
 
-        self.assertIn('self.archive_model_modify_original_button = QPushButton("Modify Original...")', source)
-        self.assertIn("self.archive_model_modify_original_button.clicked.connect(self._modify_current_archive_original_mesh)", source)
-        self.assertIn('("Modify Original Mesh", self.archive_model_modify_original_button)', source)
+        self.assertNotIn('self.archive_model_modify_original_button = QPushButton("Modify Original...")', source)
+        self.assertNotIn("self.archive_model_modify_original_button.clicked.connect", source)
+        self.assertNotIn('("Modify Original Mesh", self.archive_model_modify_original_button)', source)
         self.assertIn("def _start_archive_modify_original_workspace(self, entry: ArchiveEntry) -> None:", source)
         self.assertIn('export_archive_mesh(', source)
         self.assertIn("class ModifyOriginalWorkflowSelection:", mesh_session_source)
@@ -1219,7 +1214,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("Select Exact Family", source_mix_overlay_source)
         self.assertIn("Select All Families", source_mix_overlay_source)
         self.assertIn("Select All Exact Matches", source_mix_overlay_source)
-        self.assertIn("Use as Mesh Replacement Source", source_mix_overlay_source)
+        self.assertNotIn("Use as Mesh Replacement Source", source_mix_overlay_source)
         self.assertIn("group_source_mix_candidates_by_family(candidates)", source_mix_overlay_source)
         self.assertIn("def _resolve_source_mix_candidate_targets", source_mix_source)
         self.assertIn("self.archive_entries_by_normalized_path.get(normalized", source_mix_source)

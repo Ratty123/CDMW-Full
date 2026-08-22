@@ -256,6 +256,33 @@ class MeshEditHistoryEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class MeshObjectTransformState:
+    """Absolute whole-mesh transform around the immutable source-bounds pivot."""
+
+    location: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    rotation_degrees: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    scale: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    pivot: tuple[float, float, float] = (0.0, 0.0, 0.0)
+
+    def __post_init__(self) -> None:
+        for field_name in ("location", "rotation_degrees", "scale", "pivot"):
+            values = tuple(getattr(self, field_name))
+            if len(values) != 3 or any(not math.isfinite(float(value)) for value in values):
+                raise ValueError(f"Mesh object transform {field_name} must contain three finite values")
+            object.__setattr__(self, field_name, tuple(float(value) for value in values))
+        if any(float(value) <= 0.0 for value in self.scale):
+            raise ValueError("Mesh object transform scale values must be greater than zero")
+
+    @property
+    def is_identity(self) -> bool:
+        return (
+            self.location == (0.0, 0.0, 0.0)
+            and self.rotation_degrees == (0.0, 0.0, 0.0)
+            and self.scale == (1.0, 1.0, 1.0)
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class MeshEditSessionView:
     session_id: str
     mode: str
@@ -268,6 +295,7 @@ class MeshEditSessionView:
     redo_count: int = 0
     history_entries: tuple[MeshEditHistoryEntry, ...] = ()
     history_cursor: int = 0
+    object_transform: MeshObjectTransformState = field(default_factory=MeshObjectTransformState)
 
 
 __all__ = [
@@ -276,6 +304,7 @@ __all__ = [
     "MESH_MORPH_ACTIONS",
     "MeshEditCommand",
     "MeshEditHistoryEntry",
+    "MeshObjectTransformState",
     "MeshEditResult",
     "MeshEditSelection",
     "MeshEditSessionView",

@@ -102,7 +102,11 @@ internal sealed partial class ExperimentForm
         try
         {
             prepared = await Task.Run(
-                () => PrepareResidentPackage(packagePath, _options.SimplePreview, operation.Token),
+                () => PrepareResidentPackage(
+                    packagePath,
+                    _options.SimplePreview,
+                    _options.DirectAuthoring,
+                    operation.Token),
                 CancellationToken.None).ConfigureAwait(false);
             operation.Token.ThrowIfCancellationRequested();
             var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -167,6 +171,7 @@ internal sealed partial class ExperimentForm
     private static PreparedResidentPackage PrepareResidentPackage(
         string requestedPackagePath,
         bool previewProfile,
+        bool directAuthoring,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -203,6 +208,11 @@ internal sealed partial class ExperimentForm
             // Interaction and comparison are profile-owned, but overlay
             // visibility is authored by the package/host. Forcing both off
             // here replaced a checked Grid control during every resident load.
+        }
+        else if (directAuthoring)
+        {
+            scene.SetInteractionMode("mesh_edit");
+            scene.SetComparisonMode("replacement_only");
         }
         var parseMilliseconds = phase.Elapsed.TotalMilliseconds;
         var textures = NetTextureSet.Load(materials);
@@ -300,6 +310,12 @@ internal sealed partial class ExperimentForm
         {
             // The read-only preview profile pins its own modes in
             // PrepareResidentPackage and builds no authoring surface to keep.
+            return;
+        }
+        if (_options.DirectAuthoring)
+        {
+            next.SetInteractionMode("mesh_edit");
+            next.SetComparisonMode("replacement_only");
             return;
         }
         if (_residentSessionRebound)

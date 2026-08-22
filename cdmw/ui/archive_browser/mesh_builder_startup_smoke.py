@@ -165,12 +165,15 @@ def _exercise_builder_mode(
     progress_probe = _EmbeddedStartupProgressProbe(window)
     app.installEventFilter(progress_probe)
     try:
+        compatibility_host = window.mesh_editor_tab.embedded_builder_host
+        window.mesh_editor_tab.workspace_stack.setCurrentWidget(compatibility_host)
+        window._activate_tool_widget(window.mesh_editor_tab)
         prompt_archive_static_replacement_options(
             window,
             window.archive_entries[0],
             root / f"{mode_name}.obj",
             dialog_title=f"Synthetic {mode_name}",
-            embedded_host=window.mesh_editor_tab.builder_host(),
+            embedded_host=compatibility_host,
             _prepared_prompt_preflight=synthetic_builder_preflight(
                 modify_original_clone_mode=modify_original_clone_mode,
             ),
@@ -215,7 +218,7 @@ def _exercise_builder_mode(
             raise RuntimeError(
                 f"Mesh Builder {mode_name} left a delayed startup progress timer armed."
             )
-        if dialog.parentWidget() is not window.mesh_editor_tab.builder_host():
+        if dialog.parentWidget() is not compatibility_host:
             raise RuntimeError(
                 f"Mesh Builder {mode_name} startup smoke revealed an unmounted builder."
             )
@@ -232,8 +235,7 @@ def _exercise_builder_mode(
             "mount_embedded_after",
             "finish_progress_after",
             "show_after",
-            "reveal_mesh_editor_before",
-            "reveal_mesh_editor_after",
+            "reveal_skipped_unmounted",
         )
         if any(step not in open_steps for step in reveal_order) or [
             open_steps.index(step) for step in reveal_order
@@ -241,7 +243,10 @@ def _exercise_builder_mode(
             raise RuntimeError(
                 f"Mesh Builder {mode_name} reveal order was incomplete or out of order: {open_steps!r}."
             )
-        if any(step.startswith("reveal_skipped_") for step in open_steps):
+        if any(
+            step.startswith("reveal_skipped_") and step != "reveal_skipped_unmounted"
+            for step in open_steps
+        ):
             raise RuntimeError(
                 f"Mesh Builder {mode_name} reveal was skipped: {open_steps!r}."
             )

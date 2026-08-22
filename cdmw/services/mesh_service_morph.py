@@ -825,6 +825,7 @@ class MeshMorphServiceMixin:
                     native_editor_stroke_id=str(report.get("change_id") or ""),
                     history_action=command,
                     history_label=history_label,
+                    object_transform=session.object_transform,
                 ),
             )
         _service_call("_update_native_history_usage", session, metrics)

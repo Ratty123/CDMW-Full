@@ -17,7 +17,6 @@ from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
 )
 from cdmw.ui.shell.settings_bridge import read_bool_setting
 from cdmw.ui.mesh_editor.dotnet_update_queue import DotNetRevisionUpdateQueue
-from cdmw.ui.mesh_editor.resident_texture_update_queue import ResidentTextureRegionUpdateQueue
 from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
 from cdmw.ui.mesh_editor import tab_dotnet_material_commit as _material_commit
 
@@ -68,18 +67,6 @@ class MeshEditorTabShellMixin(
     # rather than borrowing it from whatever else the tab happens to compose.
     MeshEditorDotNetSessionEventMixin,
 ):
-
-    def _initialize_texture_region_queue(self) -> None:
-        self.standalone_texture_region_queue = ResidentTextureRegionUpdateQueue(
-            self._send_dotnet_texture_region_message,
-            parent=self,
-        )
-        self.standalone_texture_region_queue.update_applied.connect(
-            self._handle_texture_region_queue_applied
-        )
-        self.standalone_texture_region_queue.update_failed.connect(
-            self._handle_texture_region_queue_failed
-        )
 
     def _initialize_dotnet_material_parameter_state(self) -> None:
         self.standalone_dotnet_material_parameter_generation = 0
@@ -133,41 +120,27 @@ class MeshEditorTabShellMixin(
         header_layout.setColumnStretch(0, 1)
         layout.addWidget(header)
 
-        self.empty_status_label = QLabel("Select a supported archive mesh, then choose a workflow.")
+        self.empty_status_label = QLabel("Select a supported archive mesh, then open it here for mesh editing.")
         self.empty_status_label.setObjectName("MeshEditorEmptyStatus")
         self.empty_status_label.setWordWrap(True)
         layout.addWidget(self.empty_status_label)
 
         workflow_row = QHBoxLayout()
         workflow_row.setSpacing(8)
-        self.modify_original_button = QPushButton("Modify Original")
-        self.modify_original_button.setObjectName("MeshEditorModifyOriginalButton")
-        self.import_replacement_button = QPushButton("Import Replacement")
-        self.import_replacement_button.setObjectName("MeshEditorImportReplacementButton")
-        self.import_preview_button = QPushButton("Import Preview")
-        self.import_preview_button.setObjectName("MeshEditorImportPreviewButton")
-        self.in_game_swap_button = QPushButton("In-Game Swap")
-        self.in_game_swap_button.setObjectName("MeshEditorInGameSwapButton")
-        self.modify_original_button.setToolTip("Create or reopen an editable clone workspace for the selected archive mesh.")
-        self.import_replacement_button.setToolTip("Import OBJ, DAE, glTF, GLB, PAC, PAM, or PAMLOD as the replacement source.")
-        self.import_preview_button.setToolTip("Run the same import path as preview-only, without writing output.")
-        self.in_game_swap_button.setToolTip("Use another loaded archive mesh as the source for this target.")
-        for button in (
-            self.modify_original_button,
-            self.import_replacement_button,
-            self.import_preview_button,
-            self.in_game_swap_button,
-        ):
-            button.setMinimumHeight(30)
-            workflow_row.addWidget(button)
+        self.open_selected_mesh_button = QPushButton("Open Selected Mesh")
+        self.open_selected_mesh_button.setObjectName("MeshEditorOpenSelectedMeshButton")
+        self.open_selected_mesh_button.setToolTip(
+            "Open the selected archive mesh directly in the resident mesh-authoring workspace."
+        )
+        self.open_selected_mesh_button.setMinimumHeight(30)
+        workflow_row.addWidget(self.open_selected_mesh_button)
         workflow_row.addStretch(1)
         layout.addLayout(workflow_row)
         layout.addStretch(1)
 
-        self.modify_original_button.clicked.connect(lambda _checked=False: self._emit_target(self.modify_original_requested))
-        self.import_replacement_button.clicked.connect(lambda _checked=False: self._emit_target(self.import_replacement_requested))
-        self.import_preview_button.clicked.connect(lambda _checked=False: self._emit_target(self.import_preview_requested))
-        self.in_game_swap_button.clicked.connect(lambda _checked=False: self._emit_target(self.in_game_swap_requested))
+        self.open_selected_mesh_button.clicked.connect(
+            lambda _checked=False: self._emit_target(self.open_archive_session_requested)
+        )
         return page
     def _build_standalone_workspace(self) -> QWidget:
         page = MeshEditorWorkspace(theme_key=self.theme_key, parent=self)
@@ -177,7 +150,7 @@ class MeshEditorTabShellMixin(
         page.import_edited_package_requested.connect(self._start_standalone_import_edited_package_requested)
         page.open_editable_package_folder_requested.connect(self._open_standalone_editable_package_folder)
         page.dotnet_editor_requested.connect(self._start_standalone_dotnet_editor_requested)
-        page.texture_edit_requested.connect(self.open_selected_texture_in_editor)
+        page.object_transform_requested.connect(self._handle_object_transform_requested)
         page.compare_view_requested.connect(self._set_standalone_compare_mode)
         page.skeleton_pose_requested.connect(self._handle_skeleton_pose_request)
         page.part_selection_requested.connect(self._handle_part_selection)
@@ -187,9 +160,10 @@ class MeshEditorTabShellMixin(
         page.validation_report_requested.connect(self._start_standalone_export_validation_requested)
         page.copy_validation_report_requested.connect(self._copy_standalone_validation_report_requested)
         page.rebuild_report_requested.connect(self._start_standalone_rebuild_report_requested)
-        page.rebuild_asset_requested.connect(self._start_standalone_rebuild_asset_requested)
-        page.preview_rebuilt_asset_requested.connect(self._preview_standalone_rebuilt_asset_requested)
-        page.package_rebuilt_asset_requested.connect(self._package_standalone_rebuilt_asset_requested)
+        page.export_mesh_file_requested.connect(self._start_standalone_rebuild_asset_requested)
+        page.build_mod_requested.connect(self._start_mesh_mod_build_requested)
+        page.install_overlay_requested.connect(self._start_mesh_overlay_prepare_requested)
+        page.restore_overlay_requested.connect(self._restore_last_mesh_overlay_requested)
         page.save_rebuild_report_requested.connect(self._save_standalone_rebuild_report_requested)
         self.standalone_preview_stack = page.preview_stack
         self.standalone_native_host_frame = page.native_host_frame
@@ -199,9 +173,10 @@ class MeshEditorTabShellMixin(
         self._wire_standalone_native_part_events(self.standalone_native_host)
         self.standalone_native_preview_button = page.native_preview_button
         self.standalone_run_validation_report_button = page.run_validation_report_button
-        self.standalone_rebuild_asset_button = page.rebuild_asset_button
-        self.standalone_preview_rebuilt_asset_button = page.preview_rebuilt_asset_button
-        self.standalone_package_rebuilt_asset_button = page.package_rebuilt_asset_button
+        self.standalone_export_mesh_file_button = page.export_mesh_file_button
+        self.standalone_build_mod_button = page.build_mod_button
+        self.standalone_install_overlay_button = page.install_overlay_button
+        self.standalone_restore_overlay_button = page.restore_overlay_button
         self.standalone_export_editable_package_button = page.export_editable_package_button
         self.standalone_import_edited_package_button = page.import_edited_package_button
         self.standalone_open_editable_package_folder_button = page.open_editable_package_folder_button
@@ -229,10 +204,7 @@ class MeshEditorTabShellMixin(
             self.session_label,
             self.empty_status_label,
             self.open_archive_button,
-            self.modify_original_button,
-            self.import_replacement_button,
-            self.import_preview_button,
-            self.in_game_swap_button,
+            self.open_selected_mesh_button,
         ):
             if widget.font().toString() != applied_font.toString():
                 widget.setFont(applied_font)
@@ -250,8 +222,9 @@ class MeshEditorTabShellMixin(
                     sync(applied_font, dense_font)
                 except TypeError:
                     sync(applied_font)
-    def builder_host(self) -> QWidget:
-        return self.embedded_builder_host
+    def builder_host(self) -> None:
+        """Compatibility probe: replacement builders are no longer hosted here."""
+        return None
     def active_builder(self) -> Optional[QWidget]:
         item = self.embedded_builder_host_layout.itemAt(0)
         return item.widget() if item is not None else None
@@ -259,18 +232,15 @@ class MeshEditorTabShellMixin(
         return self.active_builder() is not None
     def has_active_standalone_session(self) -> bool:
         return self.standalone_controller is not None and bool(self.standalone_controller.active_session_id)
-    def _dotnet_resident_texture_region_updates_supported(self) -> bool:
-        return "resident_texture_region_updates_v1" in self.standalone_dotnet_capabilities
     def _dotnet_resident_material_updates_supported(self) -> bool:
         return "resident_material_updates_v2" in self.standalone_dotnet_capabilities
     def _dotnet_resident_material_parameter_updates_supported(self) -> bool:
         return "resident_material_parameter_updates_v1" in self.standalone_dotnet_capabilities
-    def _dotnet_texture_updates_idle(self) -> bool:
-        return self.standalone_texture_region_queue.idle()
     def _wait_for_dotnet_export_updates(self, timeout_seconds: float) -> bool:
         timeout = max(0.0, float(timeout_seconds))
         started = time.monotonic()
-        if not self.standalone_texture_region_queue.wait_idle(timeout):
+        dispatcher = self.standalone_live_stroke_dispatcher
+        if dispatcher is not None and not dispatcher.wait_idle(timeout):
             return False
         deadline = started + timeout
         while (
@@ -281,38 +251,20 @@ class MeshEditorTabShellMixin(
         ) and time.monotonic() < deadline:
             time.sleep(min(0.005, max(0.0, deadline - time.monotonic())))
         return bool(
-            self.standalone_texture_region_queue.idle()
-            and self.standalone_dotnet_sent_material_resource_payload is None
+            self.standalone_dotnet_sent_material_resource_payload is None
             and self.standalone_dotnet_sent_material_parameter_payload is None
             and not self._dotnet_material_compile_active()
             and not self.standalone_dotnet_material_publications.has_compile_work()
         )
-    def _handle_texture_region_queue_applied(self, payload: Mapping[str, object]) -> None:
-        self.standalone_dotnet_lifecycle_counts["texture_region_applied_count"] = (
-            int(self.standalone_dotnet_lifecycle_counts.get("texture_region_applied_count", 0)) + 1
-        )
-        self._record_mesh_dotnet_event(
-            "mesh_dotnet_texture_region_applied",
-            resource_id=str(payload.get("resource_id", "") or ""),
-            generation=int(payload.get("generation", 0) or 0),
-            texture_revision=int(payload.get("texture_revision", 0) or 0),
-        )
-    def _handle_texture_region_queue_failed(self, payload: Mapping[str, object]) -> None:
-        self.standalone_dotnet_lifecycle_counts["texture_region_failed_count"] = (
-            int(self.standalone_dotnet_lifecycle_counts.get("texture_region_failed_count", 0)) + 1
-        )
-        message = str(payload.get("message", payload.get("reason", "Texture region update failed.")) or "Texture region update failed.")
-        self._set_dotnet_status(
-            f"Mesh texture region update failed; keeping the last valid resource: {message}",
-            error=True,
-        )
     def iter_shutdown_workers(self) -> tuple[tuple[str, _tab.QThread | None, object | None], ...]:
         return (
+            ("archive_session_load", self.archive_session_load_thread, self.archive_session_load_worker),
+            ("archive_material_context", self.archive_material_context_thread, self.archive_material_context_worker),
             ("standalone_file_load", self.standalone_file_load_thread, self.standalone_file_load_worker),
-            ("standalone_texture_source", self.standalone_texture_source_thread, self.standalone_texture_source_worker),
             ("standalone_mesh_action", self.standalone_action_thread, self.standalone_action_worker),
             ("standalone_validation", self.standalone_validation_thread, self.standalone_validation_worker),
             ("standalone_rebuild_report", self.standalone_rebuild_report_thread, self.standalone_rebuild_report_worker),
+            ("standalone_output", self.standalone_output_thread, self.standalone_output_worker),
             ("standalone_report_write", self.standalone_report_write_thread, self.standalone_report_write_worker),
             ("standalone_dotnet_package", self.standalone_dotnet_package_thread, self.standalone_dotnet_package_worker),
             ("standalone_dotnet_material_update", self.standalone_dotnet_material_update_thread, self.standalone_dotnet_material_update_worker),
@@ -324,11 +276,13 @@ class MeshEditorTabShellMixin(
     def request_shutdown(self) -> None:
         self._cancel_dotnet_material_compile()
         self.close_standalone_session()
-        self.standalone_texture_region_queue.shutdown()
         dispatcher = self.standalone_live_stroke_dispatcher
         if dispatcher is not None:
             dispatcher.request_stop()
     def mount_embedded_builder(self, builder: QWidget) -> None:
+        # Compatibility-only host for retained static-replacement tests and
+        # internal callers. ``builder_host()`` no longer exposes this surface,
+        # so no normal Archive Browser or Mesh Editor route can mount it.
         self.close_standalone_session()
         while self.embedded_builder_host_layout.count():
             item = self.embedded_builder_host_layout.takeAt(0)
@@ -377,7 +331,6 @@ class MeshEditorTabShellMixin(
             parent=control_tabs,
         )
         workspace.action_requested.connect(self._handle_action_requested)
-        workspace.texture_edit_requested.connect(self._handle_embedded_open_texture)
         workspace.compare_view_requested.connect(self._handle_embedded_compare_mode)
         workspace.viewport_display_requested.connect(self._handle_embedded_viewport_display_mode)
         workspace.skeleton_pose_requested.connect(self._handle_embedded_skeleton_pose_request)

@@ -10,13 +10,14 @@ import os
 import tempfile
 import hashlib
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, is_dataclass, replace
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot
 
 from cdmw.core.atomic_file import atomic_copy_file, atomic_publish_files, atomic_write_bytes, atomic_write_text
 from cdmw.domain.mesh import MeshEditCommand
+from cdmw.domain.archives.mutation import ArchivePatchRequest
 from cdmw.models import RunCancelled
 from cdmw.modding.mesh_parser import ParsedMesh, parse_mesh
 from cdmw.modding.mesh_exporter import export_obj
@@ -24,7 +25,18 @@ from cdmw.modding.mesh_glb_interchange import export_glb, import_glb_with_sideca
 from cdmw.modding.mesh_obj_importer import import_obj
 from cdmw.services.mesh_service import MeshService
 from cdmw.services.mesh_service_state import MeshExportSnapshot, MeshExportTextureSnapshot
+from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
+from cdmw.services.archive_overlay_install import (
+    OverlayInstallPreparation,
+    apply_overlay_install,
+    prepare_overlay_install,
+    restore_last_overlay_install,
+)
+from cdmw.services.new_item_service import game_is_running
 from cdmw.workers.mesh_editor_aux_workers import (
+    MeshArchiveMaterialContextWorker,
+    MeshArchiveSessionLoadResult,
+    MeshArchiveSessionLoadWorker,
     MeshDotNetExperimentOutputImportWorker,
     MeshDotNetExperimentPackageWorker,
     MeshDotNetSceneFrameWorker,
@@ -504,6 +516,16 @@ class MeshEditCommandWorker(QObject):
                 result = self.service.undo(self.session_id)
             elif action == "redo":
                 result = self.service.redo(self.session_id)
+            elif action == "object_transform":
+                params = dict(command.params or {})
+                result = self.service.set_object_transform(
+                    self.session_id,
+                    location=params.get("location"),
+                    rotation_degrees=params.get("rotation_degrees"),
+                    scale=params.get("scale"),
+                    label=str(command.label or self.action_text),
+                    stop_event=self.stop_event,
+                )
             else:
                 params = dict(command.params or {})
                 params["stop_event"] = self.stop_event
@@ -614,18 +636,16 @@ class MeshRebuildReportWorker(QObject):
         source_text = str(getattr(snapshot.base_mesh or snapshot.mesh, "path", "") or "").strip()
         if source_text and target.resolve(strict=False) == Path(source_text).resolve(strict=False):
             raise RuntimeError("mesh rebuild output must not overwrite the original source asset")
+        if snapshot.texture_resources or int(snapshot.material_generation) > 0:
+            raise RuntimeError(
+                "Export Mesh File cannot contain texture or material authoring changes"
+            )
         target.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix=f".{target.name}.rebuild-", dir=target.parent) as staging_raw:
             staging_dir = Path(staging_raw)
             staged_target = staging_dir / target.name
             atomic_write_bytes(staged_target, result.data)
-            texture_root = Path(f"{target.name}.resources") / "textures"
-            texture_rows = _stage_export_textures(
-                snapshot,
-                staging_dir,
-                self.stop_event,
-                relative_root=texture_root,
-            )
+            texture_rows: tuple[dict[str, object], ...] = ()
             reparsed = parse_mesh(result.data, str(target))
             output_reparse = {
                 "status": "passed",
@@ -650,6 +670,251 @@ class MeshRebuildReportWorker(QObject):
                 {path: target.parent / path.relative_to(staging_dir) for path in staged_files}
             )
         return report
+
+
+@dataclass(frozen=True, slots=True)
+class MeshDirectOutputResult:
+    kind: str
+    output_path: Path | None
+    rebuild_report: object | None = None
+    overlay_preparation: OverlayInstallPreparation | None = None
+    install_result: object | None = None
+
+
+class MeshDirectOutputWorker(QObject):
+    """Capture one immutable revision and publish a mesh-only output."""
+
+    progress_changed = Signal(int, int, str)
+    completed = Signal(int, object)
+    cancelled = Signal(int, str)
+    error = Signal(int, str)
+    finished = Signal()
+
+    def __init__(
+        self,
+        request_id: int,
+        service: MeshService,
+        session_id: str,
+        entry: object,
+        *,
+        kind: str,
+        output_path: Path | str | None = None,
+        expected_mesh_revision: int | None = None,
+        texture_updates_waiter: Callable[[float], bool] | None = None,
+    ) -> None:
+        super().__init__()
+        self.request_id = int(request_id)
+        self.service = service
+        self.session_id = str(session_id or "")
+        self.entry = entry
+        self.kind = str(kind or "").strip().lower()
+        self.output_path = Path(output_path) if output_path is not None else None
+        self.expected_mesh_revision = expected_mesh_revision
+        self.texture_updates_waiter = texture_updates_waiter
+        self.stop_event = threading.Event()
+
+    def stop(self) -> None:
+        self.stop_event.set()
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            if self.stop_event.is_set():
+                raise RunCancelled("Mesh output cancelled")
+            self.progress_changed.emit(self.request_id, 0, "Capturing the validated Mesh Editor revision...")
+            _wait_for_texture_updates(self.texture_updates_waiter, self.stop_event)
+            snapshot = self.service.capture_export_snapshot(
+                self.session_id,
+                stop_event=self.stop_event,
+                expected_mesh_revision=self.expected_mesh_revision,
+            )
+            if snapshot.texture_resources or int(snapshot.material_generation) > 0:
+                raise RuntimeError(
+                    "Mesh-only outputs cannot contain texture or material authoring changes"
+                )
+            rebuilt, report = self.service.rebuild_result_from_snapshot(snapshot)
+            if self.stop_event.is_set():
+                raise RunCancelled("Mesh output cancelled")
+            request = ArchivePatchRequest(self.entry, rebuilt.data)
+            metadata = self._metadata(snapshot, report)
+            if self.kind == "loose_mod":
+                result = self._write_loose_mod(request, metadata, report)
+            elif self.kind == "overlay_package":
+                result = self._write_overlay_package(request, metadata, report)
+            elif self.kind == "overlay_prepare":
+                package_root = Path(getattr(self.entry, "pamt_path")).resolve().parent.parent
+                preparation = prepare_overlay_install(
+                    (request,),
+                    package_root=package_root,
+                    stop_event=self.stop_event,
+                )
+                result = MeshDirectOutputResult(
+                    kind=self.kind,
+                    output_path=None,
+                    rebuild_report=report,
+                    overlay_preparation=preparation,
+                )
+            else:
+                raise ValueError(f"Unsupported Mesh Editor output kind: {self.kind}")
+            self.progress_changed.emit(self.request_id, 100, "Mesh-only output is ready.")
+            self.completed.emit(self.request_id, result)
+        except RunCancelled:
+            self.cancelled.emit(self.request_id, "Mesh output cancelled.")
+        except Exception as exc:
+            if self.stop_event.is_set():
+                self.cancelled.emit(self.request_id, "Mesh output cancelled.")
+            else:
+                self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
+        finally:
+            self.finished.emit()
+
+    def _metadata(self, snapshot: MeshExportSnapshot, report: object) -> bytes:
+        payload = {
+            "format": "cdmw_mesh_editor_output_v1",
+            "source_path": str(getattr(self.entry, "path", "") or ""),
+            "source_sha256": snapshot.mesh_asset_source_hash,
+            "mesh_revision": snapshot.mesh_revision,
+            "native_edit_revision": snapshot.native_edit_revision,
+            "materials": "inherited_unchanged",
+            "textures": "inherited_unchanged",
+            "contents": ["rebuilt_mesh", "validation_metadata"],
+            "rebuild_report": asdict(report) if is_dataclass(report) else report,
+        }
+        return (json.dumps(payload, indent=2, default=str) + "\n").encode("utf-8")
+
+    def _write_loose_mod(
+        self,
+        request: ArchivePatchRequest,
+        metadata: bytes,
+        report: object,
+    ) -> MeshDirectOutputResult:
+        if self.output_path is None:
+            raise ValueError("Loose Mesh Editor output needs a package folder")
+        root = self.output_path.resolve()
+        if root.exists():
+            raise FileExistsError(f"Mesh mod output already exists: {root}")
+        relative = Path(str(getattr(self.entry, "path", "") or "").replace("\\", "/"))
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError("Archive mesh path escapes the loose package")
+        root.parent.mkdir(parents=True, exist_ok=True)
+        staging = Path(tempfile.mkdtemp(prefix=f".{root.name}.staging-", dir=root.parent))
+        try:
+            target = staging / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_bytes(target, request.payload_data)
+            atomic_write_bytes(staging / "mesh-editor-session.json", metadata)
+            _raise_export_cancelled(self.stop_event)
+            os.replace(staging, root)
+        finally:
+            if staging.exists():
+                shutil.rmtree(staging, ignore_errors=True)
+        return MeshDirectOutputResult(kind=self.kind, output_path=root, rebuild_report=report)
+
+    def _write_overlay_package(
+        self,
+        request: ArchivePatchRequest,
+        metadata: bytes,
+        report: object,
+    ) -> MeshDirectOutputResult:
+        if self.output_path is None:
+            raise ValueError("DMM Mesh Editor output needs a package folder")
+        game_root = Path(getattr(self.entry, "pamt_path")).resolve().parent.parent
+        exported = export_archive_overlay_package(
+            (request,),
+            package_root=self.output_path.resolve(),
+            game_root=game_root,
+            metadata_files=(("mesh-editor-session.json", metadata),),
+            stop_event=self.stop_event,
+        )
+        return MeshDirectOutputResult(
+            kind=self.kind,
+            output_path=exported.package_root,
+            rebuild_report=report,
+        )
+
+
+class MeshOverlayApplyWorker(QObject):
+    completed = Signal(int, object)
+    cancelled = Signal(int, str)
+    error = Signal(int, str)
+    finished = Signal()
+
+    def __init__(
+        self,
+        request_id: int,
+        preparation: OverlayInstallPreparation,
+        mutation_service: object,
+    ) -> None:
+        super().__init__()
+        self.request_id = int(request_id)
+        self.preparation = preparation
+        self.mutation_service = mutation_service
+        self.stop_event = threading.Event()
+
+    def stop(self) -> None:
+        self.stop_event.set()
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            def backup(paths, label):
+                return self.mutation_service.backup_files(paths, description=label)
+
+            def restore(path):
+                return self.mutation_service.restore_backup(path, confirmed=True)
+
+            result = apply_overlay_install(
+                self.preparation,
+                confirmed=True,
+                backup=backup,
+                restore_backup=restore,
+                game_running=game_is_running,
+                stop_event=self.stop_event,
+            )
+            self.completed.emit(
+                self.request_id,
+                MeshDirectOutputResult(
+                    kind="overlay_install",
+                    output_path=result.directory,
+                    install_result=result,
+                ),
+            )
+        except RunCancelled:
+            self.cancelled.emit(self.request_id, "Overlay installation cancelled and rolled back.")
+        except Exception as exc:
+            if self.stop_event.is_set():
+                self.cancelled.emit(self.request_id, "Overlay installation cancelled and rolled back.")
+            else:
+                self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
+        finally:
+            self.finished.emit()
+
+
+class MeshOverlayRestoreWorker(QObject):
+    completed = Signal(int, object)
+    error = Signal(int, str)
+    finished = Signal()
+
+    def __init__(self, request_id: int, receipt_path: Path | str, mutation_service: object) -> None:
+        super().__init__()
+        self.request_id = int(request_id)
+        self.receipt_path = Path(receipt_path)
+        self.mutation_service = mutation_service
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            root = restore_last_overlay_install(
+                self.receipt_path,
+                confirmed=True,
+                restore_backup=lambda path: self.mutation_service.restore_backup(path, confirmed=True),
+                game_running=game_is_running,
+            )
+            self.completed.emit(self.request_id, root)
+        except Exception as exc:
+            self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
+        finally:
+            self.finished.emit()
 
 
 class MeshReportWriteWorker(QObject):
@@ -714,6 +979,9 @@ class MeshReportWriteWorker(QObject):
 
 
 __all__ = [
+    "MeshArchiveMaterialContextWorker",
+    "MeshArchiveSessionLoadResult",
+    "MeshArchiveSessionLoadWorker",
     "MeshFileSessionLoadWorker",
     "MeshEditablePackageExportWorker",
     "MeshEditablePackageImportWorker",
@@ -721,9 +989,13 @@ __all__ = [
     "MeshDotNetMaterialUpdateWorker",
     "MeshDotNetSceneFrameWorker",
     "MeshDotNetExperimentOutputImportWorker",
+    "MeshDirectOutputResult",
+    "MeshDirectOutputWorker",
     "MeshEditCommandWorker",
     "MeshExportValidationWorker",
     "MeshReportWriteWorker",
     "MeshRebuildReportWorker",
+    "MeshOverlayApplyWorker",
+    "MeshOverlayRestoreWorker",
     "MeshTextureSourceResolveWorker",
 ]

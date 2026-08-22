@@ -258,6 +258,140 @@ class DescriptorPart:
         return "_IN" in self.part_name
 
 
+# ── equipment units ──────────────────────────────────────────────────
+
+#: Suffixes that mark a descriptor row as a *companion* of another row rather than an item in
+#: its own right, with the role each one plays. `_IN` is the carrier — sheath, scabbard,
+#: quiver, holster — and `_Aux` is the second blade of a dual-wield pair. Longest first, so
+#: `_IN_R` is not read as `_R`.
+LINK_SUFFIXES: Tuple[Tuple[str, str], ...] = (
+    ("_IN_L", "case"),
+    ("_IN_R", "case"),
+    ("_L_Aux", "auxiliary"),
+    ("_R_Aux", "auxiliary"),
+    ("_IN", "case"),
+    ("_Aux", "auxiliary"),
+)
+
+#: What a weapon type's carrier is actually called. The descriptor only ever says
+#: `WeaponCasePart`; the type decides the noun a review should print. Anything not listed
+#: keeps the generic `case`, which is true of every carrier and wrong about none.
+CASE_ROLE_BY_TYPE: Dict[str, str] = {
+    "Sword": "sheath",
+    "Dagger": "sheath",
+    "Rapier": "sheath",
+    "Arw": "quiver",
+    "Bow": "quiver",
+    "Gun": "holster",
+    "Pistol": "holster",
+    "Musket": "holster",
+}
+
+#: Roles whose row must move with the primary item or the two visibly separate. An auxiliary
+#: blade has its own placement and is not part of the stow story, so it is not required.
+STOW_CRITICAL_ROLES: Tuple[str, ...] = ("case", "sheath", "scabbard", "quiver", "holster")
+
+
+def link_role(primary: "DescriptorPart", linked: "DescriptorPart") -> str:
+    """What `linked` is *to* `primary` — sheath, quiver, auxiliary blade, or plain other.
+
+    Classified from the descriptor relationship and the row's own name shape rather than
+    from one hardcoded `Sword_IN`, so a holster or a quiver added later is recognised
+    without a code change.
+    """
+
+    name = linked.part_name
+    for suffix, role in LINK_SUFFIXES:
+        if not name.endswith(suffix):
+            continue
+        if role != "case":
+            return role
+        return CASE_ROLE_BY_TYPE.get(linked.weapon_type or primary.weapon_type, "case")
+    if primary.weapon_case_part and primary.weapon_case_part == name:
+        # The descriptor says it is the carrier even though the name does not.
+        return CASE_ROLE_BY_TYPE.get(primary.weapon_type, "case")
+    return "other"
+
+
+@dataclass(frozen=True, slots=True)
+class LinkedPart:
+    """A descriptor row that has to move with the item it belongs to."""
+
+    part_name: str
+    role: str = "other"          # sheath | scabbard | quiver | holster | case | auxiliary | other
+    required_for_stow: bool = False
+    source_file: str = ""
+    in_socket: str = ""
+    in_child_socket: str = ""
+    out_socket: str = ""
+    out_child_socket: str = ""
+
+    @property
+    def label(self) -> str:
+        return f"{self.part_name}  ({self.role})"
+
+    def describe(self) -> str:
+        requirement = "moves with the primary item" if self.required_for_stow else "optional"
+        return f"{self.part_name}  [{self.role}]  {self.in_socket or '(nowhere)'}  — {requirement}"
+
+
+@dataclass(frozen=True, slots=True)
+class EquipmentUnit:
+    """One selected item, resolved whole: its row, its carrier, and what it may touch.
+
+    This is the source of truth for a placement operation. Handedness, target animation
+    families, the descriptor files and the socket files are all read off *this* object, never
+    re-derived later from whatever the window happens to have selected — which is how a move
+    of one row ended up carrying another weapon's animations.
+    """
+
+    model: str
+    weapon_id: str
+    primary_part: str
+    linked_parts: Tuple[LinkedPart, ...] = ()
+    handedness: str = ""
+    target_animation_families: Tuple[str, ...] = ()
+    donor_animation_families: Tuple[str, ...] = ()
+    allowed_descriptor_files: Tuple[str, ...] = ()
+    allowed_socket_files: Tuple[str, ...] = ()
+    weapon_path: str = ""
+    weapon_type: str = ""
+    weapon_category: str = ""
+    primary_source_file: str = ""
+    in_socket: str = ""
+    in_child_socket: str = ""
+    out_socket: str = ""
+    out_child_socket: str = ""
+
+    @property
+    def unit_id(self) -> str:
+        """Stable identity: same character, same asset, same row means the same unit."""
+
+        return f"{self.model}/{self.weapon_id}/{self.primary_part}"
+
+    @property
+    def part_names(self) -> Tuple[str, ...]:
+        return (self.primary_part, *(link.part_name for link in self.linked_parts))
+
+    @property
+    def required_links(self) -> Tuple[LinkedPart, ...]:
+        return tuple(link for link in self.linked_parts if link.required_for_stow)
+
+    @property
+    def has_required_case(self) -> bool:
+        return bool(self.required_links)
+
+    def link(self, part_name: str) -> Optional[LinkedPart]:
+        return next((l for l in self.linked_parts if l.part_name == part_name), None)
+
+    def describe(self) -> str:
+        links = ", ".join(link.part_name for link in self.linked_parts) or "(none)"
+        return (
+            f"{self.primary_part} on {self.model} using {self.weapon_id} "
+            f"({self.handedness or '?'}); linked: {links}"
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class SocketRef:
     """A resolved attach point: the body socket plus the item-side child socket."""

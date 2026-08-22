@@ -141,6 +141,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
         configured_executable: Path | str | None = None,
         controller: DotNetPreviewSessionController | None = None,
         ui_localizer: object | None = None,
+        direct_authoring: bool = False,
     ) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
@@ -244,6 +245,7 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
             profile=self._profile,
             configured_executable=configured_executable,
             terminate_on_close=terminate_on_close,
+            direct_authoring=direct_authoring,
             parent=self,
         )
         self.controller.set_ui_localizer(

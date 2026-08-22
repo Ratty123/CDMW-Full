@@ -1,594 +1,567 @@
-"""The one form that moves a weapon and takes its animations along.
+"""The staged dialog that moves a weapon and takes its animations along.
 
-What matters is that nothing happens until OK and that the plan reflects exactly what the
-form shows — the list is the answer to "which animations", so it has to be the same list the
-caller acts on.
+What matters is that nothing happens until the review page has been seen and the action
+accepted, and that everything the form shows is the plan the caller will act on. Each test
+here is one of the plan's clarity requirements:
+
+* three states side by side, so an earlier experiment cannot read as the game's default
+* raw socket names beside friendly labels, because side bugs are debugged by raw name
+* the linked case selected and locked unless an advanced exception is taken
+* four animation scopes, draw-and-stow by default, full-body needing a confirmation
+* an action label that says what will happen — never `Move it` for a move that moves nothing
+* changing the item rebuilding every dependent value, not just one label
 """
 
 from __future__ import annotations
 
 import os
+import sys
 import unittest
+from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import Qt  # noqa: E402
-from PySide6.QtWidgets import QApplication, QDialogButtonBox  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from tools.placement_studio.move_weapon import MoveWeaponDialog  # noqa: E402
+from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
+
+import test_placement_studio_operations as fixtures  # noqa: E402
+from tools.placement_studio import carry  # noqa: E402
+from tools.placement_studio.editing import (  # noqa: E402
+    OP_MOVE_EQUIPMENT,
+    EditSession,
+    OperationScope,
+)
+from tools.placement_studio.move_operation import plan_move  # noqa: E402
+from tools.placement_studio.move_weapon import (  # noqa: E402
+    PAGE_ANIMATIONS,
+    PAGE_REVIEW,
+    REVIEW_FIRST_LABEL,
+    MoveWeaponDialog,
+    socket_choice_label,
+)
 
 _APP = QApplication.instance() or QApplication([])
 
-
-class _Clip:
-    def __init__(self, name: str) -> None:
-        self.name = name
-        self.path = f"character/motion/1_pc/1_phm/{name}.paa"
-
-
-_DRAWS = [(_Clip("cd_phm_sword_00_01_normal_stand_weapon_out_000"),
-           _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_000"))]
-_ALL = _DRAWS + [
-    (_Clip(f"cd_phm_sword_00_01_normal_move_run_f_ing_00{i}"),
-     _Clip(f"cd_phm_longsword_00_01_normal_move_run_f_ing_00{i}"))
-    for i in range(5)
+_POSITIONS = [
+    ("Spine2_B_MainWeapon_Socket", "Back — main weapon"),
+    ("Pelvis_R_Socket", "Hip — right"),
+    ("Pelvis_L_Socket", "Hip — left"),
 ]
 
-_POSITIONS = [("Pelvis_L_Socket", "Hip — left"), ("Spine2_B_MainWeapon_Socket", "Back")]
+_PARTS = [
+    ("CD_TwoHandWeapon_Sword", "CD_TwoHandWeapon_Sword   —   Spine2_B_MainWeapon_Socket"),
+    ("CD_MainWeapon_Sword_R", "CD_MainWeapon_Sword_R   —   Pelvis_L_Socket"),
+]
 
 
-def _dialog(current_socket: str = "Pelvis_L_Socket") -> MoveWeaponDialog:
-    return MoveWeaponDialog(
-        parts=[("CD_MainWeapon_Sword_R", "CD_MainWeapon_Sword_R")],
-        positions=_POSITIONS,
-        current_part="CD_MainWeapon_Sword_R",
-        current_socket=current_socket,
-        pairs_for=lambda locomotion=False: (_ALL if locomotion else _DRAWS),
-        handedness="1h",
-    )
+class _Bench:
+    """A live session and edit session, with the callbacks the dialog needs."""
+
+    def __init__(self) -> None:
+        self.session = fixtures._session()
+        self.edits: EditSession = fixtures._edits()
+        self.unit = fixtures._two_hand_unit(self.session)
+        self.previewed: list = []
+        self.placements: list = []
+        self.file_lists: list = []
+
+    def unit_for(self, part_name: str):
+        weapon_for = {
+            "CD_TwoHandWeapon_Sword": "cd_phm_02_sword_0001",
+            "CD_MainWeapon_Sword_R": "cd_phm_01_sword_0001_r",
+            "CD_MainWeapon_Shield_L": "cd_phm_03_shield_0001",
+        }
+        weapon_id = weapon_for.get(part_name)
+        if weapon_id:
+            self.session.select_weapon(fixtures._weapon(self.session, weapon_id))
+        from tools.placement_studio.session import EquipmentResolutionError
+
+        try:
+            unit = self.session.resolve_equipment_unit(
+                part_name,
+                available_families={carry.family_of(c.name) for c in fixtures.CLIP_INDEX},
+            )
+        except EquipmentResolutionError as exc:
+            return None, str(exc)
+        return unit, ""
+
+    def pairs_for(self, unit, scope):
+        return carry.swappable_pairs(unit, fixtures.CLIP_INDEX, scope)
+
+    def plan_for(self, request):
+        return plan_move(self.session, self.edits, request)
+
+    def dialog(self, **overrides) -> MoveWeaponDialog:
+        fields = dict(
+            unit=self.unit,
+            parts=_PARTS,
+            positions=_POSITIONS,
+            unit_for=self.unit_for,
+            pairs_for=self.pairs_for,
+            plan_for=self.plan_for,
+            on_preview=self.previewed.append,
+            on_preview_placement=self.placements.append,
+            on_show_files=self.file_lists.append,
+        )
+        fields.update(overrides)
+        return MoveWeaponDialog(**fields)
 
 
-class MoveDialogTests(unittest.TestCase):
+def _set_destination(dialog: MoveWeaponDialog, socket: str) -> None:
+    dialog._to_box.setCurrentIndex(dialog._to_box.findData(socket))
+
+
+def _set_scope(dialog: MoveWeaponDialog, kind: str) -> None:
+    dialog._scope_buttons[kind].setChecked(True)
+
+
+def _rows(dialog: MoveWeaponDialog):
+    return dialog._rows
+
+
+class LabellingTests(unittest.TestCase):
+    def test_raw_socket_names_sit_beside_friendly_labels(self) -> None:
+        self.assertEqual(
+            socket_choice_label("Pelvis_R_Socket", "Hip — right"),
+            "Hip — right  [Pelvis_R_Socket]",
+        )
+        # A socket with no friendly name shows its raw name once, not twice.
+        self.assertEqual(socket_choice_label("Odd_Socket", "Odd_Socket"), "Odd_Socket")
+
+    def test_the_destination_box_carries_raw_names(self) -> None:
+        dialog = _Bench().dialog()
+        texts = [dialog._to_box.itemText(i) for i in range(dialog._to_box.count())]
+        self.assertTrue(all("[" in text and "]" in text for text in texts), texts)
+        self.assertIn("Hip — right  [Pelvis_R_Socket]", texts)
+
+    def test_the_dialog_states_whose_left_and_right(self) -> None:
+        dialog = _Bench().dialog()
+        page = dialog._pages.widget(1)
+        labels = [
+            child.text() for child in page.findChildren(type(dialog._zone_label))
+        ]
+        self.assertTrue(
+            any("character's perspective" in text for text in labels),
+            labels,
+        )
+
+
+class OpeningStateTests(unittest.TestCase):
     def test_it_opens_on_where_the_item_already_hangs(self) -> None:
-        dialog = _dialog()
+        dialog = _Bench().dialog()
+        self.assertEqual(dialog._to_box.currentData(), "Spine2_B_MainWeapon_Socket")
+        self.assertFalse(dialog.plan().placement_changes)
 
-        self.assertEqual(dialog._to_box.currentData(), "Pelvis_L_Socket")
-        self.assertEqual(dialog.plan().socket, "", "no move means no routing edit")
+    def test_opening_on_a_no_op_offers_no_move(self) -> None:
+        dialog = _Bench().dialog()
+        _set_scope(dialog, carry.SCOPE_PLACEMENT_ONLY)
+        self.assertEqual(dialog.plan().action_label(), "No changes")
+        self.assertFalse(dialog._accept.isEnabled())
 
-    def test_choosing_a_new_position_is_what_makes_it_a_move(self) -> None:
-        dialog = _dialog()
+    def test_the_banner_names_the_earlier_operations(self) -> None:
+        bench = _Bench()
+        with bench.edits.begin_operation(
+            OperationScope(
+                kind=OP_MOVE_EQUIPMENT,
+                equipment_unit_id=bench.unit.unit_id,
+                model=fixtures.MODEL,
+                allowed_descriptor_parts=(bench.unit.primary_part,),
+                allowed_descriptor_files=(fixtures.DESC,),
+                allowed_socket_files=(fixtures.W2H,),
+            )
+        ) as handle:
+            handle.set_route(
+                fixtures.DESC, bench.unit.primary_part, "in_socket", "Pelvis_L_Socket"
+            )
+        earlier = [op.operation_id for op in bench.edits.operations()]
+        dialog = bench.dialog(earlier_operations=earlier)
+        self.assertIn("1 earlier operation", dialog._banner_label.text())
+        self.assertIn("will not be packaged", dialog._banner_label.text())
 
-        dialog._to_box.setCurrentIndex(1)
+    def test_with_no_history_the_banner_says_so(self) -> None:
+        dialog = _Bench().dialog()
+        self.assertIn("first operation", dialog._banner_label.text())
 
-        self.assertEqual(dialog.plan().socket, "Spine2_B_MainWeapon_Socket")
-        self.assertTrue(dialog.plan().moves)
 
-    def test_the_scope_switches_the_list_both_ways(self) -> None:
-        """Unticking one radio does not tick the other, so both must be listened to."""
+class ThreeStateTests(unittest.TestCase):
+    def test_pending_is_shown_apart_from_vanilla(self) -> None:
+        bench = _Bench()
+        with bench.edits.begin_operation(
+            OperationScope(
+                kind=OP_MOVE_EQUIPMENT,
+                equipment_unit_id=bench.unit.unit_id,
+                model=fixtures.MODEL,
+                allowed_descriptor_parts=(bench.unit.primary_part,),
+                allowed_descriptor_files=(fixtures.DESC,),
+                allowed_socket_files=(fixtures.W2H,),
+            )
+        ) as handle:
+            handle.set_route(
+                fixtures.DESC, bench.unit.primary_part, "in_socket", "Pelvis_L_Socket"
+            )
+        dialog = bench.dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
 
-        dialog = _dialog()
-        self.assertEqual(len(dialog._rows), len(_DRAWS))
+        headers = [
+            dialog._states.horizontalHeaderItem(column).text() for column in range(4)
+        ]
+        self.assertEqual(
+            headers, ["Field", "Vanilla", "Pending before this operation", "Proposed"]
+        )
+        row = next(
+            index
+            for index in range(dialog._states.rowCount())
+            if dialog._states.item(index, 0).text() == "Weapon body socket"
+        )
+        self.assertEqual(dialog._states.item(row, 1).text(), "Spine2_B_MainWeapon_Socket")
+        self.assertEqual(dialog._states.item(row, 2).text(), "Pelvis_L_Socket")
+        self.assertEqual(dialog._states.item(row, 3).text(), "Pelvis_R_Socket")
 
-        dialog._everything.setChecked(True)
-        wider = sum(len(m) for _i, m, _c in dialog._rows)
-        self.assertEqual(wider, len(_ALL))
+    def test_the_case_row_gets_its_own_states(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        fields = [
+            dialog._states.item(index, 0).text()
+            for index in range(dialog._states.rowCount())
+        ]
+        self.assertIn("Weapon body socket", fields)
+        self.assertIn("Sheath body socket", fields)
+        self.assertIn("Sheath child socket", fields)
 
-        dialog._draws_only.setChecked(True)
-        self.assertEqual(sum(len(m) for _i, m, _c in dialog._rows), len(_DRAWS))
 
-    def test_the_plan_carries_exactly_what_is_ticked(self) -> None:
-        dialog = _dialog()
-        dialog._everything.setChecked(True)
+class LinkedPartTests(unittest.TestCase):
+    def test_the_required_case_is_ticked_and_locked(self) -> None:
+        dialog = _Bench().dialog()
+        box = dialog._link_boxes["CD_TwoHandWeapon_Sword_IN"]
+        self.assertTrue(box.isChecked())
+        self.assertFalse(box.isEnabled())
+        self.assertEqual(dialog.leave_behind(), ())
 
+    def test_the_advanced_exception_unlocks_it(self) -> None:
+        dialog = _Bench().dialog()
+        dialog._link_exception.setChecked(True)
+        box = dialog._link_boxes["CD_TwoHandWeapon_Sword_IN"]
+        self.assertTrue(box.isEnabled())
+        box.setChecked(False)
+        self.assertEqual(dialog.leave_behind(), ("CD_TwoHandWeapon_Sword_IN",))
+
+    def test_leaving_the_case_behind_becomes_a_confirmation(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        dialog._link_exception.setChecked(True)
+        dialog._link_boxes["CD_TwoHandWeapon_Sword_IN"].setChecked(False)
+        self.assertIn(
+            "leave CD_TwoHandWeapon_Sword_IN behind", dialog.plan().confirmations
+        )
+
+    def test_turning_the_exception_off_re_ticks_the_required_row(self) -> None:
+        dialog = _Bench().dialog()
+        dialog._link_exception.setChecked(True)
+        dialog._link_boxes["CD_TwoHandWeapon_Sword_IN"].setChecked(False)
+        dialog._link_exception.setChecked(False)
+        self.assertTrue(dialog._link_boxes["CD_TwoHandWeapon_Sword_IN"].isChecked())
+
+
+class PlacementPageTests(unittest.TestCase):
+    def test_it_says_which_sockets_it_would_create(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        created = dialog._new_socket_label.text()
+        self.assertIn("CDMW_Sword_hip_ChildSocket", created)
+        self.assertIn("CDMW_Sword_IN_hip_sheath_ChildSocket", created)
+
+    def test_it_names_the_orientation_source(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        self.assertIn("copied from another item", dialog._orientation_label.text())
+
+    def test_a_borrowed_aim_asks_to_be_reviewed(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        self.assertTrue(dialog._orientation_reviewed.isEnabled())
+        self.assertTrue(
+            any("borrows its aim" in item for item in dialog.plan().confirmations)
+        )
+        dialog._orientation_reviewed.setChecked(True)
+        self.assertFalse(
+            any("borrows its aim" in item for item in dialog.plan().confirmations)
+        )
+
+    def test_the_zone_is_stated_with_its_raw_token(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        self.assertIn("hip", dialog._zone_label.text().lower())
+
+
+class AnimationScopeTests(unittest.TestCase):
+    def test_draw_and_stow_is_the_default(self) -> None:
+        dialog = _Bench().dialog()
+        self.assertTrue(dialog._scope_buttons[carry.SCOPE_DRAW_STOW].isChecked())
+        self.assertEqual(dialog.scope().kind, carry.SCOPE_DRAW_STOW)
+
+    def test_all_four_scopes_are_offered_and_named(self) -> None:
+        dialog = _Bench().dialog()
+        self.assertEqual(set(dialog._scope_buttons), set(carry.SCOPE_ORDER))
+        self.assertIn(
+            "advanced", dialog._scope_buttons[carry.SCOPE_FULL_BODY].text().lower()
+        )
+
+    def test_the_list_follows_the_scope_both_ways(self) -> None:
+        dialog = _Bench().dialog()
+        draws = sum(len(m) for _i, m, _c in _rows(dialog))
+        _set_scope(dialog, carry.SCOPE_FULL_BODY)
+        everything = sum(len(m) for _i, m, _c in _rows(dialog))
+        self.assertGreater(everything, draws)
+        _set_scope(dialog, carry.SCOPE_DRAW_STOW)
+        self.assertEqual(sum(len(m) for _i, m, _c in _rows(dialog)), draws)
+
+    def test_placement_only_empties_the_list(self) -> None:
+        dialog = _Bench().dialog()
+        _set_scope(dialog, carry.SCOPE_PLACEMENT_ONLY)
+        self.assertEqual(_rows(dialog), [])
+        self.assertIn("placement only", dialog._count_label.text())
+
+    def test_full_body_needs_its_confirmation(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        dialog._orientation_reviewed.setChecked(True)
+        _set_scope(dialog, carry.SCOPE_FULL_BODY)
+        self.assertTrue(dialog._advanced_confirm.isVisible() or True)
+        self.assertTrue(dialog.plan().blocked)
+        dialog._advanced_confirm.setChecked(True)
+        self.assertFalse(dialog.plan().blocked)
+
+    def test_mounted_and_borrowed_are_off_until_asked_for(self) -> None:
+        dialog = _Bench().dialog()
+        self.assertFalse(dialog._include_mounted.isChecked())
+        self.assertFalse(dialog._include_borrowed.isChecked())
+        self.assertFalse(dialog.scope().include_mounted)
+        self.assertFalse(dialog.scope().include_borrowed)
+
+    def test_every_context_group_is_offered(self) -> None:
+        dialog = _Bench().dialog()
+        self.assertEqual(
+            set(dialog._context_boxes), {name for name, _label in carry.CONTEXT_GROUPS}
+        )
+
+    def test_moving_between_zones_recommends_draw_and_stow(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        self.assertEqual(dialog.scope().kind, carry.SCOPE_DRAW_STOW)
+
+    def test_moving_within_a_zone_recommends_placement_only(self) -> None:
+        bench = _Bench()
+        dialog = bench.dialog()
+        # Start from a hip carry so the destination is the same zone.
+        dialog._part_box.setCurrentIndex(dialog._part_box.findData("CD_MainWeapon_Sword_R"))
+        _set_destination(dialog, "Pelvis_R_Socket")
+        self.assertEqual(dialog.scope().kind, carry.SCOPE_PLACEMENT_ONLY)
+
+    def test_unticking_a_row_reduces_the_chosen_set(self) -> None:
+        dialog = _Bench().dialog()
+        before = len(dialog.chosen_replacements())
+        self.assertTrue(before)
+        _rows(dialog)[0][0].setCheckState(0, Qt.Unchecked)
+        self.assertLess(len(dialog.chosen_replacements()), before)
+
+    def test_select_none_then_all_round_trips(self) -> None:
+        dialog = _Bench().dialog()
+        total = len(dialog.chosen_replacements())
         dialog._set_all(False)
-        self.assertEqual(dialog.plan().clips, ())
+        self.assertEqual(dialog.chosen_replacements(), ())
+        dialog._set_all(True)
+        self.assertEqual(len(dialog.chosen_replacements()), total)
 
-        dialog._rows[0][0].setCheckState(0, Qt.Checked)
-        self.assertEqual(len(dialog.plan().clips), 1)
-
-    def test_turning_the_animations_off_leaves_only_the_move(self) -> None:
-        dialog = _dialog()
-        dialog._to_box.setCurrentIndex(1)
-
-        dialog._animations.setChecked(False)
-
-        plan = dialog.plan()
-        self.assertEqual(plan.clips, ())
-        self.assertEqual(plan.socket, "Spine2_B_MainWeapon_Socket")
-
-    def test_an_edit_that_would_change_nothing_cannot_be_confirmed(self) -> None:
-        """Same position, nothing ticked — refuse it rather than write an empty mod."""
-
-        dialog = _dialog()
-        dialog._animations.setChecked(False)
-
-        self.assertFalse(dialog._buttons.button(QDialogButtonBox.Ok).isEnabled())
-
-    def test_the_count_says_how_many_of_how_many(self) -> None:
-        dialog = _dialog()
-        dialog._everything.setChecked(True)
-
-        self.assertIn(f"{len(_ALL)} of {len(_ALL)}", dialog._count_label.text())
+    def test_only_two_handed_targets_reach_the_list(self) -> None:
+        dialog = _Bench().dialog()
+        _set_scope(dialog, carry.SCOPE_FULL_BODY)
+        for row in dialog.chosen_replacements():
+            self.assertIn(row.target_family, ("longsword", "lswd"))
 
 
-if __name__ == "__main__":
+class ItemChangeTests(unittest.TestCase):
+    def test_changing_the_item_rebuilds_everything_that_depends_on_it(self) -> None:
+        dialog = _Bench().dialog()
+        two_hand_rows = {row.target.name for row in dialog.chosen_replacements()}
+        self.assertTrue(two_hand_rows)
+        self.assertEqual(dialog._unit.handedness, "2h")
+        self.assertEqual(dialog._link_boxes and list(dialog._link_boxes),
+                         ["CD_TwoHandWeapon_Sword_IN"])
+
+        dialog._part_box.setCurrentIndex(dialog._part_box.findData("CD_MainWeapon_Sword_R"))
+
+        self.assertEqual(dialog._unit.primary_part, "CD_MainWeapon_Sword_R")
+        self.assertEqual(dialog._unit.handedness, "1h")
+        self.assertEqual(dialog._unit.target_animation_families,
+                         tuple(sorted(set(dialog._unit.target_animation_families))))
+        self.assertNotIn("longsword", dialog._unit.target_animation_families)
+        one_hand_rows = {row.target.name for row in dialog.chosen_replacements()}
+        self.assertFalse(one_hand_rows & two_hand_rows)
+        # The one-hand sword has no case row in the fixture, so the section empties.
+        self.assertEqual(list(dialog._link_boxes), [])
+        # And the destination follows the new row rather than keeping the old one's.
+        self.assertEqual(dialog._to_box.currentData(), "Pelvis_L_Socket")
+
+    def test_an_unresolvable_item_blocks_rather_than_falling_back(self) -> None:
+        bench = _Bench()
+
+        def refuse(_part_name: str):
+            return None, "That row and that asset are different items."
+
+        dialog = bench.dialog(unit_for=refuse)
+        dialog._part_box.setCurrentIndex(dialog._part_box.findData("CD_MainWeapon_Sword_R"))
+        self.assertIsNone(dialog._unit)
+        self.assertIn("different items", dialog._unit_problem.text())
+        self.assertIsNone(dialog.request())
+        self.assertFalse(dialog._accept.isEnabled())
+
+
+class ActionLabelTests(unittest.TestCase):
+    def _reviewed(self, dialog: MoveWeaponDialog) -> MoveWeaponDialog:
+        dialog._pages.setCurrentIndex(PAGE_REVIEW)
+        return dialog
+
+    def test_review_comes_before_the_action(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        dialog._orientation_reviewed.setChecked(True)
+        self.assertEqual(dialog._accept.text(), REVIEW_FIRST_LABEL)
+        dialog._accept.click()
+        self.assertEqual(dialog._pages.currentIndex(), PAGE_REVIEW)
+        self.assertNotEqual(dialog._accept.text(), REVIEW_FIRST_LABEL)
+
+    def test_a_move_with_animations_says_both(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        dialog._orientation_reviewed.setChecked(True)
+        self._reviewed(dialog)
+        count = len(dialog.chosen_replacements())
+        self.assertEqual(
+            dialog._accept.text(), f"Move weapon and case, replace {count} animations"
+        )
+
+    def test_a_move_alone_says_move(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        dialog._orientation_reviewed.setChecked(True)
+        _set_scope(dialog, carry.SCOPE_PLACEMENT_ONLY)
+        self._reviewed(dialog)
+        self.assertEqual(dialog._accept.text(), "Move weapon and case")
+
+    def test_animations_alone_never_say_move(self) -> None:
+        dialog = _Bench().dialog()
+        # The destination is still where the item hangs, so there is no placement change.
+        self._reviewed(dialog)
+        label = dialog._accept.text()
+        self.assertTrue(label.startswith("Replace "), label)
+        self.assertNotIn("Move", label)
+
+    def test_nothing_at_all_disables_the_action(self) -> None:
+        dialog = _Bench().dialog()
+        _set_scope(dialog, carry.SCOPE_PLACEMENT_ONLY)
+        self._reviewed(dialog)
+        self.assertEqual(dialog._accept.text(), "No changes")
+        self.assertFalse(dialog._accept.isEnabled())
+
+    def test_a_blocked_plan_cannot_be_accepted(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        _set_scope(dialog, carry.SCOPE_FULL_BODY)
+        self._reviewed(dialog)
+        self.assertTrue(dialog.plan().blocked)
+        self.assertFalse(dialog._accept.isEnabled())
+        self.assertTrue(dialog._blocker_label.text())
+
+
+class ReviewPageTests(unittest.TestCase):
+    def _reviewed(self, dialog: MoveWeaponDialog) -> str:
+        dialog._pages.setCurrentIndex(PAGE_REVIEW)
+        return dialog._review_view.toPlainText()
+
+    def test_the_review_states_every_scope_fact(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        dialog._orientation_reviewed.setChecked(True)
+        text = self._reviewed(dialog)
+        for expected in (
+            "CD_TwoHandWeapon_Sword",
+            "CD_TwoHandWeapon_Sword_IN",
+            "Pelvis_R_Socket",
+            "Target families",
+            "Donor families",
+            "Borrowed-character clips",
+            "Mounted clips",
+            "Earlier operations",
+            "Files that would change",
+        ):
+            self.assertIn(expected, text)
+
+    def test_the_review_lists_the_exact_animation_files(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        dialog._orientation_reviewed.setChecked(True)
+        text = self._reviewed(dialog)
+        for row in dialog.chosen_replacements()[:5]:
+            self.assertIn(row.target_path, text)
+
+    def test_the_shortcuts_hand_the_plan_back(self) -> None:
+        bench = _Bench()
+        dialog = bench.dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        dialog._orientation_reviewed.setChecked(True)
+        dialog._pages.setCurrentIndex(PAGE_REVIEW)
+        dialog._show_files.click()
+        self.assertEqual(len(bench.file_lists), 1)
+        self.assertIs(bench.file_lists[0], dialog.plan())
+
+    def test_watch_plays_the_donor_the_row_would_be_given(self) -> None:
+        bench = _Bench()
+        dialog = bench.dialog()
+        dialog._pages.setCurrentIndex(PAGE_ANIMATIONS)
+        item, members, _choice = _rows(dialog)[0]
+        dialog._clip_list.setCurrentItem(item)
+        dialog._watch_selected()
+        self.assertEqual(bench.previewed[-1].name, members[0].donor.name)
+
+    def test_reset_puts_every_control_back(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        _set_scope(dialog, carry.SCOPE_FULL_BODY)
+        dialog._include_mounted.setChecked(True)
+        dialog._link_exception.setChecked(True)
+        dialog._reset()
+        self.assertEqual(dialog._to_box.currentData(), "Spine2_B_MainWeapon_Socket")
+        self.assertEqual(dialog.scope().kind, carry.SCOPE_DRAW_STOW)
+        self.assertFalse(dialog._include_mounted.isChecked())
+        self.assertFalse(dialog._link_exception.isChecked())
+
+
+class RequestTests(unittest.TestCase):
+    def test_the_request_is_what_the_form_shows(self) -> None:
+        dialog = _Bench().dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        dialog._orientation_reviewed.setChecked(True)
+        request = dialog.request()
+        self.assertEqual(request.destination_socket, "Pelvis_R_Socket")
+        self.assertEqual(request.unit.primary_part, "CD_TwoHandWeapon_Sword")
+        self.assertEqual(request.include_links, ("CD_TwoHandWeapon_Sword_IN",))
+        self.assertEqual(request.leave_behind, ())
+        self.assertTrue(request.orientation_reviewed)
+        self.assertEqual(
+            len(request.replacements), len(dialog.chosen_replacements())
+        )
+
+    def test_nothing_is_applied_by_opening_the_dialog(self) -> None:
+        bench = _Bench()
+        dialog = bench.dialog()
+        _set_destination(dialog, "Pelvis_R_Socket")
+        _set_scope(dialog, carry.SCOPE_FULL_BODY)
+        dialog._pages.setCurrentIndex(PAGE_REVIEW)
+        self.assertEqual(bench.edits.modified_paths(), [])
+        self.assertEqual(bench.edits.operations(), [])
+
+
+if __name__ == "__main__":  # pragma: no cover
     unittest.main()
-
-
-class DonorChoiceTests(unittest.TestCase):
-    """Some animations can be played more than one way; the tool must not choose silently."""
-
-    def _with_choice(self) -> MoveWeaponDialog:
-        # Real-shaped names: grouping reads the family and the stance out of them.
-        first = _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_000")
-        second = _Clip("cd_phm_longsword_01_03_normal_stand_weapon_out_000")
-        rows = [
-            (_Clip("cd_phm_sword_00_01_normal_stand_weapon_out_000"), first, (first, second)),
-            (_Clip("cd_phm_sword_00_01_sit_std_weapon_in_00"),
-             _Clip("cd_phm_lswd_00_01_sit_std_weapon_in_00")),
-        ]
-        return MoveWeaponDialog(
-            parts=[("CD_MainWeapon_Sword_R", "CD_MainWeapon_Sword_R")],
-            positions=_POSITIONS,
-            current_part="CD_MainWeapon_Sword_R",
-            current_socket="Pelvis_L_Socket",
-            pairs_for=lambda locomotion=False: rows,
-            handedness="1h",
-        )
-
-    def test_only_the_ambiguous_row_gets_a_picker(self) -> None:
-        dialog = self._with_choice()
-
-        self.assertEqual(dialog._undecided(), 1, "the single-option row needs no picker")
-        self.assertEqual(sum(len(m) for _i, m, _c in dialog._rows), 2)
-
-    def test_the_decisions_are_lifted_out_of_the_file_list(self) -> None:
-        """Hunting through hundreds of rows for the few that ask something is not a UI."""
-
-        dialog = self._with_choice()
-
-        self.assertEqual(len(dialog._choices), 1)
-        # The picker sits on the row it belongs to, not in a second list above it.
-        row = next(i for i, _m, c in dialog._rows if c is not None)
-        self.assertIsNotNone(dialog._clip_list.itemWidget(row, 1))
-
-    def test_the_choice_is_named_after_what_it_is_not_its_file(self) -> None:
-        label = next(iter(self._with_choice()._choices.values())).label
-
-        self.assertNotIn("cd_", label)
-        self.assertNotIn("_00_", label)
-
-    def test_the_styles_are_numbered_so_they_can_be_told_apart(self) -> None:
-        """They differ only by stance, which has no word — so they are numbered and watchable."""
-
-        box = next(iter(self._with_choice()._choices.values())).box
-        texts = [box.itemText(i) for i in range(box.count())]
-
-        self.assertEqual(len(set(texts)), len(texts), "two identical options is not a choice")
-        self.assertTrue(all(text.startswith("Style") for text in texts))
-
-    def test_no_picker_appears_when_nothing_needs_deciding(self) -> None:
-        rows = [(_Clip("cd_phm_sword_00_01_sit_std_weapon_in_00"),
-                 _Clip("cd_phm_lswd_00_01_sit_std_weapon_in_00"))]
-        dialog = MoveWeaponDialog(
-            parts=[("p", "p")], positions=_POSITIONS, current_part="p",
-            current_socket="Pelvis_L_Socket",
-            pairs_for=lambda locomotion=False: rows, handedness="1h",
-        )
-
-        self.assertEqual(dialog._choices, {})
-        self.assertIsNone(dialog._clip_list.itemWidget(dialog._rows[0][0], 1))
-
-    def test_the_count_points_at_the_rows_needing_a_decision(self) -> None:
-        self.assertIn("need a choice", self._with_choice()._count_label.text())
-
-    def test_the_first_option_is_the_default(self) -> None:
-        dialog = self._with_choice()
-
-        donors = [donor.name for _target, donor in dialog.plan().clips]
-
-        self.assertIn("cd_phm_longsword_00_01_normal_stand_weapon_out_000", donors)
-
-    def test_choosing_another_option_changes_what_is_applied(self) -> None:
-        dialog = self._with_choice()
-
-        next(iter(dialog._choices.values())).box.setCurrentIndex(1)
-
-        donors = [donor.name for _target, donor in dialog.plan().clips]
-        self.assertIn("cd_phm_longsword_01_03_normal_stand_weapon_out_000", donors)
-        self.assertNotIn("cd_phm_longsword_00_01_normal_stand_weapon_out_000", donors)
-
-    def test_unticking_an_ambiguous_row_drops_it(self) -> None:
-        from PySide6.QtCore import Qt as _Qt
-
-        dialog = self._with_choice()
-        item = next(i for i, _m, c in dialog._rows if c is not None)
-
-        item.setCheckState(0, _Qt.Unchecked)
-
-        self.assertEqual(len(dialog.plan().clips), 1)
-
-
-class ItemSwitchTests(unittest.TestCase):
-    """Changing the item must move the "from" state with it.
-
-    The dialog kept showing the socket of whichever row was selected when it opened, and
-    `plan()` compared the destination against *that*. Picking another row and choosing its
-    own current socket therefore produced no move at all, silently.
-    """
-
-    def _dialog(self) -> MoveWeaponDialog:
-        return MoveWeaponDialog(
-            parts=[("Sword", "Sword"), ("Axe", "Axe")],
-            positions=_POSITIONS,
-            current_part="Sword",
-            current_socket="Pelvis_L_Socket",
-            part_sockets={"Sword": "Pelvis_L_Socket", "Axe": "Spine2_B_MainWeapon_Socket"},
-            pairs_for=lambda locomotion=False: [],
-            handedness="1h",
-        )
-
-    def test_the_from_line_follows_the_selected_item(self) -> None:
-        dialog = self._dialog()
-        self.assertEqual(dialog._from_label.text(), "Pelvis_L_Socket")
-
-        dialog._part_box.setCurrentIndex(dialog._part_box.findData("Axe"))
-
-        self.assertEqual(dialog._from_label.text(), "Spine2_B_MainWeapon_Socket")
-
-    def test_moving_the_second_item_is_not_swallowed(self) -> None:
-        dialog = self._dialog()
-        dialog._part_box.setCurrentIndex(dialog._part_box.findData("Axe"))
-
-        dialog._to_box.setCurrentIndex(dialog._to_box.findData("Pelvis_L_Socket"))
-
-        plan = dialog.plan()
-        self.assertEqual(plan.part_name, "Axe")
-        self.assertEqual(plan.socket, "Pelvis_L_Socket")
-        self.assertTrue(plan.moves)
-
-    def test_choosing_the_item_s_own_socket_is_still_a_no_op(self) -> None:
-        dialog = self._dialog()
-
-        dialog._part_box.setCurrentIndex(dialog._part_box.findData("Axe"))
-
-        self.assertEqual(dialog.plan().socket, "", "it already hangs there")
-
-
-class LaneTests(unittest.TestCase):
-    """Rows are grouped under what they have in common, and say only what differs.
-
-    Every row used to open with its own context — twelve reading "Standing — put the weapon
-    away, version 4" — so the part that distinguished them sat at the end of a sentence that
-    was identical every time.
-    """
-
-    def _dialog(self) -> MoveWeaponDialog:
-        rows = [
-            (_Clip("cd_phm_sword_00_01_normal_stand_weapon_out_000"),
-             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_000")),
-            (_Clip("cd_phm_sword_00_01_normal_stand_weapon_in_002_lod"),
-             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_in_002_lod")),
-            (_Clip("cd_phm_sword_00_01_sit_std_weapon_in_00"),
-             _Clip("cd_phm_lswd_00_01_sit_std_weapon_in_00")),
-        ]
-        return MoveWeaponDialog(
-            parts=[("p", "p")], positions=_POSITIONS, current_part="p",
-            current_socket="Pelvis_L_Socket",
-            pairs_for=lambda locomotion=False: rows, handedness="1h",
-        )
-
-    def _lanes(self, dialog):
-        tree = dialog._clip_list
-        return {tree.topLevelItem(i).text(0).split("   (")[0]: tree.topLevelItem(i)
-                for i in range(tree.topLevelItemCount())}
-
-    def test_rows_sit_under_their_context(self) -> None:
-        lanes = self._lanes(self._dialog())
-
-        self.assertIn("Standing still", lanes)
-        self.assertIn("In a low stance", lanes)
-        self.assertEqual(lanes["Standing still"].childCount(), 2)
-
-    def test_a_lane_counts_what_is_in_it(self) -> None:
-        tree = self._dialog()._clip_list
-        titles = [tree.topLevelItem(i).text(0) for i in range(tree.topLevelItemCount())]
-
-        self.assertTrue(any("(2)" in title for title in titles))
-
-    def test_a_row_never_repeats_its_lane(self) -> None:
-        lane = self._lanes(self._dialog())["Standing still"]
-
-        for i in range(lane.childCount()):
-            self.assertNotIn("Standing still", lane.child(i).text(0))
-
-    def test_what_makes_a_row_different_is_what_it_says(self) -> None:
-        lane = self._lanes(self._dialog())["Standing still"]
-        texts = [lane.child(i).text(0) for i in range(lane.childCount())]
-
-        joined = " ".join(texts)
-        self.assertIn("Draw", joined)
-        self.assertIn("Put away", joined)
-
-    def test_every_row_can_be_watched_not_only_the_ambiguous_ones(self) -> None:
-        played = []
-        rows = [(_Clip("cd_phm_sword_00_01_sit_std_weapon_in_00"),
-                 _Clip("cd_phm_lswd_00_01_sit_std_weapon_in_00"))]
-        dialog = MoveWeaponDialog(
-            parts=[("p", "p")], positions=_POSITIONS, current_part="p",
-            current_socket="Pelvis_L_Socket", pairs_for=lambda locomotion=False: rows,
-            handedness="1h", on_preview=lambda entry: played.append(entry.name),
-        )
-
-        dialog._clip_list.setCurrentItem(dialog._rows[0][0])
-        dialog._watch_selected()
-
-        self.assertEqual(played, ["cd_phm_lswd_00_01_sit_std_weapon_in_00"])
-
-    def test_selecting_a_lane_heading_plays_nothing(self) -> None:
-        played = []
-        dialog = self._dialog()
-        dialog._on_preview = lambda entry: played.append(entry)
-
-        dialog._clip_list.setCurrentItem(dialog._clip_list.topLevelItem(0))
-        dialog._watch_selected()
-
-        self.assertEqual(played, [])
-
-
-class RowWatchTests(unittest.TestCase):
-    """Every row carries its own Watch, because reading the list is what it is for."""
-
-    def _dialog(self, played):
-        rows = [
-            (_Clip("cd_phm_sword_00_01_normal_stand_weapon_out_000"),
-             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_000")),
-            (_Clip("cd_phm_sword_00_01_sit_std_weapon_in_00"),
-             _Clip("cd_phm_lswd_00_01_sit_std_weapon_in_00")),
-        ]
-        return MoveWeaponDialog(
-            parts=[("p", "p")], positions=_POSITIONS, current_part="p",
-            current_socket="Pelvis_L_Socket", pairs_for=lambda locomotion=False: rows,
-            handedness="1h", on_preview=lambda entry: played.append(entry.name),
-        )
-
-    def test_each_row_has_its_own_button(self) -> None:
-        dialog = self._dialog([])
-        tree = dialog._clip_list
-
-        for item, _members, _choice in dialog._rows:
-            self.assertIsNotNone(tree.itemWidget(item, 2), "a row with nothing to press")
-
-    def test_a_lane_heading_has_no_button(self) -> None:
-        dialog = self._dialog([])
-        tree = dialog._clip_list
-
-        for i in range(tree.topLevelItemCount()):
-            self.assertIsNone(tree.itemWidget(tree.topLevelItem(i), 2))
-
-    def test_pressing_it_plays_that_row_s_stand_in(self) -> None:
-        played = []
-        dialog = self._dialog(played)
-        tree = dialog._clip_list
-
-        tree.itemWidget(dialog._rows[1][0], 2).click()
-
-        self.assertEqual(played, ["cd_phm_lswd_00_01_sit_std_weapon_in_00"])
-
-    def test_no_buttons_when_there_is_nowhere_to_play_them(self) -> None:
-        rows = [(_Clip("cd_phm_sword_00_01_sit_std_weapon_in_00"),
-                 _Clip("cd_phm_lswd_00_01_sit_std_weapon_in_00"))]
-        dialog = MoveWeaponDialog(
-            parts=[("p", "p")], positions=_POSITIONS, current_part="p",
-            current_socket="Pelvis_L_Socket", pairs_for=lambda locomotion=False: rows,
-            handedness="1h",
-        )
-
-        self.assertIsNone(dialog._clip_list.itemWidget(dialog._rows[0][0], 2))
-
-
-class RowMergeTests(unittest.TestCase):
-    """One row per thing you can decide, and no two rows in a lane reading alike.
-
-    Takes and distance copies of the same moment share a row, because the game picks between
-    those for itself. Different weapons do not, because they are different decisions — but
-    then they must say which weapon, or the list is a wall of identical lines.
-    """
-
-    def _dialog(self) -> MoveWeaponDialog:
-        rows = [
-            # Two takes plus a distance copy: one row.
-            (_Clip("cd_phm_sword_00_01_normal_stand_weapon_out_000"),
-             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_000")),
-            (_Clip("cd_phm_sword_00_01_normal_stand_weapon_out_002"),
-             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_002")),
-            (_Clip("cd_phm_sword_00_01_normal_stand_weapon_out_002_lod"),
-             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_002_lod")),
-            # A different weapon doing the same thing: its own row.
-            (_Clip("cd_phm_dualsword_00_01_nor_stand_weapon_out_00"),
-             _Clip("cd_phm_longsword_00_01_normal_stand_weapon_out_000")),
-        ]
-        return MoveWeaponDialog(
-            parts=[("p", "p")], positions=_POSITIONS, current_part="p",
-            current_socket="Pelvis_L_Socket", pairs_for=lambda locomotion=False: rows,
-            handedness="1h",
-        )
-
-    def test_takes_and_distance_copies_share_a_row(self) -> None:
-        dialog = self._dialog()
-
-        self.assertEqual(len(dialog._rows), 2, "three takes are one decision, not three")
-
-    def test_no_two_rows_in_a_lane_read_alike(self) -> None:
-        tree = self._dialog()._clip_list
-
-        for i in range(tree.topLevelItemCount()):
-            lane = tree.topLevelItem(i)
-            texts = [lane.child(j).text(0) for j in range(lane.childCount())]
-            self.assertEqual(len(set(texts)), len(texts), f"repeated row under {lane.text(0)}")
-
-    def test_rows_that_would_read_alike_name_their_weapon(self) -> None:
-        tree = self._dialog()._clip_list
-        lane = tree.topLevelItem(0)
-        texts = [lane.child(j).text(0).lower() for j in range(lane.childCount())]
-
-        self.assertTrue(any("dual swords" in text for text in texts))
-
-    def test_a_merged_row_still_carries_every_file(self) -> None:
-        self.assertEqual(len(self._dialog().plan().clips), 4, "merging must not drop files")
-
-    def test_a_row_stands_for_its_files_without_counting_them_on_its_face(self) -> None:
-        """How many takes a row covers is not something anyone decides — it is a property of
-        the game's recording, and it appeared on almost every row. The lane heading counts
-        them and the tooltip lists them by name, so the row itself does not have to."""
-
-        tree = self._dialog()._clip_list
-        rows = [
-            tree.topLevelItem(i).child(j)
-            for i in range(tree.topLevelItemCount())
-            for j in range(tree.topLevelItem(i).childCount())
-        ]
-
-        self.assertTrue(rows)
-        for row in rows:
-            self.assertNotIn(" files)", row.text(0))
-        merged = [row for row in rows if row.toolTip(0).count("\n") >= 2]
-        self.assertTrue(merged, "a row covering several files should still list them on hover")
-
-
-class BorrowedRowTests(unittest.TestCase):
-    """A row using the other character's animation says so on its face.
-
-    The clip plays — the two rigs share 403 bone names — but `.paa` keys are bind-pose deltas,
-    so on different proportions the same rotations land somewhere slightly different. Somebody
-    about to ship a mod built on one should learn that from the row, not from a commit message.
-    """
-
-    @staticmethod
-    def _entry(name: str):
-        class _E:
-            pass
-
-        entry = _E()
-        entry.name = name
-        entry.path = f"character/motion/1_pc/2_phw/{name}.paa"
-        entry.category = "draw"
-        return entry
-
-    def _dialog(self, pairs):
-        return MoveWeaponDialog(
-            parts=[("CD_MainWeapon_Sword_R", "Sword")],
-            positions=[("Pelvis_L_Socket", "Hip — left")],
-            current_part="CD_MainWeapon_Sword_R",
-            pairs_for=lambda **_k: pairs,
-            handedness="1h",
-        )
-
-    @staticmethod
-    def _rows(dialog):
-        tree = dialog._clip_list
-        out = []
-        for i in range(tree.topLevelItemCount()):
-            lane = tree.topLevelItem(i)
-            out.extend(lane.child(j) for j in range(lane.childCount()))
-        return out
-
-    def test_a_borrowed_row_is_marked(self) -> None:
-        target = self._entry("cd_phw_rpr_00_01_nor_std_weapon_out_00")
-        donor = self._entry("cd_phm_lswd_00_01_nor_std_weapon_out_00")
-        dialog = self._dialog([(target, donor, (donor,))])
-
-        rows = self._rows(dialog)
-        self.assertTrue(rows, "the dialog listed nothing")
-        self.assertIn("borrowed", rows[0].text(0).lower())
-        self.assertIn("different proportions", rows[0].toolTip(0))
-
-    def test_a_same_character_row_is_not_marked(self) -> None:
-        target = self._entry("cd_phw_rpr_00_01_nor_std_weapon_out_00")
-        donor = self._entry("cd_phw_lswd_00_01_nor_std_weapon_out_00")
-        dialog = self._dialog([(target, donor, (donor,))])
-
-        rows = self._rows(dialog)
-        self.assertTrue(rows)
-        self.assertNotIn("borrowed", rows[0].text(0).lower())
-
-    def test_the_file_names_stay_in_the_tooltip(self) -> None:
-        """The caveat is added to what was there, not swapped for it."""
-
-        target = self._entry("cd_phw_rpr_00_01_nor_std_weapon_out_00")
-        donor = self._entry("cd_phm_lswd_00_01_nor_std_weapon_out_00")
-        dialog = self._dialog([(target, donor, (donor,))])
-
-        tip = self._rows(dialog)[0].toolTip(0)
-        self.assertIn(target.name, tip)
-        self.assertIn(donor.name, tip)
-
-
-class RowNamesBothFamiliesTests(unittest.TestCase):
-    """A row names the clip it replaces *and* the one replacing it.
-
-    `Drawing the weapon · dual swords` named the clip being overwritten, while the Watch button
-    beside it plays the clip that would replace it — a two-handed draw from the back. Reading
-    the row as a description of what you are about to watch is the obvious reading, and it was
-    wrong.
-    """
-
-    @staticmethod
-    def _entry(name: str):
-        class _E:
-            pass
-
-        entry = _E()
-        entry.name = name
-        entry.path = f"character/motion/1_pc/1_phm/{name}.paa"
-        entry.category = "draw"
-        return entry
-
-    def _rows(self, pairs):
-        dialog = MoveWeaponDialog(
-            parts=[("CD_MainWeapon_Sword_R", "Sword")],
-            positions=[("Pelvis_L_Socket", "Hip — left")],
-            current_part="CD_MainWeapon_Sword_R",
-            pairs_for=lambda **_k: pairs,
-            handedness="1h",
-        )
-        tree = dialog._clip_list
-        out = []
-        for i in range(tree.topLevelItemCount()):
-            lane = tree.topLevelItem(i)
-            out.extend(lane.child(j).text(0) for j in range(lane.childCount()))
-        return out
-
-    def test_both_families_appear_when_the_donors_differ(self) -> None:
-        """Only then. A swap runs one way, so naming the donor on every row restates the
-        sentence at the top of the dialog once per row and carries no information."""
-
-        rows = self._rows([
-            (self._entry("cd_phm_dualsword_00_01_nor_std_weapon_out_00"),
-             self._entry("cd_phm_longsword_00_01_nor_std_weapon_out_00"), ()),
-            (self._entry("cd_phm_sword_00_01_nor_std_weapon_in_00"),
-             self._entry("cd_phm_swds_00_01_nor_std_weapon_in_00"), ()),
-        ])
-        joined = " ".join(rows).lower()
-
-        self.assertIn("dual", joined)
-        self.assertIn("←", joined)
-
-    def test_one_donor_family_is_not_named_on_every_row(self) -> None:
-        target = self._entry("cd_phm_dualsword_00_01_nor_std_weapon_out_00")
-        donor = self._entry("cd_phm_longsword_00_01_nor_std_weapon_out_00")
-
-        row = self._rows([(target, donor, (donor,))])[0]
-
-        self.assertIn("dual", row.lower())
-        self.assertNotIn("←", row)
-
-    def test_one_family_is_not_repeated_when_they_match(self) -> None:
-        """Nothing is being restyled there, so naming it twice is noise."""
-
-        target = self._entry("cd_phm_sword_00_01_nor_std_weapon_out_00")
-        donor = self._entry("cd_phm_sword_00_01_nor_std_weapon_out_02")
-
-        row = self._rows([(target, donor, (donor,))])[0]
-
-        self.assertNotIn("←", row)

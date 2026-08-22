@@ -88,7 +88,7 @@ class ModelLibraryCommandsMixin:
             return
         if payload.get("kind") != "mirror":
             if import_after:
-                self.import_selected_model()
+                self.use_selected_model_in_new_item_studio()
             else:
                 self._set_status("Local models are already on disk.", error=True)
             return
@@ -283,9 +283,9 @@ class ModelLibraryCommandsMixin:
 
     def _continue_downloaded_model_action(self, payload: dict[str, object], *, import_after: bool) -> None:
         def resolved(import_path: Path) -> None:
-            action = "import setup" if import_after else "preview"
+            action = "New Item Studio" if import_after else "preview"
             self._set_status(f"Downloaded and extracted model; opening {action} from {import_path}.")
-            signal = self.import_mesh_requested if import_after else self.preview_mesh_requested
+            signal = self.use_in_new_item_studio_requested if import_after else self.preview_mesh_requested
             signal.emit(str(import_path), dict(payload))
 
         self._request_payload_import_path(
@@ -380,18 +380,18 @@ class ModelLibraryCommandsMixin:
             return
         self._set_status(f"Deleted {len(deleted):,} {item_label}(s) from disk.")
 
-    def import_selected_model(self) -> None:
+    def use_selected_model_in_new_item_studio(self) -> None:
         payload = self._selected_payload()
         if not payload:
             self._set_status("Select a model first.", error=True)
             return
         def resolved(import_path: Path) -> None:
-            self._set_status(f"Opening import setup from local model file: {import_path}")
-            self.import_mesh_requested.emit(str(import_path), dict(payload))
+            self._set_status(f"Opening New Item Studio from local model file: {import_path}")
+            self.use_in_new_item_studio_requested.emit(str(import_path), dict(payload))
 
         def missing() -> None:
             if payload.get("kind") == "mirror":
-                self._set_status("Downloading and extracting model before import setup...")
+                self._set_status("Downloading and extracting model before opening New Item Studio...")
                 self.download_selected_model(import_after=True)
                 return
             path = Path(str(payload.get("path", "") or ""))
@@ -406,6 +406,10 @@ class ModelLibraryCommandsMixin:
             on_resolved=resolved,
             on_missing=missing,
         )
+
+    def import_selected_model(self) -> None:
+        """Compatibility wrapper for the archived command name."""
+        self.use_selected_model_in_new_item_studio()
 
     def open_selected_location(self) -> None:
         payload = self._selected_payload()
@@ -481,7 +485,7 @@ class ModelLibraryCommandsMixin:
                     preview_after=False,
                 )
             )
-            download_import_action = menu.addAction("Download + Import This")
+            download_import_action = menu.addAction("Download + New Item Studio")
             download_import_action.setEnabled(mirror_url_ready)
             download_import_action.triggered.connect(
                 lambda _checked=False, row_payload=payload: self._download_mirror_payloads(
@@ -509,9 +513,9 @@ class ModelLibraryCommandsMixin:
             preview_action = menu.addAction("Preview In Archive Browser")
             preview_action.setEnabled(self._payload_can_import(payload))
             preview_action.triggered.connect(self.preview_selected_model)
-            import_action = menu.addAction("Import Mesh")
+            import_action = menu.addAction("Use in New Item Studio")
             import_action.setEnabled(self._payload_can_import(payload))
-            import_action.triggered.connect(self.import_selected_model)
+            import_action.triggered.connect(self.use_selected_model_in_new_item_studio)
             location_action = menu.addAction("Open Folder")
             location_action.triggered.connect(self.open_selected_location)
             delete_local_action = menu.addAction("Delete Local File / Folder")

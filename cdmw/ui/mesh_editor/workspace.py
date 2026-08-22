@@ -33,6 +33,7 @@ from cdmw.domain.mesh import (
     MeshCompareSummary,
     MeshEditSelection,
     MeshEditSessionView,
+    MeshObjectTransformState,
     MeshExportValidationReport,
     MeshSkeletonSummary,
     MeshUvSummary,
@@ -53,7 +54,7 @@ from cdmw.ui.native_preview_panel import NativePreviewPanel
 _LEFT_TOOL_PAGES = (
     ("Tools", ("selection", "transform", "sculpt")),
     ("Edit", ("topology", "cleanup", "normals", "history")),
-    ("UV", ("uv", "material")),
+    ("UV", ("uv",)),
     ("Rig", ()),
 )
 _LEFT_CATEGORY_LABELS = {
@@ -64,7 +65,6 @@ _LEFT_CATEGORY_LABELS = {
     "cleanup": "Cleanup",
     "normals": "Normals",
     "uv": "UV",
-    "material": "Material",
     "history": "History",
 }
 
@@ -121,7 +121,7 @@ class MeshEditorWorkspace(
     import_edited_package_requested = Signal()
     open_editable_package_folder_requested = Signal()
     dotnet_editor_requested = Signal()
-    texture_edit_requested = Signal()
+    object_transform_requested = Signal(object)
     validation_report_requested = Signal()
     copy_validation_report_requested = Signal()
     compare_view_requested = Signal(str)
@@ -132,9 +132,10 @@ class MeshEditorWorkspace(
     uv_region_selected = Signal(tuple, tuple, str)
     uv_lasso_selected = Signal(tuple, str)
     rebuild_report_requested = Signal()
-    rebuild_asset_requested = Signal()
-    preview_rebuilt_asset_requested = Signal()
-    package_rebuilt_asset_requested = Signal()
+    export_mesh_file_requested = Signal()
+    build_mod_requested = Signal()
+    install_overlay_requested = Signal()
+    restore_overlay_requested = Signal()
     save_rebuild_report_requested = Signal()
 
     def __init__(
@@ -171,7 +172,8 @@ class MeshEditorWorkspace(
         margin = 0 if embedded_controls_only else 6
         root.setContentsMargins(margin, margin, margin, margin)
         root.setSpacing(4)
-        root.addWidget(self._build_top_bar())
+        top_bar = self._build_top_bar()
+        root.addWidget(top_bar)
         if embedded_controls_only:
             root.addWidget(self._build_right_panels(), 1)
             self.right_panels.setMinimumWidth(0)
@@ -179,7 +181,15 @@ class MeshEditorWorkspace(
             self.right_panels.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         else:
             root.addWidget(self._build_body(theme_key), 1)
-        root.addWidget(self._build_status_strip())
+        status_strip = self._build_status_strip()
+        root.addWidget(status_strip)
+        if not embedded_controls_only:
+            # The resident .NET/Vortice form owns the visible editing workspace.
+            # These Qt controls remain constructed for compatibility consumers,
+            # but normal Mesh Editor sessions must not wrap the resident tool rail
+            # in a second Tools/Edit/UV/Rig shell or a duplicate log/status panel.
+            top_bar.setVisible(False)
+            status_strip.setVisible(False)
 
 
 __all__ = ["MeshEditorWorkspace"]

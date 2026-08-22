@@ -236,7 +236,7 @@ def test_export_waiter_blocks_until_material_parameter_ack_is_committed(
     payload = _parameter_writes(process)[-1]
     session_id = str(payload["session_id"])
 
-    assert tab.standalone_texture_region_queue.idle()
+    assert not hasattr(tab, "standalone_texture_region_queue")
     assert not tab._wait_for_dotnet_export_updates(0.0)
     assert builder.controller.mesh_service.capture_export_snapshot(session_id).material_parameter_groups == ()
 

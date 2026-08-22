@@ -11,7 +11,6 @@ internal static partial class EditMeshLayoutSmoke
         "Transform",
         "Brush",
         "Topology",
-        "Colour",
         "Morph & Refit",
     };
 
@@ -117,7 +116,6 @@ internal static partial class EditMeshLayoutSmoke
             NewSection("Transform"),
             NewSection("Brush"),
             NewSection("Topology"),
-            NewSection("Colour"),
         };
         var inspectorSections = new[]
         {
@@ -189,7 +187,6 @@ internal static partial class EditMeshLayoutSmoke
         EditMeshLayoutContracts.MoveControl(editSections[2], pages["Transform"], DockStyle.Top);
         EditMeshLayoutContracts.MoveControl(editSections[3], pages["Brush"], DockStyle.Top);
         EditMeshLayoutContracts.MoveControl(editSections[4], pages["Topology"], DockStyle.Top);
-        EditMeshLayoutContracts.MoveControl(editSections[5], pages["Colour"], DockStyle.Top);
         foreach (var section in inspectorSections)
         {
             AddRow(compactInspector, section);
@@ -333,15 +330,14 @@ internal static partial class EditMeshLayoutSmoke
             .Where(EditMeshLayoutContracts.RailPageIsModal)
             .ToArray();
         Require(
-            commandPages.Length == 3 && modalPages.Length == 3,
+            commandPages.Length == 2 && modalPages.Length == 3,
             "The split between modal tool pages and command pages changed.");
         Require(
             EditMeshLayoutContracts.RailCommandPageOrder.SequenceEqual(
-                new[] { ToolRailPage.Topology, ToolRailPage.Colour, ToolRailPage.MorphRefit }),
+                new[] { ToolRailPage.Topology, ToolRailPage.MorphRefit }),
             "The rail's command-page entries changed.");
         Require(
             commandPages.Contains(ToolRailPage.Topology)
-                && commandPages.Contains(ToolRailPage.Colour)
                 && commandPages.Contains(ToolRailPage.MorphRefit),
             "A command page became modal, so orbit would now close it.");
         Require(
@@ -534,7 +530,7 @@ internal static partial class EditMeshLayoutSmoke
         EditMeshToolListContract.RequireCompleteList(
             EditMeshToolListContract.RowOrder.Select(row => row.Key).ToArray());
         Require(
-            EditMeshToolListContract.RowOrder.Length == 9,
+            EditMeshToolListContract.RowOrder.Length == 8,
             "The Edit Mesh tool list's row count changed.");
         Require(
             EditMeshToolListContract.RowForTool("orbit") is null

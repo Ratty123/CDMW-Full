@@ -617,9 +617,6 @@ internal sealed partial class ExperimentForm
                 case "material_parameter_update":
                     HandleMaterialParameterUpdate(root);
                     break;
-                case "texture_region_update":
-                    HandleTextureRegionUpdate(root);
-                    break;
                 case "viewport_display_update":
                     HandleViewportDisplayUpdate(root);
                     break;
@@ -672,7 +669,6 @@ internal sealed partial class ExperimentForm
         "performance_input" or
         "preview_vertex_update" or
         "preview_triangle_update" or
-        "texture_region_update" or
         "material_state_update" or
         "material_parameter_update" or
         "morph_state_update" or

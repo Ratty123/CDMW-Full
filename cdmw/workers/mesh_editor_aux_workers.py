@@ -6,6 +6,7 @@ import shutil
 import threading
 import time
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -19,7 +20,16 @@ from cdmw.services.mesh_dotnet_experiment import (
     write_mesh_dotnet_experiment_evaluation,
 )
 from cdmw.services.mesh_service import MeshService
-from cdmw.services.mesh_dotnet_material_state import copy_dotnet_preview_material_bindings
+from cdmw.services.modify_original_workspace_service import (
+    ModifyOriginalDraft,
+    discover_modify_original_drafts,
+)
+from cdmw.services.archive_read_service import read_archive_entry_data
+from cdmw.services.archive_preview_service import build_archive_preview_result
+from cdmw.services.mesh_dotnet_material_state import (
+    copy_dotnet_preview_material_bindings,
+    count_dotnet_own_material_bindings,
+)
 from cdmw.services.mesh_dotnet_reference_composite import (
     apply_dotnet_native_reference_materials,
     append_dotnet_native_reference_composite,
@@ -30,6 +40,173 @@ from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.modding.static_mesh_scene_frame import selection_pivot_source_from_mesh
 from cdmw.modding.static_mesh_scene_frame import build_authoritative_static_scene_frame
 from cdmw.modding.static_mesh_types import StaticReplacementTransform
+
+
+@dataclass(frozen=True, slots=True)
+class MeshArchiveSessionLoadResult:
+    service: MeshService
+    view: object
+    mesh: ParsedMesh
+    source_sha256: str
+    matching_drafts: tuple[ModifyOriginalDraft, ...] = ()
+    resumed_manifest_path: Path | None = None
+
+
+class MeshArchiveSessionLoadWorker(QObject):
+    """Open one exact archive mesh as a resident authoring session off-thread."""
+
+    loaded = Signal(int, object)
+    error = Signal(int, str)
+    finished = Signal()
+
+    def __init__(
+        self,
+        request_id: int,
+        entry: ArchiveEntry,
+        *,
+        session_id: str = "",
+        mode: str = "edit",
+        draft_root: Path | str | None = None,
+        resume_manifest_path: Path | str | None = None,
+    ) -> None:
+        super().__init__()
+        self.request_id = int(request_id)
+        self.entry = entry
+        self.session_id = str(session_id or "")
+        self.mode = str(mode or "edit")
+        self.draft_root = Path(draft_root).expanduser() if draft_root is not None else None
+        self.resume_manifest_path = (
+            Path(resume_manifest_path).expanduser().resolve()
+            if resume_manifest_path is not None
+            else None
+        )
+        self.stop_event = threading.Event()
+
+    def stop(self) -> None:
+        self.stop_event.set()
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            if self.stop_event.is_set():
+                return
+            payload, _decompressed, _note = read_archive_entry_data(
+                self.entry,
+                stop_event=self.stop_event,
+            )
+            if self.stop_event.is_set():
+                return
+            service = MeshService()
+            mesh = service.load_mesh_bytes(payload, self.entry.path, run_roundtrip=True)
+            source_sha256 = str(getattr(mesh, "_cdmw_mesh_asset_source_hash", "") or "")
+            drafts = (
+                discover_modify_original_drafts(self.draft_root, source_sha256)
+                if self.draft_root is not None
+                else ()
+            )
+            resumed_manifest_path: Path | None = None
+            if self.resume_manifest_path is not None:
+                draft = next(
+                    (item for item in drafts if item.manifest_path == self.resume_manifest_path),
+                    None,
+                )
+                if draft is None:
+                    raise ValueError("Requested Mesh Editor draft is unavailable or belongs to another source")
+                setattr(mesh, "_cdmw_modify_original_workspace_manifest_path", str(draft.manifest_path))
+                setattr(mesh, "_cdmw_mesh_layer_project_path", str(draft.mesh_layer_project_path))
+                setattr(mesh, "_cdmw_modify_original_workspace_mode", draft.workspace_mode)
+                resumed_manifest_path = draft.manifest_path
+            if self.stop_event.is_set():
+                return
+            view = service.open_edit_session(
+                mesh,
+                session_id=self.session_id or f"mesh-editor-archive:{self.entry.path}",
+                mode=self.mode,
+            )
+            if not self.stop_event.is_set():
+                self.loaded.emit(
+                    self.request_id,
+                    MeshArchiveSessionLoadResult(
+                        service=service,
+                        view=view,
+                        mesh=mesh,
+                        source_sha256=source_sha256,
+                        matching_drafts=drafts,
+                        resumed_manifest_path=resumed_manifest_path,
+                    ),
+                )
+        except Exception as exc:
+            if not self.stop_event.is_set():
+                self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
+        finally:
+            self.finished.emit()
+
+
+class MeshArchiveMaterialContextWorker(QObject):
+    """Resolve the source archive's read-only material model off-thread."""
+
+    resolved = Signal(int, object)
+    error = Signal(int, str)
+    finished = Signal()
+
+    def __init__(
+        self,
+        request_id: int,
+        entry: ArchiveEntry,
+        *,
+        entries_by_normalized_path: Mapping[str, Sequence[ArchiveEntry]] | None = None,
+        entries_by_basename: Mapping[str, Sequence[ArchiveEntry]] | None = None,
+        sidecar_entries_by_texture_path: Mapping[str, Sequence[ArchiveEntry]] | None = None,
+        sidecar_entries_by_texture_basename: Mapping[str, Sequence[ArchiveEntry]] | None = None,
+    ) -> None:
+        super().__init__()
+        self.request_id = int(request_id)
+        self.entry = entry
+        self.entries_by_normalized_path = entries_by_normalized_path or {}
+        self.entries_by_basename = entries_by_basename or {}
+        self.sidecar_entries_by_texture_path = sidecar_entries_by_texture_path or {}
+        self.sidecar_entries_by_texture_basename = sidecar_entries_by_texture_basename or {}
+        self.stop_event = threading.Event()
+
+    def stop(self) -> None:
+        self.stop_event.set()
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            if self.stop_event.is_set():
+                return
+            result = build_archive_preview_result(
+                self.entry,
+                (),
+                texture_entries_by_normalized_path=self.entries_by_normalized_path,
+                texture_entries_by_basename=self.entries_by_basename,
+                sidecar_entries_by_texture_path=self.sidecar_entries_by_texture_path,
+                sidecar_entries_by_texture_basename=self.sidecar_entries_by_texture_basename,
+                include_loose_preview_assets=False,
+                visible_texture_mode="mesh_base_first",
+                support_texture_slots=("normal", "material", "height", "emissive"),
+                quality_tier="full",
+                enable_hkx_visual_preview=False,
+                stop_event=self.stop_event,
+            )
+            if self.stop_event.is_set():
+                return
+            preview_model = getattr(result, "preview_model", None)
+            if preview_model is None or count_dotnet_own_material_bindings(preview_model) <= 0:
+                detail = str(
+                    getattr(result, "warning_text", "")
+                    or getattr(result, "detail_text", "")
+                    or "The archive material resolver returned no resolved texture bindings."
+                ).strip()
+                self.error.emit(self.request_id, detail)
+                return
+            self.resolved.emit(self.request_id, preview_model)
+        except Exception as exc:
+            if not self.stop_event.is_set():
+                self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
+        finally:
+            self.finished.emit()
 
 
 class MeshFileSessionLoadWorker(QObject):
@@ -174,6 +351,7 @@ class MeshDotNetExperimentPackageWorker(QObject):
         output_root: Path | str | None = None,
         reference_mesh: ParsedMesh | None = None,
         reference_material_source: object | None = None,
+        editable_material_source: object | None = None,
         reference_native_package: Path | str | None = None,
         mirror_reference_materials_to_editable: bool = False,
         comparison_mode: str = "side_by_side",
@@ -189,6 +367,7 @@ class MeshDotNetExperimentPackageWorker(QObject):
         self.output_root = Path(output_root) if output_root is not None else None
         self.reference_mesh = reference_mesh
         self.reference_material_source = reference_material_source
+        self.editable_material_source = editable_material_source
         self.reference_native_package = Path(reference_native_package) if reference_native_package else None
         self.mirror_reference_materials_to_editable = bool(
             mirror_reference_materials_to_editable
@@ -210,6 +389,8 @@ class MeshDotNetExperimentPackageWorker(QObject):
                 return
             started = time.perf_counter()
             mesh = self.service.working_mesh(self.session_id, clone=True)
+            if self.editable_material_source is not None:
+                copy_dotnet_preview_material_bindings(mesh, self.editable_material_source)
             view = self.service.session_view(self.session_id)
             selection_pivot = selection_pivot_source_from_mesh(mesh, view.selection)
             reference_mesh = clone_mesh_for_editing(self.reference_mesh) if self.reference_mesh is not None else None
@@ -402,6 +583,7 @@ class MeshDotNetExperimentOutputImportWorker(QObject):
 
 
 __all__ = [
+    "MeshArchiveMaterialContextWorker",
     "MeshDotNetExperimentOutputImportWorker",
     "MeshDotNetExperimentPackageWorker",
     "MeshExportValidationWorker",

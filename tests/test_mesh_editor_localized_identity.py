@@ -23,7 +23,7 @@ class MeshEditorLocalizedIdentityTests(unittest.TestCase):
         from cdmw.ui.localization import UiLocalizer
 
         app = QApplication.instance() or QApplication([])
-        workspace = MeshEditorWorkspace()
+        workspace = MeshEditorWorkspace(embedded_controls_only=True)
         panels = workspace.findChild(QTabWidget, "MeshEditorRightPanels")
         assert panels is not None
 
@@ -66,7 +66,7 @@ class MeshEditorLocalizedIdentityTests(unittest.TestCase):
         from cdmw.ui.localization import UiLocalizer
 
         app = QApplication.instance() or QApplication([])
-        workspace = MeshEditorWorkspace()
+        workspace = MeshEditorWorkspace(embedded_controls_only=True)
         panels = workspace.findChild(QTabWidget, "MeshEditorRightPanels")
         assert panels is not None
         workspace.update_uv_summary(

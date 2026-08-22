@@ -18,6 +18,8 @@ class MeshEditorTabShellRuntimeMixin:
         *,
         get_archive_texture_entries_by_normalized_path: object,
         get_archive_texture_entries_by_basename: object,
+        get_archive_sidecar_entries_by_texture_path: object,
+        get_archive_sidecar_entries_by_texture_basename: object,
     ) -> None:
         self.current_request: Optional[_tab.MeshEditorSessionRequest] = None
         self.current_archive_selection: Optional[_tab.ArchiveEntry] = None
@@ -35,13 +37,20 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_file_load_target_entry: object | None = None
         self.standalone_file_load_source_skeleton: object | None = None
         self.standalone_file_load_request_id = 0
-        self.standalone_texture_source_thread: _tab.QThread | None = None
-        self.standalone_texture_source_worker: _tab.MeshTextureSourceResolveWorker | None = None
-        self.standalone_texture_source_request_id = 0
-        self.standalone_texture_source_target: object | None = None
-        self.standalone_texture_source_controller: _tab.MeshEditorController | None = None
+        self.archive_session_load_thread: _tab.QThread | None = None
+        self.archive_session_load_worker: _tab.MeshArchiveSessionLoadWorker | None = None
+        self.archive_session_load_request_id = 0
+        self.archive_session_load_entry: _tab.ArchiveEntry | None = None
+        self.archive_session_load_material_model: object | None = None
+        self.standalone_archive_material_preview_model: object | None = None
+        self.archive_material_context_thread: _tab.QThread | None = None
+        self.archive_material_context_worker: _tab.MeshArchiveMaterialContextWorker | None = None
+        self.archive_material_context_request_id = 0
+        self.archive_material_context_pending = False
         self.get_archive_texture_entries_by_normalized_path = get_archive_texture_entries_by_normalized_path
         self.get_archive_texture_entries_by_basename = get_archive_texture_entries_by_basename
+        self.get_archive_sidecar_entries_by_texture_path = get_archive_sidecar_entries_by_texture_path
+        self.get_archive_sidecar_entries_by_texture_basename = get_archive_sidecar_entries_by_texture_basename
         self.standalone_native_host: object | None = None
         self.standalone_native_process: _tab.QProcess | None = None
         self.standalone_native_stdout_tail = ""
@@ -64,6 +73,12 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_rebuild_report_worker: _tab.MeshRebuildReportWorker | None = None
         self.standalone_rebuild_report_progress: _tab.QProgressDialog | None = None
         self.standalone_rebuild_report_request_id = 0
+        self.standalone_output_thread: _tab.QThread | None = None
+        self.standalone_output_worker: object | None = None
+        self.standalone_output_progress: object | None = None
+        self.standalone_output_request_id = 0
+        self.standalone_output_kind = ""
+        self.standalone_pending_overlay_apply: tuple[object, object] | None = None
         self.standalone_report_write_thread: _tab.QThread | None = None
         self.standalone_report_write_worker: _tab.MeshReportWriteWorker | None = None
         self.standalone_report_write_request_id = 0
@@ -209,7 +224,6 @@ class MeshEditorTabShellRuntimeMixin:
     def _initialize_runtime_objects(self) -> None:
         self._initialize_dotnet_material_parameter_state()
         self.standalone_dotnet_update_queue = DotNetRevisionUpdateQueue(self._send_dotnet_protocol_message)
-        self._initialize_texture_region_queue()
         self.standalone_dotnet_update_ack_timer = QTimer(self)
         self.standalone_dotnet_update_ack_timer.setSingleShot(True)
         self.standalone_dotnet_update_ack_timer.timeout.connect(self._handle_dotnet_update_ack_timeout)

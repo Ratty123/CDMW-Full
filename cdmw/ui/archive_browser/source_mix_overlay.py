@@ -5,7 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
 from cdmw.services.archive_mutation_service import ArchivePatchRequest
 from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
@@ -32,18 +31,14 @@ from cdmw.services.texture_workflow_service import (
     source_mix_role_for_virtual_path,
     validate_source_mix_selections,
 )
-from cdmw.domain.mesh.session import MeshImportSetupSelection
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.source_mix_task_controller import (
     source_mix_task_controller_for_guard,
 )
 from cdmw.workers.source_mix_workers import (
-    SceneImportRequest,
-    SceneImportTaskResult,
     SourceMixIndexSnapshot,
     SourceMixScanRequest,
     SourceMixScanResult,
-    run_scene_import,
     run_source_mix_scan,
 )
 
@@ -116,7 +111,6 @@ class ArchiveSourceMixOverlayMixin:
         dialog = QDialog(self)
         dialog.setWindowTitle("Loose Mod Overlay Review")
         dialog.resize(1180, 760)
-        source_task_controller = source_mix_task_controller_for_guard(self, dialog)
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
@@ -301,14 +295,12 @@ class ArchiveSourceMixOverlayMixin:
         select_all_families_button = QPushButton("Select All Families")
         select_all_exact_button = QPushButton("Select All Exact Matches")
         clear_button = QPushButton("Clear")
-        use_mesh_source_button = QPushButton("Use as Mesh Replacement Source")
         write_button = QPushButton("Write Loose Package")
         close_button = QPushButton("Close")
         button_row.addWidget(select_family_button)
         button_row.addWidget(select_all_families_button)
         button_row.addWidget(select_all_exact_button)
         button_row.addWidget(clear_button)
-        button_row.addWidget(use_mesh_source_button)
         button_row.addStretch(1)
         button_row.addWidget(write_button)
         button_row.addWidget(close_button)
@@ -342,78 +334,6 @@ class ArchiveSourceMixOverlayMixin:
         )
         clear_button.clicked.connect(lambda _checked=False: _select_candidates(lambda _candidate: True, False))
         close_button.clicked.connect(dialog.reject)
-
-        def _current_overlay_candidate() -> Optional[SourceMixCandidate]:
-            current_tree = tabs.currentWidget()
-            if not isinstance(current_tree, QTreeWidget):
-                return None
-            item = current_tree.currentItem()
-            while item is not None:
-                candidate = item.data(0, Qt.UserRole)
-                if isinstance(candidate, SourceMixCandidate):
-                    return candidate
-                item = item.parent()
-            return None
-
-        def _use_current_candidate_as_mesh_source() -> None:
-            candidate = _current_overlay_candidate()
-            if not isinstance(candidate, SourceMixCandidate):
-                self.set_status_message("Select a loose model candidate first.", error=True)
-                return
-            if candidate.extension not in ARCHIVE_MESH_EXTENSIONS or not isinstance(candidate.source_path, Path):
-                self.set_status_message("Only loose .pac/.pam/.pamlod rows can be used as Mesh Replacement sources.", error=True)
-                return
-            target_entry = candidate.target_archive_entry
-            if not isinstance(target_entry, ArchiveEntry):
-                self.set_status_message("This source row has no archive target to replace.", error=True)
-                return
-            source_path = candidate.source_path
-
-            def _scene_imported(result: object) -> None:
-                if not isinstance(result, SceneImportTaskResult):
-                    QMessageBox.warning(dialog, "Use as Mesh Replacement Source", "Scene import returned an unexpected result.")
-                    return
-                scene_result = result.scene
-                supplemental_paths = (
-                    tuple(scene_result.discovered_texture_files)
-                    + tuple(scene_result.extracted_embedded_files)
-                    + tuple(getattr(scene_result, "discovered_supplemental_files", ()) or ())
-                )
-                dialog.accept()
-                QTimer.singleShot(
-                    0,
-                    lambda target=target_entry, imported_path=source_path, scene=scene_result, supplementals=supplemental_paths: self._start_archive_mesh_patch(
-                        target,
-                        preset_setup=MeshImportSetupSelection(
-                            scene_path=imported_path,
-                            import_mode="static_replacement",
-                            supplemental_files=tuple(supplementals),
-                            scene_import_result=scene,
-                            source_label=f"Loose family source: {imported_path}",
-                            placement_review_title="Loose Family Mesh Source Placement",
-                            placement_context_note=(
-                                "This source came from a loose mod family overlay. Review geometry, textures, and placement before export."
-                            ),
-                        ),
-                    ),
-                )
-
-            started = source_task_controller.start(
-                SceneImportRequest(source_path=source_path),
-                run_scene_import,
-                status_message=f"Importing loose mesh source: {source_path.name}...",
-                on_complete=_scene_imported,
-                on_error=lambda message: QMessageBox.warning(
-                    dialog,
-                    "Use as Mesh Replacement Source",
-                    message,
-                ),
-                on_idle=lambda: use_mesh_source_button.setEnabled(True),
-            )
-            if started:
-                use_mesh_source_button.setEnabled(False)
-
-        use_mesh_source_button.clicked.connect(lambda _checked=False: _use_current_candidate_as_mesh_source())
 
         def _write_overlay_package() -> None:
             selected = _checked_exact_candidates()

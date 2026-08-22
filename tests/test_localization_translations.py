@@ -206,14 +206,10 @@ def test_reviewed_gui_translations_are_available_for_spanish_and_german() -> Non
     assert german.translate("Shortcuts") == "Tastenkurzel"
     assert spanish.translate("Composite Preview...") == "Vista previa compuesta..."
     assert german.translate("Composite Preview...") == "Kompositvorschau..."
-    assert spanish.translate("Appearance Armor Swap...") == "Intercambio de armadura de apariencia..."
-    assert german.translate("Appearance Armor Swap...") == "Appearance-Ruestungs-Swap..."
-    assert spanish.translate("Material Authority Manual") == "Autoridad de material manual"
-    assert german.translate("Material Authority Manual") == "Materialautoritaet manuell"
-    assert spanish.translate("Runtime XML preserve") == "Preservar XML runtime"
-    assert german.translate("Runtime XML preserve") == "Runtime XML erhalten"
-    assert spanish.translate("True Source Authority") == "Autoridad de origen real"
-    assert german.translate("True Source Authority") == "Echte Quellenautoritaet"
+    assert spanish.translate("Solid (Textured)") == "Sólido (texturizado)"
+    assert german.translate("Solid (Textured)") == "Solide (texturiert)"
+    assert spanish.translate("Build Mod") == "Construir mod"
+    assert german.translate("Build Mod") == "Build-Mod"
     assert spanish.translate("Review Compare") == "Revisar comparacion"
     assert german.translate("Review Compare") == "Vergleich pruefen"
     assert spanish.translate("Placement & Animations") == "Colocación y animaciones"
@@ -261,8 +257,6 @@ def test_builtin_fallback_translates_short_unlisted_gui_labels() -> None:
     assert german.translate("Custom") == "Benutzerdefiniert"
     assert spanish.translate("Expected NCNN model contents") == "Contenido esperado del modelo NCNN"
     assert german.translate("Expected NCNN model contents") == "Erwarteter NCNN-Modellinhalt"
-    assert spanish.translate("Swap With In-Game Mesh...") == "Intercambiar con malla del juego..."
-    assert german.translate("Swap With In-Game Mesh...") == "Mit Ingame-Mesh tauschen..."
 
 
 def test_builtin_fallback_leaves_code_like_text_alone() -> None:
@@ -274,19 +268,24 @@ def test_builtin_fallback_leaves_code_like_text_alone() -> None:
     assert german.translate(code_like) == code_like
 
 
-def test_quick_start_and_documentation_cover_mesh_import_and_swap() -> None:
+def test_quick_start_and_documentation_cover_direct_mesh_editing() -> None:
     help_dialogs_source = Path("cdmw/ui/shell/help_dialogs.py").read_text(encoding="utf-8")
     main_window_source = _source("cdmw/ui/shell/app_window.py") + "\n" + _about_documentation_source()
 
     assert "Mesh Quick Guide" in help_dialogs_source
     assert "Guia rapida de mallas" in help_dialogs_source
     assert "Schnellguide fuer Meshes" in help_dialogs_source
-    assert "Import DDS Preview" in help_dialogs_source
-    assert "Vista previa de importar DDS" in help_dialogs_source
-    assert "DDS-Importvorschau" in help_dialogs_source
-    assert "Swap With In-Game Mesh" in main_window_source
-    assert "Intercambiar con malla del juego" in main_window_source
-    assert "Mit Ingame-Mesh tauschen" in main_window_source
+    assert "Open in Mesh Editor" in help_dialogs_source
+    assert "Abrir en el Editor de mallas" in help_dialogs_source
+    assert "Im Mesh-Editor oeffnen" in help_dialogs_source
+    assert "Object Transform" in help_dialogs_source
+    assert "Transformacion del objeto" in help_dialogs_source
+    assert "Objekttransformation" in help_dialogs_source
+    assert "Solid (Textured)" in help_dialogs_source
+    assert "Solido (con texturas)" in help_dialogs_source
+    assert "Solid (texturiert)" in help_dialogs_source
+    assert "Import DDS Preview" not in help_dialogs_source
+    assert "Swap With In-Game Mesh" not in main_window_source
 
 
 def test_archive_browser_documentation_covers_current_functionality_in_supported_languages() -> None:
@@ -348,20 +347,23 @@ def test_mod_packaging_documentation_covers_supported_manager_formats() -> None:
     assert "self._apply_widget_localization(structure)" in retrofit_source
 
 
-def test_documentation_and_readme_cover_current_mesh_and_dds_workflows() -> None:
+def test_documentation_and_readme_cover_current_mesh_and_texture_workflows() -> None:
     main_window_source = _about_documentation_source()
     readme_source = Path("README.md").read_text(encoding="utf-8")
 
-    assert "OBJ/DAE/glTF/GLB preview" in main_window_source
+    assert "exact archive bytes are validated off the UI thread" in main_window_source
+    assert "Solid (Textured)" in main_window_source
+    assert "Export Mesh File" in main_window_source
+    assert "Build Mod" in main_window_source
+    assert "Install as Overlay" in main_window_source
     assert "Appearance Armor Swap</b> loose packages" not in main_window_source
-    assert "Runtime XML preserve</b> keeps target/corpus PAC XML structure" in main_window_source
-    assert "True Source Authority</b> uses original PAC/XML as runtime ABI" in main_window_source
-    assert "Material Authority Manual</b> starts from Runtime XML preserve" in main_window_source
-    assert "Stowed / on body</b> versus <b>Held / in hand" in main_window_source
+    assert "Runtime XML preserve</b>" not in main_window_source
+    assert "True Source Authority</b>" not in main_window_source
+    assert "Material Authority Manual</b>" not in main_window_source
     assert "Intercambio de armadura de apariencia" not in main_window_source
-    assert "Autoridad de origen real" in main_window_source
+    assert "Solido (con texturas)" in main_window_source
     assert "Appearance-Ruestungs-Swap" not in main_window_source
-    assert "Echte Quellenautoritaet" in main_window_source
+    assert "Solid (texturiert)" in main_window_source
 
     assert "OBJ/DAE/glTF/GLB import preview" in readme_source
     assert "bundled `cd-texture-dx.exe` native" in readme_source

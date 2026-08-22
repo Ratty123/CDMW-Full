@@ -148,7 +148,6 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         self.standalone_dotnet_update_ack_start_timer.stop()
         self.standalone_dotnet_update_ack_timer.stop()
         self.standalone_dotnet_update_queue.reset()
-        self.standalone_texture_region_queue.reset()
         self._cancel_pending_dotnet_captures()
         self.standalone_dotnet_scene_request_id += 1
         self.standalone_dotnet_scene_pending = None
@@ -463,10 +462,17 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
         # session state the completion handler had already written.
         if int(request_id) <= int(self.standalone_action_finished_request_id):
             return
+        bounded_percent = max(0, min(100, int(percent or 0)))
         progress = self.standalone_action_progress
         if progress is not None:
             progress.setLabelText(str(message or "Applying Mesh Editor action..."))
-            progress.setValue(max(0, min(100, int(percent or 0))))
+            progress.setValue(bounded_percent)
+        # The worker's 100% sample is terminal progress, not authoritative
+        # session state. It can arrive immediately before the completion slot,
+        # and a nested Qt event loop can expose that sample after the native
+        # update is already visible. Completion owns the revision/status line.
+        if bounded_percent >= 100:
+            return
         self.standalone_status_label.setText(str(message or "Applying Mesh Editor action..."))
     def _handle_standalone_action_completed(self, request_id: int, result: object) -> None:
         if not self._dotnet_action_belongs_to_current_edit_session(request_id):
@@ -519,6 +525,8 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
             self._send_dotnet_session_state()
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, False)
+        if self.standalone_action_text == "Object Transform" and self.standalone_controller is not None:
+            self.update_editor_session_state(self.standalone_controller.session_view())
         self._complete_pending_dotnet_exit()
     def _handle_standalone_action_error(self, request_id: int, message: str) -> None:
         if int(request_id) != int(self.standalone_action_request_id):
@@ -541,6 +549,8 @@ class MeshEditorDotNetProcessMixin(MeshEditorDotNetSessionEventMixin):
                 )
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, True)
+        if self.standalone_action_text == "Object Transform" and self.standalone_controller is not None:
+            self.update_editor_session_state(self.standalone_controller.session_view())
         self._complete_pending_dotnet_exit()
     def _cleanup_standalone_action_worker(
         self,

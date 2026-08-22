@@ -49,21 +49,6 @@ class ArchivePreviewLayoutMixin:
         self.archive_isolated_renderer_button.setEnabled(False)
         self.archive_isolated_renderer_button.setVisible(False)
 
-    def _build_archive_mesh_import_buttons(self) -> None:
-        """Create the two mesh-import entry points: align-and-build, and outright replacement."""
-
-        self.archive_model_import_patch_button = QPushButton("Import Mesh...")
-        self.archive_model_import_patch_button.setToolTip(
-            "Rebuild the selected archive mesh from OBJ, DAE, glTF, or GLB, then choose whether to patch the game archives or write a mod-ready loose file."
-        )
-        self.archive_model_import_patch_button.setEnabled(False)
-        self.archive_model_full_import_button = QPushButton("Full Import Model Replacement...")
-        self.archive_model_full_import_button.setToolTip(
-            "Replace the selected game item outright with an external OBJ, DAE, glTF, GLB, or model ZIP: "
-            "the imported model owns the mesh, its textures, and the material sidecar, and the Builder opens ready to build."
-        )
-        self.archive_model_full_import_button.setEnabled(False)
-
     def _build_archive_preview_panel(self) -> None:
         archive_preview_group = FlatSectionPanel("Preview")
         archive_preview_min, _archive_preview_pref, _archive_preview_max = responsive_sidebar_bounds(self, role="wide")
@@ -177,11 +162,6 @@ class ArchivePreviewLayoutMixin:
             "Preview a read-only composite from app XML sections or prefab/socket model evidence."
         )
         self.archive_appearance_composite_button.setEnabled(False)
-        self.archive_appearance_swap_button = QPushButton("Armor Swap...")
-        self.archive_appearance_swap_button.setToolTip(
-            "Build a loose single-PAC appearance armor swap package from one target body app XML and one donor model."
-        )
-        self.archive_appearance_swap_button.setEnabled(False)
         self.archive_action_preview_button = QPushButton("Preview")
         self.archive_action_preview_button.setToolTip("Render the selected archive file in Archive Preview.")
         self.archive_action_preview_button.setEnabled(False)
@@ -213,11 +193,6 @@ class ArchivePreviewLayoutMixin:
         self.archive_action_export_family_button = QPushButton("Export Family...")
         self.archive_action_export_family_button.setToolTip("Export the resolved files in the selected asset family.")
         self.archive_action_export_family_button.setEnabled(False)
-        self.archive_action_source_mix_button = QPushButton("Build Loose Package From Sources...")
-        self.archive_action_source_mix_button.setToolTip(
-            "Build a loose package by matching source files to the selected archive target family."
-        )
-        self.archive_action_source_mix_button.setEnabled(False)
         self.archive_action_character_dependency_button = QPushButton("Export Character Dependency Package...")
         self.archive_action_character_dependency_button.setToolTip(
             "Collect the selected body/model with its strict appearance, prefab, material, texture, skeleton, physics, and motion dependencies."
@@ -233,27 +208,11 @@ class ArchivePreviewLayoutMixin:
             "Export the selected archive mesh as FBX. PAC exports also try to attach the matching PAB skeleton."
         )
         self.archive_model_export_fbx_button.setEnabled(False)
-        self.archive_model_import_preview_button = QPushButton("Import Mesh Preview...")
-        self.archive_model_import_preview_button.setToolTip(
-            "Rebuild the selected archive mesh from OBJ, DAE, glTF, or GLB and show the result in the preview without patching the game files."
+        self.archive_model_open_mesh_editor_button = QPushButton("Open in Mesh Editor")
+        self.archive_model_open_mesh_editor_button.setToolTip(
+            "Open the selected archive mesh directly in the resident mesh-authoring workspace."
         )
-        self.archive_model_import_preview_button.setEnabled(False)
-        self.archive_model_import_dds_preview_button = QPushButton("Import DDS Preview...")
-        self.archive_model_import_dds_preview_button.setToolTip(
-            "Apply one local DDS onto the current archive mesh preview as a temporary import preview without patching the game files."
-        )
-        self.archive_model_import_dds_preview_button.setEnabled(False)
-        self._build_archive_mesh_import_buttons()
-        self.archive_model_modify_original_button = QPushButton("Modify Original...")
-        self.archive_model_modify_original_button.setToolTip(
-            "Create a temporary editable clone from the selected archive mesh, then import the edited OBJ clone through Mesh Replacement Geometry."
-        )
-        self.archive_model_modify_original_button.setEnabled(False)
-        self.archive_model_swap_in_game_button = QPushButton("Swap With In-Game Mesh...")
-        self.archive_model_swap_in_game_button.setToolTip(
-            "Use another loaded archive mesh as the replacement source, then open Mesh Replacement Alignment for this target."
-        )
-        self.archive_model_swap_in_game_button.setEnabled(False)
+        self.archive_model_open_mesh_editor_button.setEnabled(False)
         self.archive_hkx_export_json_button = QPushButton("Export HKX JSON...")
         self.archive_hkx_export_json_button.setToolTip(
             "Export a documented editable JSON patch for decoded Crimson Desert HKX geometry."
@@ -307,11 +266,6 @@ class ArchivePreviewLayoutMixin:
         self.archive_sidecar_corpus_button.setToolTip(
             "Scan loose .meshinfo, .motionblending, .paa_metabin, .prefab, .pappt, .pamhc, and .seqmt files and export a read-only schema/layout ranking report."
         )
-        self.archive_material_values_button = QPushButton("Edit Material Values...")
-        self.archive_material_values_button.setToolTip(
-            "Read recognized values from a companion .pac_xml/.pam_xml/.pamlod_xml/.pami material sidecar and export edited values as a mod-ready package."
-        )
-        self.archive_material_values_button.setEnabled(False)
         self.archive_restore_patch_backup_button = QPushButton("Restore Backup...")
         self.archive_restore_patch_backup_button.setToolTip(
             "Restore a previously created archive patch backup."
@@ -412,10 +366,6 @@ class ArchivePreviewLayoutMixin:
             "Import",
             (
                 ("Import Loose Mod Folder", self.archive_import_loose_mod_button),
-                ("Preview Mesh Import", self.archive_model_import_preview_button),
-                ("Import Mesh", self.archive_model_import_patch_button),
-                ("Full Import Model Replacement", self.archive_model_full_import_button),
-                ("Preview DDS on Mesh", self.archive_model_import_dds_preview_button),
                 ("Import HKX JSON", self.archive_hkx_import_json_button),
                 ("Import HKX XML", self.archive_hkx_import_xml_button),
             ),
@@ -441,16 +391,10 @@ class ArchivePreviewLayoutMixin:
                     ),
                 ),
                 (
-                    "workflow",
-                    "Source Package",
-                    (("Build Loose Package From Sources", self.archive_action_source_mix_button),),
-                ),
-                (
                     "mesh",
                     "Mesh Edit",
                     (
-                        ("Modify Original Mesh", self.archive_model_modify_original_button),
-                        (None, self.archive_model_swap_in_game_button),
+                        ("Open in Mesh Editor", self.archive_model_open_mesh_editor_button),
                     ),
                 ),
                 (
@@ -469,11 +413,6 @@ class ArchivePreviewLayoutMixin:
                         ("Inspect Selected Sidecar", self.archive_sidecar_inspect_button),
                         ("Scan Sidecar Corpus", self.archive_sidecar_corpus_button),
                     ),
-                ),
-                (
-                    "texture",
-                    "Material",
-                    (("Edit Material Values", self.archive_material_values_button),),
                 ),
                 (
                     "maintenance",
@@ -557,16 +496,9 @@ class ArchivePreviewLayoutMixin:
             self.archive_action_asset_family_button,
             self.archive_action_filter_to_family_button,
             self.archive_action_export_family_button,
-            self.archive_action_source_mix_button,
             self.archive_action_character_dependency_button,
-            self.archive_model_import_preview_button,
-            self.archive_model_import_dds_preview_button,
-            self.archive_model_import_patch_button,
-            self.archive_model_full_import_button,
-            self.archive_model_modify_original_button,
-            self.archive_model_swap_in_game_button,
+            self.archive_model_open_mesh_editor_button,
             self.archive_appearance_composite_button,
-            self.archive_appearance_swap_button,
             self.archive_hkx_export_json_button,
             self.archive_hkx_import_json_button,
             self.archive_hkx_export_xml_button,
@@ -579,7 +511,6 @@ class ArchivePreviewLayoutMixin:
             self.archive_sidecar_inspect_button,
             self.archive_sidecar_corpus_button,
             self.archive_restore_patch_backup_button,
-            self.archive_material_values_button,
             self.archive_import_loose_mod_button,
         ):
             button.setMinimumWidth(0)

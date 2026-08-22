@@ -29,7 +29,6 @@ from cdmw.domain.archives.filters import archive_entry_identity_key
 from cdmw.services.archive_query_service import build_archive_asset_family_graph
 from cdmw.services.archive_read_service import build_archive_entry_metadata_summary
 from cdmw.services.archive_preview_service import build_archive_preview_result
-from cdmw.services.material_sidecar_service import is_material_sidecar_entry
 from cdmw.models import ArchiveEntry, ArchivePreviewResult
 from cdmw.services.preview_rendering_service import (
     NativePreviewCoreAttempt,
@@ -101,10 +100,6 @@ class ArchiveReferencePreviewMixin:
         action_row.setSpacing(8)
         export_button = QPushButton("Export DDS..." if entry.extension == ".dds" else "Export...")
         action_row.addWidget(export_button)
-        open_in_editor_button: Optional[QPushButton] = None
-        if entry.extension == ".dds":
-            open_in_editor_button = QPushButton("Open In Texture Editor...")
-            action_row.addWidget(open_in_editor_button)
         edit_hkx_button: Optional[QPushButton] = None
         if str(entry.extension or "").lower() in {".hkx", ".hkt"}:
             edit_hkx_button = QPushButton("Edit HKX...")
@@ -383,10 +378,6 @@ class ArchiveReferencePreviewMixin:
         export_button.clicked.connect(
             lambda _checked=False, current_entry=entry: self._export_archive_reference_entry(current_entry)
         )
-        if open_in_editor_button is not None:
-            open_in_editor_button.clicked.connect(
-                lambda _checked=False, current_entry=entry: self._open_archive_entry_in_texture_editor(current_entry)
-            )
         if edit_hkx_button is not None:
             def _open_hkx_editor_from_reference_preview(
                 _checked: bool = False,
@@ -484,22 +475,6 @@ class ArchiveReferencePreviewMixin:
                     "Edit HKX...",
                     lambda _checked=False: self._edit_selected_archive_hkx_reference(),
                     "Edit the selected Asset Family row as an HKX/HKT physics file.",
-                )
-            if str(single_selected_entry.extension or "").lower() == ".dds":
-                _add_section("texture", "Texture")
-                _add_action(
-                    "texture",
-                    "Open In Texture Editor...",
-                    lambda _checked=False, current_entry=single_selected_entry: self._open_archive_entry_in_texture_editor(current_entry),
-                    "Open the selected DDS row in Texture Editor.",
-                )
-            if is_material_sidecar_entry(single_selected_entry):
-                _add_section("texture", "Material")
-                _add_action(
-                    "texture",
-                    "Edit Material Values...",
-                    lambda _checked=False: self._edit_selected_archive_material_sidecar_reference(),
-                    "Edit the selected Asset Family row as a material sidecar.",
                 )
         if selected_entries:
             _add_section("file", "Selection")

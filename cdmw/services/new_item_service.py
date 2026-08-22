@@ -417,6 +417,8 @@ class NewItemService:
             meta_files=[(write.path, write.payload_data) for write in plan.meta_files],
             backup=backup,
             restore_backup=restore,
+            game_running=running,
+            confirmed=True,
             on_log=on_log,
             stop_event=stop_event,
         )

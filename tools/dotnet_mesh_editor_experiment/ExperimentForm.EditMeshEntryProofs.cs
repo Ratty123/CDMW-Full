@@ -82,6 +82,7 @@ internal sealed partial class ExperimentForm
             using var prepared = PrepareResidentPackage(
                 packagePath,
                 previewProfile: false,
+                directAuthoring: false,
                 CancellationToken.None);
             return new Dictionary<string, object?>
             {
@@ -116,6 +117,7 @@ internal sealed partial class ExperimentForm
         using var prepared = PrepareResidentPackage(
             packagePath,
             previewProfile: false,
+            directAuthoring: false,
             CancellationToken.None);
         var decodedTextureResources = prepared.TextureSet.DecodedCount;
         try

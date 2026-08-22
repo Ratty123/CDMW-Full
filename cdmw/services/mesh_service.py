@@ -24,6 +24,7 @@ from cdmw.domain.mesh import (
     MeshEditResult,
     MeshEditSelection,
     MeshEditSessionView,
+    MeshObjectTransformState,
     MeshCompareSummary,
     MeshExportValidationReport,
     MeshPartSummary,
@@ -215,6 +216,10 @@ from cdmw.services.mesh_service_history import (
     _native_submesh_snapshot_payload_bytes,
 )
 from cdmw.services.mesh_service_morph import MeshMorphServiceMixin
+from cdmw.services.mesh_service_object_transform import (
+    MeshObjectTransformServiceMixin,
+    mesh_source_bounds_pivot,
+)
 from cdmw.services.mesh_service_kernel import (
     _TANGENT_INVALIDATING_ACTIONS,
     _append_unique_diagnostics,
@@ -541,6 +546,7 @@ class _MeshServiceSessionLayerCore(
     MeshRebuildServiceMixin,
     MeshHistoryServiceMixin,
     MeshMorphServiceMixin,
+    MeshObjectTransformServiceMixin,
 ):
     settings: object | None = None
     max_history: int = 64
@@ -625,6 +631,9 @@ class _MeshServiceSessionLayerCore(
             ),
             base_mesh_is_original_parse=_native_source_parse_eligible(mesh, original_data),
             mode=mode,
+            object_transform=MeshObjectTransformState(
+                pivot=mesh_source_bounds_pivot(base_mesh),
+            ),
             mesh_layer_project_path=project_path,
             mesh_layer_workspace_manifest_path=workspace_manifest_path,
             mesh_layer_workspace_mode=str(
@@ -634,6 +643,18 @@ class _MeshServiceSessionLayerCore(
             ),
         )
         if loaded_layer_project is not None:
+            raw_object_transform = loaded_layer_project.get("object_transform")
+            if isinstance(raw_object_transform, Mapping) and raw_object_transform:
+                session.object_transform = MeshObjectTransformState(
+                    location=tuple(raw_object_transform.get("location", (0.0, 0.0, 0.0))),
+                    rotation_degrees=tuple(
+                        raw_object_transform.get("rotation_degrees", (0.0, 0.0, 0.0))
+                    ),
+                    scale=tuple(raw_object_transform.get("scale", (1.0, 1.0, 1.0))),
+                    pivot=tuple(
+                        raw_object_transform.get("pivot", session.object_transform.pivot)
+                    ),
+                )
             session.geometry_layers = _geometry_layers_from_project_payload(
                 loaded_layer_project,
                 len(working_mesh.submeshes),
@@ -1078,6 +1099,12 @@ class _MeshServiceSessionLayerCore(
             copy_counter=session.geometry_layer_copy_counter,
             mesh_revision=session.revision,
             layer_revision=session.geometry_layer_revision,
+            object_transform={
+                "location": session.object_transform.location,
+                "rotation_degrees": session.object_transform.rotation_degrees,
+                "scale": session.object_transform.scale,
+                "pivot": session.object_transform.pivot,
+            },
             workspace_manifest_path=session.mesh_layer_workspace_manifest_path,
             promote_persistent_draft=promote,
             stop_event=stop_event,
@@ -1163,6 +1190,7 @@ class MeshService(_MeshServiceSessionLayerCore):
             redo_count=len(session.redo_stack),
             history_entries=_history_entries(session),
             history_cursor=len(session.undo_stack),
+            object_transform=session.object_transform,
         )
 
     def native_editor_mesh_dirty(self, session_id: str) -> bool:
@@ -1609,6 +1637,7 @@ class MeshService(_MeshServiceSessionLayerCore):
                 history_action="select",
                 history_label=str(label or "Select"),
                 selection_only=True,
+                object_transform=session.object_transform,
             ),
         )
         self._trim_session_history(session)
@@ -1804,6 +1833,7 @@ class MeshService(_MeshServiceSessionLayerCore):
                     native_submesh_snapshot=snapshot.native_submesh_snapshot,
                     history_action=execution.action,
                     history_label=_history_action_label(execution.action, execution.command),
+                    object_transform=snapshot.object_transform,
                 ),
             )
             execution.history_pushed = True
@@ -1965,6 +1995,7 @@ class MeshService(_MeshServiceSessionLayerCore):
                             native_editor_stroke_id=stroke_id,
                             history_action=execution.action,
                             history_label=_history_action_label(execution.action, execution.command),
+                            object_transform=session.object_transform,
                         ),
                     )
                     execution.history_pushed = True
@@ -2117,6 +2148,7 @@ def _snapshot(session: _MeshEditSession, *, prefer_native: bool = False) -> _Mes
                     session.committed_texture_resources[key]
                     for key in sorted(session.committed_texture_resources)
                 ),
+                object_transform=session.object_transform,
             )
         if not _allow_python_history_snapshot_fallback(session.working_mesh, "history.snapshot"):
             raise RuntimeError("native mesh history snapshot capture failed and Python fallback was blocked")
@@ -2236,6 +2268,7 @@ def _restore_native_editor_history(
     current_geometry_layers = session.geometry_layers
     current_active_geometry_layer_id = session.active_geometry_layer_id
     current_geometry_layer_copy_counter = session.geometry_layer_copy_counter
+    current_object_transform = session.object_transform
     dirty_at_start = session.native_editor_mesh_dirty
     before_signature = (
         session.native_editor_mesh_dirty_counts
@@ -2290,6 +2323,8 @@ def _restore_native_editor_history(
     session.mode = snapshot.mode
     session.selection = native_selection if native_selection is not None else snapshot.selection
     session.edit_operations = tuple(snapshot.edit_operations)
+    if snapshot.object_transform is not None:
+        session.object_transform = snapshot.object_transform
     if snapshot.geometry_layers is not None:
         session.geometry_layers = _restore_geometry_layer_structure(
             snapshot.geometry_layers,
@@ -2343,6 +2378,7 @@ def _restore_native_editor_history(
             geometry_layer_copy_counter=(
                 current_geometry_layer_copy_counter if snapshot.geometry_layers is not None else None
             ),
+            object_transform=current_object_transform,
         ),
     )
     _restore_history_material_state(session, snapshot)
@@ -2417,6 +2453,7 @@ def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot)
     current_mode = session.mode
     current_selection = session.selection
     current_edit_operations = tuple(session.edit_operations)
+    current_object_transform = session.object_transform
     before_signature = _mesh_structure_signature(session.working_mesh)
     if snapshot.selection_only:
         current_snapshot = _capture_history_material_state(
@@ -2429,11 +2466,14 @@ def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot)
                 history_action=snapshot.history_action,
                 history_label=snapshot.history_label,
                 selection_only=True,
+                object_transform=current_object_transform,
             ),
         )
         session.mode = snapshot.mode
         session.selection = snapshot.selection
         session.edit_operations = tuple(snapshot.edit_operations)
+        if snapshot.object_transform is not None:
+            session.object_transform = snapshot.object_transform
         session.native_editor_selection_signature = ()
         _restore_history_material_state(session, snapshot)
         return _MeshRestoreOutcome(
@@ -2456,6 +2496,7 @@ def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot)
             selection=current_selection,
             edit_operations=current_edit_operations,
             vertex_position_deltas=current_deltas,
+            object_transform=current_object_transform,
         )
         changed_vertices_by_submesh = _changed_vertices_from_deltas(
             session.working_mesh,
@@ -2469,6 +2510,8 @@ def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot)
     session.mode = snapshot.mode
     session.selection = snapshot.selection
     session.edit_operations = tuple(snapshot.edit_operations)
+    if snapshot.object_transform is not None:
+        session.object_transform = snapshot.object_transform
     session.native_editor_selection_signature = ()
     _restore_history_material_state(session, snapshot)
     after_signature = _mesh_structure_signature(session.working_mesh)
