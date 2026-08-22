@@ -197,7 +197,7 @@ class TabTests(unittest.TestCase):
         tab = self._tab()
         tab.resize(1280, 620)
         tab.show()
-        tab.start_snapshot()
+        tab.prefill_template(TEMPLATE)
         self.app.processEvents()
         model, perks, groups = tab.model_panel, tab.perks_panel, tab.placement_panel
         self.assertFalse(model.clear_button.isVisibleTo(model), "nothing to discard until a model is imported")
@@ -214,6 +214,16 @@ class TabTests(unittest.TestCase):
         perks.use_effect.setChecked(True)
         for row in perks._effect_rows:
             self.assertTrue(row.isVisibleTo(perks))
+        self.assertEqual(tab.controller.draft.effect_stem, "", "opting in does not silently choose an arbitrary effect")
+        self.assertFalse(perks.effect_advanced.isVisibleTo(perks), "raw effect controls stay folded")
+        perks.effect_advanced_toggle.setChecked(True)
+        tab.show_step(4)
+        self.app.processEvents()
+        self.assertEqual(tab.pages.currentWidget().horizontalScrollBar().maximum(), 0, "expanded appearance controls fit at 1280")
+        tab.stats_panel.advanced_toggle.setChecked(True)
+        tab.show_step(3)
+        self.app.processEvents()
+        self.assertEqual(tab.pages.currentWidget().horizontalScrollBar().maximum(), 0, "expanded raw-stat controls fit at 1280")
         self.assertFalse(groups.group_list.isVisibleTo(groups), "the item groups wait to be chosen by hand")
         self.assertFalse(groups.store.isVisibleTo(groups), "no shop, no shop picker")
         groups.explicit.setChecked(True)
@@ -353,6 +363,54 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_stats_and_perk_resets_clear_hidden_state_and_safe_limits(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        stats = tab.stats_panel
+        stats.advanced_toggle.setChecked(True)
+        stats.own_rows.setChecked(True)
+        stats.table.setCurrentCell(0, 0)
+        stats.flat.setValue(25000)
+        stats.flat_button.click()
+        self.assertEqual([stats.table.item(level, 0).text() for level in range(2)], ["25000", "25000"])
+        self.assertTrue(tab.controller.draft.own_enhancement_rows)
+        stats.reset_button.click()
+        self.assertFalse(stats.own_rows.isChecked())
+        self.assertFalse(tab.controller.draft.own_enhancement_rows)
+        self.assertEqual(stats.summary_text(), ("Combat and prices: template values", False))
+
+        perks = tab.perks_panel
+        perks.own_perks.setChecked(True)
+        while len(tab.controller.draft.socket_items) < 4:
+            perks._add_selected()
+        self.assertEqual(len(tab.controller.draft.socket_items), 4)
+        self.assertFalse(perks.add_button.isEnabled(), "five perks require an explicit experimental opt-in")
+        perks.experimental_perks.setChecked(True)
+        self.assertTrue(perks.add_button.isEnabled())
+        perks._add_selected()
+        self.assertEqual(len(tab.controller.draft.socket_items), 5)
+        self.assertIn("experimental", perks.perk_count.text().lower())
+        perks.reset_button.click()
+        self.assertFalse(perks.own_perks.isChecked())
+        self.assertIsNone(tab.controller.draft.socket_items)
+        self.assertEqual(perks.perks_summary(), ("Perks: template list (1)", False))
+        tab.close()
+        tab.deleteLater()
+
+    def test_weapon_effect_support_is_class_aware(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        perks = tab.perks_panel
+        self.assertTrue(perks.use_effect.isEnabled())
+        with patch.object(type(tab.controller.snapshot), "equip_type_name", lambda _self, _row: "Helm"):
+            perks.use_effect.setChecked(True)
+            perks._refresh_effect_support()
+            self.assertFalse(perks.use_effect.isEnabled())
+            self.assertFalse(perks.use_effect.isChecked())
+            self.assertIn("unavailable", perks.effect_support.plain_text())
+        tab.close()
+        tab.deleteLater()
+
     def test_snapshot_panels_and_a_plan_through_the_panels(self) -> None:
         from PySide6.QtCore import Qt
 
@@ -386,12 +444,12 @@ class TabTests(unittest.TestCase):
         self.assertIn(1000007, choices, "CriticalRate is offered")
         self.assertNotIn(DDD, choices, "a stat the ladder already carries is not offered twice")
         crit_index = choices.index(1000007)
-        self.assertIn("unproven", stats.new_stat.itemText(crit_index), "no shipped equipment carries it, and the list says so")
+        self.assertIn("experimental", stats.new_stat.itemText(crit_index), "no shipped equipment carries it, and the list says so")
         stats.new_stat.setCurrentIndex(crit_index)
         stats.new_stat_value.setValue(250)
         stats.add_stat_button.click()
         self.assertEqual(stats.table.columnCount(), 4)
-        self.assertEqual(stats.table.horizontalHeaderItem(1).text(), "Critical rate (CriticalRate)", "added after the template's stats, before the prices")
+        self.assertEqual(stats.table.horizontalHeaderItem(1).text(), "Critical rate (CriticalRate) — raw", "added after the template's stats, before the prices")
         self.assertEqual(stats.table.item(0, 1).text(), "250")
         self.assertEqual(stats.table.item(0, 0).text(), "20000", "the earlier edit stayed on its column")
         self.assertEqual(stats.table.item(0, 2).text(), "348", "the price column moved right with its values")
@@ -432,6 +490,7 @@ class TabTests(unittest.TestCase):
         self.assertEqual(tab.controller.draft.socket_items, [1002791], "the template's own list to start from")
         perks.perk_filter.setText("Swift")
         self.assertEqual([perks.catalogue.itemData(i) for i in range(perks.catalogue.count())], [1002812])
+        self.assertIn("Internal ID: Socket_Swift_III", perks.perk_details.plain_text())
         perks.add_button.click()
         perks.perk_filter.setText("Gem_III")
         perks.add_button.click()
@@ -439,7 +498,7 @@ class TabTests(unittest.TestCase):
         perks.chosen.setCurrentRow(0)
         perks.remove_button.click()
         self.assertEqual(tab.controller.draft.socket_items, [1002812, 1002793])
-        self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["fx_cc_firesweapon_a__fire1", "fx_test_fire", "fx_test_ice"])
+        self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["", "fx_cc_firesweapon_a__fire1", "fx_test_fire", "fx_test_ice"])
         # the element presets: only the shipped ones, the proven one marked; choosing one selects the effect
         self.assertEqual([perks.effect_preset.itemData(i) for i in range(perks.effect_preset.count())], ["", "fx_cc_firesweapon_a__fire1"])
         self.assertIn("(proven)", perks.effect_preset.itemText(1))
@@ -454,12 +513,13 @@ class TabTests(unittest.TestCase):
         self.assertEqual((tab.controller.current_spec().effect_scale, tab.controller.current_spec().effect_offset), (0.25, (0.0, 0.1, 0.0)))
         perks.choose_effect("fx_test_fire")
         self.assertEqual(tab.controller.draft.effect_stem, "fx_test_fire")
+        self.assertEqual((tab.controller.draft.effect_scale, tab.controller.draft.effect_offset), (1.0, (0.0, 0.0, 0.0)), "a new effect does not inherit another effect's tuning")
         self.assertEqual(tab.controller.current_spec().effect, "fx_test_fire.level.effect")
         self.assertEqual(tab.controller.current_spec().socket_items, (1002812, 1002793))
         # the effect catalogue: before indexing the facts line asks for it; after, the real
         # effect says what it draws, the stubs say they did not decode, and the filter
         # matches emitters and textures too
-        self.assertIn("Index the effects", perks.effect_facts.text())
+        self.assertIn("optional index", perks.effect_facts.text())
         tab.controller.effect_cache_path = self.root / "effect_catalogue.json"
         perks.index_button.click()
         self.assertIsNotNone(tab.controller.effect_catalogue)
@@ -469,12 +529,12 @@ class TabTests(unittest.TestCase):
         facts = perks.effect_facts.text()
         self.assertIn("cdem_last_fire_circle_trail_001a", facts)
         self.assertIn("pafx_vector_chaos_01a.dds", facts)
-        self.assertIn("box 2.50 x 2.53 x 2.64 m", facts)
+        self.assertIn("Approximate box at scale 1.00: 2.50 × 2.53 × 2.64 m", facts)
         self.assertIn("loops", facts)
         perks.effect_filter.setText("firefly")
-        self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["fx_test_fire"])
+        self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["", "fx_test_fire"])
         perks.effect_filter.setText("ice")
-        self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["fx_test_ice"])
+        self.assertEqual([perks.effect.itemData(i) for i in range(perks.effect.count())], ["", "fx_test_fire", "fx_test_ice"], "filtering never discards the current selection")
         self.assertTrue(tab.controller.effect_facts("fx_test_ice").walk_note, "a stub effect is kept, marked undecoded")
         perks.effect_filter.setText("")
         # place in the viewport: the dialog gets the item's mesh, the effect's box and the
@@ -500,7 +560,7 @@ class TabTests(unittest.TestCase):
             perks.place_button.click()
         self.assertIs(seen["item_mesh"], blade)
         self.assertEqual(tuple(round(v, 2) for v in seen["box_min"]), (-1.24, -1.24, -1.39))
-        self.assertEqual(seen["scale"], 0.25)
+        self.assertEqual(seen["scale"], 1.0)
         self.assertEqual(seen["effect_label"], "fx_test_fire")
         # the dialog also gets the effect's particle description (read from the snapshot with
         # the draft's look) and a reader for its sprite textures
@@ -521,11 +581,12 @@ class TabTests(unittest.TestCase):
         look = tab.controller.current_spec().effect_look
         self.assertEqual((look.color, look.intensity, look.size, look.rate, look.lifetime), ((0.2, 0.4, 1.0), 2.0, 1.0, 0.5, 1.0))
         self.assertIn("#3366ff", perks.color_button.text())
-        perks.color_reset.click()
-        self.assertIsNone(tab.controller.current_spec().effect_look.color)
+        perks.effect_reset_button.click()
+        reset = tab.controller.current_spec()
+        self.assertIsNone(reset.effect_look.color)
+        self.assertTrue(reset.effect_look.is_default)
+        self.assertEqual((reset.effect_scale, reset.effect_offset), (1.0, (0.0, 0.0, 0.0)))
         self.assertEqual(perks.color_button.text(), "Colour: as shipped")
-        perks.look_factors["intensity"].setValue(1.0)
-        perks.look_factors["rate"].setValue(1.0)
         # a second tab loads the cache instead of indexing again
         again = self._tab()
         again.start_snapshot()

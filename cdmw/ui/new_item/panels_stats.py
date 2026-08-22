@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.new_item.controller import NewItemStudioController
-from cdmw.ui.new_item.state import BUY_PRICE_KIND, STAT_KIND, StatGrid, flat_grid_values, scaled_grid_values
+from cdmw.ui.new_item.state import BUY_PRICE_KIND, STAT_KIND, StatGrid, scaled_grid_values
 from cdmw.ui.new_item.ui_kit import EDIT, WARN, NoteLabel, compact_table_height, intro_label, tone_color
 
 _MAX_EXTRA_LEVELS = 8
@@ -34,32 +34,45 @@ class StatsPanel(QGroupBox):
     """A grid over the template's ladder: one row per level, one column per stat or price item."""
 
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
-        super().__init__("4. Stats and prices", parent)
+        super().__init__("4. Combat stats and prices", parent)
         self._controller = controller
         self._grid: Optional[StatGrid] = None
         self._syncing = False
         layout = QVBoxLayout(self)
-        layout.addWidget(intro_label("The item's numbers per enhancement level, starting as the template's. Edit a cell; blue differs from the template (hover for its value)."))
+        layout.addWidget(intro_label(
+            "Attack, defence and similar fields are raw game values, not the damage number shown to the player. "
+            "Start from the template and compare changes rather than guessing a display value."
+        ))
         self.carries = intro_label("")
         layout.addWidget(self.carries)
 
-        ladder = QGroupBox("Stats and shop prices per level")
+        ladder = QGroupBox("Raw stats and level-up prices")
         ladder_layout = QVBoxLayout(ladder)
         self.table = QTableWidget(0, 0)
-        self.table.setToolTip("Stat columns are named after the game's status entries (DDD is the damage stat every weapon ladder carries); the price columns are what the shop charges at that level.")
+        self.table.setToolTip(
+            "Stat columns are stored ItemInfo values: DDD is the raw attack field every weapon carries. "
+            "Price columns are currencies charged at that enhancement level."
+        )
         self.table.cellChanged.connect(self._cell_changed)
+        self.table.currentCellChanged.connect(self._selected_cell_changed)
         ladder_layout.addWidget(self.table)
+        self.selection_note = NoteLabel("")
+        ladder_layout.addWidget(self.selection_note)
         quick = QHBoxLayout()
-        self.one_copper_button = QPushButton("Sell for one copper")
-        self.one_copper_button.setToolTip("Every shop price at every level and every base price becomes 1: the item costs one copper in the shop.")
+        self.one_copper_button = QPushButton("Set editable prices to 1")
+        self.one_copper_button.setToolTip(
+            "Set every stored level-up and base-price field on this page to 1. Embedded perk prices may still contribute to the final shop cost."
+        )
         self.one_copper_button.clicked.connect(self._one_copper)
         quick.addWidget(self.one_copper_button)
-        self.reset_button = QPushButton("Back to the template's values")
-        self.reset_button.setToolTip("Drop every edit on this page: the ladder, the base prices, the added levels and the stack size.")
+        self.reset_button = QPushButton("Restore this step")
+        self.reset_button.setToolTip(
+            "Return stats, prices, added levels, stack size and enhancement-row ownership to the template."
+        )
         self.reset_button.clicked.connect(self._reset)
         quick.addWidget(self.reset_button)
         self.advanced_toggle = QToolButton()
-        self.advanced_toggle.setText("More: scale all, set all, add a level")
+        self.advanced_toggle.setText("Advanced / experimental")
         self.advanced_toggle.setCheckable(True)
         self.advanced_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         self.advanced_toggle.setArrowType(Qt.RightArrow)
@@ -69,70 +82,89 @@ class StatsPanel(QGroupBox):
         quick.addStretch(1)
         ladder_layout.addLayout(quick)
 
-        self.advanced = QWidget()
-        presets = QHBoxLayout(self.advanced)
-        presets.setContentsMargins(0, 0, 0, 0)
+        self.advanced = QGroupBox("Advanced and experimental editing")
+        advanced_layout = QVBoxLayout(self.advanced)
+        self.advanced_warning = NoteLabel("")
+        self.advanced_warning.set_note(
+            "These controls write raw fields. Values far outside the range used by the game's own equipment have crashed the game when an item was bought.",
+            WARN,
+        )
+        advanced_layout.addWidget(self.advanced_warning)
+
+        presets = QFormLayout()
         self.scale = QDoubleSpinBox()
         self.scale.setRange(0.01, 100.0)
         self.scale.setSingleStep(0.1)
         self.scale.setValue(1.5)
         self.scale.setPrefix("x ")
-        presets.addWidget(self.scale)
-        self.scale_button = QPushButton("Scale every stat")
-        self.scale_button.setToolTip("Multiply every stat of the template's ladder (not the prices) by the factor.")
+        scale_row = QHBoxLayout()
+        scale_row.addWidget(self.scale)
+        self.scale_button = QPushButton("Scale template stat columns")
+        self.scale_button.setToolTip(
+            "Multiply the template's existing raw stat values by this factor. Prices, added stats and added levels are left alone."
+        )
         self.scale_button.clicked.connect(self._apply_scale)
-        presets.addWidget(self.scale_button)
-        presets.addSpacing(12)
+        scale_row.addWidget(self.scale_button)
+        scale_row.addStretch(1)
+        presets.addRow("Relative change:", scale_row)
+
         self.flat = QSpinBox()
         self.flat.setRange(-2_000_000_000, 2_000_000_000)
-        self.flat.setValue(10000)
-        presets.addWidget(self.flat)
-        self.flat_button = QPushButton("Set every stat to this")
+        self.flat.setValue(0)
+        flat_row = QHBoxLayout()
+        flat_row.addWidget(self.flat)
+        self.flat_button = QPushButton("Set selected stat column")
+        self.flat_button.setToolTip(
+            "Set only the selected stat column at every level. Currency columns are never changed by this action."
+        )
         self.flat_button.clicked.connect(self._apply_flat)
-        presets.addWidget(self.flat_button)
-        presets.addSpacing(12)
+        flat_row.addWidget(self.flat_button)
+        flat_row.addStretch(1)
+        presets.addRow("Exact raw value:", flat_row)
+
         self.add_level_button = QPushButton("Add a level")
         self.add_level_button.setToolTip("One more enhancement level, copying the last one; the least-proven part in game.")
         self.add_level_button.clicked.connect(self._add_level)
-        presets.addWidget(self.add_level_button)
-        presets.addStretch(1)
-        self.advanced.setVisible(False)
-        ladder_layout.addWidget(self.advanced)
-        # a checkbox's text does not wrap, and this one set the whole step's minimum width,
-        # so the rest of the sentence went to the tooltip
-        self.own_rows = QCheckBox("Give the item enhancement rows of its own (unproven in game)")
+        presets.addRow("Enhancement ladder:", self.add_level_button)
+        advanced_layout.addLayout(presets)
+
+        self.own_rows = QCheckBox("Separate enhancement transitions (experimental)")
         self.own_rows.setToolTip("Off: the item enhances through the template's own transition rows, the way every in-game check so far was built. On: rows of its own are written, which no check has confirmed yet.")
         self.own_rows.toggled.connect(self._own_rows_changed)
-        self.own_rows.setVisible(False)
-        ladder_layout.addWidget(self.own_rows)
-        add_row = QHBoxLayout()
-        add_row.addWidget(QLabel("Add a stat:"))
+        advanced_layout.addWidget(self.own_rows)
+
+        add_form = QFormLayout()
         self.new_stat = QComboBox()
-        self.new_stat.setMinimumWidth(260)
+        self.new_stat.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.new_stat.setMinimumContentsLength(24)
         self.new_stat.setToolTip("Every status entry the game has. The ones some shipped weapon or armour carries come first; the rest are marked unproven, since no shipped equipment row carries them.")
-        add_row.addWidget(self.new_stat, 1)
-        add_row.addWidget(QLabel("at every level:"))
+        add_form.addRow("Add a raw stat:", self.new_stat)
         self.new_stat_value = QSpinBox()
         self.new_stat_value.setRange(-2_000_000_000, 2_000_000_000)
-        self.new_stat_value.setValue(1000)
-        add_row.addWidget(self.new_stat_value)
+        self.new_stat_value.setValue(0)
+        add_form.addRow("Initial value at every level:", self.new_stat_value)
+        add_buttons = QHBoxLayout()
         self.add_stat_button = QPushButton("Add column")
         self.add_stat_button.setToolTip("A new column for that stat, with that value on every level; edit the cells afterwards. The plan adds the stat to the row's stat block.")
         self.add_stat_button.clicked.connect(self._add_stat_column)
-        add_row.addWidget(self.add_stat_button)
+        add_buttons.addWidget(self.add_stat_button)
         self.remove_stat_button = QPushButton("Remove column")
         self.remove_stat_button.setToolTip("Drops the added stat column the selected cell is in (a column the template carries cannot be removed, only edited).")
         self.remove_stat_button.clicked.connect(self._remove_stat_column)
-        add_row.addWidget(self.remove_stat_button)
-        ladder_layout.addLayout(add_row)
+        add_buttons.addWidget(self.remove_stat_button)
+        add_buttons.addStretch(1)
+        add_form.addRow("", add_buttons)
+        advanced_layout.addLayout(add_form)
         #: what the game's own rows carry for the chosen stat: a value outside that range
         #: is where an added stat goes strange in play
         self.stat_range_note = NoteLabel("")
-        ladder_layout.addWidget(self.stat_range_note)
+        advanced_layout.addWidget(self.stat_range_note)
         self.new_stat.currentIndexChanged.connect(self._stat_choice_changed)
+        self.advanced.setVisible(False)
+        ladder_layout.addWidget(self.advanced)
         layout.addWidget(ladder)
 
-        base = QGroupBox("Base price and stack")
+        base = QGroupBox("Stored base prices and stack")
         base_layout = QHBoxLayout(base)
         self.price_table = QTableWidget(0, 2)
         self.price_table.setHorizontalHeaderLabels(["Money item", "Price"])
@@ -154,7 +186,6 @@ class StatsPanel(QGroupBox):
 
     def _toggle_advanced(self, checked: bool) -> None:
         self.advanced.setVisible(bool(checked))
-        self.own_rows.setVisible(bool(checked))
         self.advanced_toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
 
     def _one_copper(self) -> None:
@@ -190,13 +221,19 @@ class StatsPanel(QGroupBox):
             grid = self._grid
             template_stats = [column.label for column in grid.columns if column.kind == STAT_KIND and column.key not in draft.extra_stat_keys]
             added_stats = [column.label for column in grid.columns if column.kind == STAT_KIND and column.key in draft.extra_stat_keys]
-            sentences = [f"This template's row carries {', '.join(template_stats) or 'no stat'} per level, plus the shop price per level; every cell can be changed."]
+            sentences = [
+                f"The template carries {', '.join(template_stats) or 'no raw stat'} per level. "
+                "Blue cells differ from it; select a cell to see the exact change and shipped range."
+            ]
             if added_stats:
                 sentences.append(f"Added here: {', '.join(added_stats)} (written into the row when the plan is built).")
             self.carries.setText(" ".join(sentences))
             self._refresh_status_choices()
             self.table.setColumnCount(len(grid.columns))
-            self.table.setHorizontalHeaderLabels([column.label for column in grid.columns])
+            self.table.setHorizontalHeaderLabels([
+                f"{column.label} — raw" if column.kind == STAT_KIND else column.label.replace("Price (", "Level price (")
+                for column in grid.columns
+            ])
             rows = grid.level_count + draft.extra_levels
             self.table.setRowCount(rows)
             self.table.setVerticalHeaderLabels([f"Level {level}" for level in range(rows)])
@@ -228,10 +265,16 @@ class StatsPanel(QGroupBox):
             self.max_stack.blockSignals(True)
             self.max_stack.setValue(int(draft.max_stack_count if draft.max_stack_count is not None else (row.max_stack_count if row else 1)))
             self.max_stack.blockSignals(False)
+            self.own_rows.blockSignals(True)
+            self.own_rows.setChecked(bool(draft.own_enhancement_rows))
+            self.own_rows.blockSignals(False)
             self.table.resizeColumnsToContents()
             compact_table_height(self.table, rows)
             self.price_table.resizeColumnsToContents()
             compact_table_height(self.price_table, len(grid.price_items), minimum_rows=1, maximum_rows=6)
+            if rows and grid.columns and self.table.currentRow() < 0:
+                self.table.setCurrentCell(0, 0)
+            self._refresh_selected_cell_note(self.table.currentRow(), self.table.currentColumn())
         finally:
             self._syncing = False
 
@@ -252,6 +295,52 @@ class StatsPanel(QGroupBox):
                 self.rebuild()
                 return
         self._controller.invalidate_plan()
+        self._refresh_selected_cell_note(level, column_index)
+
+    def _selected_cell_changed(self, row: int, column: int, _old_row: int, _old_column: int) -> None:
+        self._refresh_selected_cell_note(row, column)
+
+    def _refresh_selected_cell_note(self, level: int, column_index: int) -> None:
+        grid = self._grid
+        if grid is None or level < 0 or column_index < 0 or column_index >= len(grid.columns):
+            self.selection_note.set_note("Select a cell to compare it with the template.", None)
+            return
+        column = grid.columns[column_index]
+        template = grid.template_values[level][column_index] if level < grid.level_count else (
+            grid.template_values[-1][column_index] if grid.template_values else None
+        )
+        item = self.table.item(level, column_index)
+        try:
+            value = int((item.text() if item is not None else "").strip())
+        except ValueError:
+            self.selection_note.set_note("This cell is not an integer; it will return to its last valid value.", WARN)
+            return
+        if column.kind == BUY_PRICE_KIND:
+            comparison = f"; template {template:,}" if template is not None else ""
+            self.selection_note.set_note(f"Level {level} price: {value:,}{comparison}. This is currency, not a combat stat.", None)
+            return
+        comparison = ""
+        if template is not None:
+            delta = value - int(template)
+            percent = (delta / abs(int(template)) * 100.0) if int(template) else None
+            percent_text = f", {percent:+.1f}%" if percent is not None else ""
+            comparison = f"; template {int(template):,}, change {delta:+,}{percent_text}"
+        measured = self._controller.status_value_range(int(column.key))
+        range_text = ""
+        tone = None
+        if measured is not None:
+            _entries, low, _middle, high = measured
+            range_text = f"; shipped equipment range {low:,}–{high:,}"
+            if value < (low / 10 if low > 0 else low):
+                tone = WARN
+            elif value > high * 10:
+                tone = WARN
+        self.selection_note.set_note(
+            f"Level {level} {column.label}: raw {value:,}{comparison}{range_text}. No player-facing damage conversion is proven.",
+            tone,
+        )
+        if not self.flat.hasFocus():
+            self.flat.setValue(value)
 
     def _price_changed(self, index: int, column: int) -> None:
         if self._syncing or self._grid is None or column != 1:
@@ -275,7 +364,7 @@ class StatsPanel(QGroupBox):
             for key, label, carried in self._controller.status_choices():
                 if key in present:
                     continue
-                self.new_stat.addItem(label if carried else f"{label}  (no shipped equipment carries it: unproven)", key)
+                self.new_stat.addItem(label if carried else f"{label} — experimental", key)
             index = self.new_stat.findData(current) if current is not None else -1
             self.new_stat.setCurrentIndex(max(0, index))
         finally:
@@ -292,7 +381,7 @@ class StatsPanel(QGroupBox):
             self.stat_range_note.set_note("", None)
             return
         measured = self._controller.status_value_range(int(key))
-        label = self.new_stat.currentText().split("  (")[0]
+        label = self.new_stat.currentText().split(" — ")[0]
         if measured is None:
             self.stat_range_note.set_note(f"No shipped equipment carries {label}, so there is no value to go by; whatever you type here is a guess.", WARN)
             return
@@ -360,7 +449,9 @@ class StatsPanel(QGroupBox):
     def _stack_changed(self, value: int) -> None:
         if self._syncing:
             return
-        self._controller.draft.max_stack_count = int(value)
+        draft = self._controller.draft
+        row = self._controller.snapshot.row(draft.template_key) if self._controller.snapshot is not None and draft.template_key is not None else None
+        draft.max_stack_count = None if row is not None and int(value) == int(row.max_stack_count) else int(value)
         self._controller.invalidate_plan()
 
     def _apply_scale(self) -> None:
@@ -371,11 +462,28 @@ class StatsPanel(QGroupBox):
         self.rebuild()
 
     def _apply_flat(self) -> None:
-        if self._grid is None:
+        grid = self._grid
+        if grid is None:
             return
-        self._controller.draft.grid_values.update(flat_grid_values(self._grid, int(self.flat.value())))
+        column_index = self._selected_stat_column_index()
+        if column_index < 0:
+            self._controller.status_message.emit("Select a stat column first; prices are not raw stats.", True)
+            return
+        draft = self._controller.draft
+        rows = grid.level_count + draft.extra_levels
+        for level in range(rows):
+            draft.grid_values[(level, column_index)] = int(self.flat.value())
         self._controller.invalidate_plan()
         self.rebuild()
+
+    def _selected_stat_column_index(self) -> int:
+        grid = self._grid
+        if grid is None:
+            return -1
+        current = self.table.currentColumn()
+        if 0 <= current < len(grid.columns) and grid.columns[current].kind == STAT_KIND:
+            return current
+        return next((index for index, column in enumerate(grid.columns) if column.kind == STAT_KIND), -1)
 
     def _add_level(self) -> None:
         """A new top level, seeded with the level below it so the plan actually creates it."""
@@ -402,8 +510,53 @@ class StatsPanel(QGroupBox):
         draft.extra_levels = 0
         draft.extra_stat_keys.clear()
         draft.max_stack_count = None
+        draft.own_enhancement_rows = False
+        self.own_rows.blockSignals(True)
+        self.own_rows.setChecked(False)
+        self.own_rows.blockSignals(False)
         self._controller.invalidate_plan()
         self.rebuild()
+
+    def summary_text(self) -> tuple[str, bool]:
+        """A short, truthful rail summary for this step."""
+
+        draft = self._controller.draft
+        grid = self._grid
+        stat_count = price_count = 0
+        if grid is not None:
+            for (level, column_index), value in draft.grid_values.items():
+                if value is None or column_index >= len(grid.columns):
+                    continue
+                if level >= grid.level_count:
+                    continue
+                template = grid.template_values[level][column_index] if level < grid.level_count else None
+                if value == template:
+                    continue
+                if grid.columns[column_index].kind == STAT_KIND:
+                    stat_count += 1
+                else:
+                    price_count += 1
+        price_count += sum(
+            1 for key, _label, template in (grid.price_items if grid is not None else ())
+            if draft.price_values.get(key, template) != template
+        )
+        extras = int(draft.extra_levels > 0) + int(bool(draft.extra_stat_keys)) + int(draft.max_stack_count is not None) + int(draft.own_enhancement_rows)
+        if not (stat_count or price_count or extras):
+            return "Combat and prices: template values", False
+        parts = []
+        if stat_count:
+            parts.append(f"{stat_count} stat cell(s)")
+        if price_count:
+            parts.append(f"{price_count} price field(s)")
+        if draft.extra_levels:
+            parts.append(f"{draft.extra_levels} added level(s)")
+        if draft.extra_stat_keys:
+            parts.append(f"{len(draft.extra_stat_keys)} added stat(s)")
+        if draft.max_stack_count is not None:
+            parts.append("stack changed")
+        if draft.own_enhancement_rows:
+            parts.append("separate enhancement rows")
+        return f"Combat and prices: {', '.join(parts)}", True
 
 
 __all__ = ["StatsPanel"]

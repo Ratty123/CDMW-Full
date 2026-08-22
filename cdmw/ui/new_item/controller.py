@@ -336,7 +336,9 @@ class NewItemStudioController(QObject):
             if row is None:
                 continue
             label = self._perk_label(key, row, english, users)
-            if needle and needle not in label.casefold() and needle != str(key):
+            description_entry = english.get(row.desc_key) if row.desc_key else None
+            search_text = " ".join((label, str(row.string_key or ""), str(getattr(description_entry, "text", "") or ""), str(key))).casefold()
+            if needle and needle not in search_text:
                 continue
             out.append((key, label))
         return tuple(sorted(out, key=lambda item: item[1].casefold())[:limit])
@@ -354,10 +356,29 @@ class NewItemStudioController(QObject):
     @staticmethod
     def _perk_label(key: int, row, english, users) -> str:
         entry = english.get(row.name_key) if row.name_key else None
-        label = f"{entry.text} ({row.string_key})" if entry is not None else row.string_key
+        label = str(entry.text) if entry is not None else str(row.string_key)
         # a gem nothing in the game carries is a gem with no evidence it may sit in an
         # equipment row at all, which is worth seeing before it is picked
-        return label if users.get(int(key)) else f"{label}  (no shipped item carries it: unproven)"
+        return label if users.get(int(key)) else f"{label} — experimental"
+
+    def perk_details(self, key: int) -> str:
+        """One perk's localized meaning, category, shipped use and internal identity."""
+
+        if self.snapshot is None:
+            return ""
+        row = self.snapshot.rows.get(int(key))
+        if row is None:
+            return ""
+        english = self.snapshot.english.index()
+        description_entry = english.get(row.desc_key) if row.desc_key else None
+        description = str(getattr(description_entry, "text", "") or "").strip()
+        internal = str(row.string_key or "")
+        lowered = internal.casefold()
+        kind = "Ability" if "item_skill" in lowered else "Stat perk" if "item_stat" in lowered else "Perk"
+        users = int(self.snapshot.socket_item_users().get(int(key), 0))
+        evidence = f"Used by {users} shipped item(s)." if users else "No shipped item embeds it; treat it as experimental."
+        meaning = description or "No localized description is available."
+        return f"{kind}. {meaning} {evidence} Internal ID: {internal} ({int(key)})."
 
     def template_socket_items(self) -> Tuple[int, ...]:
         if self.snapshot is None or self.draft.template_key is None:
