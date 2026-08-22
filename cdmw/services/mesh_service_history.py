@@ -34,6 +34,7 @@ def _history_snapshot_retained_bytes(snapshot: _MeshHistorySnapshot) -> int:
             snapshot.geometry_layer_copy_counter,
             snapshot.material_generation,
             snapshot.committed_texture_resources,
+            snapshot.object_transform,
         )
     )
     if snapshot.native_submesh_snapshot is not None:

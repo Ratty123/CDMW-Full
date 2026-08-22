@@ -134,7 +134,37 @@ class MeshEditorShellBridgeMixin:
         if not hasattr(self, "mesh_editor_tab"):
             return True
         active_builder = self._mesh_editor_active_builder()
-        if active_builder is None:
+        has_standalone = bool(self.mesh_editor_tab.has_active_standalone_session())
+        if active_builder is None and not has_standalone:
+            return True
+        if has_standalone:
+            current_target = self.mesh_editor_tab._current_target_entry()
+            if self._mesh_editor_entry_key(current_target) == self._mesh_editor_entry_key(entry):
+                self._activate_tool_widget(self.mesh_editor_tab)
+                self.set_status_message("Mesh Editor is already open for this target.")
+                return False
+            controller = getattr(self.mesh_editor_tab, "standalone_controller", None)
+            try:
+                revision = int(controller.session_view().revision) if controller is not None else 0
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+                revision = 0
+            result = QMessageBox.question(
+                self,
+                "Replace Mesh Editor Session",
+                "Mesh Editor already has an active mesh.\n\n"
+                "Close it and open the selected archive mesh?\n\n"
+                + (
+                    "The current mesh has edits that have not been exported or built."
+                    if revision > 0
+                    else "The current mesh has no committed geometry edits."
+                ),
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if result != QMessageBox.Yes:
+                self._activate_tool_widget(self.mesh_editor_tab)
+                return False
+            self.mesh_editor_tab.close_standalone_session()
             return True
         if self._mesh_editor_active_builder_entry_key() == self._mesh_editor_entry_key(entry):
             self._activate_tool_widget(self.mesh_editor_tab)
@@ -168,7 +198,15 @@ class MeshEditorShellBridgeMixin:
             return
         if not self._prepare_mesh_editor_archive_launch(entry):
             return
-        self._mesh_editor_modify_original_requested(entry)
+        current_preview = getattr(self, "current_archive_preview_result", None)
+        material_preview_model = getattr(current_preview, "preview_model", None)
+        self._strip_archive_preview_heavy_payloads_for_mesh_editor(entry)
+        self.mesh_editor_tab.open_archive_session(
+            entry,
+            material_preview_model=material_preview_model,
+        )
+        self._activate_tool_widget(self.mesh_editor_tab)
+        self.set_status_message(f"Opening {entry.basename} directly in Mesh Editor.")
 
     def _open_current_archive_mesh_editor(self) -> None:
         current_entry = self._current_archive_mesh_entry()

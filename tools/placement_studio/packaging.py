@@ -51,6 +51,10 @@ MANAGER_PROFILES: Dict[str, Dict[str, object]] = {
 }
 
 # The in-game checks the tuning guide requires before a placement change is trusted.
+#
+# Ordered as a run, not as a menu: a save load first, then the states a stowed weapon is seen
+# in, then the ones that only a wider animation scope can break, then the two that catch a
+# change which only looks right on the frame you were watching.
 IN_GAME_CHECKLIST: Tuple[str, ...] = (
     "Load a save.",
     "Stand idle with the weapon stowed.",
@@ -58,14 +62,25 @@ IN_GAME_CHECKLIST: Tuple[str, ...] = (
     "Stow the weapon.",
     "Walk and run with the weapon stowed.",
     "Walk and run with the weapon drawn.",
-    "Mount a horse if the package includes riding files.",
+    "Crouch, and move while crouched.",
+    "Sit down and stand up again.",
+    "Mount a horse and dismount if the package includes riding files.",
     "Equip a shield and repeat draw/stow if shield placement changed.",
+    "Watch the weapon and its case through every draw and stow transition, "
+    "including the frames where one becomes visible and the other hides.",
     "Check clipping from back, side, and front camera angles.",
+    "Reload the character, then reload the save, and check the placement again.",
 )
 
 PASS_CRITERIA: Tuple[str, ...] = (
-    "Weapon and sheath stay together.",
+    "Weapon and sheath stay together in every state above.",
+    "The weapon is on the side and the destination the package README names.",
+    "The weapon is not inverted from any camera angle.",
     "The draw/stow hand reaches close enough.",
+    "The off-hand and the shield are unchanged, unless a full-body donor was accepted "
+    "on purpose.",
+    "No other weapon moved, and no other weapon's animations changed.",
+    "The weapon never snaps back to its vanilla position in a context the package covers.",
     "The shield does not snap, rotate wrongly, or cover the camera.",
     "No teleport or eject on horseback.",
 )
@@ -157,8 +172,15 @@ def build_readme(
     manager: str,
     payload_paths: Sequence[str],
     new_paths: Sequence[str],
+    scope=None,
 ) -> str:
-    """A README describing what the mod changes, generated from the operation list."""
+    """A README describing what the mod changes, generated from the operation list.
+
+    `scope` is a `preflight.PackageScopeSummary` when the package was built from selected
+    operations. Without it the README still describes the files; with it, it also states which
+    operations, which equipment unit, which linked rows and which animation families — the
+    facts that make an unexpected batch visible to somebody reading it afterwards.
+    """
 
     tiers = plan.tier_counts()
     lines: List[str] = [
@@ -176,6 +198,9 @@ def build_readme(
         "",
     ]
 
+    if scope is not None:
+        lines += _scope_section(scope)
+
     lines += ["Changes", "-------"]
     labels = {
         "A": "socket transform edits",
@@ -184,11 +209,33 @@ def build_readme(
         "B2": "descriptor alias / attribute additions",
         "C": "action-chart socket retargets (same length)",
         "D": "payload substitutions from existing game files",
-        "E": "carried prerequisite payloads",
+        "E": "carried payloads",
     }
+    # An animation replacement is opaque bytes and lands in tier D or E alongside genuine
+    # prerequisites, so counting by tier alone filed a batch of draws under "carried
+    # prerequisite payloads" — where nobody reviewing the package would look for them.
+    animation_ops = [
+        op for op in plan.operations
+        if str(op.detail.get("payload_kind") or "") == "animation"
+    ]
+    animation_by_tier: Dict[str, int] = {}
+    for op in animation_ops:
+        animation_by_tier[op.tier] = animation_by_tier.get(op.tier, 0) + 1
     for tier, count in tiers.items():
-        lines.append(f"  {count:>4}  {labels.get(tier, tier)}")
+        remainder = count - animation_by_tier.get(tier, 0)
+        if remainder:
+            lines.append(f"  {remainder:>4}  {labels.get(tier, tier)}")
+    if animation_ops:
+        lines.append(f"  {len(animation_ops):>4}  animation substitutions")
     lines.append("")
+
+    if animation_ops:
+        lines += ["Animations replaced", "-------------------"]
+        for op in animation_ops[:60]:
+            lines.append(f"  {op.game_path}")
+        if len(animation_ops) > 60:
+            lines.append(f"  ... and {len(animation_ops) - 60} more")
+        lines.append("")
 
     # Spell out the actual edits: this is what a reviewer needs, and it is free to produce.
     socket_edits = [op for op in plan.operations if op.kind in {"xml_attr", "xml_attr_add"}]
@@ -240,6 +287,43 @@ def build_readme(
     return "\n".join(lines)
 
 
+def _scope_section(scope) -> List[str]:
+    """The operation scope, stated in the README rather than only in the build dialog."""
+
+    lines = ["Operation scope", "---------------"]
+    lines.append(f"  Operations       : {', '.join(scope.operations) or '-'}")
+    lines.append(f"  Equipment        : {', '.join(scope.equipment_units) or '-'}")
+    lines.append(f"  Linked parts     : {', '.join(scope.linked_parts) or '-'}")
+    lines.append(f"  Destination      : {scope.destination or '-'}")
+    lines.append(f"  Descriptor rows  : {', '.join(scope.descriptor_parts) or '-'}")
+    if scope.created_sockets:
+        lines.append("  New child sockets:")
+        for name in scope.created_sockets:
+            source = dict(scope.orientation_sources).get(name, "")
+            lines.append(f"    {name}{f'  ({source})' if source else ''}")
+    if scope.modified_sockets:
+        lines.append(f"  Sockets changed  : {', '.join(scope.modified_sockets)}")
+    lines.append(
+        f"  Shared sockets changed in place: {len(scope.shared_sockets_modified)}"
+    )
+    if scope.animation_targets:
+        lines.append("  Animation target families:")
+        for name, count in scope.animation_targets.items():
+            lines.append(f"    {name}: {count}")
+    if scope.animation_donors:
+        lines.append("  Animation donor families:")
+        for name, count in scope.animation_donors.items():
+            lines.append(f"    {name}: {count}")
+    if scope.borrowed_count or scope.mounted_count:
+        lines.append(f"  Borrowed-character clips: {scope.borrowed_count}")
+        lines.append(f"  Mounted clips           : {scope.mounted_count}")
+    if scope.warnings_accepted:
+        lines.append("  Warnings accepted:")
+        lines += [f"    - {item}" for item in scope.warnings_accepted]
+    lines.append("")
+    return lines
+
+
 def _lay_out_payload(root: Path, files: Mapping[str, bytes]) -> List[str]:
     written: List[str] = []
     for game_path, data in sorted(files.items()):
@@ -260,6 +344,8 @@ def build_package(
     baseline=None,
     created_utc: Optional[str] = None,
     write_readme: bool = True,
+    scope=None,
+    manifest: Optional[Mapping[str, object]] = None,
 ) -> PackageResult:
     """Write one manager's package. Reuses the app's finalizer for all metadata."""
 
@@ -311,9 +397,15 @@ def build_package(
                 manager=manager.upper(),
                 payload_paths=payload_paths,
                 new_paths=new_paths,
+                scope=scope,
             ),
             encoding="utf-8",
         )
+
+    if manifest is not None:
+        from .preflight import write_operation_manifest
+
+        write_operation_manifest(root, manifest)
 
     metadata_files = tuple(
         sorted(
@@ -339,6 +431,8 @@ def build_all(
     baseline=None,
     created_utc: Optional[str] = None,
     managers: Sequence[str] = ("CDUMM", "DMM", "JMM"),
+    scope=None,
+    manifest: Optional[Mapping[str, object]] = None,
 ) -> List[PackageResult]:
     """Emit every manager layout from one plan — the point of the operation model."""
 
@@ -354,6 +448,99 @@ def build_all(
                 out_root=target,
                 baseline=baseline,
                 created_utc=created_utc,
+                scope=scope,
+                manifest=manifest,
             )
         )
     return results
+
+
+# ── packaging selected operations ────────────────────────────────────
+
+
+#: What `build_for_operations` was asked to package.
+SELECTION_LATEST = "latest"
+SELECTION_SELECTED = "selected"
+SELECTION_ALL = "all"
+
+
+def operation_ids_for(session, mode: str, chosen: Sequence[str] = ()) -> List[str]:
+    """Which operation ids a selection mode means.
+
+    `latest` is the default and the only one that needs no confirmation: it is the operation
+    the user has just accepted, and nothing else.
+    """
+
+    operations = session.operations()
+    if mode == SELECTION_ALL:
+        return [op.operation_id for op in operations]
+    if mode == SELECTION_SELECTED:
+        wanted = set(chosen)
+        return [op.operation_id for op in operations if op.operation_id in wanted]
+    return [operations[-1].operation_id] if operations else []
+
+
+def build_for_operations(
+    session,
+    operation_ids: Sequence[str],
+    metadata: PackageMetadata,
+    *,
+    out_root: Path,
+    baseline=None,
+    created_utc: Optional[str] = None,
+    managers: Sequence[str] = ("CDUMM", "DMM", "JMM"),
+    units: Optional[Mapping[str, object]] = None,
+    shared_socket_users: Optional[Mapping[str, Sequence[str]]] = None,
+    replacements: Sequence[object] = (),
+    accept_warnings: bool = False,
+) -> Tuple[List[PackageResult], object]:
+    """Package exactly these operations, replayed onto vanilla, or refuse and say why.
+
+    This replaces calling the builder with the global session preview. The isolated replay is
+    what makes an earlier experiment unable to reach the package; the preflight is what proves
+    it, and what stops an in-scope change that is nonetheless unsafe — a shared socket edited
+    in place, a case row left behind, an animation family that is not this weapon's.
+
+    Returns `(results, preflight)`. `results` is empty when the preflight blocked.
+    """
+
+    from .preflight import operation_manifest, run_preflight
+
+    wanted = list(dict.fromkeys(operation_ids))
+    if not wanted:
+        raise PackagingError("No operation selected, so there is nothing to package")
+
+    verdict = run_preflight(
+        session,
+        wanted,
+        units=units,
+        shared_socket_users=shared_socket_users,
+        replacements=replacements,
+    )
+    if verdict.blocked:
+        return [], verdict
+    if verdict.needs_confirmation and not accept_warnings:
+        return [], verdict
+
+    isolated = session.isolated_session(wanted)
+    files = isolated.preview()
+    if not files:
+        raise PackagingError(
+            "The selected operation changes no file, so there is nothing to package"
+        )
+    plan = isolated.to_plan(metadata.name or "operation")
+    selected = [op for op in session.operations() if op.operation_id in set(wanted)]
+    manifest = operation_manifest(selected, verdict.summary, units=units)
+
+    results = build_all(
+        plan,
+        files,
+        metadata,
+        out_root=Path(out_root),
+        baseline=baseline,
+        created_utc=created_utc,
+        managers=managers,
+        scope=verdict.summary,
+        manifest=manifest,
+    )
+    return results, verdict

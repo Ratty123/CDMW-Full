@@ -32,7 +32,7 @@ class ModelLibrarySelectionMixin:
         local_importable = bool(is_local and self._payload_can_import(payload))
         mirror_importable = bool(is_mirror)
         can_preview_here = self._payload_can_preview_here(payload)
-        self.import_mesh_button.setEnabled(has_selection and (local_importable or mirror_importable))
+        self.use_in_new_item_studio_button.setEnabled(has_selection and (local_importable or mirror_importable))
         self.preview_button.setEnabled(can_preview_here)
         self.generate_icon_button.setEnabled(can_preview_here)
         self.download_button.setEnabled(batch_mirror_count > 0 and mirror_url_ready)

@@ -43,7 +43,6 @@ internal sealed partial class ExperimentForm
             _transformSection,
             _brushSection,
             _topologySection,
-            _colourSection,
         })
         {
             if (section is not null)

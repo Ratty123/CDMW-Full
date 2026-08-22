@@ -83,6 +83,7 @@ class NewItemStudioTab(QWidget):
         if cache_root is not None and self.controller.effect_cache_path is None:
             self.controller.effect_cache_path = Path(cache_root) / "index" / "effect_catalogue_v1.json"
         self._pending_template: Optional[int] = None
+        self._pending_model_import: Optional[Path] = None
         self._panels_built = False
         self._refreshing_checks = False
 
@@ -194,6 +195,9 @@ class NewItemStudioTab(QWidget):
         if self._pending_template is not None:
             key, self._pending_template = self._pending_template, None
             self.template_panel.prefill(key)
+        if self._pending_model_import is not None:
+            model_path, self._pending_model_import = self._pending_model_import, None
+            self.open_model_source(model_path)
 
     def _mount_panels(self) -> None:
         if self._panels_built:
@@ -396,6 +400,17 @@ class NewItemStudioTab(QWidget):
             self.start_snapshot()
             return
         self.template_panel.prefill(int(template_key))
+
+    def open_model_source(self, path: Path | str) -> None:
+        """Open the model step and begin its normal cancellable import."""
+
+        model_path = Path(path).expanduser().resolve()
+        if not self.controller.ready or not self._panels_built:
+            self._pending_model_import = model_path
+            self.start_snapshot()
+            return
+        self.steps.setCurrentRow(2)
+        self.controller.start_model_import(model_path)
 
     def _reread_after_install(self) -> None:
         """After an install the archives hold the new item: read them again, so the next

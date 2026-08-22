@@ -11,21 +11,6 @@ from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 class ArchiveBrowserActionControlsMixin:
     """Synchronize Archive Browser action buttons with the current selection."""
 
-    def _update_archive_mesh_import_action_controls(self, enabled: bool, disabled_reason: str) -> None:
-        """The two mesh-import entry points share one enablement rule."""
-        self._set_action_button_state(
-            self.archive_model_import_patch_button,
-            enabled,
-            "Rebuild the selected archive mesh from OBJ, DAE, glTF, or GLB, then patch or export a loose package.",
-            disabled_reason,
-        )
-        self._set_action_button_state(
-            self.archive_model_full_import_button,
-            enabled,
-            "Replace the selected game item outright with an external model that owns the mesh, textures, and material sidecar.",
-            disabled_reason,
-        )
-
     def _update_archive_model_action_controls(self, preview_model: Optional[object]) -> None:
         current_entry = self._current_archive_entry()
         mesh_entry = self._current_archive_mesh_entry()
@@ -40,27 +25,13 @@ class ArchiveBrowserActionControlsMixin:
         can_binary_sidecar_actions = binary_sidecar_entry is not None
         can_export_preview = preview_model is not None and not self.archive_preview_showing_loose
         supports_textures = can_export_preview and self._archive_model_preview_supports_textures(preview_model)
-        material_sidecar_entry = self._current_or_related_material_sidecar_entry()
         can_family_actions = self._archive_entry_supports_family_context_actions(current_entry)
-        selected_archive_entries = self._selected_archive_entries()
         appearance_entry = current_entry
         appearance_extensions = {".app_xml", ".pac", ".pam", ".pamlod", ".prefab", ".pappt", ".prefabdata_xml"}
         can_appearance_composite = (
             isinstance(appearance_entry, ArchiveEntry)
             and str(appearance_entry.extension or "").lower() in appearance_extensions
         )
-        swap_selection_entries = list(selected_archive_entries)
-        if isinstance(appearance_entry, ArchiveEntry) and all(
-            self._appearance_composite_entry_key(existing) != self._appearance_composite_entry_key(appearance_entry)
-            for existing in swap_selection_entries
-        ):
-            swap_selection_entries.append(appearance_entry)
-        swap_app_count = sum(1 for entry in swap_selection_entries if str(entry.extension or "").lower() == ".app_xml")
-        swap_model_count = sum(1 for entry in swap_selection_entries if str(entry.extension or "").lower() in {".pac", ".pam", ".pamlod"})
-        can_appearance_swap = (
-            isinstance(appearance_entry, ArchiveEntry)
-            and str(appearance_entry.extension or "").lower() in {".app_xml", ".pac", ".pam", ".pamlod"}
-        ) or (swap_app_count == 1 and swap_model_count == 1)
         busy_reason = "wait for the current background task to finish"
         mesh_reason = busy_reason if not controls_enabled else "select a mesh/model archive entry first"
         hkx_reason = busy_reason if not controls_enabled else "select a .hkx or .hkt archive entry first"
@@ -74,11 +45,6 @@ class ArchiveBrowserActionControlsMixin:
             if not controls_enabled
             else "select a structured sidecar/metadata archive entry first"
         )
-        material_reason = (
-            busy_reason
-            if not controls_enabled
-            else "select a material sidecar, or a model with a resolved material sidecar, first"
-        )
         current_entry_reason = busy_reason if not controls_enabled else "select an archive file first"
         family_reason = (
             busy_reason
@@ -89,11 +55,6 @@ class ArchiveBrowserActionControlsMixin:
             busy_reason
             if not controls_enabled
             else "select an .app_xml, .pac/.pam/.pamlod, .prefabdata_xml, .prefab, or .pappt file first"
-        )
-        appearance_swap_reason = (
-            busy_reason
-            if not controls_enabled
-            else "select one target body .app_xml and one donor .pac/.pam/.pamlod model, or select a donor model to search exact app XML matches"
         )
         self._set_action_button_state(
             self.archive_action_preview_button,
@@ -150,12 +111,6 @@ class ArchiveBrowserActionControlsMixin:
             family_reason,
         )
         self._set_action_button_state(
-            self.archive_action_source_mix_button,
-            controls_enabled and has_current_entry,
-            "Build a loose package by matching source files to the selected archive target family.",
-            current_entry_reason,
-        )
-        self._set_action_button_state(
             self.archive_action_character_dependency_button,
             controls_enabled and can_mesh_actions,
             "Collect the selected body/model with its strict appearance, prefab, material, texture, skeleton, physics, and motion dependencies.",
@@ -174,22 +129,9 @@ class ArchiveBrowserActionControlsMixin:
             mesh_reason,
         )
         self._set_action_button_state(
-            self.archive_model_import_preview_button,
+            self.archive_model_open_mesh_editor_button,
             controls_enabled and can_mesh_actions,
-            "Rebuild the selected archive mesh from OBJ, DAE, glTF, or GLB and preview it without writing files.",
-            mesh_reason,
-        )
-        self._set_action_button_state(
-            self.archive_model_import_dds_preview_button,
-            controls_enabled and can_mesh_actions,
-            "Apply one local DDS onto the current archive mesh preview without patching or exporting.",
-            mesh_reason,
-        )
-        self._update_archive_mesh_import_action_controls(controls_enabled and can_mesh_actions, mesh_reason)
-        self._set_action_button_state(
-            self.archive_model_modify_original_button,
-            controls_enabled and can_mesh_actions,
-            "Create a temporary editable clone from the selected archive mesh, then re-import it through Mesh Replacement Geometry.",
+            "Open the selected archive mesh directly in the resident mesh-authoring workspace.",
             mesh_reason,
         )
         self._set_action_button_state(
@@ -198,13 +140,6 @@ class ArchiveBrowserActionControlsMixin:
             "Preview a read-only app XML appearance composite or selected prefab/socket model evidence. "
             "Multi-select one app XML and one PAC/PAM/PAMLOD to preview a what-if component replacement. No game files are modified.",
             appearance_reason,
-        )
-        self._set_action_button_state(
-            self.archive_appearance_swap_button,
-            controls_enabled and can_appearance_swap,
-            "Appearance Armor Swap: select one target body app XML and one donor PAC/PAM/PAMLOD. "
-            "Builds a mod-ready loose package; the target app XML, skeleton, ragdoll, and part-hide files are not patched.",
-            appearance_swap_reason,
         )
         self._set_action_button_state(
             self.archive_hkx_export_json_button,
@@ -259,40 +194,6 @@ class ArchiveBrowserActionControlsMixin:
             controls_enabled and can_binary_sidecar_actions,
             "Inspect structured metadata/animation binaries in-app. Editing stays disabled until the schema is proven safe.",
             sidecar_reason,
-        )
-        pending_swap_target = self.pending_in_game_mesh_swap_target
-        if pending_swap_target is not None and mesh_entry is not None:
-            if self._same_archive_entry(mesh_entry, pending_swap_target):
-                self.archive_model_swap_in_game_button.setText("Cancel Swap Target")
-                swap_tooltip = f"Cancel the pending in-game mesh swap target: {pending_swap_target.path}"
-                self._set_action_button_state(
-                    self.archive_model_swap_in_game_button,
-                    controls_enabled and can_mesh_actions,
-                    swap_tooltip,
-                    mesh_reason,
-                )
-            else:
-                self.archive_model_swap_in_game_button.setText("Use as Swap Source...")
-                swap_tooltip = f"Use the selected mesh as the source for pending target: {pending_swap_target.path}"
-                self._set_action_button_state(
-                    self.archive_model_swap_in_game_button,
-                    controls_enabled and can_mesh_actions,
-                    swap_tooltip,
-                    mesh_reason,
-                )
-        else:
-            self.archive_model_swap_in_game_button.setText("Start In-Game Swap...")
-            self._set_action_button_state(
-                self.archive_model_swap_in_game_button,
-                controls_enabled and can_mesh_actions,
-                "Set the selected archive mesh as the swap target, then choose the source mesh in the existing Archive Browser.",
-                mesh_reason,
-            )
-        self._set_action_button_state(
-            self.archive_material_values_button,
-            controls_enabled and material_sidecar_entry is not None,
-            "Read recognized values from a companion .pac_xml/.pam_xml/.pamlod_xml/.pami material sidecar and export edited values as a mod-ready package.",
-            material_reason,
         )
         self._sync_archive_model_action_menu_buttons()
         self.archive_model_preview_settings_button.setEnabled(True)

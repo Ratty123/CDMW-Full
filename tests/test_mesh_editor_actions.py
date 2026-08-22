@@ -94,8 +94,6 @@ class MeshEditorActionsTests(unittest.TestCase):
             "uv_pack",
             "uv_snap_grid",
             "uv_snap_pixels",
-            "material_assign",
-            "material_copy",
             "undo",
             "redo",
         ):
@@ -136,8 +134,7 @@ class MeshEditorActionsTests(unittest.TestCase):
         self.assertEqual("edit", cleanup["remove_doubles"].mode)
         self.assertEqual("Ctrl+Alt+W", cleanup["remove_doubles"].shortcut)
         self.assertEqual("edit", uv["uv_transform"].mode)
-        self.assertEqual("edit", material["material_assign"].mode)
-        self.assertEqual("edit", material["material_copy"].mode)
+        self.assertEqual({}, material)
         self.assertEqual((("flip_u", True),), uv["uv_flip_u"].params)
         self.assertEqual((("flip_v", True),), uv["uv_flip_v"].params)
         self.assertEqual((("rotate", 90.0), ("pivot", (0.5, 0.5))), uv["uv_rotate_90"].params)
@@ -165,8 +162,6 @@ class MeshEditorActionsTests(unittest.TestCase):
         self.assertFalse(cleanup["remove_doubles"].requires_selection)
         self.assertFalse(cleanup["delete_loose_vertices"].requires_selection)
         self.assertFalse(cleanup["fix_winding"].requires_selection)
-        self.assertTrue(material["material_assign"].requires_selection)
-        self.assertTrue(material["material_copy"].requires_selection)
         self.assertTrue(mesh_editor_actions_by_key()["recalculate_normals"].requires_selection)
         self.assertTrue(mesh_editor_actions_by_key()["generate_tangents"].requires_selection)
         self.assertTrue(mesh_editor_actions_by_key()["flip_normals"].requires_selection)

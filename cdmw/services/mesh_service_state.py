@@ -9,6 +9,7 @@ from cdmw.domain.mesh import (
     MeshAnimationClip,
     MeshEditCommand,
     MeshEditSelection,
+    MeshObjectTransformState,
     MeshExportValidationReport,
 )
 from cdmw.modding.mesh_parser import ParsedMesh
@@ -51,6 +52,7 @@ class _MeshHistorySnapshot:
     material_generation: int | None = None
     committed_texture_resources: tuple[_MeshCommittedTextureResource, ...] | None = None
     retained_bytes: int = 0
+    object_transform: MeshObjectTransformState | None = None
 
 
 @dataclass(slots=True)
@@ -148,6 +150,7 @@ class MeshPreparedWorkingMeshReplacement:
     selection: MeshEditSelection
     previous_working_mesh: ParsedMesh
     previous_selection: MeshEditSelection
+    previous_object_transform: MeshObjectTransformState
     validation_report: MeshExportValidationReport
     previous_sidecar_warnings: tuple[object, ...] = ()
     previous_edit_operations: tuple[object, ...] = ()
@@ -182,6 +185,7 @@ class _MeshEditSession:
     base_mesh_is_original_parse: bool = False
     mode: str = "object"
     selection: MeshEditSelection = field(default_factory=MeshEditSelection)
+    object_transform: MeshObjectTransformState = field(default_factory=MeshObjectTransformState)
     geometry_layers: tuple[_MeshGeometryLayer, ...] = ()
     active_geometry_layer_id: str = "base"
     geometry_layer_copy_counter: int = 0

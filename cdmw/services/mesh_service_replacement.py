@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 
+from cdmw.domain.mesh import MeshObjectTransformState
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.mesh_service_state import (
     MeshPreparedWorkingMeshReplacement,
@@ -26,6 +27,7 @@ def _publish_prepared_replacement(
     session.sidecar_warnings = prepared.sidecar_warnings
     session.edit_operations = prepared.edit_operations
     session.requires_edit_operations = prepared.requires_edit_operations
+    session.object_transform = MeshObjectTransformState(pivot=session.object_transform.pivot)
     session.revision += 1
 
 
@@ -35,6 +37,7 @@ def _restore_previous_replacement_state(
 ) -> None:
     session.working_mesh = prepared.previous_working_mesh
     session.selection = prepared.previous_selection
+    session.object_transform = prepared.previous_object_transform
     session.sidecar_warnings = prepared.previous_sidecar_warnings
     session.edit_operations = prepared.previous_edit_operations
     session.requires_edit_operations = prepared.previous_requires_edit_operations
@@ -133,6 +136,7 @@ class MeshWorkingReplacementServiceMixin:
                 selection=preserved_selection,
                 previous_working_mesh=previous_working_mesh,
                 previous_selection=session.selection,
+                previous_object_transform=session.object_transform,
                 validation_report=validation_report,
                 previous_sidecar_warnings=tuple(session.sidecar_warnings),
                 previous_edit_operations=tuple(session.edit_operations),

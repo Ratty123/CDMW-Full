@@ -329,27 +329,17 @@ class ArchiveControlsPanelMixin:
         archive_actions_row.setVerticalSpacing(6)
         self.archive_extract_selected_button = QPushButton("Extract Selected")
         self.archive_extract_filtered_button = QPushButton("Extract Filtered")
-        self.archive_extract_to_workflow_button = QPushButton("DDS To Workflow")
-        self.archive_open_in_editor_button = QPushButton("Open in Texture Editor")
         self.archive_resolve_in_research_button = QPushButton("Resolve In Research")
-        self.archive_extract_to_workflow_button.setToolTip(
-            "If one or more archive files/folders are selected, only selected DDS files are extracted to the workflow root. "
-            "If nothing is selected, all DDS files from the current filtered view are used."
-        )
         for button in (
             self.archive_extract_selected_button,
             self.archive_extract_filtered_button,
-            self.archive_extract_to_workflow_button,
-            self.archive_open_in_editor_button,
             self.archive_resolve_in_research_button,
         ):
             button.setMinimumHeight(28)
             button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         archive_actions_row.addWidget(self.archive_extract_selected_button, 0, 0)
         archive_actions_row.addWidget(self.archive_extract_filtered_button, 0, 1)
-        archive_actions_row.addWidget(self.archive_extract_to_workflow_button, 1, 0)
-        archive_actions_row.addWidget(self.archive_open_in_editor_button, 1, 1)
-        archive_actions_row.addWidget(self.archive_resolve_in_research_button, 2, 0, 1, 2)
+        archive_actions_row.addWidget(self.archive_resolve_in_research_button, 1, 0, 1, 2)
         archive_actions_group_layout.addLayout(archive_actions_row)
         archive_controls_layout.addWidget(archive_actions_group)
         archive_controls_layout.addWidget(archive_filters_group)

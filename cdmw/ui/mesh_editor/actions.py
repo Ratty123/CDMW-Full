@@ -113,8 +113,6 @@ _SHORTCUTS = {
     "uv_pack": "Alt+P",
     "uv_snap_grid": "Ctrl+Alt+G",
     "uv_snap_pixels": "Ctrl+Shift+P",
-    "material_assign": "Shift+M",
-    "material_copy": "Alt+M",
     "undo": "Ctrl+Z",
     "redo": "Ctrl+Y",
 }
@@ -156,8 +154,6 @@ _TOOLTIPS = {
     "fix_winding": "Flip triangle winding when it disagrees with vertex normals.",
     "fill_holes": "Fill simple three- or four-edge boundary holes.",
     "refine_smooth": "Subdivide selected detail, then smooth the affected vertices for less pointy surfaces.",
-    "material_assign": "Assign material and texture metadata to selected parts or faces.",
-    "material_copy": "Copy material routing metadata from another part into selected parts or faces.",
     "weighted_normals": "Weight vertex normals by face area for smoother lighting without changing mesh shape.",
 }
 
@@ -259,8 +255,6 @@ MESH_EDITOR_ACTIONS = tuple(_with_palette_metadata(action) for action in (
     MeshEditorAction("uv_pack", "Pack UV", "uv_transform", "uv", mode="edit", params=(("pack", True),), requires_selection=True),
     MeshEditorAction("uv_snap_grid", "Snap Grid", "uv_transform", "uv", mode="edit", params=(("snap_grid", 0.125),), requires_selection=True),
     MeshEditorAction("uv_snap_pixels", "Snap Pixel", "uv_transform", "uv", mode="edit", params=(("pixel_snap", True), ("texture_size", (1024.0, 1024.0))), requires_selection=True),
-    MeshEditorAction("material_assign", "Assign Material", "material_assign", "material", mode="edit", requires_selection=True),
-    MeshEditorAction("material_copy", "Copy Material", "material_copy", "material", mode="edit", requires_selection=True),
     MeshEditorAction("undo", "Undo", "undo", "history"),
     MeshEditorAction("redo", "Redo", "redo", "history"),
 ))

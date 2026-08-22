@@ -676,6 +676,7 @@ def _native_live_history_snapshot(
         selection=selection,
         edit_operations=tuple(session.edit_operations),
         vertex_position_deltas=tuple(deltas),
+        object_transform=session.object_transform,
     )
 
 

@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHeaderView,
     QLabel,
+    QListWidget,
     QMessageBox,
     QPushButton,
     QSizePolicy,
@@ -581,7 +582,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(action_bar.button_for_key("brush_grab").isEnabled())
         self.assertFalse(action_bar.button_for_key("recalculate_normals").isEnabled())
         self.assertFalse(action_bar.button_for_key("split").isEnabled())
-        self.assertFalse(action_bar.button_for_key("material_assign").isEnabled())
+        self.assertIsNone(action_bar.button_for_key("material_assign"))
         self.assertFalse(action_bar.button_for_key("undo").isEnabled())
         self.assertFalse(action_bar.button_for_key("redo").isEnabled())
 
@@ -600,8 +601,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(action_bar.button_for_key("brush_grab").isEnabled())
         self.assertFalse(action_bar.button_for_key("split").isEnabled())
         self.assertFalse(action_bar.button_for_key("uv_transform").isEnabled())
-        self.assertFalse(action_bar.button_for_key("material_assign").isEnabled())
-        self.assertFalse(action_bar.button_for_key("material_copy").isEnabled())
+        self.assertIsNone(action_bar.button_for_key("material_assign"))
+        self.assertIsNone(action_bar.button_for_key("material_copy"))
         self.assertTrue(action_bar.button_for_key("undo").isEnabled())
         self.assertTrue(action_bar.button_for_key("redo").isEnabled())
         app.processEvents()
@@ -1559,7 +1560,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_standalone_workspace_exposes_blender_style_regions(self) -> None:
+    def test_mesh_editor_standalone_workspace_shows_only_resident_edit_session(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorWorkspace"))
         emitted: list[object] = []
@@ -1567,10 +1568,18 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.set_archive_selection(SimpleNamespace(path="characters/body.pac", basename="body.pac"))
 
         workspace = tab.standalone_workspace
-        self.assertIsNotNone(workspace.findChild(QFrame, "MeshEditorTopModeBar"))
-        self.assertIsNotNone(workspace.findChild(QFrame, "MeshEditorLeftToolPalette"))
-        self.assertIsNotNone(workspace.findChild(QFrame, "MeshEditorCentralPreview"))
-        self.assertIsNotNone(workspace.findChild(QFrame, "MeshEditorBottomStatusStrip"))
+        top_bar = workspace.findChild(QFrame, "MeshEditorTopModeBar")
+        left_palette = workspace.findChild(QFrame, "MeshEditorLeftToolPalette")
+        central_preview = workspace.findChild(QFrame, "MeshEditorCentralPreview")
+        status_strip = workspace.findChild(QFrame, "MeshEditorBottomStatusStrip")
+        assert top_bar is not None
+        assert left_palette is not None
+        assert central_preview is not None
+        assert status_strip is not None
+        self.assertTrue(top_bar.isHidden())
+        self.assertTrue(left_palette.isHidden())
+        self.assertFalse(central_preview.isHidden())
+        self.assertTrue(status_strip.isHidden())
         self.assertIsNotNone(workspace.findChild(QFrame, "MeshEditorUVCanvas"))
         # Built but deliberately off the bar: nothing reads snap, pivot or orient, so
         # showing them advertised behavior the editor does not have. Asserting they are
@@ -1585,10 +1594,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
             self.assertFalse(unwired.isVisibleTo(workspace), unwired_name)
         panels = workspace.findChild(QTabWidget, "MeshEditorRightPanels")
         assert panels is not None
+        self.assertTrue(panels.isHidden())
         self.assertEqual(
             [
                 "Parts",
                 "Details",
+                "Object Transform",
                 "Rig",
                 "UV Map",
                 "Part Actions",
@@ -1603,6 +1614,27 @@ class MeshEditorActionBarTests(unittest.TestCase):
         left_pages = workspace.findChild(QTabWidget, "MeshEditorLeftToolPages")
         assert left_pages is not None
         self.assertEqual(["Tools", "Edit", "UV", "Rig"], [left_pages.tabText(index) for index in range(left_pages.count())])
+        self.assertFalse(left_pages.isVisibleTo(workspace))
+        material_panel = workspace.findChild(QTreeWidget, "MeshEditorMaterialPanel")
+        log = workspace.findChild(QListWidget, "MeshEditorWorkspaceLog")
+        assert material_panel is not None
+        assert log is not None
+        self.assertFalse(material_panel.isVisibleTo(workspace))
+        self.assertFalse(log.isVisibleTo(workspace))
+
+        for output_name in (
+            "MeshEditorRunValidationReportButton",
+            "MeshEditorExportMeshFileButton",
+            "MeshEditorBuildModButton",
+            "MeshEditorInstallOverlayButton",
+            "MeshEditorRestoreOverlayButton",
+        ):
+            output = workspace.findChild(QToolButton, output_name)
+            assert output is not None
+            self.assertFalse(output.isHidden(), output_name)
+        legacy_dotnet = workspace.findChild(QPushButton, "MeshEditorDotNetExperimentButton")
+        assert legacy_dotnet is not None
+        self.assertTrue(legacy_dotnet.isHidden())
 
         button = workspace.findChild(QToolButton, "MeshEditorWorkspaceAction_select_parts")
         brush_button = workspace.findChild(QToolButton, "MeshEditorWorkspaceAction_brush_grab")
@@ -1712,8 +1744,9 @@ class MeshEditorActionBarTests(unittest.TestCase):
         recalc = workspace.findChild(QToolButton, "MeshEditorPartRecalculateNormalsButton")
         flip = workspace.findChild(QToolButton, "MeshEditorPartFlipNormalsButton")
         texture = workspace.findChild(QToolButton, "MeshEditorOpenTextureButton")
-        for widget in (summary, status, select_all, clear, clone, delete, recalc, flip, texture):
+        for widget in (summary, status, select_all, clear, clone, delete, recalc, flip):
             assert widget is not None
+        self.assertIsNone(texture)
 
         self.assertTrue(select_all.isEnabled())
         self.assertFalse(clear.isEnabled())
@@ -1721,7 +1754,6 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertFalse(delete.isEnabled())
         self.assertFalse(recalc.isEnabled())
         self.assertFalse(flip.isEnabled())
-        self.assertFalse(texture.isEnabled())
 
         select_all.click()
         self.assertEqual((0, 1), tab.standalone_controller.session_view().selection.source_indices)
@@ -1734,7 +1766,6 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(delete.isEnabled())
         self.assertTrue(recalc.isEnabled())
         self.assertTrue(flip.isEnabled())
-        self.assertTrue(texture.isEnabled())
 
         routed_part_actions: list[tuple[str, int]] = []
         try:
@@ -1752,7 +1783,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_workspace_open_texture_button_disabled_for_selected_untextured_part(self) -> None:
+    def test_mesh_editor_workspace_has_no_texture_editor_handoff(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorPartTextureUnavailable"))
         mesh = _build_two_part_synthetic_mesh()
@@ -1763,16 +1794,14 @@ class MeshEditorActionBarTests(unittest.TestCase):
         workspace = tab.standalone_workspace
         texture = workspace.findChild(QToolButton, "MeshEditorOpenTextureButton")
         summary = workspace.findChild(QLabel, "MeshEditorPartSelectionSummary")
-        assert texture is not None
+        self.assertIsNone(texture)
         assert summary is not None
 
         workspace.part_selection_requested.emit(0, "replace")
-        self.assertFalse(texture.isEnabled())
         self.assertIn("missing texture", summary.text())
         self.assertIsNone(tab.standalone_controller.texture_edit_target())
 
         workspace.part_selection_requested.emit(1, "replace")
-        self.assertTrue(texture.isEnabled())
         self.assertEqual(1, tab.standalone_controller.texture_edit_target().submesh_index)
         app.processEvents()
         tab.deleteLater()
@@ -2144,9 +2173,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
             validator = tab.standalone_workspace.findChild(QTreeWidget, "MeshEditorValidatorPanel")
             assert run_button is not None
             assert validator is not None
-            self.assertTrue(run_button.isEnabled())
-
-            run_button.click()
+            tab.standalone_dotnet_target_embedded = False
+            tab.standalone_dotnet_embedded_state = "launching"
+            with patch.object(tab, "_standalone_dotnet_editor_process_running", return_value=True):
+                tab.update_editor_action_state(publish_native=False)
+                self.assertTrue(run_button.isEnabled())
+                run_button.click()
             deadline = time.time() + 5.0
             while tab.standalone_validation_thread is not None and time.time() < deadline:
                 app.processEvents()
@@ -2202,18 +2234,20 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
         rebuild = tab.standalone_workspace.findChild(QTreeWidget, "MeshEditorRebuildReportPanel")
         save_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorSaveRebuildReportButton")
-        rebuild_asset_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorRebuildPatchedAssetButton")
-        preview_rebuilt_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorPreviewRebuiltAssetButton")
-        package_rebuilt_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorPackageRebuiltAssetButton")
+        rebuild_asset_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorExportMeshFileButton")
+        preview_rebuilt_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorBuildModButton")
+        package_rebuilt_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorInstallOverlayButton")
+        restore_overlay_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorRestoreOverlayButton")
         assert rebuild is not None
         assert save_button is not None
         assert rebuild_asset_button is not None
         assert preview_rebuilt_button is not None
         assert package_rebuilt_button is not None
+        assert restore_overlay_button is not None
         self.assertEqual("No rebuild report.", rebuild.topLevelItem(0).text(1))
         self.assertFalse(save_button.isEnabled())
-        self.assertFalse(preview_rebuilt_button.isEnabled())
-        self.assertFalse(package_rebuilt_button.isEnabled())
+        self.assertTrue(preview_rebuilt_button.isEnabled())
+        self.assertTrue(package_rebuilt_button.isEnabled())
         tab.standalone_workspace.update_export_validation(None)
         self.assertFalse(rebuild_asset_button.isEnabled())
 
@@ -2260,20 +2294,14 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertEqual("missing_tangents", rows["Warnings"])
         self.assertEqual("out.pac", rows["Output"])
         self.assertTrue(save_button.isEnabled())
-        self.assertTrue(preview_rebuilt_button.isEnabled())
-        self.assertTrue(package_rebuilt_button.isEnabled())
+        self.assertFalse(preview_rebuilt_button.isEnabled())
+        self.assertFalse(package_rebuilt_button.isEnabled())
         save_emitted: list[bool] = []
         tab.standalone_workspace.save_rebuild_report_requested.connect(lambda: save_emitted.append(True))
         save_button.click()
         self.assertEqual([True], save_emitted)
-        preview_emitted: list[bool] = []
-        tab.standalone_workspace.preview_rebuilt_asset_requested.connect(lambda: preview_emitted.append(True))
-        preview_rebuilt_button.click()
-        self.assertEqual([True], preview_emitted)
-        package_emitted: list[bool] = []
-        tab.standalone_workspace.package_rebuilt_asset_requested.connect(lambda: package_emitted.append(True))
-        package_rebuilt_button.click()
-        self.assertEqual([True], package_emitted)
+        self.assertFalse(hasattr(tab.standalone_workspace, "preview_rebuilt_asset_requested"))
+        self.assertFalse(hasattr(tab.standalone_workspace, "package_rebuilt_asset_requested"))
         emitted: list[bool] = []
         tab.standalone_workspace.rebuild_report_requested.connect(lambda: emitted.append(True))
         tab.standalone_workspace.update_action_state(has_target=True)
@@ -2461,20 +2489,20 @@ class MeshEditorActionBarTests(unittest.TestCase):
             tab.standalone_last_rebuild_report = report
             tab.standalone_last_rebuilt_asset_path = rebuilt_path
             tab.standalone_workspace.update_rebuild_report(report)
-            emitted: list[tuple[object, object]] = []
-            tab.preview_rebuilt_asset_requested.connect(lambda entry, path: emitted.append((entry, path)))
-            packaged: list[tuple[object, object]] = []
-            tab.package_rebuilt_asset_requested.connect(lambda entry, path: packaged.append((entry, path)))
-            button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorPreviewRebuiltAssetButton")
-            package_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorPackageRebuiltAssetButton")
-            assert button is not None
-            assert package_button is not None
-
-            button.click()
-            package_button.click()
-
-            self.assertEqual([(target_entry, rebuilt_path)], emitted)
-            self.assertEqual([(target_entry, rebuilt_path)], packaged)
+            self.assertFalse(hasattr(tab, "preview_rebuilt_asset_requested"))
+            self.assertFalse(hasattr(tab, "package_rebuilt_asset_requested"))
+            self.assertIsNone(
+                tab.standalone_workspace.findChild(QToolButton, "MeshEditorPreviewRebuiltAssetButton")
+            )
+            self.assertIsNone(
+                tab.standalone_workspace.findChild(QToolButton, "MeshEditorPackageRebuiltAssetButton")
+            )
+            self.assertIsNotNone(
+                tab.standalone_workspace.findChild(QToolButton, "MeshEditorBuildModButton")
+            )
+            self.assertIsNotNone(
+                tab.standalone_workspace.findChild(QToolButton, "MeshEditorInstallOverlayButton")
+            )
             app.processEvents()
             tab.deleteLater()
 
@@ -3037,7 +3065,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_open_texture_button_emits_texture_editor_binding(self) -> None:
+    def test_mesh_editor_has_no_open_texture_handoff(self) -> None:
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as temp_dir:
             texture_path = Path(temp_dir) / "harness.dds"
@@ -3045,22 +3073,15 @@ class MeshEditorActionBarTests(unittest.TestCase):
             mesh = build_synthetic_mesh()
             mesh.submeshes[0].texture = str(texture_path)
             tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorOpenTexture"))
-            emitted: list[tuple[str, object]] = []
-            tab.open_texture_source_requested.connect(lambda path, binding: emitted.append((path, binding)))
+            self.assertFalse(hasattr(tab, "open_texture_source_requested"))
 
             tab.open_mesh_session(mesh, session_id="standalone-open-texture", mode="edit")
             assert tab.standalone_controller is not None
             tab.standalone_controller.select(source_indices=(0,))
             tab.update_editor_session_state(tab.standalone_controller.session_view(), active_selection_mode=tab.standalone_controller.active_selection_mode)
             button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorOpenTextureButton")
-            assert button is not None
-            button.click()
-
-            self.assertEqual(str(texture_path.resolve()), emitted[0][0])
-            binding = emitted[0][1]
-            self.assertEqual("mesh_editor", getattr(binding, "launch_origin", ""))
-            self.assertEqual(str(texture_path.resolve()), getattr(binding, "source_path", ""))
-            self.assertEqual("mesh_material", getattr(binding, "texture_type", ""))
+            self.assertIsNone(button)
+            self.assertFalse(tab.open_selected_texture_in_editor())
             app.processEvents()
             tab.deleteLater()
 
@@ -3106,7 +3127,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             self.assertEqual(texture_entry, result.archive_entry)
             self.assertEqual("character/model/body.dds", result.archive_path)
 
-    def test_mesh_editor_archive_texture_resolution_emits_texture_binding(self) -> None:
+    def test_mesh_editor_archive_texture_resolution_has_no_editor_handoff(self) -> None:
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as temp_dir:
             source_path = Path(temp_dir) / "body.dds"
@@ -3114,32 +3135,13 @@ class MeshEditorActionBarTests(unittest.TestCase):
             mesh = build_synthetic_mesh()
             mesh.submeshes[0].texture = "body.dds"
             tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorArchiveTextureBinding"))
-            emitted: list[tuple[str, object]] = []
-            tab.open_texture_source_requested.connect(lambda path, binding: emitted.append((path, binding)))
             try:
                 tab.open_mesh_session(mesh, session_id="archive-texture-binding", mode="edit")
-                assert tab.standalone_controller is not None
-                tab.standalone_controller.select(source_indices=(0,))
-                target = tab.standalone_controller.texture_edit_target()
-                assert target is not None
-                tab.standalone_texture_source_request_id = 7
-                tab.standalone_texture_source_target = target
-
-                tab._handle_archive_texture_source_resolved(
-                    7,
-                    MeshTextureSourceResolution(
-                        source_path=source_path,
-                        archive_path="character/model/body.dds",
-                        status="archive",
-                    ),
+                self.assertFalse(hasattr(tab, "open_texture_source_requested"))
+                self.assertFalse(hasattr(tab, "standalone_texture_source_request_id"))
+                self.assertIsNone(
+                    tab.standalone_workspace.findChild(QToolButton, "MeshEditorOpenTextureButton")
                 )
-
-                self.assertEqual(str(source_path.resolve()), emitted[0][0])
-                binding = emitted[0][1]
-                self.assertEqual("mesh_editor", getattr(binding, "launch_origin", ""))
-                self.assertEqual("character/model/body.dds", getattr(binding, "archive_relative_path", ""))
-                self.assertEqual("character/model/body.dds", getattr(binding, "relative_path", ""))
-                self.assertEqual(str(source_path.resolve()), getattr(binding, "original_dds_path", ""))
             finally:
                 tab.deleteLater()
         app.processEvents()
@@ -3168,10 +3170,10 @@ class MeshEditorActionBarTests(unittest.TestCase):
                     "start_standalone_native_preview_async",
                     side_effect=lambda *args, **kwargs: refresh_calls.append(dict(kwargs)) or True,
                 ):
-                    self.assertTrue(tab.apply_texture_editor_dds_preview(str(preview_path), binding))
+                    self.assertFalse(tab.apply_texture_editor_dds_preview(str(preview_path), binding))
 
-                self.assertEqual({0: str(preview_path.resolve())}, tab.standalone_texture_preview_overrides)
-                self.assertEqual([{"reset_view": False}], refresh_calls)
+                self.assertEqual({}, tab.standalone_texture_preview_overrides)
+                self.assertEqual([], refresh_calls)
                 assert tab.standalone_controller is not None
                 self.assertEqual(str(source_path), tab.standalone_controller.working_mesh().submeshes[0].texture)
 
@@ -3183,7 +3185,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 ) as writer:
                     self.assertEqual(package_dir, tab.write_standalone_native_preview_package())
                 preview_mesh = writer.call_args.args[0]
-                self.assertEqual(str(preview_path.resolve()), preview_mesh.submeshes[0].texture)
+                self.assertEqual(str(source_path), preview_mesh.submeshes[0].texture)
                 self.assertEqual("edit", writer.call_args.kwargs["interaction_mode"])
             finally:
                 tab.deleteLater()
@@ -3227,13 +3229,10 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
     def test_mesh_editor_shell_wires_texture_open_request_to_texture_editor_bridge(self) -> None:
         source = Path("cdmw/ui/shell/tool_tabs.py").read_text(encoding="utf-8")
-        self.assertIn("open_texture_source_requested.connect(self._open_source_in_texture_editor)", source)
-        self.assertIn(
-            "native_dds_ready.connect(lambda *args: self.mesh_editor_tab.apply_texture_editor_dds_result(*args))",
-            source,
-        )
-        self.assertIn("resident_texture_patch_ready.connect", source)
-        self.assertIn("apply_texture_editor_region_patch(patch)", source)
+        self.assertNotIn("open_texture_source_requested.connect", source)
+        self.assertNotIn("native_dds_ready.connect", source)
+        self.assertNotIn("resident_texture_patch_ready.connect", source)
+        self.assertNotIn("apply_texture_editor_region_patch(patch)", source)
         self.assertIn("get_archive_texture_entries_by_normalized_path=", source)
         self.assertIn("get_archive_texture_entries_by_basename=", source)
 
@@ -3249,7 +3248,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         assert tab.standalone_controller is not None
         self.assertTrue(tab.action_bar.isEnabled())
         self.assertTrue(tab.action_bar.isHidden())
-        self.assertFalse(tab.modify_original_button.isEnabled())
+        self.assertFalse(hasattr(tab, "modify_original_button"))
         tab.standalone_controller.select(vertices_by_submesh={0: (0, 1)})
         tab.update_editor_session_state(tab.standalone_controller.session_view(), active_selection_mode=tab.standalone_controller.active_selection_mode)
         host.calls.clear()
@@ -3271,6 +3270,19 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertEqual([0, 1], _i32_values(host.calls[1][1][0], "source_vertex_indices", "source_vertex_indices_binary"))
         self.assertEqual((-0.75, -0.75, 0.0), tab.standalone_controller.working_mesh().submeshes[0].vertices[0])
         self.assertIn("Revision: 2", tab.standalone_status_label.text())
+        app.processEvents()
+        tab.deleteLater()
+
+    def test_terminal_worker_progress_cannot_replace_authoritative_revision_status(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorTerminalProgressStatus"))
+        tab.standalone_action_request_id = 7
+        tab.standalone_action_finished_request_id = 6
+        tab.standalone_status_label.setText("Session: direct | Revision: 2")
+
+        tab._handle_standalone_action_progress(7, 100, "Applied Undo.")
+
+        self.assertEqual("Session: direct | Revision: 2", tab.standalone_status_label.text())
         app.processEvents()
         tab.deleteLater()
 
@@ -3387,7 +3399,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             self.assertIn("direct.pam", tab.target_label.text())
             self.assertEqual(("Mesh Editor loaded standalone mesh: direct.pam", False), messages[-1])
             self.assertTrue(tab.action_bar.isEnabled())
-            self.assertFalse(tab.modify_original_button.isEnabled())
+            self.assertFalse(hasattr(tab, "modify_original_button"))
             self.assertFalse(tab.standalone_native_preview_button.isEnabled())
             self.assertTrue(tab.standalone_native_preview_button.isHidden())
         app.processEvents()
@@ -4906,7 +4918,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             self.assertFalse(tab.action_bar.button_for_key("weighted_normals").isEnabled())
             self.assertFalse(tab.action_bar.button_for_key("uv_transform").isEnabled())
             self.assertFalse(tab.action_bar.button_for_key("remove_doubles").isEnabled())
-            self.assertFalse(tab.action_bar.button_for_key("material_assign").isEnabled())
+            self.assertIsNone(tab.action_bar.button_for_key("material_assign"))
             workspace_delete = tab.standalone_workspace.button_for_key("delete")
             workspace_transform = tab.standalone_workspace.button_for_key("transform_move")
             workspace_weighted = tab.standalone_workspace.button_for_key("weighted_normals")
@@ -4971,7 +4983,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(tab.action_bar.button_for_key("mode_edit").isChecked())
         self.assertFalse(tab.action_bar.button_for_key("select_parts").isChecked())
         self.assertTrue(tab.action_bar.button_for_key("split").isEnabled())
-        self.assertTrue(tab.action_bar.button_for_key("material_assign").isEnabled())
+        self.assertIsNone(tab.action_bar.button_for_key("material_assign"))
         self.assertTrue(tab.action_bar.button_for_key("undo").isEnabled())
         self.assertTrue(tab.action_bar.button_for_key("redo").isEnabled())
 

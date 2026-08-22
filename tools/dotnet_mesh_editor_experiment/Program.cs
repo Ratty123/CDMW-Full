@@ -160,6 +160,11 @@ internal sealed partial class ExperimentForm : Form
         _sourceParseCount = Math.Max(0, sourceParseCount);
         _materials = NetMaterialSet.Load(options.MaterialsPath);
         _scene = NetSceneState.Load(options.ScenePath, document.Submeshes.Count);
+        if (options.DirectAuthoring && options.Authoring)
+        {
+            _scene.SetInteractionMode("mesh_edit");
+            _scene.SetComparisonMode("replacement_only");
+        }
         if (options.SimplePreview)
         {
             _scene.SetComparisonMode("replacement_only");
@@ -216,7 +221,6 @@ internal sealed partial class ExperimentForm : Form
         _viewport.ToolOptionsProvider = ToolOptionsPayload;
         _viewport.EditorEventRequested += HandleViewportEditorEvent;
         _viewport.StatusRequested += message => _statusLabel.Text = message;
-        _viewport.TextureRegionCompleted += CompleteQueuedTextureRegionUpdate;
         _viewport.MouseDown += (_, _) => _viewport.Focus();
         _viewport.SubmeshSelectedRequested += _ => SyncSubmeshListSelection();
         ConfigureSubmeshList();

@@ -80,6 +80,100 @@ def pending_changes_html(header: Iterable[str], lines: Iterable[str]) -> str:
     return "".join(out)
 
 
+def operation_scope_html(operations, loose_count: int = 0) -> str:
+    """The pending-changes panel's own account of *which operation* each change belongs to.
+
+    The panel listed files and edits, so a session with three operations in it read as one
+    undifferentiated set of pending changes — which is exactly the reading that made packaging
+    the whole session look reasonable. One block per operation, newest last, with the counts
+    the review and the package report use, and the free-form edits called out as never packaged.
+    """
+
+    out: List[str] = []
+    operations = list(operations)
+    if not operations and not loose_count:
+        return ""
+    out.append(f"<p style='{_PATH}'>Operations</p>")
+    for operation in operations:
+        label = escape(operation.label or operation.kind)
+        out.append(f"<div style='{_OP}'><span style='{_TIER}'>{label}</span>")
+        detail = ", ".join(
+            f"{count} {name}" for name, count in operation.counts().items() if count
+        )
+        if detail:
+            out.append(f"<br><span style='{_KEY}'>{escape(detail)}</span>")
+        if operation.warnings_accepted:
+            for warning in operation.warnings_accepted:
+                out.append(f"<br><span style='{_WARN}'>{escape(warning)}</span>")
+        out.append("</div>")
+    if loose_count:
+        out.append(
+            f"<div style='{_OP}'><span style='{_WARN}'>"
+            f"{loose_count} free-form edit(s) outside any operation</span>"
+            f"<br><span style='{_KEY}'>never packaged; use Start clean operation to drop them"
+            f"</span></div>"
+        )
+    return "".join(out)
+
+
+def package_scope_html(summary, errors=(), warnings=()) -> str:
+    """A package scope summary, its blockers and its confirmations, as one readable block.
+
+    The same facts `PackageScopeSummary.render` prints, laid out so a blocker is findable: an
+    error a reviewer has to scan a paragraph for is an error they will not read.
+    """
+
+    out: List[str] = [_STYLE]
+    errors, warnings = list(errors), list(warnings)
+    if errors:
+        out.append(f"<p style='{_PATH}'>Package blocked</p>")
+        for item in errors:
+            text = item.describe() if hasattr(item, "describe") else str(item)
+            out.append(f"<div style='{_OP}'><span style='{_WARN}'>{escape(text)}</span></div>")
+    if warnings:
+        out.append(f"<p style='{_PATH}'>Confirm before continuing</p>")
+        for item in warnings:
+            text = item.describe() if hasattr(item, "describe") else str(item)
+            out.append(f"<div style='{_OP}'><span style='{_WARN}'>{escape(text)}</span></div>")
+    if summary is None:
+        return "".join(out)
+
+    def row(key: str, value: object) -> None:
+        out.append(
+            f"<div style='{_OP}'><span style='{_KEY}'>{escape(key)}:</span> "
+            f"<span style='{_VAL}'>{escape(str(value) or '-')}</span></div>"
+        )
+
+    out.append(f"<p style='{_PATH}'>Package scope</p>")
+    row("Operations", ", ".join(summary.operations) or "-")
+    row("Equipment", ", ".join(summary.equipment_units) or "-")
+    row("Linked parts", ", ".join(summary.linked_parts) or "-")
+    row("Destination", summary.destination or "-")
+    row("Descriptor rows changed", len(summary.descriptor_parts))
+    row("Socket files changed", len(summary.socket_files_changed))
+    row("New child sockets", len(summary.created_sockets))
+    row("Shared sockets modified in place", len(summary.shared_sockets_modified))
+    if summary.animation_targets:
+        out.append(f"<p style='{_PATH}'>Animation target families</p>")
+        for name, count in summary.animation_targets.items():
+            row(name, count)
+    if summary.animation_donors:
+        out.append(f"<p style='{_PATH}'>Animation donor families</p>")
+        for name, count in summary.animation_donors.items():
+            row(name, count)
+    if summary.borrowed_count or summary.mounted_count:
+        row("Borrowed-character clips", summary.borrowed_count)
+        row("Mounted clips", summary.mounted_count)
+    if summary.orientation_sources:
+        out.append(f"<p style='{_PATH}'>Orientation sources</p>")
+        for name, source in summary.orientation_sources:
+            row(name, source)
+    row("Excluded earlier operations", len(summary.excluded_operations))
+    if summary.loose_edits:
+        row("Excluded free-form edits", summary.loose_edits)
+    return "".join(out)
+
+
 def inspector_html(text: str) -> str:
     """The Inspector: headings for its sections, and `key: value` split into two colours.
 

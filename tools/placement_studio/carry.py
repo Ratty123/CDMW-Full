@@ -668,3 +668,473 @@ def borrowed_from_other_body(target_stem: str, donor_stem: str) -> bool:
     if target is None or donor is None:
         return False
     return target[0] != donor[0]
+
+
+# ── animation scope ──────────────────────────────────────────────────
+#
+# Scope is the whole risk in a move. `1_phm`'s motion tree is shared with every NPC that uses
+# it, and the family names overlap by substring, so a sweep one token too wide rewrites a
+# boss's draw for a change to the player's sword. Everything below builds an *allowlist* —
+# the exact target paths an operation may write — rather than filtering a wide set down.
+
+#: The four scopes a move may ask for, narrowest first.
+SCOPE_PLACEMENT_ONLY = "placement_only"
+SCOPE_DRAW_STOW = "draw_stow"
+SCOPE_STOWED_LOCOMOTION = "stowed_locomotion"
+SCOPE_FULL_BODY = "full_body"
+
+SCOPE_ORDER: Tuple[str, ...] = (
+    SCOPE_PLACEMENT_ONLY,
+    SCOPE_DRAW_STOW,
+    SCOPE_STOWED_LOCOMOTION,
+    SCOPE_FULL_BODY,
+)
+
+SCOPE_LABELS: Dict[str, str] = {
+    SCOPE_PLACEMENT_ONLY: "Placement only",
+    SCOPE_DRAW_STOW: "Draw and stow only",
+    SCOPE_STOWED_LOCOMOTION: "Draw, stow, and stowed locomotion",
+    SCOPE_FULL_BODY: "Full-body family replacement (advanced)",
+}
+
+SCOPE_HINTS: Dict[str, str] = {
+    SCOPE_PLACEMENT_ONLY: "Move the item and leave every animation alone.",
+    SCOPE_DRAW_STOW: "The minimum that makes a moved weapon look right.",
+    SCOPE_STOWED_LOCOMOTION: "Also how the character stands and moves with it stowed.",
+    SCOPE_FULL_BODY: (
+        "Every animation in the weapon's family, including incidental ones. Donor clips "
+        "drive the whole body, so the off-hand, shield arm and stance change too."
+    ),
+}
+
+#: Scopes that must never be reached without the user saying so outright.
+ADVANCED_SCOPES: Tuple[str, ...] = (SCOPE_FULL_BODY,)
+
+
+#: Optional context groups, each opted into separately. `Everything` used to mean all of
+#: these at once, with only a file count to judge it by.
+CONTEXT_GROUPS: Tuple[Tuple[str, str], ...] = (
+    ("standing", "Standing"),
+    ("locomotion", "Walking and running"),
+    ("crouching", "Crouching and low stance"),
+    ("sitting", "Sitting"),
+    ("riding", "Riding"),
+    ("combat", "Combat"),
+    ("traversal", "Climbing and traversal"),
+    ("other", "Other incidental states"),
+)
+CONTEXT_LABELS: Dict[str, str] = dict(CONTEXT_GROUPS)
+
+#: Contexts the stowed-locomotion preset covers: how the character carries the weapon through
+#: ordinary movement, and nothing beyond it.
+STOWED_LOCOMOTION_CONTEXTS: Tuple[str, ...] = ("standing", "locomotion")
+
+#: Contexts that must be opted into explicitly whatever the scope. Riding puts the character
+#: on another rig entirely, and traversal clips move the whole body through space.
+OPT_IN_CONTEXTS: Tuple[str, ...] = ("riding", "traversal")
+
+#: Tokens that place a clip in a context group, tried in this order, so a mounted draw is
+#: `riding` rather than `standing`.
+#:
+#: `sit_std` is deliberately *not* `sitting`. The action charts put
+#: `cd_phm_swds_00_01_sit_std_*` in `sword_upper.paac`, an ordinary on-foot chart — what `sit`
+#: denotes there is a lowered stance, so it groups with crouching. The genuinely seated clips
+#: are the `tosit` ones.
+_CONTEXT_GROUP_TOKENS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    ("traversal", ("climb", "ladder", "vault", "swim", "rope", "hang", "mantle")),
+    ("combat", ("_att_", "attack", "skill", "_hit_", "guard", "parry", "block", "dodge",
+                "avoid", "counter", "execution")),
+    ("sitting", ("tosit", "sitdown", "chair", "bench")),
+    ("crouching", ("crouch", "sneak", "crawl", "sit_base_std", "sit_std")),
+    ("locomotion", ("move_", "turn", "step", "walk", "run", "jump", "dash", "roll")),
+    ("standing", ("nor_std", "nor_stand", "normal_stand", "nor_base_std", "alert", "idle",
+                  "_std_")),
+)
+
+#: Families whose clips drive both hands. A donor from one of these can change the off-hand
+#: pose and the shield arm even though the item being moved is a single weapon.
+DUAL_WIELD_FAMILIES: frozenset = frozenset({"dualsword", "dlsd", "swds", "2rpr"})
+
+
+def other_handedness(hands: str) -> str:
+    """`1h` <-> `2h`, or "" when the handedness is unknown."""
+
+    if hands == "1h":
+        return "2h"
+    if hands == "2h":
+        return "1h"
+    return ""
+
+
+def families_for_handedness(hands: str) -> Tuple[str, ...]:
+    """Every animation family belonging to that number of hands, in a stable order."""
+
+    return tuple(sorted(name for name, kind in CLIP_FAMILIES.items() if kind == hands))
+
+
+def target_families(hands: str, *, available: Optional[Iterable[str]] = None) -> Tuple[str, ...]:
+    """The families a weapon of this handedness owns — the only paths it may write to.
+
+    `available` narrows the list to families this character actually ships, which is what
+    keeps a two-hand move on Damian from declaring Kliff's `longsword` among its targets.
+    """
+
+    families = families_for_handedness(hands)
+    if available is None:
+        return families
+    seen = {str(name) for name in available}
+    return tuple(name for name in families if name in seen)
+
+
+def donor_families(hands: str, *, available: Optional[Iterable[str]] = None) -> Tuple[str, ...]:
+    """The families a weapon of this handedness may *borrow* bytes from.
+
+    Deliberately the other handedness: a two-handed carry style is achieved by giving the
+    weapon the other grip's motion. Donors are not targets, and reporting the two apart is
+    what makes a genuine one-handed target leak visible.
+    """
+
+    return target_families(other_handedness(hands), available=available)
+
+
+def is_mounted(clip_stem: str) -> bool:
+    """Is this a horseback clip?
+
+    The context token sits in different slots per character — Kliff folds it into the
+    character token (`cd_prh_swd_...`), Damian keeps her name and adds it after
+    (`cd_damian_rd_prh_...`) — so the first few tokens are checked rather than one position.
+    """
+
+    parts = clip_stem.lower().split("_")
+    return bool(set(parts[1:4]) & _CONTEXT_TOKENS)
+
+
+def context_group_of(clip_stem: str) -> str:
+    """Which optional context group a clip belongs to. Never empty."""
+
+    if is_mounted(clip_stem):
+        return "riding"
+    lowered = f"_{clip_stem.lower()}_"
+    for group, tokens in _CONTEXT_GROUP_TOKENS:
+        if any(token in lowered for token in tokens):
+            return group
+    return "other"
+
+
+@dataclass(frozen=True, slots=True)
+class AnimationScope:
+    """How much of the animation set a move may rewrite.
+
+    Every default here is the safe one: draw and stow, on foot, this character's own clips.
+    Each widening is a field somebody had to set.
+    """
+
+    kind: str = SCOPE_DRAW_STOW
+    #: Which context groups are in. Empty means "whatever the preset implies".
+    contexts: Tuple[str, ...] = ()
+    include_borrowed: bool = False
+    include_mounted: bool = False
+    include_other_models: bool = False
+
+    @property
+    def label(self) -> str:
+        return SCOPE_LABELS.get(self.kind, self.kind)
+
+    @property
+    def is_advanced(self) -> bool:
+        return self.kind in ADVANCED_SCOPES
+
+    @property
+    def replaces_animations(self) -> bool:
+        return self.kind != SCOPE_PLACEMENT_ONLY
+
+    def effective_contexts(self) -> Tuple[str, ...]:
+        """The context groups actually in play, with the opt-in ones honoured."""
+
+        if self.kind == SCOPE_PLACEMENT_ONLY:
+            return ()
+        if self.contexts:
+            chosen = tuple(self.contexts)
+        elif self.kind == SCOPE_STOWED_LOCOMOTION:
+            chosen = STOWED_LOCOMOTION_CONTEXTS
+        else:
+            chosen = tuple(name for name, _label in CONTEXT_GROUPS)
+        out = [name for name in chosen if name not in OPT_IN_CONTEXTS]
+        if self.include_mounted and "riding" in chosen:
+            out.append("riding")
+        if "traversal" in self.contexts:
+            out.append("traversal")
+        return tuple(dict.fromkeys(out))
+
+    def allows_clip(self, clip_stem: str) -> bool:
+        if self.kind == SCOPE_PLACEMENT_ONLY:
+            return False
+        drawing = is_draw(clip_stem)
+        if self.kind == SCOPE_DRAW_STOW and not drawing:
+            return False
+        group = context_group_of(clip_stem)
+        if self.kind == SCOPE_STOWED_LOCOMOTION and not drawing:
+            if group not in STOWED_LOCOMOTION_CONTEXTS:
+                return False
+        if group == "riding" and not self.include_mounted:
+            return False
+        return group in self.effective_contexts()
+
+
+def recommended_scope(from_socket: str, to_socket: str) -> str:
+    """The scope a move should start on, given where it is going.
+
+    Moving within a zone does not change how the weapon is reached for, so nothing needs
+    replacing. Crossing between hip and back does, and draw-and-stow is the minimum that
+    covers it. Full-body is never a default.
+    """
+
+    from_zone, to_zone = zone_of(from_socket), zone_of(to_socket)
+    if not to_zone or from_zone == to_zone:
+        return SCOPE_PLACEMENT_ONLY
+    return SCOPE_DRAW_STOW
+
+
+@dataclass(frozen=True, slots=True)
+class AnimationReplacement:
+    """One target clip, the donor chosen for it, and what makes it risky.
+
+    Indexable as `(target, donor, options)` so the move dialog, which unpacks rows
+    positionally, keeps working while the richer fields are there for the review page.
+    """
+
+    target: object
+    donor: object
+    options: Tuple[object, ...] = ()
+    target_family: str = ""
+    donor_family: str = ""
+    context_group: str = "other"
+    borrowed: bool = False
+    mounted: bool = False
+    dual_wield_donor: bool = False
+
+    def __getitem__(self, index: int):
+        return (self.target, self.donor, self.options)[index]
+
+    def __len__(self) -> int:
+        return 3
+
+    def __iter__(self):
+        return iter((self.target, self.donor, self.options))
+
+    @property
+    def target_path(self) -> str:
+        return str(getattr(self.target, "path", "") or "")
+
+    @property
+    def risks(self) -> Tuple[str, ...]:
+        out = []
+        if self.borrowed:
+            out.append("borrowed from the other playable character")
+        if self.mounted:
+            out.append("horseback")
+        if self.dual_wield_donor:
+            out.append("dual-wield donor: may alter the off-hand")
+        return tuple(out)
+
+
+def _target_entries(entries, unit, scope: "AnimationScope"):
+    """This character's own clips in the unit's exact target families, and nothing else.
+
+    Every exclusion here has a reason recorded against it: `00_mon` is the player as they
+    appear in creature encounters and neither shipped mod touches it, `_swarm_` clips drive
+    crowds, and another model's folder is somebody else's character.
+    """
+
+    families = set(unit.target_animation_families)
+    prefixes = player_clip_prefixes(unit.model)
+    if not families or not prefixes:
+        return []
+    out = []
+    for entry in entries:
+        path = str(getattr(entry, "path", "") or "")
+        name = str(getattr(entry, "name", "") or "")
+        if not scope.include_other_models and f"/{unit.model}/" not in path:
+            continue
+        if "/00_mon/" in path or "_swarm_" in name:
+            continue
+        if not name.startswith(prefixes):
+            continue
+        # Exact parsed family token, never a substring: `sword` sits inside `longsword` and
+        # `dualsword`, so a substring match rewrites both grips from either one.
+        if family_of(name) not in families:
+            continue
+        if not scope.allows_clip(name):
+            continue
+        out.append(entry)
+    return out
+
+
+def rank_donors(target_name: str, candidates):
+    """The nearest stand-in, not merely the first one alphabetically.
+
+    Signature matching ignores the stance and take numbers so a clip with no exact twin still
+    finds one — but among several twins those numbers are the only thing separating one
+    stance from another, and name order chose between them at random.
+    """
+
+    wanted = counterpart_names(target_name)
+    rank = {name: position for position, name in enumerate(wanted)}
+    return sorted(
+        candidates,
+        key=lambda entry: (
+            rank.get(str(getattr(entry, "name", "")), len(rank)),
+            str(getattr(entry, "name", "")),
+        ),
+    )
+
+
+def swappable_pairs(
+    unit,
+    entries,
+    scope: Optional["AnimationScope"] = None,
+    *,
+    destination_zone: str = "",
+) -> Tuple[AnimationReplacement, ...]:
+    """Target/donor pairs for one equipment unit, at one scope.
+
+    Everything that decides the answer comes off `unit` — the model, the handedness, the
+    exact target families — rather than off whatever the window has selected, which is what
+    let one descriptor row move while another weapon's animations were rewritten.
+
+    `destination_zone` is accepted because every caller has it and the review reports it; it
+    does not currently widen or narrow the set, and saying so is cheaper than letting a
+    reader assume it does.
+    """
+
+    import collections
+
+    scope = scope or AnimationScope()
+    if not scope.replaces_animations:
+        return ()
+    entries = list(entries)
+    targets = _target_entries(entries, unit, scope)
+    if not targets:
+        return ()
+
+    wanted_donor_families = set(unit.donor_animation_families)
+    donors: Dict[object, List[object]] = collections.defaultdict(list)
+    for entry in entries:
+        name = str(getattr(entry, "name", "") or "")
+        path = str(getattr(entry, "path", "") or "")
+        if f"/{unit.model}/" not in path or "/00_mon/" in path or "_swarm_" in name:
+            continue
+        if family_of(name) not in wanted_donor_families:
+            continue
+        signature = clip_signature(name)
+        if signature:
+            donors[signature].append(entry)
+
+    # A body may borrow the other playable character's clips where it has none of its own.
+    # Off unless asked for: the rigs differ in proportion, so a borrowed draw may reach near
+    # the hilt rather than onto it, and that is not a thing to discover in game.
+    elsewhere: Dict[object, List[object]] = collections.defaultdict(list)
+    cousin = OTHER_PLAYER.get(unit.model, "")
+    if scope.include_borrowed and cousin:
+        cousin_prefixes = player_clip_prefixes(cousin)
+        for entry in entries:
+            name = str(getattr(entry, "name", "") or "")
+            path = str(getattr(entry, "path", "") or "")
+            if f"/{cousin}/" not in path or "/00_mon/" in path or "_swarm_" in name:
+                continue
+            if not name.startswith(cousin_prefixes):
+                continue
+            if family_of(name) not in wanted_donor_families:
+                continue
+            motion = clip_motion(name)
+            if motion:
+                elsewhere[motion].append(entry)
+
+    out: List[AnimationReplacement] = []
+    for entry in targets:
+        name = str(getattr(entry, "name", "") or "")
+        signature = clip_signature(name)
+        candidates = donors.get(signature) if signature else None
+        if not candidates:
+            motion = clip_motion(name)
+            candidates = elsewhere.get(motion) if motion else None
+        if not candidates:
+            continue
+        ranked = rank_donors(name, candidates)
+        chosen = ranked[0]
+        donor_name = str(getattr(chosen, "name", "") or "")
+        out.append(
+            AnimationReplacement(
+                target=entry,
+                donor=chosen,
+                options=tuple(ranked),
+                target_family=family_of(name),
+                donor_family=family_of(donor_name),
+                context_group=context_group_of(name),
+                borrowed=borrowed_from_other_body(name, donor_name),
+                mounted=is_mounted(name) or is_mounted(donor_name),
+                dual_wield_donor=family_of(donor_name) in DUAL_WIELD_FAMILIES,
+            )
+        )
+    out.sort(key=lambda row: str(getattr(row.target, "name", "")))
+    return tuple(out)
+
+
+def animation_target_allowlist(replacements: Sequence[AnimationReplacement]) -> Tuple[str, ...]:
+    """The exact target paths an operation may write, computed before anything is recorded."""
+
+    return tuple(sorted({row.target_path for row in replacements if row.target_path}))
+
+
+def family_counts(replacements: Sequence[AnimationReplacement]):
+    """`(targets, donors)` as family -> file count, which is what a review has to state."""
+
+    import collections
+
+    targets: Dict[str, int] = collections.Counter()
+    donors: Dict[str, int] = collections.Counter()
+    for row in replacements:
+        if row.target_family:
+            targets[row.target_family] += 1
+        if row.donor_family:
+            donors[row.donor_family] += 1
+    return dict(sorted(targets.items())), dict(sorted(donors.items()))
+
+
+def context_counts(replacements: Sequence[AnimationReplacement]) -> Dict[str, int]:
+    import collections
+
+    counts: Dict[str, int] = collections.Counter()
+    for row in replacements:
+        counts[row.context_group] += 1
+    return dict(sorted(counts.items()))
+
+
+def risk_summary(replacements: Sequence[AnimationReplacement]) -> Dict[str, int]:
+    """How many replacements carry each risk — the numbers a confirmation has to show."""
+
+    return {
+        "borrowed": sum(1 for row in replacements if row.borrowed),
+        "mounted": sum(1 for row in replacements if row.mounted),
+        "dual_wield_donor": sum(1 for row in replacements if row.dual_wield_donor),
+    }
+
+
+def risk_warnings(replacements: Sequence[AnimationReplacement]) -> Tuple[str, ...]:
+    """Plain sentences for the risks that are actually present."""
+
+    counts = risk_summary(replacements)
+    out: List[str] = []
+    if counts["dual_wield_donor"]:
+        out.append(
+            f"{counts['dual_wield_donor']} selected donors come from a dual-sword family "
+            f"and may alter the off-hand pose."
+        )
+    if counts["borrowed"]:
+        out.append(
+            f"{counts['borrowed']} clips come from the other playable character, whose rig "
+            f"has different proportions; reaching and contact may be a little off."
+        )
+    if counts["mounted"]:
+        out.append(f"{counts['mounted']} clips are horseback animations.")
+    return tuple(out)

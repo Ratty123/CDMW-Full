@@ -10,6 +10,8 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QCheckBox,
+    QDoubleSpinBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -32,6 +34,7 @@ from PySide6.QtWidgets import (
 from cdmw.domain.mesh import (
     MeshCompareSummary,
     MeshEditSessionView,
+    MeshObjectTransformState,
     MeshExportValidationReport,
     MeshSkeletonSummary,
     MeshUvSummary,
@@ -116,6 +119,7 @@ class WorkspacePanelBuilderMixin:
         self.outliner = self._part_tree(("Part", "Faces", "Rev"), "MeshEditorOutlinerPanel")
         self._configure_part_tree(self.outliner)
         self.properties_tree = self._tree(("Property", "Value"), "MeshEditorPropertiesPanel")
+        object_transform_panel = self._build_object_transform_panel()
         uv_panel = self._build_uv_panel()
         material_panel = self._build_material_panel()
         compare_panel = self._build_compare_panel()
@@ -128,6 +132,7 @@ class WorkspacePanelBuilderMixin:
         for widget, title in (
             (self.outliner, "Parts"),
             (self.properties_tree, "Details"),
+            (object_transform_panel, "Object Transform"),
             (skeleton_panel, "Rig"),
             (uv_panel, "UV Map"),
             (material_panel, "Part Actions"),
@@ -148,6 +153,140 @@ class WorkspacePanelBuilderMixin:
         self.update_compare_summary(None)
         self.update_skeleton_summary(None)
         return tabs
+
+    def _build_object_transform_panel(self) -> QWidget:
+        frame = QFrame(self)
+        frame.setObjectName("MeshEditorObjectTransformPanel")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(6)
+        hint = QLabel(
+            "Moves every mesh part around the fixed source-bounds centre without changing selection.",
+            frame,
+        )
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(5)
+        grid.setVerticalSpacing(4)
+        for column, axis in enumerate(("X", "Y", "Z"), start=1):
+            grid.addWidget(QLabel(axis, frame), 0, column)
+        self.object_transform_spins: dict[str, tuple[QDoubleSpinBox, QDoubleSpinBox, QDoubleSpinBox]] = {}
+        rows = (
+            ("location", "Location", -100000.0, 100000.0, 0.01),
+            ("rotation_degrees", "Rotation", -360000.0, 360000.0, 1.0),
+            ("scale", "Scale", 0.0001, 10000.0, 0.01),
+        )
+        for row, (key, label, minimum, maximum, step) in enumerate(rows, start=1):
+            grid.addWidget(QLabel(label, frame), row, 0)
+            spins: list[QDoubleSpinBox] = []
+            for axis in range(3):
+                spin = QDoubleSpinBox(frame)
+                spin.setObjectName(f"MeshEditorObject{key.title().replace('_', '')}{'XYZ'[axis]}Spin")
+                spin.setDecimals(4)
+                spin.setRange(minimum, maximum)
+                spin.setSingleStep(step)
+                spin.setKeyboardTracking(False)
+                spin.editingFinished.connect(
+                    lambda field=key, index=axis: self._commit_object_transform_spin(field, index)
+                )
+                grid.addWidget(spin, row, axis + 1)
+                spins.append(spin)
+            self.object_transform_spins[key] = tuple(spins)  # type: ignore[assignment]
+        layout.addLayout(grid)
+
+        scale_row = QHBoxLayout()
+        self.object_transform_link_scale = QCheckBox("Linked XYZ scale", frame)
+        self.object_transform_link_scale.setObjectName("MeshEditorObjectTransformLinkedScale")
+        self.object_transform_link_scale.setChecked(True)
+        scale_row.addWidget(self.object_transform_link_scale)
+        scale_row.addStretch(1)
+        layout.addLayout(scale_row)
+
+        tilt_row = QGridLayout()
+        for index, (text, axis, delta) in enumerate(
+            (("Tilt X−", 0, -15.0), ("Tilt X+", 0, 15.0), ("Tilt Y−", 1, -15.0),
+             ("Tilt Y+", 1, 15.0), ("Tilt Z−", 2, -15.0), ("Tilt Z+", 2, 15.0))
+        ):
+            button = QPushButton(text, frame)
+            button.setObjectName(f"MeshEditorObjectTransformTilt{index}Button")
+            button.clicked.connect(
+                lambda _checked=False, target_axis=axis, amount=delta: self._tilt_object_transform(target_axis, amount)
+            )
+            tilt_row.addWidget(button, index // 2, index % 2)
+        layout.addLayout(tilt_row)
+
+        reset_row = QGridLayout()
+        for index, (text, target) in enumerate(
+            (("Reset Position", "location"), ("Reset Rotation", "rotation_degrees"),
+             ("Reset Scale", "scale"), ("Reset All", "all"))
+        ):
+            button = QPushButton(text, frame)
+            button.setObjectName(f"MeshEditorObjectTransformReset{target.title().replace('_', '')}Button")
+            button.clicked.connect(
+                lambda _checked=False, reset_target=target: self._reset_object_transform(reset_target)
+            )
+            reset_row.addWidget(button, index // 2, index % 2)
+        layout.addLayout(reset_row)
+        self.object_transform_pivot_label = QLabel("Pivot: —", frame)
+        self.object_transform_pivot_label.setObjectName("MeshEditorObjectTransformPivot")
+        layout.addWidget(self.object_transform_pivot_label)
+        layout.addStretch(1)
+        self._object_transform_control_update = False
+        self.update_object_transform(MeshObjectTransformState())
+        return frame
+
+    def _object_transform_payload(self) -> dict[str, tuple[float, float, float]]:
+        return {
+            key: tuple(float(spin.value()) for spin in spins)
+            for key, spins in self.object_transform_spins.items()
+        }
+
+    def _commit_object_transform_spin(self, field: str, axis: int) -> None:
+        if self._object_transform_control_update or not self._has_editor_target:
+            return
+        if field == "scale" and self.object_transform_link_scale.isChecked():
+            value = self.object_transform_spins[field][axis].value()
+            self._object_transform_control_update = True
+            try:
+                for spin in self.object_transform_spins[field]:
+                    spin.setValue(value)
+            finally:
+                self._object_transform_control_update = False
+        self.object_transform_requested.emit(self._object_transform_payload())
+
+    def _tilt_object_transform(self, axis: int, delta: float) -> None:
+        if self._object_transform_control_update or not self._has_editor_target:
+            return
+        spin = self.object_transform_spins["rotation_degrees"][axis]
+        spin.setValue(spin.value() + float(delta))
+        self.object_transform_requested.emit(self._object_transform_payload())
+
+    def _reset_object_transform(self, target: str) -> None:
+        if self._object_transform_control_update or not self._has_editor_target:
+            return
+        self._object_transform_control_update = True
+        try:
+            targets = ("location", "rotation_degrees", "scale") if target == "all" else (target,)
+            for key in targets:
+                value = 1.0 if key == "scale" else 0.0
+                for spin in self.object_transform_spins[key]:
+                    spin.setValue(value)
+        finally:
+            self._object_transform_control_update = False
+        self.object_transform_requested.emit(self._object_transform_payload())
+
+    def update_object_transform(self, state: MeshObjectTransformState) -> None:
+        self._object_transform_control_update = True
+        try:
+            for key in ("location", "rotation_degrees", "scale"):
+                for spin, value in zip(self.object_transform_spins[key], getattr(state, key), strict=True):
+                    spin.setValue(float(value))
+            self.object_transform_pivot_label.setText(
+                "Pivot: " + ", ".join(f"{float(value):.4f}" for value in state.pivot)
+            )
+        finally:
+            self._object_transform_control_update = False
 
     def _build_performance_panel(self) -> QWidget:
         frame = QFrame(self)
@@ -220,45 +359,54 @@ class WorkspacePanelBuilderMixin:
         self.run_rebuild_report_button.clicked.connect(self.rebuild_report_requested.emit)
         self._ui_font_widgets.append(self.run_rebuild_report_button)
         controls.addWidget(self.run_rebuild_report_button)
-        self.rebuild_asset_button = QToolButton(frame)
-        self.rebuild_asset_button.setObjectName("MeshEditorRebuildPatchedAssetButton")
-        self.rebuild_asset_button.setText("Rebuild")
-        self.rebuild_asset_button.setAccessibleName("Rebuild patched asset")
-        self.rebuild_asset_button.setToolTip("Write a validated rebuilt asset to a chosen file.")
-        self.rebuild_asset_button.setProperty("meshEditorIconKey", "export")
-        self.rebuild_asset_button.setIcon(mesh_editor_action_icon("export", self.palette()))
-        self.rebuild_asset_button.setIconSize(QSize(18, 18))
-        self.rebuild_asset_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.rebuild_asset_button.setEnabled(False)
-        self.rebuild_asset_button.clicked.connect(self.rebuild_asset_requested.emit)
-        self._ui_font_widgets.append(self.rebuild_asset_button)
-        controls.addWidget(self.rebuild_asset_button)
-        self.preview_rebuilt_asset_button = QToolButton(frame)
-        self.preview_rebuilt_asset_button.setObjectName("MeshEditorPreviewRebuiltAssetButton")
-        self.preview_rebuilt_asset_button.setText("Preview")
-        self.preview_rebuilt_asset_button.setAccessibleName("Preview rebuilt asset")
-        self.preview_rebuilt_asset_button.setToolTip("Preview the last rebuilt asset through the archive import preview flow.")
-        self.preview_rebuilt_asset_button.setProperty("meshEditorIconKey", "select_face")
-        self.preview_rebuilt_asset_button.setIcon(mesh_editor_action_icon("select_face", self.palette()))
-        self.preview_rebuilt_asset_button.setIconSize(QSize(18, 18))
-        self.preview_rebuilt_asset_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.preview_rebuilt_asset_button.setEnabled(False)
-        self.preview_rebuilt_asset_button.clicked.connect(self.preview_rebuilt_asset_requested.emit)
-        self._ui_font_widgets.append(self.preview_rebuilt_asset_button)
-        controls.addWidget(self.preview_rebuilt_asset_button)
-        self.package_rebuilt_asset_button = QToolButton(frame)
-        self.package_rebuilt_asset_button.setObjectName("MeshEditorPackageRebuiltAssetButton")
-        self.package_rebuilt_asset_button.setText("Package")
-        self.package_rebuilt_asset_button.setAccessibleName("Package rebuilt asset")
-        self.package_rebuilt_asset_button.setToolTip("Send the last rebuilt asset to the archive package or patch flow.")
-        self.package_rebuilt_asset_button.setProperty("meshEditorIconKey", "export")
-        self.package_rebuilt_asset_button.setIcon(mesh_editor_action_icon("export", self.palette()))
-        self.package_rebuilt_asset_button.setIconSize(QSize(18, 18))
-        self.package_rebuilt_asset_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.package_rebuilt_asset_button.setEnabled(False)
-        self.package_rebuilt_asset_button.clicked.connect(self.package_rebuilt_asset_requested.emit)
-        self._ui_font_widgets.append(self.package_rebuilt_asset_button)
-        controls.addWidget(self.package_rebuilt_asset_button)
+        self.export_mesh_file_button = QToolButton(frame)
+        self.export_mesh_file_button.setObjectName("MeshEditorExportMeshFileButton")
+        self.export_mesh_file_button.setText("Export Mesh File")
+        self.export_mesh_file_button.setAccessibleName("Export mesh file")
+        self.export_mesh_file_button.setToolTip("Atomically write the validated rebuilt mesh and its report.")
+        self.export_mesh_file_button.setProperty("meshEditorIconKey", "export")
+        self.export_mesh_file_button.setIcon(mesh_editor_action_icon("export", self.palette()))
+        self.export_mesh_file_button.setIconSize(QSize(18, 18))
+        self.export_mesh_file_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.export_mesh_file_button.setEnabled(False)
+        self.export_mesh_file_button.clicked.connect(self.export_mesh_file_requested.emit)
+        self._ui_font_widgets.append(self.export_mesh_file_button)
+        controls.addWidget(self.export_mesh_file_button)
+        self.build_mod_button = QToolButton(frame)
+        self.build_mod_button.setObjectName("MeshEditorBuildModButton")
+        self.build_mod_button.setText("Build Mod")
+        self.build_mod_button.setAccessibleName("Build mesh mod")
+        self.build_mod_button.setToolTip("Build a loose mod folder or DMM archive-group overlay package.")
+        self.build_mod_button.setProperty("meshEditorIconKey", "export")
+        self.build_mod_button.setIcon(mesh_editor_action_icon("export", self.palette()))
+        self.build_mod_button.setIconSize(QSize(18, 18))
+        self.build_mod_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.build_mod_button.setEnabled(False)
+        self.build_mod_button.clicked.connect(self.build_mod_requested.emit)
+        self._ui_font_widgets.append(self.build_mod_button)
+        controls.addWidget(self.build_mod_button)
+        self.install_overlay_button = QToolButton(frame)
+        self.install_overlay_button.setObjectName("MeshEditorInstallOverlayButton")
+        self.install_overlay_button.setText("Install as Overlay")
+        self.install_overlay_button.setAccessibleName("Install mesh as overlay")
+        self.install_overlay_button.setToolTip("Prepare, confirm, back up, and mount this mesh through the workbench overlay.")
+        self.install_overlay_button.setProperty("meshEditorIconKey", "export")
+        self.install_overlay_button.setIcon(mesh_editor_action_icon("export", self.palette()))
+        self.install_overlay_button.setIconSize(QSize(18, 18))
+        self.install_overlay_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.install_overlay_button.setEnabled(False)
+        self.install_overlay_button.clicked.connect(self.install_overlay_requested.emit)
+        self._ui_font_widgets.append(self.install_overlay_button)
+        controls.addWidget(self.install_overlay_button)
+        self.restore_overlay_button = QToolButton(frame)
+        self.restore_overlay_button.setObjectName("MeshEditorRestoreOverlayButton")
+        self.restore_overlay_button.setText("Restore Last Overlay Install")
+        self.restore_overlay_button.setAccessibleName("Restore last mesh overlay install")
+        self.restore_overlay_button.setToolTip("Restore the backup named by the last Mesh Editor overlay receipt.")
+        self.restore_overlay_button.setEnabled(False)
+        self.restore_overlay_button.clicked.connect(self.restore_overlay_requested.emit)
+        self._ui_font_widgets.append(self.restore_overlay_button)
+        controls.addWidget(self.restore_overlay_button)
         self.save_rebuild_report_button = QToolButton(frame)
         self.save_rebuild_report_button.setObjectName("MeshEditorSaveRebuildReportButton")
         self.save_rebuild_report_button.setText("Save")
@@ -605,23 +753,12 @@ class WorkspacePanelBuilderMixin:
             "Flip normals for selected part(s).",
             "flip_normals",
         )
-        self.open_texture_button = QToolButton(frame)
-        self.open_texture_button.setObjectName("MeshEditorOpenTextureButton")
-        self.open_texture_button.setText("Open Texture")
-        self.open_texture_button.setAccessibleName("Open selected texture")
-        self.open_texture_button.setToolTip("Open selected material texture in Texture Editor.")
-        self.open_texture_button.setProperty("meshEditorIconKey", "material")
-        self.open_texture_button.setIcon(mesh_editor_action_icon("material", self.palette()))
-        self.open_texture_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.open_texture_button.setEnabled(False)
-        self.open_texture_button.clicked.connect(self.texture_edit_requested.emit)
         for index, button in enumerate(
             (
                 self.part_clone_button,
                 self.part_delete_button,
                 self.part_recalculate_normals_button,
                 self.part_flip_normals_button,
-                self.open_texture_button,
             )
         ):
             action_grid.addWidget(button, index // 2, index % 2)
@@ -712,7 +849,6 @@ class WorkspacePanelBuilderMixin:
             ("part_delete_button", has_selection and native_part_actions_enabled),
             ("part_recalculate_normals_button", has_selection),
             ("part_flip_normals_button", has_selection),
-            ("open_texture_button", has_selection and has_selected_texture),
         ):
             button = getattr(self, name, None)
             if button is not None:

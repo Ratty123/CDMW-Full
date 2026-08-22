@@ -233,7 +233,6 @@ internal sealed partial class UiLocalizationOwner : IDisposable
         "Part selection awaiting authoritative acceptance.",
         "Parts",
         "Paste",
-        "Per-part tint, recolour and glow for the current selection.",
         "Pinch",
         "Placement",
         "Placement gizmo: {value_0}. Left-drag the viewport or use the Builder placement values.",

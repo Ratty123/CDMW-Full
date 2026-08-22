@@ -389,12 +389,13 @@ def test_tool_rail_is_a_flat_tool_list_and_pins_the_scene_groups() -> None:
         assert f'RowKeys.{const} => "{caption}",' in tool_list
     for page, const, caption in (
         ("Topology", "Topology", "Topology"),
-        ("Colour", "Colour", "Colour"),
         ("MorphRefit", "Morph", "Morph & Refit"),
     ):
         assert f"new(ToolListRowKind.CommandPage, Keys.{const}, ToolRailPage.{page})" in rows
         assert f'"{caption}"' in tool_list
-    assert rows.count("new(ToolListRowKind.CommandPage") == 3
+    assert rows.count("new(ToolListRowKind.CommandPage") == 2
+    assert "Keys.Colour" not in rows
+    assert "ToolRailPage.Colour" not in contracts
     assert rows.count("new(ToolListRowKind.Tool") == 6
     # The built list is checked against the executed contract inventories, and
     # those inventories are still the rail's.
@@ -734,7 +735,7 @@ def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:
     assert "rail_command_page_count" in smoke
     assert "RailPageIsModal" in smoke
     assert "RequireCompleteRail" in smoke
-    for page in ("Selection", "Transform", "Brush", "Topology", "Colour", "Morph & Refit"):
+    for page in ("Selection", "Transform", "Brush", "Topology", "Morph & Refit"):
         assert f'"{page}"' in smoke
 
 

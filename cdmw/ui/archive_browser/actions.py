@@ -300,49 +300,6 @@ class ArchiveBrowserActionMixin:
             return self.archive_filtered_entries[value]
         return None
 
-    def _add_archive_mesh_import_context_actions(
-        self,
-        menu: QMenu,
-        menu_icons: dict[str, QIcon],
-        entry: ArchiveEntry,
-    ) -> None:
-        # One entry on purpose. Which operation an import turns out to be --
-        # geometry only, geometry and bindings, the full asset, materials and
-        # textures alone -- is a decision the reader makes in the Builder with
-        # the model in front of them, not one they can make from a context menu
-        # before they have seen it. Three entries here asked the same question
-        # earlier and with less information.
-        import_patch_action = menu.addAction(menu_icons["mesh"], "Import Mesh...")
-        import_patch_action.triggered.connect(
-            lambda _checked=False, current_entry=entry: self._start_archive_mesh_patch(current_entry)
-        )
-
-    def _add_archive_material_context_action(
-        self,
-        menu: QMenu,
-        menu_icons: dict[str, QIcon],
-        entry: ArchiveEntry,
-    ) -> None:
-        material_sidecar_entry = self._related_material_sidecar_entry_for_archive_entry(entry)
-        if entry.extension not in ARCHIVE_MESH_EXTENSIONS and not is_material_sidecar_entry(entry):
-            return
-        menu.addSection(menu_icons["texture"], "Material")
-        edit_material_action = menu.addAction(menu_icons["texture"], "Edit Material Values...")
-        edit_material_action.setEnabled(material_sidecar_entry is not None)
-        if material_sidecar_entry is None:
-            edit_material_action.setToolTip(
-                "Unavailable: no recognized companion .pac_xml/.pac.xml/.pam_xml/.pam.xml/"
-                ".pamlod_xml/.pamlod.xml/.pami material sidecar was found. Material values are "
-                "stored in the sidecar, not in the selected mesh bytes."
-            )
-            return
-        edit_material_action.setToolTip(
-            "Read recognized values from the selected or companion material sidecar and export edited values as a mod-ready package."
-        )
-        edit_material_action.triggered.connect(
-            lambda _checked=False, current_material_entry=material_sidecar_entry: self._open_material_sidecar_editor(current_material_entry)
-        )
-
     def _archive_tree_folder_path(self, item) -> str:
         """Return a folder node's virtual path, from either browser model.
 
@@ -487,17 +444,6 @@ class ArchiveBrowserActionMixin:
             export_family_action.triggered.connect(
                 lambda _checked=False, current_entry=entry: self._export_archive_asset_family_for_entry(current_entry, include_hints=False)
             )
-            _add_menu_section("workflow", "Source Package")
-            source_mix_action = menu.addAction(menu_icons["workflow"], "Build Loose Package From Sources...")
-            source_mix_action.triggered.connect(
-                lambda _checked=False, current_entry=entry: self._open_archive_source_mix_package_dialog(current_entry)
-            )
-        elif entry.extension not in ARCHIVE_MESH_EXTENSIONS:
-            _add_menu_section("workflow", "Source Package")
-            source_mix_action = menu.addAction(menu_icons["workflow"], "Build Loose Package From Sources...")
-            source_mix_action.triggered.connect(
-                lambda _checked=False, current_entry=entry: self._open_archive_source_mix_package_dialog(current_entry)
-            )
 
         if entry.extension in ARCHIVE_MESH_EXTENSIONS:
             _add_menu_section("mesh", "Mesh Export")
@@ -513,37 +459,9 @@ class ArchiveBrowserActionMixin:
                 lambda _checked=False, current_entry=entry: self._export_character_dependency_package_for_entry(current_entry)
             )
             _add_menu_section("mesh", "Mesh Edit")
-            modify_original_action = menu.addAction(menu_icons["mesh"], "Modify Original...")
-            modify_original_action.triggered.connect(
-                lambda _checked=False, current_entry=entry: self._mesh_editor_modify_original_requested(current_entry)
-            )
-            self._add_archive_mesh_import_context_actions(menu, menu_icons, entry)
-            pending_swap_target = self.pending_in_game_mesh_swap_target
-            if pending_swap_target is not None and not self._same_archive_entry(entry, pending_swap_target):
-                swap_label = "Use This as Swap Source..."
-            elif pending_swap_target is not None and self._same_archive_entry(entry, pending_swap_target):
-                swap_label = "Cancel In-Game Mesh Swap Target"
-            else:
-                swap_label = "Start In-Game Mesh Swap..."
-            swap_mesh_action = menu.addAction(menu_icons["mesh"], swap_label)
-            swap_mesh_action.triggered.connect(
-                lambda _checked=False, current_entry=entry: self._handle_archive_in_game_mesh_swap_entry(current_entry)
-            )
-
-        if entry.extension == ".dds":
-            _add_menu_section("texture", "Texture")
-            texture_editor_action = menu.addAction(menu_icons["texture"], "Open In Texture Editor...")
-            texture_editor_action.triggered.connect(
-                lambda _checked=False, current_entry=entry: self._open_archive_entry_in_texture_editor(current_entry)
-            )
-            workflow_action = menu.addAction(menu_icons["texture"], "DDS To Workflow...")
-            workflow_action.triggered.connect(
-                lambda _checked=False, current_entry=entry: self._run_archive_extract(
-                    [current_entry],
-                    set_original_dds_root=True,
-                    allow_original_dds_root=True,
-                    description=f"Extracting {current_entry.basename} to workflow...",
-                )
+            open_mesh_editor_action = menu.addAction(menu_icons["mesh"], "Open in Mesh Editor")
+            open_mesh_editor_action.triggered.connect(
+                lambda _checked=False, current_entry=entry: self._launch_archive_mesh_editor_for_entry(current_entry)
             )
 
         if entry.extension in {".hkx", ".hkt"}:
@@ -582,8 +500,6 @@ class ArchiveBrowserActionMixin:
             edit_structured_action.triggered.connect(
                 lambda _checked=False, current_entry=entry: self._edit_archive_structured_binary_sidecar(current_entry)
             )
-
-        self._add_archive_material_context_action(menu, menu_icons, entry)
 
         if entry.extension in ARCHIVE_AUDIO_EXPORT_EXTENSIONS or entry.extension in ARCHIVE_AUDIO_PATCH_EXTENSIONS:
             _add_menu_section("audio", "Audio")

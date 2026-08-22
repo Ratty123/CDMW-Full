@@ -240,9 +240,19 @@ class PlacementResolver:
         names, so whichever descriptor loaded last would silently own every row.
         """
 
+        from .ops import descriptor_alias_source
+
+        # The root-level `character/<name>.xml` alias and its canonical twin under
+        # `characterdescription/` are byte-identical, so which one a *read* comes from does not
+        # matter — but `source_file` is where an edit gets written, and it must be the
+        # canonical file. Editing the alias produced a change that the alias-mirroring step
+        # then declined to copy back, so the package shipped the alias alone.
+        loaded = {document.game_path for document in self._descriptors}
         parts: Dict[str, DescriptorPart] = {}
         for document in self._descriptors:
             if model and descriptor_model_of(document.game_path) not in ("", model):
+                continue
+            if descriptor_alias_source(document.game_path) in loaded:
                 continue
             parts.update(document.part_map())
         return parts

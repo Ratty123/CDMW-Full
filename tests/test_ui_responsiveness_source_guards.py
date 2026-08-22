@@ -619,7 +619,7 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         source = _read("cdmw/ui/shell/app_window.py") + "\n" + _read("cdmw/ui/shell/log_controller.py")
         busy_start = source.index("    def set_busy(")
         busy_body = source[busy_start: source.index("    def reset_progress", busy_start)]
-        self.assertIn('filtered_has_dds = int(getattr(self, "archive_filtered_dds_count", 0) or 0) > 0', busy_body)
+        self.assertNotIn("archive_filtered_dds_count", busy_body)
         self.assertNotIn('any(entry.extension == ".dds" for entry in self.archive_filtered_entries)', busy_body)
         self.assertNotIn("ArchiveEnhancedIndexWorker(tuple(self.archive_entries))", source)
         self.assertNotIn("ArchiveStructureFilterWorker(tuple(self.archive_entries))", source)

@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from uuid import uuid4
 
 from cdmw.domain.mesh import MeshEditCommand, MeshEditSelection
@@ -69,6 +70,20 @@ def _persistent_layer_mesh(root: Path, *, source_hash: str = "a" * 64) -> tuple[
     setattr(mesh, "_cdmw_modify_original_workspace_manifest_path", str(manifest_path))
     setattr(mesh, "_cdmw_modify_original_workspace_mode", "internal_app_session")
     return mesh, project_path, manifest_path
+
+
+def _apply_fake_affine(submeshes, *, position_matrices_by_index, **_kwargs):
+    for index, matrix in position_matrices_by_index.items():
+        submesh = submeshes[index]
+        submesh.vertices = [
+            (
+                matrix[0] * x + matrix[1] * y + matrix[2] * z + matrix[3],
+                matrix[4] * x + matrix[5] * y + matrix[6] * z + matrix[7],
+                matrix[8] * x + matrix[9] * y + matrix[10] * z + matrix[11],
+            )
+            for x, y, z in submesh.vertices
+        ]
+    return set(position_matrices_by_index)
 
 
 class MeshGeometryLayerServiceTests(unittest.TestCase):
@@ -160,6 +175,17 @@ class MeshGeometryLayerServiceTests(unittest.TestCase):
             service = MeshService()
             session_id = f"layer-save-{uuid4().hex}"
             service.open_edit_session(mesh, session_id=session_id, mode="edit")
+            with patch(
+                "cdmw.services.mesh_service_object_transform.apply_native_mesh_affine_transform_submeshes",
+                side_effect=_apply_fake_affine,
+            ):
+                service.set_object_transform(
+                    session_id,
+                    location=(5.0, 0.0, 0.0),
+                    rotation_degrees=(0.0, 20.0, 0.0),
+                    scale=(1.25, 1.25, 1.25),
+                )
+            saved_object_transform = service.session_view(session_id).object_transform
             service.apply_command(
                 session_id,
                 MeshEditCommand(
@@ -193,6 +219,7 @@ class MeshGeometryLayerServiceTests(unittest.TestCase):
             self.assertTrue(view.selection.is_empty())
             self.assertEqual(0, view.undo_count)
             self.assertEqual(0, view.redo_count)
+            self.assertEqual(saved_object_transform, view.object_transform)
 
     def test_corrupt_current_generation_recovers_previous_generation(self) -> None:
         with tempfile.TemporaryDirectory(prefix="cdmw-layer-recovery-") as temp_dir:

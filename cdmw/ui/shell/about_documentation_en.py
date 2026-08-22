@@ -20,7 +20,7 @@ NEW_ITEM_STUDIO_SECTION = {
     <ul>
       <li><b>Read the archives</b> once per session: the item, string, part-prefab, store, group and language tables are read into a snapshot, then every check is a lookup.</li>
       <li><b>Template</b> from the search box, or from <b>Item Finder &gt; Clone as new item...</b>. <b>Identity</b>: internal name, per-language names and descriptions (English required, others fall back to it), an item key from the reserved range and a model stem, both allocated for you unless you set them.</li>
-      <li><b>Model and icon</b>: keep the template's model, or <b>Import a model file...</b>, which asks for a glTF, GLB, OBJ, DAE or zip from anywhere on disk, runs Import Mesh over the template's mesh with it and hands the result here instead of writing it over the template; it is re-pathed to the new item's own family. An imported model's materials are written for the game's plain PBR shaders by default (SkinnedMeshStandard: the source's albedo, normal and roughness/metal map, SkinnedMeshEmissive where the source glows), the way the shipped texture-driven weapons are; untick that to keep the Builder's layered sidecar as it came. The template is also the baseline the import inherits: its part prefabs decide which character parts the item occupies and what is drawn beside it (a helm's helmet hair), and the Template panel lists them; a helm imported over the Northern Fighter's Plate Helm keeps the face drawn, one over the Unyielding Warrior's or Canta helm hides the head. Where the model sits is the Builder's placement review: on the shipped swords the guard's handle-side edge is 0.10 m in front of the hand (offset z, + toward the pommel); a helm wants manual placement (scale, no rotation, origin at the head). Keep the template's icon or generate one from an image or a folder, fitted to the template icon's DDS format.</li>
+      <li><b>Model and icon</b>: keep the template's model, or <b>Import a model file...</b>, which asks for a glTF, GLB, OBJ, DAE or zip from anywhere on disk, imports it through New Item Studio's own Model step without writing it over the template; it is re-pathed to the new item's own family. An imported model's materials are written for the game's plain PBR shaders by default (SkinnedMeshStandard: the source's albedo, normal and roughness/metal map, SkinnedMeshEmissive where the source glows), the way the shipped texture-driven weapons are; untick that to keep the imported material mapping as reviewed by the studio. The template is also the baseline the import inherits: its part prefabs decide which character parts the item occupies and what is drawn beside it (a helm's helmet hair), and the Template panel lists them; a helm imported over the Northern Fighter's Plate Helm keeps the face drawn, one over the Unyielding Warrior's or Canta helm hides the head. Where the model sits is the Model step's placement review: on the shipped swords the guard's handle-side edge is 0.10 m in front of the hand (offset z, + toward the pommel); a helm wants manual placement (scale, no rotation, origin at the head). Keep the template's icon or generate one from an image or a folder, fitted to the template icon's DDS format.</li>
       <li><b>Combat stats and prices</b>: the grid shows raw ItemInfo values, not a proven player-facing damage number. Select a cell to compare it with the template and the range used by the game's own equipment. Prices are identified separately; arbitrary stats, exact raw values, extra levels and separate enhancement rows stay under <b>Advanced / experimental</b>.</li>
       <li><b>Abilities and weapon appearance</b>: gameplay perks are the Abyss Gear socket items built into the item. Keep the template list or customize it; four is the evidence-backed default, and five to eight requires an explicit experimental option. Weapon effects are visual only and do not add attack damage or elemental status. Choose a curated visual first; raw effect files, numeric placement, recolouring and particle tuning stay under <b>Advanced</b>, and customized looks remain unproven in game. Armour and accessories do not offer this weapon-prefab effect path.</li>
       <li><b>Shop and item groups</b>: replace one entry of a shop (the form the game accepted) or add an entry (unproven); join the template's item groups or a list of your own.</li>
@@ -53,8 +53,9 @@ class AboutDocumentationEnglishMixin:
                 <p>The app is split into major work areas rather than one single pipeline.</p>
                 <ul>
                   <li><b>Texture Workflow</b>: batch loose DDS processing, optional upscaling, DDS rebuild, compare, and mod-ready loose export.</li>
-                  <li><b>Archive Browser</b>: archive scanning, filtering, preview, extraction, supported patch/loose-export workflows, and Research/Editor handoff.</li>
-                  <li><b>Model Library</b>: scan local/importable models, preview them, and route compatible imports into Archive Browser workflows.</li>
+                  <li><b>Archive Browser</b>: archive scanning, filtering, preview, extraction, research, dependency export, and one <b>Open in Mesh Editor</b> command for meshes.</li>
+                  <li><b>Mesh Editor</b>: direct geometry, topology, normals, rigging, Morph &amp; Refit, UV-coordinate, transform, review, and mesh-only output work. Textures are read-only in Mesh View.</li>
+                  <li><b>Model Library</b>: scan and preview local/importable models, or send one to New Item Studio.</li>
                   <li><b>Icon Creator</b>: prepare item-icon source images and package compatible icon replacements.</li>
                   <li><b>Texture Editor</b>: layered visible-texture editing and direct workflow handoff.</li>
                   <li><b>Texture Replacer</b>: guided one-off replacement packaging for edited PNG/DDS files.</li>
@@ -74,7 +75,7 @@ class AboutDocumentationEnglishMixin:
                 <p>Choose the first path based on what you are trying to do. You can move between tools later; the point is to avoid starting with the largest batch workflow when a smaller guided path is safer.</p>
                 <ul>
                   <li><b>Browse game files</b>: use <a href="topic:archive_browser">Archive Browser</a> to scan packages, filter, preview, and extract.</li>
-                  <li><b>Replace or swap a mesh</b>: use <a href="topic:mesh_media_guides">Mesh Import &amp; Swap</a> from Archive Browser. Start with <b>Import Mesh Preview</b>, then use <b>Import Mesh</b> or <b>Swap With In-Game Mesh</b> after checking alignment.</li>
+                  <li><b>Edit a game mesh</b>: select a supported mesh in Archive Browser and choose <b>Open in Mesh Editor</b>. Geometry tools are ready immediately; use Mesh View for read-only textured review.</li>
                   <li><b>Batch-process loose DDS files</b>: use <a href="topic:workflow_overview">Texture Workflow</a>, run a small subset, then review in <a href="topic:compare_review">Compare</a>.</li>
                   <li><b>Replace one already-edited texture</b>: use <a href="topic:replace_assistant">Texture Replacer</a> so the original DDS controls rebuild metadata and output path.</li>
                   <li><b>Edit a visible texture inside the app</b>: use <a href="topic:texture_editor">Texture Editor</a>, then send the flattened PNG onward.</li>
@@ -340,7 +341,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Asset Family</td><td>On-demand connection map for the selected asset.</td><td>Click <b>Asset Family</b> to load or hide its relationship list of textures, material sidecars, skeletons, animations, metadata, packages, resolution status, and usage counts without reducing the initial preview width.</td></tr>
                   <tr><td>Details</td><td>Structured metadata and diagnostics.</td><td>Check sizes, compression, package labels, strings, import summaries, preview diagnostics, and warnings.</td></tr>
                   <tr><td>Item Finder</td><td>Visual item lookup backed by iteminfo, localization, icons, and archive relationships.</td><td>Search by item name/category, browse icons, jump back to archive entries, and choose a placement source from resolved item assets.</td></tr>
-                  <tr><td>Mesh Actions</td><td>Model export/import, placement, and replacement workflow entry points.</td><td>Export OBJ/FBX, import OBJ/DAE/glTF/GLB preview, import DDS preview, import mesh replacement, swap with another in-game mesh, edit HKX placement context, Weapon Placement Batch, restore backups, edit material values.</td></tr>
+                  <tr><td>Mesh Actions</td><td>Inspection, export, and direct mesh authoring.</td><td>Open in Mesh Editor, export OBJ/FBX and dependencies, inspect references, and keep unrelated HKX/placement workflows separate.</td></tr>
                   <tr><td>HKX / Placement</td><td>Socket, prefab, and placement-copy workflows for weapons and other attachment-driven assets.</td><td>Edit HKX placement context from HKX/model selections, choose a .pac placement source, use Item Finder, compare source/target placement, edit socket values, and build one loose placement-copy package.</td></tr>
                 </table>
                 <ul>
@@ -350,10 +351,10 @@ class AboutDocumentationEnglishMixin:
                   <li>Preview supported DDS/images, text-like files, structured assets such as <code>.app_xml</code>, <code>.prefabdata_xml</code>, <code>.prefab</code>, <code>.levelinfo</code>, <code>.palevel</code>, <code>.roadsector</code>, <code>.road</code>, <code>.nav</code>, <code>.pabc</code>, <code>.pabv</code>, <code>.pabgb</code>, <code>.pabgh</code>, HKX/Havok summaries, audio/video, and model assets such as <code>.pam</code>, <code>.pamlod</code>, and <code>.pac</code>.</li>
                   <li>Extract selected or filtered content to loose folders.</li>
                   <li>Use <b>Item Finder</b> when a name/category/icon is a better starting point than a raw path; armor and horse gear categories are inferred from item names, IDs, and game metadata where possible.</li>
-                  <li>Inspect referenced model textures, export supported meshes as OBJ/FBX, import OBJ/DAE/glTF/GLB for rebuilt preview, swap one archive mesh with another in-game mesh, and choose between archive patching or mod-ready loose export for supported mesh flows.</li>
+                  <li>Inspect referenced model textures, export supported meshes as OBJ/FBX with dependencies, or open one directly in Mesh Editor. Replacement/import-preview, swap, material editing, and texture-tool handoffs are not Archive Browser mesh actions.</li>
                   <li>Use <b>Edit HKX</b> and <b>Choose Placement Source</b> for socket/prefab-driven placement swaps. Pick the visible source <code>.pac</code> when possible; the picker uses a static geometry thumbnail so browsing candidates does not depend on a nested live model view.</li>
-                  <li>Replace supported archive DDS entries from DDS or PNG, patch supported audio entries, and restore backups created by supported patch operations.</li>
-                  <li>Send DDS content into Texture Workflow, open supported images in Texture Editor, or resolve items in Research.</li>
+                  <li>Inspect and extract DDS entries without editing them here, patch supported audio entries, and restore backups created by supported non-texture patch operations.</li>
+                  <li>Use the dedicated Texture Workflow, Texture Replacer, Recolor Variants, and Texture Editor tabs directly for texture work; Archive Browser does not author or hand off textures.</li>
                 </ul>
                 <p>Not every archive format is editable. Browsing and preview support is broader than patch support, so use the visible actions beside the preview to see what is currently available for the selected entry.</p>
                 """,
@@ -384,7 +385,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Tell which duplicate is active</td><td>Read the <b>State</b> column.</td><td><b>Active mod</b> is the replacement payload currently winning over an original; <b>Shadowed original</b> or <b>Shadowed mod</b> means another row with the same virtual path has priority.</td></tr>
                   <tr><td>Find textures used by a model</td><td>Select the model and click <b>Asset Family</b>.</td><td>Resolved means the app found an archive entry; partial means metadata exists but some texture decoding or archive data is incomplete.</td></tr>
                   <tr><td>Choose a placement source</td><td>Use <b>Edit HKX</b>, then <b>Choose Placement Source</b>, or pick through <b>Item Finder</b>.</td><td>Choose the visible source <code>.pac</code> when possible. HKX is useful context, but placement usually resolves through prefab/socket data around the model family.</td></tr>
-                  <tr><td>Find material values</td><td>Look for <code>.pac_xml</code>, <code>.pam_xml</code>, <code>.pamlod_xml</code>, or <code>.pami</code> sidecars.</td><td>Use <b>Edit Material Values</b> for source-ordered guided controls. A <code>.pac_xml</code> opens the PAC XML Editor with Parameters, Connections, and Source &amp; Changes tabs.</td></tr>
+                  <tr><td>Find material values</td><td>Look for <code>.pac_xml</code>, <code>.pam_xml</code>, <code>.pamlod_xml</code>, or <code>.pami</code> sidecars.</td><td>Inspect the sidecar and its Asset Family as read-only context. Material authoring is not an Archive Browser or Mesh Editor action.</td></tr>
                   <tr><td>Understand a selected file</td><td>Open <b>Details</b>.</td><td>Details includes package, raw/stored size, compression, preview diagnostics, readable strings, and import summaries.</td></tr>
                 </table>
                 <h4>Modded duplicates and active rows</h4>
@@ -397,69 +398,43 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li><b>Export Selected</b> is the safest path for a small number of files.</li>
                   <li><b>Export All</b> or filtered extraction is useful after you verify the filter matches exactly what you expect.</li>
-                  <li>Send supported DDS/images to <b>Texture Workflow</b>, <b>Texture Editor</b>, or <b>Research</b> when you want deeper processing.</li>
+                  <li>Extract supported DDS/images when needed, then open the dedicated texture tool directly. Archive Browser keeps texture processing out of its normal action surface.</li>
                 </ul>
                 <p>Archive patching is intentionally separate from normal browsing. Patch actions only appear for supported formats and use explicit confirmation plus backup/restore where available.</p>
                 """,
             },
             {
                 "id": "mesh_media_guides",
-                "title": "Mesh, Audio & Media Guides",
-                "summary": "How to approach model previews, mesh export/import, audio, video, and sidecar files.",
-                "keywords": "mesh media model preview pam pamlod pac obj fbx gltf dae audio wem bnk video bk2 sidecar",
+                "title": "Mesh Editor, Audio & Media Guides",
+                "summary": "Direct mesh editing and safe output, plus audio, video, and sidecar files.",
+                "keywords": "mesh editor direct authoring pam pamlod pac object transform solid textured overlay export audio wem bnk video bk2 sidecar",
                 "html": """
-                <h4>Model preview</h4>
-                <ul>
-                  <li>Open supported <code>.pam</code>, <code>.pamlod</code>, and <code>.pac</code> entries in Archive Browser to inspect geometry, bounds, materials, sidecars, and referenced textures.</li>
-                  <li>Check <b>Load textures</b> to resolve and display textures after geometry. The checkbox preference is kept after restart; uncheck it for the fastest initial model view.</li>
-                  <li>Use <b>Preview Settings</b> when support maps, lighting, or orientation need adjustment for inspection.</li>
-                  <li>Asset Family rows are discovery aids loaded on demand. Export them with the model when you need context for external tools.</li>
-                </ul>
-                <h4>Mesh export and import</h4>
-                <ul>
-                  <li><b>OBJ export</b> is the round-trip baseline when the app can write sidecar data needed for import preview.</li>
-                  <li><b>FBX export</b> is useful for external inspection, but not every FBX edit can be round-tripped into game data.</li>
-                  <li><b>GLB/glTF/DAE imports</b> are treated as static replacement sources where supported; skins, bones, animations, and complex material graphs are not converted into native game material data.</li>
-                </ul>
-                <table>
-                  <tr><th>Action</th><th>Use it when</th><th>Result</th></tr>
-                  <tr><td>Export OBJ</td><td>You want an editable round-trip source with companion metadata.</td><td>Writes mesh data and sidecar/context files where supported.</td></tr>
-                  <tr><td>Export FBX</td><td>You want inspection or DCC convenience.</td><td>Good for viewing; not a guarantee of patchable import.</td></tr>
-                  <tr><td>Import Mesh Preview</td><td>You want to test an OBJ/DAE/glTF/GLB replacement without writing output.</td><td>Builds a preview only.</td></tr>
-                  <tr><td>Import DDS Preview</td><td>You want to test a DDS texture override on the selected model without writing output.</td><td>Builds a model preview only.</td></tr>
-                  <tr><td>Import Mesh</td><td>You are ready to export a supported replacement.</td><td>Lets you choose archive patching or mod-ready loose output where supported.</td></tr>
-                  <tr><td>Swap With In-Game Mesh</td><td>You want another loaded archive mesh to replace the selected target mesh.</td><td>Sets a target, then uses the chosen source mesh in Mesh Replacement Alignment with related files carried over where supported.</td></tr>
-                  <tr><td>Edit HKX</td><td>You opened an HKX/model and need to copy placement from another weapon/model family.</td><td>Shows target context, lets you choose a placement source, compares source/target placement, and builds a loose placement-copy package.</td></tr>
-                  <tr><td>Edit Material Values</td><td>The selected mesh has a recognized XML/material sidecar.</td><td>Opens an isolated, screen-aware editor that can be maximized. Parameters provides typed controls and undo/reset; Parameters and Connections column headings sort on click and reverse on a second click; Connections navigates current-index and Asset Family evidence without scanning or changing the browser selection; Source &amp; Changes shows read-only, line-numbered XML with syntax colors and red/green unified diffs. For PAC XML, the approximate model preview omits skeleton/HKX overlay data by default; enable Show skeleton overlay only when rig context is useful. Export writes a mod-ready package while preserving the source encoding and untouched XML bytes.</td></tr>
-                </table>
-                <h4>Mesh Replacement Alignment</h4>
-                <ul>
-                  <li>The alignment dialog is the review gate for static mesh replacements and in-game mesh swaps. Use it to inspect geometry, mapped parts, texture slot mapping, sidecar choices, placement, scale, rotation, and export values.</li>
-                  <li><b>Live Alignment Preview</b> is the transform workspace. The <b>Original Reference</b> shows the donor/target placement, and <b>Replacement Preview</b> is the replacement at the actual candidate offset, rotation, and scale that will be written if you continue. This is especially useful for hand-held weapons, props, and other assets where the origin must line up with a grip, socket, or original reference point.</li>
-                  <li>The live preview is intentionally fast and optimistic: it uses the current mapping, transform, and selected texture slots before packaging. After loose export, the Archive Preview switches to a final-output view when possible, using packaged sidecar/DDS paths. If that view looks worse, the issue is usually final material/texture binding rather than placement.</li>
-                  <li><b>Import Mesh Preview</b> opens this flow without writing files. Use it first when testing OBJ, DAE, glTF, GLB, or an in-game source mesh.</li>
-                  <li><b>Import Mesh</b> writes only after the same checks. Depending on the target and compatibility review, output can be mod-ready loose files or a confirmed archive patch.</li>
-                  <li>Texture slot plans and original DDS overrides are advanced repair tools. Prefer suggested mappings first, then manually override only the slots you understand.</li>
-                </ul>
-                <h4>Material Authority and sidecars</h4>
-                <ul>
-                  <li><b>Runtime XML preserve</b> keeps target/corpus PAC XML structure when you need the safest material-sidecar baseline.</li>
-                  <li><b>True Source Authority</b> uses original PAC/XML as runtime ABI while allowing source-owned texture/material authority where compatible.</li>
-                  <li><b>Material Authority</b> uses the proven source-owned route: source color through overlay color, source PBR/material mask through detail mask, and no glossy color-blend response.</li>
-                  <li><b>Material Authority Manual</b> starts from Runtime XML preserve and exposes override knobs for advanced repair.</li>
-                  <li>Legacy Runtime XML and True Source profiles stay loadable for old settings/debug, but are no longer shown as default choices.</li>
-                  <li><b>Use Another Original Mesh</b> lets you pick a different original reference when the selected target is not the best authority for alignment/material context.</li>
-                  <li>Placement state matters for items with body and hand variants: review <b>Stowed / on body</b> versus <b>Held / in hand</b> before building a package.</li>
-                </ul>
-                <h4>In-game mesh swap</h4>
+                <h4>Open and edit a mesh</h4>
                 <ol>
-                  <li>Select the archive mesh you want to replace and click <b>Swap With In-Game Mesh</b> or use the context menu to start the swap target.</li>
-                  <li>Choose what related files may be included, such as textures, material sidecars, appearance descriptors, prefabdata, skeletons, or animations. Use <b>Character Swap Plan</b> for experimental full-character/body swaps; it selects the discovered appearance graph and enables source <code>.app_xml</code> replacement. Material sidecars control shader/texture bindings; appearance descriptors can redirect character prefabs, customization metadata, scale values, skeleton variations, sockets, and prefabdata references. Skeleton and animation replacement is intentionally explicit because incompatible rigs or physics data can break assets.</li>
-                  <li>Select another loaded archive mesh as the source and use it as the swap source.</li>
-                  <li>Review placement and texture mapping in <b>Mesh Replacement Alignment</b>.</li>
-                  <li>Use preview first. Only write loose output or patch archives after the result is visually and structurally plausible.</li>
+                  <li>Select a supported <code>.pam</code>, <code>.pamlod</code>, or <code>.pac</code> in Archive Browser.</li>
+                  <li>Choose <b>Open in Mesh Editor</b>. The exact archive bytes are validated off the UI thread and the resident authoring controls are visible immediately.</li>
+                  <li>Edit selection, geometry, topology, normals/tangents, rigging, Morph &amp; Refit, or UV coordinates. Use Original/Edited review and the one Mesh View selector, including <b>Solid (Textured)</b>.</li>
                 </ol>
-                <div class="doc-callout doc-warning"><b>Mesh limits:</b> static replacement can retarget geometry and compatible material sidecars, but it does not convert every external rig, animation, character appearance graph, skin, or complex DCC material graph into native game data. Full character/body swaps often require matching <code>.app_xml</code>, <code>.prefabdata_xml</code>, skeleton variation, physics, socket, customization, and texture references.</div>
+                <div class="doc-callout"><b>Mesh-only boundary:</b> material and texture names are diagnostics. Mesh Editor does not replace, recolour, assign, copy, or open textures. If textured rendering cannot bind a source DDS, it falls back visibly to untextured drawing and geometry editing stays available.</div>
+                <h4>Object Transform</h4>
+                <ul>
+                  <li>Location, rotation, XYZ or linked scale, tilt steps, and reset buttons affect every mesh part without changing selection.</li>
+                  <li>Rotation and scale use the fixed centre of the original source bounds. Each completed gesture is one undoable history action, and drafts restore both geometry and controls.</li>
+                </ul>
+                <h4>Save and build</h4>
+                <table>
+                  <tr><th>Action</th><th>Result</th><th>Archive safety</th></tr>
+                  <tr><td>Export Mesh File</td><td>Atomically writes the rebuilt mesh and report.</td><td>Never overwrites the source asset.</td></tr>
+                  <tr><td>Build Mod</td><td>Writes either a loose mesh-only folder or a DMM archive-group overlay package.</td><td>Source textures and material sidecars remain inherited.</td></tr>
+                  <tr><td>Install as Overlay</td><td>Shows the exact mesh path, overlay directory, mount lists, carry-forward set, and backup targets before confirmation.</td><td>Rechecks that the game is closed, backs up, publishes the mount list last, and rolls back on cancellation or failure.</td></tr>
+                  <tr><td>Restore Last Overlay Install</td><td>Uses the install receipt to restore the prior mount/overlay state.</td><td>Removes only files created by that installation.</td></tr>
+                </table>
+                <p>Shipped PAMT/PAZ archives are never patched by these Mesh Editor outputs. Same-source editable-package export/import remains available for external geometry work; import must match the active source identity.</p>
+                <h4>New assets and textures</h4>
+                <ul>
+                  <li>From Model Library, <b>Use in New Item Studio</b> resolves or downloads the model and opens New Item Studio's Model step.</li>
+                  <li>Use Texture Workflow, Texture Replacer, Recolor Variants, or Texture Editor directly for texture work. Those dedicated tabs are unchanged.</li>
+                </ul>
                 <h4>HKX placement and socket workflows</h4>
                 <ul>
                   <li><b>Edit HKX</b> treats the opened asset as the target that changes. <b>Choose Placement Source</b> finds the source weapon/model whose placement should be copied.</li>

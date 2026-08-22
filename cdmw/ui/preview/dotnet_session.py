@@ -93,6 +93,7 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         terminate_on_close: bool = False,
         authoring_rehydrator: Callable[["DotNetPreviewSessionController"], bool] | None = None,
         process_factory: Callable[[QObject], object] | None = None,
+        direct_authoring: bool = False,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -102,6 +103,7 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         self._terminate_on_close = bool(terminate_on_close)
         self._authoring_rehydrator = authoring_rehydrator
         self._process_factory = process_factory or (lambda owner: QProcess(owner))
+        self._direct_authoring = bool(direct_authoring)
 
         self._process: object | None = None
         self._process_generation = 0
@@ -982,6 +984,7 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
                 embedded_parent_hwnd=parent_hwnd,
                 profile=self.profile.value,
                 prewarm_launch=prewarm_launch,
+                direct_authoring=self._direct_authoring,
             )
         except (OSError, TypeError, ValueError) as exc:
             self._schedule_retry(f"Could not configure .NET/Vortice Preview: {exc}", static_failure=False)
@@ -1853,7 +1856,12 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
             if self.profile is DotNetPreviewProfile.PREVIEW
             else _AUTHORING_PROTOCOL_CAPABILITIES
         )
-        return (*_BASE_PROTOCOL_CAPABILITIES, *profile_capabilities)
+        direct = (
+            ("direct_authoring_host_v1",)
+            if self.profile is DotNetPreviewProfile.AUTHORING and self._direct_authoring
+            else ()
+        )
+        return (*_BASE_PROTOCOL_CAPABILITIES, *profile_capabilities, *direct)
 
     def _send_json(self, payload: Mapping[str, object]) -> bool:
         process = self._process

@@ -82,6 +82,7 @@ def save_mesh_layer_project(
     copy_counter: int,
     mesh_revision: int,
     layer_revision: int,
+    object_transform: Mapping[str, object] | None = None,
     workspace_manifest_path: Path | None = None,
     promote_persistent_draft: bool = False,
     stop_event: threading.Event | None = None,
@@ -179,6 +180,7 @@ def save_mesh_layer_project(
         "active_layer_id": str(active_layer_id or "base"),
         "copy_counter": max(0, int(copy_counter)),
         "layers": [dict(layer) for layer in layers],
+        "object_transform": dict(object_transform or {}),
         "snapshot": persisted_snapshot,
     }
     generation_manifest = generation_dir / "generation.json"

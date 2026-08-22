@@ -95,8 +95,6 @@ class MeshEditorEmbeddedPartsMixin(MeshEditorDotNetPresentationMixin):
         selection = self._embedded_selection_for_part_context(controller, part_index)
         if selection is None:
             return False
-        if normalized == "open_texture":
-            return self._open_selected_texture_in_editor_for_controller(controller)
         runner = getattr(self.active_builder(), "_mesh_editor_embedded_run_part_action", None)
         if not callable(runner):
             self.status_message_requested.emit(f"Embedded Mesh Editor part action is unavailable: {normalized}.", True)
@@ -108,13 +106,6 @@ class MeshEditorEmbeddedPartsMixin(MeshEditorDotNetPresentationMixin):
             return False
         self._refresh_embedded_workspace_from_builder()
         return ok
-
-    def _handle_embedded_open_texture(self) -> bool:
-        controller = self._embedded_builder_controller()
-        if controller is None:
-            self.status_message_requested.emit("Embedded Mesh Editor part tools are not ready yet.", True)
-            return False
-        return self._open_selected_texture_in_editor_for_controller(controller)
 
     def _handle_embedded_compare_mode(self, mode: str) -> None:
         normalized = str(mode or "edited").strip().lower()

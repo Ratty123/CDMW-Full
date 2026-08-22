@@ -24,42 +24,6 @@ def _entry(path: str) -> ArchiveEntry:
     )
 
 
-class _Signal:
-    def __init__(self) -> None:
-        self.callbacks: list[object] = []
-
-    def connect(self, callback: object) -> None:
-        self.callbacks.append(callback)
-
-
-class _Action:
-    def __init__(self, text: str) -> None:
-        self.text = text
-        self.enabled = True
-        self.tooltip = ""
-        self.triggered = _Signal()
-
-    def setEnabled(self, enabled: bool) -> None:
-        self.enabled = enabled
-
-    def setToolTip(self, tooltip: str) -> None:
-        self.tooltip = tooltip
-
-
-class _Menu:
-    def __init__(self) -> None:
-        self.sections: list[str] = []
-        self.actions: list[_Action] = []
-
-    def addSection(self, _icon: object, label: str) -> None:
-        self.sections.append(label)
-
-    def addAction(self, _icon: object, text: str) -> _Action:
-        action = _Action(text)
-        self.actions.append(action)
-        return action
-
-
 @pytest.mark.parametrize(
     ("model_path", "expected"),
     (
@@ -106,43 +70,5 @@ def test_mesh_without_material_sidecar_has_no_edit_target() -> None:
     assert resolved is None
 
 
-def test_pac_material_context_action_is_disabled_without_sidecar() -> None:
-    menu = _Menu()
-    owner = SimpleNamespace(_related_material_sidecar_entry_for_archive_entry=lambda _entry: None)
-
-    ArchiveBrowserActionMixin._add_archive_material_context_action(
-        owner,
-        menu,
-        {"texture": object()},
-        _entry("character/model/armor.pac"),
-    )
-
-    assert menu.sections == ["Material"]
-    assert [action.text for action in menu.actions] == ["Edit Material Values..."]
-    assert menu.actions[0].enabled is False
-    assert menu.actions[0].tooltip.startswith("Unavailable: no recognized companion")
-    assert menu.actions[0].triggered.callbacks == []
-
-
-def test_pac_material_context_action_opens_resolved_sidecar() -> None:
-    menu = _Menu()
-    sidecar = _entry("character/model/armor.pac.xml")
-    opened: list[ArchiveEntry] = []
-    owner = SimpleNamespace(
-        _related_material_sidecar_entry_for_archive_entry=lambda _entry: sidecar,
-        _open_material_sidecar_editor=opened.append,
-    )
-
-    ArchiveBrowserActionMixin._add_archive_material_context_action(
-        owner,
-        menu,
-        {"texture": object()},
-        _entry("character/model/armor.pac"),
-    )
-    action = menu.actions[0]
-    callback = action.triggered.callbacks[0]
-    assert callable(callback)
-    callback()
-
-    assert action.enabled is True
-    assert opened == [sidecar]
+def test_archive_browser_has_no_material_authoring_context_action() -> None:
+    assert not hasattr(ArchiveBrowserActionMixin, "_add_archive_material_context_action")

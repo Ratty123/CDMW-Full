@@ -393,6 +393,9 @@ class MeshEditorDotNetLaunchMixin:
             reference_material_source=self._dotnet_reference_material_source_for_package(
                 embedded=embedded
             ),
+            editable_material_source=self._dotnet_editable_material_source_for_package(
+                embedded=embedded
+            ),
             reference_native_package=self._dotnet_reference_native_package_for_package(
                 embedded=embedded
             ),
@@ -401,7 +404,9 @@ class MeshEditorDotNetLaunchMixin:
             interaction_mode=interaction_mode,
             scene_transform=scene_transform,
             scene_generation=1,
-            include_material_resources=False,
+            include_material_resources=bool(
+                not embedded and self._dotnet_editable_material_source_for_package(embedded=False) is not None
+            ),
         )
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -456,6 +461,21 @@ class MeshEditorDotNetLaunchMixin:
             return None
         try:
             return getter()
+        except Exception:
+            return None
+
+    def _dotnet_editable_material_source_for_package(self, *, embedded: bool) -> object | None:
+        if embedded:
+            return None
+        captured = self.standalone_archive_material_preview_model
+        if self._archive_material_preview_model_ready(captured):
+            return captured
+        provider = self.get_archive_material_preview_model
+        if not callable(provider):
+            return None
+        try:
+            provided = provider()
+            return provided if self._archive_material_preview_model_ready(provided) else None
         except Exception:
             return None
 

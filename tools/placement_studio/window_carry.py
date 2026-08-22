@@ -17,7 +17,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -220,6 +220,14 @@ class CarryPickerMixin:
         )
 
     def _on_carry_changed(self, _index: int) -> None:
+        """The one-control move: re-route the selected item, as one placement operation.
+
+        Placement only. Changing where a weapon hangs never silently rewrites animations from
+        here — the dialog is where that decision is made, reviewed and confirmed.
+        """
+
+        from .move_operation import MoveRequest, plan_move
+
         if self._carry_syncing or self._session is None or self._edits is None:
             return
         socket = str(self._carry_box.currentData() or "")
@@ -229,24 +237,30 @@ class CarryPickerMixin:
         if (binding.part.in_socket or "") == socket:
             return
 
-        previous = binding.part.in_socket or "(none)"
-        previous_zone = carry.zone_of(previous)
-        try:
-            self._edits.set_route(binding.part.source_file, binding.part_name, "in_socket", socket)
-        except EditError as exc:
-            self.statusBar().showMessage(str(exc))
+        previous_zone = carry.zone_of(binding.part.in_socket or "")
+        unit, error = self._resolve_unit(binding.part_name)
+        if unit is None:
+            self.statusBar().showMessage(error)
             self._populate_carry_box()
             return
-        # The child socket holds the item's orientation, so a back-slung sword left on the
-        # hip's child socket hangs at the hip's angle.
-        note = self._follow_child_socket(binding, socket, "stowed")
-        self._after_edit()
-        self._populate_parts()
-        note += self._ensure_blade_hangs_down(socket)
-        note += self._warn_if_angle_is_wrong(socket)
-        self.statusBar().showMessage(
-            f"{self._selected_part} now stows on {socket} (was {previous}){note}"
+
+        request = MoveRequest(
+            unit=unit,
+            destination_socket=socket,
+            scope=carry.AnimationScope(carry.SCOPE_PLACEMENT_ONLY),
+            # The quick control cannot show an orientation for review, so it only proceeds
+            # where the aim resolves from the item's own sockets. Anything needing a borrowed
+            # or hand-authored angle belongs in the dialog, which can show it.
+            orientation_reviewed=False,
         )
+        plan = plan_move(self._session, self._edits, request)
+        if plan.blocked:
+            self.statusBar().showMessage(
+                f"Use Swap animations… to move it there: {plan.blockers[0]}"
+            )
+            self._populate_carry_box()
+            return
+        self._start_move(plan, play_after=False)
         self._offer_carry_clips(socket, previous_zone)
 
     # ── the animation half ──────────────────────────────────────────
@@ -277,136 +291,116 @@ class CarryPickerMixin:
         self._refresh_clip_list()
         self._report_carry_match(zone, previous_zone)
 
-    def _swappable_pairs(self, *, locomotion: bool):
-        """`(target, donor)` clip pairs for restyling this weapon to the other handedness.
+    # ── the equipment unit ──────────────────────────────────────────
 
-        Scope is the whole risk. The `1_phm` motion tree is shared with every NPC that uses
-        it, so an unfiltered sweep rewrote 121 files including `cd_darkguide` and
-        `cd_redwarden` — every boss's draw, for a change to the player's sword.
+    def _available_families(self):
+        """The animation families this character's clips actually use.
 
-        Targets are the player's own clips in this weapon's handedness families; donors are
-        the matching clips of the other handedness, paired by `clip_signature` so that the
-        motion words must agree exactly while the stance and take numbers may differ. Clips
-        with no counterpart are skipped — the mod authors hand-made those, which is 31 of the
-        141 the two-hand mod ships.
+        Narrows a unit's declared target families to what exists, so a two-hand move on Damian
+        does not claim Kliff's `longsword` among its own.
         """
 
-        import collections
+        if self._clip_index is None or self._session is None:
+            return None
+        model = self._session.model
+        return {
+            carry.family_of(entry.name)
+            for entry in self._clip_index.entries
+            if f"/{model}/" in entry.path
+        } - {""}
+
+    def _resolve_unit(self, part_name: str, *, weapon=None):
+        """`(unit, error)` for one descriptor row against an asset.
+
+        Never falls back to the previously selected weapon when the two disagree. That fallback
+        is failure mode 3.2: it let one row move while another weapon's animations and child
+        sockets were edited.
+
+        `weapon` names the asset explicitly, which packaging needs — it has to resolve the unit
+        an *earlier* operation belonged to, and the window's current selection may have moved on.
+        """
+
+        from .session import EquipmentResolutionError
 
         session = self._session
-        if session is None or self._clip_index is None:
-            return []
-        hands = carry.weapon_handedness(session.weapon)
-        if not hands:
-            return []
-        other = "2h" if hands == "1h" else "1h"
+        if session is None or not part_name:
+            return None, "Select an item first."
+        try:
+            unit = session.resolve_equipment_unit(
+                part_name,
+                weapon=weapon,
+                available_families=self._available_families(),
+            )
+        except EquipmentResolutionError as exc:
+            return None, str(exc)
+        return unit, ""
 
-        # `00_mon` holds the player's animations as they appear in creature encounters.
-        # Neither shipped mod touches that folder, so neither does this.
-        entries = [
-            e for e in self._clip_index.entries
-            if f"/{session.model}/" in e.path and "/00_mon/" not in e.path
-        ]
-        prefixes = carry.player_clip_prefixes(session.model)
-        if not prefixes:
-            return []
-        donors = collections.defaultdict(list)
-        for entry in entries:
-            signature = carry.clip_signature(entry.name)
-            if signature and carry.clip_handedness(entry.name) == other and "_swarm_" not in entry.name:
-                donors[signature].append(entry)
+    def _resolve_unit_by_id(self, unit_id: str):
+        """`(unit, error)` for a recorded equipment-unit id: `model/weapon_id/part`.
 
-        # A body can borrow the other playable character's clips where it has no counterpart of
-        # its own. Only ever as a fallback — a clip authored for this body is always the better
-        # answer — and keyed on the motion alone, since the character token is exactly what
-        # differs between them.
-        #
-        # Worth knowing what this can and cannot do. It gains Kliff two draws. It gains Damian
-        # none, and not for want of donors: 1,002 of Kliff's clips qualify. A swap rewrites the
-        # files the game already asks for, and Damian *has* only 8 one-handed draws against
-        # Kliff's 60. The ceiling there is targets, not donors, and no amount of borrowing
-        # raises it.
-        elsewhere = collections.defaultdict(list)
-        cousin = carry.OTHER_PLAYER.get(session.model, "")
-        if cousin:
-            cousin_prefixes = carry.player_clip_prefixes(cousin)
-            for entry in self._clip_index.entries:
-                name = entry.name
-                if f"/{cousin}/" not in entry.path or "/00_mon/" in entry.path:
-                    continue
-                if not name.startswith(cousin_prefixes) or "_swarm_" in name:
-                    continue
-                if carry.clip_handedness(name) != other:
-                    continue
-                motion = carry.clip_motion(name)
-                if motion:
-                    elsewhere[motion].append(entry)
-
-        pairs = []
-        for entry in entries:
-            name = entry.name
-            if carry.clip_handedness(name) != hands or "_swarm_" in name:
-                continue
-            if not name.startswith(prefixes):
-                continue
-            if not locomotion and not carry.is_draw(name):
-                continue
-            signature = carry.clip_signature(name)
-            candidates = donors.get(signature) if signature else None
-            if not candidates:
-                motion = carry.clip_motion(name)
-                candidates = elsewhere.get(motion) if motion else None
-            if not candidates:
-                continue
-            ranked = self._ranked_donors(name, candidates)
-            pairs.append((entry, ranked[0], tuple(ranked)))
-        pairs.sort(key=lambda row: row[0].name)
-        return pairs
-
-    @staticmethod
-    def _ranked_donors(target_name: str, candidates):
-        """The nearest stand-in, not merely the first one alphabetically.
-
-        Signature matching deliberately ignores the stance and take numbers so that a clip
-        with no exact twin still finds one — but among several twins those numbers are the
-        only thing distinguishing a stance from a different stance, and picking by name order
-        chose between them at random. The exact rename is preferred, then the same stance with
-        a different take, and only then anything else.
+        Packaging checks a case row and an animation family against the unit the operation was
+        made for, so it has to name the asset rather than take whatever is selected now.
         """
 
-        wanted = carry.counterpart_names(target_name)
-        rank = {name: position for position, name in enumerate(wanted)}
-        return sorted(
-            candidates, key=lambda entry: (rank.get(entry.name, len(rank)), entry.name)
+        session = self._session
+        parts = str(unit_id or "").split("/")
+        if session is None or len(parts) != 3:
+            return None, f"{unit_id!r} is not an equipment unit id"
+        model, weapon_id, part_name = parts
+        if model != session.model:
+            return None, f"{unit_id} belongs to {model}, not {session.model}"
+        weapon = next((w for w in session.weapons() if w.weapon_id == weapon_id), None)
+        if weapon is None:
+            return None, f"{weapon_id} is not loaded for {session.model}"
+        return self._resolve_unit(part_name, weapon=weapon)
+
+    def _replacements_for(self, unit, scope):
+        """Animation replacements for one equipment unit at one scope.
+
+        Everything that decides the answer comes off `unit`, not off whatever the window has
+        selected — which is what let the item dropdown change while the animation pairing kept
+        using the old weapon's handedness and families.
+        """
+
+        if unit is None or self._clip_index is None:
+            return ()
+        return carry.swappable_pairs(
+            unit,
+            self._clip_index.entries,
+            scope,
+            destination_zone=carry.zone_of(getattr(unit, "in_socket", "") or ""),
         )
 
-    def _start_clip_swap(self, pairs) -> str:
-        """Start a swap. The reading runs on a worker; see `_on_swap_ready` for the finish.
+    def _start_move(self, plan, *, play_after: bool = True, preview=None) -> str:
+        """Read the donor clips, then apply the whole move as one operation.
+
+        The reading is the slow half — 165 ms a clip, so the full restyle is over two minutes —
+        and it happens on a worker. Nothing is recorded until it finishes: the placement, the
+        child sockets and every clip replacement land together, so a read that fails cannot
+        leave a moved weapon with the old animations, and a cancel leaves the session untouched.
 
         The chart is left alone. It names each clip as a length-prefixed full path, so
         retargeting one needs a replacement of identical byte length and none of the 31
         referenced hip draws has one. Overwriting the file behind the path has no such
         constraint, and it is what the shipped mods do.
-
-        The donor is not chosen by measuring where a draw reaches. Measuring says the
-        two-hand clips are *hip* draws, because in vanilla the longsword hangs at the hip too
-        — there is no back draw to borrow. What makes a back carry look right is using the
-        two-hand weapon's animation set, which is a rename.
         """
 
-        pairs = list(pairs)
-        if self._edits is None or self._swap_thread is not None or not pairs:
+        if self._edits is None or self._swap_thread is not None or plan is None:
             return ""
+        self._pending_move = plan
+        self._play_after_swap = play_after
+        rows = list(plan.request.replacements)
+        if not rows:
+            self._apply_move_operation(plan, {})
+            return ""
+
+        pairs = [(row.target, row.donor) for row in rows]
+        # What the dialog settled, not what happens to sort first.
+        self._swap_preview = next(
+            ((t, d) for t, d in pairs if d is preview), self._preview_pair(pairs)
+        )
         self._carry_swap.setEnabled(False)
         self._swap_requested = len(pairs)
-        chosen = getattr(self, "_chosen_preview", None)
-        if chosen is not None:
-            # What the dialog settled, not what happens to sort first.
-            self._swap_preview = next(
-                ((t, d) for t, d in pairs if d is chosen), self._preview_pair(pairs)
-            )
-        else:
-            self._swap_preview = self._preview_pair(pairs)
         self.statusBar().showMessage(f"Reading {len(pairs)} animation(s)...")
         self._swap_thread = QThread(self)
         self._swap_worker = _SwapWorker(pairs)
@@ -444,33 +438,79 @@ class CarryPickerMixin:
         self.statusBar().showMessage(f"Reading animations… {done}/{total}")
 
     def _on_swap_ready(self, payload, error: str) -> None:
-        """Record the read clips as edits, then show the result."""
+        """The clips are read; now apply the whole move as one operation."""
 
         self._stop_swap()
         self._carry_swap.setEnabled(True)
-        if not payload:
-            self.statusBar().showMessage(error or "No animations were swapped")
+        plan = getattr(self, "_pending_move", None)
+        if plan is None:
             return
-        applied = 0
-        written = set()
-        for path, data, donor_name in payload:
-            try:
-                self._edits.replace_clip(path, data, donor_name)
-                applied += 1
-                written.add(path)
-            except EditError:
-                continue
-        # A clip the worker could not read never reaches `payload`, and one that will not
-        # record is skipped above. Both used to vanish into a success message, so a partly
-        # applied swap read as a whole one.
-        missing = getattr(self, "_swap_requested", len(payload)) - applied
-        note = f" ({missing} could not be read or written)" if missing > 0 else ""
+        if not payload:
+            self._pending_move = None
+            self.statusBar().showMessage(
+                error or "Cancelled while reading the animations — nothing was changed"
+            )
+            return
+        self._apply_move_operation(plan, {path: data for path, data, _donor in payload})
+
+    def _apply_move_operation(self, plan, clip_bytes) -> None:
+        """Commit the planned move, or report why nothing changed.
+
+        One `EditOperation`: the route changes, the operation-owned child sockets and every
+        clip replacement. It lands whole or not at all, and `Recent actions` shows it as one
+        row that one undo removes.
+        """
+
+        from .move_operation import MoveBlocked, apply_move
+
+        self._pending_move = None
+        session, edits = self._session, self._edits
+        if session is None or edits is None:
+            return
+        try:
+            operation = apply_move(session, edits, plan, clip_bytes=clip_bytes)
+        except (MoveBlocked, EditError) as exc:
+            self.statusBar().showMessage(f"Nothing was changed: {exc}")
+            QMessageBox.warning(self, "The move was not applied", str(exc))
+            return
+
         self._after_edit()
+        self._populate_parts()
+        self._populate_carry_box()
+
+        requested = len(plan.request.replacements)
+        applied = len(operation.replaced_clips())
+        # A clip the worker could not read never reaches the payload. That used to vanish into
+        # a success message, so a partly applied swap read as a whole one.
+        missing = requested - applied
+        note = f" ({missing} could not be read)" if missing > 0 else ""
+        destination = plan.request.destination_socket
+        diagnostic = self._orientation_diagnostic(destination) if plan.placement_changes else ""
         self.statusBar().showMessage(
-            f"{applied} animation file(s) replaced{note} — see Pending changes, "
-            f"or press Play to watch the new one"
+            f"{operation.describe()}{note}.{diagnostic}  —  one action in Recent actions"
         )
-        self._show_swap_result(applied, written)
+        if applied:
+            self._show_swap_result(applied, set(operation.replaced_clips()))
+        elif plan.placement_changes:
+            self._report_move(plan, operation, diagnostic)
+
+    def _report_move(self, plan, operation, diagnostic: str) -> None:
+        """Say what moved, in the words the review page used."""
+
+        lines = [operation.describe(), ""]
+        lines += [route.describe() for route in plan.routes]
+        if diagnostic:
+            lines += ["", diagnostic.strip()]
+        lines += [
+            "",
+            "Only this operation will be packaged. Earlier operations stay in Recent actions "
+            "until you select them.",
+        ]
+        box = QMessageBox(self)
+        box.setWindowTitle("Moved")
+        box.setIcon(QMessageBox.Information)
+        box.setText("\n".join(lines))
+        box.exec()
 
     def _stop_swap(self) -> None:
         """Stop the reader, and only let go once it has actually stopped.
@@ -531,11 +571,12 @@ class CarryPickerMixin:
     def _on_swap_clicked(self) -> None:
         """Open the one dialog that does the whole move.
 
-        Everything the operation needs is asked in one place and applied on OK: where the item
-        hangs, whether its animations come along, at what scope, and — because the list is
-        editable — exactly which files.
+        The equipment unit is resolved *before* the dialog opens, and the dialog re-resolves it
+        whenever the item changes. Nothing downstream reads the window's selection again, so a
+        row and an asset cannot diverge into a mixed operation part-way through.
         """
 
+        from .move_operation import plan_move
         from .move_weapon import MoveWeaponDialog
 
         session = self._session
@@ -546,7 +587,13 @@ class CarryPickerMixin:
         # builds its row list inside its constructor, so the index has to be *there*, not
         # merely started — otherwise it opens saying no animation has a counterpart.
         self._ensure_clip_index(wait=True)
-        binding = self._current_binding()
+
+        unit, error = self._resolve_unit(self._selected_part or "")
+        if unit is None:
+            QMessageBox.warning(self, "This item cannot be moved yet", error)
+            self.statusBar().showMessage(error)
+            return
+
         parts = [
             (b.part_name, f"{b.part_name}   —   {b.part.in_socket or '(nowhere)'}")
             for b in session.bindings()
@@ -555,15 +602,17 @@ class CarryPickerMixin:
 
         dialog = MoveWeaponDialog(
             self,
+            unit=unit,
             parts=parts,
             positions=carry.carry_positions(session),
-            current_part=self._selected_part,
-            current_socket=getattr(getattr(binding, "part", None), "in_socket", "") or "",
-            part_sockets={b.part_name: (b.part.in_socket or "") for b in session.bindings()},
-            pairs_for=lambda locomotion=False: self._swappable_pairs(locomotion=locomotion),
-            handedness=carry.weapon_handedness(session.weapon),
+            unit_for=self._resolve_unit,
+            pairs_for=self._replacements_for,
+            plan_for=lambda request: plan_move(session, self._edits, request),
             on_preview=self._preview_clip,
+            on_preview_placement=self._preview_planned_placement,
+            on_show_files=self._show_planned_files,
             chart_lanes=self._chart_lane_index(),
+            earlier_operations=[op.operation_id for op in self._edits.operations()],
         )
         # `QDialog.Accepted` is a class constant, not an instance attribute: reading it off
         # the instance raised, so nothing was applied and — under pythonw, with no console —
@@ -571,65 +620,168 @@ class CarryPickerMixin:
         if dialog.exec() != QDialog.Accepted:
             return
         plan = dialog.plan()
-        if plan.part_name and plan.part_name != self._selected_part:
-            self._selected_part = plan.part_name
-            self._sync_part_box(plan.part_name)
-        if plan.moves and not self._apply_carry_move(plan.socket):
-            # The placement is the point; swapping animations for a move that did not
-            # happen would produce a mod that plays a back draw from the hip.
+        if plan is None:
             return
-        if plan.clips:
-            self._play_after_swap = plan.play_after
-            self._chosen_preview = plan.preview
-            self._start_clip_swap(plan.clips)
-        elif plan.moves:
-            self.statusBar().showMessage(
-                f"{plan.part_name} now hangs on {plan.socket}. Animations left alone."
-            )
+        chosen_part = plan.unit.primary_part
+        if chosen_part and chosen_part != self._selected_part:
+            self._selected_part = chosen_part
+            self._sync_part_box(chosen_part)
+        self._start_move(plan, play_after=dialog.play_after, preview=dialog.preview_clip())
+
+    def _preview_planned_placement(self, plan) -> None:
+        """Show a planned move in the viewport without recording it.
+
+        Applied to a scratch operation and rolled straight back, so looking costs nothing: the
+        command list is exactly as it was afterwards, whatever the preview did.
+        """
+
+        from .move_operation import MoveBlocked, apply_move
+
+        session, edits = self._session, self._edits
+        if session is None or edits is None or plan is None:
+            return
+        try:
+            operation = apply_move(session, edits, plan, clip_bytes={})
+        except (MoveBlocked, EditError) as exc:
+            self.statusBar().showMessage(f"Cannot preview it: {exc}")
+            return
+        self._after_edit()
+        self.statusBar().showMessage(
+            f"Previewing {operation.describe()} — not recorded"
+        )
+        if edits.discard_operation(operation.operation_id):
+            self._after_edit()
+
+    def _show_planned_files(self, plan) -> None:
+        """The exact files a planned move would write, before it is accepted."""
+
+        if plan is None:
+            return
+        lines = ["Descriptor files", "----------------"]
+        lines += sorted({route.source_file for route in plan.routes if route.source_file}) or ["  (none)"]
+        lines += ["", "Socket files", "------------"]
+        lines += sorted({file for file, _name in plan.new_sockets}) or ["  (none)"]
+        clips = [row.target_path for row in plan.request.replacements]
+        lines += ["", f"Animation files ({len(clips)})", "----------------"]
+        lines += clips[:60]
+        if len(clips) > 60:
+            lines.append(f"... and {len(clips) - 60} more")
+        box = QMessageBox(self)
+        box.setWindowTitle("Files this operation would write")
+        box.setIcon(QMessageBox.Information)
+        box.setText("\n".join(lines[:80]))
+        box.setDetailedText("\n".join(lines))
+        box.exec()
 
     def _show_history(self) -> None:
-        """What has been done so far, newest first, with a way back to any point.
+        """One row per operation, with the whole operation as the unit of undo.
 
-        Undo already existed on Ctrl+Z, but a swap lands 52 file replacements at once and
+        A move plus fourteen animation replacements used to be fifteen history entries, and
         "press undo the right number of times" is not a workable answer to "I did not mean
-        that". This lists the steps and rewinds to whichever one is chosen.
+        that". An operation is what the user accepted, so it is what they get to take back —
+        and what they get to include in or exclude from a package.
         """
 
         from PySide6.QtWidgets import QListWidget, QVBoxLayout
 
         if self._edits is None:
             return
-        applied = self._edits.commands()
+        operations = self._edits.operations()
+        loose = self._edits.loose_commands()
         dialog = QDialog(self)
         dialog.setWindowTitle("Recent actions")
-        dialog.setMinimumSize(680, 380)
+        dialog.setMinimumSize(760, 420)
         listing = QListWidget()
-        for position, command in reversed(list(enumerate(applied))):
-            listing.addItem(f"{position + 1}.  {command.describe()}")
-        if not applied:
+        for operation in reversed(operations):
+            listing.addItem("\n".join(operation.summary_lines()))
+            listing.item(listing.count() - 1).setData(Qt.UserRole, operation.operation_id)
+        if loose:
+            listing.addItem(
+                f"{len(loose)} free-form edit(s) outside any operation — never packaged"
+            )
+            listing.item(listing.count() - 1).setData(Qt.UserRole, "")
+        if not operations and not loose:
             listing.addItem("(nothing has been changed yet)")
-        buttons = QDialogButtonBox(QDialogButtonBox.Close)
-        undo_to = buttons.addButton("Undo back to here", QDialogButtonBox.ActionRole)
-        undo_to.setToolTip("Undo every step above the one selected, newest first.")
-        undo_to.setEnabled(bool(applied))
 
-        def _rewind() -> None:
-            row = listing.currentRow()
-            if row < 0 or not applied:
-                return
-            # The list is newest-first, so the row index is how many steps to take back.
-            for _ in range(row + 1):
-                if not self._edits.undo():
-                    break
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        undo = buttons.addButton("Undo operation", QDialogButtonBox.ActionRole)
+        undo.setToolTip("Take back the newest operation whole, in one step.")
+        undo.setEnabled(bool(operations) or bool(loose))
+        redo = buttons.addButton("Redo operation", QDialogButtonBox.ActionRole)
+        redo.setEnabled(self._edits.can_redo)
+        discard = buttons.addButton("Discard selected", QDialogButtonBox.ActionRole)
+        discard.setToolTip(
+            "Remove the selected operation wherever it sits in the history. The others are "
+            "replayed without it, so nothing of it is left behind."
+        )
+        discard.setEnabled(bool(operations))
+        clean = buttons.addButton("Start clean operation", QDialogButtonBox.ActionRole)
+        clean.setToolTip(
+            "Drop every free-form edit, keeping the accepted operations. The next move then "
+            "starts from vanilla plus what was actually decided."
+        )
+        clean.setEnabled(bool(loose))
+        reset = buttons.addButton("Reset all pending changes", QDialogButtonBox.ResetRole)
+        reset.setToolTip("Throw away everything in this session, operations included.")
+        reset.setEnabled(bool(operations) or bool(loose))
+
+        def _selected_id() -> str:
+            item = listing.currentItem()
+            return str(item.data(Qt.UserRole) or "") if item is not None else ""
+
+        def _after(message: str) -> None:
             self._after_edit()
             self._populate_parts()
-            self.statusBar().showMessage(f"Undid {row + 1} step(s)")
+            self._populate_carry_box()
+            self.statusBar().showMessage(message)
             dialog.accept()
 
-        undo_to.clicked.connect(_rewind)
+        def _undo() -> None:
+            operation_id = self._edits.undo_operation()
+            _after(f"Undid {operation_id or 'the last free-form edit'}")
+
+        def _redo() -> None:
+            operation_id = self._edits.redo_operation()
+            _after(f"Redid {operation_id or 'the last free-form edit'}")
+
+        def _discard() -> None:
+            operation_id = _selected_id()
+            if not operation_id:
+                self.statusBar().showMessage("Select an operation to discard")
+                return
+            if self._edits.discard_operation(operation_id):
+                _after(f"Discarded {operation_id}")
+
+        def _clean() -> None:
+            dropped = self._edits.start_clean_operation()
+            _after(f"Dropped {dropped} free-form edit(s); {len(operations)} operation(s) kept")
+
+        def _reset() -> None:
+            confirmed = QMessageBox.question(
+                dialog,
+                "Reset all pending changes?",
+                f"This throws away {len(operations)} operation(s) and {len(loose)} free-form "
+                f"edit(s). The game files are untouched either way — only this session's "
+                f"pending changes are lost.",
+            )
+            if confirmed != QMessageBox.Yes:
+                return
+            self._edits.reset()
+            _after("Reset every pending change")
+
+        undo.clicked.connect(_undo)
+        redo.clicked.connect(_redo)
+        discard.clicked.connect(_discard)
+        clean.clicked.connect(_clean)
+        reset.clicked.connect(_reset)
         buttons.rejected.connect(dialog.reject)
         layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel("Newest first. Select a step and undo back to it."))
+        layout.addWidget(
+            QLabel(
+                "Newest first. Each row is one accepted operation — one undo, and one entry to "
+                "include in or leave out of a package."
+            )
+        )
         layout.addWidget(listing, 1)
         layout.addWidget(buttons)
         dialog.exec()
@@ -660,38 +812,6 @@ class CarryPickerMixin:
         if self._playback.loaded and not self._playback.playing:
             self._on_playback_toggle()
 
-    def _apply_carry_move(self, socket: str) -> bool:
-        """Re-route the selected part and bring its angle with it.
-
-        Returns whether it worked. It has to: both failure paths used to return
-        silently, and the caller went on to swap the animations and report success — so
-        the mod shipped a changed draw for a weapon that had not moved.
-        """
-
-        binding = self._current_binding()
-        if binding is None or self._edits is None or not binding.part.source_file:
-            self.statusBar().showMessage(
-                f"{self._selected_part or 'That row'} has no descriptor entry to re-route, "
-                f"so it cannot be moved."
-            )
-            return False
-        previous = binding.part.in_socket or "(none)"
-        try:
-            self._edits.set_route(
-                binding.part.source_file, binding.part_name, "in_socket", socket
-            )
-        except EditError as exc:
-            self.statusBar().showMessage(f"Could not move it: {exc}")
-            return False
-        note = self._follow_child_socket(binding, socket, "stowed")
-        self._after_edit()
-        self._populate_parts()
-        note += self._ensure_blade_hangs_down(socket)
-        note += self._warn_if_angle_is_wrong(socket)
-        self.statusBar().showMessage(
-            f"{self._selected_part} now hangs on {socket} (was {previous}){note}"
-        )
-        return True
 
     def _report_carry_match(self, zone: str, previous_zone: str = "") -> None:
         """Say plainly what the move did to the animations — including what it did not do.

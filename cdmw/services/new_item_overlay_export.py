@@ -58,72 +58,22 @@ def export_overlay_mod(
     to name the group itself.
     """
 
-    from cdmw.core.archive_overlay import OverlayFile, build_overlay_archive
-    from cdmw.core.papgt_format import papgt_with_directory
-    from cdmw.services.archive_overlay_install import (
-        OVERLAY_DIRECTORY_FIRST,
-        _processed_payload,
-        overlay_directory_name,
+    from cdmw.services.archive_overlay_package_service import export_archive_overlay_package
+
+    shared = export_archive_overlay_package(
+        plan.patches,
+        plan.additions,
+        package_root=Path(package_root),
+        group=group,
+        game_root=game_root,
+        metadata_files=tuple(
+            (write.path, write.payload_data) for write in getattr(plan, "meta_files", ())
+        ),
+        on_log=on_log,
     )
-
-    root = Path(package_root)
-    root.mkdir(parents=True, exist_ok=True)
-    files = {}
-    for request in plan.patches:
-        entry = request.entry
-        path = str(entry.path).replace("\\", "/").strip("/")
-        files[path] = OverlayFile(
-            path=path,
-            payload=_processed_payload(
-                request.payload_data,
-                compression_type=int(entry.compression_type),
-                encrypted=bool(entry.encrypted),
-                basename=str(entry.basename),
-            ),
-            orig_size=len(request.payload_data),
-            flags=int(entry.flags),
-        )
-    for addition in plan.additions:
-        path = str(addition.path).replace("\\", "/").strip("/")
-        files[path] = OverlayFile(
-            path=path,
-            payload=_processed_payload(
-                addition.payload_data,
-                compression_type=int(addition.compression_type),
-                encrypted=bool(addition.encryption_type),
-                basename=str(addition.basename),
-            ),
-            orig_size=len(addition.payload_data),
-            flags=int(addition.flags),
-        )
-    if not files:
-        raise ValueError("The plan changes nothing, so there is no archive to write.")
-
-    name = str(group or "") or (
-        overlay_directory_name(Path(game_root)) if game_root and Path(game_root).is_dir()
-        else f"{OVERLAY_DIRECTORY_FIRST:04d}"
-    )
-    built = build_overlay_archive(sorted(files.values(), key=lambda item: item.path), on_log=on_log)
-    directory = root / name
-    directory.mkdir(parents=True, exist_ok=True)
-    (directory / "0.paz").write_bytes(built.paz_bytes)
-    (directory / "0.pamt").write_bytes(built.pamt_bytes)
-
-    mount_written = False
-    if game_root is not None:
-        source = Path(game_root) / "meta" / "0.papgt"
-        if source.is_file():
-            mounted = papgt_with_directory(source.read_bytes(), name, built.pamt_checksum, first=True)
-            (root / "meta").mkdir(parents=True, exist_ok=True)
-            (root / "meta" / "0.papgt").write_bytes(mounted)
-            mount_written = True
-
-    written: list = []
-    for relative, payload in [(write.path, write.payload_data) for write in getattr(plan, "meta_files", ())]:
-        target = root / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(payload)
-        written.append(str(relative))
+    root = shared.package_root
+    name = shared.group
+    written = list(shared.metadata_files)
 
     spec = plan.spec
     manifest = {
@@ -142,9 +92,9 @@ def export_overlay_mod(
         "manager_target_labels": ["Definitive Mod Manager"],
         "structure": "archive_group",
         "archive_group": name,
-        "file_count": len(files),
+        "file_count": shared.file_count,
         "created_utc": created_utc,
-        "overrides": sorted(files),
+        "overrides": list(shared.paths),
     }
     (root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     (root / "modinfo.json").write_text(
@@ -172,7 +122,7 @@ def export_overlay_mod(
                 "",
                 "What this is",
                 "------------",
-                f"An archive group ({name}/0.pamt and 0.paz) holding {len(files)} file(s), the shape a mod manager mounts",
+                f"An archive group ({name}/0.pamt and 0.paz) holding {shared.file_count} file(s), the shape a mod manager mounts",
                 "ahead of the archives the game shipped. The shipped archives are not modified by installing it.",
                 "",
                 "How to use it",
@@ -187,14 +137,12 @@ def export_overlay_mod(
         ),
         encoding="utf-8",
     )
-    if on_log is not None:
-        on_log(f"Wrote {name}/0.pamt and 0.paz: {len(files)} file(s), {len(built.paz_bytes):,} bytes.")
     return OverlayModExport(
         package_root=root,
         group=name,
-        file_count=len(files),
-        payload_bytes=len(built.paz_bytes),
-        paths=tuple(sorted(files)),
+        file_count=shared.file_count,
+        payload_bytes=shared.payload_bytes,
+        paths=shared.paths,
         metadata_files=("manifest.json", "modinfo.json", "README.txt", *written),
-        mount_list_written=mount_written,
+        mount_list_written=shared.mount_list_written,
     )

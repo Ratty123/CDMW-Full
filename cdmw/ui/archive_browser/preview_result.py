@@ -454,9 +454,7 @@ class ArchivePreviewResultMixin:
         workflow_extract_enabled = selected_has_dds if selected_count > 0 else has_filtered_dds
         self.archive_extract_selected_button.setEnabled(self.worker_thread is None and selected_count > 0)
         self.archive_extract_filtered_button.setEnabled(self.worker_thread is None and has_filtered_entries)
-        self.archive_extract_to_workflow_button.setEnabled(self.worker_thread is None and workflow_extract_enabled)
         current_entry = self._current_archive_entry()
-        self.archive_open_in_editor_button.setEnabled(self.worker_thread is None and current_entry is not None)
         self.archive_resolve_in_research_button.setEnabled(
             self.worker_thread is None
             and current_entry is not None

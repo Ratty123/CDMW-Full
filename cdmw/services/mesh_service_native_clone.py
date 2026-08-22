@@ -103,6 +103,7 @@ def _clone_history_snapshot_for_python_fallback(session: _MeshEditSession) -> _M
             session.committed_texture_resources[key]
             for key in sorted(session.committed_texture_resources)
         ),
+        object_transform=session.object_transform,
     )
 
 

@@ -488,7 +488,6 @@ internal sealed partial class ExperimentForm
             AddRailSection(_toolRailPages[ToolRailPage.Transform], _transformSection);
             AddRailSection(_toolRailPages[ToolRailPage.Brush], _brushSection);
             AddRailSection(_toolRailPages[ToolRailPage.Topology], _topologySection);
-            AddRailSection(_toolRailPages[ToolRailPage.Colour], _colourSection);
             AddRailSection(_toolRailPages[ToolRailPage.MorphRefit], _morphRefitSection);
 
             // Right: the scene groups every tool reads and changes, all visible.
@@ -748,7 +747,6 @@ internal sealed partial class ExperimentForm
         AddRailSection(_toolRailPages[ToolRailPage.Transform], _transformSection);
         AddRailSection(_toolRailPages[ToolRailPage.Brush], _brushSection);
         AddRailSection(_toolRailPages[ToolRailPage.Topology], _topologySection);
-        AddRailSection(_toolRailPages[ToolRailPage.Colour], _colourSection);
         AddRailSection(_toolRailPages[ToolRailPage.MorphRefit], _morphRefitSection);
         AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);
         AddRailSection(_sceneInspectorColumn, _layersSection, row: 1);

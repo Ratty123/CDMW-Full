@@ -41,7 +41,8 @@ loose export is built in a sibling staging directory and published only when
 complete. DMM archive groups are readable as mod bases, so repeated exports
 carry earlier items forward. Game overlays carry a CDMW ownership marker;
 install, migration and removal ignore foreign numeric groups and roll back every
-post-backup failure or cancellation. Temporary model extraction roots are removed when their
+post-backup failure or cancellation. Temporary model extraction roots are
+removed when their
 import is replaced, discarded, fails, or the studio closes. Entry points: the tool tab
 `new_item_studio` and the Item Finder's `Clone as new item...`; a ready Builder
 result can still be handed in through the tab's `receive_imported_model`.

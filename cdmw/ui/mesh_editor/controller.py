@@ -144,6 +144,22 @@ class MeshEditorController:
     def geometry_layer_state(self) -> dict[str, object]:
         return self.mesh_service.geometry_layer_state(self._session_id())
 
+    def set_object_transform(
+        self,
+        *,
+        location: Sequence[float] | None = None,
+        rotation_degrees: Sequence[float] | None = None,
+        scale: Sequence[float] | None = None,
+        label: str = "Object Transform",
+    ) -> MeshEditResult:
+        return self.mesh_service.set_object_transform(
+            self._session_id(),
+            location=location,
+            rotation_degrees=rotation_degrees,
+            scale=scale,
+            label=label,
+        )
+
     def copy_selection(self, *, target: str) -> MeshEditResult:
         return self.mesh_service.copy_selection(self._session_id(), target=target)
 

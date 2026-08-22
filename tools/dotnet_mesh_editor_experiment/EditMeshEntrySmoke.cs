@@ -294,7 +294,8 @@ internal static class EditMeshEntrySmoke
         DeveloperRendererFallback: true,
         // No parent window: this gate exercises the deferred panel build that
         // Embedded selects, not the host reparent, which needs a real HWND.
-        ParentHwnd: 0L);
+        ParentHwnd: 0L,
+        DirectAuthoring: true);
 
     private static string RequiredValue(string[] args, string name)
     {

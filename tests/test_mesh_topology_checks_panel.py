@@ -127,7 +127,7 @@ class MeshTopologyChecksPanelTests(unittest.TestCase):
             for index in range(self.validator.topLevelItemCount())
         ]
         rebuild_button = self.tab.standalone_workspace.findChild(
-            QToolButton, "MeshEditorRebuildPatchedAssetButton"
+            QToolButton, "MeshEditorExportMeshFileButton"
         )
 
         self.assertEqual("blocked", rows.get(TOPOLOGY_ROW))

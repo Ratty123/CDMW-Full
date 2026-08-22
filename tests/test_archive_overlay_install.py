@@ -8,6 +8,7 @@ that the archives it overrides were left alone.
 
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import threading
@@ -26,8 +27,11 @@ from cdmw.core.papgt_format import parse_papgt  # noqa: E402
 from cdmw.domain.archives.mutation import ArchiveAddRequest, ArchivePatchRequest  # noqa: E402
 from cdmw.services.archive_overlay_install import (  # noqa: E402
     OVERLAY_OWNER_MARKER,
+    apply_overlay_install,
     install_overlay,
     overlay_directory_name,
+    prepare_overlay_install,
+    restore_last_overlay_install,
 )
 from test_new_item_service import build_package, synthetic_files  # noqa: E402
 
@@ -180,13 +184,14 @@ class OverlayInstallTests(unittest.TestCase):
         self.assertEqual(mount.read_bytes(), before)
         self.assertFalse((self.root / "0036").exists(), "the unpublished overlay is removed")
 
-    def test_cancellation_after_backup_restores_before_any_write(self) -> None:
+    def test_cancellation_after_backup_restores_before_any_overlay_is_published(self) -> None:
         target = self.entries[f"{BIN}/iteminfo.pabgb"]
-        before = {
-            path.relative_to(self.root).as_posix(): path.read_bytes()
-            for path in self.root.rglob("*")
-            if path.is_file()
-        }
+        mount = self.root / "meta" / "0.papgt"
+        before = mount.read_bytes()
+        preparation = prepare_overlay_install(
+            [ArchivePatchRequest(target, b"payload")],
+            package_root=self.root,
+        )
         stop_event = threading.Event()
         restored: list[Path] = []
 
@@ -196,23 +201,82 @@ class OverlayInstallTests(unittest.TestCase):
             stop_event.set()
             return folder
 
-        with self.assertRaisesRegex(Exception, "cancelled before writing"):
-            install_overlay(
-                [ArchivePatchRequest(target, b"payload")],
-                package_root=self.root,
+        with self.assertRaisesRegex(Exception, "cancelled after backup"):
+            apply_overlay_install(
+                preparation,
+                confirmed=True,
                 backup=backup,
                 restore_backup=lambda path: restored.append(path),
                 stop_event=stop_event,
             )
 
-        after = {
-            path.relative_to(self.root).as_posix(): path.read_bytes()
-            for path in self.root.rglob("*")
-            if path.is_file() and "backup" not in path.parts
-        }
         self.assertEqual(restored, [self.root / "backup"])
-        self.assertEqual(after, before)
-        self.assertFalse((self.root / "0036").exists())
+        self.assertEqual(mount.read_bytes(), before)
+        self.assertFalse(preparation.directory.exists())
+        self.assertFalse(preparation.receipt_path.exists())
+
+    def test_explicit_restore_uses_the_receipt_and_removes_only_install_created_files(self) -> None:
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+        mount = self.root / "meta" / "0.papgt"
+        before = mount.read_bytes()
+        backup_dir = self.root / "backup"
+        backup_dir.mkdir()
+        snapshots: dict[Path, bytes] = {}
+
+        def backup(paths, _description):
+            snapshots.update({Path(path): Path(path).read_bytes() for path in paths})
+            return backup_dir
+
+        def restore(_path):
+            for path, payload in snapshots.items():
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(payload)
+
+        result = install_overlay(
+            [ArchivePatchRequest(target, b"payload")],
+            package_root=self.root,
+            backup=backup,
+            restore_backup=restore,
+        )
+        unrelated = result.directory / "kept-by-another-operation.txt"
+        unrelated.write_bytes(b"keep")
+
+        restored_root = restore_last_overlay_install(
+            result.receipt_path,
+            confirmed=True,
+            restore_backup=restore,
+        )
+
+        self.assertEqual(restored_root, self.root)
+        self.assertEqual(mount.read_bytes(), before)
+        self.assertEqual(unrelated.read_bytes(), b"keep")
+        self.assertFalse((result.directory / "0.pamt").exists())
+        self.assertFalse((result.directory / "0.paz").exists())
+        self.assertFalse((result.directory / OVERLAY_OWNER_MARKER).exists())
+        self.assertFalse(result.receipt_path.exists())
+
+    def test_restore_rejects_a_tampered_receipt_before_restoring_any_backup(self) -> None:
+        target = self.entries[f"{BIN}/iteminfo.pabgb"]
+        backup_dir = self.root / "backup"
+        backup_dir.mkdir()
+        result = install_overlay(
+            [ArchivePatchRequest(target, b"payload")],
+            package_root=self.root,
+            backup=lambda _paths, _description: backup_dir,
+        )
+        payload = json.loads(result.receipt_path.read_text(encoding="utf-8"))
+        payload["created_files"].append(str(self.root.parent / "outside.txt"))
+        result.receipt_path.write_text(json.dumps(payload), encoding="utf-8")
+        restored: list[Path] = []
+
+        with self.assertRaisesRegex(ValueError, "outside the package root"):
+            restore_last_overlay_install(
+                result.receipt_path,
+                confirmed=True,
+                restore_backup=lambda path: restored.append(path),
+            )
+
+        self.assertEqual(restored, [])
 
 
 if __name__ == "__main__":

@@ -14,6 +14,8 @@ with normalization enforced before any write.
 
 from __future__ import annotations
 
+import hashlib
+import itertools
 import re
 from dataclasses import dataclass, field, replace
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
@@ -74,6 +76,15 @@ class EditError(RuntimeError):
     """Raised when an edit is not representable in the operation vocabulary."""
 
 
+class ScopeError(EditError):
+    """Raised when an edit falls outside the active operation's allowlists.
+
+    A second enforcement layer behind the dialog's filtering. The dialog decides what to
+    offer; this decides what may actually be recorded, so a bug in the offering cannot write
+    a one-handed target path for a two-handed move.
+    """
+
+
 # ── commands ─────────────────────────────────────────────────────────
 
 
@@ -83,6 +94,10 @@ class Command:
 
     Absolute values are what make coalescing safe: dragging a socket across twenty mouse
     events collapses to one command, and replay is order-independent within a field.
+
+    A command also carries which *operation* recorded it. That is what lets one accepted
+    dialog be packaged, undone and reported on its own, rather than as an indistinguishable
+    part of everything else the session has done.
     """
 
     kind: str          # translate | rotate | reparent | add_socket | route | replace_file
@@ -95,12 +110,45 @@ class Command:
     socket: Optional[Socket] = None
     #: Whole-file payload, for `replace_file`.
     payload: Optional[bytes] = None
+    #: Which accepted operation recorded this. Empty for a free-form edit made outside one
+    #: — a viewport nudge, say — which is exactly the kind of edit packaging must exclude.
+    operation_id: str = ""
+    equipment_unit_id: str = ""
+    scope_kind: str = ""
+    created_order: int = 0
 
     @property
-    def coalesce_key(self) -> Tuple[str, str, str, str]:
-        """Two commands collapse when they address the same field of the same thing."""
+    def coalesce_key(self) -> Tuple[str, str, str, str, str]:
+        """Two commands collapse when they address the same field of the same thing.
 
-        return (self.kind, self.game_path, self.target, self.field_name)
+        The operation is part of the key: two operations that happen to set the same field
+        are two decisions and must stay separately undoable, even though a replay would
+        settle on the later value either way.
+        """
+
+        return (self.operation_id, self.kind, self.game_path, self.target, self.field_name)
+
+    @property
+    def value_key(self) -> Tuple[object, ...]:
+        """What this command settles the field to — for detecting cross-operation conflicts.
+
+        Payload bytes are hashed rather than compared: two operations replacing the same
+        clip with the same donor is a duplicate, not a conflict, and the whole payload has
+        no business sitting in a conflict report.
+        """
+
+        payload = (
+            hashlib.sha256(self.payload).hexdigest() if self.payload is not None else ""
+        )
+        socket = None
+        if self.socket is not None:
+            socket = (
+                self.socket.name,
+                self.socket.parent_bone,
+                self.socket.rotation,
+                self.socket.translation,
+            )
+        return (self.translation, self.rotation, self.text, socket, payload)
 
     def describe(self) -> str:
         if self.kind == "translate" and self.translation is not None:
@@ -154,6 +202,289 @@ class SocketEditState:
         )
 
 
+# ── operations ───────────────────────────────────────────────────────
+
+
+#: Kinds of operation, so a report can say what the user actually asked for.
+OP_MOVE_EQUIPMENT = "move_equipment"
+OP_REPLACE_ANIMATIONS = "replace_animations"
+OP_MANUAL_ORIENTATION = "manual_orientation"
+OP_FREEFORM = "freeform"
+
+
+@dataclass(frozen=True, slots=True)
+class OperationScope:
+    """Exactly what one accepted dialog may touch.
+
+    Allowlists, never negative filters. An empty list means *nothing of that kind is
+    allowed*, which is the reading that fails safe: an animation-only operation has no
+    business writing a descriptor row, and a scope that forgot to name its socket files
+    should stop rather than wave everything through.
+
+    `enforce=False` exists for the free-form viewport editing that predates operations —
+    a nudge, a hand-authored rotation — where there is no equipment unit to scope against.
+    """
+
+    kind: str = OP_FREEFORM
+    equipment_unit_id: str = ""
+    model: str = ""
+    #: Where a placement operation is sending the item. Recorded on the scope because the
+    #: preflight has to check the child socket's zone against it, and reading it back off the
+    #: commands cannot tell a destination from an intermediate value.
+    destination_socket: str = ""
+    allowed_descriptor_parts: Tuple[str, ...] = ()
+    allowed_descriptor_files: Tuple[str, ...] = ()
+    allowed_socket_files: Tuple[str, ...] = ()
+    allowed_animation_targets: Tuple[str, ...] = ()
+    allowed_animation_families: Tuple[str, ...] = ()
+    #: Socket names the operation may create. Empty means any valid name, still bounded by
+    #: `allowed_socket_files`; naming them pins a replay to the sockets that were reviewed.
+    allowed_socket_names: Tuple[str, ...] = ()
+    enforce: bool = True
+
+    @classmethod
+    def unrestricted(cls, kind: str = OP_FREEFORM, **fields) -> "OperationScope":
+        return cls(kind=kind, enforce=False, **fields)
+
+    def allows_descriptor(self, game_path: str, part: str) -> str:
+        if not self.enforce:
+            return ""
+        if part not in self.allowed_descriptor_parts:
+            return f"{part} is not part of this operation's equipment unit"
+        if game_path not in self.allowed_descriptor_files:
+            return f"{game_path} is not a descriptor file this operation may change"
+        return ""
+
+    def allows_socket_file(self, game_path: str) -> str:
+        if not self.enforce:
+            return ""
+        if game_path not in self.allowed_socket_files:
+            return f"{game_path} is not a socket file this operation may change"
+        return ""
+
+    def allows_socket_name(self, name: str) -> str:
+        if not self.enforce or not self.allowed_socket_names:
+            return ""
+        if name not in self.allowed_socket_names:
+            return f"{name} is not a socket this operation declared it would create"
+        return ""
+
+    def allows_animation_target(self, game_path: str) -> str:
+        if not self.enforce:
+            return ""
+        if game_path not in self.allowed_animation_targets:
+            return f"{game_path} is not an animation target this operation may replace"
+        return ""
+
+
+@dataclass(frozen=True, slots=True)
+class EditOperation:
+    """One accepted workflow: its commands, its scope, and what it was allowed to touch."""
+
+    operation_id: str
+    kind: str
+    equipment_unit_id: str
+    baseline_revision: str
+    commands: Tuple[Command, ...] = ()
+    scope: OperationScope = field(default_factory=OperationScope)
+    label: str = ""
+    warnings_accepted: Tuple[str, ...] = ()
+    #: `(socket name, where its aim came from)` for every socket the operation created, so a
+    #: package report can state the provenance of each one rather than just its name.
+    orientation_sources: Tuple[Tuple[str, str], ...] = ()
+    #: Set once the user has looked at the orientation in the viewport and said it is right.
+    #: A borrowed or hand-authored aim must not be packaged without it.
+    orientation_reviewed: bool = False
+
+    @property
+    def empty(self) -> bool:
+        return not self.commands
+
+    def orientation_source(self, socket_name: str) -> str:
+        return dict(self.orientation_sources).get(socket_name, "")
+
+    @property
+    def allowed_descriptor_parts(self) -> Tuple[str, ...]:
+        return self.scope.allowed_descriptor_parts
+
+    @property
+    def allowed_socket_files(self) -> Tuple[str, ...]:
+        return self.scope.allowed_socket_files
+
+    @property
+    def allowed_animation_targets(self) -> Tuple[str, ...]:
+        return self.scope.allowed_animation_targets
+
+    def routed_parts(self) -> Tuple[str, ...]:
+        return tuple(sorted({c.target for c in self.commands if c.kind == "route"}))
+
+    def created_sockets(self) -> Tuple[str, ...]:
+        return tuple(sorted({c.target for c in self.commands if c.kind == "add_socket"}))
+
+    def modified_sockets(self) -> Tuple[str, ...]:
+        """Sockets whose transform this operation changed but did not itself create."""
+
+        created = set(self.created_sockets())
+        touched = {
+            c.target for c in self.commands
+            if c.kind in {"translate", "rotate", "reparent"}
+        }
+        return tuple(sorted(touched - created))
+
+    def replaced_clips(self) -> Tuple[str, ...]:
+        return tuple(sorted({c.game_path for c in self.commands if c.kind == "replace_file"}))
+
+    def touched_paths(self) -> Tuple[str, ...]:
+        return tuple(sorted({c.game_path for c in self.commands}))
+
+    def counts(self) -> Dict[str, int]:
+        return {
+            "descriptor changes": len(self.routed_parts()),
+            "sockets created": len(self.created_sockets()),
+            "sockets modified": len(self.modified_sockets()),
+            "animation replacements": len(self.replaced_clips()),
+        }
+
+    def describe(self) -> str:
+        headline = self.label or f"{self.kind} {self.equipment_unit_id}".strip()
+        detail = ", ".join(f"{count} {name}" for name, count in self.counts().items() if count)
+        return f"{headline}  —  {detail}" if detail else headline
+
+    def summary_lines(self) -> List[str]:
+        lines = [self.label or self.kind]
+        for name, count in self.counts().items():
+            if count:
+                lines.append(f"  {count} {name}")
+        return lines
+
+
+@dataclass(frozen=True, slots=True)
+class OperationConflict:
+    """Two selected operations that settle the same field to different values."""
+
+    game_path: str
+    target: str
+    field_name: str
+    left: str
+    right: str
+    reason: str = "different final value"
+
+    def describe(self) -> str:
+        where = f"{self.target}.{self.field_name}" if self.field_name else self.target
+        return f"{self.game_path} :: {where}: {self.left} and {self.right} disagree ({self.reason})"
+
+
+class OperationHandle:
+    """A live operation. Every edit made through it belongs to it and is scope-checked.
+
+    Nothing enters the session's *operation* history until `commit`; `rollback` removes the
+    operation's commands outright. The commands are recorded into the session as they are
+    made rather than buffered, because the viewport has to show the move being previewed —
+    but the range is exactly bounded, so rolling back is a truncation and cannot leave a
+    partly applied route behind.
+    """
+
+    __slots__ = ("_session", "operation_id", "scope", "label", "_mark", "_order", "_closed",
+                 "_warnings", "_orientation_sources", "_orientation_reviewed")
+
+    def __init__(self, session: "EditSession", operation_id: str, scope: OperationScope,
+                 *, label: str = "", mark: int = 0) -> None:
+        self._session = session
+        self.operation_id = operation_id
+        self.scope = scope
+        self.label = label
+        self._mark = mark
+        self._order = itertools.count()
+        self._closed = False
+        self._warnings: List[str] = []
+        self._orientation_sources: Dict[str, str] = {}
+        self._orientation_reviewed = False
+
+    # ── recording ───────────────────────────────────────────────────
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    @property
+    def mark(self) -> int:
+        return self._mark
+
+    def next_order(self) -> int:
+        return next(self._order)
+
+    def accept_warning(self, warning: str) -> None:
+        """Record that the user was shown a high-risk warning and went ahead anyway."""
+
+        if warning and warning not in self._warnings:
+            self._warnings.append(warning)
+
+    @property
+    def warnings_accepted(self) -> Tuple[str, ...]:
+        return tuple(self._warnings)
+
+    def record_orientation(self, socket_name: str, source: str) -> None:
+        """Note where a socket's aim came from — a template, a borrow, or the user's hand."""
+
+        if socket_name:
+            self._orientation_sources[socket_name] = source
+
+    def mark_orientation_reviewed(self, reviewed: bool = True) -> None:
+        """The user has looked at the aim in the viewport and accepted it."""
+
+        self._orientation_reviewed = bool(reviewed)
+
+    @property
+    def orientation_reviewed(self) -> bool:
+        return self._orientation_reviewed
+
+    @property
+    def orientation_sources(self) -> Tuple[Tuple[str, str], ...]:
+        return tuple(sorted(self._orientation_sources.items()))
+
+    # ── the edits an operation may make ─────────────────────────────
+
+    def set_route(self, game_path: str, part: str, field_name: str, socket_name: str) -> None:
+        self._session.set_route(game_path, part, field_name, socket_name)
+
+    def add_socket(self, game_path: str, socket: Socket) -> None:
+        self._session.add_socket(game_path, socket)
+
+    def set_rotation_quaternion(self, game_path: str, name: str, value: Quat) -> None:
+        self._session.set_rotation_quaternion(game_path, name, value)
+
+    def set_rotation_euler(self, game_path: str, name: str, roll: float, pitch: float,
+                           yaw: float) -> None:
+        self._session.set_rotation_euler(game_path, name, roll, pitch, yaw)
+
+    def set_translation(self, game_path: str, name: str, value: Vec3) -> None:
+        self._session.set_translation(game_path, name, value)
+
+    def replace_clip(self, game_path: str, data: bytes, source: str = "",
+                     original: Optional[bytes] = None) -> None:
+        self._session.replace_clip(game_path, data, source, original)
+
+    # ── lifecycle ───────────────────────────────────────────────────
+
+    def commit(self) -> EditOperation:
+        return self._session._commit_operation(self)
+
+    def rollback(self) -> None:
+        self._session._rollback_operation(self)
+
+    def __enter__(self) -> "OperationHandle":
+        return self
+
+    def __exit__(self, exc_type, _exc, _tb) -> bool:
+        if self._closed:
+            return False
+        if exc_type is not None:
+            self.rollback()
+        else:
+            self.commit()
+        return False
+
+
 # ── edit session ─────────────────────────────────────────────────────
 
 
@@ -179,6 +510,13 @@ class EditSession:
         self._replaced_base: Dict[str, bytes] = {}
         #: What each replacement came from, for the pending-changes list.
         self._replacement_source: Dict[str, str] = {}
+        #: The operation currently recording, or `None` for free-form editing.
+        self._active: Optional[OperationHandle] = None
+        #: Metadata per committed operation. The *live* list is derived from the surviving
+        #: commands, so an undone or discarded operation cannot linger in the history.
+        self._operation_records: Dict[str, EditOperation] = {}
+        self._operation_counter = itertools.count(1)
+        self._baseline_revision: str = ""
         self._replay()
 
     # ── base access ─────────────────────────────────────────────────
@@ -205,6 +543,27 @@ class EditSession:
         if original is None or current is None:
             return None
         return SocketEditState(name, original, current)
+
+    def original_part(self, game_path: str, part_name: str):
+        """A descriptor row as *vanilla* has it, whatever the session has since done.
+
+        The dialog has to distinguish three states — vanilla, pending before this operation,
+        proposed — and it could only show the third. That is how an earlier experiment's
+        `Pelvis_R_Socket` came to read as the game's default.
+        """
+
+        data = self._base.get(game_path)
+        if data is None:
+            return None
+        return DescriptorDocument.load(data, game_path).part_map().get(part_name)
+
+    def part(self, game_path: str, part_name: str):
+        """A descriptor row as the session currently has it — the pending state."""
+
+        document = self._documents.get(game_path)
+        if not isinstance(document, DescriptorDocument):
+            return None
+        return document.part_map().get(part_name)
 
     # ── history ─────────────────────────────────────────────────────
 
@@ -240,9 +599,20 @@ class EditSession:
     def reset(self) -> None:
         self._commands = []
         self._cursor = 0
+        self._active = None
+        self._operation_records = {}
         self._replay()
 
     def _record(self, command: Command) -> None:
+        active = self._active
+        if active is not None:
+            command = replace(
+                command,
+                operation_id=active.operation_id,
+                equipment_unit_id=active.scope.equipment_unit_id,
+                scope_kind=active.scope.kind,
+                created_order=active.next_order(),
+            )
         # A new edit discards any redo tail, as in every editor.
         self._commands = self._commands[: self._cursor]
         if self._commands and self._commands[-1].coalesce_key == command.coalesce_key:
@@ -251,6 +621,284 @@ class EditSession:
             self._commands.append(command)
         self._cursor = len(self._commands)
         self._replay()
+
+    # ── operations ──────────────────────────────────────────────────
+
+    @property
+    def active_operation(self) -> Optional[OperationHandle]:
+        return self._active
+
+    @property
+    def baseline_revision(self) -> str:
+        """A digest of the pinned vanilla bytes every command was replayed onto.
+
+        Recorded on each operation so a replay can prove it was made against the same game
+        files. Computed lazily — it hashes the whole baseline — and cached until the baseline
+        grows.
+        """
+
+        if not self._baseline_revision:
+            digest = hashlib.sha256()
+            for path in sorted(self._base):
+                digest.update(path.encode("utf-8"))
+                digest.update(b"\0")
+                digest.update(hashlib.sha256(self._base[path]).digest())
+            self._baseline_revision = digest.hexdigest()[:16]
+        return self._baseline_revision
+
+    def begin_operation(self, scope: Optional[OperationScope] = None, *,
+                        label: str = "") -> OperationHandle:
+        """Start one isolated operation. Commit or roll back before starting another."""
+
+        if self._active is not None:
+            raise EditError(
+                f"Operation {self._active.operation_id} is still open; commit or roll it back "
+                f"before starting another"
+            )
+        scope = scope or OperationScope.unrestricted()
+        number = next(self._operation_counter)
+        operation_id = f"op-{number:03d}-{self.baseline_revision[:6]}"
+        handle = OperationHandle(self, operation_id, scope, label=label, mark=self._cursor)
+        self._active = handle
+        return handle
+
+    def _commit_operation(self, handle: OperationHandle) -> EditOperation:
+        if handle.closed:
+            raise EditError(f"Operation {handle.operation_id} is already closed")
+        commands = tuple(self._commands[handle.mark : self._cursor])
+        record = EditOperation(
+            operation_id=handle.operation_id,
+            kind=handle.scope.kind,
+            equipment_unit_id=handle.scope.equipment_unit_id,
+            baseline_revision=self.baseline_revision,
+            commands=commands,
+            scope=handle.scope,
+            label=handle.label,
+            warnings_accepted=handle.warnings_accepted,
+            orientation_sources=handle.orientation_sources,
+            orientation_reviewed=handle.orientation_reviewed,
+        )
+        handle._closed = True
+        self._active = None
+        if commands:
+            self._operation_records[handle.operation_id] = record
+        return record
+
+    def _rollback_operation(self, handle: OperationHandle) -> None:
+        if handle.closed:
+            return
+        # Absolute values make this a truncation rather than a sequence of inverse edits, so
+        # a half-applied move is not representable.
+        self._commands = self._commands[: handle.mark]
+        self._cursor = min(self._cursor, handle.mark)
+        handle._closed = True
+        self._active = None
+        self._replay()
+
+    def operations(self) -> List[EditOperation]:
+        """The committed operations still standing, oldest first.
+
+        Derived from the surviving commands rather than kept as a second list — the same
+        rule the plan follows — so undo, redo and discard cannot leave a phantom entry that
+        packaging would then replay.
+        """
+
+        grouped: Dict[str, List[Command]] = {}
+        order: List[str] = []
+        for command in self._commands[: self._cursor]:
+            if not command.operation_id:
+                continue
+            if command.operation_id not in grouped:
+                grouped[command.operation_id] = []
+                order.append(command.operation_id)
+            grouped[command.operation_id].append(command)
+
+        out: List[EditOperation] = []
+        for operation_id in order:
+            commands = tuple(grouped[operation_id])
+            record = self._operation_records.get(operation_id)
+            if record is None:
+                record = EditOperation(
+                    operation_id=operation_id,
+                    kind=commands[0].scope_kind or OP_FREEFORM,
+                    equipment_unit_id=commands[0].equipment_unit_id,
+                    baseline_revision=self.baseline_revision,
+                )
+            out.append(replace(record, commands=commands))
+        return out
+
+    def operation(self, operation_id: str) -> Optional[EditOperation]:
+        return next(
+            (op for op in self.operations() if op.operation_id == operation_id), None
+        )
+
+    def latest_operation(self) -> Optional[EditOperation]:
+        operations = self.operations()
+        return operations[-1] if operations else None
+
+    def loose_commands(self) -> List[Command]:
+        """Edits made outside any operation. Never packaged, always reported."""
+
+        return [c for c in self._commands[: self._cursor] if not c.operation_id]
+
+    def start_clean_operation(self) -> int:
+        """Drop every edit that belongs to no operation, keeping the committed ones.
+
+        The state a new operation should start from: vanilla plus what has actually been
+        accepted. A free-form nudge left over from a previous session of poking about is not a
+        decision anybody made about this item, and it would ride along in every later preview.
+
+        Returns how many edits were dropped.
+        """
+
+        if self._active is not None:
+            raise EditError(
+                f"Operation {self._active.operation_id} is still open; commit or roll it back "
+                f"first"
+            )
+        dropped = sum(1 for c in self._commands if not c.operation_id)
+        if not dropped:
+            return 0
+        removed_before_cursor = sum(
+            1 for c in self._commands[: self._cursor] if not c.operation_id
+        )
+        self._commands = [c for c in self._commands if c.operation_id]
+        self._cursor -= removed_before_cursor
+        self._replay()
+        return dropped
+
+    def undo_operation(self) -> str:
+        """Undo the newest operation whole, or the newest free-form edit. "" if nothing."""
+
+        if self._cursor == 0:
+            return ""
+        operation_id = self._commands[self._cursor - 1].operation_id
+        if not operation_id:
+            self.undo()
+            return ""
+        while (
+            self._cursor > 0
+            and self._commands[self._cursor - 1].operation_id == operation_id
+        ):
+            self._cursor -= 1
+        self._replay()
+        return operation_id
+
+    def redo_operation(self) -> str:
+        if self._cursor >= len(self._commands):
+            return ""
+        operation_id = self._commands[self._cursor].operation_id
+        if not operation_id:
+            self.redo()
+            return ""
+        while (
+            self._cursor < len(self._commands)
+            and self._commands[self._cursor].operation_id == operation_id
+        ):
+            self._cursor += 1
+        self._replay()
+        return operation_id
+
+    def discard_operation(self, operation_id: str) -> bool:
+        """Remove an operation's commands outright, wherever it sits in the history.
+
+        Sound because every command holds an absolute value: dropping one operation and
+        replaying the rest gives the state those others describe, with no residue.
+        """
+
+        if not operation_id:
+            return False
+        removed_before_cursor = sum(
+            1 for c in self._commands[: self._cursor] if c.operation_id == operation_id
+        )
+        kept = [c for c in self._commands if c.operation_id != operation_id]
+        if len(kept) == len(self._commands):
+            return False
+        self._commands = kept
+        self._cursor -= removed_before_cursor
+        self._operation_records.pop(operation_id, None)
+        self._replay()
+        return True
+
+    # ── isolated replay ─────────────────────────────────────────────
+
+    def isolated_session(self, operation_ids: Sequence[str]) -> "EditSession":
+        """A fresh session over the pinned vanilla baseline with only these operations replayed.
+
+        This is what makes an earlier shield edit *structurally* unable to enter a later
+        sword package: the isolated session never saw its commands, so no filtering step has
+        to remember to exclude it.
+        """
+
+        wanted = set(operation_ids)
+        isolated = EditSession(self._base)
+        isolated._replaced_base = dict(self._replaced_base)
+        isolated._replacement_source = dict(self._replacement_source)
+        isolated._operation_records = {
+            key: value for key, value in self._operation_records.items() if key in wanted
+        }
+        isolated._commands = [
+            command
+            for command in self._commands[: self._cursor]
+            if command.operation_id in wanted
+        ]
+        isolated._cursor = len(isolated._commands)
+        isolated._replay()
+        return isolated
+
+    def preview_for_operations(self, operation_ids: Sequence[str]) -> Dict[str, bytes]:
+        return self.isolated_session(operation_ids).preview()
+
+    def plan_for_operations(self, operation_ids: Sequence[str], name: str = "operation") -> Plan:
+        return self.isolated_session(operation_ids).to_plan(name)
+
+    def operation_conflicts(self, operation_ids: Sequence[str]) -> List[OperationConflict]:
+        """Fields two selected operations settle differently. Same value is a duplicate."""
+
+        wanted = list(dict.fromkeys(operation_ids))
+        seen: Dict[Tuple[str, str, str, str], Tuple[str, Tuple[object, ...]]] = {}
+        conflicts: List[OperationConflict] = []
+        created: Dict[str, str] = {}
+        for command in self._commands[: self._cursor]:
+            if command.operation_id not in wanted:
+                continue
+            key = (command.kind, command.game_path, command.target, command.field_name)
+            previous = seen.get(key)
+            if previous is None:
+                seen[key] = (command.operation_id, command.value_key)
+            elif previous[0] != command.operation_id and previous[1] != command.value_key:
+                conflicts.append(
+                    OperationConflict(
+                        command.game_path,
+                        command.target,
+                        command.field_name,
+                        previous[0],
+                        command.operation_id,
+                    )
+                )
+            if command.kind == "add_socket":
+                created[command.target] = command.operation_id
+
+        # A socket one operation created and another then re-aimed is a hidden dependency:
+        # packaging either alone gives a different result from packaging both.
+        for command in self._commands[: self._cursor]:
+            if command.operation_id not in wanted:
+                continue
+            if command.kind not in {"translate", "rotate", "reparent"}:
+                continue
+            owner = created.get(command.target)
+            if owner and owner != command.operation_id:
+                conflicts.append(
+                    OperationConflict(
+                        command.game_path,
+                        command.target,
+                        command.field_name,
+                        owner,
+                        command.operation_id,
+                        reason="one operation edits a socket another created",
+                    )
+                )
+        return conflicts
 
     # ── replay ──────────────────────────────────────────────────────
 
@@ -345,6 +993,7 @@ class EditSession:
 
         if not data:
             raise EditError(f"Refusing to write an empty clip to {game_path}")
+        self._check_scope_animation(game_path)
         if original is not None:
             self._replaced_base[game_path] = bytes(original)
         if source:
@@ -387,9 +1036,22 @@ class EditSession:
                 names.update(document.socket_map())
         return sorted(names)
 
+    def sockets_in(self, game_path: str) -> List[str]:
+        """Socket names one file defines right now, pending additions included.
+
+        The authority for whether a name is free. The resolver's view is rebuilt from a preview
+        and can lag by an operation; a uniqueness check that lags produces a duplicate.
+        """
+
+        document = self._documents.get(game_path)
+        if not isinstance(document, SocketDocument):
+            return []
+        return sorted(document.socket_map())
+
     def set_translation(self, game_path: str, name: str, value: Vec3) -> None:
         if self.socket(game_path, name) is None:
             raise EditError(f"No socket {name!r} in {game_path}")
+        self._check_scope_socket_file(game_path)
         self._record(Command("translate", game_path, name, "Translation", translation=value))
 
     def nudge(self, game_path: str, name: str, dx: float = 0.0, dy: float = 0.0, dz: float = 0.0) -> None:
@@ -405,6 +1067,7 @@ class EditSession:
 
         if self.socket(game_path, name) is None:
             raise EditError(f"No socket {name!r} in {game_path}")
+        self._check_scope_socket_file(game_path)
         self._record(
             Command(
                 "rotate", game_path, name, "Rotation",
@@ -425,6 +1088,7 @@ class EditSession:
             raise EditError(f"No socket {name!r} in {game_path}")
         if abs(degrees) < 1e-9:
             return
+        self._check_scope_socket_file(game_path)
         turned = current.rotation.then(Quat.from_axis_angle(axis, degrees))
         self._record(Command("rotate", game_path, name, "Rotation", rotation=turned))
 
@@ -433,9 +1097,11 @@ class EditSession:
 
         if not value.is_normalized():
             raise EditError("Refusing a non-normalized quaternion")
+        self._check_scope_socket_file(game_path)
         self._record(Command("rotate", game_path, name, "Rotation", rotation=value))
 
     def reparent(self, game_path: str, name: str, bone: str) -> None:
+        self._check_scope_socket_file(game_path)
         self._record(Command("reparent", game_path, name, "Parent", text=bone))
 
     def add_base_files(self, files: Mapping[str, bytes]) -> int:
@@ -451,6 +1117,7 @@ class EditSession:
                 self._base[game_path] = bytes(data)
                 added += 1
         if added:
+            self._baseline_revision = ""
             self._replay()
         return added
 
@@ -468,6 +1135,7 @@ class EditSession:
         if not data or game_path in self._base:
             return False
         self._base[game_path] = bytes(data)
+        self._baseline_revision = ""
         self._replay()
         return True
 
@@ -488,6 +1156,7 @@ class EditSession:
             raise EditError(problem)
         if socket.name in document.socket_map():
             raise EditError(f"Socket {socket.name!r} already defined")
+        self._check_scope_socket_file(game_path, name=socket.name, creating=True)
         self._record(Command("add_socket", game_path, socket.name, socket=socket))
 
     def set_route(self, game_path: str, part: str, field_name: str, socket_name: str) -> None:
@@ -504,6 +1173,12 @@ class EditSession:
                 f"Socket {socket_name!r} is not defined by any loaded file; "
                 "create the definition before routing to it"
             )
+        problem = (
+            self._active.scope.allows_descriptor(game_path, part)
+            if self._active is not None else ""
+        )
+        if problem:
+            raise ScopeError(problem)
         self._record(Command("route", game_path, part, field_name, text=socket_name))
 
     def _socket_defined(self, name: str) -> bool:
@@ -511,6 +1186,26 @@ class EditSession:
             isinstance(document, SocketDocument) and name in document.socket_map()
             for document in self._documents.values()
         )
+
+    # ── scope enforcement ───────────────────────────────────────────
+
+    def _check_scope_socket_file(self, game_path: str, *, name: str = "",
+                                 creating: bool = False) -> None:
+        if self._active is None:
+            return
+        scope = self._active.scope
+        problem = scope.allows_socket_file(game_path)
+        if not problem and creating:
+            problem = scope.allows_socket_name(name)
+        if problem:
+            raise ScopeError(problem)
+
+    def _check_scope_animation(self, game_path: str) -> None:
+        if self._active is None:
+            return
+        problem = self._active.scope.allows_animation_target(game_path)
+        if problem:
+            raise ScopeError(problem)
 
     # ── output ──────────────────────────────────────────────────────
 

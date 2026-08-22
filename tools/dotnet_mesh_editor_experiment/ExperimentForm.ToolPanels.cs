@@ -21,19 +21,22 @@ internal sealed partial class ExperimentForm
     _actionHistoryList.Items.Add("No edit actions yet");
     ApplyDarkScrollbars(_actionHistoryList);
 
-    var finish = StyledButton(_options.Embedded ? "Finish Edit Mesh" : "Save Edited Package", height: 30);
-    finish.Click += (_, _) =>
+    if (!_options.DirectAuthoring)
     {
-        if (_options.Embedded)
+        var finish = StyledButton(_options.Embedded ? "Finish Edit Mesh" : "Save Edited Package", height: 30);
+        finish.Click += (_, _) =>
         {
-            RequestFinishEditMesh();
-        }
-        else
-        {
-            SaveAndReport();
-        }
-    };
-    _sessionFinishButton = finish;
+            if (_options.Embedded)
+            {
+                RequestFinishEditMesh();
+            }
+            else
+            {
+                SaveAndReport();
+            }
+        };
+        _sessionFinishButton = finish;
+    }
 
     ConfigureCheckBox(_partPick, "Part Pick", isChecked: false);
     _partPick.CheckedChanged += (_, _) =>
@@ -174,7 +177,6 @@ internal sealed partial class ExperimentForm
         topologySection.Name = "CompactTopologySection";
         _topologySection = topologySection;
         _meshEditOnlySections.Add(topologySection);
-        _ = BuildColourSection(leftStack);
         _viewportSection = AddHelpSection(
             rightStack,
             "Viewport",

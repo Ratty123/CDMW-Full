@@ -3082,7 +3082,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn('"weighted_normals"', compact_body)
         self.assertNotIn('"flip_normals"', compact_body)
 
-    def test_native_mesh_edit_events_are_late_bound_to_real_callbacks(self) -> None:
+    def test_native_mesh_edit_events_are_bound_to_direct_editor_callbacks(self) -> None:
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_ui_sections.py")
 
         connect_body = _function_source(source, "_setup_options_transform_step_016")
@@ -3090,10 +3090,12 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_state.preview_widget.mesh_edit_stroke_previewed.connect(lambda payload: _state._mesh_edit_apply_preview_payload(payload))", connect_body)
         self.assertIn("_state.preview_widget.mesh_edit_stroke_finished.connect(lambda payload: _state._mesh_edit_finish_stroke(payload))", connect_body)
         self.assertIn("_state.preview_widget.mesh_edit_selection_changed.connect(lambda payload: _state._mesh_edit_selection_changed(payload))", connect_body)
-        self.assertIn("_state.alignment_d3d11_preview_host.mesh_edit_stroke_started.connect(lambda payload: _state._mesh_edit_begin_stroke(payload))", connect_body)
-        self.assertIn("_state.alignment_d3d11_preview_host.mesh_edit_stroke_previewed.connect(lambda payload: _state._mesh_edit_apply_preview_payload(payload))", connect_body)
-        self.assertIn("_state.alignment_d3d11_preview_host.mesh_edit_stroke_finished.connect(lambda payload: _state._mesh_edit_finish_stroke(payload))", connect_body)
-        self.assertIn("_state.alignment_d3d11_preview_host.mesh_edit_selection_changed.connect(lambda payload: _state._mesh_edit_selection_changed(payload))", connect_body)
+        direct_source = _read("cdmw/ui/mesh_editor/tab_shell_native_state.py")
+        direct_body = _function_source(direct_source, "_wire_standalone_native_part_events")
+        self.assertIn('(\"mesh_edit_stroke_started\", self._handle_standalone_native_mesh_edit_stroke_started)', direct_body)
+        self.assertIn('(\"mesh_edit_stroke_previewed\", self._handle_standalone_native_mesh_edit_stroke_previewed)', direct_body)
+        self.assertIn('(\"mesh_edit_stroke_finished\", self._handle_standalone_native_mesh_edit_stroke_finished)', direct_body)
+        self.assertIn('(\"mesh_edit_selection_changed\", self._handle_standalone_native_mesh_edit_selection_changed)', direct_body)
 
     def test_static_replacement_topology_actions_use_background_worker(self) -> None:
         source = _mesh_edit_source()

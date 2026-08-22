@@ -9,18 +9,18 @@ def _source(name: str) -> str:
     return (DOTNET / name).read_text(encoding="utf-8")
 
 
-def test_dotnet_texture_region_protocol_is_negotiated_validated_and_acknowledged() -> None:
+def test_dotnet_texture_region_protocol_is_archived_from_the_resident_contract() -> None:
     protocol = _source("ExperimentForm.Protocol.cs")
     region = _source("ExperimentForm.TextureRegionProtocol.cs")
     provenance = _source("HelperBuildProvenance.cs")
     status = _source("MeshViewport.Status.cs")
 
     assert 'ResidentTextureRegionUpdatesCapability = "resident_texture_region_updates_v1"' in region
-    assert 'case "texture_region_update":' in protocol
-    assert "HandleTextureRegionUpdate(root);" in protocol
-    assert '"resident_texture_region_updates_v1"' in provenance
+    assert 'case "texture_region_update":' not in protocol
+    assert "HandleTextureRegionUpdate(root);" not in protocol
+    assert '"resident_texture_region_updates_v1"' not in provenance
     assert "HelperBuildProvenance.ProtocolCapabilities(_options.Profile)" in protocol
-    assert 'capabilities.Add("resident_texture_region_updates_v1")' in status
+    assert 'capabilities.Add("resident_texture_region_updates_v1")' not in status
     assert 'WriteProtocolEvent("texture_region_applied"' in region
     assert 'WriteProtocolEvent("texture_region_failed"' in region
     for field in (

@@ -131,7 +131,6 @@ class MeshEditorDotNetProtocolMixin(
         self.standalone_dotnet_update_ack_start_timer.stop()
         self.standalone_dotnet_update_ack_timer.stop()
         self.standalone_dotnet_update_queue.reset()
-        self.standalone_texture_region_queue.reset()
         self.standalone_dotnet_material_parameter_timer.stop()
         self.standalone_dotnet_pending_material_parameter_payload = None
         _material_commit.remember_sent_material_parameters(self, None)
@@ -262,11 +261,6 @@ class MeshEditorDotNetProtocolMixin(
             handled = self.standalone_dotnet_update_queue.acknowledge(event, payload)
             self._sync_dotnet_update_ack_timer()
             return handled
-        if event in {"texture_region_applied", "texture_region_failed"}:
-            if not self._dotnet_session_matches(payload):
-                return False
-            self._append_dotnet_protocol_event(payload)
-            return self.standalone_texture_region_queue.acknowledge(event, payload)
         if event == "scene_state_update_ack":
             return self._handle_dotnet_scene_state_ack(payload)
         if event == "morph_state_update_ack":
@@ -475,7 +469,7 @@ class MeshEditorDotNetProtocolMixin(
                 )
                 self._set_embedded_dotnet_state("ready", active=True)
                 self._notify_embedded_dotnet_ready()
-                self.update_editor_action_state(selection_empty=self.current_selection_empty)
+            self.update_editor_action_state(selection_empty=self.current_selection_empty)
             self._send_dotnet_session_state()
             comparison_mode, interaction_mode = self._dotnet_initial_scene_modes(
                 embedded=bool(self.standalone_dotnet_target_embedded)
@@ -495,6 +489,7 @@ class MeshEditorDotNetProtocolMixin(
             # route ran inside the Original resolver -- so an import whose
             # Original pane never resolved stayed grey forever.
             self.commit_imported_working_model_materials(reason="resident_ready")
+            self._flush_pending_dotnet_reference_material_resources()
             return True
         if event == "protocol_ready":
             self._observe_dotnet_capabilities(payload)
@@ -507,7 +502,7 @@ class MeshEditorDotNetProtocolMixin(
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("ready", active=True)
                 self._notify_embedded_dotnet_ready()
-                self.update_editor_action_state(selection_empty=self.current_selection_empty)
+            self.update_editor_action_state(selection_empty=self.current_selection_empty)
             # `activated` is emitted *after* the helper has revealed its window.
             # Re-pushing state the rehydrator already delivered before activation
             # makes the helper re-run its interaction-mode controls on screen, so
@@ -532,6 +527,7 @@ class MeshEditorDotNetProtocolMixin(
             # it is resuming into may be a different process that holds none of
             # its materials.
             self.commit_imported_working_model_materials(reason="resident_activated")
+            self._flush_pending_dotnet_reference_material_resources()
             return True
         if event == "deactivated":
             if self.standalone_dotnet_target_embedded:

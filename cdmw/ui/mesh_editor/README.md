@@ -1,8 +1,17 @@
 # Mesh Editor
 
-Owns the Mesh Editor tab shell, typed session requests, empty state, and embedded
-builder hosting. Archive internals and destructive writes stay outside this UI
-package.
+Owns the direct, mesh-only Mesh Editor tab shell, typed archive-session requests,
+resident authoring workspace, and output orchestration. Archive internals and
+destructive writes stay outside this UI package. Static-replacement builder
+hosting remains compatibility-only and is not reachable from normal Mesh Editor
+or Archive Browser UI.
+
+The current product boundary is geometry authoring: selection, topology,
+transforms, normals/tangents, rigging, Morph & Refit, UV-coordinate editing,
+history, original-vs-edited review, validation, and read-only textured display.
+Texture/material assignment, recolour/glow authoring, replacement/import-preview
+workflows, in-game swaps, and Texture Editor handoffs are not Mesh Editor
+features. Dedicated texture tools and New Item Studio own those jobs.
 
 `tab.py` is the stable public Qt class. Bounded `tab_*.py` owners hold shell,
 native-preview, package, .NET protocol/process, report, session, state,
@@ -20,8 +29,16 @@ service-backed workspace summary. Its Compare tab renders the service-backed
 source-vs-edited summary and emits preview-mode requests for edited, source,
 and ghost overlay views.
 
-`MeshEditorTab.open_mesh_session()` opens a standalone in-tab edit session for a
-`ParsedMesh` without starting the full Archive Browser builder. It routes toolbar
+`MeshEditorTab.open_archive_session()` is the normal entry point. A correlated,
+cancellable `MeshArchiveSessionLoadWorker` reads and round-trip-validates the
+exact archive bytes, creates the authoritative `MeshService` edit session, and
+publishes only the current completion. Matching source-hash drafts open against
+the current source and produce the non-modal Resume/Start Fresh banner; starting
+fresh never deletes a draft. `MeshEditorTab.open_session()` remains a compatibility
+wrapper over this direct contract.
+
+`MeshEditorTab.open_mesh_session()` opens a scripted in-tab edit session for a
+`ParsedMesh` without starting Archive Browser UI. It routes toolbar
 actions through `MeshEditorController`, updates the native preview host when one
 is attached, and falls back to refreshing the lightweight preview panel.
 `MeshEditorController.native_update_for_result()` is native-payload-only; Python
@@ -33,7 +50,14 @@ session path for scripted callers. UI callers should use
 `MeshEditorTab.open_mesh_file_session_async()`, which runs file IO, parsing, and
 service session creation in `MeshFileSessionLoadWorker`, then attaches the
 controller and already-loaded mesh on the UI thread.
-The standalone and embedded Mesh Editor viewport is .NET/Vortice-only.
+The direct Mesh Editor viewport is .NET/Vortice-only. The helper launches with
+`--direct-authoring`: edit controls are visible immediately, placement and the
+Edit Mesh toggle are absent, and Qt owns close and output actions.
+Normal sessions expose only that resident **Mesh Edit Session** form plus the
+compact Qt-owned validation/output/package strip beneath it. The earlier Qt
+mode row, Tools/Edit/UV/Rig deck, duplicate part/material and report tabs, and
+status/performance log remain constructed only for compatibility callers and
+are hidden from the normal product surface.
 `start_standalone_native_preview()` and its async counterpart are the live entry
 point into that renderer: they push session and scene state to a running .NET
 editor process, or start one when none is running. The Python D3D11 preview host
@@ -79,13 +103,11 @@ rollback result so provisional selection cannot remain stranded.
 pre-export validator for the active session.
 `MeshEditorController.workspace_summary()` exposes the service-backed part,
 material route, UV channel, and skinning summary for panel rendering. Whole-part
-selection belongs to the explicit Parts & Routing/PARTS lists: clicking a row
-toggles it without clearing other selected rows, and the part context menu
-routes clone/delete/normal/texture actions through `MeshEditorController` and
-`MeshService`. The Parts & Routing panel also shows
-selected-part count, names, material routes, and textures, exposes visible
-select-all/clear/invert and clone/delete/normal/texture buttons, and disables
-unavailable texture actions when the current selected part has no texture.
+selection belongs to the explicit Parts/PARTS lists: clicking a row toggles it
+without clearing other selected rows, and the part context menu routes
+clone/delete/normal actions through `MeshEditorController` and `MeshService`.
+Material and texture names remain read-only diagnostics; no assignment or copy
+action is exposed.
 `MeshEditorController.compare_summary()` exposes source-vs-edited topology,
 bounds, scale, orientation, material, texture, and UV mismatch data for the
 workspace Compare panel.
@@ -94,13 +116,11 @@ They cannot change a PARTS selection or open its menu. The historical
 `select_parts` action key is retained for settings/dynamic callers but presents
 as Select and arms vertex selection, never source-part picking.
 Production .NET stores separate `reference` (Original) and `editable`
-(Imported/Modify) presentation contexts over one document/resource owner.
-Placement can use any supported preview mode. Edit Mesh always presents only
-Imported/Modify, pins navigation to its editable camera context, and disables
-the Original selector. Entering Edit Mesh defaults its editable viewport to
-Wire + Vertices, which draws only wires and vertices and never solid fill;
-leaving Edit Mesh restores the Builder's selected
-placement preview mode without restarting the resident renderer.
+presentation contexts over one document/resource owner. Direct authoring starts
+in `mesh_edit`/`replacement_only`, pins navigation to the editable camera, and
+does not expose placement mode or an Edit Mesh toggle. The helper's Mesh View
+selector is the one visible authority, including **Solid (Textured)**; changing
+geometry or UVs keeps the same resident source-material bindings.
 After that initial default, the selected display mode is authoritative: tool,
 selection, scene, material, and tab-visibility publications add their overlays
 without replacing it, so Solid stays Solid while selecting or editing. The
@@ -369,16 +389,10 @@ Undo/Redo history are runtime-only. Closing with dirty state waits off the UI
 thread; a failed save leaves the editor open for Retry or an explicitly
 confirmed Close Without Saving.
 
-`MeshEditorController.uv_summary()` exposes service-backed UV island bounds,
-selection, and texture routing for the workspace UV panel.
-The workspace UV tab includes a non-mutating `MeshUvCanvas` that paints the
-current UV island bounds over a texture/grid backdrop from that summary.
-Drag-box and right-drag lasso selection on that canvas emit UV bounds/polygons;
-`MeshEditorTab` routes them through `MeshEditorController`/`MeshService` before
-sending normal native selection refresh payloads.
-UV toolbar descriptors route move/rotate/flip, island transforms, normalize,
-axis align, island pack, grid/pixel snap, and planar/box/cylindrical projection
-through `MeshService`; widgets do not mutate UV arrays directly.
+`MeshEditorController.uv_summary()` and the service-owned UV actions remain
+available to retained compatibility and automation callers. The old Qt UV
+canvas and icon grid are no longer a visible second editor beside the resident
+form; any future normal-product UV surface belongs in the resident workspace.
 `MeshEditorController.skeleton_summary()` exposes service-backed skinned part,
 bone-index, weight-normalization, and linked-skeleton metadata status for the
 workspace Skeleton panel.
@@ -473,40 +487,41 @@ local PAC/PAM/PAMLOD file sessions also load and attach a sibling or
 supplemental `.pab` skeleton when one is available.
 The read-only PAC/PAB/PABC relationship evidence and confidence rules behind
 that discovery are recorded outside this repository.
-`MeshEditorController.texture_edit_target()` exposes the selected material
-texture target. `MeshEditorTab.open_texture_source_requested` hands local or
-archive-cache-materialized DDS files to the existing Texture Editor bridge; the
-Mesh Editor does not load or export texture documents itself. Archive-only
-texture names resolve through shell-owned archive indexes and
-`ensure_archive_preview_source()` before opening. Texture Editor DDS results
-carry explicit preview/assign semantics back to Mesh Editor. Compressed preview
-stores a transient per-part override without mutating the edit session.
-Export/Assign routes through the resident `material_assign` command, so the
-binding participates in revisioned undo/redo and editable-package export; a
-running .NET/Vortice session receives an authoritative `material_state_update`
-without a renderer restart.
-Linked base/albedo edits also emit deferred tight BGRA8 dirty regions after a
-history commit, undo, or redo. The .NET bridge derives the active material
-resource ID, keeps one in-flight update plus one latest-wins pending union per
-resource, leases an initial composite read-only until its worker copy completes,
-and deletes owned binary payloads on acknowledgement or shutdown. A concurrent
-Texture Editor mutation takes a copy-on-write cache instead of changing the
-emitted composite.
-Full DDS assignment remains the export-authoritative fallback.
-Resident material resources use the Python-owned criticality contract. Required
-concrete base resources block initial Ready on decode failure; optional normal,
-surface, emissive, height, and legacy/symbolic resources keep an explicit
-fallback plus diagnostic. Late original/reference textures use a render-only
-reference-role generation and never commit into the editable export session.
-glTF/green-up normal inputs carry `invert_green_for_directx` to the HLSL path;
-already-DirectX inputs preserve green.
-Source DDS paths take precedence over preview PNG paths. Supported 2D DDS
-resources keep their native DXGI format and full mip chain, with semantic
-sRGB/linear SRVs and per-resource upload diagnostics. Region painting remains
-copy-on-write and affects only its resource; its mutable BGRA resource keeps a
-full mip chain regenerated after each boxed upload. Shader-family, alpha, culling,
-opacity, and occlusion evidence are resident state; unproven layer, hair/fur,
-skin, and blended-alpha behavior is reported rather than approximated.
+Texture resolution is read-only. Mesh Editor reuses an already-resolved Archive
+Browser material context when one exists. A geometry-only handoff starts a
+request-correlated material-context worker over the same archive preview resolver;
+selecting **Solid (Textured)** waits on that worker and the resident material
+acknowledgement rather than failing because Archive Browser had not loaded textures
+first. If a required texture cannot decode or bind, the choice reports the failure
+and visibly falls back to an untextured mode without blocking geometry editing.
+Mesh Editor never writes DDS data, material sidecars, PAMT, or PAZ archives. The
+retired Texture Editor bridge, DDS-region update queue/capability, and Colour page
+remain archived implementation only and are not constructed, advertised, or
+dispatched by the normal product.
+
+`MeshObjectTransformState` is part of `MeshEditSessionView` and every history and
+draft snapshot. `MeshService.set_object_transform()` applies one affine delta to
+every submesh through the native all-submesh path around the fixed original
+source-bounds centre. Location, rotation, linked or independent XYZ scale,
+15-degree tilt buttons, and position/rotation/scale/all resets each publish one
+undoable gesture without changing selection. Editable-package import resets the
+controls to identity because the imported geometry already contains its
+transform. The legacy separate Qt panel remains a compatibility surface and is
+not mounted beside the direct resident form.
+
+Mesh-only outputs first drain pending resident strokes, then capture one
+immutable validated session/revision snapshot. **Export Mesh File** atomically
+publishes the rebuilt asset and report. **Build Mod** publishes either a loose
+mesh-only folder or a DMM archive-group overlay package. **Install as Overlay**
+prepares the exact mount-list change, carry-forward set and backup targets before
+confirmation; apply rechecks the game state, stages and validates the complete
+overlay, backs up through `ArchiveMutationService`, and publishes the mount list
+last. The resident helper is the editor rather than a blocking output task, so
+**Run validation** and the validation-gated output controls remain enabled while
+that helper is open. Cancellation or failure after backup rolls back. The receipt consumed by
+**Restore Last Overlay Install** restores the prior overlay/mount state and
+removes only paths created by that receipt. Source textures and material
+sidecars remain inherited and unchanged.
 
 Resident output import is prepare-then-commit. The worker prepares and validates
 an immutable replacement against a session/revision snapshot without touching

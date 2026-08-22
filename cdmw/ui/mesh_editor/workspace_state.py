@@ -34,6 +34,7 @@ from cdmw.domain.mesh import (
     MeshCompareSummary,
     MeshEditSelection,
     MeshEditSessionView,
+    MeshObjectTransformState,
     MeshExportValidationReport,
     MeshSkeletonSummary,
     MeshUvSummary,
@@ -134,15 +135,15 @@ class WorkspaceStateMixin:
             "preview_skeleton_button",
             "preview_pose_button",
             "run_rebuild_report_button",
-            "rebuild_asset_button",
-            "preview_rebuilt_asset_button",
-            "package_rebuilt_asset_button",
+            "export_mesh_file_button",
+            "build_mod_button",
+            "install_overlay_button",
+            "restore_overlay_button",
             "save_rebuild_report_button",
             "pose_preview_button",
             "animation_speed_combo",
             "animation_scrub_slider",
             "part_selection_summary_label",
-            "open_texture_button",
             "compare_mode_combo",
             "status_label",
             "part_status_label",
@@ -222,9 +223,9 @@ class WorkspaceStateMixin:
         rebuild_button = getattr(self, "run_rebuild_report_button", None)
         if rebuild_button is not None:
             rebuild_button.setEnabled(bool(has_target) and not self._embedded_controls_only)
-        rebuild_asset_button = getattr(self, "rebuild_asset_button", None)
-        if rebuild_asset_button is not None:
-            rebuild_asset_button.setEnabled(
+        export_mesh_file_button = getattr(self, "export_mesh_file_button", None)
+        if export_mesh_file_button is not None:
+            export_mesh_file_button.setEnabled(
                 bool(has_target) and self._export_validation_ok and not self._embedded_controls_only
             )
         dotnet_button = getattr(self, "dotnet_editor_button", None)
@@ -241,16 +242,12 @@ class WorkspaceStateMixin:
         save_button = getattr(self, "save_rebuild_report_button", None)
         if save_button is not None:
             save_button.setEnabled(bool(has_target) and self._has_rebuild_report and not self._embedded_controls_only)
-        preview_rebuilt_button = getattr(self, "preview_rebuilt_asset_button", None)
-        if preview_rebuilt_button is not None:
-            preview_rebuilt_button.setEnabled(
-                bool(has_target) and self._has_rebuilt_asset_output and not self._embedded_controls_only
-            )
-        package_rebuilt_button = getattr(self, "package_rebuilt_asset_button", None)
-        if package_rebuilt_button is not None:
-            package_rebuilt_button.setEnabled(
-                bool(has_target) and self._has_rebuilt_asset_output and not self._embedded_controls_only
-            )
+        for name in ("build_mod_button", "install_overlay_button"):
+            button = getattr(self, name, None)
+            if button is not None:
+                button.setEnabled(
+                    bool(has_target) and self._export_validation_ok and not self._embedded_controls_only
+                )
         copy_validation_button = getattr(self, "copy_validation_report_button", None)
         if copy_validation_button is not None:
             copy_validation_button.setEnabled(
@@ -259,15 +256,14 @@ class WorkspaceStateMixin:
         run_validation_button = getattr(self, "run_validation_report_button", None)
         if run_validation_button is not None:
             run_validation_button.setEnabled(bool(has_target) and not self._embedded_controls_only)
-        open_texture_button = getattr(self, "open_texture_button", None)
-        if open_texture_button is not None:
-            self._sync_part_controls()
+        self._sync_part_controls()
         compare_combo = getattr(self, "compare_mode_combo", None)
         if compare_combo is not None:
             compare_combo.setEnabled(bool(has_target))
 
     def update_session_summary(self, view: MeshEditSessionView | None, *, mesh_label: str = "") -> None:
         if view is None:
+            self.update_object_transform(MeshObjectTransformState())
             self._selection_state = MeshEditSelection()
             self.outliner.clear()
             self.outliner.addTopLevelItem(QTreeWidgetItem(("No mesh", "0", "")))
@@ -278,6 +274,7 @@ class WorkspaceStateMixin:
             self.skeleton_tree.clear()
             self.skeleton_tree.addTopLevelItem(QTreeWidgetItem(("No skeleton", "")))
             return
+        self.update_object_transform(view.object_transform)
         self._selection_state = view.selection
         label = str(mesh_label or view.session_id or "mesh")
         self.outliner.clear()

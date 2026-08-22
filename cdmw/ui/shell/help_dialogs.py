@@ -28,7 +28,7 @@ _QUICK_START_HTML_ES = """
 <p><b>Crimson Desert Mod Workbench</b> es una herramienta de archivos y archivos sueltos para Crimson Desert. Cubre extraccion, investigacion, edicion, reconstruccion DDS, escalado opcional, comparacion y exportacion suelta lista para mods.</p>
 <ul>
   <li><b>Explorador de archivos</b>: escanear .pamt/.paz, previsualizar recursos compatibles, filtrar, clasificar y extraer a carpetas sueltas.</li>
-  <li><b>Acciones de malla</b>: exportar OBJ/FBX, probar <b>Importar vista de malla</b>, probar texturas con <b>Vista previa de importar DDS</b>, ejecutar <b>Importar malla</b>, alinear reemplazos estaticos y usar <b>Intercambiar con malla del juego</b> cuando otra malla del archivo deba ser el origen.</li>
+  <li><b>Editor de mallas</b>: abrir una malla compatible directamente desde el archivo para editar geometria, topologia, normales, rigging, Morph &amp; Refit, coordenadas UV y transformacion del objeto. Las texturas son de solo lectura en Vista de malla.</li>
   <li><b>Flujo de texturas</b>: escanear DDS sueltos, convertir DDS a PNG si hace falta, escalar opcionalmente, reconstruir DDS, comparar resultados y exportar salida mod-ready.</li>
   <li><b>Editor de texturas</b>: abrir imagenes para edicion visible por capas y enviar la salida plana al flujo de reconstruccion.</li>
   <li><b>Asistente de reemplazo</b>: tomar PNG/DDS editados, asociarlos con el DDS original del juego, reconstruir la salida corregida y preparar carpetas mod-ready.</li>
@@ -49,16 +49,16 @@ _QUICK_START_HTML_ES = """
   <li>Usa <b>Vista de politica</b> antes de <b>Iniciar</b> para revisar la accion planeada por textura.</li>
   <li>Ejecuta un subconjunto pequeno primero y revisa el resultado en <b>Comparar</b>.</li>
   <li>Si ya editaste una textura fuera de la app, usa <b>Asistente de reemplazo</b>.</li>
-  <li>Para mallas, empieza en <b>Explorador de archivos</b>: selecciona una malla .pam/.pamlod/.pac, usa <b>Importar vista de malla</b> para probar sin escribir y usa <b>Importar malla</b> solo cuando la alineacion y las texturas se vean correctas.</li>
+  <li>Para mallas, selecciona una .pam/.pamlod/.pac compatible en <b>Explorador de archivos</b> y elige <b>Abrir en el Editor de mallas</b>. Los controles de edicion aparecen de inmediato.</li>
 </ol>
 <h3>Guia rapida de mallas</h3>
 <ul>
   <li><b>Exportar OBJ/FBX</b>: util para inspeccionar o editar externamente. OBJ es la base de round-trip cuando la app puede escribir los metadatos necesarios.</li>
-  <li><b>Importar vista de malla</b>: abre la revision y <b>Alineacion de reemplazo de malla</b> sin escribir salida.</li>
-  <li><b>Vista previa de importar DDS</b>: prueba una textura DDS en el modelo seleccionado sin escribir salida.</li>
-  <li><b>Importar malla</b>: despues de revisar, permite exportar salida suelta mod-ready o parchear archivos donde sea compatible.</li>
-  <li><b>Intercambiar con malla del juego</b>: primero marca la malla seleccionada como destino, luego selecciona otra malla del archivo como origen. La app abre la misma alineacion de reemplazo y puede incluir texturas, sidecars, esqueletos o animaciones relacionadas cuando corresponda.</li>
-  <li><b>GLB/glTF/DAE</b>: se tratan como fuentes estaticas. No convierten skins, huesos, animaciones ni grafos PBR complejos a datos nativos del juego.</li>
+  <li><b>Transformacion del objeto</b>: mueve todas las partes alrededor del centro fijo de los limites originales. Cada gesto completado de ubicacion, rotacion, escala, inclinacion o reinicio es un paso de Deshacer.</li>
+  <li><b>Solido (con texturas)</b>: revisa la geometria editada con las texturas heredadas del origen. Si falla el enlace, vuelve a una vista sin texturas sin bloquear la edicion.</li>
+  <li><b>Exportar archivo de malla</b>: escribe de forma atomica la malla reconstruida y el informe.</li>
+  <li><b>Construir mod</b>: crea una carpeta suelta solo de malla o un paquete overlay de grupo de archivo DMM.</li>
+  <li><b>Instalar como overlay</b>: confirma el cambio exacto, crea copias de seguridad y publica la lista de montaje al final. Nunca parchea los archivos PAMT/PAZ distribuidos.</li>
 </ul>
 <h3>Areas principales</h3>
 <ul>
@@ -88,7 +88,7 @@ _QUICK_START_HTML_DE = """
 <p><b>Crimson Desert Mod Workbench</b> ist ein Archiv- und Loose-File-Werkzeug fuer Crimson Desert. Es deckt Extraktion, Research, Bearbeitung, DDS-Neuaufbau, optionales Upscaling, Vergleich und mod-fertigen Loose-Export ab.</p>
 <ul>
   <li><b>Archiv-Browser</b>: .pamt/.paz scannen, unterstuetzte Assets anzeigen, filtern, klassifizieren und in lose Ordner extrahieren.</li>
-  <li><b>Mesh-Aktionen</b>: OBJ/FBX exportieren, <b>Mesh-Importvorschau</b> testen, Texturen mit <b>DDS-Importvorschau</b> pruefen, <b>Mesh importieren</b> ausfuehren, statische Ersetzungen ausrichten und <b>Mit Ingame-Mesh tauschen</b> nutzen, wenn eine andere Archiv-Mesh als Quelle dienen soll.</li>
+  <li><b>Mesh-Editor</b>: eine unterstuetzte Archiv-Mesh direkt fuer Geometrie, Topologie, Normalen, Rigging, Morph &amp; Refit, UV-Koordinaten und Objekttransformationen oeffnen. Texturen sind in der Mesh-Ansicht schreibgeschuetzt.</li>
   <li><b>Textur-Workflow</b>: lose DDS scannen, DDS bei Bedarf zu PNG konvertieren, optional hochskalieren, DDS neu erstellen, Ergebnisse vergleichen und mod-fertige Ausgabe exportieren.</li>
   <li><b>Textur-Editor</b>: Bilder fuer sichtbare Ebenenbearbeitung oeffnen und die flache Ausgabe zurueck in den Neuaufbau senden.</li>
   <li><b>Ersetzungsassistent</b>: bearbeitete PNG/DDS mit dem Original-DDS abgleichen, korrigierte Ausgabe neu erstellen und mod-fertige Ordner vorbereiten.</li>
@@ -109,16 +109,16 @@ _QUICK_START_HTML_DE = """
   <li>Nutze <b>Richtlinienvorschau</b> vor <b>Start</b>, um die geplante Aktion pro Textur zu pruefen.</li>
   <li>Fuehre zuerst eine kleine Auswahl aus und pruefe das Ergebnis in <b>Vergleichen</b>.</li>
   <li>Wenn du eine Textur bereits extern bearbeitet hast, nutze den <b>Ersetzungsassistent</b>.</li>
-  <li>Fuer Meshes im <b>Archiv-Browser</b> starten: .pam/.pamlod/.pac waehlen, mit <b>Mesh-Importvorschau</b> ohne Schreiben testen und <b>Mesh importieren</b> erst nutzen, wenn Ausrichtung und Texturen korrekt aussehen.</li>
+  <li>Fuer Meshes eine unterstuetzte .pam/.pamlod/.pac im <b>Archiv-Browser</b> waehlen und <b>Im Mesh-Editor oeffnen</b>. Die Bearbeitungswerkzeuge sind sofort sichtbar.</li>
 </ol>
 <h3>Schnellguide fuer Meshes</h3>
 <ul>
   <li><b>OBJ/FBX exportieren</b>: nuetzlich fuer Inspektion oder externe Bearbeitung. OBJ ist die Roundtrip-Basis, wenn die App die noetigen Metadaten schreiben kann.</li>
-  <li><b>Mesh-Importvorschau</b>: oeffnet Review und <b>Mesh-Ersetzungsausrichtung</b>, ohne Ausgabe zu schreiben.</li>
-  <li><b>DDS-Importvorschau</b>: testet eine DDS-Textur am gewaehlten Modell, ohne Ausgabe zu schreiben.</li>
-  <li><b>Mesh importieren</b>: nach der Pruefung mod-fertige Loose-Ausgabe oder Patch schreiben, wo kompatibel.</li>
-  <li><b>Mit Ingame-Mesh tauschen</b>: zuerst die ausgewaehlte Mesh als Ziel markieren, dann eine andere Archiv-Mesh als Quelle waehlen. Die App oeffnet dieselbe Ersetzungsausrichtung und kann passende Texturen, Sidecars, Skelette oder Animationen einschliessen.</li>
-  <li><b>GLB/glTF/DAE</b>: werden als statische Quellen behandelt. Skins, Knochen, Animationen und komplexe PBR-Graphen werden nicht in native Spieldaten konvertiert.</li>
+  <li><b>Objekttransformation</b>: bewegt alle Teile um das feste Zentrum der urspruenglichen Quellgrenzen. Jede abgeschlossene Positions-, Rotations-, Skalierungs-, Neigungs- oder Reset-Geste ist ein Rueckgaengig-Schritt.</li>
+  <li><b>Solid (texturiert)</b>: zeigt die bearbeitete Geometrie mit geerbten Quelltexturen. Ein Bindefehler faellt sichtbar auf untexturierte Darstellung zurueck, ohne die Bearbeitung zu blockieren.</li>
+  <li><b>Mesh-Datei exportieren</b>: schreibt die neu gebaute Mesh und den Bericht atomar.</li>
+  <li><b>Mod bauen</b>: erstellt einen losen Mesh-Ordner oder ein DMM-Archivgruppen-Overlay-Paket.</li>
+  <li><b>Als Overlay installieren</b>: bestaetigt die exakte Aenderung, sichert und publiziert die Mount-Liste zuletzt. Ausgelieferte PAMT-/PAZ-Archive werden nie gepatcht.</li>
 </ul>
 <h3>Hauptbereiche</h3>
 <ul>
@@ -177,11 +177,11 @@ class QuickStartDialog(QDialog):
             <p><b>Crimson Desert Mod Workbench</b> is a read-only archive and loose-file workflow tool for Crimson Desert. It is built around extraction, research, editing, DDS rebuild, optional upscaling, comparison, and mod-ready loose export.</p>
             <ul>
               <li><b>Archive Browser</b>: scan <b>.pamt/.paz</b>, preview supported assets, filter, classify, and extract to loose folders.</li>
-              <li><b>Mesh Actions</b>: export OBJ/FBX, test <b>Import Mesh Preview</b>, preview texture overrides with <b>Import DDS Preview</b>, run <b>Import Mesh</b>, align static replacements, and use <b>Swap With In-Game Mesh</b> when another loaded archive mesh should become the source.</li>
+              <li><b>Mesh Editor</b>: open a supported archive mesh directly for geometry, topology, normals, rigging, Morph &amp; Refit, UV-coordinate and object-transform work; textures remain read-only in Mesh View.</li>
               <li><b>Texture Workflow</b>: scan loose DDS files, convert DDS to PNG when needed, optionally upscale, rebuild DDS, compare results, and export loose mod output.</li>
               <li><b>Texture Editor</b>: open images directly for layered visible-texture editing and send flattened output back into the rebuild flow.</li>
               <li><b>Texture Replacer</b>: take edited PNG/DDS files, match them to the original game DDS, rebuild corrected output, and prepare mod-ready folders.</li>
-              <li><b>Model Library</b>: scan local/importable models, use mirror catalogue metadata, preview models, and route imports to archive workflows.</li>
+              <li><b>Model Library</b>: scan and preview local/importable models, then use one in New Item Studio.</li>
               <li><b>Icon Creator</b>: manage icon source images and generate compatible item-icon packages from archive targets.</li>
               <li><b>Research</b>: inspect grouped texture families, unknown classifications, references, DDS analysis, reports, and local notes.</li>
               <li><b>Text Search</b>: search archive or loose text-like files such as <b>.xml</b>, <b>.json</b>, <b>.cfg</b>, and <b>.lua</b>.</li>
@@ -202,21 +202,21 @@ class QuickStartDialog(QDialog):
               <li>Run a small subset first, then review the output in <b>Compare</b> before trying a larger batch.</li>
               <li>If you already edited a texture outside the app, use <b>Texture Replacer</b> instead of the batch workflow.</li>
               <li>If you want to edit visible textures inside the app, open them in <b>Texture Editor</b> and then send the flattened result back into <b>Texture Replacer</b> or <b>Texture Workflow</b>.</li>
-              <li>For mesh work, start in <b>Archive Browser</b>: select a <b>.pam</b>, <b>.pamlod</b>, or <b>.pac</b>, use <b>Import Mesh Preview</b> to test without writing, and use <b>Import Mesh</b> only after alignment and texture choices look correct.</li>
+              <li>For mesh work, select a <b>.pam</b>, <b>.pamlod</b>, or <b>.pac</b> in <b>Archive Browser</b> and choose <b>Open in Mesh Editor</b>. The edit controls are ready immediately.</li>
             </ol>
             <h3>Mesh Quick Guide</h3>
             <ul>
               <li><b>Export OBJ/FBX</b>: use this for inspection or external editing. OBJ is the round-trip baseline when the app can write the companion metadata needed for import.</li>
-              <li><b>Import Mesh Preview</b>: opens review and <b>Mesh Replacement Alignment</b> without writing archive or loose output.</li>
-              <li><b>Import DDS Preview</b>: tests a DDS texture override on the selected model without writing output.</li>
-              <li><b>Import Mesh</b>: after review, writes a supported replacement as mod-ready loose output or an archive patch where that workflow is available.</li>
-              <li><b>Swap With In-Game Mesh</b>: first mark the selected archive mesh as the target, then choose another loaded archive mesh as the source. The app opens the same replacement alignment flow and can carry related textures, sidecars, skeletons, or animations when appropriate.</li>
-              <li><b>GLB/glTF/DAE</b>: treated as static replacement sources. Skins, bones, animations, and complex PBR material graphs are not converted into native game material data.</li>
+              <li><b>Object Transform</b>: moves every part around the fixed source-bounds centre; each completed location, rotation, scale, tilt, or reset gesture is one Undo step.</li>
+              <li><b>Solid (Textured)</b>: reviews the edited geometry with inherited source textures. A bind failure falls back to an untextured mode and does not block mesh editing.</li>
+              <li><b>Export Mesh File</b>: atomically writes the rebuilt mesh and report.</li>
+              <li><b>Build Mod</b>: writes a mesh-only loose folder or DMM archive-group package.</li>
+              <li><b>Install as Overlay</b>: shows the exact mount change and backup targets, confirms, writes the mount list last, and provides receipt-based restore. It never patches shipped PAMT/PAZ archives.</li>
             </ul>
             <h3>Pick The Right Starting Path</h3>
             <ul>
               <li><b>I want to look inside the game files</b>: open <b>Archive Browser</b>, choose a package root, scan, filter, preview, and extract selected files.</li>
-              <li><b>I want to replace a model</b>: use <b>Archive Browser</b> mesh actions, start with <b>Import Mesh Preview</b>, then continue to <b>Import Mesh</b> or <b>Swap With In-Game Mesh</b> after checking alignment.</li>
+              <li><b>I want to edit a game mesh</b>: use <b>Open in Mesh Editor</b> from Archive Browser. For a new model or asset, use <b>New Item Studio</b>.</li>
               <li><b>I want to batch-process loose DDS files</b>: use <b>Texture Workflow</b> with a small folder first, then review in <b>Compare</b>.</li>
               <li><b>I already edited one texture</b>: use <b>Texture Replacer</b> so the original DDS controls format, dimensions, mips, and output path.</li>
               <li><b>I want to edit inside the app</b>: use <b>Texture Editor</b>, save a project if you need layers later, then export or send the flattened PNG onward.</li>
@@ -234,7 +234,7 @@ class QuickStartDialog(QDialog):
               <li>Open Documentation for detailed field references, recipes, troubleshooting, and FAQs.</li>
             </ul>
             <h3>Where Details Live</h3>
-            <p><b>Help &gt; Documentation</b> is topic-based and searchable. Use it for mesh import/swap steps, archive guides, Texture Workflow profiles and rules, Texture Editor tools, Texture Replacer packaging, Research, Text Search, settings, troubleshooting, and FAQs.</p>
+            <p><b>Help &gt; Documentation</b> is topic-based and searchable. Use it for direct mesh editing and safe outputs, archive guides, Texture Workflow profiles and rules, Texture Editor tools, Texture Replacer packaging, Research, Text Search, settings, troubleshooting, and FAQs.</p>
             """
         )
         self.browser.setFont(self.font())

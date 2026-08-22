@@ -56,7 +56,7 @@ from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
 _LEFT_TOOL_PAGES = (
     ("Tools", ("selection", "transform", "sculpt")),
     ("Edit", ("topology", "cleanup", "normals", "history")),
-    ("UV", ("uv", "material")),
+    ("UV", ("uv",)),
     ("Rig", ()),
 )
 _LEFT_CATEGORY_LABELS = {
@@ -67,7 +67,6 @@ _LEFT_CATEGORY_LABELS = {
     "cleanup": "Cleanup",
     "normals": "Normals",
     "uv": "UV",
-    "material": "Material",
     "history": "History",
 }
 
@@ -188,14 +187,42 @@ class WorkspaceShellBuilderMixin:
     def _build_body(self, theme_key: str) -> QWidget:
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
         splitter.setObjectName("MeshEditorWorkspaceBody")
-        splitter.addWidget(self._build_left_palette())
-        splitter.addWidget(self._build_preview_area(theme_key))
-        splitter.addWidget(self._build_right_panels())
+        left_palette = self._build_left_palette()
+        central_preview = self._build_preview_area(theme_key)
+        right_panels = self._build_right_panels()
+        splitter.addWidget(left_palette)
+        splitter.addWidget(central_preview)
+        splitter.addWidget(right_panels)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
-        splitter.setSizes((190, 900, 340))
+        left_palette.setVisible(False)
+        right_panels.setVisible(False)
+        splitter.setHandleWidth(0)
+        splitter.setSizes((0, 1, 0))
+        self._install_direct_output_controls(central_preview)
         return splitter
+
+    def _install_direct_output_controls(self, parent: QWidget) -> None:
+        """Keep required Qt-owned outputs on the otherwise resident-only surface."""
+
+        controls = self.preview_controls_layout
+        direct_buttons = (
+            self.run_validation_report_button,
+            self.export_mesh_file_button,
+            self.build_mod_button,
+            self.install_overlay_button,
+            self.restore_overlay_button,
+        )
+        self.run_validation_report_button.setText("Run validation")
+        for index, button in enumerate(direct_buttons):
+            button.setParent(parent)
+            controls.insertWidget(index, button)
+            button.setVisible(True)
+        # The resident helper is already the active editor. Re-launching the old
+        # experiment from inside that editor is the obsolete extra entry point
+        # shown beside Export/Import/Open in the previous shell.
+        self.dotnet_editor_button.setVisible(False)
 
     def _build_left_palette(self) -> QWidget:
         frame = QFrame(self)
@@ -346,6 +373,7 @@ class WorkspaceShellBuilderMixin:
         self.native_host_frame = DotNetPreviewHostFrame(
             frame,
             profile=DotNetPreviewProfile.AUTHORING,
+            direct_authoring=True,
         )
         self.native_host_frame.setObjectName("MeshEditorStandaloneDotNetVorticeHost")
         # Retained off-stack as a data/settings compatibility adapter.  The
@@ -360,6 +388,7 @@ class WorkspaceShellBuilderMixin:
 
         controls = QHBoxLayout()
         controls.setSpacing(6)
+        self.preview_controls_layout = controls
         self.native_preview_button = QPushButton(".NET/Vortice", frame)
         self.native_preview_button.setObjectName("MeshEditorStandaloneNativePreviewButton")
         self.native_preview_button.setToolTip("Reload the resident .NET/Vortice preview.")

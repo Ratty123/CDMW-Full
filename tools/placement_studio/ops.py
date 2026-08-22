@@ -300,6 +300,18 @@ def _is_prerequisite(game_path: str) -> bool:
     return any(game_path.lower().endswith(suffix) for suffix in _PREREQUISITE_SUFFIXES)
 
 
+def is_animation_payload(game_path: str) -> bool:
+    """Is this whole-file replacement an animation clip?
+
+    Worth telling apart. A clip substitution and a carried prerequisite land in the same tier
+    — both are opaque bytes — so a report that goes by tier alone files a batch of animation
+    replacements under "carried prerequisite payloads", where nobody reviewing the package
+    would think to look for them.
+    """
+
+    return normalize_game_path(game_path).lower().endswith(".paa")
+
+
 def descriptor_alias_source(game_path: str) -> str:
     """Return the canonical descriptor a root-level alias mirrors, if any.
 
@@ -384,7 +396,14 @@ def derive_file(
             "file_replace" if vanilla is not None else "file_add",
             path,
             "*",
-            {"sha256": digest, "size": len(modded), "origin": origin or ""},
+            {
+                "sha256": digest,
+                "size": len(modded),
+                "origin": origin or "",
+                # What the bytes *are*, so a report can say "animation substitution" instead
+                # of filing a draw under carried prerequisites.
+                "payload_kind": "animation" if is_animation_payload(path) else "file",
+            },
         )
     ]
 

@@ -12,6 +12,7 @@ import json
 import os
 import time
 from types import SimpleNamespace
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -36,6 +37,7 @@ from tests.mesh_builder_driver import open_mesh_builder
 from tests.test_mesh_editor_action_bar import (
     _EmbeddedMeshBuilder,
     _FakeProcess,
+    _build_two_part_synthetic_mesh,
     _install_shared_dotnet_test_process,
 )
 
@@ -66,6 +68,31 @@ def _display_modes(process: _FakeProcess) -> list[str]:
         for payload in (json.loads(raw.decode("utf-8")) for raw in process.stdin_writes)
         if payload.get("event") == "viewport_display_update"
     ]
+
+
+def _direct_tab(name: str):
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", name))
+    tab.open_mesh_session(
+        _build_two_part_synthetic_mesh(),
+        session_id="direct-textured-view",
+        mode="edit",
+    )
+    assert tab.standalone_controller is not None
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_target_embedded = False
+    tab.standalone_dotnet_target_controller = tab.standalone_controller
+    tab._connect_dotnet_protocol(process)
+    session_id = tab.standalone_controller.session_view().session_id
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2", "viewport_display_modes_v1"),
+        session_id=session_id,
+    )
+    tab.standalone_dotnet_lifecycle_session_id = session_id
+    return app, tab, process
 
 
 def _mark_material_role_ready(
@@ -166,6 +193,52 @@ def test_already_resolved_textures_apply_without_a_new_acknowledgement() -> None
 
     tab.deleteLater()
     builder.deleteLater()
+    app.processEvents()
+
+
+def test_direct_archive_session_can_load_and_keep_solid_textured_without_builder() -> None:
+    app, tab, process = _direct_tab("MeshEditorDirectTexturedView")
+    material_model = SimpleNamespace(
+        meshes=(SimpleNamespace(preview_texture_path="resolved.dds"),)
+    )
+    tab.standalone_archive_material_preview_model = material_model
+
+    with patch.object(
+        tab,
+        "apply_resident_clone_material_resources",
+        return_value=True,
+    ) as publish:
+        assert tab._handle_dotnet_protocol_event(
+            {
+                "event": "viewport_display_request",
+                "session_id": "direct-textured-view",
+                "request_id": 71,
+                "process_generation": 1,
+                "mode": "textured",
+            }
+        )
+
+    publish.assert_called_once_with(material_model)
+    assert tab.standalone_dotnet_pending_textured_view is True
+    assert _display_modes(process)[-1] == "untextured_faces"
+
+    _mark_material_role_ready(tab)
+    tab._finish_pending_textured_view(success=True)
+    assert tab.standalone_dotnet_pending_textured_view is False
+    assert _display_modes(process)[-1] == "textured"
+
+    assert tab._handle_dotnet_protocol_event(
+        {
+            "event": "viewport_display_request",
+            "session_id": "direct-textured-view",
+            "request_id": 72,
+            "process_generation": 1,
+            "mode": "vertices",
+        }
+    )
+    assert _display_modes(process)[-1] == "vertices"
+
+    tab.deleteLater()
     app.processEvents()
 
 

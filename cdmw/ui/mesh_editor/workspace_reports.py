@@ -329,11 +329,12 @@ class WorkspaceReportMixin:
             copy_button.setEnabled(
                 self._has_editor_target and self._has_export_validation_report and not self._embedded_controls_only
             )
-        rebuild_asset_button = getattr(self, "rebuild_asset_button", None)
-        if rebuild_asset_button is not None:
-            rebuild_asset_button.setEnabled(
-                self._has_editor_target and self._export_validation_ok and not self._embedded_controls_only
-            )
+        for name in ("export_mesh_file_button", "build_mod_button", "install_overlay_button"):
+            button = getattr(self, name, None)
+            if button is not None:
+                button.setEnabled(
+                    self._has_editor_target and self._export_validation_ok and not self._embedded_controls_only
+                )
         if report is None:
             self.validator_tree.addTopLevelItem(QTreeWidgetItem(("Info", "not_run", "No active export validation.")))
             return
@@ -418,16 +419,6 @@ class WorkspaceReportMixin:
         if save_button is not None:
             save_button.setEnabled(
                 self._has_editor_target and self._has_rebuild_report and not self._embedded_controls_only
-            )
-        preview_rebuilt_button = getattr(self, "preview_rebuilt_asset_button", None)
-        if preview_rebuilt_button is not None:
-            preview_rebuilt_button.setEnabled(
-                self._has_editor_target and self._has_rebuilt_asset_output and not self._embedded_controls_only
-            )
-        package_rebuilt_button = getattr(self, "package_rebuilt_asset_button", None)
-        if package_rebuilt_button is not None:
-            package_rebuilt_button.setEnabled(
-                self._has_editor_target and self._has_rebuilt_asset_output and not self._embedded_controls_only
             )
         if report is None:
             self.rebuild_tree.addTopLevelItem(QTreeWidgetItem(("Status", "No rebuild report.")))

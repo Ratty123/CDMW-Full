@@ -67,7 +67,7 @@ internal sealed partial class ExperimentForm
                 && formProtocolEvents.Any(item =>
                     item.Name == "command_request"
                     && Convert.ToString(item.Payload.GetValueOrDefault("command")) == "morph_state_request")
-                && formProtocolEvents.Count(item => item.Name == "part_material_edit_request") >= 4;
+                && formProtocolEvents.All(item => item.Name != "part_material_edit_request");
             var requiredRows = EditMeshToolListContract.RowOrder
                 .Select(row => row.Key)
                 .ToArray();
@@ -146,11 +146,10 @@ internal sealed partial class ExperimentForm
         var requiredButtons = new[]
         {
             "◰    Select", "✥    Move", "✜    Grab", "◍    Smooth", "◉    Inflate",
-            "◇    Pinch", "△    Topology", "◧    Colour", "◑    Morph & Refit", "▾  Morph & Refit",
-            "Clear Selection", "Select All", "Invert", "Undo", "Redo", "Save Edited Package",
+            "◇    Pinch", "△    Topology", "◑    Morph & Refit", "▾  Morph & Refit",
+            "Clear Selection", "Select All", "Invert", "Undo", "Redo",
             "Grow", "Shrink", "-X", "+X", "-Y", "+Y", "-Z", "+Z",
             "Delete Selection", "Duplicate Selection", "Subdivide", "Refine Smooth",
-            "Tint...", "Recolour...", "Glow...", "Reset Colour", "Split Selection Into Part",
             "All", "None", "Hide", "Duplicate", "Delete",
             "Copy", "Paste", "Rename", "Up", "Down",
             "Create Profile...", "Save Profile", "Delete Profile", "Save Preset...", "Delete Preset",
@@ -340,7 +339,7 @@ internal sealed partial class ExperimentForm
             ["restored_solid_textured"] = restoredTextured,
             ["dialog_backed_controls"] = new[]
             {
-                "Tint...", "Recolour...", "Glow...", "Create Profile...", "Save Preset...",
+                "Create Profile...", "Save Preset...",
             },
         };
     }
@@ -639,48 +638,6 @@ internal sealed partial class ExperimentForm
             "topology",
             ToolRailPage.Topology,
             () => WriteCommandRequest("recalculate_normals") > 0));
-        rows.Add(RunEditMeshCommandPageDiagnostic(
-            "colour",
-            ToolRailPage.Colour,
-            () =>
-            {
-                var edits = new[]
-                {
-                    new Dictionary<string, object?>
-                    {
-                        ["tint_rgb"] = new[] { 224, 240, 255 },
-                    },
-                    new Dictionary<string, object?>
-                    {
-                        ["colourise_rgb"] = new[] { 255, 96, 64 },
-                        ["colourise_strength"] = 0.65f,
-                    },
-                    new Dictionary<string, object?>
-                    {
-                        ["emissive_enabled"] = true,
-                        ["emissive_rgb"] = new[] { 96, 160, 255 },
-                        ["emissive_strength"] = 2.0f,
-                    },
-                    new Dictionary<string, object?>
-                    {
-                        ["reset"] = true,
-                    },
-                };
-                foreach (var edit in edits)
-                {
-                    QueuePartColourEdit(edit);
-                    if (_pendingPartColourEdit is not { Count: > 0 })
-                    {
-                        return false;
-                    }
-                    FlushPartColourEdit();
-                    if (_pendingPartColourEdit is not null)
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            }));
         rows.Add(RunEditMeshCommandPageDiagnostic(
             "morph",
             ToolRailPage.MorphRefit,

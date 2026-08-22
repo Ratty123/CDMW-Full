@@ -80,12 +80,8 @@ def test_full_import_default_uses_automatic_material_authority() -> None:
     assert options.accent_glow_strength == 0.0
 
 
-def test_full_import_entry_point_is_user_exposed_from_archive_browser() -> None:
-    """The one-click swap is reachable: Import menu button, context menu, and wiring.
-
-    The preset was retained as a backend-only path for a while, which left the
-    Builder's buried complete-swap checkbox as the only way to a real swap.
-    """
+def test_full_import_entry_point_is_archived_from_archive_browser() -> None:
+    """The backend preset remains available, but normal Archive Browser UI cannot route it."""
     layout_source = _source("cdmw", "ui", "archive_browser", "preview_layout.py")
     controls_source = _source("cdmw", "ui", "archive_browser", "action_controls.py")
     actions_source = _source("cdmw", "ui", "archive_browser", "actions.py")
@@ -93,20 +89,13 @@ def test_full_import_entry_point_is_user_exposed_from_archive_browser() -> None:
     wiring_source = _source("cdmw", "ui", "shell", "signal_wiring.py")
     patch_flow_source = _source("cdmw", "ui", "archive_browser", "mesh_patch_flow.py")
 
-    assert 'self.archive_model_full_import_button = QPushButton("Full Import Model Replacement...")' in layout_source
-    assert '("Full Import Model Replacement", self.archive_model_full_import_button)' in layout_source
-    assert "self.archive_model_full_import_button," in controls_source
+    assert 'self.archive_model_full_import_button = QPushButton("Full Import Model Replacement...")' not in layout_source
+    assert '("Full Import Model Replacement", self.archive_model_full_import_button)' not in layout_source
+    assert "self.archive_model_full_import_button," not in controls_source
     assert "def _full_import_current_archive_model_replacement" in import_actions_source
-    # Deliberately not in the context menu. Owner's decision, 2026-08-17: the
-    # right-click menu offers one mesh import, and which operation it turns out
-    # to be is chosen in the Builder with the model in front of the reader.
-    # The Import panel keeps the direct entry point.
     assert '"Full Import Model Replacement..."' not in actions_source
-    assert actions_source.count('"Import Mesh..."') == 1
-    assert (
-        "self.archive_model_full_import_button.clicked.connect(self._full_import_current_archive_model_replacement)"
-        in wiring_source
-    )
+    assert '"Import Mesh..."' not in actions_source
+    assert "self.archive_model_full_import_button.clicked.connect" not in wiring_source
     assert "def _start_archive_full_import_model_replacement" in patch_flow_source
     assert "full_import_model_replacement=True," in patch_flow_source
     assert "full_import_model_replacement_external_file_filter()" in patch_flow_source

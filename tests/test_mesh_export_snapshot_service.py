@@ -665,7 +665,7 @@ def test_rebuild_worker_publishes_reparse_and_snapshot_report_atomically(tmp_pat
         session_id="rebuild-export",
         mesh_revision=7,
         native_edit_revision=7,
-        material_generation=3,
+        material_generation=0,
         texture_revisions=(),
         mesh=mesh,
         base_mesh=mesh,
@@ -718,7 +718,7 @@ def test_rebuild_worker_publishes_reparse_and_snapshot_report_atomically(tmp_pat
     report_path = tmp_path / "rebuilt.pac.export.json"
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["export_snapshot"]["mesh_revision"] == 7
-    assert report["export_snapshot"]["material_generation"] == 3
+    assert report["export_snapshot"]["material_generation"] == 0
     assert report["export_snapshot"]["output_reparse"]["status"] == "passed"
     artifact = report["export_snapshot"]["artifacts"][0]
     assert artifact["path"] == "rebuilt.pac"

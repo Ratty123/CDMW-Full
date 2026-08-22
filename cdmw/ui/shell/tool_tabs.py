@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Callable
 
 from PySide6.QtWidgets import QApplication, QWidget
@@ -70,6 +71,15 @@ class ShellToolTabsMixin:
         from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
         from cdmw.ui.mesh_editor.tab import MeshEditorTab
 
+        def _archive_mutations() -> object | None:
+            services = getattr(getattr(self, "app_context", None), "services", None)
+            require = getattr(services, "require_archive_mutations", None)
+            return require() if callable(require) else None
+
+        def _archive_material_preview_model() -> object | None:
+            result = getattr(self, "current_archive_preview_result", None)
+            return getattr(result, "preview_model", None)
+
         tab = MeshEditorTab(
             settings=self.settings,
             theme_key=self.current_theme_key,
@@ -81,6 +91,16 @@ class ShellToolTabsMixin:
                 self, "archive_entries_by_basename", {}
             )
             or {},
+            get_archive_sidecar_entries_by_texture_path=lambda: getattr(
+                self, "archive_sidecar_entries_by_texture_path", {}
+            )
+            or {},
+            get_archive_sidecar_entries_by_texture_basename=lambda: getattr(
+                self, "archive_sidecar_entries_by_texture_basename", {}
+            )
+            or {},
+            get_archive_mutation_service=_archive_mutations,
+            get_archive_material_preview_model=_archive_material_preview_model,
         )
         tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)
@@ -90,15 +110,9 @@ class ShellToolTabsMixin:
             tab.runtime_event_requested.connect(
                 lambda event, fields, sink=runtime_recorder: sink(event, **dict(fields or {}))
             )
-        tab.modify_original_requested.connect(self._mesh_editor_modify_original_requested)
-        tab.import_replacement_requested.connect(self._mesh_editor_import_replacement_requested)
-        tab.import_preview_requested.connect(self._mesh_editor_import_preview_requested)
-        tab.preview_rebuilt_asset_requested.connect(self._mesh_editor_preview_rebuilt_asset_requested)
-        tab.package_rebuilt_asset_requested.connect(self._mesh_editor_package_rebuilt_asset_requested)
-        tab.in_game_swap_requested.connect(self._mesh_editor_in_game_swap_requested)
+        tab.open_archive_session_requested.connect(self._launch_archive_mesh_editor_for_entry)
         tab.open_archive_target_requested.connect(self._mesh_editor_show_archive_target_requested)
         tab.mesh_action_requested.connect(self._mesh_editor_action_requested)
-        tab.open_texture_source_requested.connect(self._open_source_in_texture_editor)
         current_entry = self._current_archive_entry()
         tab.set_archive_selection(
             current_entry
@@ -120,7 +134,7 @@ class ShellToolTabsMixin:
         tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)
         )
-        tab.import_mesh_requested.connect(self._import_local_model_to_current_archive)
+        tab.use_in_new_item_studio_requested.connect(self._use_model_in_new_item_studio)
         tab.preview_mesh_requested.connect(self._preview_model_library_mesh)
         tab.item_icon_source_generated.connect(self._handle_model_library_item_icon_generated)
         return tab
@@ -268,10 +282,6 @@ class ShellToolTabsMixin:
         tab.send_to_replace_assistant_requested.connect(self._handle_texture_editor_send_to_replace_assistant)
         tab.send_to_texture_workflow_requested.connect(self._handle_texture_editor_send_to_texture_workflow)
         tab.send_to_item_icons_requested.connect(self._handle_texture_editor_send_to_item_icons)
-        tab.native_dds_ready.connect(lambda *args: self.mesh_editor_tab.apply_texture_editor_dds_result(*args))
-        tab.resident_texture_patch_ready.connect(
-            lambda patch: self.mesh_editor_tab.apply_texture_editor_region_patch(patch)
-        )
         return tab
 
     def _create_item_icons_tab(self) -> QWidget:
@@ -351,7 +361,7 @@ class ShellToolTabsMixin:
         Lazy like the rest: opening it reads the item, string, store, group and language
         tables once (seconds), which must not run at startup. It takes the window so it
         can read the scanned archive list, reach the mutation service for an install, and
-        hand a model import to Import Mesh.
+        accept a resolved Model Library source in its normal Model step.
         """
 
         from cdmw.ui.new_item import NewItemStudioTab
@@ -366,7 +376,12 @@ class ShellToolTabsMixin:
         )
         return tab
 
-    def open_new_item_studio(self, template_key: int | None = None) -> None:
+    def open_new_item_studio(
+        self,
+        template_key: int | None = None,
+        *,
+        model_path: object | None = None,
+    ) -> None:
         """Show the New Item Studio, pointed at `template_key` when one is given."""
 
         container = getattr(self, "new_item_studio_tab", None)
@@ -376,6 +391,11 @@ class ShellToolTabsMixin:
         widget = container.ensure_widget() if isinstance(container, LazyToolTab) else container
         if template_key is not None and hasattr(widget, "prefill_template"):
             widget.prefill_template(int(template_key))
+        if model_path is not None and hasattr(widget, "open_model_source"):
+            widget.open_model_source(model_path)
+
+    def _use_model_in_new_item_studio(self, import_path_text: str, _model_payload: object) -> None:
+        self.open_new_item_studio(model_path=Path(import_path_text))
 
     def _build_shell_tool_tabs(self, pump_startup_splash: Callable[[str], None]) -> None:
         from cdmw.ui.settings_tab import SettingsTab

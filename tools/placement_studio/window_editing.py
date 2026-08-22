@@ -16,12 +16,14 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Sequence
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
     QDialog,
+    QDialogButtonBox,
     QDoubleSpinBox,
     QFileDialog,
     QFrame,
@@ -32,6 +34,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QWidget,
 )
 
@@ -217,6 +220,19 @@ class EditPanelMixin:
         )
         self._use_orientation_button.clicked.connect(self._use_selected_as_orientation)
 
+        # The correction the tool used to apply behind the user's back. A half turn about Y is
+        # exactly what separates the hip child socket from the back one on every weapon in the
+        # corpus, so it is usually right — but the check that decided *whether* to apply it is
+        # a geometry heuristic, and it was wrong often enough to ship an inverted sword. It
+        # reports now, and this applies the turn when the user agrees.
+        self._turn_over_button = QPushButton("Turn it the right way up")
+        self._turn_over_button.setToolTip(
+            "Add a half turn about Y to the selected child socket.\n\n"
+            "Offered rather than applied: the check that spots an inverted item measures the "
+            "placed geometry, and mesh origins differ enough between assets that it is "
+            "evidence and not a verdict. A socket that aims more than one row is refused."
+        )
+        self._turn_over_button.clicked.connect(self._turn_selected_socket_over)
 
         self._undo_button = QPushButton("Undo")
         self._undo_button.setShortcut("Ctrl+Z")
@@ -239,7 +255,13 @@ class EditPanelMixin:
         # bottom one did not. Both rows now fit a 1,500 px window instead of one overflowing.
         # Everything that acts on the selection sits together, in the order it is used:
         # make a point, aim with it, take a change back, write the result out.
-        bottom.addLayout(group(self._new_socket_button, self._use_orientation_button))
+        bottom.addLayout(
+            group(
+                self._new_socket_button,
+                self._use_orientation_button,
+                self._turn_over_button,
+            )
+        )
         bottom.addSpacing(10)
         bottom.addLayout(group(self._revert_button, self._undo_button, self._redo_button))
         bottom.addStretch(1)
@@ -614,7 +636,7 @@ class EditPanelMixin:
         # Re-label the dropdown so the new route is visible where the target was chosen.
         self._populate_parts()
         if role == "stowed":
-            note += self._ensure_blade_hangs_down(socket_name)
+            note += self._orientation_diagnostic(socket_name)
             note += self._warn_if_angle_is_wrong(socket_name)
         self.statusBar().showMessage(
             f"Routed {part_name} ({role}): {previous} -> {socket_name}{note}"
@@ -666,39 +688,42 @@ class EditPanelMixin:
             return f"  —  orientation still from {current or '(none)'}"
         return f"  (orientation {current or '(none)'} -> {wanted}){note}"
 
-    def _blade_points_up(self, socket_name: str) -> bool:
-        """Does the stowed weapon stick upward out of its attachment point?
+    def _inversion_diagnostic(self, socket_name: str):
+        """Measure whether the stowed item sticks upward out of its attachment point.
 
-        A stowed weapon always hangs *down* from where it is fixed — off the hip, or down the
-        back from the shoulder. So the far end of the mesh should sit below the socket, and
-        when it does not the item is upside down. Measured on the placed geometry, which is
-        the only thing that cannot disagree with what is on screen: every lookup-based check
-        so far has passed while the sword hung inverted.
+        A stowed weapon hangs *down* from where it is fixed — off the hip, or down the back
+        from the shoulder — so the far end of the mesh should sit below the socket. Measured on
+        the placed geometry, which is the only thing that cannot disagree with what is on
+        screen, and returned as evidence rather than acted on.
         """
+
+        from .orientation import InversionDiagnostic, diagnose_inversion
 
         session = self._session
         if session is None:
-            return False
+            return InversionDiagnostic()
         placed = {p.name: p.world_position for p in session.placed_sockets()}
-        anchor = placed.get(socket_name)
         mesh = getattr(self._viewport, "_weapon", None)
-        if anchor is None or mesh is None or not getattr(mesh, "vertices", ()):
-            return False
-        far = max(mesh.vertices, key=lambda v: anchor.distance_to(v))
-        # A hand's-breadth of slack, so a horizontal item is not called inverted.
-        return far.y > anchor.y + 0.05
+        return diagnose_inversion(
+            placed.get(socket_name), list(getattr(mesh, "vertices", ()) or ())
+        )
 
-    def _ensure_blade_hangs_down(self, socket_name: str) -> str:
-        """Flip the item if it ended up pointing the wrong way, and say so.
+    def _orientation_diagnostic(self, socket_name: str) -> str:
+        """Report on the item's aim at a destination. Never changes it.
 
-        The stand-in angle is looked up by name, and every path that can fail — no descriptor
-        row pairs the socket, the item's file is not loaded, another item defines it
-        differently — fails by leaving the old angle in place. Rather than add a fourth guess,
-        this checks the result and corrects it: a half turn about Y is exactly the difference
-        between the hip angle and the back one.
+        This used to add a half turn about Y on its own when the geometry read inverted. The
+        turn is often the right one — it is exactly what separates the hip child socket
+        (identity) from the back one (0, 1, 0, 0) on every weapon in the corpus — but the
+        *check* is a heuristic: mesh origins, geometry distribution, attachment transforms and
+        child-socket composition all differ by asset, so it could write an inverted orientation
+        while the preview and the naming convention both said otherwise.
+
+        So it warns, and `Turn it the right way up` under the aim controls applies the turn
+        when the user agrees with it.
         """
 
         from . import carry as _carry
+        from .orientation import INVERSION_MESSAGE
 
         session = self._session
         if session is None or self._edits is None:
@@ -709,45 +734,48 @@ class EditPanelMixin:
         if refresh is None:
             return ""  # no viewport: nothing placed to measure
         refresh()
-        if not self._blade_points_up(socket_name):
+        diagnostic = self._inversion_diagnostic(socket_name)
+        if not diagnostic.inverted:
             return ""
+        return f"  —  {INVERSION_MESSAGE} Use {AIM_LABEL} or Turn it the right way up."
 
-        binding = next(
-            (b for b in session.bindings() if b.part_name == self._selected_part), None
-        )
-        weapon = session.weapon
-        child = getattr(getattr(binding, "part", None), "in_child_socket", "") or ""
-        if weapon is None or not child or child not in weapon.sockets:
-            return "  —  it is upside down and there is no angle on the item to correct"
-        current = weapon.sockets[child]
-        try:
-            self._edits.set_rotation_euler(
-                weapon.game_path, child, *self._flipped_euler(current)
-            )
-        except EditError:
-            return "  —  it is upside down and the correction could not be applied"
-        self._after_edit()
-        self._refresh_meshes()
-        if self._blade_points_up(socket_name):
-            return "  —  it is still upside down; aim it by hand with Rotate or Tilt"
-        return "  (turned it the right way up)"
+    def _turn_selected_socket_over(self) -> None:
+        """Add a half turn about Y to the selected child socket, because the user asked.
 
-    @staticmethod
-    def _flipped_euler(socket):
-        """The socket's angle with a half turn about Y added, in degrees.
-
-        A half turn about Y is exactly what separates the hip child socket (identity) from the
-        back one (0, 1, 0, 0) on every weapon in the corpus, so it is the correction an
-        upside-down stow needs.
+        The same correction the old automatic check applied, now behind an explicit control
+        with the diagnostic beside it. A shared socket is refused: the correction would move
+        every other row aimed by it, which is the failure clone-on-write exists to prevent.
         """
 
-        from .model import Quat
+        from .orientation import half_turn_about_y
 
-        a = socket.rotation
-        # Composing with (0, 1, 0, 0): the closed form is short enough to spell out, and
-        # avoids a general multiply this module has no other use for.
-        turned = Quat(-a.z, a.w, a.x, -a.y).normalized()
-        return turned.to_euler_degrees()
+        session, edits = self._session, self._edits
+        socket_name = self._selected_socket
+        if session is None or edits is None or not socket_name:
+            return
+        weapon = session.weapon
+        if weapon is None or socket_name not in weapon.sockets:
+            self.statusBar().showMessage(
+                "Select the item's own child socket — that is what holds its angle."
+            )
+            return
+        users = session.child_socket_users(socket_name)
+        if len(users) > 1:
+            self.statusBar().showMessage(
+                f"{socket_name} aims {len(users)} rows ({', '.join(users)}), so turning it "
+                f"here would move all of them. Move the item with Swap animations… instead, "
+                f"which makes it a socket of its own."
+            )
+            return
+        turned = half_turn_about_y(weapon.sockets[socket_name].rotation)
+        try:
+            edits.set_rotation_quaternion(weapon.game_path, socket_name, turned)
+        except EditError as exc:
+            self.statusBar().showMessage(str(exc))
+            return
+        self._after_edit()
+        self._refresh_meshes()
+        self.statusBar().showMessage(f"Turned {socket_name} a half turn about Y")
 
     def _warn_if_angle_is_wrong(self, socket_name: str) -> str:
         """Say so when an item is left aimed for a different part of the body.
@@ -984,21 +1012,29 @@ class EditPanelMixin:
         self._bindings = rebuilt.bindings()
 
     def _refresh_diff(self) -> None:
-        from .report_style import pending_changes_html
+        from .report_style import operation_scope_html, pending_changes_html
 
         if self._edits is None:
             self._diff_view.setHtml(pending_changes_html([], []))
             return
         lines = self._edits.diff()
         plan = self._edits.to_plan()
+        operations = self._edits.operations()
+        loose = len(self._edits.loose_commands())
         header = [
-            f"{len(self._edits.commands())} edit(s), "
-            f"{len(plan.operations)} operation(s), "
+            f"{len(operations)} operation(s), {loose} free-form edit(s), "
+            f"{len(plan.operations)} file operation(s), "
             f"{len(self._edits.modified_paths())} file(s)",
             f"tiers: {plan.tier_counts() or '{}'}",
             "",
         ]
-        self._diff_view.setHtml(pending_changes_html(header, lines))
+        # Which operation each change belongs to, above the file list. Without it a session
+        # holding three operations read as one undifferentiated set of pending changes, which
+        # is the reading that made packaging all of them look reasonable.
+        self._diff_view.setHtml(
+            operation_scope_html(operations, loose)
+            + pending_changes_html(header, lines)
+        )
         # Address the tab by its widget: a hardcoded index silently renamed the wrong tab
         # the moment Animation was inserted ahead of it.
         self._lower.setTabText(
@@ -1025,6 +1061,14 @@ class EditPanelMixin:
             and weapon is not None
             and self._selected_socket in weapon.sockets
         )
+        # A socket that aims more than one row is refused rather than turned, so the control
+        # is only live where the turn would stay local to this item.
+        aims_one_row = (
+            weapon is not None
+            and self._selected_socket in weapon.sockets
+            and len(self._session.child_socket_users(self._selected_socket)) <= 1
+        )
+        self._turn_over_button.setEnabled(bool(aims_one_row))
 
         if not self._selected_socket:
             self._edit_target.setText("(no socket selected)")
@@ -1060,12 +1104,108 @@ class EditPanelMixin:
                 box.setValue(value)
                 box.blockSignals(False)
 
-    def _build_packages(self) -> None:
-        """Emit every manager layout from the current plan — one plan, three packages."""
+    def _select_package_operations(self) -> Optional[List[str]]:
+        """Which operations to package. `None` means the user backed out.
 
-        from .packaging import PackageMetadata, PackagingError, build_all
+        The default is the latest operation and nothing else. Packaging the whole session is
+        what shipped an earlier shield move and an earlier one-handed swap inside a two-handed
+        sword mod, so it is still available and it is no longer the default — and choosing it
+        shows the list first.
+        """
+
+        from PySide6.QtWidgets import QListWidget, QVBoxLayout
+
+        from .packaging import SELECTION_ALL, SELECTION_LATEST, SELECTION_SELECTED
+        from .packaging import operation_ids_for
+
+        edits = self._edits
+        if edits is None:
+            return None
+        operations = edits.operations()
+        if not operations:
+            QMessageBox.warning(
+                self,
+                "Nothing to package",
+                "Every change in this session was made outside an operation. Move an item with "
+                "Swap animations… so the change can be scoped, reviewed and packaged on its own.",
+            )
+            return None
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("What to package")
+        dialog.setMinimumSize(720, 420)
+        modes = {
+            SELECTION_LATEST: QRadioButton("The latest operation only  (recommended)"),
+            SELECTION_SELECTED: QRadioButton("Selected operations"),
+            SELECTION_ALL: QRadioButton("Every pending operation  (advanced)"),
+        }
+        modes[SELECTION_LATEST].setChecked(True)
+        modes[SELECTION_LATEST].setToolTip(
+            "The operation you just accepted, replayed onto vanilla on its own."
+        )
+        modes[SELECTION_ALL].setToolTip(
+            "Everything below, in one package. Read the list first: earlier experiments are in it."
+        )
+
+        listing = QListWidget()
+        listing.setSelectionMode(QAbstractItemView.MultiSelection)
+        for operation in operations:
+            listing.addItem("\n".join(operation.summary_lines()))
+            listing.item(listing.count() - 1).setData(Qt.UserRole, operation.operation_id)
+        listing.item(listing.count() - 1).setSelected(True)
+        loose = len(edits.loose_commands())
+
+        layout = QVBoxLayout(dialog)
+        for button in modes.values():
+            layout.addWidget(button)
+        layout.addWidget(QLabel("Operations in this session, oldest first:"))
+        layout.addWidget(listing, 1)
+        if loose:
+            layout.addWidget(
+                QLabel(
+                    f"{loose} free-form edit(s) were made outside any operation. They are never "
+                    f"packaged."
+                )
+            )
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec() != QDialog.Accepted:
+            return None
+
+        mode = next(name for name, button in modes.items() if button.isChecked())
+        chosen = [
+            str(listing.item(row).data(Qt.UserRole) or "")
+            for row in range(listing.count())
+            if listing.item(row).isSelected()
+        ]
+        if mode == SELECTION_ALL:
+            confirmed = QMessageBox.question(
+                self,
+                "Package every pending operation?",
+                "This package will contain:\n\n"
+                + "\n".join(f"  {op.describe()}" for op in operations)
+                + "\n\nEarlier experiments are included. Continue?",
+            )
+            if confirmed != QMessageBox.Yes:
+                return None
+        return operation_ids_for(edits, mode, chosen)
+
+    def _build_packages(self) -> None:
+        """Emit every manager layout for the selected operations, replayed onto vanilla.
+
+        Never from the global session preview. The isolated replay is what makes an earlier
+        experiment structurally unable to enter the package, and the preflight is what proves
+        it — and what refuses an in-scope change that is nonetheless unsafe.
+        """
+
+        from .packaging import PackageMetadata, PackagingError, build_for_operations
 
         if self._edits is None or not self._edits.modified_paths():
+            return
+        operation_ids = self._select_package_operations()
+        if not operation_ids:
             return
         target = QFileDialog.getExistingDirectory(self, "Build packages into")
         if not target:
@@ -1083,24 +1223,110 @@ class EditPanelMixin:
             author="",
             description="Placement and animation changes built with Placement Studio.",
         )
+        units = self._packaged_units(operation_ids)
+        shared = self._shared_socket_users()
         try:
-            results = build_all(
-                self._edits.to_plan(),
-                self._edits.preview(),
+            results, verdict = build_for_operations(
+                self._edits,
+                operation_ids,
                 metadata,
                 out_root=Path(target),
                 baseline=self._baseline,
+                units=units,
+                shared_socket_users=shared,
             )
         except PackagingError as exc:
             QMessageBox.warning(self, "Packaging failed", str(exc))
             return
 
-        QMessageBox.information(
-            self,
-            "Packages built",
-            "\n".join(result.describe() for result in results),
-        )
+        if verdict.blocked:
+            from .report_style import package_scope_html
+
+            box = QMessageBox(self)
+            box.setWindowTitle("Package blocked")
+            box.setIcon(QMessageBox.Critical)
+            box.setTextFormat(Qt.RichText)
+            box.setText(
+                "Nothing was written. These changes fall outside what the selected "
+                "operation(s) declared:"
+            )
+            box.setInformativeText(
+                package_scope_html(verdict.summary, verdict.errors, verdict.warnings)
+            )
+            box.setDetailedText(verdict.render())
+            box.exec()
+            self.statusBar().showMessage("Package blocked — see the errors")
+            return
+
+        if not results and verdict.needs_confirmation:
+            box = QMessageBox(self)
+            box.setWindowTitle("Confirm the package scope")
+            box.setIcon(QMessageBox.Warning)
+            box.setText("\n".join(f"  {f.describe()}" for f in verdict.warnings))
+            box.setDetailedText(verdict.render())
+            box.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
+            box.button(QMessageBox.Yes).setText("Write the package")
+            if box.exec() != QMessageBox.Yes:
+                self.statusBar().showMessage("Package cancelled — nothing was written")
+                return
+            results, verdict = build_for_operations(
+                self._edits,
+                operation_ids,
+                metadata,
+                out_root=Path(target),
+                baseline=self._baseline,
+                units=units,
+                shared_socket_users=shared,
+                accept_warnings=True,
+            )
+
+        box = QMessageBox(self)
+        box.setWindowTitle("Packages built")
+        box.setIcon(QMessageBox.Information)
+        box.setText("\n".join(result.describe() for result in results))
+        box.setInformativeText(verdict.summary.render())
+        box.exec()
         self.statusBar().showMessage(f"Built {len(results)} package(s) in {target}")
+
+    def _packaged_units(self, operation_ids: Sequence[str]) -> dict:
+        """The equipment units the selected operations belong to, for the scope checks."""
+
+        session, edits = self._session, self._edits
+        if session is None or edits is None:
+            return {}
+        wanted = set(operation_ids)
+        resolve = getattr(self, "_resolve_unit_by_id", None)
+        if resolve is None:
+            return {}
+        units = {}
+        for operation in edits.operations():
+            if operation.operation_id not in wanted or not operation.equipment_unit_id:
+                continue
+            # By id, not by whatever weapon is selected now: the case-row and family checks are
+            # made against the unit the operation was actually made for, and a resolution that
+            # silently misses would skip those checks rather than fail them.
+            unit, _error = resolve(operation.equipment_unit_id)
+            if unit is not None and unit.unit_id == operation.equipment_unit_id:
+                units[unit.unit_id] = unit
+        return units
+
+    def _shared_socket_users(self) -> dict:
+        """Child socket -> every descriptor row aimed by it, read off vanilla.
+
+        Deliberately counted across assets, which over-reports: child sockets are per weapon
+        file, so two rows naming `Pelvis_L_ChildSocket` may resolve against different files and
+        not actually share anything. Over-reporting costs an extra clone; under-reporting moves
+        somebody else's weapon.
+        """
+
+        session = self._session
+        if session is None:
+            return {}
+        return {
+            name: usage.child_offset
+            for name, usage in session.usage_map().items()
+            if usage.child_offset
+        }
 
     def _export(self) -> None:
         if self._edits is None or not self._edits.modified_paths():
