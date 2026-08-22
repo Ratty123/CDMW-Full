@@ -1638,12 +1638,10 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
         button = workspace.findChild(QToolButton, "MeshEditorWorkspaceAction_select_parts")
         brush_button = workspace.findChild(QToolButton, "MeshEditorWorkspaceAction_brush_grab")
-        skeleton_button = workspace.findChild(QToolButton, "MeshEditorPreviewSkeletonButton")
-        pose_preview_button = workspace.findChild(QToolButton, "MeshEditorPreviewPoseButton")
         assert button is not None
         assert brush_button is not None
-        assert skeleton_button is not None
-        assert pose_preview_button is not None
+        self.assertIsNone(workspace.findChild(QToolButton, "MeshEditorPreviewSkeletonButton"))
+        self.assertIsNone(workspace.findChild(QToolButton, "MeshEditorPreviewPoseButton"))
         self.assertEqual(Qt.ToolButtonStyle.ToolButtonIconOnly, button.toolButtonStyle())
         self.assertIn("Shortcut: 1", button.toolTip())
         for legacy_key in ("select_vertex", "select_edge", "select_face"):
@@ -2846,8 +2844,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(any(label == "Animation" and "playback blocked" in value and "bone-track binding" in value for label, value in rows))
 
         pose_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorPosePreviewButton")
-        preview_skeleton_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorPreviewSkeletonButton")
-        preview_pose_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorPreviewPoseButton")
+        rig_skeleton_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorRigSkeletonButton")
         rig_pose_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorRigPosePreviewButton")
         rig_transfer_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorRigWeightTransferButton")
         rotate_x_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorPoseRotateXButton")
@@ -2855,17 +2852,17 @@ class MeshEditorActionBarTests(unittest.TestCase):
         weight_increase_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorWeightIncreaseButton")
         weight_transfer_button = tab.standalone_workspace.findChild(QToolButton, "MeshEditorWeightTransferButton")
         assert pose_button is not None
-        assert preview_skeleton_button is not None
-        assert preview_pose_button is not None
+        assert rig_skeleton_button is not None
         assert rig_pose_button is not None
+        self.assertIsNone(tab.standalone_workspace.findChild(QToolButton, "MeshEditorPreviewSkeletonButton"))
+        self.assertIsNone(tab.standalone_workspace.findChild(QToolButton, "MeshEditorPreviewPoseButton"))
         assert rig_transfer_button is not None
         assert rotate_x_button is not None
         assert reset_button is not None
         assert weight_increase_button is not None
         assert weight_transfer_button is not None
         self.assertTrue(pose_button.isEnabled())
-        self.assertTrue(preview_skeleton_button.isEnabled())
-        self.assertTrue(preview_pose_button.isEnabled())
+        self.assertTrue(rig_skeleton_button.isEnabled())
         self.assertTrue(rig_pose_button.isEnabled())
         self.assertTrue(rig_transfer_button.isEnabled())
         self.assertFalse(rotate_x_button.isEnabled())
@@ -2874,14 +2871,13 @@ class MeshEditorActionBarTests(unittest.TestCase):
         panels = tab.standalone_workspace.findChild(QTabWidget, "MeshEditorRightPanels")
         assert panels is not None
         with patch.object(tab, "start_standalone_native_preview_async", return_value=True) as refresh:
-            preview_skeleton_button.click()
+            rig_skeleton_button.click()
         refresh.assert_called_once()
         self.assertEqual("Rig", panels.tabText(panels.currentIndex()))
-        preview_pose_button.click()
+        rig_pose_button.click()
         self.assertTrue(tab.standalone_controller.skeleton_summary().pose.enabled)
         self.assertTrue(pose_button.isChecked())
-        self.assertTrue(rig_pose_button.isChecked())
-        preview_pose_button.click()
+        rig_pose_button.click()
         self.assertFalse(tab.standalone_controller.skeleton_summary().pose.enabled)
         tab.standalone_controller.select(source_indices=(0,))
         tab.update_editor_session_state(tab.standalone_controller.session_view(), active_selection_mode=tab.standalone_controller.active_selection_mode)

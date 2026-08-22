@@ -250,7 +250,7 @@ class WorkspaceInteractionMixin:
         has_bones = bool(summary is not None and summary.bones)
         has_rig_summary = bool(summary is not None and (summary.skinned or summary.skeleton_linked or summary.bones))
         selected = int(pose.selected_bone_index if pose is not None else -1)
-        for name in ("pose_preview_button", "preview_pose_button", "rig_pose_button"):
+        for name in ("pose_preview_button", "rig_pose_button"):
             pose_button = getattr(self, name, None)
             if pose_button is None:
                 continue
@@ -260,7 +260,7 @@ class WorkspaceInteractionMixin:
             finally:
                 pose_button.blockSignals(previous)
             pose_button.setEnabled(has_bones)
-        for name in ("preview_skeleton_button", "rig_skeleton_button"):
+        for name in ("rig_skeleton_button",):
             button = getattr(self, name, None)
             if button is not None:
                 button.setEnabled(has_rig_summary)

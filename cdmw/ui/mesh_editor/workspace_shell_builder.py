@@ -295,9 +295,9 @@ class WorkspaceShellBuilderMixin:
             "MeshEditorRigSkeletonButton",
             "Skeleton",
             "select_edge",
-            "Open the Skeleton panel.",
+            "Open Skeleton panel and refresh the .NET/Vortice skeleton overlay metadata.",
         )
-        self.rig_skeleton_button.clicked.connect(lambda _checked=False: self._focus_right_panel("Rig"))
+        self.rig_skeleton_button.clicked.connect(self._request_skeleton_native_preview)
         layout.addWidget(self.rig_skeleton_button, row, 0)
         self.rig_pose_button = self._rig_palette_button(
             parent,
@@ -435,31 +435,6 @@ class WorkspaceShellBuilderMixin:
         self.native_part_pick_status_label.setObjectName("MeshEditorNativePartPickStatus")
         self.native_part_pick_status_label.setProperty("nativePartPickingAvailable", False)
         controls.addWidget(self.native_part_pick_status_label)
-        self.preview_skeleton_button = QToolButton(frame)
-        self.preview_skeleton_button.setObjectName("MeshEditorPreviewSkeletonButton")
-        self.preview_skeleton_button.setText("Skeleton")
-        self.preview_skeleton_button.setAccessibleName("Show skeleton preview")
-        self.preview_skeleton_button.setToolTip("Open Skeleton panel and refresh the .NET/Vortice skeleton overlay metadata.")
-        self.preview_skeleton_button.setProperty("meshEditorIconKey", "select_edge")
-        self.preview_skeleton_button.setIcon(mesh_editor_action_icon("select_edge", self.palette()))
-        self.preview_skeleton_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.preview_skeleton_button.setEnabled(False)
-        self.preview_skeleton_button.clicked.connect(self._request_skeleton_native_preview)
-        controls.addWidget(self.preview_skeleton_button)
-        self.preview_pose_button = QToolButton(frame)
-        self.preview_pose_button.setObjectName("MeshEditorPreviewPoseButton")
-        self.preview_pose_button.setText("Pose")
-        self.preview_pose_button.setAccessibleName("Toggle pose preview")
-        self.preview_pose_button.setToolTip("Toggle skinned pose preview deformation.")
-        self.preview_pose_button.setProperty("meshEditorIconKey", "transform_rotate")
-        self.preview_pose_button.setIcon(mesh_editor_action_icon("transform_rotate", self.palette()))
-        self.preview_pose_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.preview_pose_button.setCheckable(True)
-        self.preview_pose_button.setEnabled(False)
-        self.preview_pose_button.clicked.connect(
-            lambda checked=False: self.skeleton_pose_requested.emit("set_pose_preview", bool(checked))
-        )
-        controls.addWidget(self.preview_pose_button)
         controls.addStretch(1)
         layout.addLayout(controls)
         return frame

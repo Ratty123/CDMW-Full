@@ -132,8 +132,6 @@ class WorkspaceStateMixin:
             "dotnet_editor_button",
             "native_part_pick_status_label",
             "native_performance_status_label",
-            "preview_skeleton_button",
-            "preview_pose_button",
             "run_rebuild_report_button",
             "export_mesh_file_button",
             "build_mod_button",
