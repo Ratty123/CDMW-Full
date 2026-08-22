@@ -18,8 +18,14 @@ controller for facts; `tab.py` composes them, and forwards install to the shell.
 
 The default Stats view labels ItemInfo values as raw game data and compares a
 selected cell with the template and shipped range; arbitrary stats, flat values,
-extra levels and separate enhancement rows stay under an experimental fold. The
-Abilities and weapon appearance step keeps gameplay perks separate from visual-only
+extra levels and separate enhancement rows stay under an experimental fold. One
+draft change on that step is one rail refresh: every edit goes through the panel's
+`_draft_changed` (refill the grid when its shape changed, then `invalidate_plan`),
+the tab refreshes its summary from `plan_invalidated` alone, never from the tables'
+own signals (Qt emits one per cell a refill writes), and the tables' signals are
+blocked while they are filled. `build_context` is memoized per template on the
+read-only snapshot, so a validation is set lookups, not a rebuild of the sets. The
+Perks & Effects step keeps gameplay perks separate from visual-only
 weapon effects. Four perks is the evidence-backed default cap, five to eight requires
 an explicit experimental opt-in, and raw effect browsing, placement numbers, colour
 and particle factors stay under Advanced. Reset actions clear the corresponding draft

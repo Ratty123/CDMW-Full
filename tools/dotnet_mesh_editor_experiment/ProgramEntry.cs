@@ -33,6 +33,10 @@ internal static class Program
             {
                 return MaterialResourcePolicyProbe.Run(args);
             }
+            if (CaptureCameraParityProof.IsRequested(args))
+            {
+                return CaptureCameraParityProof.Run(args);
+            }
             if (PackageCaptureProof.Matches(args))
             {
                 ApplicationConfiguration.Initialize();
@@ -83,8 +87,10 @@ internal static class Program
                 return VisualAuditBatch.Run(args);
             }
             var options = LaunchOptions.Parse(args);
+            StartupTiming.Mark("main_entry");
             long sourceParseCount = 0;
             var document = ObjDocument.Load(options.MeshPath);
+            StartupTiming.Mark("document_loaded");
             sourceParseCount++;
             Directory.CreateDirectory(options.OutputDir);
             if (options.HeadlessSmoke)
@@ -125,6 +131,7 @@ internal static class Program
                 || string.Equals(arg, "--headless-morph-page-stability-smoke", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-edit-mesh-entry-smoke", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-ui-localization-contract", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(arg, "--headless-capture-camera-parity", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-frame-pacing-soak", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-interaction-soak", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-sparse-soak", StringComparison.OrdinalIgnoreCase)

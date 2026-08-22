@@ -33,6 +33,7 @@ internal sealed partial class ExperimentForm
             acknowledgement["status"] = status;
             acknowledgement["reason"] = reason;
         }
+        StartupTiming.Mark("ui_localization_state_applied");
         WriteProtocolEvent("ui_localization_state_ack", acknowledgement);
     }
 }

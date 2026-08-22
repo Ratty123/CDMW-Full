@@ -71,6 +71,29 @@ internal sealed partial class ExperimentForm
             out var rightStack);
         _leftToolStack = leftStack;
         _rightToolStack = rightStack;
+        StartupTiming.Mark("tool_panels_created");
+        // Every section below is appended as its own row, and an AutoSize
+        // stack re-measures its whole column on each append. The stacks are
+        // detached while they are built, so nothing is on screen to keep
+        // current; one layout when the panels are attached is the right amount.
+        leftStack.SuspendLayout();
+        rightStack.SuspendLayout();
+        try
+        {
+            BuildToolPanelSections(leftStack, rightStack);
+        }
+        finally
+        {
+            leftStack.ResumeLayout(performLayout: false);
+            rightStack.ResumeLayout(performLayout: false);
+        }
+        StartupTiming.Mark("viewport_section_built");
+
+        return (left, right);
+    }
+
+    private void BuildToolPanelSections(TableLayoutPanel leftStack, TableLayoutPanel rightStack)
+    {
 
         // The session commands live on the compact session bar, which adopts
         // them when it is attached; until then they are parentless.
@@ -94,7 +117,9 @@ internal sealed partial class ExperimentForm
             _actionHistoryList);
         _actionHistorySection.Name = "CompactActionHistorySection";
         _meshEditOnlySections.Add(_actionHistorySection);
+        StartupTiming.Mark("action_history_section_built");
         _morphRefitSection = BuildMorphRefitSection(rightStack);
+        StartupTiming.Mark("morph_refit_section_built");
         // The Part Pick section is gone: the Parts panel on the right is the
         // only part-selection surface. The hidden compatibility control remains
         // unchecked so no viewport input path can arm source-part picking.
@@ -107,9 +132,11 @@ internal sealed partial class ExperimentForm
         _partsSection = BuildPartsSection(rightStack, duplicatePartButton, deletePartButton);
         _partsSection.Name = "CompactPartsSection";
         _meshEditOnlySections.Add(_partsSection);
+        StartupTiming.Mark("parts_section_built");
         _layersSection = BuildGeometryLayersSection(rightStack);
         _layersSection.Name = "CompactGeometryLayersSection";
         _meshEditOnlySections.Add(_layersSection);
+        StartupTiming.Mark("layers_section_built");
         var selectionSection = AddHelpSection(
             leftStack,
             "Selection",
@@ -129,6 +156,7 @@ internal sealed partial class ExperimentForm
             ButtonRow(GizmoButton("Move", "move"), GizmoButton("Rotate", "rotate"), GizmoButton("Scale", "scale")));
         _placementSection.Name = "ClassicPlacementSection";
         _placementOnlySections.Add(_placementSection);
+        StartupTiming.Mark("selection_and_placement_sections_built");
         var transformSection = AddHelpSection(
             leftStack,
             "Transform",
@@ -177,6 +205,7 @@ internal sealed partial class ExperimentForm
         topologySection.Name = "CompactTopologySection";
         _topologySection = topologySection;
         _meshEditOnlySections.Add(topologySection);
+        StartupTiming.Mark("transform_brush_topology_sections_built");
         _viewportSection = AddHelpSection(
             rightStack,
             "Viewport",
@@ -194,7 +223,5 @@ internal sealed partial class ExperimentForm
             ToolButton("Orbit", "orbit"));
         _viewportSection.Name = "CompactViewportSection";
         _viewportHelpMarker = viewportHelpMarker;
-
-        return (left, right);
     }
 }

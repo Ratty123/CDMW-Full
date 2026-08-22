@@ -309,14 +309,23 @@ def _write_bone_binary_payloads(prefix: Path, bone_indices: object, bone_weights
     flat_indices: list[int] = []
     flat_weights: list[float] = []
     try:
+        # Rows are flattened with C-speed ``extend`` and validated once over the
+        # flat runs; converting and checking each row in Python made this the
+        # slowest part of handing a skinned mesh to the native core.
         for raw_indices, raw_weights in zip(bone_indices, bone_weights):
-            indices = tuple(int(value) for value in tuple(raw_indices or ()))
-            weights = tuple(float(value) for value in tuple(raw_weights or ()))
-            if len(indices) != len(weights) or any(index < 0 for index in indices) or any(not math.isfinite(weight) for weight in weights):
+            index_row = tuple(raw_indices or ())
+            weight_row = tuple(raw_weights or ())
+            if len(index_row) != len(weight_row):
                 return None
-            counts.append(len(indices))
-            flat_indices.extend(indices)
-            flat_weights.extend(weights)
+            counts.append(len(index_row))
+            flat_indices.extend(index_row)
+            flat_weights.extend(weight_row)
+        flat_indices = [int(value) for value in flat_indices]
+        flat_weights = [float(value) for value in flat_weights]
+        if flat_indices and min(flat_indices) < 0:
+            return None
+        if not all(map(math.isfinite, flat_weights)):
+            return None
     except (TypeError, ValueError, OverflowError):
         return None
     return {

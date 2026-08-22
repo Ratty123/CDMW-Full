@@ -803,7 +803,13 @@ def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() ->
     assert '["rendered_camera"] = new Dictionary<string, object?>' in batch
     assert "D3D11RenderedCameraEvidence" in dotnet_capture
     assert "cameraForCapture.WorldViewProjectionRowMajorArray()" in dotnet_capture
-    assert "WorldViewProjection = camera.World * captureProjection" in dotnet_capture
+    # The capture is the source camera's own matrix rescaled to the capture's size: for
+    # the audit camera that is World times the capture projection, and for the
+    # interactive camera it is the screen (building it from World agreed with the
+    # screen at yaw 0 only). `tests/test_dotnet_capture_camera_parity.py` runs the real
+    # method over both constructors.
+    assert "WorldViewProjection = camera.WorldViewProjection * captureScale" in dotnet_capture
+    assert "camera.World * captureProjection" not in dotnet_capture
     assert "return NetViewportCamera.Create(" not in dotnet_capture
     assert "viewport.ApplyPresentationSettings(new D3D11PresentationSettings\n" in batch
     assert "DisableLighting = _unlit," in batch

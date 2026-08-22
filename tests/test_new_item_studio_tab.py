@@ -397,6 +397,122 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_stats_edits_refresh_the_rail_once_and_a_refill_not_at_all(self) -> None:
+        """The tab used to refresh the rail from the stats tables' itemChanged, which Qt
+        emits once per cell a refill writes, and every refresh validated the draft twice.
+        A refill now runs neither; one edit runs one of each, after the draft changed."""
+
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        tab.identity_panel.internal_name.setText("Wolf_Fang_OneHandSword")
+        tab.identity_panel.display_name.setText("Wolf's Fang")
+        stats = tab.stats_panel
+        counts = {"summary": 0, "validate": 0}
+        summary_text, validate = stats.summary_text, tab.controller.validate
+
+        def counted_summary_text():
+            counts["summary"] += 1
+            return summary_text()
+
+        def counted_validate():
+            counts["validate"] += 1
+            return validate()
+
+        from PySide6.QtCore import Qt
+
+        from cdmw.ui.new_item.ui_kit import EDIT, tone_color
+
+        with patch.object(stats, "summary_text", counted_summary_text), patch.object(tab.controller, "validate", counted_validate):
+            stats.rebuild()
+            self.assertEqual((counts["summary"], counts["validate"]), (0, 0), "a refill is not an edit")
+            stats.table.item(0, 0).setText("20000")
+            self.assertEqual((counts["summary"], counts["validate"]), (1, 1))
+            self.assertIn("1 stat cell(s)", tab.summary.plain_text(), "the rail read the draft after the edit")
+            self.assertEqual(stats.table.item(0, 0).foreground().color().name(), tone_color(EDIT), "an edited cell turns blue at once")
+            stats.table.item(0, 0).setText("12000")
+            self.assertIsNone(stats.table.item(0, 0).data(Qt.ForegroundRole), "back on the template: the default look, not a null brush")
+            counts.update(summary=0, validate=0)
+            stats.advanced_toggle.setChecked(True)
+            stats.add_level_button.click()
+            self.assertEqual((counts["summary"], counts["validate"]), (1, 1), "a rebuild plus one invalidation")
+            self.assertIn("1 added level(s)", tab.summary.plain_text())
+            counts.update(summary=0, validate=0)
+            choices = [stats.new_stat.itemData(i) for i in range(stats.new_stat.count())]
+            stats.new_stat.setCurrentIndex(choices.index(1000007))
+            stats.add_stat_button.click()
+            self.assertEqual((counts["summary"], counts["validate"]), (1, 1))
+            self.assertIn("1 added stat(s)", tab.summary.plain_text())
+            self.assertNotIn("price field", tab.summary.plain_text(), "the rail read the grid after the column was inserted, not before")
+        tab.close()
+        tab.deleteLater()
+
+    def test_a_typo_in_a_cell_goes_back_without_a_rebuild_and_the_note_compares(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        stats = tab.stats_panel
+        stats.table.item(0, 0).setText("20000")
+        with patch.object(stats, "rebuild", side_effect=AssertionError("a typo must not re-lay the step")):
+            stats.table.item(0, 0).setText("twenty")
+        self.assertEqual(stats.table.item(0, 0).text(), "20000", "the last valid value came back into that one cell")
+        self.assertEqual(tab.controller.draft.grid_values[(0, 0)], 20000)
+        self.assertIn("not a whole number", stats.selection_note.plain_text())
+        # the selection note: the cell, the comparison, the shipped range; three short lines
+        stats.table.setCurrentCell(1, 0)
+        stats.table.setCurrentCell(0, 0)
+        text = stats.selection_note.plain_text()
+        self.assertIn("Level 0 Attack (DDD): 20,000", text)
+        self.assertIn("Template: 12,000 (+8,000, +66.7%)", text)
+        self.assertIn("Shipped equipment:", text)
+        stats.table.setCurrentCell(1, 1)
+        text = stats.selection_note.plain_text()
+        self.assertIn("Level 1 Price (Money_Copper): 384", text)
+        self.assertIn("Template: 384, unchanged", text)
+        self.assertIn("Currency, not a combat stat", text)
+        stats.price_table.item(0, 1).setText("lots")
+        self.assertEqual(stats.price_table.item(0, 1).text(), "348", "a base price typo goes back the same way")
+        tab.close()
+        tab.deleteLater()
+
+    def test_added_levels_can_be_removed_and_the_buttons_name_their_targets(self) -> None:
+        tab = self._tab()
+        tab.prefill_template(TEMPLATE)
+        stats = tab.stats_panel
+        stats.advanced_toggle.setChecked(True)
+        self.assertFalse(stats.remove_level_button.isEnabled())
+        stats.add_level_button.click()
+        self.assertEqual(stats.table.rowCount(), 3)
+        self.assertEqual(stats.table.verticalHeaderItem(2).text(), "Level 2 (added)")
+        self.assertTrue(stats.remove_level_button.isEnabled())
+        stats.table.item(2, 0).setText("15000")
+        stats.remove_level_button.click()
+        self.assertEqual(stats.table.rowCount(), 2)
+        self.assertEqual(tab.controller.draft.extra_levels, 0)
+        self.assertNotIn((2, 0), tab.controller.draft.grid_values, "the dropped level took its values with it")
+        self.assertFalse(stats.remove_level_button.isEnabled())
+        for _ in range(8):
+            stats.add_level_button.click()
+        self.assertEqual(tab.controller.draft.extra_levels, 8)
+        self.assertFalse(stats.add_level_button.isEnabled(), "the cap disables the button instead of ignoring the click")
+        stats.table.setCurrentCell(0, 0)
+        self.assertEqual(stats.flat_button.text(), "Set Attack (DDD) at every level")
+        stats.table.setCurrentCell(0, 1)
+        self.assertEqual(stats.flat_button.text(), "Set Attack (DDD) at every level", "a price cell falls back to the first stat column")
+        self.assertFalse(stats.remove_stat_button.isEnabled())
+        self.assertEqual(stats.remove_stat_button.text(), "Remove column")
+        choices = [stats.new_stat.itemData(i) for i in range(stats.new_stat.count())]
+        stats.new_stat.setCurrentIndex(choices.index(1000007))
+        stats.add_stat_button.click()
+        self.assertTrue(stats.remove_stat_button.isEnabled())
+        self.assertEqual(stats.remove_stat_button.text(), "Remove the Critical rate (CriticalRate) column")
+        stats.table.setCurrentCell(0, 0)
+        self.assertEqual(stats.remove_stat_button.text(), "Remove the Critical rate (CriticalRate) column", "a template column selected: the button still names the added one it drops")
+        stats.remove_stat_button.click()
+        self.assertEqual(tab.controller.draft.extra_stat_keys, [])
+        self.assertEqual(stats.table.columnCount(), 3)
+        self.assertEqual(stats.remove_stat_button.text(), "Remove column")
+        tab.close()
+        tab.deleteLater()
+
     def test_weapon_effect_support_is_class_aware(self) -> None:
         tab = self._tab()
         tab.prefill_template(TEMPLATE)

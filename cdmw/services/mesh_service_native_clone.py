@@ -13,6 +13,22 @@ from cdmw.services.mesh_service_native_session import (
 from cdmw.services.mesh_service_state import _MeshEditSession, _MeshHistorySnapshot
 
 
+# Immutable snapshots of the source asset: tuples of frozen, slotted
+# dataclasses (``MeshLod`` down to one ``MeshVertex`` per source vertex) and
+# the original bytes. Deep-copying them reconstructed tens of thousands of
+# objects on every session open and every working-mesh clone, which on a
+# 27k-vertex character was most of a second per clone, to produce a structure
+# nothing ever mutates. They are shared by reference instead.
+_SHARED_IMMUTABLE_VALIDATION_METADATA = frozenset(
+    {
+        "_cdmw_original_data",
+        "_cdmw_mesh_asset_lods",
+        "_cdmw_mesh_asset_material_slots",
+        "_cdmw_mesh_asset_unknown_sections",
+    }
+)
+
+
 def _copy_mesh_validation_metadata(source: ParsedMesh, target: ParsedMesh) -> None:
     for name in (
         "_cdmw_original_data",
@@ -28,8 +44,13 @@ def _copy_mesh_validation_metadata(source: ParsedMesh, target: ParsedMesh) -> No
         "material_slots",
         "unknown_sections",
     ):
-        if hasattr(source, name):
-            setattr(target, name, copy.deepcopy(getattr(source, name)))
+        if not hasattr(source, name):
+            continue
+        value = getattr(source, name)
+        if name in _SHARED_IMMUTABLE_VALIDATION_METADATA and isinstance(value, (tuple, bytes, str, int, float, bool, type(None))):
+            setattr(target, name, value)
+            continue
+        setattr(target, name, copy.deepcopy(value))
     for source_submesh, target_submesh in zip(tuple(source.submeshes or ()), tuple(target.submeshes or ())):
         copy_extra_submesh_attrs(source_submesh, target_submesh)
 

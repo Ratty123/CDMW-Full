@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+import time
 import uuid
 from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
@@ -41,6 +42,10 @@ _TRANSIENT_RETRY_DELAYS_MS = (500, 1_000, 2_000, 5_000)
 _STEADY_RETRY_DELAY_MS = 5_000
 _STATIC_RETRY_DELAY_MS = 30_000
 _READY_TIMEOUT_MS = 10_000
+# A helper that keeps reporting startup progress is building, not hung. Each
+# report re-arms the readiness watchdog, up to this much wall time per launch,
+# so a loaded machine gets a slow open instead of a restart loop.
+_READY_PROGRESS_CAP_MS = 90_000
 _PACKAGE_TIMEOUT_MS = 15_000
 _MATERIAL_SYNC_TIMEOUT_MS = 120_000
 
@@ -169,6 +174,8 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         self._ready_timer = QTimer(self)
         self._ready_timer.setSingleShot(True)
         self._ready_timer.timeout.connect(self._handle_ready_timeout)
+        self._ready_watchdog_started = 0.0
+        self._ready_watchdog_extensions = 0
         self._package_timer = QTimer(self)
         self._package_timer.setSingleShot(True)
         self._package_timer.timeout.connect(self._handle_package_timeout)
@@ -1039,7 +1046,7 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
             stop_qprocess_async(process)
             self._schedule_retry(f".NET/Vortice Preview launch failed: {exc}", static_failure=False)
             return
-        self._ready_timer.start(_READY_TIMEOUT_MS)
+        self._arm_ready_watchdog()
         self._set_state("launching", ".NET/Vortice Preview is starting…")
 
     def _process_started(self, process: object, generation: int) -> None:
@@ -1174,6 +1181,12 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
             self._activation_waiting_for_material_sync = False
             self._activation_material_sync_generation = 0
             self._activation_timer.start(_READY_TIMEOUT_MS)
+        if event == "startup_progress":
+            # Liveness from inside the helper's constructor. Consumed here: the
+            # per-phase stream is a watchdog input, and the helper publishes
+            # the complete summary as `startup_timing` just before `ready`.
+            self._extend_ready_watchdog_for_progress(payload)
+            return
         if event == "ready":
             if not self._handle_renderer_ready(payload):
                 return
@@ -1640,7 +1653,7 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
         mid-handshake still fails loudly instead of idling hidden.
         """
 
-        self._ready_timer.start(_READY_TIMEOUT_MS)
+        self._arm_ready_watchdog()
         self._set_state("preparing", ".NET/Vortice Preview is preparing the selected model…")
 
     def _deactivate_for_replacement(self) -> None:
@@ -1714,6 +1727,39 @@ class DotNetPreviewSessionController(DotNetPreviewSessionLocalizationMixin, QObj
             capture_path.unlink(missing_ok=True)
         except OSError:
             pass
+
+    def _arm_ready_watchdog(self) -> None:
+        """Start the readiness deadline and open a fresh progress budget."""
+
+        self._ready_watchdog_started = time.monotonic()
+        self._ready_watchdog_extensions = 0
+        self._ready_timer.start(_READY_TIMEOUT_MS)
+
+    def _extend_ready_watchdog_for_progress(self, payload: Mapping[str, object]) -> bool:
+        """Re-arm the readiness deadline because the helper reported progress.
+
+        The helper's startup marks arrive while its UI thread is inside the
+        form constructor, where nothing else can prove it is alive. A helper
+        that is still building is given the full deadline again from the last
+        report, but never more than ``_READY_PROGRESS_CAP_MS`` per launch in
+        total: a genuinely stuck helper still fails, just later.
+        """
+
+        if not self._ready_timer.isActive():
+            return False
+        elapsed_ms = (time.monotonic() - self._ready_watchdog_started) * 1000.0
+        if elapsed_ms + _READY_TIMEOUT_MS > _READY_PROGRESS_CAP_MS:
+            return False
+        self._ready_watchdog_extensions += 1
+        self._ready_timer.start(_READY_TIMEOUT_MS)
+        self._last_event = {
+            "event": "ready_watchdog_extended",
+            "phase": str(payload.get("phase", "") or ""),
+            "helper_at_ms": payload.get("at_ms", 0),
+            "elapsed_ms": round(elapsed_ms, 1),
+            "extensions": self._ready_watchdog_extensions,
+        }
+        return True
 
     def _handle_ready_timeout(self) -> None:
         timer_active = self._ready_timer.isActive()

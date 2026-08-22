@@ -335,6 +335,19 @@ class SnapshotTests(_PackageCase):
         self.assertEqual(snapshot_task(self.entries, service=self.service, read_entry=_read)(lambda _m: None, None).rows.keys(), snap.rows.keys())
 
 
+    def test_the_validation_context_is_built_once_per_template(self) -> None:
+        """The studio validates on every edit, and the context's frozensets span the
+        whole snapshot, so it is kept per template on the read-only snapshot."""
+
+        first = build_context(self.snapshot, TEMPLATE)
+        self.assertIs(build_context(self.snapshot, TEMPLATE), first)
+        other = build_context(self.snapshot, OTHER)
+        self.assertIsNot(other, first)
+        self.assertEqual(other.template.key, OTHER)
+        self.assertEqual(self.snapshot.item_names()[TEMPLATE], "Ziane_OneHandSword")
+        self.assertIs(self.snapshot.item_names(), self.snapshot.item_names())
+
+
 class PlanTests(_PackageCase):
     def _spec(self, **changes) -> NewItemSpec:
         base = dict(

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 from cdmw.core.atomic_file import atomic_write_bytes, atomic_write_text
-from cdmw.domain.mesh.asset import validate_mesh_asset_rebuild
+from cdmw.domain.mesh.asset import MeshAsset, validate_mesh_asset_rebuild
 
 from .mesh_asset import mesh_asset_from_parsed_mesh, mesh_asset_to_inspect_dict
 from .mesh_importer import build_mesh
@@ -60,7 +60,16 @@ def roundtrip_mesh_bytes(
     rebuilder: Callable[[ParsedMesh, bytes], bytes] = build_mesh,
     strict: bool = True,
     allowed_differences: Sequence[AllowedDifference] = (),
+    asset: MeshAsset | None = None,
 ) -> MeshRoundTripResult:
+    """Rebuild ``data`` without edits and report how the result differs.
+
+    ``asset`` is the asset view already built for the parsed mesh, when the
+    caller has one: building it walks every vertex, and the mesh loader builds
+    the same view for the mesh's status immediately before asking for this
+    roundtrip. It must describe the mesh ``parser`` returns.
+    """
+
     report: dict[str, object] = {
         "asset": filename,
         "comparison_mode": "strict" if strict else "tolerant",
@@ -74,7 +83,8 @@ def roundtrip_mesh_bytes(
     }
     try:
         parsed = parser(data, filename)
-        asset = mesh_asset_from_parsed_mesh(parsed, data, source_path=filename)
+        if asset is None:
+            asset = mesh_asset_from_parsed_mesh(parsed, data, source_path=filename)
         validation = validate_mesh_asset_rebuild(asset, asset)
         report.update(
             {

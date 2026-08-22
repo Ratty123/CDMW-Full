@@ -321,6 +321,7 @@ internal sealed partial class D3D11MaterialViewport : Control
             if (_device is null)
             {
                 InitializeDevice();
+                StartupTiming.Mark("d3d11_device_initialized");
             }
             if (_device is null || _context is null || _swapChain is null)
             {
@@ -329,10 +330,12 @@ internal sealed partial class D3D11MaterialViewport : Control
             if (_renderResourcesDirty)
             {
                 ResizeSwapChainResources();
+                StartupTiming.Mark("d3d11_swapchain_resources_sized");
             }
             if (_geometryDirty)
             {
                 RebuildGeometry();
+                StartupTiming.Mark("d3d11_geometry_rebuilt");
             }
             else
             {

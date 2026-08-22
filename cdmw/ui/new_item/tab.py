@@ -310,8 +310,10 @@ class NewItemStudioTab(QWidget):
         self.perks_panel.use_effect.toggled.connect(self._refresh_summary)
         self.perks_panel.effect.currentIndexChanged.connect(self._refresh_summary)
         self.perks_panel.own_perks.toggled.connect(self._refresh_summary)
-        self.stats_panel.table.itemChanged.connect(self._refresh_summary)
-        self.stats_panel.price_table.itemChanged.connect(self._refresh_summary)
+        # The stats tables are deliberately not wired here: every edit on that step
+        # invalidates the plan, which refreshes the rail once, after the draft changed.
+        # A table's itemChanged fires once per cell it is given, so listening to it ran
+        # the summary, and two full validations, once per cell of every rebuild.
         self.steps.setCurrentRow(0)
         self._refresh_summary()
         self.template_panel._refresh_matches()
@@ -348,12 +350,15 @@ class NewItemStudioTab(QWidget):
         Checks on step 2 read the same draft, so they follow every change too."""
 
         controller = self.controller
+        issues = None
         if self._panels_built and not self._refreshing_checks:
             self._refreshing_checks = True
             try:
-                self.identity_panel.refresh_issues()
+                issues = self.identity_panel.refresh_issues()
             finally:
                 self._refreshing_checks = False
+        if issues is None:
+            issues = controller.validate() if controller.ready else ()
         draft = controller.draft
         lines = []
         template = controller.template_name()
@@ -363,7 +368,7 @@ class NewItemStudioTab(QWidget):
             lines.append(note(f"Name: {draft.internal_name} ({english})", OK) if english else note(f"Name: {draft.internal_name}, no English display name yet", WARN))
         else:
             lines.append(note("Name: not set", WARN))
-        blocked = [issue for issue in controller.validate() if issue.is_error] if controller.ready else []
+        blocked = [issue for issue in issues if issue.is_error]
         if blocked:
             lines.append(note(f"{len(blocked)} thing(s) block the plan (see step 2)", BLOCK))
         imported = controller.model_import

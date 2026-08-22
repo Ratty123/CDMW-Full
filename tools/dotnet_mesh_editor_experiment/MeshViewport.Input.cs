@@ -348,7 +348,13 @@ internal sealed partial class MeshViewport
         else if (_rotating)
         {
             var radiansPerPixel = _residentPresentationSettings.OrbitSensitivity * MathF.PI / 180.0f;
-            var orbitX = _residentPresentationSettings.InvertOrbitX ? -dx : dx;
+            // The side of the subject facing the reader follows the pointer on both axes,
+            // the way pan already does and the way Blender and Maya orbit: drag right and
+            // the near side turns right, drag down and it tips down. In the camera's own
+            // terms that is a yaw that runs against the pointer (see NetViewportCamera:
+            // a larger yaw swings the near side to screen left) and a pitch that runs
+            // with it. The invert settings reverse whichever axis a reader wants.
+            var orbitX = _residentPresentationSettings.InvertOrbitX ? dx : -dx;
             var orbitY = _residentPresentationSettings.InvertOrbitY ? -dy : dy;
             _yaw += orbitX * radiansPerPixel;
             _pitch = Math.Clamp(_pitch + orbitY * radiansPerPixel, -1.45f, 1.45f);
