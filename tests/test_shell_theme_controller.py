@@ -6,8 +6,10 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QIcon, QImage
-from PySide6.QtWidgets import QApplication, QLabel, QListWidget, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QLabel, QListWidget, QPushButton, QToolButton, QVBoxLayout, QWidget
 
 from cdmw.ui.settings_tab import SettingsTab
 from cdmw.ui.app_icon import resolve_app_icon_path
@@ -81,6 +83,64 @@ class ShellThemeControllerTests(unittest.TestCase):
         desert_stylesheet = build_app_stylesheet("desert_dawn")
         self.assertIn("color: #0369a1;", desert_stylesheet)
         self.assertIn("color: #047857;", desert_stylesheet)
+
+    def test_mesh_editor_output_buttons_render_distinct_pointer_states(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        previous_style_sheet = app.styleSheet()
+        parent = QWidget()
+        parent.resize(400, 100)
+        object_names = (
+            "MeshEditorRunValidationReportButton",
+            "MeshEditorExportMeshFileButton",
+            "MeshEditorBuildModButton",
+            "MeshEditorInstallOverlayButton",
+            "MeshEditorRestoreOverlayButton",
+        )
+        theme = UI_THEME_SCHEMES["graphite"]
+
+        try:
+            app.setStyleSheet(build_app_stylesheet("graphite"))
+            parent.show()
+            app.processEvents()
+
+            for object_name in object_names:
+                with self.subTest(button=object_name):
+                    button = QToolButton(parent)
+                    button.setObjectName(object_name)
+                    button.setText("Mesh output")
+                    button.setGeometry(100, 30, 180, 36)
+                    button.show()
+                    app.processEvents()
+
+                    def background_color() -> str:
+                        image = button.grab().toImage()
+                        return image.pixelColor(button.width() - 8, button.height() // 2).name()
+
+                    button.setAttribute(Qt.WidgetAttribute.WA_UnderMouse, False)
+                    button.update()
+                    app.processEvents()
+                    normal = background_color()
+                    button.setAttribute(Qt.WidgetAttribute.WA_UnderMouse, True)
+                    button.update()
+                    app.processEvents()
+                    hovered = background_color()
+                    QTest.mousePress(button, Qt.MouseButton.LeftButton, pos=button.rect().center())
+                    app.processEvents()
+                    pressed = background_color()
+                    QTest.mouseRelease(button, Qt.MouseButton.LeftButton, pos=button.rect().center())
+                    button.setEnabled(False)
+                    app.processEvents()
+                    disabled = background_color()
+
+                    self.assertEqual(
+                        (theme["button"], theme["button_hover"], theme["accent_soft"], theme["button_disabled"]),
+                        (normal, hovered, pressed, disabled),
+                    )
+                    self.assertEqual(4, len({normal, hovered, pressed, disabled}))
+                    button.deleteLater()
+        finally:
+            parent.deleteLater()
+            app.setStyleSheet(previous_style_sheet)
 
     def test_added_theme_icons_are_complete_visible_and_loadable(self) -> None:
         app = QApplication.instance() or QApplication([])

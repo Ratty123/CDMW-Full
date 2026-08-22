@@ -58,6 +58,9 @@ compact Qt-owned validation/output/package strip beneath it. The earlier Qt
 mode row, Tools/Edit/UV/Rig deck, duplicate part/material and report tabs, and
 status/performance log remain constructed only for compatibility callers and
 are hidden from the normal product surface.
+The five direct output buttons use explicit normal, hover, pressed, and disabled
+states. Validation-gated outputs and receipt-gated restore stay visibly
+unavailable until their prerequisites exist.
 `start_standalone_native_preview()` and its async counterpart are the live entry
 point into that renderer: they push session and scene state to a running .NET
 editor process, or start one when none is running. The Python D3D11 preview host

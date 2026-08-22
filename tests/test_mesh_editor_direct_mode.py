@@ -434,6 +434,42 @@ def test_direct_resident_editor_does_not_disable_qt_owned_output_controls(tmp_pa
     app.processEvents()
 
 
+def test_direct_output_button_clicks_reach_each_tab_handler() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "DirectMeshOutputButtonClicks"))
+    workspace = tab.standalone_workspace
+    emitted: list[str] = []
+    messages: list[tuple[str, bool]] = []
+    controls = (
+        ("run_validation_report_button", "validation_report_requested", "validation"),
+        ("export_mesh_file_button", "export_mesh_file_requested", "export_mesh"),
+        ("build_mod_button", "build_mod_requested", "build_mod"),
+        ("install_overlay_button", "install_overlay_requested", "install_overlay"),
+        ("restore_overlay_button", "restore_overlay_requested", "restore_overlay"),
+    )
+    tab.status_message_requested.connect(
+        lambda message, error=False: messages.append((str(message), bool(error)))
+    )
+    workspace.setEnabled(True)
+
+    for button_name, signal_name, action_name in controls:
+        getattr(workspace, signal_name).connect(lambda name=action_name: emitted.append(name))
+        button = getattr(workspace, button_name)
+        button.setEnabled(True)
+        button.click()
+
+    assert emitted == ["validation", "export_mesh", "build_mod", "install_overlay", "restore_overlay"]
+    assert messages == [
+        ("Open a mesh session before running validation.", True),
+        ("Run validation successfully before rebuilding a patched asset.", True),
+        ("Open an archive mesh before creating a Mesh Editor output.", True),
+        ("Open an archive mesh before creating a Mesh Editor output.", True),
+        ("No Mesh Editor overlay install receipt is available.", True),
+    ]
+    tab.deleteLater()
+    app.processEvents()
+
+
 def test_mesh_editor_inventory_is_mesh_only_and_direct_authoring_is_explicit(tmp_path: Path) -> None:
     app = QApplication.instance() or QApplication([])
     tab = MeshEditorTab(settings=QSettings("CDMWTests", "DirectMeshInventory"))
