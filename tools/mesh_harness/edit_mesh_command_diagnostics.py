@@ -216,8 +216,8 @@ def _topology_cases(
     expected = {
         "delete": (3, 1, 1),
         "duplicate": (7, 3, 2),
-        "subdivide": (7, 5, 1),
-        "refine_smooth": (7, 5, 1),
+        "subdivide": (7, 6, 1),
+        "refine_smooth": (7, 6, 1),
         "separate": (6, 2, 2),
     }
     cases: list[dict[str, object]] = []

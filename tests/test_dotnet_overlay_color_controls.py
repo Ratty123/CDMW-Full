@@ -166,14 +166,14 @@ def test_opening_morph_page_preserves_renderer_and_camera_state() -> None:
 
 
 def test_xray_state_reaches_each_render_pane_and_refreshes_the_gpu_viewport() -> None:
-    program = _source("Program.cs")
+    controls = _source("ExperimentForm.Controls.cs")
     display_modes = _source("MeshViewport.DisplayModes.cs")
     presentation = _source("MeshViewport.Presentation.cs")
     split_view = _source("MeshViewport.SplitView.cs")
     panes = _source("D3D11MaterialViewport.Panes.cs")
 
-    assert "_viewport.SetXRayEnabled(_xray.Checked)" in program
-    assert "if (!_xray.Checked && _previewMode.SelectedIndex == 6)" in program
+    assert "_viewport.SetXRayEnabled(_xray.Checked)" in controls
+    assert "if (!_xray.Checked && _previewMode.SelectedIndex == 6)" in controls
     assert "public void SetXRayEnabled(bool enabled)" in display_modes
     assert "context.XRay = enabled;" in display_modes
     assert "UpdateGpuViewport();" in display_modes
