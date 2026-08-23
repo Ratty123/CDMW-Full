@@ -76,7 +76,9 @@ internal sealed partial class MeshViewport
         {
             return;
         }
+        InvalidatePaintProjectionCache("viewport_split");
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
         Invalidate();
     }
 
@@ -90,11 +92,13 @@ internal sealed partial class MeshViewport
         LoadPresentationContext(contextId);
         if (changed)
         {
+            InvalidatePaintProjectionCache("camera_context");
             ActivePresentationPaneChanged?.Invoke(contextId);
             NotifyViewStateChanged();
         }
         RequestFrame();
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
         Invalidate();
     }
 

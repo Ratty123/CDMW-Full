@@ -278,6 +278,46 @@ def bake_mesh(mesh: object, placement: ModelPlacement) -> object:
     baked = clone_mesh_for_editing(mesh)
     m = placement.matrix()
 
+    position_matrix = (
+        m[0], m[4], m[8], m[12],
+        m[1], m[5], m[9], m[13],
+        m[2], m[6], m[10], m[14],
+    )
+    target_indices = tuple(range(len(baked.submeshes)))
+    native_changed = None
+    try:
+        from cdmw.services.mesh_workflow_service import apply_native_mesh_affine_transform_submeshes
+
+        native_changed = apply_native_mesh_affine_transform_submeshes(
+            baked.submeshes,
+            position_matrices_by_index={index: position_matrix for index in target_indices},
+            timeout_seconds=20.0,
+        )
+    except (OSError, RuntimeError, ValueError):
+        native_changed = None
+
+    try:
+        import numpy as np
+    except Exception:  # pragma: no cover - NumPy is bundled; scalar compatibility remains
+        np = None
+
+    linear = (
+        (m[0], m[1], m[2]),
+        (m[4], m[5], m[6]),
+        (m[8], m[9], m[10]),
+    )
+
+    def array_directions(values):
+        if np is None or not values or any(len(value) < 3 for value in values):
+            return None
+        source = np.asarray([value[:3] for value in values], dtype=np.float64)
+        transformed = source @ np.asarray(linear, dtype=np.float64)
+        lengths = np.linalg.norm(transformed, axis=1)
+        live = lengths > 1e-12
+        transformed[live] /= lengths[live, None]
+        transformed[~live] = (0.0, 0.0, 1.0)
+        return transformed
+
     def point(v):
         x, y, z = (float(c) for c in v[:3])
         return (x * m[0] + y * m[4] + z * m[8] + m[12], x * m[1] + y * m[5] + z * m[9] + m[13], x * m[2] + y * m[6] + z * m[10] + m[14])
@@ -290,13 +330,27 @@ def bake_mesh(mesh: object, placement: ModelPlacement) -> object:
 
     lo = [math.inf] * 3
     hi = [-math.inf] * 3
-    for submesh in baked.submeshes:
-        submesh.vertices = [point(v) for v in submesh.vertices]
-        submesh.normals = [direction(n) if len(n) >= 3 else n for n in submesh.normals]
-        submesh.tangents = [
-            (*direction(t), *t[3:]) if len(t) >= 3 else t
-            for t in submesh.tangents
-        ]
+    for index, submesh in enumerate(baked.submeshes):
+        if native_changed is None or index not in native_changed:
+            if np is not None and submesh.vertices:
+                vertices = np.asarray([value[:3] for value in submesh.vertices], dtype=np.float64)
+                transformed = vertices @ np.asarray(linear, dtype=np.float64)
+                transformed += np.asarray((m[12], m[13], m[14]), dtype=np.float64)
+                submesh.vertices = [tuple(value) for value in transformed.tolist()]
+            else:
+                submesh.vertices = [point(v) for v in submesh.vertices]
+        normals = array_directions(submesh.normals)
+        submesh.normals = (
+            [tuple(value) for value in normals.tolist()]
+            if normals is not None
+            else [direction(n) if len(n) >= 3 else n for n in submesh.normals]
+        )
+        tangents = array_directions(submesh.tangents)
+        submesh.tangents = (
+            [(*value, *original[3:]) for value, original in zip(tangents.tolist(), submesh.tangents)]
+            if tangents is not None
+            else [(*direction(t), *t[3:]) if len(t) >= 3 else t for t in submesh.tangents]
+        )
         for v in submesh.vertices:
             for axis in range(3):
                 lo[axis] = min(lo[axis], v[axis])
@@ -673,6 +727,7 @@ def build_placed_import(
     entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     stop_event: Optional[threading.Event] = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
 ):
     """The Builder's import over the template's mesh `entry`, headless: the Full Import
     Model Replacement (the imported model owns the visible mesh, the generated textures
@@ -692,7 +747,14 @@ def build_placed_import(
         transform=placement.build_transform(),
         texture_uv_transforms=list(flip_v_transforms(source.scene.mesh) if source.flip_texture_v else ()),
     )
+    if on_progress is not None:
+        on_progress(0, 11, "Transform mesh")
     scene = dc_replace(source.scene, mesh=bake_mesh(source.scene.mesh, source.bake))
+
+    def forward_progress(current: int, total: int, detail: str) -> None:
+        if on_progress is not None:
+            on_progress(int(current) + 1, int(total) + 1, detail)
+
     return build_mesh_import_preview(
         entry,
         Path(source.model_path),
@@ -704,4 +766,5 @@ def build_placed_import(
         texture_entries_by_normalized_path=entries_by_normalized_path,
         texture_entries_by_basename=entries_by_basename,
         stop_event=stop_event,
+        on_progress=forward_progress,
     )

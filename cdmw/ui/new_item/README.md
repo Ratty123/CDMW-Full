@@ -34,22 +34,33 @@ read-only snapshot, so a validation is set lookups, not a rebuild of the sets. T
 horizontal seven-step header replaces the old summary rail while retaining that
 calculated state in per-step tooltips and accessibility text. Its footer keeps Back,
 `Step N of 7` and Continue stable. Step 5 is a non-scrolling full-height page with
-Perks and Effects tabs. Perks & Effects keeps gameplay perks separate from visual-only effects. Four perks is
+Perks and Effects tabs. The navigator is a compact 46 px row; the outer pages do not
+repeat numbered titles underneath it. Perks & Effects keeps gameplay perks separate
+from visual-only effects. Perks are chosen through fixed-height searchable Available
+and Selected lists rather than a popup catalogue. Four perks is
 the evidence-backed default cap and five to eight requires an explicit experimental
 opt-in. Effect support is structural rather than equipment-name based: the service
 dry-runs the real component graft against every prefab the item will own, accepts only
-an all-target success, and never edits a shared borrowed prefab. The Effects tab lists
-every shipped stem with a neutral label, exact authority text, deterministic category
-and behavior badge. Selection, placement and look are staged; Apply publishes one draft
+an all-target success, and never edits a shared borrowed prefab. The Effects tab uses
+36 px virtualized rows with neutral stem-derived names and compact behavior glyphs; the
+exact stem stays searchable and appears in selection details and tooltips instead of
+being repeated under every row. Selection, placement and look are staged; Apply publishes one draft
 change, while Continue stays disabled and direct navigation offers Apply, Discard or
 Stay. The reusable `EffectPlacementWorkspace` keeps one renderer resident, rebuilds
 effect/look packages without resetting the camera, and retains old package files until
 the correlated renderer acknowledgement. Reset actions clear the corresponding draft
 authority, and the workflow summary reports effective changes rather than UI mode.
 
-The Model and icon step imports a model file itself: `model_import.py` reads it
+The Model & Icon step is a fixed two-pane workspace: Model, Placement, Appearance and
+Icon are independently scrolling inspector tabs, while the 65% preview pane remains
+full-height and never moves with them. It imports a model file itself: `model_import.py` reads it
 the way the Model Library does (the scene import, the source's own textures),
-`item_preview.py` shows it over the template in the resident viewport with the
+`item_preview.py` publishes fitted geometry first, then upgrades a copied package with
+canonical materials without restarting the renderer, re-exporting geometry or resetting
+the camera. Generated material synthesis is deduplicated across identical submesh inputs.
+Apply runs through the controller's cancellable progress lane; its spinner, current phase,
+percentage when available and Cancel action remain live while conflicting placement edits
+are disabled. The viewport shows the model over the template with the
 gizmo (`PlacementScene`), a glow ticked on the step lights its parts in that
 viewport live (`glow_preview_parameter_groups` in the materials service builds
 the renderer's parameter groups from the same three values the plan will write,
@@ -62,8 +73,10 @@ then-z are the same matrix re-expressed, proven in
 `tests/test_new_item_item_preview.py` and the studio tab tests.
 
 An imported source can be opened in the resident Mesh Editor from this step without
-starting a second authoring process. Faces selected there can be moved into a new
-submesh with **Split Selection Into Part**. **Use Mesh Editor changes** drains pending
+starting a second authoring process. It opens with Faces as the target while retaining
+the neutral camera tool. Faces selected there can be moved from one source part into a
+uniquely named appended submesh with **Create Part from Selection** in the Selection
+panel. **Use Mesh Editor changes** drains pending
 selection authority, captures a stable resident revision in the controller's worker,
 rebuilds the source's textured preview, and invalidates any placement build made from
 the previous geometry. The Mesh Editor session remains open so another revision can be

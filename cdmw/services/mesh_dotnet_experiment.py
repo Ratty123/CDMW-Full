@@ -506,7 +506,14 @@ def build_mesh_dotnet_experiment_package(
     include_material_resources: bool = True,
 ) -> MeshDotNetExperimentPackage:
     _refuse_topology_changed_editable_package(mesh)
-    material_signature = mesh_dotnet_material_input_signature(mesh)
+    # Geometry-first packages deliberately carry no texture resources. Hashing every
+    # source texture here delayed the first visible model by seconds while producing a
+    # signature that cannot be consumed until the material upgrade arrives.
+    material_signature = (
+        mesh_dotnet_material_input_signature(mesh)
+        if include_material_resources
+        else "geometry_only"
+    )
     root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_mesh_dotnet_experiment"
     package_dir = (
         Path(output_package_dir)
@@ -573,7 +580,11 @@ def build_mesh_dotnet_experiment_package(
                 "preview_dotnet_scene_material_slot_index",
                 scene_material_slot_indices[scene_submesh_index],
             )
-    material_signature = mesh_dotnet_material_input_signature(scene_mesh)
+    material_signature = (
+        mesh_dotnet_material_input_signature(scene_mesh)
+        if include_material_resources
+        else "geometry_only"
+    )
     try:
         _write_dotnet_material_manifest(
             net_materials_path,

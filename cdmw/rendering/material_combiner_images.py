@@ -793,7 +793,7 @@ def _vectorised_material_maps(
     mask_channel: str,
     effective_layer_weight: float,
     has_mask: bool,
-    external_factors_present: bool,
+    external_factors: object,
     force_nonmetal_skin: bool,
     apply_sidecar_hints: bool,
     metallic_hint: float,
@@ -812,8 +812,6 @@ def _vectorised_material_maps(
     input needs the scalar path.
     """
 
-    if external_factors_present:
-        return None
     affine = affine_decode_mode_terms(mode)
     if affine is None:
         return None
@@ -849,6 +847,39 @@ def _vectorised_material_maps(
     roughness = slot("roughness")
     metalness = slot("metalness")
     specular = slot("specular")
+
+    if bool(getattr(external_factors, "input_present", False)):
+        factor_mode = str(getattr(external_factors, "mode", "") or "")
+        roughness_factor = getattr(external_factors, "roughness_factor", None)
+        metallic_factor = getattr(external_factors, "metallic_factor", None)
+        glossiness_factor = getattr(external_factors, "glossiness_factor", None)
+        specular_factor = getattr(external_factors, "specular_factor", None)
+        specular_color = float(getattr(external_factors, "specular_color", 0.0) or 0.0)
+        occlusion_strength = getattr(external_factors, "occlusion_strength", None)
+        if factor_mode == "metallic_roughness":
+            if roughness_factor is not None:
+                roughness = np.clip(roughness * float(roughness_factor), 0.0, 1.0)
+            if metallic_factor is not None:
+                metalness = np.clip(metalness * float(metallic_factor), 0.0, 1.0)
+        elif factor_mode in {"specular_glossiness", "glossiness"}:
+            if glossiness_factor is not None:
+                glossiness = np.clip((1.0 - roughness) * float(glossiness_factor), 0.0, 1.0)
+                roughness = np.clip(1.0 - glossiness, 0.04, 0.98)
+            if specular_factor is not None:
+                specular = np.clip(specular * float(specular_factor), 0.0, 1.0)
+            if specular_color > 0.0:
+                specular = np.clip(specular * specular_color, 0.0, 1.0)
+        elif factor_mode in {"specular", "clearcoat", "sheen"}:
+            if specular_factor is not None:
+                specular = np.clip(specular * float(specular_factor), 0.0, 1.0)
+            if specular_color > 0.0:
+                specular = np.clip(specular * specular_color, 0.0, 1.0)
+        if occlusion_strength is not None:
+            ao = np.clip(1.0 + (ao - 1.0) * float(occlusion_strength), 0.45, 1.0)
+        ao = np.clip(ao, 0.45, 1.0)
+        roughness = np.clip(roughness, 0.04, 1.0)
+        metalness = np.clip(metalness, 0.0, 1.0)
+        specular = np.clip(specular, 0.0, 1.0)
 
     source_metalness = metalness
     if force_nonmetal_skin:
@@ -1044,8 +1075,8 @@ def _generate_material_maps(
     # parameters, so it vectorises exactly -- and it is what lets support maps
     # keep their resolution instead of being capped small enough for a Python
     # loop to finish.  Restricted to modes whose response is the shared affine
-    # table, and skipped when external factors apply since those carry their own
-    # per-mode branching.
+    # table. External material factors are scalar multipliers over those arrays,
+    # so they stay in this path instead of forcing one Python call per texel.
     fast = _vectorised_material_maps(
         mode=mode,
         source_view=source_view,
@@ -1057,7 +1088,7 @@ def _generate_material_maps(
         mask_channel=mask_channel,
         effective_layer_weight=effective_layer_weight,
         has_mask=not mask_source.isNull(),
-        external_factors_present=bool(getattr(external_material_factors, "input_present", False)),
+        external_factors=external_material_factors,
         force_nonmetal_skin=force_nonmetal_skin,
         apply_sidecar_hints=apply_sidecar_hints,
         metallic_hint=metallic_hint,

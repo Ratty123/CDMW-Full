@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from PySide6.QtCore import QDeadlineTimer, QEventLoop, QObject, QThread, Signal  # noqa: E402
+from PySide6.QtCore import QDeadlineTimer, QEventLoop, QObject, QThread, Qt, Signal  # noqa: E402
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget  # noqa: E402
 
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh  # noqa: E402
@@ -25,6 +25,7 @@ from cdmw.ui.new_item.effect_workspace import (  # noqa: E402
     EffectLibraryModel,
     EffectLibraryRow,
     GuidedEffectsWorkspace,
+    _unique_effect_labels,
     effect_category,
     effect_display_label,
 )
@@ -189,6 +190,13 @@ class EffectWorkspaceTests(unittest.TestCase):
             effect_display_label("fx_hit_common_fire_attach_a_loop"),
             "Hit Common Fire Attach A Loop",
         )
+        self.assertEqual(
+            effect_display_label("fx_action_boss_hit_01__metal_spark_k5", "A vague authoring name"),
+            "Boss Hit 01 · Metal Spark K5",
+        )
+        self.assertEqual(effect_display_label("cdfx_flash_01a"), "Flash 01a")
+        labels = _unique_effect_labels(("fx_action_hit__spark_a", "pafx_action_hit__spark_a"))
+        self.assertEqual(len(set(labels.values())), 2)
 
     def test_the_virtual_model_keeps_all_six_thousand_rows(self) -> None:
         model = EffectLibraryModel()
@@ -197,12 +205,14 @@ class EffectWorkspaceTests(unittest.TestCase):
         self.assertEqual(model.rowCount(), 6001)
         self.assertEqual(model.data(model.index(0), EffectLibraryModel.StemRole), "")
         self.assertEqual(model.data(model.index(6000), EffectLibraryModel.StemRole), "fx_5999")
+        self.assertEqual(model.data(model.index(6000), int(Qt.ItemDataRole.SizeHintRole)).height(), 36)
 
     def test_selection_is_staged_and_apply_publishes_once(self) -> None:
         workspace, controller, confirmations = self._workspace()
         self.assertEqual((workspace.selection_timer.interval(), workspace.look_timer.interval()), (150, 250))
         workspace.choose_effect("fx_fire_hit")
         self.assertTrue(workspace.has_staged_changes())
+        self.assertEqual(workspace.selection_detail.text(), "fx_fire_hit")
         self.assertEqual(controller.draft.effect_stem, "", "selection is not the draft")
         self.assertTrue(workspace.apply_staged())
         self.assertEqual(controller.draft.effect_stem, "fx_fire_hit")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import Mapping, Optional, Sequence
+from typing import Callable, Mapping, Optional, Sequence
 
 from cdmw.core.archive_mesh_import_build_stages import (
     attach_mesh_import_texture_previews,
@@ -39,6 +39,7 @@ def build_mesh_import_preview(
     visible_texture_mode: str = "mesh_base_first",
     supplemental_files: Sequence[Path] = (),
     stop_event: Optional[threading.Event] = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
 ) -> MeshImportPreviewResult:
     state = MeshImportBuildState(
         entry=entry,
@@ -54,13 +55,25 @@ def build_mesh_import_preview(
         supplemental_files=supplemental_files,
         stop_event=stop_event,
     )
-    load_mesh_import_sources(state)
-    rebuild_mesh_import(state)
-    resolve_mesh_import_supplemental_files(state)
-    resolve_mesh_import_sidecars(state)
-    attach_mesh_import_texture_previews(state)
-    collect_mesh_import_references(state)
-    configure_mesh_import_materials(state)
-    generate_mesh_import_material_payloads(state)
-    prepare_mesh_import_paired_lod(state)
-    return finish_mesh_import_preview(state)
+    stages = (
+        (load_mesh_import_sources, "Read source"),
+        (rebuild_mesh_import, "Transform mesh"),
+        (resolve_mesh_import_supplemental_files, "Resolve files"),
+        (resolve_mesh_import_sidecars, "Resolve materials"),
+        (attach_mesh_import_texture_previews, "Resolve textures"),
+        (collect_mesh_import_references, "Resolve references"),
+        (configure_mesh_import_materials, "Configure materials"),
+        (generate_mesh_import_material_payloads, "Build materials"),
+        (prepare_mesh_import_paired_lod, "Write package"),
+    )
+    total = len(stages) + 1
+    for index, (stage, detail) in enumerate(stages):
+        if on_progress is not None:
+            on_progress(index, total, detail)
+        stage(state)
+    if on_progress is not None:
+        on_progress(total - 1, total, "Publish")
+    result = finish_mesh_import_preview(state)
+    if on_progress is not None:
+        on_progress(total, total, "Ready")
+    return result

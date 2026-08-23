@@ -834,6 +834,7 @@ internal sealed partial class ExperimentForm
             button.Enabled = true;
             _helpToolTip.SetToolTip(button, string.Empty);
         }
+        RefreshCreatePartFromSelectionButton();
     }
 
     private void RequestFinishEditMesh()

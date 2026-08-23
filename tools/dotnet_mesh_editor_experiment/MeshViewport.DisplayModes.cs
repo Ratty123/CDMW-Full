@@ -49,6 +49,10 @@ internal sealed partial class MeshViewport
 
     public void SetXRayEnabled(bool enabled)
     {
+        if (ShowXRay != enabled)
+        {
+            InvalidatePaintProjectionCache("xray");
+        }
         ShowXRay = enabled;
         if (_presentationContexts.TryGetValue(_activeCameraContextId, out var context))
         {
@@ -58,6 +62,7 @@ internal sealed partial class MeshViewport
         // holding a stale value to restore from.
         NotifyViewStateChanged();
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
         Invalidate();
     }
 
@@ -70,6 +75,7 @@ internal sealed partial class MeshViewport
         // display_mode, xray and textures_enabled are all reported view state.
         NotifyViewStateChanged();
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
         Invalidate();
         return true;
     }
@@ -81,6 +87,10 @@ internal sealed partial class MeshViewport
             return false;
         }
 
+        if (ShowXRay != state.XRay)
+        {
+            InvalidatePaintProjectionCache("xray");
+        }
         DisplayMode = state.Mode;
         ShowSolid = state.Solid;
         ShowWire = state.Wire;

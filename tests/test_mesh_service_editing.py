@@ -13843,6 +13843,22 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertEqual(1, moved.face_count)
         self.assertEqual([(0, 1, 2)], moved.faces)
 
+    def test_separate_appended_part_name_is_unique(self) -> None:
+        service = MeshService()
+        mesh = _quad_mesh(two_parts=True)
+        mesh.submeshes[1].name = "quad split"
+        view = service.open_edit_session(mesh, session_id="separate-unique-name", mode="edit")
+
+        result = service.apply_command(
+            view.session_id,
+            MeshEditCommand("separate", selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)})),
+        )
+
+        names = [submesh.name for submesh in service.working_mesh(view.session_id).submeshes]
+        self.assertTrue(result.ok)
+        self.assertEqual("quad split 2", names[-1])
+        self.assertEqual(len(names), len(set(names)))
+
     def test_split_noops_when_edge_selection_matches_no_faces(self) -> None:
         service = MeshService()
         view = service.open_edit_session(_quad_mesh(), session_id="split-stale-edge", mode="edit")

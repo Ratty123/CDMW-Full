@@ -61,21 +61,26 @@ internal sealed partial class MeshViewport
             _yaw = 0.0f;
             _pitch = 1.35f;
         }
+        InvalidatePaintProjectionCache("camera_preset");
         NotifyViewStateChanged();
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
     }
 
     public void RotateYawDegrees(float degrees)
     {
         _yaw += degrees * MathF.PI / 180.0f;
+        InvalidatePaintProjectionCache("camera_yaw");
         NotifyViewStateChanged();
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
     }
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
+            CancelPaintProjectionBuild();
             StopPerformanceRenderPump();
             _renderSurfaceResizeTimer.Stop();
             _renderSurfaceResizeTimer.Tick -= OnRenderSurfaceResizeTimerTick;
@@ -90,6 +95,7 @@ internal sealed partial class MeshViewport
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
+        InvalidatePaintProjectionCache("viewport_size");
         if (_d3d11Viewport is not null)
         {
             QueueRenderSurfaceResize();
@@ -97,6 +103,7 @@ internal sealed partial class MeshViewport
         else
         {
             UpdateGpuViewport();
+            QueuePaintProjectionPrewarm();
         }
     }
 
@@ -247,6 +254,7 @@ internal sealed partial class MeshViewport
             {
                 EndPlacementGizmoDrag();
             }
+            QueuePaintProjectionPrewarm();
         }
     }
 
@@ -358,6 +366,7 @@ internal sealed partial class MeshViewport
             var orbitY = _residentPresentationSettings.InvertOrbitY ? -dy : dy;
             _yaw += orbitX * radiansPerPixel;
             _pitch = Math.Clamp(_pitch + orbitY * radiansPerPixel, -1.45f, 1.45f);
+            InvalidatePaintProjectionCache("camera_orbit");
             NotifyViewStateChanged();
         }
         else if (_panning)
@@ -366,6 +375,7 @@ internal sealed partial class MeshViewport
             var panY = _residentPresentationSettings.InvertPanY ? -dy : dy;
             _panX += panX * _residentPresentationSettings.PanSensitivity;
             _panY += panY * _residentPresentationSettings.PanSensitivity;
+            InvalidatePaintProjectionCache("camera_pan");
             NotifyViewStateChanged();
         }
         UpdateGpuViewport();
@@ -401,7 +411,9 @@ internal sealed partial class MeshViewport
             return;
         }
         NotifyViewStateChanged();
+        InvalidatePaintProjectionCache("camera_zoom");
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
         base.OnMouseWheel(e);
     }
 
@@ -525,8 +537,9 @@ internal sealed partial class MeshViewport
     /// <summary>
     /// Closes every piece of a Select gesture through one idempotent path. A
     /// release commits exactly what the viewport drew; cancellation restores
-    /// the committed overlay and retires all paint/lasso/cache state so the
-    /// next gesture cannot inherit a stale stroke id.
+    /// the committed overlay and retires provisional paint/lasso state. The
+    /// resident projection cache survives so the next short gesture does not
+    /// rebuild the mesh; its key invalidation owns stale-cache retirement.
     /// </summary>
     private void FinishSelectionGesture(Point location, bool cancelled)
     {
@@ -556,7 +569,7 @@ internal sealed partial class MeshViewport
         _selectionPaintToggleTouchedVertices.Clear();
         _selectionPaintToggleTouchedFaces.Clear();
         _selectionPaintToggleTouchedEdges.Clear();
-        ReleasePaintProjectionCache();
+        EndPaintProjectionGesture();
     }
 
     protected override void OnLostFocus(EventArgs e)
@@ -731,6 +744,7 @@ internal sealed partial class MeshViewport
         // drags keep their rectangle semantics whatever the combo says.
         if (string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase))
         {
+            BeginPaintProjectionGesture();
             BeginSelectionStroke();
             if (_selectionDragMode == "brush")
             {

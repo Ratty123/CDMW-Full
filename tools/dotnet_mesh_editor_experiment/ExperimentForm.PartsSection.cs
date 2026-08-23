@@ -21,6 +21,8 @@ internal sealed partial class ExperimentForm
     private Label? _partDetailTextureCaption;
     private Label? _partDetailTextureValue;
     private Label? _partDetailHidden;
+    private Button? _createPartFromSelectionButton;
+    private bool _createdPartReportPending;
     // The value colours follow the editor's own dark palette: names of things
     // read warm, references to resources read cool, and a state that hides
     // geometry reads as a warning.
@@ -108,6 +110,113 @@ internal sealed partial class ExperimentForm
         _submeshList.SelectedIndexChanged += (_, _) => RefreshPartDetail();
         RefreshPartDetail();
         return section;
+    }
+
+    private Button CreatePartFromSelectionButton()
+    {
+        var button = StyledActionButton("Create Part from Selection", RequestCreatePartFromSelection);
+        button.Name = "CreatePartFromSelectionButton";
+        button.AccessibleName = "Create Part from Selection";
+        SetHelpText(button, "Move selected Faces from one source part into a uniquely named appended part.");
+        _createPartFromSelectionButton = button;
+        RegisterTopologyMutationButton(button);
+        RefreshCreatePartFromSelectionButton();
+        return button;
+    }
+
+    private bool TrySelectedFaceParts(out int[] sourceParts, out int movedFaceCount)
+    {
+        sourceParts = Array.Empty<int>();
+        movedFaceCount = 0;
+        var faces = _viewport.VisibleFaceSelectionPayload();
+        var parts = new List<int>();
+        foreach (var pair in faces)
+        {
+            if (!int.TryParse(pair.Key, out var submeshIndex) || pair.Value.Length == 0)
+            {
+                continue;
+            }
+            parts.Add(submeshIndex);
+            movedFaceCount += pair.Value.Length;
+        }
+        sourceParts = parts.Distinct().OrderBy(index => index).ToArray();
+        return sourceParts.Length == 1 && movedFaceCount > 0;
+    }
+
+    private void RefreshCreatePartFromSelectionButton()
+    {
+        if (_createPartFromSelectionButton is null)
+        {
+            return;
+        }
+        var faceTarget = string.Equals(SelectionText(_selectionTarget, "vertices"), "faces", StringComparison.OrdinalIgnoreCase);
+        _createPartFromSelectionButton.Enabled = !_morphUnbaked
+            && faceTarget
+            && TrySelectedFaceParts(out _, out _);
+    }
+
+    private void RequestCreatePartFromSelection()
+    {
+        var faceTarget = string.Equals(SelectionText(_selectionTarget, "vertices"), "faces", StringComparison.OrdinalIgnoreCase);
+        if (!faceTarget)
+        {
+            _statusLabel.Text = "Create Part requires Faces selection mode.";
+            return;
+        }
+        if (!TrySelectedFaceParts(out _, out _))
+        {
+            _statusLabel.Text = "Create Part requires selected faces from exactly one source part.";
+            return;
+        }
+        WriteCommandRequest("separate", new Dictionary<string, object?>
+        {
+            ["target_mode"] = "face",
+        });
+    }
+
+    private void RevealCreatedPart(int submeshIndex)
+    {
+        if (submeshIndex < 0
+            || submeshIndex >= _document.Submeshes.Count
+            || submeshIndex >= _scene.EditableSubmeshCount)
+        {
+            return;
+        }
+        _syncingSubmeshListSelection = true;
+        _submeshList.BeginUpdate();
+        try
+        {
+            for (var index = 0; index < _submeshList.Items.Count; index++)
+            {
+                _submeshList.SetSelected(index, index == submeshIndex);
+            }
+        }
+        finally
+        {
+            _submeshList.EndUpdate();
+            _syncingSubmeshListSelection = false;
+        }
+        _viewport.SelectPartFromList(submeshIndex);
+        RefreshPartDetail();
+        var part = _document.Submeshes[submeshIndex];
+        _createdPartReportPending = true;
+        _statusLabel.Text = $"Created part '{part.Name}' from {part.Faces.Count:N0} moved face(s).";
+        RefreshCreatePartFromSelectionButton();
+    }
+
+    private void ReportRevealedPartStatus(bool clearPending = true)
+    {
+        var index = _submeshList.SelectedIndices.Cast<int>().FirstOrDefault(-1);
+        if (index < 0 || index >= _document.Submeshes.Count)
+        {
+            return;
+        }
+        var part = _document.Submeshes[index];
+        _statusLabel.Text = $"Created part '{part.Name}' from {part.Faces.Count:N0} moved face(s).";
+        if (clearPending)
+        {
+            _createdPartReportPending = false;
+        }
     }
 
     /// <summary>

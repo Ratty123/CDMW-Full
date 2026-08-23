@@ -18,7 +18,7 @@ import shutil
 import tempfile
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Hashable, Optional
 
@@ -38,7 +38,9 @@ __all__ = [
     "ItemPreviewFrame",
     "PLACEMENT_VIEW_MODES",
     "PlacementScene",
+    "ProgressivePreviewSource",
     "build_item_preview_package",
+    "upgrade_item_preview_package_materials",
     "default_host_factory",
     "package_cleanup_root",
 ]
@@ -63,6 +65,26 @@ class PlacementScene:
     model_bounds: Any = None
 
 
+@dataclass(frozen=True, slots=True)
+class ProgressivePreviewSource:
+    """Geometry-first and canonical-material builders for one placement identity."""
+
+    geometry: Callable[[threading.Event], Any]
+    materials: Callable[[threading.Event], Any]
+
+    def __call__(self, stop_event: threading.Event) -> Any:
+        """Compatibility: callers that know only the old callable get full materials."""
+
+        return self.materials(stop_event)
+
+
+@dataclass(frozen=True, slots=True)
+class _PreviewBuildProduct:
+    package_dir: Path
+    resolved_source: Any
+    stage: str
+
+
 def _as_parsed_mesh(item: Any) -> ParsedMesh:
     if getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
         from cdmw.services.mesh_dotnet_preview_package import parsed_mesh_from_model_preview
@@ -71,7 +93,14 @@ def _as_parsed_mesh(item: Any) -> ParsedMesh:
     return item
 
 
-def build_item_preview_package(source: Any, *, token: Hashable, output_root: Path, stop_event: threading.Event) -> Path:
+def build_item_preview_package(
+    source: Any,
+    *,
+    token: Hashable,
+    output_root: Path,
+    stop_event: threading.Event,
+    include_material_resources: bool = True,
+) -> Path:
     """Build the viewport package for `source` off the UI thread and return its directory.
     `source` is a `ModelPreviewData` (the archive or import preview decode, textures
     resolved: it goes the Model Library's route and comes out textured), a bare
@@ -88,6 +117,7 @@ def build_item_preview_package(source: Any, *, token: Hashable, output_root: Pat
             reference_mesh=_as_parsed_mesh(item.template) if item.template is not None else None,
             comparison_mode="overlay", interaction_mode="placement", cancelled=stop_event.is_set,
             scene_transform=item.placement.build_transform(),
+            include_material_resources=bool(include_material_resources),
         )
     elif getattr(item, "meshes", None) is not None and not hasattr(item, "submeshes"):
         from cdmw.services.mesh_dotnet_preview_package import build_or_lookup_dotnet_preview_package_from_model
@@ -103,8 +133,93 @@ def build_item_preview_package(source: Any, *, token: Hashable, output_root: Pat
         package = build_mesh_dotnet_experiment_package(
             item, output_root=output_root, reference_mesh=None, comparison_mode="side_by_side", interaction_mode="placement",
             cancelled=stop_event.is_set,
+            include_material_resources=bool(include_material_resources),
         )
     return Path(package.package_dir)
+
+
+def upgrade_item_preview_package_materials(
+    geometry_package: Path,
+    source: Any,
+    *,
+    output_root: Path,
+    stop_event: threading.Event,
+) -> Path:
+    """Attach canonical materials to a copied geometry package without re-exporting it."""
+
+    from cdmw.domain.cancellation import RunCancelled
+    from cdmw.services.mesh_dotnet_experiment import (
+        _build_dotnet_scene_mesh,
+        _scene_material_slot_indices,
+        _write_initial_dotnet_launch_manifest,
+        mesh_dotnet_experiment_package_from_path,
+    )
+    from cdmw.services.mesh_dotnet_material_package import _write_dotnet_material_manifest
+    from cdmw.services.mesh_dotnet_material_state import mesh_dotnet_material_input_signature
+
+    root = Path(output_root).resolve(strict=False)
+    base = Path(geometry_package).resolve(strict=False)
+    try:
+        relative = base.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("The progressive geometry package is outside this preview workspace.") from exc
+    if len(relative.parts) != 1 or not relative.name.startswith("package_"):
+        raise ValueError("The progressive geometry package is not workspace-owned.")
+    if stop_event.is_set():
+        raise RunCancelled("Item preview material upgrade cancelled.")
+    item = source(stop_event) if callable(source) else source
+    if not isinstance(item, PlacementScene):
+        raise TypeError("A progressive material upgrade requires a placement scene.")
+    model = _as_parsed_mesh(item.model)
+    reference = _as_parsed_mesh(item.template) if item.template is not None else None
+    target = root / f"package_{time.time_ns()}_materials"
+    try:
+        # The resident helper may be writing status/capture files under output while
+        # the immutable geometry package is copied. A material upgrade needs none of
+        # those process-owned files and gets a fresh output directory of its own.
+        shutil.copytree(base, target, ignore=shutil.ignore_patterns("output"))
+        output = target / "output"
+        output.mkdir()
+        if stop_event.is_set():
+            raise RunCancelled("Item preview material upgrade cancelled.")
+        scene_mesh = _build_dotnet_scene_mesh(model, reference)
+        sidecar_path = target / "scene.obj.meta.json"
+        import json
+
+        sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        if not isinstance(sidecar, dict):
+            raise ValueError("The progressive scene sidecar is not a JSON object.")
+        material_signature = mesh_dotnet_material_input_signature(scene_mesh)
+        materials_path = target / "net_materials.json"
+        _write_dotnet_material_manifest(
+            materials_path,
+            mesh=scene_mesh,
+            sidecar_payload=sidecar,
+            material_signature=material_signature,
+            editable_submesh_count=len(tuple(getattr(model, "submeshes", ()) or ())),
+            include_resources=True,
+            cancelled=stop_event.is_set,
+        )
+        if stop_event.is_set():
+            raise RunCancelled("Item preview material upgrade cancelled.")
+        package = mesh_dotnet_experiment_package_from_path(target)
+        package = replace(
+            package,
+            material_signature=material_signature,
+            editable_submesh_count=len(tuple(getattr(model, "submeshes", ()) or ())),
+            reference_submesh_count=len(tuple(getattr(reference, "submeshes", ()) or ())) if reference is not None else 0,
+            scene_material_slot_indices=_scene_material_slot_indices(sidecar),
+        )
+        _write_initial_dotnet_launch_manifest(
+            package,
+            materials_path,
+            target / "scene.obj",
+            target / "dotnet_scene.json",
+        )
+        return target
+    except BaseException:
+        shutil.rmtree(target, ignore_errors=True)
+        raise
 
 
 def package_cleanup_root(package_dir: Path, output_root: Path) -> Path:
@@ -166,10 +281,15 @@ class ItemPreviewFrame(QWidget):
         self._view_mode = "overlay"
         self._grid_visible = True
         self._model_bounds: Any = None
-        #: (path, token, is_placement) built while the frame was hidden, waiting for the viewport
-        self._deferred_package: Optional[tuple[Path, Hashable, bool]] = None
-        #: (token, is_placement) of the build in flight
-        self._building: Optional[tuple[Hashable, bool]] = None
+        #: (path, token, is_placement, stage) built while hidden, waiting for the viewport
+        self._deferred_package: Optional[tuple[Path, Hashable, bool, str]] = None
+        #: (token, is_placement, stage) of the build in flight
+        self._building: Optional[tuple[Hashable, bool, str]] = None
+        #: Full-material upgrade queued behind a geometry-first placement package.
+        self._upgrade_request: Optional[tuple[Hashable, Any, bool, Path]] = None
+        self._loaded_stage = ""
+        self._reset_view_on_ready = True
+        self._retire_after_ready: list[Path] = []
         #: the build in flight was stopped for a newer request; its error is not the user's
         self._superseded = False
         layout = QVBoxLayout(self)
@@ -232,6 +352,7 @@ class ItemPreviewFrame(QWidget):
         if source is None:
             self._pending = None
             self._pending_is_placement = False
+            self._upgrade_request = None
             self._placement = None
             self.is_ready = False
             self._drop_deferred_package()
@@ -247,6 +368,7 @@ class ItemPreviewFrame(QWidget):
             return
         self._pending = (token, source)
         self._pending_is_placement = bool(is_placement)
+        self._upgrade_request = None
         self._drop_deferred_package()
         self.is_ready = False
         # the scene on screen is the package before this request: take the gizmo off it at
@@ -270,7 +392,7 @@ class ItemPreviewFrame(QWidget):
         deferred = self._deferred_package
         if deferred is not None and not self._closed and self._ensure_host():
             self._deferred_package = None
-            self._package_ready(deferred[0], deferred[1], deferred[2])
+            self._package_ready(deferred[0], deferred[1], deferred[2], deferred[3])
 
     def _drop_deferred_package(self) -> None:
         deferred = self._deferred_package
@@ -408,20 +530,55 @@ class ItemPreviewFrame(QWidget):
 
         return bool(self.is_ready and self._loaded_is_placement and self._placement is not None)
 
-    def _start_package(self, request: tuple[Hashable, Any]) -> None:
+    def _start_package(
+        self,
+        request: tuple[Hashable, Any],
+        *,
+        stage: str = "geometry",
+        resolved_source: Any = None,
+        base_package: Optional[Path] = None,
+    ) -> None:
         root = self._output_root
         token, source = request
         # What this build is for, read back by `_package_ready`. It is kept here rather
         # than captured in a lambda on `completed`: a lambda is not a bound method of this
         # QObject, so Qt runs it on the worker's thread, and the viewport's process would
         # then be created off the UI thread and never deliver its protocol.
-        self._building = (token, bool(self._pending_is_placement))
-        self.is_ready = False
-        self._placement_base = None
-        self.status_changed.emit("Building the preview...")
+        is_placement = bool(self._pending_is_placement)
+        full_stage = stage == "materials" or not is_placement
+        self._building = (token, is_placement, "materials" if full_stage else "geometry")
+        if not full_stage:
+            self.is_ready = False
+            self._placement_base = None
+            self.status_changed.emit("Building the preview...")
+        else:
+            self.status_changed.emit("Loading model textures…")
 
-        def task(_log, stop_event: threading.Event) -> Path:
-            return build_item_preview_package(source, token=token, output_root=root, stop_event=stop_event)
+        def task(_log, stop_event: threading.Event) -> _PreviewBuildProduct:
+            candidate = resolved_source if resolved_source is not None else source
+            if isinstance(candidate, ProgressivePreviewSource):
+                builder = candidate.materials if full_stage else candidate.geometry
+                item = builder(stop_event)
+                upgrade_source = candidate
+            else:
+                item = candidate(stop_event) if callable(candidate) else candidate
+                upgrade_source = item
+            if full_stage and is_placement and base_package is not None:
+                package_dir = upgrade_item_preview_package_materials(
+                    base_package,
+                    item,
+                    output_root=root,
+                    stop_event=stop_event,
+                )
+            else:
+                package_dir = build_item_preview_package(
+                    item,
+                    token=token,
+                    output_root=root,
+                    stop_event=stop_event,
+                    include_material_resources=full_stage,
+                )
+            return _PreviewBuildProduct(package_dir, upgrade_source, "materials" if full_stage else "geometry")
 
         worker = UtilityWorker(task, task_accepts_cancel=True)
         thread = QThread(self)
@@ -468,41 +625,85 @@ class ItemPreviewFrame(QWidget):
         if thread is not None:
             thread.deleteLater()
         done_token = self._building[0] if self._building is not None else None
+        done_stage = self._building[2] if self._building is not None else ""
         self._building = None
         self._superseded = False
         newer = self._pending
         if newer is not None and newer[0] != done_token and not self._closed:
+            self._upgrade_request = None
             self._start_package(newer)
+            return
+        upgrade = self._upgrade_request
+        if (
+            done_stage == "geometry"
+            and upgrade is not None
+            and newer is not None
+            and upgrade[0] == newer[0] == done_token
+            and not self._closed
+        ):
+            self._upgrade_request = None
+            self._start_package(
+                newer,
+                stage="materials",
+                resolved_source=upgrade[1],
+                base_package=upgrade[3],
+            )
 
-    def _package_ready(self, result: object, token: Hashable = _UNSET, is_placement: bool = False) -> None:
+    def _package_ready(
+        self,
+        result: object,
+        token: Hashable = _UNSET,
+        is_placement: bool = False,
+        stage: str = "materials",
+    ) -> None:
         """The package for the build in flight (`self._building`, unless a token is given
         outright, as the deferred path does) has landed: load it and remember what it is."""
 
+        resolved_source = None
+        if isinstance(result, _PreviewBuildProduct):
+            resolved_source = result.resolved_source
+            stage = result.stage
+            result = result.package_dir
         if token is _UNSET:
-            token, is_placement = self._building if self._building is not None else (None, False)
+            if self._building is None:
+                token, is_placement = None, False
+            else:
+                token, is_placement, building_stage = self._building
+                stage = stage or building_stage
         if not isinstance(result, Path):
             return
         if self._closed:
             shutil.rmtree(self._package_cleanup_root(result), ignore_errors=True)
             return
+        if self._pending is not None and token != self._pending[0]:
+            shutil.rmtree(self._package_cleanup_root(result), ignore_errors=True)
+            return
+        if stage == "geometry" and resolved_source is not None:
+            self._upgrade_request = (token, resolved_source, bool(is_placement), result)
         if self.host is None:
             if self.isVisible() and self._ensure_host():
                 pass
             else:
                 # built ahead of the step: loaded the moment the frame shows
-                self._deferred_package = (result, token, is_placement)
+                self._drop_deferred_package()
+                self._deferred_package = (result, token, is_placement, stage)
                 self.status_changed.emit("")
                 return
-        previous, self._package_dir = self._package_dir, result
-        if previous is not None and previous != result:
-            shutil.rmtree(self._package_cleanup_root(previous), ignore_errors=True)
-        if self.host.load_package(result, reset_view=True):
+        previous = self._package_dir
+        reset_view = previous is None or stage != "materials" or self._loaded_token != token
+        if self.host.load_package(result, reset_view=reset_view):
+            self._package_dir = result
+            if previous is not None and previous != result:
+                self._retire_after_ready.append(previous)
             self._loaded = True
             self._loaded_token = token
             self._loaded_is_placement = bool(is_placement)
+            self._loaded_stage = stage
+            self._reset_view_on_ready = reset_view
             self.host.set_display_mode("replacement_only")
             self.status_changed.emit("Loading the viewport...")
         else:
+            shutil.rmtree(self._package_cleanup_root(result), ignore_errors=True)
             self.status_changed.emit("The resident viewport rejected the preview package.")
 
     def _host_state(self, state: str, message: str) -> None:
@@ -516,12 +717,17 @@ class ItemPreviewFrame(QWidget):
             self.is_ready = True
             if self._loaded_is_placement and self._placement is not None:
                 self.host.set_icon_capture_mode(False)
-                self._apply_placement_presentation(fit_view=True)
+                self._apply_placement_presentation(fit_view=self._reset_view_on_ready)
             else:
                 self.host.set_display_mode("replacement_only")
                 self.host.set_alignment_state(enabled=False)
                 self.host.set_icon_capture_mode(True)
-            self.status_changed.emit("")
+            retired, self._retire_after_ready = self._retire_after_ready, []
+            for package in retired:
+                if package != self._package_dir:
+                    shutil.rmtree(self._package_cleanup_root(package), ignore_errors=True)
+            building_materials = self._building is not None and self._building[2] == "materials"
+            self.status_changed.emit("Loading model textures…" if building_materials else "")
             self.ready.emit()
         elif str(state) == "error":
             self.status_changed.emit(str(message or "The viewport reported an error."))
@@ -600,6 +806,9 @@ class ItemPreviewFrame(QWidget):
         if self._package_dir is not None:
             shutil.rmtree(self._package_cleanup_root(self._package_dir), ignore_errors=True)
             self._package_dir = None
+        retired, self._retire_after_ready = self._retire_after_ready, []
+        for package in retired:
+            shutil.rmtree(self._package_cleanup_root(package), ignore_errors=True)
         self._drop_deferred_package()
 
     def _package_cleanup_root(self, package_dir: Path) -> Path:

@@ -11,7 +11,17 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional, Sequence
 
-from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
+from PySide6.QtCore import (
+    QEasingCurve,
+    QElapsedTimer,
+    QEvent,
+    QRect,
+    QSize,
+    Qt,
+    QTimer,
+    QVariantAnimation,
+    Signal,
+)
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPalette, QPen
 from PySide6.QtWidgets import QAbstractButton, QSizePolicy, QWidget
 
@@ -27,9 +37,10 @@ DEFAULT_STEP_LABELS = (
 )
 
 ACTIVE_DARK_COLOR = QColor("#078de5")
-_CIRCLE_DIAMETER = 32
-_HEADER_HEIGHT = 76
-_SIDE_PADDING = 16
+_CIRCLE_DIAMETER = 22
+_HEADER_HEIGHT = 46
+_SIDE_PADDING = 8
+_PROGRESS_HEIGHT = 2
 
 
 class WorkflowStepState(str, Enum):
@@ -89,9 +100,9 @@ class _StepButton(QAbstractButton):
         self.clicked.connect(lambda _checked=False, row=self.index: owner.setCurrentRow(row))
 
     def circle_rect(self) -> QRect:
-        top = self._owner._circle_top()
+        top = (self.height() - _PROGRESS_HEIGHT - _CIRCLE_DIAMETER) // 2
         return QRect(
-            (self.width() - _CIRCLE_DIAMETER) // 2,
+            8,
             top,
             _CIRCLE_DIAMETER,
             _CIRCLE_DIAMETER,
@@ -131,6 +142,14 @@ class _StepButton(QAbstractButton):
             circle_fill = active
             circle_text = QColor(Qt.GlobalColor.white)
             label_color = active
+        elif state == WorkflowStepState.COMPLETED:
+            circle_fill = active.darker(125)
+            circle_text = QColor(Qt.GlobalColor.white)
+            label_color = window_text
+        elif state == WorkflowStepState.BLOCKED:
+            circle_fill = QColor("#d29922") if dark else QColor("#a15c00")
+            circle_text = QColor(Qt.GlobalColor.white)
+            label_color = circle_fill
         else:
             circle_fill = base
             circle_text = button_text
@@ -156,7 +175,12 @@ class _StepButton(QAbstractButton):
         painter.setPen(circle_text)
         painter.drawText(circle, Qt.AlignmentFlag.AlignCenter, str(self.index + 1))
 
-        label_rect = QRect(2, circle.bottom() + 8, max(0, self.width() - 4), 24)
+        label_rect = QRect(
+            circle.right() + 7,
+            0,
+            max(0, self.width() - circle.right() - 11),
+            self.height() - _PROGRESS_HEIGHT,
+        )
         label_font = QFont(self.font())
         label_font.setBold(current)
         painter.setFont(label_font)
@@ -164,7 +188,7 @@ class _StepButton(QAbstractButton):
         label = QFontMetrics(label_font).elidedText(
             self.text(), Qt.TextElideMode.ElideRight, label_rect.width()
         )
-        painter.drawText(label_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, label)
+        painter.drawText(label_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, label)
 
         if self.hasFocus():
             focus_color = active if dark else _palette_color(
@@ -172,7 +196,7 @@ class _StepButton(QAbstractButton):
             )
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setPen(QPen(focus_color, 1, Qt.PenStyle.DashLine))
-            painter.drawRoundedRect(circle.adjusted(-4, -4, 4, 4), 7, 7)
+            painter.drawRoundedRect(self.rect().adjusted(2, 3, -2, -5), 5, 5)
         painter.end()
 
 
@@ -261,6 +285,19 @@ class WorkflowHeader(QWidget):
         self._labels = values
         self._states = [WorkflowStepState.PENDING for _ in values]
         self._states[0] = WorkflowStepState.ACTIVE
+        self._progress_position = 0.0
+        self._progress_animation = QVariantAnimation(self)
+        self._progress_animation.setDuration(180)
+        self._progress_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._progress_start_position = 0.0
+        self._progress_target_position = 0.0
+        self._progress_elapsed = QElapsedTimer()
+        self._progress_tick = QTimer(self)
+        self._progress_tick.setInterval(16)
+        self._progress_tick.timeout.connect(self._advance_progress_animation)
+        self._progress_fallback = QTimer(self)
+        self._progress_fallback.setSingleShot(True)
+        self._progress_fallback.timeout.connect(self._finish_progress_animation)
         self._dark_palette = _palette_is_dark(self.palette())
         self._active_color = self._resolve_active_color(self.palette())
         self._buttons = [_StepButton(self, index, label) for index, label in enumerate(values)]
@@ -287,8 +324,38 @@ class WorkflowHeader(QWidget):
         if event.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
             self._refresh_palette()
 
-    def _circle_top(self) -> int:
-        return max(4, (self.height() - _HEADER_HEIGHT) // 2 + 4)
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        # Owned animation timers must not deliver queued Python slots while a
+        # deferred-delete teardown is already dismantling the header.
+        self._progress_fallback.stop()
+        self._progress_tick.stop()
+        self._progress_animation.stop()
+        super().closeEvent(event)
+
+    def _progress_moved(self, value: object) -> None:
+        self._progress_position = float(value)
+        self.update()
+
+    def _advance_progress_animation(self) -> None:
+        duration = max(1, self._progress_animation.duration())
+        fraction = min(1.0, max(0.0, self._progress_elapsed.elapsed() / duration))
+        eased = self._progress_animation.easingCurve().valueForProgress(fraction)
+        value = self._progress_start_position + (
+            self._progress_target_position - self._progress_start_position
+        ) * eased
+        self._progress_moved(value)
+        if fraction >= 1.0:
+            self._progress_tick.stop()
+            self._progress_fallback.stop()
+
+    def _finish_progress_animation(self) -> None:
+        """Land on the active step when a platform throttles widget animations."""
+
+        self._progress_tick.stop()
+        target = float(self._current_row)
+        if self._progress_position != target:
+            self._progress_position = target
+            self.update()
 
     def _sync_buttons(self) -> None:
         for index, button in enumerate(self._buttons):
@@ -320,19 +387,10 @@ class WorkflowHeader(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         palette = self.palette()
         connector = _palette_color(palette, QPalette.ColorRole.Mid, palette.color(QPalette.ColorRole.WindowText))
-        painter.setPen(QPen(connector, 1))
-        for index in range(len(self._buttons) - 1):
-            first = self._buttons[index]
-            second = self._buttons[index + 1]
-            first_center = first.mapTo(self, first.circle_rect().center())
-            second_center = second.mapTo(self, second.circle_rect().center())
-            painter.setPen(QPen(connector, 1))
-            painter.drawLine(
-                first_center.x() + _CIRCLE_DIAMETER // 2,
-                first_center.y(),
-                second_center.x() - _CIRCLE_DIAMETER // 2,
-                second_center.y(),
-            )
+        track = QRect(_SIDE_PADDING, self.height() - _PROGRESS_HEIGHT, max(0, self.width() - 2 * _SIDE_PADDING), _PROGRESS_HEIGHT)
+        painter.fillRect(track, connector)
+        fraction = min(1.0, max(0.0, (self._progress_position + 1.0) / max(1, self.count())))
+        painter.fillRect(QRect(track.x(), track.y(), round(track.width() * fraction), track.height()), self._active_color)
         painter.end()
 
     def keyPressEvent(self, event) -> None:  # noqa: N802 - Qt override
@@ -414,6 +472,13 @@ class WorkflowHeader(QWidget):
         if self._states[previous] == WorkflowStepState.ACTIVE:
             self._states[previous] = WorkflowStepState.COMPLETED
         self._current_row = target
+        self._progress_animation.stop()
+        self._progress_tick.stop()
+        self._progress_start_position = self._progress_position
+        self._progress_target_position = float(target)
+        self._progress_elapsed.start()
+        self._progress_tick.start()
+        self._progress_fallback.start(self._progress_animation.duration() + 1)
         if self._states[target] != WorkflowStepState.BLOCKED:
             self._states[target] = WorkflowStepState.ACTIVE
         self._sync_buttons()

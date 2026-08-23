@@ -4,6 +4,7 @@ internal sealed partial class MeshViewport
 {
     public void RefreshBounds()
     {
+        InvalidatePaintProjectionCache("mesh_bounds", geometryChanged: true);
         RefreshModelBounds();
         RebuildEdgeTopology();
         RebuildPartAdjacency();
@@ -13,6 +14,7 @@ internal sealed partial class MeshViewport
         }
         _gpuViewport?.RefreshGeometry();
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
     }
 
     public void RefreshTopologyGeometry(
@@ -20,6 +22,7 @@ internal sealed partial class MeshViewport
         IReadOnlyDictionary<int, int> materialSources,
         bool replaceAll)
     {
+        InvalidatePaintProjectionCache("topology", geometryChanged: true);
         var viewCenter = _center;
         RefreshModelBounds();
         _center = viewCenter;
@@ -28,6 +31,7 @@ internal sealed partial class MeshViewport
         _d3d11Viewport?.RefreshTopologyGeometry(affectedSubmeshes, materialSources, replaceAll);
         _gpuViewport?.RefreshGeometry();
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
     }
 
     public void RefreshVertexGeometry(IReadOnlyDictionary<int, IReadOnlyCollection<int>> changedVertices)
@@ -52,10 +56,12 @@ internal sealed partial class MeshViewport
         {
             return;
         }
+        InvalidatePaintProjectionCache("vertex_positions", geometryChanged: true);
         ExpandModelBounds(changed);
         _d3d11Viewport?.RefreshVertexGeometry(changed);
         _gpuViewport?.RefreshGeometry();
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
     }
 
     public void RefreshVertexGeometry(IReadOnlyDictionary<int, MeshVertexChannelChanges> changedChannels)
@@ -80,6 +86,7 @@ internal sealed partial class MeshViewport
         {
             return;
         }
+        InvalidatePaintProjectionCache("vertex_positions", geometryChanged: true);
         var changedPositions = changed
             .Where(pair => pair.Value.Positions.Count > 0)
             .ToDictionary(pair => pair.Key, pair => pair.Value.Positions);
@@ -90,6 +97,7 @@ internal sealed partial class MeshViewport
         _d3d11Viewport?.RefreshVertexGeometry(changed);
         _gpuViewport?.RefreshGeometry();
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
     }
 
     private static int[] ValidChannelIndices(IEnumerable<int> indices, int count)
@@ -211,6 +219,7 @@ internal sealed partial class MeshViewport
 
     public void FrameMesh()
     {
+        InvalidatePaintProjectionCache("camera_frame");
         if (_scene.HasAuthoritativeFrame)
         {
             _bounds = (
@@ -255,6 +264,7 @@ internal sealed partial class MeshViewport
         // those report it. Without this the host keeps the pre-fit zoom and pan.
         NotifyViewStateChanged();
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
         Invalidate();
     }
 

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
 import shutil
 from collections.abc import Callable, Mapping
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -636,6 +638,51 @@ def _synthesis_input_channel(item: object) -> str:
     return semantic
 
 
+def _material_synthesis_cache_key(
+    source: object | None,
+    raw_channels: Mapping[str, str],
+    raw_contract: Mapping[str, object],
+) -> str:
+    """Identity for one combiner request, excluding submesh ownership metadata."""
+
+    inputs = _package_synthesis_inputs(source, raw_contract)
+    input_rows: list[object] = []
+    for item in inputs:
+        if is_dataclass(item):
+            row = asdict(item)
+        elif isinstance(item, Mapping):
+            row = dict(item)
+        else:
+            row = {
+                name: getattr(item, name)
+                for name in getattr(PreviewMaterialTextureInput, "__dataclass_fields__", {})
+                if hasattr(item, name)
+            }
+        if isinstance(row, dict):
+            # These fields identify the owning row, not the decode/composition work.
+            for metadata in ("material_name", "part_name", "owner_slot_index", "owner_wrapper_item_id"):
+                row.pop(metadata, None)
+        input_rows.append(row)
+    payload = {
+        "material": str(getattr(source, "material", "") or getattr(source, "name", "") or ""),
+        "texture": str(getattr(source, "texture", "") or ""),
+        "texture_flip_vertical": bool(getattr(source, "preview_texture_flip_vertical", False)),
+        "alpha_mode": str(getattr(source, "preview_alpha_mode", "") or ""),
+        "tangents_usable": _source_has_usable_tangents(source),
+        "normal_texture_strength": max(
+            0.0,
+            float(getattr(source, "preview_normal_texture_strength", 0.0) or 0.0),
+        ),
+        "raw_channels": sorted((str(key), str(value or "")) for key, value in raw_channels.items()),
+        "alpha_cutoff": float(raw_contract.get("alpha_cutoff", 0.5) or 0.5),
+        "alpha_authority": str(raw_contract.get("alpha_authority", "") or ""),
+        "layer_bindings": tuple(raw_contract.get("layer_bindings", ()) or ()),
+        "inputs": input_rows,
+    }
+    encoded = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True, default=str)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def _layer_graph_is_source_identity(inputs: tuple[object, ...]) -> bool:
     """Return true only when every layer source reuses its owning base source."""
 
@@ -943,6 +990,7 @@ def _dotnet_submesh_material_payload(
     package_dir: Path,
     texture_copy_cache: dict[str, str],
     resource_payloads: dict[str, dict[str, object]],
+    synthesis_cache: dict[str, tuple[dict[str, str], dict[str, object], tuple[str, ...]]],
     role: str,
     include_resources: bool,
     cancelled: Callable[[], bool] | None,
@@ -956,14 +1004,28 @@ def _dotnet_submesh_material_payload(
         source_asset_path=source_asset_path,
     )
     if include_resources:
-        resolved_channels, synthesis, generated = _synthesize_dotnet_material_channels(
+        synthesis_key = _material_synthesis_cache_key(
             source_submesh,
             raw_channels,
             raw_contract,
-            output_dir=package_dir / "material_synthesis" / f"submesh_{fallback_index:03d}",
-            batch_index=fallback_index,
-            cancelled=cancelled,
         )
+        cached_synthesis = synthesis_cache.get(synthesis_key)
+        if cached_synthesis is None:
+            resolved_channels, synthesis, generated = _synthesize_dotnet_material_channels(
+                source_submesh,
+                raw_channels,
+                raw_contract,
+                output_dir=package_dir / "material_synthesis" / f"submesh_{fallback_index:03d}",
+                batch_index=fallback_index,
+                cancelled=cancelled,
+            )
+            synthesis_cache[synthesis_key] = (
+                copy.deepcopy(resolved_channels),
+                copy.deepcopy(synthesis),
+                tuple(generated),
+            )
+        else:
+            resolved_channels, synthesis, generated = copy.deepcopy(cached_synthesis)
         if cancelled is not None and cancelled():
             raise RunCancelled("Mesh .NET material package synthesis cancelled.")
         semantic_contract = _dotnet_material_semantic_contract(
@@ -1178,6 +1240,10 @@ def compile_mesh_dotnet_material_manifest(
     slots, submeshes, source_submeshes = _material_manifest_inputs(mesh, sidecar_payload)
     texture_copy_cache: dict[str, str] = {}
     resource_payloads: dict[str, dict[str, object]] = {}
+    synthesis_cache: dict[
+        str,
+        tuple[dict[str, str], dict[str, object], tuple[str, ...]],
+    ] = {}
     source_asset_path = str(getattr(mesh, "path", "") or "").strip()
     submesh_payloads = []
     for index, submesh in enumerate(submeshes):
@@ -1204,6 +1270,7 @@ def compile_mesh_dotnet_material_manifest(
                 package_dir=package_dir,
                 texture_copy_cache=texture_copy_cache,
                 resource_payloads=resource_payloads,
+                synthesis_cache=synthesis_cache,
                 role=effective_role,
                 include_resources=include_resources,
                 cancelled=cancelled,

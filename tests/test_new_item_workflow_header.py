@@ -151,9 +151,22 @@ class WorkflowHeaderTests(unittest.TestCase):
             self.assertLessEqual(max(gaps) - min(gaps), 1)
             for button in buttons:
                 circle = button.circle_rect()
-                self.assertEqual(circle.width(), 32)
-                self.assertEqual(circle.height(), 32)
+                self.assertEqual(circle.width(), 22)
+                self.assertEqual(circle.height(), 22)
                 self.assertEqual(button.height(), self.header.height())
+            self.assertEqual(self.header.height(), 46)
+
+    def test_progress_track_animates_to_the_active_step(self) -> None:
+        self.assertEqual(self.header._progress_position, 0.0)
+        self.assertTrue(self.header.setCurrentRow(4))
+        QTest.qWait(self.header._progress_animation.duration() + 20)
+        self.assertAlmostEqual(self.header._progress_position, 4.0, places=2)
+
+    def test_progress_track_reaches_the_active_step_when_animation_is_throttled(self) -> None:
+        self.assertTrue(self.header.setCurrentRow(5))
+        self.header._progress_tick.stop()
+        QTest.qWait(self.header._progress_animation.duration() + 20)
+        self.assertAlmostEqual(self.header._progress_position, 5.0, places=2)
 
     def test_dark_palette_uses_required_active_cyan(self) -> None:
         palette = QPalette()

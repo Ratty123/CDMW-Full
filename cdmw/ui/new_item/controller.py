@@ -53,6 +53,7 @@ _NOT_READ = object()
 
 class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
     busy_changed = Signal(bool)
+    operation_progress = Signal(str, int, int, str)
     log_message = Signal(str)
     status_message = Signal(str, bool)
     snapshot_ready = Signal()
@@ -122,6 +123,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         self._on_done: Optional[Callable[[object], None]] = None
         self._on_error: Optional[Callable[[str], None]] = None
         self._lane: str = ""
+        self._cancel_requested_lane: str = ""
         self._shutdown_requested = False
         self._model_sources_to_cleanup: list[object] = []
         #: What every shipped effect is made of, once indexed (a minute, cached on disk).
@@ -534,18 +536,33 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         source = self.model_import
         if source is not None:
             template = self._template_preview_build()
-            if template is None:
+            template_geometry = self._template_geometry_build()
+            if template is None or template_geometry is None:
                 return None
             template_token, template_build = template
+            _geometry_token, geometry_build = template_geometry
             placement = self.model_placement
 
-            def build_scene(stop_event):
+            def build_geometry_scene(stop_event):
+                from cdmw.ui.new_item.item_preview import PlacementScene
+
+                return PlacementScene(
+                    template=geometry_build(stop_event),
+                    model=source.baked_scene_mesh(),
+                    placement=placement,
+                    model_bounds=source.baked_bounds(),
+                )
+
+            def build_material_scene(stop_event):
                 from cdmw.ui.new_item.item_preview import PlacementScene
 
                 model = source.baked_preview_mesh()
                 return PlacementScene(template=template_build(stop_event), model=model, placement=placement, model_bounds=source.baked_bounds())
 
-            return (("placement", id(source), source.bake_generation, source.mesh_generation, template_token), build_scene)
+            from cdmw.ui.new_item.item_preview import ProgressivePreviewSource
+
+            build = ProgressivePreviewSource(build_geometry_scene, build_material_scene)
+            return (("placement", id(source), source.bake_generation, source.mesh_generation, template_token), build)
         result = self.model_result
         model = getattr(result, "preview_model", None)
         if result is not None and model is not None and getattr(model, "meshes", None):
@@ -554,6 +571,32 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             mesh = self.item_mesh_for_preview()
             return (("imported-bare", id(result)), lambda _stop_event: mesh) if mesh is not None else None
         return self._template_preview_build()
+
+    def _template_geometry_build(self):
+        """A fast bare template mesh builder for the first progressive viewport stage."""
+
+        snapshot = self.snapshot
+        if snapshot is None or self.draft.template_key is None:
+            return None
+        entries = self.template_entries()
+        if not entries:
+            return None
+        try:
+            family = snapshot.family(self.draft.template_key)
+        except Exception:  # noqa: BLE001
+            return None
+        stem = family.model_stem.lower()
+        entry = next((item for item in entries if item.path.lower().rsplit("/", 1)[-1] == f"{stem}.pac"), entries[0])
+
+        def build(stop_event):
+            from cdmw.domain.cancellation import RunCancelled
+            from cdmw.modding.mesh_parser import parse_pac
+
+            if stop_event.is_set():
+                raise RunCancelled("Template preview cancelled")
+            return parse_pac(snapshot.payload(entry.path), entry.path)
+
+        return (("template-geometry", self.draft.template_key, entry.path), build)
 
     def _template_preview_build(self):
         """`(token, build)` for the template's own mesh: the archive decode with its
@@ -838,9 +881,15 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             self.model_import_failed.emit(message)
             return False
 
-        def task(log, stop_event):
-            log(f"Reading {chosen.name}...")
-            return load_model_import_source(chosen, stop_event=stop_event, blender_path=blender, on_log=log)
+        def task(log, progress, stop_event):
+            def report(message: str) -> None:
+                log(message)
+                progress(0, 0, message)
+
+            report(f"Reading {chosen.name}...")
+            result = load_model_import_source(chosen, stop_event=stop_event, blender_path=blender, on_log=report)
+            progress(1, 1, "Model source ready")
+            return result
 
         def done(result: object) -> None:
             if not isinstance(result, ModelImportSource):
@@ -866,7 +915,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             self.status_message.emit(said, True)
             self.model_import_failed.emit(said)
 
-        return self._run("model_import", task, done, failed)
+        return self._run("model_import", task, done, failed, task_accepts_progress=True)
 
     def set_model_placement(self, placement: ModelPlacement) -> None:
         """Move the imported model (the gizmo, the numbers, a fit, a reset). A result
@@ -910,9 +959,17 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         by_path = getattr(context, "entries_by_normalized_path", None)
         by_basename = getattr(context, "entries_by_basename", None)
 
-        def task(log, stop_event):
+        def task(log, progress, stop_event):
             log(f"Building {entry.basename} from {source.label} at its placement...")
-            return build_placed_import(entry, source, placement, entries_by_normalized_path=by_path, entries_by_basename=by_basename, stop_event=stop_event)
+            return build_placed_import(
+                entry,
+                source,
+                placement,
+                entries_by_normalized_path=by_path,
+                entries_by_basename=by_basename,
+                stop_event=stop_event,
+                on_progress=progress,
+            )
 
         def done(result: object) -> None:
             source.applied = (source.bake, placement)
@@ -921,7 +978,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         def failed(message: str) -> None:
             self.status_message.emit(f"The placement could not be built: {message}", True)
 
-        return self._run("model_apply", task, done, failed)
+        return self._run("model_apply", task, done, failed, task_accepts_progress=True)
 
     def start_model_part_edit_apply(
         self,
@@ -1193,7 +1250,15 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         task = overlay_removal_task(package_root, mutation_service=mutation_service)
         return self._run("overlay", task, self.install_finished.emit, lambda message: self.status_message.emit(message, True))
 
-    def _run(self, lane: str, task, on_done: Callable[[object], None], on_error: Callable[[str], None]) -> bool:
+    def _run(
+        self,
+        lane: str,
+        task,
+        on_done: Callable[[object], None],
+        on_error: Callable[[str], None],
+        *,
+        task_accepts_progress: bool = False,
+    ) -> bool:
         if self._shutdown_requested:
             return False
         if self.busy:
@@ -1201,19 +1266,33 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             return False
         if self._synchronous:
             try:
-                result = task(self.log_message.emit, threading.Event())
+                if task_accepts_progress:
+                    result = task(
+                        self.log_message.emit,
+                        lambda current, total, detail: self.operation_progress.emit(
+                            lane, int(current), int(total), str(detail or "")
+                        ),
+                        threading.Event(),
+                    )
+                else:
+                    result = task(self.log_message.emit, threading.Event())
             except (NewItemPlanError, NewItemSnapshotError, NewItemInstallRefused, ValueError, RuntimeError, OSError) as exc:
                 on_error(str(exc))
                 return True
             on_done(result)
             return True
-        worker = UtilityWorker(task, task_accepts_cancel=True)
+        worker = UtilityWorker(
+            task,
+            task_accepts_progress=task_accepts_progress,
+            task_accepts_cancel=True,
+        )
         thread = QThread(self)
         worker.moveToThread(thread)
         self._thread, self._worker, self._lane = thread, worker, lane
         self._on_done, self._on_error = on_done, on_error
         self.busy_changed.emit(True)
         worker.log_message.connect(self.log_message.emit)
+        worker.progress_changed.connect(self._task_progress)
         # Bound methods of this QObject, not closures: a plain function or lambda
         # connected to a worker's signal runs on the worker's own thread, so the panels'
         # slots (and everything they touch in Qt) ran off the UI thread for the whole of
@@ -1227,11 +1306,37 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
         thread.start()
         return True
 
+    def _task_progress(self, current: int, total: int, detail: str) -> None:
+        if (
+            self._shutdown_requested
+            or not self._lane
+            or self._cancel_requested_lane == self._lane
+        ):
+            return
+        self.operation_progress.emit(self._lane, int(current), int(total), str(detail or ""))
+
+    def cancel_operation(self, lane: str = "") -> bool:
+        """Request cooperative cancellation for the current matching operation."""
+
+        expected = str(lane or "")
+        if self._worker is None or (expected and expected != self._lane):
+            return False
+        self._worker.stop()
+        self._cancel_requested_lane = self._lane
+        self.operation_progress.emit(self._lane, 0, 0, "Cancelling…")
+        return True
+
     def _task_completed(self, result: object) -> None:
         if self._shutdown_requested:
             cleanup = getattr(result, "cleanup", None)
             if callable(cleanup):
                 cleanup()
+            return
+        if self._cancel_requested_lane == self._lane:
+            cleanup = getattr(result, "cleanup", None)
+            if callable(cleanup):
+                cleanup()
+            self.status_message.emit("Operation cancelled.", False)
             return
         handler = self._on_done
         if handler is not None:
@@ -1240,9 +1345,13 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
     def _task_failed(self, message: object) -> None:
         if self._shutdown_requested:
             return
+        text = str(message)
+        if self._cancel_requested_lane == self._lane:
+            self.status_message.emit("Operation cancelled.", False)
+            return
         handler = self._on_error
         if handler is not None:
-            handler(str(message))
+            handler(text)
 
     def _worker_finished(self) -> None:
         """Run on the worker thread: return its QObject, then stop that event loop."""
@@ -1261,6 +1370,7 @@ class NewItemStudioController(NewItemEffectWorkspaceControllerMixin, QObject):
             return
         self._thread = None
         self._worker = None
+        self._cancel_requested_lane = ""
         self._lane = ""
         self._on_done = None
         self._on_error = None

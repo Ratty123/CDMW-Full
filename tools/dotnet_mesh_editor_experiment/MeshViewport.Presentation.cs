@@ -328,6 +328,7 @@ internal sealed partial class MeshViewport
             _scene.SetPresentationHiddenSubmeshes(_presentationHiddenSubmeshes);
         }
         ApplyPresentationPartStates(root);
+        InvalidatePaintProjectionCacheIfStale("presentation_view_state");
 
         _presentationGeneration = Math.Max(
             _presentationGeneration + 1,
@@ -338,6 +339,7 @@ internal sealed partial class MeshViewport
         SaveActivePresentationContext();
         RequestFrame();
         UpdateGpuViewport();
+        QueuePaintProjectionPrewarm();
         Invalidate();
         return true;
     }

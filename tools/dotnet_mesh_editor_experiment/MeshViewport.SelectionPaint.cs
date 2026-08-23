@@ -1,5 +1,8 @@
 using System.Drawing;
+using System.Diagnostics;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Cdmw.MeshEditorExperiment;
 
@@ -283,8 +286,9 @@ internal sealed partial class MeshViewport
     /// All of it used to be recomputed for every dab — the front-facing test
     /// walked every face of the submesh per vertex, O(vertices × faces) per dab
     /// on the UI thread, which is what made brush select stutter and lag behind
-    /// the cursor instead of painting. Built once per drag it is
-    /// O(vertices + faces + edges), and every dab after it is a bucket query.
+    /// the cursor instead of painting. The resident cache is prepared from an
+    /// immutable snapshot off the input path, so every dab after publication is
+    /// a bucket query and short gestures reuse the same projection data.
     /// The depth raster replaces the old front-facing gate for visible-mode
     /// echo: the authoritative native result filters by its own depth mask, so
     /// an echo that only tested facing tinted occluded geometry the result then
@@ -301,8 +305,15 @@ internal sealed partial class MeshViewport
         public required int ViewportWidth { get; init; }
         public required int ViewportHeight { get; init; }
         public required bool BuiltForXRay { get; init; }
+        public required long GeometryRevision { get; init; }
+        public required int TopologyGeneration { get; init; }
+        public required int EditableSubmeshCount { get; init; }
+        public required int[] VisibleSubmeshIndices { get; init; }
+        public required Dictionary<int, Matrix4x4> ModelMatrices { get; init; }
         public Dictionary<int, PointF[]> Points { get; } = new();
         public Dictionary<int, float[]> Depths { get; } = new();
+        public Dictionary<int, PaintProjectionFace[]> Faces { get; } = new();
+        public PaintProjectionEdge[] Edges { get; set; } = Array.Empty<PaintProjectionEdge>();
         public Dictionary<int, RectangleF> PartBounds { get; } = new();
         public Dictionary<int, int[][]> VertexBuckets { get; } = new();
         public Dictionary<int, int[][]> FaceBuckets { get; } = new();
@@ -320,6 +331,7 @@ internal sealed partial class MeshViewport
         // Coarse min-depth raster over the pane (empty in X-Ray mode). The
         // local stand-in for the native selection depth mask.
         public float[] OcclusionDepths = Array.Empty<float>();
+        public bool[] OcclusionPrepared = Array.Empty<bool>();
         public int OcclusionColumns;
         public int OcclusionRows;
         private int _faceVisitStamp;
@@ -339,9 +351,61 @@ internal sealed partial class MeshViewport
         }
     }
 
+    private readonly record struct PaintProjectionFace(int A, int B, int C);
+
+    private readonly record struct PaintProjectionEdge(
+        int Id,
+        int SubmeshIndex,
+        int VertexA,
+        int VertexB);
+
+    private sealed record PaintProjectionSubmeshSnapshot(
+        int Index,
+        Vec3[] Vertices,
+        PaintProjectionFace[] Faces,
+        Matrix4x4 ModelMatrix);
+
+    private sealed record PaintProjectionBuildSnapshot(
+        Matrix4x4 Camera,
+        int ViewportWidth,
+        int ViewportHeight,
+        bool BuiltForXRay,
+        long GeometryRevision,
+        int TopologyGeneration,
+        int EditableSubmeshCount,
+        int[] VisibleSubmeshIndices,
+        PaintProjectionSubmeshSnapshot[] Submeshes,
+        PaintProjectionEdge[] Edges);
+
+    private readonly record struct PendingPaintSample(
+        Point Start,
+        Point End,
+        double Radius,
+        string Operation,
+        string StrokeId);
+
     private const int PaintProjectionCellPixels = 16;
     private const int PaintProjectionMaximumFaceBucketCells = 16;
     private PaintProjectionCache? _paintProjection;
+    private CancellationTokenSource? _paintProjectionBuildCancellation;
+    private PaintProjectionBuildSnapshot? _paintProjectionBuildSnapshot;
+    private long _paintProjectionBuildRequest;
+    private long _paintProjectionGeometryRevision;
+    private bool _paintProjectionBuildActive;
+    private PendingPaintSample? _pendingPaintSample;
+    private long _paintProjectionFirstDabStartedTicks;
+    private bool _paintProjectionFirstDabMeasured;
+    private bool _paintProjectionColdFirstDabRecorded;
+    private int _paintProjectionBuildCount;
+    private int _paintProjectionCacheHitCount;
+    private int _paintProjectionInvalidationCount;
+    private int _paintProjectionStaleBuildCount;
+    private int _paintProjectionColdFirstDabCount;
+    private int _paintProjectionWarmFirstDabCount;
+    private double _paintProjectionLastColdFirstDabMs;
+    private double _paintProjectionLastWarmFirstDabMs;
+    private double _paintProjectionLastBuildMs;
+    private string _paintProjectionLastInvalidation = string.Empty;
 
     internal static bool PaintProjectionFaceUsesLargeCandidateList(
         int leftCell,
@@ -378,46 +442,179 @@ internal sealed partial class MeshViewport
     }
 
     /// <summary>
-    /// Drops the per-drag projection cache. Called when the gesture ends, so a
-    /// camera move between drags can never be answered from stale screen
-    /// positions.
+    /// The projection cache is resident across short gestures. Only geometry,
+    /// topology, camera/model matrices, pane size, X-Ray, or selectable-part
+    /// state can retire it. A build is cancelled cooperatively and its result
+    /// is accepted only when the captured immutable snapshot is still current.
     /// </summary>
-    private void ReleasePaintProjectionCache()
+    private void InvalidatePaintProjectionCache(string reason, bool geometryChanged = false)
     {
+        if (geometryChanged)
+        {
+            _paintProjectionGeometryRevision++;
+        }
+        _paintProjectionInvalidationCount++;
+        _paintProjectionLastInvalidation = reason ?? string.Empty;
         _paintProjection = null;
+        _paintProjectionBuildRequest++;
+        _paintProjectionBuildCancellation?.Cancel();
+        _paintProjectionBuildCancellation?.Dispose();
+        _paintProjectionBuildCancellation = null;
+        _paintProjectionBuildSnapshot = null;
+        _paintProjectionBuildActive = false;
+        _pendingPaintSample = null;
     }
 
-    private PaintProjectionCache EnsurePaintProjectionCache(NetViewportCamera camera)
+    private PaintProjectionBuildSnapshot CapturePaintProjectionSnapshot(
+        NetViewportCamera camera,
+        Rectangle viewport)
+    {
+        var visible = VisibleEditableSubmeshIndices();
+        var visibleSet = visible.ToHashSet();
+        var submeshes = new List<PaintProjectionSubmeshSnapshot>(visible.Length);
+        foreach (var submeshIndex in visible)
+        {
+            var source = _document.Submeshes[submeshIndex];
+            var faces = source.Faces
+                .Select(face => face.Corners.Length == 3
+                    ? new PaintProjectionFace(
+                        face.Corners[0].VertexIndex,
+                        face.Corners[1].VertexIndex,
+                        face.Corners[2].VertexIndex)
+                    : new PaintProjectionFace(-1, -1, -1))
+                .ToArray();
+            submeshes.Add(new PaintProjectionSubmeshSnapshot(
+                submeshIndex,
+                source.Vertices.ToArray(),
+                faces,
+                ActiveSceneModelMatrix(submeshIndex)));
+        }
+        var edges = _edgeTopology.Edges
+            .Where(edge => visibleSet.Contains(edge.SubmeshIndex))
+            .Select(edge => new PaintProjectionEdge(edge.Id, edge.SubmeshIndex, edge.VertexA, edge.VertexB))
+            .ToArray();
+        return new PaintProjectionBuildSnapshot(
+            camera.WorldViewProjection,
+            Math.Max(1, viewport.Width),
+            Math.Max(1, viewport.Height),
+            ShowXRay,
+            _paintProjectionGeometryRevision,
+            _edgeTopology.Generation,
+            Math.Clamp(_scene.EditableSubmeshCount, 0, _document.Submeshes.Count),
+            visible,
+            submeshes.ToArray(),
+            edges);
+    }
+
+    private bool PaintProjectionViewMatches(PaintProjectionBuildSnapshot snapshot)
     {
         var liveViewport = ActivePaneBounds();
-        if (_paintProjection is { } cached
-            && cached.Camera.Equals(camera.WorldViewProjection)
-            && cached.ViewportWidth == Math.Max(1, liveViewport.Width)
-            && cached.ViewportHeight == Math.Max(1, liveViewport.Height)
-            && cached.BuiltForXRay == ShowXRay)
+        if (snapshot.GeometryRevision != _paintProjectionGeometryRevision
+            || snapshot.TopologyGeneration != _edgeTopology.Generation
+            || snapshot.EditableSubmeshCount != Math.Clamp(_scene.EditableSubmeshCount, 0, _document.Submeshes.Count)
+            || snapshot.BuiltForXRay != ShowXRay
+            || snapshot.ViewportWidth != Math.Max(1, liveViewport.Width)
+            || snapshot.ViewportHeight != Math.Max(1, liveViewport.Height)
+            || !snapshot.Camera.Equals(CurrentCamera().WorldViewProjection))
         {
-            return cached;
+            return false;
         }
-        var viewport = liveViewport;
+        var visible = VisibleEditableSubmeshIndices();
+        if (!snapshot.VisibleSubmeshIndices.SequenceEqual(visible))
+        {
+            return false;
+        }
+        foreach (var submeshIndex in visible)
+        {
+            if (snapshot.Submeshes.FirstOrDefault(item => item.Index == submeshIndex) is not { } captured
+                || !captured.ModelMatrix.Equals(ActiveSceneModelMatrix(submeshIndex)))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private bool PaintProjectionCacheMatchesLive(PaintProjectionCache cache)
+    {
+        var viewport = ActivePaneBounds();
+        if (cache.GeometryRevision != _paintProjectionGeometryRevision
+            || cache.TopologyGeneration != _edgeTopology.Generation
+            || cache.EditableSubmeshCount != Math.Clamp(_scene.EditableSubmeshCount, 0, _document.Submeshes.Count)
+            || cache.BuiltForXRay != ShowXRay
+            || cache.ViewportWidth != Math.Max(1, viewport.Width)
+            || cache.ViewportHeight != Math.Max(1, viewport.Height)
+            || !cache.Camera.Equals(CurrentCamera().WorldViewProjection))
+        {
+            return false;
+        }
+        var visible = VisibleEditableSubmeshIndices();
+        return cache.VisibleSubmeshIndices.SequenceEqual(visible)
+            && visible.All(index =>
+                cache.ModelMatrices.TryGetValue(index, out var model)
+                && model.Equals(ActiveSceneModelMatrix(index)));
+    }
+
+    private void InvalidatePaintProjectionCacheIfStale(string reason)
+    {
+        if (_paintProjection is { } cache && !PaintProjectionCacheMatchesLive(cache))
+        {
+            InvalidatePaintProjectionCache(reason);
+            return;
+        }
+        if (_paintProjectionBuildActive
+            && _paintProjectionBuildSnapshot is { } snapshot
+            && !PaintProjectionViewMatches(snapshot))
+        {
+            InvalidatePaintProjectionCache(reason);
+        }
+    }
+
+    private static PointF ProjectPaintPoint(
+        Matrix4x4 camera,
+        Matrix4x4 model,
+        Vec3 vertex,
+        float viewportWidth,
+        float viewportHeight,
+        out float depth)
+    {
+        var transformed = Vector3.Transform(new Vector3(vertex.X, vertex.Y, vertex.Z), model);
+        var clip = Vector4.Transform(new Vector4(transformed, 1.0f), camera);
+        if (Math.Abs(clip.W) > 0.000001f)
+        {
+            clip /= clip.W;
+        }
+        depth = clip.Z;
+        return new PointF(
+            (clip.X * 0.5f + 0.5f) * viewportWidth,
+            (0.5f - clip.Y * 0.5f) * viewportHeight);
+    }
+
+    private static PaintProjectionCache BuildPaintProjectionCache(
+        PaintProjectionBuildSnapshot snapshot,
+        CancellationToken stopToken)
+    {
         var cache = new PaintProjectionCache
         {
-            Camera = camera.WorldViewProjection,
-            GridColumns = Math.Max(1, (viewport.Width + PaintProjectionCellPixels - 1) / PaintProjectionCellPixels),
-            GridRows = Math.Max(1, (viewport.Height + PaintProjectionCellPixels - 1) / PaintProjectionCellPixels),
-            ViewportWidth = Math.Max(1, viewport.Width),
-            ViewportHeight = Math.Max(1, viewport.Height),
-            BuiltForXRay = ShowXRay,
+            Camera = snapshot.Camera,
+            GridColumns = Math.Max(1, (snapshot.ViewportWidth + PaintProjectionCellPixels - 1) / PaintProjectionCellPixels),
+            GridRows = Math.Max(1, (snapshot.ViewportHeight + PaintProjectionCellPixels - 1) / PaintProjectionCellPixels),
+            ViewportWidth = snapshot.ViewportWidth,
+            ViewportHeight = snapshot.ViewportHeight,
+            BuiltForXRay = snapshot.BuiltForXRay,
+            GeometryRevision = snapshot.GeometryRevision,
+            TopologyGeneration = snapshot.TopologyGeneration,
+            EditableSubmeshCount = snapshot.EditableSubmeshCount,
+            VisibleSubmeshIndices = snapshot.VisibleSubmeshIndices,
+            ModelMatrices = snapshot.Submeshes.ToDictionary(item => item.Index, item => item.ModelMatrix),
         };
+        cache.Edges = snapshot.Edges;
         PreparePaintOcclusionGrid(cache);
-        for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount && submeshIndex < _document.Submeshes.Count; submeshIndex++)
+        foreach (var snapshotSubmesh in snapshot.Submeshes)
         {
-            if (!IsSubmeshVisibleForViewportSelection(submeshIndex))
-            {
-                continue;
-            }
-            var submesh = _document.Submeshes[submeshIndex];
-            var points = new PointF[submesh.Vertices.Count];
-            var depths = new float[submesh.Vertices.Count];
+            stopToken.ThrowIfCancellationRequested();
+            var points = new PointF[snapshotSubmesh.Vertices.Length];
+            var depths = new float[snapshotSubmesh.Vertices.Length];
             var pendingVertexBuckets = new List<int>?[cache.GridColumns * cache.GridRows];
             var minX = float.PositiveInfinity;
             var minY = float.PositiveInfinity;
@@ -425,10 +622,16 @@ internal sealed partial class MeshViewport
             var maxY = float.NegativeInfinity;
             for (var vertexIndex = 0; vertexIndex < points.Length; vertexIndex++)
             {
-                points[vertexIndex] = SceneProjectedPointWithDepth(
-                    camera,
-                    submeshIndex,
-                    submesh.Vertices[vertexIndex],
+                if ((vertexIndex & 1023) == 0)
+                {
+                    stopToken.ThrowIfCancellationRequested();
+                }
+                points[vertexIndex] = ProjectPaintPoint(
+                    snapshot.Camera,
+                    snapshotSubmesh.ModelMatrix,
+                    snapshotSubmesh.Vertices[vertexIndex],
+                    snapshot.ViewportWidth,
+                    snapshot.ViewportHeight,
                     out depths[vertexIndex]);
                 minX = Math.Min(minX, points[vertexIndex].X);
                 minY = Math.Min(minY, points[vertexIndex].Y);
@@ -442,33 +645,32 @@ internal sealed partial class MeshViewport
                     (pendingVertexBuckets[bucketIndex] ??= new List<int>()).Add(vertexIndex);
                 }
             }
-            cache.Points[submeshIndex] = points;
-            cache.Depths[submeshIndex] = depths;
-            cache.VertexBuckets[submeshIndex] = pendingVertexBuckets
+            cache.Points[snapshotSubmesh.Index] = points;
+            cache.Depths[snapshotSubmesh.Index] = depths;
+            cache.VertexBuckets[snapshotSubmesh.Index] = pendingVertexBuckets
                 .Select(bucket => bucket?.ToArray() ?? Array.Empty<int>())
                 .ToArray();
             if (points.Length > 0)
             {
-                cache.PartBounds[submeshIndex] = RectangleF.FromLTRB(minX, minY, maxX, maxY);
+                cache.PartBounds[snapshotSubmesh.Index] = RectangleF.FromLTRB(minX, minY, maxX, maxY);
             }
-            var faceBounds = new RectangleF[submesh.Faces.Count];
+            var faceBounds = new RectangleF[snapshotSubmesh.Faces.Length];
             var pendingFaceBuckets = new List<int>?[cache.GridColumns * cache.GridRows];
             var largeFaceCandidates = new List<int>();
-            for (var faceIndex = 0; faceIndex < submesh.Faces.Count; faceIndex++)
+            for (var faceIndex = 0; faceIndex < snapshotSubmesh.Faces.Length; faceIndex++)
             {
-                var face = submesh.Faces[faceIndex];
-                if (face.Corners.Length != 3)
+                if ((faceIndex & 1023) == 0)
                 {
-                    continue;
+                    stopToken.ThrowIfCancellationRequested();
                 }
-                var a = face.Corners[0].VertexIndex;
-                var b = face.Corners[1].VertexIndex;
-                var c = face.Corners[2].VertexIndex;
+                var face = snapshotSubmesh.Faces[faceIndex];
+                var a = face.A;
+                var b = face.B;
+                var c = face.C;
                 if (a < 0 || b < 0 || c < 0 || a >= points.Length || b >= points.Length || c >= points.Length)
                 {
                     continue;
                 }
-                RasterizePaintOcclusionTriangle(cache, points[a], depths[a], points[b], depths[b], points[c], depths[c]);
                 var faceLeft = MathF.Min(points[a].X, MathF.Min(points[b].X, points[c].X));
                 var faceTop = MathF.Min(points[a].Y, MathF.Min(points[b].Y, points[c].Y));
                 var faceRight = MathF.Max(points[a].X, MathF.Max(points[b].X, points[c].X));
@@ -476,48 +678,208 @@ internal sealed partial class MeshViewport
                 faceBounds[faceIndex] = RectangleF.FromLTRB(faceLeft, faceTop, faceRight, faceBottom);
                 if (faceRight < 0.0f
                     || faceBottom < 0.0f
-                    || faceLeft >= viewport.Width
-                    || faceTop >= viewport.Height)
+                    || faceLeft >= snapshot.ViewportWidth
+                    || faceTop >= snapshot.ViewportHeight)
                 {
                     continue;
                 }
-                var leftCell = Math.Clamp(
-                    (int)MathF.Floor(faceLeft / PaintProjectionCellPixels),
-                    0,
-                    cache.GridColumns - 1);
-                var rightCell = Math.Clamp(
-                    (int)MathF.Floor(faceRight / PaintProjectionCellPixels),
-                    0,
-                    cache.GridColumns - 1);
-                var topCell = Math.Clamp(
-                    (int)MathF.Floor(faceTop / PaintProjectionCellPixels),
-                    0,
-                    cache.GridRows - 1);
-                var bottomCell = Math.Clamp(
-                    (int)MathF.Floor(faceBottom / PaintProjectionCellPixels),
-                    0,
-                    cache.GridRows - 1);
                 _ = RoutePaintProjectionFaceCandidate(
                     pendingFaceBuckets,
                     largeFaceCandidates,
                     faceIndex,
                     cache.GridColumns,
-                    leftCell,
-                    rightCell,
-                    topCell,
-                    bottomCell);
+                    Math.Clamp((int)MathF.Floor(faceLeft / PaintProjectionCellPixels), 0, cache.GridColumns - 1),
+                    Math.Clamp((int)MathF.Floor(faceRight / PaintProjectionCellPixels), 0, cache.GridColumns - 1),
+                    Math.Clamp((int)MathF.Floor(faceTop / PaintProjectionCellPixels), 0, cache.GridRows - 1),
+                    Math.Clamp((int)MathF.Floor(faceBottom / PaintProjectionCellPixels), 0, cache.GridRows - 1));
             }
-            cache.FaceBuckets[submeshIndex] = pendingFaceBuckets
+            cache.Faces[snapshotSubmesh.Index] = snapshotSubmesh.Faces;
+            cache.FaceBuckets[snapshotSubmesh.Index] = pendingFaceBuckets
                 .Select(bucket => bucket?.ToArray() ?? Array.Empty<int>())
                 .ToArray();
-            cache.LargeFaceCandidates[submeshIndex] = largeFaceCandidates.ToArray();
-            cache.FaceQueryCandidates[submeshIndex] = new List<int>();
-            cache.FaceVisitStamps[submeshIndex] = new int[submesh.Faces.Count];
-            cache.FaceBounds[submeshIndex] = faceBounds;
+            cache.LargeFaceCandidates[snapshotSubmesh.Index] = largeFaceCandidates.ToArray();
+            cache.FaceQueryCandidates[snapshotSubmesh.Index] = new List<int>();
+            cache.FaceVisitStamps[snapshotSubmesh.Index] = new int[snapshotSubmesh.Faces.Length];
+            cache.FaceBounds[snapshotSubmesh.Index] = faceBounds;
         }
-        BuildPaintEdgeBuckets(cache);
-        _paintProjection = cache;
+        BuildPaintEdgeBuckets(cache, snapshot.Edges);
         return cache;
+    }
+
+    private void QueuePaintProjectionPrewarm(NetViewportCamera? requestedCamera = null)
+    {
+        if (!IsHandleCreated
+            || IsDisposed
+            || Disposing
+            || _document.Submeshes.Count == 0
+            || !string.Equals(ActiveTool, "select", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+        var camera = requestedCamera ?? CurrentCamera();
+        var viewport = ActivePaneBounds();
+        var snapshot = CapturePaintProjectionSnapshot(camera, viewport);
+        if (_paintProjection is { } cached && PaintProjectionCacheMatchesSnapshot(cached, snapshot))
+        {
+            return;
+        }
+        if (_paintProjectionBuildActive)
+        {
+            return;
+        }
+        StartPaintProjectionBuild(snapshot);
+    }
+
+    private bool PaintProjectionCacheMatchesSnapshot(
+        PaintProjectionCache cache,
+        PaintProjectionBuildSnapshot snapshot) =>
+        cache.Camera.Equals(snapshot.Camera)
+        && cache.ViewportWidth == snapshot.ViewportWidth
+        && cache.ViewportHeight == snapshot.ViewportHeight
+        && cache.BuiltForXRay == snapshot.BuiltForXRay
+        && cache.GeometryRevision == snapshot.GeometryRevision
+        && cache.TopologyGeneration == snapshot.TopologyGeneration
+        && cache.EditableSubmeshCount == snapshot.EditableSubmeshCount
+        && cache.VisibleSubmeshIndices.SequenceEqual(snapshot.VisibleSubmeshIndices)
+        && snapshot.Submeshes.All(item =>
+            cache.ModelMatrices.TryGetValue(item.Index, out var model)
+            && model.Equals(item.ModelMatrix));
+
+    private void StartPaintProjectionBuild(PaintProjectionBuildSnapshot snapshot)
+    {
+        _paintProjectionBuildCancellation?.Cancel();
+        var cancellation = new CancellationTokenSource();
+        var request = ++_paintProjectionBuildRequest;
+        _paintProjectionBuildCancellation = cancellation;
+        _paintProjectionBuildSnapshot = snapshot;
+        _paintProjectionBuildActive = true;
+        _paintProjectionBuildCount++;
+        var started = Stopwatch.GetTimestamp();
+        _ = Task.Run(
+            () => BuildPaintProjectionCache(snapshot, cancellation.Token),
+            cancellation.Token).ContinueWith(task =>
+        {
+            try
+            {
+                if (IsDisposed || request != _paintProjectionBuildRequest)
+                {
+                    return;
+                }
+                BeginInvoke(new Action(() =>
+                    PublishPaintProjectionBuild(request, snapshot, task, started)));
+            }
+            catch (InvalidOperationException)
+            {
+                // The form is closing; the owner will dispose the cancellation
+                // source and no late cache may be published into a dead handle.
+            }
+        }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+    }
+
+    private void PublishPaintProjectionBuild(
+        long request,
+        PaintProjectionBuildSnapshot snapshot,
+        Task<PaintProjectionCache> task,
+        long started)
+    {
+        if (request != _paintProjectionBuildRequest)
+        {
+            return;
+        }
+        _paintProjectionBuildActive = false;
+        _paintProjectionBuildCancellation?.Dispose();
+        _paintProjectionBuildCancellation = null;
+        _paintProjectionBuildSnapshot = null;
+        if (task.IsCanceled || task.IsFaulted || !PaintProjectionViewMatches(snapshot))
+        {
+            _paintProjectionStaleBuildCount++;
+            _paintProjectionLastInvalidation = task.IsFaulted ? "build_failed" : "stale_build";
+            return;
+        }
+        _paintProjection = task.Result;
+        var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        _paintProjectionLastBuildMs = Math.Max(0.0, elapsedMs);
+        if (!_paintProjectionFirstDabMeasured && _paintProjectionFirstDabStartedTicks > 0)
+        {
+            _paintProjectionLastColdFirstDabMs = Math.Max(
+                0.0,
+                Stopwatch.GetElapsedTime(_paintProjectionFirstDabStartedTicks).TotalMilliseconds);
+            _paintProjectionFirstDabMeasured = true;
+        }
+        var pending = _pendingPaintSample;
+        _pendingPaintSample = null;
+        if (pending is { } sample
+            && _edgeDragActive
+            && string.Equals(sample.StrokeId, _selectionStrokeId, StringComparison.Ordinal))
+        {
+            UpdateProvisionalPaintHits(sample.Start, sample.End, sample.Radius, sample.Operation);
+        }
+    }
+
+    private PaintProjectionCache? EnsurePaintProjectionCache(NetViewportCamera camera)
+    {
+        if (_paintProjection is { } cached)
+        {
+            if (PaintProjectionCacheMatchesLive(cached))
+            {
+                _paintProjectionCacheHitCount++;
+                return cached;
+            }
+            InvalidatePaintProjectionCache("projection_key_changed");
+        }
+        if (!_paintProjectionBuildActive)
+        {
+            StartPaintProjectionBuild(CapturePaintProjectionSnapshot(camera, ActivePaneBounds()));
+        }
+        return null;
+    }
+
+    internal Dictionary<string, object?> PaintProjectionDiagnosticsPayload()
+    {
+        return new Dictionary<string, object?>
+        {
+            ["build_count"] = _paintProjectionBuildCount,
+            ["cache_hits"] = _paintProjectionCacheHitCount,
+            ["invalidation_count"] = _paintProjectionInvalidationCount,
+            ["stale_build_count"] = _paintProjectionStaleBuildCount,
+            ["cold_first_dab_count"] = _paintProjectionColdFirstDabCount,
+            ["warm_first_dab_count"] = _paintProjectionWarmFirstDabCount,
+            ["cold_first_dab_ms"] = _paintProjectionLastColdFirstDabMs,
+            ["warm_first_dab_ms"] = _paintProjectionLastWarmFirstDabMs,
+            ["last_build_ms"] = _paintProjectionLastBuildMs,
+            ["build_active"] = _paintProjectionBuildActive,
+            ["pending_sample"] = _pendingPaintSample is not null,
+            ["retained"] = _paintProjection is not null,
+            ["last_invalidation"] = _paintProjectionLastInvalidation,
+        };
+    }
+
+    private void BeginPaintProjectionGesture()
+    {
+        _pendingPaintSample = null;
+        _paintProjectionFirstDabStartedTicks = Stopwatch.GetTimestamp();
+        _paintProjectionFirstDabMeasured = false;
+        _paintProjectionColdFirstDabRecorded = false;
+        QueuePaintProjectionPrewarm();
+    }
+
+    private void EndPaintProjectionGesture()
+    {
+        _pendingPaintSample = null;
+        _paintProjectionFirstDabStartedTicks = 0;
+        _paintProjectionFirstDabMeasured = false;
+        _paintProjectionColdFirstDabRecorded = false;
+    }
+
+    private void CancelPaintProjectionBuild()
+    {
+        _paintProjectionBuildRequest++;
+        _paintProjectionBuildCancellation?.Cancel();
+        _paintProjectionBuildCancellation?.Dispose();
+        _paintProjectionBuildCancellation = null;
+        _paintProjectionBuildSnapshot = null;
+        _paintProjectionBuildActive = false;
+        _pendingPaintSample = null;
     }
 
     /// <summary>
@@ -570,6 +932,34 @@ internal sealed partial class MeshViewport
     private void UpdateProvisionalPaintHits(Point start, Point end, double radius, string operation)
     {
         var cache = EnsurePaintProjectionCache(CurrentCamera());
+        if (cache is null)
+        {
+            if (!_paintProjectionColdFirstDabRecorded)
+            {
+                _paintProjectionColdFirstDabCount++;
+                _paintProjectionColdFirstDabRecorded = true;
+            }
+            _pendingPaintSample = new PendingPaintSample(
+                start,
+                end,
+                radius,
+                operation,
+                _selectionStrokeId);
+            return;
+        }
+        if (!_paintProjectionFirstDabMeasured)
+        {
+            _paintProjectionWarmFirstDabCount++;
+            _paintProjectionLastWarmFirstDabMs = _paintProjectionFirstDabStartedTicks > 0
+                ? Math.Max(0.0, Stopwatch.GetElapsedTime(_paintProjectionFirstDabStartedTicks).TotalMilliseconds)
+                : 0.0;
+            _paintProjectionFirstDabMeasured = true;
+        }
+        EnsurePaintOcclusionForBounds(cache, RectangleF.FromLTRB(
+            (float)(Math.Min(start.X, end.X) - radius),
+            (float)(Math.Min(start.Y, end.Y) - radius),
+            (float)(Math.Max(start.X, end.X) + radius),
+            (float)(Math.Max(start.Y, end.Y) + radius)));
         var bandBounds = RectangleF.FromLTRB(
             (float)(Math.Min(start.X, end.X) - radius),
             (float)(Math.Min(start.Y, end.Y) - radius),
@@ -601,8 +991,8 @@ internal sealed partial class MeshViewport
         string operation,
         RectangleF bandBounds)
     {
-        var edges = _edgeTopology.Edges;
-        if (cache.EdgeVisitStamps.Length != edges.Count)
+        var edges = cache.Edges;
+        if (cache.EdgeVisitStamps.Length != edges.Length)
         {
             return;
         }
@@ -684,7 +1074,7 @@ internal sealed partial class MeshViewport
                 continue;
             }
             var depths = cache.Depths[submeshIndex];
-            var submesh = _document.Submeshes[submeshIndex];
+            var faces = cache.Faces[submeshIndex];
             var faceBuckets = cache.FaceBuckets[submeshIndex];
             var largeFaceCandidates = cache.LargeFaceCandidates[submeshIndex];
             var faceQueryCandidates = cache.FaceQueryCandidates[submeshIndex];
@@ -737,10 +1127,10 @@ internal sealed partial class MeshViewport
                 {
                     continue;
                 }
-                var face = submesh.Faces[faceIndex];
-                var a = face.Corners[0].VertexIndex;
-                var b = face.Corners[1].VertexIndex;
-                var c = face.Corners[2].VertexIndex;
+                var face = faces[faceIndex];
+                var a = face.A;
+                var b = face.B;
+                var c = face.C;
                 if (!SweptBandIntersectsTriangle(start, end, radius, points[a], points[b], points[c]))
                 {
                     continue;

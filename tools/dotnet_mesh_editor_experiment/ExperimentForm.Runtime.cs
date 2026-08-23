@@ -22,6 +22,10 @@ internal sealed partial class ExperimentForm
 
     private void HandleViewportEditorEvent(string eventName, Dictionary<string, object?> payload)
     {
+        if (string.Equals(eventName, "select_request", StringComparison.OrdinalIgnoreCase))
+        {
+            RefreshCreatePartFromSelectionButton();
+        }
         if (string.Equals(eventName, "view_state_changed", StringComparison.OrdinalIgnoreCase))
         {
             _pendingViewStatePayload = new Dictionary<string, object?>(payload);

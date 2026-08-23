@@ -101,9 +101,12 @@ internal static class HeadlessGpuInteractionSoak
         }
 
         var lassoReleaseProof = CaptureLassoReleaseProof(viewport);
+        var shortFaceBrushProof = CaptureShortFaceBrushProof(viewport);
         viewport.EditorEventRequested = protocol.Accept;
 
-        var start = new Point(Math.Max(1, viewport.ClientSize.Width / 2), Math.Max(1, viewport.ClientSize.Height / 2));
+        var start = mode.StartsWith("select_", StringComparison.Ordinal)
+            ? viewport.InteractionSoakMeshAnchor()
+            : new Point(Math.Max(1, viewport.ClientSize.Width / 2), Math.Max(1, viewport.ClientSize.Height / 2));
         viewport.BeginInteractionSoak(mode, start);
         var driver = new InteractionPathDriver(start, viewport.ClientSize);
         for (var warmup = 0; warmup < options.WarmupFrames; warmup++)
@@ -186,7 +189,117 @@ internal static class HeadlessGpuInteractionSoak
             interaction,
             protocol,
             driver,
-            lassoReleaseProof);
+            lassoReleaseProof,
+            shortFaceBrushProof);
+    }
+
+    private static Dictionary<string, object?> CaptureShortFaceBrushProof(MeshViewport viewport)
+    {
+        const int gestureCount = 12;
+        var previousHandler = viewport.EditorEventRequested;
+        var probe = new InteractionProtocolProbe();
+        var inputSamples = new List<double>(gestureCount);
+        var maximumHeartbeatGapMs = 0.0;
+        var selectedGestureCount = 0;
+        var cacheReady = true;
+        var anchor = viewport.InteractionSoakMeshAnchor();
+        var beforeSelectionPayload = viewport.SelectionSnapshotPayload();
+        var beforeDiagnostics = beforeSelectionPayload.GetValueOrDefault("selection_cache")
+            as IReadOnlyDictionary<string, object?>
+            ?? new Dictionary<string, object?>();
+        var buildsBefore = Convert.ToInt32(beforeDiagnostics.GetValueOrDefault("build_count") ?? 0);
+        var hitsBefore = Convert.ToInt32(beforeDiagnostics.GetValueOrDefault("cache_hits") ?? 0);
+        var coldBefore = Convert.ToInt32(beforeDiagnostics.GetValueOrDefault("cold_first_dab_count") ?? 0);
+        var warmBefore = Convert.ToInt32(beforeDiagnostics.GetValueOrDefault("warm_first_dab_count") ?? 0);
+        viewport.EditorEventRequested = probe.Accept;
+        viewport.ResetPaintProjectionCacheForInteractionSoak();
+        // Arming Select is a separate user action and begins the cold prewarm. The
+        // measured first dab may arrive immediately while that build is still active.
+        viewport.ActiveTool = "select";
+        try
+        {
+            for (var gesture = 0; gesture < gestureCount; gesture++)
+            {
+                var start = new Point(anchor.X + gesture % 3, anchor.Y + (gesture / 3) % 3);
+                var end = new Point(start.X + 3, start.Y + 2);
+                var inputStarted = Stopwatch.GetTimestamp();
+                viewport.BeginShortFaceBrushInteractionSoak(start);
+                inputSamples.Add(Stopwatch.GetElapsedTime(inputStarted).TotalMilliseconds);
+                inputStarted = Stopwatch.GetTimestamp();
+                viewport.StepInteractionSoak(end);
+                inputSamples.Add(Stopwatch.GetElapsedTime(inputStarted).TotalMilliseconds);
+                cacheReady = viewport.WaitForPaintProjectionCacheForInteractionSoak(
+                    10_000,
+                    out var heartbeatGapMs);
+                maximumHeartbeatGapMs = Math.Max(maximumHeartbeatGapMs, heartbeatGapMs);
+                if (!cacheReady)
+                {
+                    break;
+                }
+                var interaction = viewport.FinishInteractionSoak(end);
+                if (interaction.SelectedFaceCount > 0)
+                {
+                    selectedGestureCount++;
+                }
+                probe.CompleteAll();
+                if (!viewport.TryRunHeadlessRendererFrame(out _, out _, out var frameError))
+                {
+                    throw new InvalidOperationException(
+                        $"Hidden short Face Brush gesture {gesture} failed to render: {frameError}");
+                }
+                Application.DoEvents();
+            }
+        }
+        finally
+        {
+            viewport.EditorEventRequested = previousHandler;
+        }
+        var ordered = inputSamples.OrderBy(value => value).ToArray();
+        var p95Index = ordered.Length == 0
+            ? 0
+            : Math.Clamp((int)Math.Ceiling(ordered.Length * 0.95) - 1, 0, ordered.Length - 1);
+        var inputP95Ms = ordered.Length == 0 ? double.PositiveInfinity : ordered[p95Index];
+        var selectionPayload = viewport.SelectionSnapshotPayload();
+        var diagnostics = selectionPayload.GetValueOrDefault("selection_cache")
+            as IReadOnlyDictionary<string, object?>
+            ?? new Dictionary<string, object?>();
+        var buildCount = Convert.ToInt32(diagnostics.GetValueOrDefault("build_count") ?? 0);
+        var cacheHits = Convert.ToInt32(diagnostics.GetValueOrDefault("cache_hits") ?? 0);
+        var coldFirstDabs = Convert.ToInt32(diagnostics.GetValueOrDefault("cold_first_dab_count") ?? 0);
+        var warmFirstDabs = Convert.ToInt32(diagnostics.GetValueOrDefault("warm_first_dab_count") ?? 0);
+        var buildDelta = buildCount - buildsBefore;
+        var hitDelta = cacheHits - hitsBefore;
+        var coldDelta = coldFirstDabs - coldBefore;
+        var warmDelta = warmFirstDabs - warmBefore;
+        var inputGate = inputP95Ms <= 13.89;
+        var heartbeatGate = maximumHeartbeatGapMs <= 33.3;
+        var reuseGate = buildDelta == 1
+            && hitDelta >= gestureCount - 1
+            && coldDelta >= 1
+            && warmDelta >= gestureCount - 1;
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = cacheReady
+                && inputSamples.Count == gestureCount * 2
+                && selectedGestureCount == gestureCount
+                && inputGate
+                && heartbeatGate
+                && reuseGate,
+            ["gesture_count"] = gestureCount,
+            ["completed_gesture_count"] = inputSamples.Count / 2,
+            ["selected_gesture_count"] = selectedGestureCount,
+            ["input_p95_ms"] = inputP95Ms,
+            ["maximum_heartbeat_gap_ms"] = maximumHeartbeatGapMs,
+            ["input_p95_at_most_13_89_ms"] = inputGate,
+            ["host_heartbeat_at_most_33_3_ms"] = heartbeatGate,
+            ["resident_cache_reused"] = reuseGate,
+            ["cache_ready"] = cacheReady,
+            ["cache_build_delta"] = buildDelta,
+            ["cache_hit_delta"] = hitDelta,
+            ["cold_first_dab_delta"] = coldDelta,
+            ["warm_first_dab_delta"] = warmDelta,
+            ["selection_cache"] = diagnostics,
+        };
     }
 
     private static Dictionary<string, object?> CaptureLassoReleaseProof(MeshViewport viewport)
@@ -307,6 +420,10 @@ internal static class HeadlessGpuInteractionSoak
         var probe = new InteractionProtocolProbe();
         viewport.EditorEventRequested = probe.Accept;
         viewport.BeginInteractionSoak("select_lasso_face", path[0]);
+        if (!viewport.WaitForPaintProjectionCacheForInteractionSoak(10_000, out _))
+        {
+            throw new InvalidOperationException("Hidden lasso projection cache did not finish before the release proof.");
+        }
         long? createsAfterClear = null;
         long? disposalsAfterClear = null;
         if (renderClearedFrame
@@ -405,7 +522,8 @@ internal static class HeadlessGpuInteractionSoak
         MeshInteractionSoakResult interaction,
         InteractionProtocolProbe protocol,
         InteractionPathDriver driver,
-        Dictionary<string, object?> lassoReleaseProof)
+        Dictionary<string, object?> lassoReleaseProof,
+        Dictionary<string, object?> shortFaceBrushProof)
     {
         var lifecycle = new Dictionary<string, object?>
         {
@@ -449,6 +567,8 @@ internal static class HeadlessGpuInteractionSoak
                 && mismatchProof.GetValueOrDefault("ok") is true,
             ["oversized_face_projection_uses_bounded_candidate_list"] =
                 faceProjectionRoutingProof.GetValueOrDefault("ok") is true,
+            ["repeated_short_face_brush_meets_input_and_heartbeat_budgets"] =
+                shortFaceBrushProof.GetValueOrDefault("ok") is true,
             ["wire_overlay_gpu_buffer_retained"] =
                 Convert.ToInt64(resourcesBefore.GetValueOrDefault("retained_wire_overlay_buffer_creates") ?? 0) > 0
                 && Convert.ToInt64(resourcesAfter.GetValueOrDefault("retained_wire_overlay_buffer_creates") ?? 0)
@@ -478,6 +598,7 @@ internal static class HeadlessGpuInteractionSoak
             ["terminal_stroke_events"] = protocol.TerminalStrokeEvents,
         };
         report["lasso_release_proof"] = lassoReleaseProof;
+        report["short_face_brush_proof"] = shortFaceBrushProof;
         report["face_projection_candidate_routing_proof"] = faceProjectionRoutingProof;
         report["ok"] = ok;
         report["release_gate_eligible"] = !options.Smoke

@@ -256,9 +256,16 @@ internal sealed partial class MeshViewport
             ["target_mode"] = CurrentTargetMode(),
             ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
             ["pick_probe"] = LastPickProbe,
+            ["selection_cache"] = PaintProjectionDiagnosticsPayload(),
             ["host_selection_push_count"] = HostSelectionPushCount,
             ["last_host_selection_push"] = LastHostSelectionPush,
         };
+    }
+
+    public Dictionary<string, int[]> VisibleFaceSelectionPayload()
+    {
+        return SelectionMapPayload(
+            HasPendingSelectionAuthority ? _provisionalSelectedFaces : _selectedFaces);
     }
 
     public bool TryHandleLocalCommand(string command, string targetMode)

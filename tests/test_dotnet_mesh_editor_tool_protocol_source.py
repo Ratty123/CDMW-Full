@@ -1265,6 +1265,19 @@ def test_brush_and_lasso_select_honor_the_hosts_selection_mode() -> None:
     interaction_soak_source = _source("MeshViewport.InteractionSoak.cs")
     assert "FinishSelectionInteractionSoakAfterLostMouseUp" in interaction_soak_source
     assert "SelectionInteractionSoakStateClean" in interaction_soak_source
+    selection_paint_source = _source("MeshViewport.SelectionPaint.cs")
+    assert "Task.Run(" in selection_paint_source
+    assert "PaintProjectionBuildSnapshot" in selection_paint_source
+    assert "_pendingPaintSample" in selection_paint_source
+    assert "PaintProjectionDiagnosticsPayload" in _source("MeshViewport.Status.cs")
+    assert "EndPaintProjectionGesture" in _source("MeshViewport.Input.cs")
+    assert "BeginPaintProjectionGesture" in _source("MeshViewport.Input.cs")
+    interaction_soak_source = _source("HeadlessGpuInteractionSoak.cs")
+    assert "CaptureShortFaceBrushProof" in interaction_soak_source
+    assert "BeginShortFaceBrushInteractionSoak" in interaction_soak_source
+    assert '"select_brush_face"' in _source("MeshViewport.InteractionSoak.cs")
+    assert '"input_p95_at_most_13_89_ms"' in interaction_soak_source
+    assert '"host_heartbeat_at_most_33_3_ms"' in interaction_soak_source
 
 
 def test_the_local_click_selection_pickers_stay_removed() -> None:
