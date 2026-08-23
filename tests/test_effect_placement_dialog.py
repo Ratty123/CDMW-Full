@@ -461,6 +461,27 @@ class DialogTests(unittest.TestCase):
             self._settle(lambda: dialog._thread is None)
             self.assertEqual(dialog.iter_shutdown_workers(), ())
 
+    def test_cleanup_refuses_every_package_outside_the_owned_output_root(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            owned = root / "owned"
+            outside = root / "outside"
+            outside.mkdir()
+            marker = outside / "keep.txt"
+            marker.write_text("keep", encoding="utf-8")
+            dialog = self._dialog(output_root=owned)
+            preview = EffectPlacementPreview(
+                package_dir=outside,
+                box_submesh_index=0,
+                item_submesh_count=1,
+                box_min=(-1.0, -1.0, -1.0),
+                box_max=(1.0, 1.0, 1.0),
+            )
+            self.assertFalse(dialog._remove_owned_package(preview))
+            self.assertTrue(marker.is_file())
+
     def test_the_trail_button_appears_only_when_the_item_has_its_own_trail(self) -> None:
         """Weapons share socket files, so a borrowed one puts the trail at another weapon's
         tip. The button is the game's own answer or it is not offered at all."""
