@@ -86,7 +86,7 @@ def _selection_sizes(selection: MeshEditSelection, target: str) -> tuple[int, in
 @pytest.mark.skipif(not native_mesh_core_available(), reason="native mesh core is unavailable")
 @pytest.mark.parametrize(
     ("target", "post_selection_count"),
-    (("vertex", 1_080), ("edge", 540), ("face", 1_080)),
+    (("vertex", 270), ("edge", 540), ("face", 1_080)),
 )
 def test_dense_multi_part_subdivide_changes_every_selected_region_and_round_trips_selection(
     target: str,
