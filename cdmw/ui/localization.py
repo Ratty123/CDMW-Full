@@ -1582,9 +1582,9 @@ class UiLocalizer(QObject):
             except RuntimeError:
                 continue
 
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
+    def eventFilter(self, watched: object, event: QEvent) -> bool:  # noqa: N802
         if not self._runtime_tracking_active or self._event_filter_busy:
-            return super().eventFilter(watched, event)
+            return False
         try:
             self._dispatch_filtered_event(watched, event)
         except RuntimeError:
@@ -1592,9 +1592,9 @@ class UiLocalizer(QObject):
             # delivered. Letting that escape an event filter override takes the
             # process down, so nothing here may raise.
             pass
-        return super().eventFilter(watched, event)
+        return False
 
-    def _dispatch_filtered_event(self, watched: QObject, event: QEvent) -> None:
+    def _dispatch_filtered_event(self, watched: object, event: QEvent) -> None:
         event_type = event.type()
         if event_type == QEvent.Type.ChildAdded:
             child_getter = getattr(event, "child", None)
