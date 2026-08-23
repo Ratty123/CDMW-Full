@@ -56,6 +56,7 @@ from cdmw.domain.new_item.rules import MAX_SHIPPED_SOCKET_SLOTS, ValidationIssue
 from cdmw.domain.new_item.spec import UNLIMITED_STOCK, EnhancementRows, IconSource, ItemGroupsChoice, ModelSource, NewItemSpec, PlacementKind, SheathedModel
 from cdmw.models import ArchiveEntry
 from cdmw.services.new_item_snapshot import EFFECT_DIR, EFFECT_DONOR_PATH, EFFECT_DONOR_PREFAB, NewItemSnapshot, NewItemSnapshotError
+from cdmw.services.new_item_effect_targets import inspect_effect_targets, is_sheathed_family_part
 
 
 def _effect_file(stem: str) -> str:
@@ -68,18 +69,6 @@ def _emitter_file(stem: str) -> str:
     """The archive path of an emitter binary by stem."""
 
     return "".join((EMITTER_DIR, stem, ".paem"))
-
-
-def _is_sheathed_part_name(name: str) -> bool:
-    """`CD_TwoHandWeapon_Sword_IN`, `CD_MainWeapon_Sword_IN_R`: the part a weapon draws sheathed."""
-
-    return re.search(r"_in(_|$)", str(name or ""), re.I) is not None
-
-
-def _is_sheathed_stem(stem: str) -> bool:
-    """`cd_phm_02_sword_0001_in`, `cd_phm_01_sword_0168_r_in_index01`."""
-
-    return re.search(r"_in(_|$)", str(stem or ""), re.I) is not None
 
 
 class NewItemPlanError(ValueError):
@@ -202,8 +191,7 @@ class _Planner:
 
         return tuple(
             part for part in self.family.borrowed_parts
-            if part.record is not None and part.pac_path
-            and (any(_is_sheathed_part_name(p.name) for p in part.record.parts) or _is_sheathed_stem(part.stem))
+            if is_sheathed_family_part(part)
         )
 
     def sheathed_stem_map(self) -> Mapping[str, str]:
@@ -589,7 +577,10 @@ class _Planner:
             result = rewrite_prefab_paths_any_length(source, {part.pac_path: pac_map[old_pac]})
             if not result.edits:
                 raise NewItemPlanError(f"{part.prefab_path} names no mesh to re-path to the imported model")
-            self.add(self.snapshot.entry(part.prefab_path), new_prefab, result.data, f"sheathed prefab: {new_prefab} (draws the imported mesh instead of {part.pac_path.rsplit('/', 1)[-1]})")
+            payload = result.data
+            if donor is not None:
+                payload = self._graft_effect(payload, donor, new_prefab)
+            self.add(self.snapshot.entry(part.prefab_path), new_prefab, payload, f"sheathed prefab: {new_prefab} (draws the imported mesh instead of {part.pac_path.rsplit('/', 1)[-1]})")
             written.append(new_prefab)
         self.manifest["model_files"] = written
         self.manifest["sheathed_model"] = self.spec.sheathed_model.value if self.spec.model_source is ModelSource.IMPORTED else None
@@ -604,11 +595,15 @@ class _Planner:
         if self.spec.effect is None:
             self.manifest["effect"] = None
             return None
-        if not self.snapshot.has_entry(EFFECT_DONOR_PREFAB):
-            raise NewItemPlanError(f"the archives have no {EFFECT_DONOR_PREFAB}, the prefab a weapon effect is grafted from")
+        compatibility = inspect_effect_targets(self.snapshot, self.spec)
+        if not compatibility.supported:
+            raise NewItemPlanError("; ".join(compatibility.errors))
         self.effect_reference = str(self.spec.effect)
         self.manifest["effect"] = {"path": str(self.spec.effect), "donor": EFFECT_DONOR_PREFAB, "prefabs": []}
-        self.warnings.append(f"The effect {self.spec.effect} is grafted into the item's prefabs as an EffectComponent; a grafted fire has drawn in game, and an effect made for another weapon may need a scale or an offset to sit on this one.")
+        self.warnings.append(
+            f"The visual effect {self.spec.effect} is grafted into {len(compatibility.target_prefabs)} owned prefab(s) "
+            "as an EffectComponent; it may need a scale or an offset, so verify its final fit in game."
+        )
         self._clone_effect_for_look()
         return self.snapshot.payload(EFFECT_DONOR_PREFAB)
 

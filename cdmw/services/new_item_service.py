@@ -38,6 +38,7 @@ from cdmw.services.new_item_planning import (
     planned_icon_string,
 )
 from cdmw.services.new_item_snapshot import NewItemSnapshot, build_context, build_snapshot
+from cdmw.services.new_item_effect_targets import EffectTargetCompatibility, inspect_effect_targets
 
 GAME_EXECUTABLE = "CrimsonDesert.exe"
 
@@ -104,6 +105,11 @@ class NewItemService:
         if not has_errors(issues) and spec.template_key in snapshot.rows:
             issues.extend(validate_against_context(spec, build_context(snapshot, spec.template_key)))
         return tuple(issues)
+
+    def inspect_effect_targets(self, spec: NewItemSpec, snapshot: NewItemSnapshot) -> EffectTargetCompatibility:
+        """Read-only compatibility for the prefabs this spec would own."""
+
+        return inspect_effect_targets(snapshot, spec)
 
     def allocate(
         self,
