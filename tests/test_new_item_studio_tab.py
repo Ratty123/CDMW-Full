@@ -771,6 +771,31 @@ class TabTests(unittest.TestCase):
             self.assertIs(panel.preview.parentWidget(), preview_parent)
         self.assertEqual(panel.inspector_tabs.currentWidget().horizontalScrollBar().maximum(), 0)
 
+        for group in (panel.model_group, panel.placement_group, panel.appearance_group, panel.icon_group):
+            self.assertEqual(group.title(), "", "the tab already supplies the visible section name")
+
+        for width, height in ((1280, 720), (1600, 900)):
+            tab.resize(width, height)
+            self.app.processEvents()
+            for index, first_control, next_control in (
+                (0, panel.keep_model, panel.import_model),
+                (3, panel.keep_icon, panel.generate_icon),
+            ):
+                panel.inspector_tabs.setCurrentIndex(index)
+                self.app.processEvents()
+                page = panel.inspector_tabs.currentWidget()
+                first_y = first_control.mapTo(page.viewport(), first_control.rect().topLeft()).y()
+                next_y = next_control.mapTo(page.viewport(), next_control.rect().topLeft()).y()
+                self.assertLessEqual(first_y, 24, f"tab {index} starts at the top at {width}x{height}")
+                self.assertLessEqual(next_y - first_y, 36, f"tab {index} rows stay compact at {width}x{height}")
+
+            panel.import_model.setChecked(True)
+            panel.inspector_tabs.setCurrentIndex(0)
+            self.app.processEvents()
+            model_page = panel.inspector_tabs.currentWidget()
+            blender_y = panel.blender_button.mapTo(model_page.viewport(), panel.blender_button.rect().topLeft()).y()
+            self.assertLessEqual(blender_y, 260, f"the complete Model form stays packed at {width}x{height}")
+
         frames = []
         panel.operation_spinner.frame_advanced.connect(frames.append)
         tab.controller._lane = "model_apply"

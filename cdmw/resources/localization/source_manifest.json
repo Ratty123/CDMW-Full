@@ -6151,17 +6151,17 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 568,
+          "line": 576,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 798,
+          "line": 806,
           "sink": "getOpenFileName:filter-label"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1010,
+          "line": 1018,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -7396,7 +7396,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 486,
+          "line": 494,
           "sink": "add_inspector_tab"
         },
         {
@@ -7656,12 +7656,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 740,
+          "line": 748,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 809,
+          "line": 817,
           "sink": "set_note"
         }
       ]
@@ -12871,7 +12871,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 568,
+          "line": 576,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -14796,7 +14796,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 883,
+          "line": 891,
           "sink": "set_note"
         }
       ]
@@ -14806,7 +14806,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 884,
+          "line": 892,
           "sink": "setText"
         }
       ]
@@ -14836,7 +14836,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 935,
+          "line": 943,
           "sink": "set_note"
         }
       ]
@@ -16331,7 +16331,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 904,
+          "line": 912,
           "sink": "setText"
         }
       ]
@@ -16471,7 +16471,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 962,
+          "line": 970,
           "sink": "setText"
         }
       ]
@@ -18286,7 +18286,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1018,
+          "line": 1026,
           "sink": "getExistingDirectory"
         }
       ]
@@ -18596,7 +18596,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1010,
+          "line": 1018,
           "sink": "getOpenFileName"
         }
       ]
@@ -18881,7 +18881,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 568,
+          "line": 576,
           "sink": "getOpenFileName"
         }
       ]
@@ -20251,7 +20251,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 798,
+          "line": 806,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -20696,7 +20696,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 679,
+          "line": 687,
           "sink": "setText"
         },
         {
@@ -33656,7 +33656,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 555,
+          "line": 563,
           "sink": "setText"
         }
       ]
@@ -33666,7 +33666,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 589,
+          "line": 597,
           "sink": "emit"
         }
       ]
@@ -33676,7 +33676,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 798,
+          "line": 806,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -36476,7 +36476,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 557,
+          "line": 565,
           "sink": "setText"
         }
       ]
@@ -39991,7 +39991,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 487,
+          "line": 495,
           "sink": "add_inspector_tab"
         }
       ]
@@ -40171,7 +40171,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 974,
+          "line": 982,
           "sink": "setText"
         }
       ]
@@ -40616,7 +40616,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 1010,
+          "line": 1018,
           "sink": "getOpenFileName:filter-label"
         },
         {
@@ -41081,7 +41081,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 798,
+          "line": 806,
           "sink": "getOpenFileName"
         }
       ]
@@ -41116,7 +41116,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 619,
+          "line": 627,
           "sink": "setToolTip"
         }
       ]
@@ -52816,7 +52816,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 484,
+          "line": 492,
           "sink": "add_inspector_tab"
         },
         {
@@ -53191,7 +53191,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 798,
+          "line": 806,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -57356,7 +57356,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 716,
+          "line": 724,
           "sink": "set_note"
         }
       ]
@@ -59576,12 +59576,12 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 742,
+          "line": 750,
           "sink": "set_note"
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 811,
+          "line": 819,
           "sink": "set_note"
         }
       ]
@@ -61791,7 +61791,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 542,
+          "line": 550,
           "sink": "setText"
         },
         {
@@ -67086,7 +67086,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 485,
+          "line": 493,
           "sink": "add_inspector_tab"
         },
         {
@@ -68846,7 +68846,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 888,
+          "line": 896,
           "sink": "setText"
         }
       ]
@@ -69471,7 +69471,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 887,
+          "line": 895,
           "sink": "set_note"
         },
         {
@@ -72966,7 +72966,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 880,
+          "line": 888,
           "sink": "set_note"
         }
       ]
@@ -72976,7 +72976,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 881,
+          "line": 889,
           "sink": "setText"
         }
       ]
@@ -78861,7 +78861,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 542,
+          "line": 550,
           "sink": "setText"
         }
       ]
@@ -96121,7 +96121,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 958,
+          "line": 966,
           "sink": "setText"
         }
       ]
@@ -96221,7 +96221,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 669,
+          "line": 677,
           "sink": "getColor"
         }
       ]
@@ -96501,7 +96501,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 970,
+          "line": 978,
           "sink": "setText"
         }
       ]
@@ -97331,7 +97331,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 583,
+          "line": 591,
           "sink": "emit"
         }
       ]
@@ -97441,7 +97441,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 939,
+          "line": 947,
           "sink": "setText"
         }
       ]
@@ -103951,7 +103951,7 @@
         },
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 798,
+          "line": 806,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -107076,7 +107076,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 798,
+          "line": 806,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -113801,7 +113801,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 798,
+          "line": 806,
           "sink": "getOpenFileName:filter-label"
         }
       ]
@@ -198456,7 +198456,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 968,
+          "line": 976,
           "sink": "ValueError"
         }
       ]
@@ -202751,7 +202751,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 586,
+          "line": 594,
           "sink": "emit"
         }
       ]
@@ -205001,7 +205001,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 739,
+          "line": 747,
           "sink": "note"
         }
       ]
@@ -205411,7 +205411,7 @@
       "origins": [
         {
           "path": "cdmw/ui/new_item/panels_model.py",
-          "line": 732,
+          "line": 740,
           "sink": "note"
         }
       ]
