@@ -90,6 +90,11 @@ resident session; per-face source indices are ancestor bookkeeping, never a
 selection space. Geometry and selection are one native history pair, so one
 Undo or Redo restores both. The Builder adopts the native remapped selection
 after topology rather than clearing its mirror independently.
+The visible topology section also offers **Split Selection Into Part**. It sends
+the existing `separate` command after current selection authority has landed,
+moves the selected faces into one appended submesh, and retains the source part's
+vertex channels and material route. New Item Studio can open an imported source
+here and accept a stable resident revision back into its placement/build workflow.
 Normal tools include service-routed recalc, tangent generation, flip,
 sharpen/soften, weighted normals, and source-normal copy commands; cleanup
 tools include remove doubles, delete loose vertices, compact orphans, winding

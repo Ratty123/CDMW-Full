@@ -1035,6 +1035,203 @@ class TabTests(unittest.TestCase):
         tab.close()
         tab.deleteLater()
 
+    def test_imported_model_parts_round_trip_through_mesh_editor(self) -> None:
+        """The handoff never reads resident geometry on the UI thread: the New Item
+        controller's owned task captures one stable revision, rebuilds the textured
+        source, invalidates the earlier placement build, and exposes the new part."""
+
+        from types import SimpleNamespace
+
+        from cdmw.modding.mesh_deformer import clone_mesh_for_editing, split_faces_to_submesh
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.modding.scene_import_result_ops import SceneImportResult
+        from cdmw.services.new_item_materials import glow_preview_parameter_groups
+        from cdmw.services.preview_workflow_service import parsed_mesh_to_preview_model
+        from cdmw.ui.new_item.model_import import ModelImportSource
+
+        mesh = ParsedMesh(
+            path="blade.gltf",
+            format="gltf",
+            submeshes=[SubMesh(
+                name="blade",
+                material="steel",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (0.0, 1.0, 0.0), (-0.5, 0.5, 0.0)],
+                uvs=[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.0, 0.5)],
+                normals=[(0.0, 0.0, 1.0)] * 5,
+                faces=[(0, 1, 2), (0, 2, 3), (0, 3, 4)],
+                vertex_count=5,
+                face_count=3,
+            )],
+            bbox_min=(0.0, 0.0, 0.0),
+            bbox_max=(1.0, 1.0, 0.0),
+            total_vertices=5,
+            total_faces=3,
+            has_uvs=True,
+        )
+        binding = SimpleNamespace(material_name="steel", submesh_index=0, texture_slots=())
+        scene = SceneImportResult(mesh=mesh, material_bindings=(binding,))
+        source = ModelImportSource(
+            chosen_path=Path("blade.gltf"),
+            model_path=Path("blade.gltf"),
+            scene=scene,
+            preview_model=parsed_mesh_to_preview_model(mesh),
+            bounds=((0.0, 0.0, 0.0), (1.0, 1.0, 0.0)),
+        )
+
+        class FakeMeshController:
+            def __init__(self, edited, session_id):
+                self.active_session_id = session_id
+                self.mesh = edited
+                self.revision = 1
+                self.change_during_capture = False
+
+            def session_view(self):
+                return SimpleNamespace(session_id=self.active_session_id, revision=self.revision)
+
+            def working_mesh(self, *, clone=True):
+                result = clone_mesh_for_editing(self.mesh) if clone else self.mesh
+                if self.change_during_capture:
+                    self.revision += 1
+                return result
+
+        class FakeEditor:
+            standalone_controller = None
+            standalone_pending_dotnet_topology_request = None
+
+            def open_mesh_session(self, opened, *, session_id, mode):
+                self.assert_mode = mode
+                edited = clone_mesh_for_editing(opened)
+                split_faces_to_submesh(edited, selected_faces_by_submesh={0: {0}})
+                split_faces_to_submesh(edited, selected_faces_by_submesh={0: {0}})
+                self.standalone_controller = FakeMeshController(edited, session_id)
+                return self.standalone_controller.session_view()
+
+            @staticmethod
+            def _standalone_action_worker_active():
+                return False
+
+            @staticmethod
+            def _wait_for_dotnet_export_updates(_timeout):
+                return True
+
+        class FakeContainer:
+            def __init__(self, editor):
+                self.editor = editor
+
+            def ensure_widget(self):
+                return self.editor
+
+        editor = FakeEditor()
+        container = FakeContainer(editor)
+        activated = []
+        window = SimpleNamespace(
+            mesh_editor_tab=container,
+            _activate_tool_widget=lambda target: activated.append(target),
+        )
+        tab = self._tab(window=window)
+        tab.prefill_template(TEMPLATE)
+        tab.controller.model_import = source
+        tab.controller.model_result = SimpleNamespace(rebuilt_data=b"old placement")
+        source.applied = (source.bake, tab.controller.model_placement)
+        tab.controller.draft.model_source = ModelSource.IMPORTED
+        tab.controller.model_import_changed.emit(source)
+
+        tab.model_panel.open_part_editor_button.click()
+        self.assertEqual(editor.assert_mode, "edit")
+        self.assertIs(activated[-1], container)
+        self.assertFalse(tab.model_panel.use_part_editor_button.isHidden())
+
+        tab.model_panel.use_part_editor_button.click()
+        self.assertEqual(len(source.scene.mesh.submeshes), 3)
+        self.assertEqual(source.mesh_generation, 1)
+        self.assertIsNone(source.applied)
+        self.assertIsNone(tab.controller.model_result, "the placement build predates the edited parts")
+        self.assertEqual(
+            tab.controller.material_parts(),
+            (("steel", "steel"), ("blade split", "blade split"), ("blade split 2", "blade split 2")),
+        )
+        glow_groups = glow_preview_parameter_groups(
+            source.scene.mesh,
+            SimpleNamespace(parts=("blade split 2",), color=(1.0, 0.25, 0.0), intensity=3.0),
+        )
+        glow_by_part = {
+            index: group
+            for group in glow_groups
+            for index in group["source_submesh_indices"]
+        }
+        self.assertIsNone(glow_by_part[1]["emissive_intensity"])
+        self.assertIsNotNone(glow_by_part[2]["emissive_intensity"])
+        self.assertIn("3 part(s)", tab.model_panel.part_editor_status.plain_text())
+
+        editor.standalone_controller.change_during_capture = True
+        tab.model_panel.use_part_editor_button.click()
+        self.assertEqual(source.mesh_generation, 1, "a changing resident revision is rejected")
+        self.assertIn("safely", tab.model_panel.part_editor_status.plain_text().lower())
+        tab.close()
+        tab.deleteLater()
+
+    def test_imported_model_part_capture_runs_on_the_owned_worker(self) -> None:
+        from types import SimpleNamespace
+
+        from PySide6.QtCore import QEventLoop, QThread
+
+        from cdmw.modding.mesh_deformer import clone_mesh_for_editing
+        from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+        from cdmw.modding.scene_import_result_ops import SceneImportResult
+        from cdmw.services.preview_workflow_service import parsed_mesh_to_preview_model
+        from cdmw.ui.new_item.controller import NewItemStudioController
+        from cdmw.ui.new_item.model_import import ModelImportSource
+
+        mesh = ParsedMesh(
+            path="worker.gltf",
+            format="gltf",
+            submeshes=[SubMesh(
+                name="part",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                faces=[(0, 1, 2)],
+                vertex_count=3,
+                face_count=1,
+            )],
+            total_vertices=3,
+            total_faces=1,
+        )
+        source = ModelImportSource(
+            chosen_path=Path("worker.gltf"),
+            model_path=Path("worker.gltf"),
+            scene=SceneImportResult(mesh=mesh),
+            preview_model=parsed_mesh_to_preview_model(mesh),
+            bounds=((0.0, 0.0, 0.0), (1.0, 1.0, 0.0)),
+        )
+        controller = NewItemStudioController()
+        controller.model_import = source
+        observed = []
+
+        class MeshController:
+            active_session_id = "worker-session"
+
+            @staticmethod
+            def session_view():
+                return SimpleNamespace(session_id="worker-session", revision=1)
+
+            @staticmethod
+            def working_mesh(*, clone=True):
+                observed.append(QThread.currentThread() is controller.thread())
+                return clone_mesh_for_editing(mesh) if clone else mesh
+
+        self.assertTrue(controller.start_model_part_edit_apply(
+            source,
+            MeshController(),
+            expected_session_id="worker-session",
+            wait_for_updates=lambda _timeout: True,
+        ))
+        deadline = time.monotonic() + 2.0
+        while controller._thread is not None and time.monotonic() < deadline:
+            self.app.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
+        self.assertEqual(observed, [False], "resident mesh hydration did not run on the UI thread")
+        self.assertEqual(source.mesh_generation, 1)
+        self.assertEqual(controller.iter_shutdown_workers(), ())
+        controller.shutdown()
+
     def test_a_second_item_never_takes_the_first_one_s_identity(self) -> None:
         """The studio remembers the key and stem every plan hands out and reserves them for
         the next one: the snapshot cannot see an item until it is installed and the

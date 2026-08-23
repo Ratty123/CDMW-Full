@@ -86,6 +86,10 @@ class NewItemStudioTab(QWidget):
         self._pending_model_import: Optional[Path] = None
         self._panels_built = False
         self._refreshing_checks = False
+        self._model_part_editor_source: object | None = None
+        self._model_part_editor_widget: object | None = None
+        self._model_part_editor_controller: object | None = None
+        self._model_part_editor_session_id = ""
 
         self._status = QLabel("New Item Studio reads the item, string, store, group and language tables once, then plans a new item against them.")
         self._status.setWordWrap(True)
@@ -218,7 +222,12 @@ class NewItemStudioTab(QWidget):
         controller.install_finished.connect(lambda _result: QTimer.singleShot(0, self._reread_after_install))
         controller.model_import_changed.connect(lambda _source: self.identity_panel.refresh_issues())
         controller.model_import_changed.connect(self._refresh_summary)
+        controller.model_import_changed.connect(self._model_part_editor_source_changed)
         controller.model_placement_changed.connect(self._refresh_summary)
+        controller.model_part_edit_finished.connect(self._model_part_edit_finished)
+        controller.model_part_edit_failed.connect(self._model_part_edit_failed)
+        self.model_panel.part_editor_open_requested.connect(self._open_model_part_editor)
+        self.model_panel.part_editor_apply_requested.connect(self._use_model_part_editor_changes)
         self.output_panel.install_requested.connect(self._install)
         self.output_panel.install_overlay_requested.connect(self._install_overlay)
         self.output_panel.overlay_migration_requested.connect(self._migrate_overlay)
@@ -432,6 +441,126 @@ class NewItemStudioTab(QWidget):
         self.controller.set_imported_model(entry, result, scene)
         if self._panels_built:
             self.identity_panel.refresh_issues()
+
+    # ------------------------------------------------------------------ imported-model part editing
+
+    def _activate_model_part_editor(self) -> bool:
+        window = self._window
+        container = getattr(window, "mesh_editor_tab", None)
+        activate = getattr(window, "_activate_tool_widget", None)
+        if container is None or not callable(activate):
+            self.model_panel.set_part_editor_state(False, "Mesh Editor is not available.")
+            return False
+        activate(container)
+        return True
+
+    def _open_model_part_editor(self) -> None:
+        source = self.controller.model_import
+        if source is None:
+            self.model_panel.set_part_editor_state(False, "Import a model before opening Mesh Editor.")
+            return
+        if self.controller.busy:
+            self.model_panel.set_part_editor_state(
+                bool(self._model_part_editor_session_id),
+                "Another background task is still running. Wait for it to finish before starting this action.",
+            )
+            return
+        if (
+            source is self._model_part_editor_source
+            and self._model_part_editor_controller is not None
+            and str(getattr(self._model_part_editor_controller, "active_session_id", "") or "")
+            == self._model_part_editor_session_id
+        ):
+            self._activate_model_part_editor()
+            return
+        window = self._window
+        container = getattr(window, "mesh_editor_tab", None)
+        ensure = getattr(container, "ensure_widget", None)
+        try:
+            editor = ensure() if callable(ensure) else container
+        except (RuntimeError, TypeError) as exc:
+            self.model_panel.set_part_editor_state(False, f"Mesh Editor could not open this imported model: {exc}")
+            return
+        if editor is None:
+            self.model_panel.set_part_editor_state(False, "Mesh Editor is not available.")
+            return
+        active_controller = getattr(editor, "standalone_controller", None)
+        if active_controller is not None and bool(getattr(active_controller, "active_session_id", "")):
+            self.model_panel.set_part_editor_state(
+                False,
+                "Mesh Editor already has an active mesh. Finish or close it before opening this imported model.",
+            )
+            return
+        mesh = getattr(getattr(source, "scene", None), "mesh", None)
+        session_id = f"new-item-model:{id(source):x}:{int(getattr(source, 'mesh_generation', 0) or 0)}"
+        try:
+            view = editor.open_mesh_session(mesh, session_id=session_id, mode="edit")
+            mesh_controller = editor.standalone_controller
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self.model_panel.set_part_editor_state(False, f"Mesh Editor could not open this imported model: {exc}")
+            return
+        self._model_part_editor_source = source
+        self._model_part_editor_widget = editor
+        self._model_part_editor_controller = mesh_controller
+        self._model_part_editor_session_id = str(getattr(view, "session_id", "") or session_id)
+        self.model_panel.set_part_editor_state(
+            True,
+            "Select Faces in Mesh Editor and use Split Selection Into Part. Return here to use the edited parts.",
+        )
+        self._activate_model_part_editor()
+
+    def _use_model_part_editor_changes(self) -> None:
+        source = self.controller.model_import
+        editor = self._model_part_editor_widget
+        mesh_controller = self._model_part_editor_controller
+        session_id = self._model_part_editor_session_id
+        if source is None or source is not self._model_part_editor_source or mesh_controller is None or not session_id:
+            self.model_panel.set_part_editor_state(False, "Open this imported model in Mesh Editor first.")
+            return
+        if str(getattr(mesh_controller, "active_session_id", "") or "") != session_id:
+            self._clear_model_part_editor_link()
+            self.model_panel.set_part_editor_state(False, "Open this imported model in Mesh Editor first.")
+            return
+        active_worker = getattr(editor, "_standalone_action_worker_active", None)
+        if (
+            (callable(active_worker) and active_worker())
+            or getattr(editor, "standalone_pending_dotnet_topology_request", None) is not None
+        ):
+            self.model_panel.set_part_editor_state(True, "Wait for the current Mesh Editor task to finish.")
+            return
+        started = self.controller.start_model_part_edit_apply(
+            source,
+            mesh_controller,
+            expected_session_id=session_id,
+            wait_for_updates=getattr(editor, "_wait_for_dotnet_export_updates", None),
+        )
+        if started and self.controller.busy:
+            self.model_panel.set_part_editor_state(True, "Preparing the Mesh Editor changes...")
+
+    def _model_part_edit_finished(self, source: object) -> None:
+        if source is not self._model_part_editor_source:
+            return
+        mesh = getattr(getattr(source, "scene", None), "mesh", None)
+        part_count = len(tuple(getattr(mesh, "submeshes", ()) or ()))
+        self.model_panel.set_part_editor_state(
+            True,
+            f"Using Mesh Editor revision with {part_count} part(s). Apply the placement again before building the item.",
+        )
+
+    def _model_part_edit_failed(self, message: str) -> None:
+        if self._model_part_editor_session_id:
+            self.model_panel.set_part_editor_state(True, str(message))
+
+    def _model_part_editor_source_changed(self, source: object) -> None:
+        if self._model_part_editor_source is not None and source is not self._model_part_editor_source:
+            self._clear_model_part_editor_link()
+            self.model_panel.set_part_editor_state(False)
+
+    def _clear_model_part_editor_link(self) -> None:
+        self._model_part_editor_source = None
+        self._model_part_editor_widget = None
+        self._model_part_editor_controller = None
+        self._model_part_editor_session_id = ""
 
     def _install(self) -> None:
         plan = self.controller.plan

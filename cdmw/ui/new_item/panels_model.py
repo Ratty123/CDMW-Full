@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtCore import QSettings, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -60,6 +60,9 @@ class ModelPanel(QGroupBox):
     #: draft still need a restoring push
     _glow_preview_touched = False
 
+    part_editor_open_requested = Signal()
+    part_editor_apply_requested = Signal()
+
     def __init__(self, controller: NewItemStudioController, parent=None) -> None:
         super().__init__("3. Model and icon", parent)
         self._controller = controller
@@ -105,6 +108,30 @@ class ModelPanel(QGroupBox):
         model_layout.addWidget(import_row)
         self.model_status = NoteLabel("No imported model.", None)
         model_layout.addWidget(self.model_status)
+        self.part_editor_holder = QWidget()
+        part_editor_layout = QVBoxLayout(self.part_editor_holder)
+        part_editor_layout.setContentsMargins(0, 0, 0, 0)
+        part_editor_buttons = QHBoxLayout()
+        self.open_part_editor_button = QPushButton("Open in Mesh Editor")
+        self.open_part_editor_button.setToolTip(
+            "Open this imported model in Mesh Editor. Select Faces with Click, Brush, Rectangle or Lasso, use Split Selection "
+            "Into Part, then return here and choose Use Mesh Editor changes."
+        )
+        self.open_part_editor_button.clicked.connect(self.part_editor_open_requested.emit)
+        part_editor_buttons.addWidget(self.open_part_editor_button)
+        self.use_part_editor_button = QPushButton("Use Mesh Editor changes")
+        self.use_part_editor_button.setToolTip(
+            "Capture the current Mesh Editor revision, rebuild this textured preview, and make its parts the source for Apply the placement."
+        )
+        self.use_part_editor_button.clicked.connect(self.part_editor_apply_requested.emit)
+        part_editor_buttons.addWidget(self.use_part_editor_button)
+        part_editor_buttons.addStretch(1)
+        part_editor_layout.addLayout(part_editor_buttons)
+        self.part_editor_status = NoteLabel("", None)
+        part_editor_layout.addWidget(self.part_editor_status)
+        model_layout.addWidget(self.part_editor_holder)
+        self._part_editor_active = False
+        self.set_part_editor_state(False)
         # FBX is read by converting it with Blender, and only with a Blender the reader
         # pointed at. That is a requirement of the format, not a tip about it, so it says
         # so on the step: buried under a toggle, the one refusal that names it has nowhere
@@ -222,7 +249,15 @@ class ModelPanel(QGroupBox):
         model_layout.addWidget(import_tips)
         #: the import's own controls: shown once a model of your own is asked for, so the
         #: step is two radio buttons while the template's model is kept
-        self._import_widgets = (import_row, self.model_status, self.blender_holder, self.plain_pbr, self.own_sheath, import_tips)
+        self._import_widgets = (
+            import_row,
+            self.model_status,
+            self.part_editor_holder,
+            self.blender_holder,
+            self.plain_pbr,
+            self.own_sheath,
+            import_tips,
+        )
         layout.addWidget(model)
 
         # ---- placement: the model over the template, in the viewport below
@@ -385,6 +420,16 @@ class ModelPanel(QGroupBox):
         if keep:
             self.flip_texture_v.setVisible(False)
 
+    def set_part_editor_state(self, active: bool, message: str = "") -> None:
+        """Show the two ends of the cross-tab part-edit handoff."""
+
+        self._part_editor_active = bool(active)
+        self.open_part_editor_button.setText("Return to Mesh Editor" if active else "Open in Mesh Editor")
+        self.use_part_editor_button.setVisible(active)
+        self.part_editor_status.setVisible(bool(message))
+        if message:
+            self.part_editor_status.set_note(str(message), EDIT if active else WARN)
+
     def _refresh_blender_label(self) -> None:
         """Say which Blender the studio will use for an FBX, or that there is none."""
 
@@ -543,6 +588,8 @@ class ModelPanel(QGroupBox):
         self.placement_group.setVisible(source is not None)
         self.flip_texture_v.setVisible(source is not None)
         self.clear_button.setVisible(source is not None)
+        self.open_part_editor_button.setEnabled(source is not None and not self._controller.busy)
+        self.use_part_editor_button.setEnabled(source is not None and not self._controller.busy)
         if source is not None and self.flip_texture_v.isChecked() != bool(source.flip_texture_v):
             self.flip_texture_v.blockSignals(True)
             self.flip_texture_v.setChecked(bool(source.flip_texture_v))
@@ -694,13 +741,22 @@ class ModelPanel(QGroupBox):
 
     def _busy_changed(self, busy: bool) -> None:
         lane = getattr(self._controller, "_lane", "")
-        for widget in (self.import_button, self.apply_button, self.fit_button):
+        for widget in (
+            self.import_button,
+            self.apply_button,
+            self.fit_button,
+            self.open_part_editor_button,
+            self.use_part_editor_button,
+        ):
             widget.setEnabled(not busy)
-        self.busy_bar.setVisible(bool(busy) and lane in {"model_import", "model_apply"})
+        self.busy_bar.setVisible(bool(busy) and lane in {"model_import", "model_apply", "model_part_edit"})
         if busy and lane == "model_import":
             self.model_status.set_note("Reading the model file...", EDIT)
         elif busy and lane == "model_apply":
             self.apply_status.set_note("Building the item's mesh at this placement...", EDIT)
+        elif busy and lane == "model_part_edit":
+            self.part_editor_status.setVisible(True)
+            self.part_editor_status.set_note("Preparing the Mesh Editor changes...", EDIT)
 
     def _preview_status(self, text: str) -> None:
         self.preview_status.setText(str(text or ""))

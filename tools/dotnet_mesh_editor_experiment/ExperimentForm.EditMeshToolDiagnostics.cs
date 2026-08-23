@@ -150,6 +150,7 @@ internal sealed partial class ExperimentForm
             "Clear Selection", "Select All", "Invert", "Undo", "Redo",
             "Grow", "Shrink", "-X", "+X", "-Y", "+Y", "-Z", "+Z",
             "Delete Selection", "Duplicate Selection", "Subdivide", "Refine Smooth",
+            "Split Selection Into Part",
             "All", "None", "Hide", "Duplicate", "Delete",
             "Copy", "Paste", "Rename", "Up", "Down",
             "Create Profile...", "Save Profile", "Delete Profile", "Save Preset...", "Delete Preset",
