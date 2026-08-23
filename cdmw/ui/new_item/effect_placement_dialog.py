@@ -61,7 +61,9 @@ from cdmw.ui.new_item.effect_placement_dialog_support import (
     PlacementFrame,
     describe_effect_preview,
     remember_backdrop,
+    remember_orbit_inversion,
     remembered_backdrop,
+    remembered_orbit_inversion,
     swatch as _swatch,
 )
 from cdmw.ui.new_item.ui_kit import DetailsToggle
@@ -364,9 +366,31 @@ class EffectPlacementDialog(QDialog):
                 break
         self.backdrop_choice.currentIndexChanged.connect(lambda _index: self._backdrop_changed())
         backdrop_row.addWidget(self.backdrop_choice, 1)
+        orbit_row = QHBoxLayout()
+        self.invert_orbit_x_checkbox = QCheckBox("Invert orbit X")
+        self.invert_orbit_y_checkbox = QCheckBox("Invert orbit Y")
+        self.invert_orbit_x_checkbox.setToolTip(
+            "Reverse horizontal orbit. With this enabled, dragging left or right rotates the camera around the model in the opposite direction."
+        )
+        self.invert_orbit_y_checkbox.setToolTip(
+            "Reverse vertical orbit. With this enabled, dragging up or down tilts the camera around the model in the opposite direction."
+        )
+        invert_x, invert_y = remembered_orbit_inversion()
+        self.invert_orbit_x_checkbox.setChecked(invert_x)
+        self.invert_orbit_y_checkbox.setChecked(invert_y)
+        self.invert_orbit_x_checkbox.toggled.connect(
+            lambda _checked: self._apply_orbit_preferences(remember=True)
+        )
+        self.invert_orbit_y_checkbox.toggled.connect(
+            lambda _checked: self._apply_orbit_preferences(remember=True)
+        )
+        orbit_row.addWidget(self.invert_orbit_x_checkbox)
+        orbit_row.addWidget(self.invert_orbit_y_checkbox)
+        orbit_row.addStretch(1)
         self.show_character.toggled.connect(lambda _checked: self._apply_scene_visibility())
         view.addWidget(self.show_character)
         view.addLayout(backdrop_row)
+        view.addLayout(orbit_row)
         side.addWidget(place_box)
         side.addWidget(view_box)
         self.size_label = QLabel("")
@@ -536,15 +560,7 @@ class EffectPlacementDialog(QDialog):
             self.host.set_alignment_state(enabled=True)
             # the backdrop the reader last chose, sent once the viewport can take it
             self._backdrop_changed()
-            # the gizmo owns the left button here, so the right one turns the view rather
-            # than panning: a viewport that cannot be turned is one the effect can only be
-            # judged from one angle in
-            bindings = getattr(self.host, "set_camera_drag_bindings", None)
-            if callable(bindings):
-                try:
-                    bindings(right="orbit")
-                except Exception:  # noqa: BLE001 - a host without the call keeps its own
-                    pass
+            self._apply_orbit_preferences()
             self._sync_host()
             self._apply_scene_visibility()
             self._point_camera(yaw=STANDING_VIEW_ANGLES[-1][0], pitch=STANDING_VIEW_ANGLES[-1][1])
@@ -651,6 +667,27 @@ class EffectPlacementDialog(QDialog):
         if callable(setter):
             try:
                 setter(colour)
+            except Exception:  # noqa: BLE001 - a host without the call keeps its own
+                pass
+
+    def _apply_orbit_preferences(self, *, remember: bool = False) -> None:
+        """Apply this dialog's shared X/Y orbit choice without changing other tuning."""
+
+        invert_x = self.invert_orbit_x_checkbox.isChecked()
+        invert_y = self.invert_orbit_y_checkbox.isChecked()
+        if remember:
+            remember_orbit_inversion(invert_x, invert_y)
+        host = self.host
+        bindings = getattr(host, "set_camera_drag_bindings", None) if host is not None else None
+        if callable(bindings):
+            try:
+                # The gizmo owns a left-button hit, so the right button also orbits; an
+                # empty-space left drag keeps the helper's ordinary orbit behavior.
+                bindings(
+                    right="orbit",
+                    invert_orbit_x=invert_x,
+                    invert_orbit_y=invert_y,
+                )
             except Exception:  # noqa: BLE001 - a host without the call keeps its own
                 pass
 

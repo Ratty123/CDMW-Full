@@ -69,6 +69,7 @@ class _Host(QWidget):
         self.transforms: list = []
         self.paused: list = []
         self.backdrops: list = []
+        self.camera_bindings: list = []
         self.gizmo_tools: list = []
         self.remembered: tuple = ()
         self.loaded = None
@@ -125,6 +126,7 @@ class _Host(QWidget):
         return True
 
     def set_camera_drag_bindings(self, **_bindings) -> bool:
+        self.camera_bindings.append(dict(_bindings))
         return True
 
 
@@ -515,6 +517,53 @@ class DialogTests(unittest.TestCase):
         dark = BACKDROPS.index("#101014")
         dialog.backdrop_choice.setCurrentIndex(dark)
         self.assertEqual(remembered_backdrop(), "#101014")
+
+    def test_orbit_inversion_is_visible_shared_and_applied_to_this_viewport(self) -> None:
+        with patch(
+            "cdmw.ui.new_item.effect_placement_dialog.remembered_orbit_inversion",
+            return_value=(True, False),
+        ):
+            dialog = self._dialog()
+
+        self.assertTrue(dialog.invert_orbit_x_checkbox.isChecked())
+        self.assertFalse(dialog.invert_orbit_y_checkbox.isChecked())
+        dialog._host_state("ready", "")
+        self.assertEqual(
+            dialog.host.camera_bindings[-1],
+            {"right": "orbit", "invert_orbit_x": True, "invert_orbit_y": False},
+        )
+
+        with patch("cdmw.ui.new_item.effect_placement_dialog.remember_orbit_inversion") as remember:
+            dialog.invert_orbit_y_checkbox.setChecked(True)
+            remember.assert_called_once_with(True, True)
+        self.assertTrue(dialog.host.camera_bindings[-1]["invert_orbit_y"])
+        dialog._closed = True
+
+    def test_orbit_inversion_uses_the_shared_preview_setting_keys(self) -> None:
+        from cdmw.ui.new_item.effect_placement_dialog_support import (
+            remember_orbit_inversion,
+            remembered_orbit_inversion,
+        )
+
+        class Settings:
+            values = {
+                "preview/invert_orbit_x": "true",
+                "preview/invert_orbit_y": 0,
+            }
+
+            def __init__(self, *_args) -> None:
+                pass
+
+            def value(self, key, default=False):
+                return self.values.get(key, default)
+
+            def setValue(self, key, value) -> None:
+                self.values[key] = value
+
+        with patch("PySide6.QtCore.QSettings", Settings):
+            self.assertEqual(remembered_orbit_inversion(), (True, False))
+            remember_orbit_inversion(False, True)
+            self.assertEqual(remembered_orbit_inversion(), (False, True))
 
     def test_the_panel_is_grouped_and_the_legend_folds_away(self) -> None:
         """Fourteen controls, five legend rows and four labels in one column read as a

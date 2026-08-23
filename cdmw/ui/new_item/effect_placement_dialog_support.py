@@ -19,7 +19,9 @@ __all__ = [
     "PlacementFrame",
     "describe_effect_preview",
     "remember_backdrop",
+    "remember_orbit_inversion",
     "remembered_backdrop",
+    "remembered_orbit_inversion",
     "swatch",
 ]
 
@@ -59,6 +61,8 @@ BACKDROPS: tuple = (BACKDROP_DARK, BACKDROP_GREY, BACKDROP_BLACK)
 #: studio's own settings use
 _SETTINGS_SCOPE = "CrimsonDesertModWorkbench"
 _BACKDROP_SETTING = "new_item/effect_placement_backdrop"
+_ORBIT_X_SETTING = "preview/invert_orbit_x"
+_ORBIT_Y_SETTING = "preview/invert_orbit_y"
 
 
 def remembered_backdrop() -> str:
@@ -76,6 +80,41 @@ def remember_backdrop(colour: str) -> None:
 
     try:
         QSettings(_SETTINGS_SCOPE, _SETTINGS_SCOPE).setValue(_BACKDROP_SETTING, str(colour))
+    except Exception:  # noqa: BLE001 - not remembering is not worth an error
+        pass
+
+
+def _settings_bool(settings: object, key: str) -> bool:
+    value = settings.value(key, False)  # type: ignore[attr-defined]
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().casefold() in {"1", "true", "yes", "on"}
+
+
+def remembered_orbit_inversion() -> Tuple[bool, bool]:
+    """The shared resident-preview orbit preferences, horizontal then vertical."""
+
+    from PySide6.QtCore import QSettings
+
+    try:
+        settings = QSettings(_SETTINGS_SCOPE, _SETTINGS_SCOPE)
+        return (
+            _settings_bool(settings, _ORBIT_X_SETTING),
+            _settings_bool(settings, _ORBIT_Y_SETTING),
+        )
+    except Exception:  # noqa: BLE001 - a session without settings keeps normal orbit
+        return False, False
+
+
+def remember_orbit_inversion(invert_x: bool, invert_y: bool) -> None:
+    """Share this dialog's choice with the other resident preview surfaces."""
+
+    from PySide6.QtCore import QSettings
+
+    try:
+        settings = QSettings(_SETTINGS_SCOPE, _SETTINGS_SCOPE)
+        settings.setValue(_ORBIT_X_SETTING, bool(invert_x))
+        settings.setValue(_ORBIT_Y_SETTING, bool(invert_y))
     except Exception:  # noqa: BLE001 - not remembering is not worth an error
         pass
 

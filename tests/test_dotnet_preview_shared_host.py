@@ -1845,6 +1845,27 @@ def test_preview_host_changes_viewport_display_mode_through_resident_presentatio
     controller.shutdown()
 
 
+def test_preview_host_changes_only_the_requested_camera_drag_preferences(tmp_path: Path) -> None:
+    controller, _process, package = _start_controller(tmp_path)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    assert host.load_package(package)
+
+    assert host.set_camera_drag_bindings(
+        right="orbit",
+        invert_orbit_x=True,
+        invert_orbit_y=False,
+    )
+
+    event, payload = controller._resident_state["presentation"]  # noqa: SLF001
+    assert event == "presentation_state_update"
+    assert payload["display"]["quality"] == {
+        "camera_right_drag": "orbit",
+        "invert_orbit_x": True,
+        "invert_orbit_y": False,
+    }
+    controller.shutdown()
+
+
 def test_preview_host_turns_the_effect_particle_layer_off_and_on(tmp_path: Path) -> None:
     """The effect placement dialog draws an approximate reading of the effect over the
     item; an effect's fire is a wall of additive sprites, so the dialog can take it off to

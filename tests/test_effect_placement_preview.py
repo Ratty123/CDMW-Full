@@ -264,6 +264,24 @@ class TextureNamingTests(unittest.TestCase):
         self.assertTrue(mesh_names_textures(mesh(texture="", preview_texture_dds_path="axe.dds")))
         self.assertFalse(mesh_names_textures(mesh(texture="   ", preview_texture_path="  ")), "blank is not a name")
 
+    def test_the_character_frame_rotation_keeps_imported_texture_bindings(self) -> None:
+        """The placement scene turns the weapon into the character's hand frame before
+        packaging it. Those bindings are runtime SubMesh attributes, so a dataclass-only
+        copy used to discard them and leave a neutral weapon in the effect viewport."""
+
+        from cdmw.services.effect_character_reference import rotate_mesh
+
+        blade = _blade()
+        blade.submeshes[0].preview_texture_path = "C:/imports/axe_baseColor.png"
+        blade.submeshes[0].preview_texture_dds_path = "C:/imports/axe_baseColor.dds"
+        turned = rotate_mesh(
+            blade,
+            (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0),
+        )
+
+        self.assertEqual(turned.submeshes[0].preview_texture_path, "C:/imports/axe_baseColor.png")
+        self.assertEqual(turned.submeshes[0].preview_texture_dds_path, "C:/imports/axe_baseColor.dds")
+
 
 class ViewerParticleLayerContractTests(unittest.TestCase):
     """The resident .NET viewer's particle layer, as source: it reads what the package writes."""

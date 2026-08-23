@@ -158,17 +158,23 @@ def rotate_mesh(mesh: ParsedMesh, rotation: Sequence[float]) -> ParsedMesh:
 
     from copy import replace as _replace
 
+    from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
+
     rotation = tuple(float(v) for v in rotation)
     if len(rotation) != 9:
         raise ValueError("a rotation is nine numbers")
-    submeshes = [
-        _replace(
-            submesh,
-            vertices=[rotate_point(vertex, rotation) for vertex in submesh.vertices],
-            normals=[rotate_point(normal, rotation) for normal in (submesh.normals or ())],
+    submeshes = []
+    for source in mesh.submeshes:
+        turned = _replace(
+            source,
+            vertices=[rotate_point(vertex, rotation) for vertex in source.vertices],
+            normals=[rotate_point(normal, rotation) for normal in (source.normals or ())],
         )
-        for submesh in mesh.submeshes
-    ]
+        # Preview texture paths and material parameters are runtime attributes on the
+        # canonical SubMesh. dataclasses.replace copies declared fields only, so the
+        # character-frame turn used to strip the imported weapon's texture bindings.
+        copy_extra_submesh_attrs(source, turned)
+        submeshes.append(turned)
     every = [vertex for submesh in submeshes for vertex in submesh.vertices]
     low = tuple(min(vertex[axis] for vertex in every) for axis in range(3)) if every else mesh.bbox_min
     high = tuple(max(vertex[axis] for vertex in every) for axis in range(3)) if every else mesh.bbox_max

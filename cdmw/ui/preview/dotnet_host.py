@@ -783,8 +783,15 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
         self._presentation_state["display"] = display
         return self._remember_presentation_state({"display": {"viewport_background_color": str(color or "")}})
 
-    def set_camera_drag_bindings(self, *, right: str = "", middle: str = "") -> bool:
-        """What a right- or middle-button drag does in this viewport: "pan" or "orbit".
+    def set_camera_drag_bindings(
+        self,
+        *,
+        right: str = "",
+        middle: str = "",
+        invert_orbit_x: Optional[bool] = None,
+        invert_orbit_y: Optional[bool] = None,
+    ) -> bool:
+        """Camera drag bindings and optional orbit direction for this viewport.
 
         A partial quality payload: the helper resolves every key it is not sent against
         the settings it is already running, so this leaves the rest of the presentation
@@ -797,6 +804,10 @@ class DotNetPreviewHostFrame(DotNetPreviewHostProtocolMixin, QFrame):
             wanted["camera_right_drag"] = normalize_camera_drag(right, DEFAULT_RIGHT_DRAG)
         if middle:
             wanted["camera_middle_drag"] = normalize_camera_drag(middle, DEFAULT_MIDDLE_DRAG)
+        if invert_orbit_x is not None:
+            wanted["invert_orbit_x"] = bool(invert_orbit_x)
+        if invert_orbit_y is not None:
+            wanted["invert_orbit_y"] = bool(invert_orbit_y)
         if not wanted:
             return False
         display = dict(self._presentation_state.get("display", {}))
