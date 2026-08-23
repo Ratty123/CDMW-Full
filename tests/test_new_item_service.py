@@ -212,7 +212,12 @@ def synthetic_files() -> dict[str, bytes]:
         "effect/binary__/releasebin/fx_test_ice.pae": b"PAE ice",
         "ui/xml/texture/cd_item_icon.xml": (b"\xef\xbb\xbf" + b'<Texture Name="itemicon_empty"\tFilename="UI/texture/icon/ItemIcon_Heavy_Silver_Pack.dds" Type="Image" GetRect="0,0,256,256"/>\r\n'
                                             + b'<Texture Name="ItemIcon_Prefab_cd_phm_01_sword_0109"\tFilename="UI/texture/icon/ItemIcon_Prefab_cd_phm_01_sword_0109.dds" Type="Image" GetRect="0,0,256,256"/>\r\n\r\n'),
-        f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0168_r_in_index01.prefab": build_prefab(sheath_pac),
+        f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0168_r_in_index01.prefab": build_component_prefab(
+            component="SkinnedMeshComponent",
+            member_kind="pointer",
+            value=sheath_pac,
+            pointee_type="ResourceReferencePath_SkinnedMesh",
+        ),
         f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0016_r.prefab": build_prefab(other_pac),
         f"character/bin__/prefab/{FOLDER}/cd_phm_01_sword_0016_l.prefab": build_prefab(other_pac),
         PAC: b"PAC template mesh", sheath_pac: b"PAC sheath", other_pac: b"PAC other",
@@ -660,6 +665,45 @@ class PlanTests(_PackageCase):
         imported = self.service.plan(self._spec(model_source=ModelSource.IMPORTED, effect="fx_test_ice.level.effect"), self.snapshot, model=ModelFiles(pac_data=b"PAC imported mesh"))
         doc = decode_prefab_binary({r.path: r for r in imported.additions}[f"character/bin__/prefab/{FOLDER}/{new_stem}_r.prefab"].payload_data)
         self.assertEqual([r.text for r in doc.resource_strings()], [f"character/model/{MODEL_FOLDER}/{new_stem}.pac", "fx_test_ice.level.effect"])
+
+    def test_effect_target_preflight_fails_closed_before_planning(self) -> None:
+        spec = self._spec(model_source=ModelSource.TEMPLATE, effect="fx_test_fire.level.effect")
+        compatible = self.service.inspect_effect_targets(spec, self.snapshot)
+        self.assertTrue(compatible.supported)
+        self.assertEqual(len(compatible.target_prefabs), 2)
+
+        broken_path = f"character/bin__/prefab/{FOLDER}/{STEM}_l.prefab"
+        self.snapshot._payloads[broken_path] = b"not a prefab"
+        refused = self.service.inspect_effect_targets(spec, self.snapshot)
+        self.assertFalse(refused.supported)
+        self.assertIn(broken_path, refused.errors[0])
+        with self.assertRaisesRegex(NewItemPlanError, "cannot carry the visual effect"):
+            self.service.plan(spec, self.snapshot)
+
+    def test_an_effect_is_grafted_into_an_owned_sheathed_prefab(self) -> None:
+        spec = self._spec(
+            model_source=ModelSource.IMPORTED,
+            sheathed_model=SheathedModel.OWN_MODEL,
+            effect="fx_test_fire.level.effect",
+        )
+        compatibility = self.service.inspect_effect_targets(spec, self.snapshot)
+        self.assertTrue(compatibility.supported, compatibility.errors)
+        self.assertEqual(len(compatibility.target_prefabs), 3)
+        plan = self.service.plan(spec, self.snapshot, model=ModelFiles(pac_data=b"PAC imported mesh"))
+        new_stem = str(plan.spec.stem)
+        additions = {request.path: request.payload_data for request in plan.additions}
+        sheathed = decode_prefab_binary(
+            additions[f"character/bin__/prefab/{FOLDER}/{new_stem}_r_in.prefab"]
+        )
+        self.assertEqual(
+            [item.component_type for item in sheathed.objects],
+            ["SkinnedMeshComponent", "EffectComponent"],
+        )
+        self.assertEqual(
+            [item.text for item in sheathed.resource_strings()],
+            [f"character/model/{MODEL_FOLDER}/{new_stem}.pac", "fx_test_fire.level.effect"],
+        )
+        self.assertEqual(len(plan.manifest["effect"]["prefabs"]), 3)
 
     def test_a_look_clones_the_effect_and_its_emitters_under_the_items_stems(self) -> None:
         from cdmw.core.effect_binary import decode_effect_binary

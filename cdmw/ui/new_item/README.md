@@ -30,11 +30,13 @@ the tab refreshes its summary from `plan_invalidated` alone, never from the tabl
 own signals (Qt emits one per cell a refill writes), and the tables' signals are
 blocked while they are filled. `build_context` is memoized per template on the
 read-only snapshot, so a validation is set lookups, not a rebuild of the sets. The
-Perks & Effects step keeps gameplay perks separate from visual-only
-weapon effects. Four perks is the evidence-backed default cap, five to eight requires
-an explicit experimental opt-in, and raw effect browsing, placement numbers, colour
-and particle factors stay under Advanced. Reset actions clear the corresponding draft
-authority, and the rail summarizes effective changes rather than UI mode.
+Perks & Effects keeps gameplay perks separate from visual-only effects. Four perks is
+the evidence-backed default cap and five to eight requires an explicit experimental
+opt-in. Effect support is structural rather than equipment-name based: the service
+dry-runs the real component graft against every prefab the item will own, accepts only
+an all-target success, and never edits a shared borrowed prefab. Reset actions clear
+the corresponding draft authority, and the workflow summary reports effective changes
+rather than UI mode.
 
 The Model and icon step imports a model file itself: `model_import.py` reads it
 the way the Model Library does (the scene import, the source's own textures),
